@@ -175,3 +175,28 @@ describe('Story-0.3 — polymorphic pendingToolInput (string AND object variants
     expect(ok({ ...base })).toBe(true)
   })
 })
+
+describe('Story-0.5 — live-capture reconciliation (dual timestamp precision + customTitle)', () => {
+  // Grounded in the live c9watch 0.8.1 capture (2026-06-19): `modified`/`timestamp`
+  // occur in BOTH nanosecond (9-digit) AND millisecond (3-digit) ISO+tz precisions,
+  // and an undocumented `customTitle` field rides through `.passthrough()`.
+  // [Source: c9watch-0.8.1-contract.md §5/§7; live `c9watch list --pretty` 2026-06-19]
+  it('accepts MILLISECOND-precision modified (3 fractional digits, +00:00 offset)', () => {
+    expect(ok({ ...base, modified: '2026-06-18T23:55:01.100+00:00' })).toBe(true)
+  })
+  it('accepts NANOSECOND-precision modified (9 fractional digits, +00:00 offset)', () => {
+    expect(ok({ ...base, modified: '2026-06-19T02:53:59.581376035+00:00' })).toBe(true)
+  })
+  it('coerces a ms-precision modified to an epoch-millis number (parse-once transform)', () => {
+    const r = SessionSchema.safeParse({ ...base, modified: '2026-06-18T23:55:01.100+00:00' })
+    expect(r.success).toBe(true)
+    expect(typeof (r.success ? r.data.modified : undefined)).toBe('number')
+  })
+  it('absorbs the undocumented customTitle via passthrough (no schema declaration)', () => {
+    // customTitle is the live drift this spike caught; it must validate without a
+    // schema change AND survive onto the parsed value (fail-OPEN on additions).
+    const r = SessionSchema.safeParse({ ...base, customTitle: 'epic0' })
+    expect(r.success).toBe(true)
+    expect(r.success ? (r.data as Record<string, unknown>).customTitle : undefined).toBe('epic0')
+  })
+})

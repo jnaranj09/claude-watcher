@@ -81,8 +81,17 @@ export const SessionSchema = z
     // [Source: live `c9watch list` capture 2026-06-18; src/shared/schemas/session.ts
     //  (was line 73); 0-2 Guardrail #3 (.passthrough only covers unknown keys)]
     pendingToolInput: z.union([z.string(), z.record(z.string(), z.unknown())]).optional()
+    // NOTE (Story 0.5 reconciliation): live `c9watch 0.8.1` also emits an
+    // UNDOCUMENTED `customTitle: string` Session field (observed `"epic0"`). It is
+    // DELIBERATELY NOT declared here — it is absorbed by `.passthrough()` below
+    // (proven: real `list` output parses cleanly through ListEnvelopeSchema with
+    // `customTitle` present). Adding an explicit optional field for every new
+    // c9watch key defeats the `.passthrough()` design; declare it ONLY if Epic-1
+    // needs to READ it. This is the canonical fail-open-on-additions case.
+    // [Source: c9watch-0.8.1-contract.md §7; live `c9watch list` 2026-06-19;
+    //  .claude/rules/zod-boundaries.md (c9watch ADDITIONS pass)]
   })
-  .passthrough() // c9watch additions pass through; only known-key malformations fail
+  .passthrough() // c9watch additions pass through (e.g. customTitle); only known-key malformations fail
 
 /**
  * The session type — INFERRED from the schema (one source of truth, never a

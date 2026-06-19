@@ -10,8 +10,12 @@
 // Faithful to reality:
 //   - `list` is a WRAPPER object `{ diagnostics, sessions: [...] }` (NOT a bare array).
 //   - `watch` lines are NDJSON: one `{ event, session, sessionId, timestamp }` per line.
-//   - timestamps are ISO-8601 with a tz OFFSET (the schema fails closed on tz-less).
+//   - timestamps are ISO-8601 with a tz OFFSET (the schema fails closed on tz-less),
+//     in BOTH the nanosecond (9-digit) AND millisecond (3-digit) fractional-second
+//     precisions c9watch 0.8.1 emits live (Story 0.5 added the ms-precision coverage).
 //   - `pendingToolInput` is POLYMORPHIC: an OBJECT for `Agent`, a STRING for `Question`.
+//   - one session carries the undocumented `customTitle` field (Story 0.5 live
+//     finding) — it has NO schema declaration and survives via `.passthrough()`.
 //   - statuses are MIXED across sessions (Working / WaitingForInput / NeedsAttention /
 //     NeedsPermission) so column/attention logic (Epic 1/2) has real material.
 //   - exactly ONE malformed line, interleaved BETWEEN two good lines (fail-closed test).
@@ -72,11 +76,16 @@ export const fakeListSnapshot = {
     },
     {
       // No pending tool — a session actively Working (compact-ish shape).
+      // MILLISECOND-precision `modified` (Story 0.5: live c9watch emits BOTH ns AND
+      // ms ISO+tz timestamps; this is the ms variant — 3 fractional digits).
+      // `customTitle` is the undocumented live field — NO schema declaration; it
+      // rides through `.passthrough()` (Story 0.5 reconciliation finding).
+      customTitle: 'epic0',
       firstPrompt: 'Add a dark-mode toggle to the settings page.',
       id: '22222222-2222-4222-8222-222222222222',
       latestMessage: 'Editing settings.tsx...',
       messageCount: 18,
-      modified: '2026-06-18T23:55:01.100000000+00:00',
+      modified: '2026-06-18T23:55:01.100+00:00',
       pid: 847333,
       projectPath: '/home/u/projects/dashboard',
       sessionName: 'dashboard',
@@ -118,6 +127,8 @@ export const fakeListSnapshot = {
  */
 export const fakeWatchLines: readonly string[] = [
   // [0] good — the dashboard session crossed into NeedsAttention.
+  // MILLISECOND-precision `modified` + `timestamp` (Story 0.5: the ms variant of the
+  // dual-precision ISO+tz timestamps c9watch 0.8.1 emits live — both must validate).
   JSON.stringify({
     event: 'changed',
     session: {
@@ -128,10 +139,10 @@ export const fakeWatchLines: readonly string[] = [
       sessionName: 'dashboard',
       latestMessage: 'Finished the dark-mode toggle — review?',
       messageCount: 21,
-      modified: '2026-06-18T23:57:10.000000000+00:00'
+      modified: '2026-06-18T23:57:10.134+00:00'
     },
     sessionId: '22222222-2222-4222-8222-222222222222',
-    timestamp: '2026-06-18T23:57:10.000000000+00:00'
+    timestamp: '2026-06-18T23:57:10.134+00:00'
   }),
   // [1] BAD — corrupt/truncated NDJSON line. NOT valid JSON → dropped + logged.
   '{"event":"changed","session":{"id":"44444444-4444-4444', // truncated garbage
