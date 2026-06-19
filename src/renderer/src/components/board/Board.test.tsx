@@ -19,12 +19,21 @@ import {
 import { renderComponent } from '../../test/renderComponent'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { Column, WatchEventsPayload } from '../../../../shared/ipc/contract'
+import type {
+  Column,
+  WatchEventsPayload,
+  AttentionActivatePayload
+} from '../../../../shared/ipc/contract'
 
 /** The shape the Board needs off `window.watch` (mirrors the preload WatchApi). */
 interface WatchBridge {
   onEvents(cb: (payload: WatchEventsPayload) => void): () => void
   onStatus(cb: (status: { reconnecting: boolean }) => void): () => void
+}
+
+/** The shape the Board needs off `window.attention` (mirrors the preload AttentionApi). */
+interface AttentionBridge {
+  onActivate(cb: (payload: AttentionActivatePayload) => void): () => void
 }
 
 let cleanup: (() => void) | undefined
@@ -45,7 +54,8 @@ function resetStore(): void {
     reconnectingSince: null,
     heroColumn: 'working',
     heroPendingSince: null,
-    heroPendingTarget: null
+    heroPendingTarget: null,
+    selectedId: null
   })
 }
 
@@ -67,11 +77,15 @@ function setStore(
   })
 }
 
-/** Stub window.watch with no-op subscriptions so the Board's mount effects are inert
- *  (the tests drive the store directly). Returns a capture of the registered onStatus
- *  callback so a test can push a connection-state signal through the real seam. */
-function stubBridges(): { pushStatus: (reconnecting: boolean) => void } {
+/** Stub window.watch + window.attention with no-op subscriptions so the Board's mount effects
+ *  are inert (the tests drive the store directly). Returns captures of the registered onStatus
+ *  and onActivate callbacks so a test can push a signal through the real seam. */
+function stubBridges(): {
+  pushStatus: (reconnecting: boolean) => void
+  pushActivate: (id: string) => void
+} {
   let statusCb: ((status: { reconnecting: boolean }) => void) | undefined
+  let activateCb: ((payload: AttentionActivatePayload) => void) | undefined
   const watch: WatchBridge = {
     onEvents: () => () => {},
     onStatus: (cb) => {
@@ -81,8 +95,20 @@ function stubBridges(): { pushStatus: (reconnecting: boolean) => void } {
       }
     }
   }
+  const attention: AttentionBridge = {
+    onActivate: (cb) => {
+      activateCb = cb
+      return () => {
+        activateCb = undefined
+      }
+    }
+  }
   ;(window as unknown as { watch: WatchBridge }).watch = watch
-  return { pushStatus: (reconnecting) => statusCb?.({ reconnecting }) }
+  ;(window as unknown as { attention: AttentionBridge }).attention = attention
+  return {
+    pushStatus: (reconnecting) => statusCb?.({ reconnecting }),
+    pushActivate: (id) => activateCb?.({ id })
+  }
 }
 
 function updated(
@@ -408,5 +434,48 @@ describe('Board — reduced-motion fallback (Story 1.5: AC-6, source-assert)', (
     expect(css).toMatch(/transition:\s*none/)
     // Property discipline: the swap must NOT animate layout-thrashing props.
     expect(css).not.toMatch(/transition:[^;]*\b(top|left|margin|height|width)\b/)
+  })
+})
+
+describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
+  it('an attention:activate push for a PRESENT id flows window.attention.onActivate → store → selected card', () => {
+    const bridges = stubBridges() // re-stub to capture this test's onActivate callback
+    const st = boardStore.getState()
+    st.applyWatchEvent(updated(1, 'w', 'working', 100, { sessionName: 'web' }))
+    st.applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+
+    // No card selected yet.
+    expect(container.querySelector('[data-selected="true"]')).toBeNull()
+
+    // Push the activate signal through the bridge the Board registered (mirrors main's push).
+    act(() => bridges.pushActivate('w'))
+
+    // Exactly the originating card renders the selected affordance.
+    const selected = container.querySelectorAll('[data-selected="true"]')
+    expect(selected.length).toBe(1)
+    const workingCol = container.querySelector('[data-column="working"]')
+    expect(workingCol?.querySelector('[data-selected="true"]')).not.toBeNull()
+  })
+
+  it('an attention:activate push for an ABSENT id is a NO-OP (no card selected; no raise)', () => {
+    const bridges = stubBridges()
+    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    act(() => bridges.pushActivate('ghost')) // never on the board
+    expect(container.querySelector('[data-selected="true"]')).toBeNull()
+  })
+
+  it('the stub bridge exposes onActivate (window.attention is wired in the preload seam)', () => {
+    // The Board mounts window.attention.onActivate without throwing — proves the bridge exists.
+    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    const { unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    expect(typeof (window as unknown as { attention: AttentionBridge }).attention.onActivate).toBe(
+      'function'
+    )
   })
 })

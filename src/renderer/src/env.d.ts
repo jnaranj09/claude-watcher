@@ -7,7 +7,13 @@
 // two declarations co-exist as long as the member types match. The types are sourced
 // from the shared contract (which the renderer may import), not from src/preload
 // (which the sandboxed renderer must never reach into).
-import type { WatchEventsPayload, WatchStatus } from '../../shared/ipc/contract'
+import type {
+  WatchEventsPayload,
+  WatchStatus,
+  AttentionActivatePayload,
+  Settings,
+  SettingsPatch
+} from '../../shared/ipc/contract'
 
 declare global {
   interface Window {
@@ -16,6 +22,18 @@ declare global {
       onEvents(cb: (payload: WatchEventsPayload) => void): () => void
       // Story 1.4 fix — the watch CONNECTION-state subscription (reconnect banner driver).
       onStatus(cb: (status: WatchStatus) => void): () => void
+    }
+    // Story 2.2 (FR-9) — mirrors src/preload/index.ts `attentionApi`. The in-app
+    // jump-to-card subscription (the operator activated a notification). View-state only.
+    attention: {
+      onActivate(cb: (payload: AttentionActivatePayload) => void): () => void
+    }
+    // Story 2.4 — mirrors src/preload/index.ts `settingsApi`. The renderer reads/writes
+    // settings ONLY through this typed bridge (never electron-store directly — F4). MAIN
+    // owns the persisted authority; get/set are typed invokes over CH.settingsGet/Set.
+    settings: {
+      get(): Promise<Settings>
+      set(patch: SettingsPatch): Promise<Settings>
     }
   }
 }

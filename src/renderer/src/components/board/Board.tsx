@@ -24,9 +24,11 @@ import {
   selectTotalCount,
   selectColumnCount,
   selectHeroColumn,
+  selectSelectedId,
   type HeroColumn
 } from '../../stores/boardStore'
 import type { Column as BoardColumn } from '../../../../shared/ipc/contract'
+import { useAttentionSound } from '../../audio/useAttentionSound'
 import styles from './Board.module.css'
 
 /** How often the reconnect-debounce timer re-evaluates whether the banner should show,
@@ -82,12 +84,29 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
   // Story 1.5 — the COMMITTED (debounced) hero, a primitive narrow selector (no useShallow).
   // The Board re-renders only when the hero column actually commits to a new value.
   const hero = useBoard(selectHeroColumn)
+  // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
+  const selectedId = useBoard(selectSelectedId)
 
   // Mount the watch subscription ONCE; feed validated deltas into the store. The
   // store applies idempotently (stale-epoch discard) so a reconnect never drops a
   // transition. Returns the unsubscribe on unmount.
   useEffect(() => {
     const off = window.watch.onEvents((payload) => boardStore.getState().applyWatchEvent(payload))
+    return off
+  }, [])
+
+  // Story 2.4 — the attention SOUND side effect: a SEPARATE subscription to the SAME
+  // CH.watchEvents stream that plays ONE sound per `attention.raised` when sound is enabled
+  // (mute = the sole governor; no debounce here). The board store still ignores attention.raised
+  // for session truth — this is purely an alert side effect (NO self-raise; frozen union intact).
+  useAttentionSound()
+
+  // Story 2.2 (FR-9) — subscribe to the in-app jump-to-card signal (the operator activated a
+  // notification). Set the board selection to the originating card; the store no-ops if that
+  // card is not present. INFORMATIONAL ONLY: this locates-and-highlights the card — it does NOT
+  // raise/focus the window and sends no input to the agent. Returns the unsubscribe on unmount.
+  useEffect(() => {
+    const off = window.attention.onActivate(({ id }) => boardStore.getState().setSelected(id))
     return off
   }, [])
 
@@ -167,6 +186,7 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
               key={column}
               column={column}
               isHero={column === hero}
+              selectedId={selectedId}
               {...(onActivateCard ? { onActivateCard } : {})}
             />
           ))}

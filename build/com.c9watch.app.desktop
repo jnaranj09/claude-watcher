@@ -1,0 +1,22 @@
+[Desktop Entry]
+# Story 2.3 AC-6 — canonical .desktop identity for tray/notification window association (AR-10).
+#
+# This is a COMMITTED REFERENCE copy of the entry electron-builder 26 GENERATES at package time
+# from electron-builder.yml + package.json (it does NOT install this raw file — it computes its
+# own from `productName`, `linux.category`, `linux.desktop.entry`, package.json `desktopName`, and
+# `linux.syncDesktopName`). It is kept in-tree to DOCUMENT the canonical identity and to make the
+# values reviewable. The single canonical appId is `com.c9watch.app`, aligned across:
+#   - electron-builder.yml `appId: com.c9watch.app`
+#   - src/main/index.ts `setAppUserModelId('com.c9watch.app')`
+#   - this file's `StartupWMClass` (and filename) `com.c9watch.app`
+# StartupWMClass MUST equal Electron's app_id (derived from `desktopName`) so KDE/Wayland can
+# associate the running cockpit window with this entry (tray + notification identity).
+# NO MimeType / no global-hotkey (KGlobalAccel) binding — that part of AR-10 is cut.
+Name=c9watch-webapp
+Exec=c9watch-webapp %U
+Terminal=false
+Type=Application
+Icon=c9watch-webapp
+StartupWMClass=com.c9watch.app
+Categories=Utility;
+Comment=c9watch cockpit — Electron + React + TypeScript

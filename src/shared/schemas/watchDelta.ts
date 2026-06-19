@@ -53,3 +53,17 @@ export const EnrichedSessionUpdatedSchema = z.object({
 export const WatchStatusSchema = z.object({
   reconnecting: z.boolean()
 })
+
+/**
+ * Story 2.2 (FR-9) — validate-at-source for the `attention:activate` push.
+ *
+ * The notification's activation handler emits `{ id }` toward the renderer; main asserts
+ * the shape BEFORE `wc.send` so a malformed/blank id never crosses the seam (renderer-facing
+ * delta = validate at source). The `id` is the stable UUID identity key (blank fails closed,
+ * mirroring SessionSchema's `id`). It is an opaque identifier, never session CONTENT — so on
+ * a parse miss the caller logs PATH + CODE only (never the value), per zod-boundaries.md.
+ * [Source: story 2.2 Task 1.2; .claude/rules/zod-boundaries.md (main→renderer = validate at source)]
+ */
+export const AttentionActivateSchema = z.object({
+  id: z.string().min(1)
+})

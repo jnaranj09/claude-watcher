@@ -40,6 +40,11 @@ export interface SessionCardProps {
   cost?: string
   /** Activation callback (click / Enter). Wired by Story 1.4. */
   onActivate?: () => void
+  /** Story 2.2 (FR-9) — true when this card is the SELECTED card (the operator activated a
+   *  notification for this session and the window is up). Renders a locate-and-highlight
+   *  affordance via the shipped lavender focus-ring / raised-surface tokens — NOT a new color,
+   *  NOT a window raise. Default false. */
+  selected?: boolean
 }
 
 const VARIANT_CLASS: Record<SessionCardVariant, string> = {
@@ -64,11 +69,15 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     pid,
     tasks,
     cost,
-    onActivate
+    onActivate,
+    selected = false
   } = props
 
   // The accent bar only renders on the hero variant (calm/watch-only are recessed).
   const accentClass = variant === 'hero' ? ACCENT_CLASS[accent] : ''
+  // Story 2.2 (FR-9) — the selected (locate-and-highlight) affordance reuses the shipped
+  // lavender focus-ring + raised-surface tokens (no new highlight color). Never a window raise.
+  const selectedClass = selected ? (styles.selected ?? '') : ''
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -79,9 +88,10 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
 
   return (
     <div
-      className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass}`}
+      className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${selectedClass}`}
       data-variant={variant}
       data-accent={accent}
+      {...(selected ? { 'data-selected': true } : {})}
       role="button"
       tabIndex={0}
       onClick={() => onActivate?.()}

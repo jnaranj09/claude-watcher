@@ -18,6 +18,7 @@ import {
   selectColdLoaded,
   selectReconnecting,
   selectHeroColumn,
+  selectSelectedId,
   RECONNECT_THRESHOLD_MS,
   HERO_SWAP_DEBOUNCE_MS,
   type BoardState
@@ -474,5 +475,66 @@ describe('boardStore — HERO-SWAP debounce on the 0↔1 Needs-you boundary (AC-
     // Only feed-driven inputs (applyWatchEvent) + the tick can move the hero.
     expect(actionNames).toContain('applyWatchEvent')
     expect(actionNames).toContain('tickHero')
+  })
+})
+
+describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () => {
+  it('selectedId defaults to null; selectSelectedId is a narrow primitive selector', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectSelectedId(store.getState())).toBeNull()
+    // Narrow primitive (a string|null, safe without useShallow).
+    expect(typeof selectSelectedId).toBe('function')
+  })
+
+  it('setSelected(presentId) SETS the selection (non-vacuous: a present card does select)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().setSelected('a')
+    expect(selectSelectedId(store.getState())).toBe('a')
+  })
+
+  it('setSelected(absentId) is a NO-OP (the card is not on the board)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    // 'ghost' was never on the board → selecting it does nothing.
+    store.getState().setSelected('ghost')
+    expect(selectSelectedId(store.getState())).toBeNull()
+    // Prove non-vacuous: the present card DOES select (contrast with the no-op above).
+    store.getState().setSelected('a')
+    expect(selectSelectedId(store.getState())).toBe('a')
+  })
+
+  it('setSelected(null) clears the selection', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().setSelected('a')
+    expect(selectSelectedId(store.getState())).toBe('a')
+    store.getState().setSelected(null)
+    expect(selectSelectedId(store.getState())).toBeNull()
+  })
+
+  it('removing the SELECTED session clears selectedId (the highlighted card vanished)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200))
+    store.getState().setSelected('a')
+    expect(selectSelectedId(store.getState())).toBe('a')
+    // Removing a DIFFERENT session leaves the selection intact.
+    store.getState().applyWatchEvent(removed(2, 'b'))
+    expect(selectSelectedId(store.getState())).toBe('a')
+    // Removing the SELECTED session clears it.
+    store.getState().applyWatchEvent(removed(3, 'a'))
+    expect(selectSelectedId(store.getState())).toBeNull()
+  })
+
+  it('selection is VIEW-STATE only — no raise/navigate/input surface on the store', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    const state = store.getState()
+    const actionNames = Object.keys(state).filter(
+      (k) => typeof (state as unknown as Record<string, unknown>)[k] === 'function'
+    )
+    // The ONLY new selection mutator is setSelected — no raise/focus/navigate action.
+    expect(actionNames).toContain('setSelected')
+    expect(actionNames.some((k) => /raise|focus|navigate|summon|window/i.test(k))).toBe(false)
   })
 })

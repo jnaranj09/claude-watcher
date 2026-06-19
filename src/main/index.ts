@@ -10,7 +10,17 @@ import icon from '../../resources/icon.png?asset'
 import { CH } from '../shared/ipc/contract'
 import type { PtyResizeRequest, SmokeReport } from '../shared/ipc/contract'
 // Story 1.4 fix — validate-at-source for the watch:status connection-state push.
-import { WatchStatusSchema } from '../shared/schemas/watchDelta'
+// Story 2.2 — validate-at-source for the FR-9 attention:activate push.
+import { WatchStatusSchema, AttentionActivateSchema } from '../shared/schemas/watchDelta'
+// Story 2.2 — the KDE attention notifier (Electron Notification → libnotify), behind a DI
+// seam. Fires 1:1 off the tracker's attention.raised; informational only (NO self-raise).
+import { createAttentionNotifier } from './kde/notifications'
+// Story 2.3 — the tray + PAINTED-badge controller (behind a DI seam, mirrors the notifier) +
+// the pure badge-count fn. The count = needs-you + idle, derived from the SAME reducer map +
+// columnForStatus the board uses (single source of truth). Tray is badge + menu only (NO
+// self-raise); never-crash if the tray/display is unavailable.
+import { createTrayController, type TrayController } from './kde/tray'
+import { computeBadgeCount } from './kde/badge'
 // Story 1.4 — validate-at-source enrichment of the session.updated delta (extracted
 // to its own module so it stays unit-testable without pulling electron/node-pty).
 import { enrichDelta } from './c9watch/enrichDelta'
@@ -22,6 +32,13 @@ import { createFeed, type Feed } from './c9watch/feed'
 // reduced map, emits attention.raised on a needs-you ENTRY edge (cold-start
 // suppressed / reconnect re-raised), stamps time-entered-column, debounces flaps.
 import { createAttentionTracker } from './c9watch/attention'
+// Story 2.4 — the app-global settings store (electron-store in MAIN, behind a DI seam) +
+// its versioned-Zod payload schema. The store is constructed ONCE (settings are app-global,
+// NOT per-window like the feed/tray) and registered on the typed CH.settingsGet/Set channels.
+// The renderer reads/writes via window.settings.* — never electron-store directly (F4).
+import { createSettingsStore, type SettingsStore } from './persistence/settings'
+import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
+import { SettingsPatchSchema } from '../shared/schemas/settings'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -55,6 +72,13 @@ const ptys = new Map<Electron.WebContents, IPty>()
 // the PTY registry above — a watch reconnect must never touch PTY state.
 const feeds = new Map<Electron.WebContents, Feed>()
 
+// Story 2.3 — one tray controller per window (same lifetime as the feed/reducer/tracker/
+// notifier). It mirrors the live needs-you+idle count onto the OS tray icon (PAINTED badge,
+// NOT app.setBadgeCount). Constructed in registerWatchFeed, fed the recomputed count on every
+// delta + after the seed, destroyed in teardownWatchFeed. A tray/paint failure degrades to a
+// no-op and never touches the feed (never-crash).
+const trays = new Map<Electron.WebContents, TrayController>()
+
 // Smoke mode is a packaged node-pty exit gate (no c9watch on the box); never spin
 // up the live feed there.
 function registerWatchFeed(window: BrowserWindow): void {
@@ -72,6 +96,41 @@ function registerWatchFeed(window: BrowserWindow): void {
   // produces the entry-transition attention.raised events. Injected now() for
   // determinism (the default Date.now in production).
   const tracker = createAttentionTracker({ now: () => Date.now() })
+  // Story 2.2 — one notifier per window (same lifetime as the reducer/tracker/feed). It
+  // fires a KDE notification 1:1 off the tracker's attention.raised (no extra debounce — the
+  // tracker's per-session ~700ms emission debounce is the sole storm-suppression authority).
+  // INFORMATIONAL ONLY: activating the notification emits the FR-9 in-app jump-to-card signal
+  // (CH.attentionActivate, validated AT SOURCE) and NEVER raises/focuses the window (AR-8 cut).
+  const notifier = createAttentionNotifier({
+    onActivate: (id) => {
+      if (wc.isDestroyed()) return
+      // Validate AT SOURCE before send (renderer-facing delta; zod-boundaries.md). On a bad
+      // id, drop + log by PATH + CODE only — never the value (the id is an opaque UUID, but
+      // a blank id has no value to leak either). NO window raise anywhere on this path.
+      const r = AttentionActivateSchema.safeParse({ id })
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        console.error(
+          `[c9watch][attention] dropped attention:activate path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+        return
+      }
+      // Re-check the destroyed window per send (mirrors the other sends). CH.* const.
+      if (!wc.isDestroyed()) wc.send(CH.attentionActivate, r.data)
+    },
+    // never-log-the-parsed-value: id + code only, never a session value (Guardrail #6).
+    log: (message) => console.warn(message)
+  })
+  // Story 2.3 — one tray controller per window (same lifetime as the feed/reducer/tracker/
+  // notifier). Default DI seams = the real Electron Tray + nativeImage painter; a headless box
+  // (Tray unsupported / paint throws) degrades to a working no-op (never-crash, AC-8). It paints
+  // the live needs-you+idle count; NO click-to-summon (badge + menu only — AC-4); minimal Quit
+  // menu (basic app.quit(), NO Epic-4 Quit-guard, NO Story-2.4 sound toggle — AC-5).
+  const tray = createTrayController({
+    // never-log-the-value: a `code=` ONLY, never a session value (Guardrail #6).
+    log: (message) => console.warn(message)
+  })
+  trays.set(wc, tray)
   const feed = createFeed({
     reducer,
     onDelta: (delta) => {
@@ -84,6 +143,14 @@ function registerWatchFeed(window: BrowserWindow): void {
       // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
       // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
       const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
+      // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
+      // for EVERY delta type (session.updated can raise/lower the count via a column change;
+      // session.removed lowers it when the removed session was in needs-you). The badge counts
+      // needs-you ONLY (Jose 2026-06-19 / UX-DR3) — idle/working never count. Recompute-from-truth
+      // (cheap, can't drift) rather than incrementally diff; the controller no-ops when the
+      // count is unchanged. Derives from the SAME snapshotMap + columnForStatus the board uses
+      // (single source of truth, AC-3). Never throws (never-crash, AC-8).
+      tray.setCount(computeBadgeCount(reducer.snapshotMap()))
       const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
       // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
       // enricher logged it by path+code) — we do not ship a half-formed delta. A
@@ -94,6 +161,11 @@ function registerWatchFeed(window: BrowserWindow): void {
       // Re-check the destroyed window per send: a late event after close is a no-op.
       for (const raised of raisedEvents) {
         if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
+        // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
+        // raisedEvents array is already debounced by the tracker; add NO second debounce).
+        // The notifier never throws (never-crash) and only ever sees the tracker's needs-you-
+        // entry output, so it never fires on session.updated/removed (AC-2, by construction).
+        notifier.notify(raised)
       }
     },
     // Story 1.4 fix — surface the feed's REAL connection state on its own channel
@@ -120,17 +192,34 @@ function registerWatchFeed(window: BrowserWindow): void {
   // start() runs the initial `c9watch list` seed then attaches the watch stream. A
   // missing/unrunnable c9watch CLI (e.g. dev box without it) must NOT crash the app
   // (never-crash) — the board simply stays empty until the feed can start.
-  feed.start().catch((err) => {
-    console.error(
-      '[c9watch][feed] failed to start (board will stay empty):',
-      err instanceof Error ? err.message : 'unknown'
-    )
-  })
+  feed
+    .start()
+    .then(() => {
+      // Story 2.3 — seed the initial badge AFTER the first `list` snapshot resolves, so the
+      // count is correct at cold-start even if the seed produced no deltas (empty board → 0 →
+      // plain base icon). The seed deltas already flowed through onDelta above; this is the
+      // idempotent post-seed reconcile (the controller no-ops when unchanged). Re-check the
+      // window isn't gone by the time the seed resolves.
+      if (!wc.isDestroyed()) tray.setCount(computeBadgeCount(reducer.snapshotMap()))
+    })
+    .catch((err) => {
+      console.error(
+        '[c9watch][feed] failed to start (board will stay empty):',
+        err instanceof Error ? err.message : 'unknown'
+      )
+    })
 }
 
 // Stop + drop a window's feed. Idempotent. Called on window close (clean teardown
 // via the feed's AbortController — no leaked watch child, no stacked listeners).
 function teardownWatchFeed(wc: Electron.WebContents): void {
+  // Story 2.3 — destroy the per-window tray controller (no leaked Tray). Idempotent + never
+  // throws; safe to run even if the feed below is absent.
+  const tray = trays.get(wc)
+  if (tray) {
+    trays.delete(wc)
+    tray.destroy()
+  }
   const feed = feeds.get(wc)
   if (!feed) return
   feeds.delete(wc)
@@ -252,6 +341,38 @@ function registerPtyIpc(): void {
   })
 }
 
+// Story 2.4 — the ONE app-global settings store. Settings are app-global (NOT window-scoped
+// like the feed/tray), so this is a single instance for the whole app, constructed AFTER
+// app-ready (electron-store needs userData). A null until then; registerSettingsIpc reads it.
+let settingsStore: SettingsStore | null = null
+
+// Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
+// the value directly; `settings:set` PARSE-AND-THROW-TYPEs the untrusted patch at the boundary
+// (zod-boundaries.md: renderer→main = THROW), then the store merges + re-validates + persists
+// and returns the new validated Settings. CH.* consts only — never a string literal.
+function registerSettingsIpc(): void {
+  // settings:get — return the current validated settings (the value directly, no envelope).
+  ipcMain.handle(CH.settingsGet, () => {
+    if (settingsStore === null) {
+      // Defensive: handlers register after the store is built; if a get races construction,
+      // fail loudly rather than ship garbage (the renderer's get() catch falls back to defaults).
+      throw new Error('settings store not initialized')
+    }
+    return settingsStore.get()
+  })
+
+  // settings:set — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS boundary
+  // (a malformed patch rejects the invoke). Never log the value — the throw IS the signal.
+  // `raw` is annotated `unknown` (Electron types it contextually as `any`) so the trust
+  // boundary is explicit at the signature — the value is untrusted until SettingsPatchSchema
+  // validates it. [.claude/rules/zod-boundaries.md IPC-arg row]
+  ipcMain.handle(CH.settingsSet, (_evt, raw: unknown) => {
+    if (settingsStore === null) throw new Error('settings store not initialized')
+    const patch = SettingsPatchSchema.parse(raw)
+    return settingsStore.set(patch)
+  })
+}
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -314,8 +435,11 @@ function createWindow(): void {
 app
   .whenReady()
   .then(() => {
-    // Set app user model id for windows
-    electronApp.setAppUserModelId('com.c9watch')
+    // Set app user model id for windows. CANONICAL appId = `com.c9watch.app` (Story 2.3 AC-6):
+    // reconciled to match `electron-builder.yml` (`appId`) + the `.desktop` file's
+    // `StartupWMClass`/filename so the tray + notification OS identity is consistent. This was
+    // the outlier (`com.c9watch`) — it moves to the canonical value. [FROZEN #5; AR-10]
+    electronApp.setAppUserModelId('com.c9watch.app')
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.
@@ -327,6 +451,25 @@ app
     // re-creating a window cannot throw on duplicate ipcMain.handle nor stack
     // ipcMain.on listeners.
     registerPtyIpc()
+
+    // Story 2.4 — build the ONE app-global settings store AFTER app-ready (electron-store
+    // needs userData) and register its IPC ONCE (app-global, not per-window). Construction
+    // fails closed on a corrupt persisted read (backs up + starts fresh — never crashes); a
+    // total failure to even build the store degrades to an in-memory-only store so the app
+    // still runs (never-crash). Smoke mode skips persistence (no electron-store on the gate
+    // box path) — the in-memory default keeps the smoke harness untouched.
+    try {
+      settingsStore = SMOKE
+        ? createSettingsStore()
+        : createSettingsStore({ blobStore: createElectronSettingsBlobStore() })
+    } catch (err) {
+      console.error(
+        '[c9watch][settings] code=settings_store_init_failed (using in-memory defaults):',
+        err instanceof Error ? err.message : 'unknown'
+      )
+      settingsStore = createSettingsStore()
+    }
+    registerSettingsIpc()
 
     createWindow()
 

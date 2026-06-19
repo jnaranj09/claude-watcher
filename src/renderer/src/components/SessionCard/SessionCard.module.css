@@ -24,6 +24,15 @@
   outline-offset: 2px;
 }
 
+/* Story 2.2 (FR-9) — the SELECTED (locate-and-highlight) affordance: reuse the shipped
+ * lavender focus-ring + raised surface tokens (NOT a new highlight color, and cool so it never
+ * imitates the gold needs-you alert). Purely a visual locate cue — no window raise. */
+.selected {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  background: var(--bg-surface-raised);
+}
+
 /* ── hero — large, full-contrast, near ─────────────────────────────────────── */
 .hero {
   background: var(--bg-card-hero);

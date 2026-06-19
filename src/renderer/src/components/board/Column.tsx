@@ -72,9 +72,17 @@ export interface ColumnProps {
   isHero?: boolean
   /** Called when a card is activated (Epic-3 focused-session open — a no-op seam here). */
   onActivateCard?: (id: string) => void
+  /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
+   *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
+  selectedId?: string | null
 }
 
-export function Column({ column, isHero = false, onActivateCard }: ColumnProps): JSX.Element {
+export function Column({
+  column,
+  isHero = false,
+  onActivateCard,
+  selectedId = null
+}: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
   const count = useBoard((s) => selectColumnCount(s, column))
   const meta = COLUMN_META[column]
@@ -107,6 +115,7 @@ export function Column({ column, isHero = false, onActivateCard }: ColumnProps):
               status={DOT_STATUS_FOR_COLUMN[column]}
               accent={cardAccentFor(column)}
               pid={session.pid}
+              selected={session.id === selectedId}
               {...(session.pendingToolName !== undefined
                 ? { pendingToolName: session.pendingToolName }
                 : {})}

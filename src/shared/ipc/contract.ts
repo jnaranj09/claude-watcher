@@ -42,6 +42,11 @@ export const CH = {
   // deltas on `watch:events`). Main surfaces the feed's real reconnect state here;
   // see `WatchStatus` below for why this is a dedicated channel, not a union member.
   watchStatus: 'watch:status',
+  // Story 2.2 (FR-9) — the in-app jump-to-card push. Fired by main when the operator
+  // ACTIVATES an attention notification (informational only — NO window self-raise,
+  // AR-8 cut). Carries only the stable session `id`; the renderer selects that card if
+  // it is present on the board, else no-ops. See `AttentionActivatePayload` below.
+  attentionActivate: 'attention:activate',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set'
 } as const
@@ -288,3 +293,41 @@ export type WatchStatus = {
    *  watch is restarted and the `list` reconcile has been applied. */
   reconnecting: boolean
 }
+
+/**
+ * Story 2.2 (FR-9) — `attention:activate` push payload: main → renderer.
+ *
+ * Fired when the operator ACTIVATES an attention notification. It carries ONLY the
+ * stable session `id` (the UUID, never `pid`) — the renderer locates-and-highlights
+ * that card if it is still on the board, else no-ops. This is an in-app VIEW-STATE
+ * signal (a `selectedId` in the board store), NOT a window raise/navigation/agent
+ * input: the app NEVER summons or focuses its own window (AR-8 self-raise cut,
+ * 2026-06-19). Validated AT SOURCE in main before send (renderer-facing delta;
+ * .claude/rules/zod-boundaries.md). [Source: story 2.2 Task 1.1; AC-5/AC-8; FROZEN F3]
+ */
+export type AttentionActivatePayload = {
+  /** The activated session's stable id (UUID). Never key on pid. */
+  id: string
+}
+
+/**
+ * Story 2.4 — settings IPC payload types for the ALREADY-RESERVED `CH.settingsGet` /
+ * `CH.settingsSet` channels (no new channel name invented — the consts exist above).
+ *
+ * The SINGLE shape source is the schema-inferred `Settings` / `SettingsPatch` from
+ * `src/shared/schemas/settings.ts` (one source of truth — never a hand-written copy).
+ * This file re-exports them as the channels' payload TYPES so call sites import the
+ * settings shape from the contract alongside the channel consts, consistent with the
+ * rest of the seam.
+ *
+ *   - `settings:get`  invoke → returns `Settings` (the value DIRECTLY — NO {data,error}
+ *     envelope, per the contract conventions above).
+ *   - `settings:set`  invoke takes a `SettingsPatch` (partial) and returns the new
+ *     validated `Settings`. The arg is parse-and-throw-typed at the main boundary
+ *     (untrusted cross-process input — zod-boundaries.md IPC-arg row).
+ *
+ * MAIN owns the persisted authority (electron-store); the renderer reaches these ONLY via
+ * the typed `window.settings.*` contextBridge wrapper, never electron-store directly (F4).
+ * [Source: story 2.4 Task 3; AC-5/7; src/shared/schemas/settings.ts; .claude/rules/ipc.md]
+ */
+export type { Settings, SettingsPatch } from '../schemas/settings'

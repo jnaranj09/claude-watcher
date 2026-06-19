@@ -14,6 +14,10 @@
 import { useEffect, useState } from 'react'
 import { Board } from './components/board/Board'
 import { SmokeCockpit } from './SmokeCockpit'
+// Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
+import { Settings } from './components/Settings/Settings'
+import { loadSettings } from './stores/settingsStore'
+import styles from './App.module.css'
 
 function App(): React.JSX.Element {
   // null = smoke-config not resolved yet; true/false once known.
@@ -37,11 +41,28 @@ function App(): React.JSX.Element {
     }
   }, [])
 
+  // Story 2.4 — load persisted settings ONCE at startup and hydrate the renderer settings
+  // store (the live projection the sound module + Settings UI read). loadSettings never throws;
+  // on failure it leaves the defaults (sound ON) so the app is usable. Skip in smoke mode.
+  useEffect(() => {
+    if (smoke === false) void loadSettings()
+  }, [smoke])
+
   // In smoke mode, render the single-PTY cockpit (the packaged smoke harness drives
   // it). Otherwise — including while smoke-config is still resolving — render the
   // board; its cold-load skeleton covers the brief pre-resolution window.
   if (smoke === true) return <SmokeCockpit />
-  return <Board />
+  return (
+    <div className={styles.app}>
+      <header className={styles.header} data-testid="app-header">
+        <span className={styles.brand}>c9watch</span>
+        <Settings />
+      </header>
+      <main className={styles.main}>
+        <Board />
+      </main>
+    </div>
+  )
 }
 
 export default App

@@ -6,7 +6,10 @@ import type {
   SmokeConfig,
   SmokeReport,
   WatchEventsPayload,
-  WatchStatus
+  WatchStatus,
+  AttentionActivatePayload,
+  Settings,
+  SettingsPatch
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -75,10 +78,48 @@ const watchApi = {
 
 export type WatchApi = typeof watchApi
 
+// Story 2.2 (FR-9) — the attention bridge: a push-only main→renderer subscription for the
+// in-app jump-to-card signal. The renderer subscribes via `window.attention.onActivate(...)`
+// and NEVER touches ipcRenderer directly (contextIsolation stays ON). Mirrors `watchApi`'s
+// subscribe-returns-unsubscribe pattern. `CH.attentionActivate` is a const, never a literal.
+// INFORMATIONAL ONLY: this carries the session `id` so the renderer can SELECT the card; it
+// does NOT raise/focus the window (AR-8 self-raise cut).
+const attentionApi = {
+  /** Subscribe to the in-app jump-to-card signal (the operator activated a notification).
+   *  Returns an unsubscribe fn. `CH.attentionActivate` is a const, never a literal. */
+  onActivate(cb: (payload: AttentionActivatePayload) => void): () => void {
+    const listener = (_evt: unknown, payload: AttentionActivatePayload): void => cb(payload)
+    ipcRenderer.on(CH.attentionActivate, listener)
+    return () => ipcRenderer.removeListener(CH.attentionActivate, listener)
+  }
+}
+
+export type AttentionApi = typeof attentionApi
+
+// Story 2.4 — the settings bridge: typed invoke wrappers over CH.settingsGet/CH.settingsSet.
+// The renderer reads/writes settings via `window.settings.*` and NEVER touches ipcRenderer or
+// electron-store directly (contextIsolation stays ON; MAIN owns the persisted authority — F4).
+// Mirrors `ptyApi.smokeConfig`'s invoke pattern. `CH.*` consts, never string literals.
+const settingsApi = {
+  /** Read the current persisted settings (main is the authority). */
+  get(): Promise<Settings> {
+    return ipcRenderer.invoke(CH.settingsGet)
+  },
+  /** Apply a partial settings patch; main validates (parse-and-throw on bad input), persists,
+   *  and returns the new validated settings. Rejects the promise on invalid input. */
+  set(patch: SettingsPatch): Promise<Settings> {
+    return ipcRenderer.invoke(CH.settingsSet, patch)
+  }
+}
+
+export type SettingsApi = typeof settingsApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
     contextBridge.exposeInMainWorld('watch', watchApi)
+    contextBridge.exposeInMainWorld('attention', attentionApi)
+    contextBridge.exposeInMainWorld('settings', settingsApi)
   } catch (error) {
     console.error(error)
   }
@@ -91,4 +132,8 @@ if (process.contextIsolated) {
   window.pty = ptyApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.watch is in index.d.ts
   window.watch = watchApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.attention is in index.d.ts
+  window.attention = attentionApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.settings is in index.d.ts
+  window.settings = settingsApi
 }

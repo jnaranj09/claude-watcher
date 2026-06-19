@@ -1,0 +1,99 @@
+/* Story 2.4 — the minimal Settings surface (AC-4). Uses the DESIGN.md tokens via the
+   generated :root custom properties (src/renderer/src/styles/tokens.css) — NO new colors. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.panel {
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-6);
+  min-width: 320px;
+  max-width: 420px;
+  color: var(--text-primary);
+  box-shadow: 0 12px 32px var(--scrim);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  font-size: var(--text-lg, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.closeButton {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  font-size: 14px;
+}
+
+.closeButton:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.row:first-of-type {
+  border-top: none;
+}
+
+.label {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fontSizeValue {
+  color: var(--text-secondary);
+  font-size: 13px;
+  min-width: 3ch;
+  text-align: right;
+}
+
+/* The header gear that opens the surface. */
+.openButton {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.openButton:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}

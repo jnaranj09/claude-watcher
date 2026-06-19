@@ -38,6 +38,18 @@ linux:
     - deb
   maintainer: electronjs.org
   category: Utility
+  # Story 2.3 AC-6 — canonical `.desktop` identity (tray/notification window association, AR-10).
+  # electron-builder 26 GENERATES the .desktop from config (it does NOT read a raw build/*.desktop).
+  # `syncDesktopName: true` names the installed file from package.json `desktopName`
+  # (`com.c9watch.app.desktop`) and sets `StartupWMClass` to the canonical appId `com.c9watch.app`
+  # (which MUST match Electron's app_id for the DE to associate the running window — and matches
+  # `appId` above + main's `setAppUserModelId('com.c9watch.app')`). `Name` = `productName`
+  # (`c9watch-webapp`). NO MimeType / global-hotkey binding (cut). A committed reference copy of the
+  # generated entry lives at build/com.c9watch.app.desktop for in-tree documentation.
+  syncDesktopName: true
+  desktop:
+    entry:
+      Categories: Utility;
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

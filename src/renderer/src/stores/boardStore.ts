@@ -118,6 +118,12 @@ export interface BoardState {
   /** Story 1.5 — the pending swap TARGET (the raw cascade result awaiting the debounce);
    *  null when no swap is pending. */
   heroPendingTarget: HeroColumn | null
+  /** Story 2.2 (FR-9) — the SELECTED card's session id (RENDERER VIEW-STATE, not session
+   *  truth). Set from a `CH.attentionActivate` push when the operator activates a notification
+   *  AND the card is present; null when nothing is selected. Cleared when the selected session
+   *  is removed from the board. This is a locate-and-highlight affordance — NOT navigation,
+   *  NOT a window raise. [state.md: selection = renderer view-state] */
+  selectedId: string | null
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Apply main's pushed connection state (CH.watchStatus). `true` anchors the debounce
@@ -132,6 +138,10 @@ export interface BoardState {
    *  the anchor → commit `heroColumn = heroPendingTarget` and clear the anchor. The Board
    *  runs this on the existing tick interval. Uses the injected now(). */
   tickHero: () => void
+  /** Story 2.2 (FR-9) — set the selected card (locate-and-highlight). Passing an `id` that is
+   *  NOT present in `sessionsById` is a NO-OP (the card may have already left the board);
+   *  passing `null` clears the selection. View-state only — no window raise, no navigation. */
+  setSelected: (id: string | null) => void
 }
 
 export interface BoardStoreOptions {
@@ -194,6 +204,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     heroColumn: 'working',
     heroPendingSince: null,
     heroPendingTarget: null,
+    // Story 2.2 (FR-9) — nothing selected until a notification is activated for a present card.
+    selectedId: null,
 
     applyWatchEvent: (payload) => {
       const state = get()
@@ -236,6 +248,9 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           sessionsById: nextById,
           epoch: payload.epoch,
           coldLoaded: true,
+          // Story 2.2 (FR-9) — if the REMOVED session was the selected card, clear the
+          // selection (the highlighted card no longer exists). Otherwise leave it untouched.
+          ...(state.selectedId === event.id ? { selectedId: null } : {}),
           // Story 1.5 — a removal can empty Needs-you → re-evaluate the pending hero.
           ...reevaluateHero(state, nextById)
         })
@@ -287,6 +302,19 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           heroPendingTarget: null
         })
       }
+    },
+
+    setSelected: (id) => {
+      // null clears the selection. A non-null id only sets the selection if that card is
+      // PRESENT on the board (the card may have already left — then it is a no-op). View-state
+      // only — no window raise, no navigation, no agent input (FR-9 / FROZEN F3).
+      if (id === null) {
+        if (get().selectedId !== null) set({ selectedId: null })
+        return
+      }
+      const state = get()
+      if (state.sessionsById[id] === undefined) return // absent card → no-op
+      if (state.selectedId !== id) set({ selectedId: id })
     }
   }))
 }
@@ -329,6 +357,10 @@ export const selectReconnecting = (state: BoardState): boolean => state.reconnec
  *  `HeroColumn` string — safe without `useShallow`). Derives nothing more than the already
  *  debounced commit; the hero column's card list is NEVER denormalized into the store. */
 export const selectHeroColumn = (state: BoardState): HeroColumn => state.heroColumn
+
+/** Story 2.2 (FR-9) — the SELECTED card's id (a primitive — safe without useShallow). The
+ *  card with this id renders the selected affordance; null when nothing is selected. */
+export const selectSelectedId = (state: BoardState): string | null => state.selectedId
 
 // ---------------------------------------------------------------------------
 // The app singleton store + bound hooks. Tests use `createBoardStore({ now })`
