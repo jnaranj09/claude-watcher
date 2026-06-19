@@ -1,0 +1,22 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/shared/**/*"],
+  // Test + fixture files are owned by `tsconfig.test.json` (so they never enter
+  // the build program / bundle); the build projects skip them. [Story 0.3 Task 2]
+  "exclude": ["src/**/*.test.ts", "src/__fixtures__/**"],
+  "compilerOptions": {
+    "composite": true,
+    "types": ["electron-vite/node"],
+    // Story 0.3 AC-1 — strict flags applied to BOTH projects (the
+    // @electron-toolkit base turns on `strict`/noUnusedLocals/noUnusedParameters/
+    // noImplicitReturns but NOT these four). The compiler is the agent's QA, so we
+    // also re-enable `noImplicitAny` (the base explicitly sets it FALSE, partially
+    // defeating `strict`). [architecture.md#Layer 1; AC-1]
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}

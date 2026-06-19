@@ -1,0 +1,17 @@
+node_modules
+dist
+out
+.DS_Store
+.eslintcache
+*.log*
+# Story 0.3 — incremental typecheck caches (PostToolUse hook + tsc --incremental).
+*.tsbuildinfo
+
+# BMAD tooling — method skill library + config/scripts (regenerable, not project code).
+# The implementation record (stories, sprint status, findings, planning artifacts) is
+# kept under _bmad-output/ and IS tracked.
+.claude/skills/
+_bmad/
+
+# Personal per-project Claude overrides (the shared .claude/settings.json IS tracked).
+.claude/settings.local.json

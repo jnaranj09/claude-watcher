@@ -1,0 +1,32 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "include": [
+    "src/renderer/src/env.d.ts",
+    "src/renderer/src/**/*",
+    "src/renderer/src/**/*.tsx",
+    "src/preload/*.d.ts",
+    "src/shared/**/*"
+  ],
+  // Test + fixture files are owned by `tsconfig.test.json` (so they never enter
+  // the build program / bundle); the build projects skip them. [Story 0.3 Task 2]
+  "exclude": ["src/**/*.test.ts", "src/__fixtures__/**"],
+  "compilerOptions": {
+    "composite": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": [
+        "src/renderer/src/*"
+      ]
+    },
+    // Story 0.3 AC-1 — strict flags applied to BOTH projects (see tsconfig.node.json
+    // for rationale; the @electron-toolkit base omits these four + sets
+    // noImplicitAny:false). [architecture.md#Layer 1; AC-1]
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}

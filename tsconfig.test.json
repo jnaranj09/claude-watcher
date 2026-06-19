@@ -1,0 +1,33 @@
+{
+  // Story 0.3 — typecheck coverage for the TEST + FIXTURE files (the harness's
+  // compiler-as-QA must cover the fixtures + Vitest tests, which the build
+  // tsconfigs intentionally do NOT include so they never ship in the bundle).
+  //
+  // It extends the web (jsdom/DOM-libs) base so renderer-ish tests typecheck, and
+  // it carries the SAME strict flags as the build projects (AC-1 applies here too).
+  // Run via `npm run typecheck` after the node + web projects.
+  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "include": [
+    "src/__fixtures__/**/*",
+    "src/**/*.test.ts",
+    "tests/unit/**/*",
+    "tests/main/**/*",
+    "tests/e2e/**/*"
+  ],
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@renderer/*": ["src/renderer/src/*"]
+    },
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
