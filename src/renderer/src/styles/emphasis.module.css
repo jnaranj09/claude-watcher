@@ -1,0 +1,42 @@
+/* Story 1.3 — shared Needs-you emphasis primitives (AC-7, AC-8).
+ * Defined ONCE here and exported so Epic 2 (attention rail) and Epic 3 do not
+ * re-author them. NOT consumed into a live rail here.
+ *
+ * The pulse is COMPOSITOR-ONLY — opacity + transform (scale), never layout — so it
+ * stays cheap and never reflows. `prefers-reduced-motion: reduce` removes the pulse
+ * (static gold fill + size only — the accessibility floor for the cue,
+ * UX-DR27/UX-DR29). */
+
+/* The subtle Needs-you pulse: opacity 1.0↔0.78 + scale 1.0↔1.015 on ~1.5s ease. */
+@keyframes needsYouPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.78;
+    transform: scale(1.015);
+  }
+}
+
+/* The emphasis hook: a gold-anchored element that pulses subtly. The gold itself
+ * is referenced via the token (the single reserved alert hue). */
+.needsYouEmphasis {
+  /* The gold token reference — the one reserved alert hue. */
+  color: var(--needs-you);
+  animation: needsYouPulse 1.5s ease-in-out infinite;
+  /* Hint the compositor that opacity/transform animate (no layout). */
+  will-change: opacity, transform;
+}
+
+/* Accessibility floor: honor reduced-motion → NO pulse; static gold fill + size. */
+@media (prefers-reduced-motion: reduce) {
+  .needsYouEmphasis {
+    animation: none;
+    /* Static "enlarged" affordance instead of motion (size, not pulse). */
+    transform: scale(1.015);
+    will-change: auto;
+  }
+}

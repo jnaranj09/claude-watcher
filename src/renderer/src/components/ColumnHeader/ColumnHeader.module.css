@@ -1,0 +1,66 @@
+/* Story 1.3 — ColumnHeader (AC-5).
+ * name + live muted count + a top accent tick in the column's accent.
+ * Always present even when empty (never collapses). `prominent` = hero header
+ * (larger `heading` + divider); flank = smaller, `text-secondary`. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* The top accent tick — a short bar in the column's accent color. */
+  border-top: 2px solid var(--accent-color, var(--idle));
+  padding-top: var(--space-2);
+}
+
+/* Accent tick color per column accent (gold / blue / idle-muted). */
+.accentNeedsYou {
+  --accent-color: var(--needs-you);
+}
+
+.accentWorking {
+  --accent-color: var(--working);
+}
+
+.accentIdle {
+  --accent-color: var(--idle);
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.name {
+  font-family: var(--font-ui);
+}
+
+/* prominent (hero) — larger heading + a divider under the header. */
+.prominent {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+}
+
+.prominent .name {
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-heading);
+  line-height: var(--line-height-heading);
+  letter-spacing: var(--letter-spacing-heading);
+  color: var(--text-primary);
+}
+
+/* flank — smaller, text-secondary. */
+.flank .name {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  line-height: var(--line-height-label);
+  color: var(--text-secondary);
+}
+
+/* The muted live count (`· 2`). */
+.count {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  line-height: var(--line-height-meta);
+  color: var(--text-muted);
+}

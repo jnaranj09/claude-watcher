@@ -24,7 +24,11 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'jsdom',
-          include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts'],
+          // Story 1.3 widened the glob to `.test.{ts,tsx}`: TypeScript only parses
+          // JSX in `.tsx` files, so renderer COMPONENT tests are `.test.tsx`
+          // (util/schema tests stay `.test.ts`). The matching widen in
+          // `tsconfig.test.json` keeps them typechecked. [Story 1.3 Task 8 GOTCHA]
+          include: ['src/**/*.test.{ts,tsx}', 'tests/unit/**/*.test.{ts,tsx}'],
           // The main-process unit globs are owned by the `main-unit` project; keep
           // them out of `unit` so each test runs under exactly one environment.
           exclude: ['src/main/**/*.test.ts', 'tests/main/**/*.test.ts', '**/node_modules/**']

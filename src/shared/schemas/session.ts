@@ -136,6 +136,44 @@ export const WatchLineSchema = z
 export type WatchLine = z.infer<typeof WatchLineSchema>
 
 /**
+ * A LEAN `stopped` watch line (Story 1.1, Decision R2) — validates a removal off
+ * the TOP-LEVEL `sessionId` ONLY, treating the inner `session` body as optional
+ * best-effort.
+ *
+ * Why a second schema rather than loosening `WatchLineSchema`: a realistic minimal
+ * stop event (`{ sessionId, event:'stopped', session:{ id } }` — or even with no
+ * usable `session` body) does NOT satisfy the full `SessionSchema` that
+ * `WatchLineSchema.session` requires, so it would fail-closed and the `map.delete`
+ * would be SKIPPED — leaving a stale Done card (violates FR-1 "no missing/stale"
+ * and NFR-2 "no missed transition" downstream). The DELETE is identity-by-`id`,
+ * and the top-level `sessionId` is the event's authoritative routing key for the
+ * removal — it must NOT depend on a fully-valid inner body.
+ *
+ * Loosening `WatchLineSchema` itself is wrong: it would let a malformed
+ * `started`/`changed` through (those still require the full session). So the
+ * reducer tries the STRICT `WatchLineSchema` first; for `stopped` specifically it
+ * falls back to THIS lean schema so a minimal stop still removes the card. If even
+ * the top-level `sessionId` is missing/blank on a `stopped` line → it fails here
+ * too (nothing to delete → drop + log; fail-closed).
+ *
+ * The inner `session` is a loose `.passthrough()` object whose ONLY constrained
+ * field is an optional `id` (used by R3 to detect a `sessionId`≠`session.id`
+ * mismatch — which is logged but does NOT block the delete on a stop line). The
+ * full `SessionSchema` is intentionally NOT applied to the body here.
+ * [Source: Story 1.1 Dev Notes#Decision R2/R3; .claude/rules/zod-boundaries.md
+ *  (per-boundary fail-closed; identity by `id`); epics.md#FR-1]
+ */
+export const WatchStopLineSchema = z
+  .object({
+    event: z.literal('stopped'),
+    sessionId: z.string().min(1), // the authoritative removal key; blank fails closed
+    session: z.object({ id: z.string().optional() }).passthrough().optional()
+  })
+  .passthrough()
+
+export type WatchStopLine = z.infer<typeof WatchStopLineSchema>
+
+/**
  * Raised when two sessions share the same `id`. The adapter fails CLOSED (it
  * never silently last-write-wins): a duplicate id would drop a card from the
  * keyed map with zero signal, so we surface it instead. Carries only the

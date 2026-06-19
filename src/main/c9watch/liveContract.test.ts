@@ -68,6 +68,28 @@ function readC9watchVersion(): string | undefined {
 
 const liveVersion = onLinux ? readC9watchVersion() : undefined
 const pinnedVersionLine = `c9watch ${C9WATCH_FIXTURE_VERSION}`
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATUS-ENUM-SURFACE TRIPWIRE (added during Story 1.2 rework) — the spike's
+// original blind spot. The binary status enum (c9watch 0.8.1, unstripped Rust ELF)
+// is `Working` / `NeedsAttention` / `WaitingForInput` / `Connecting`; `NeedsPermission`
+// is help-listed/uncertain (may be a distinct status OR only the `status` command's
+// `needsPermission[]` array). This KNOWN set is the TEST-ONLY tripwire: a live status
+// outside it FAILS LOUDLY so a human re-characterizes (and re-checks the column
+// mapping in c9watch-0.8.1-contract.md §4). It is DELIBERATELY NOT a runtime enum:
+// `src/shared/schemas/session.ts` keeps `status: z.string()` so a brand-new status
+// PASSES (mapping to needs-you, fail-toward-attention) instead of fail-closing the
+// session. Status NAMES are c9watch enum tokens — safe to log; they are NOT session
+// content (firstPrompt/latestMessage/pendingToolInput stay never-logged).
+// [Source: c9watch-0.8.1-contract.md §4 (binary enum + authoritative mapping);
+//  .claude/rules/zod-boundaries.md (don't enum-lock status in the runtime schema)]
+const KNOWN_STATUSES: ReadonlySet<string> = new Set([
+  'Working',
+  'NeedsAttention',
+  'WaitingForInput',
+  'NeedsPermission',
+  'Connecting'
+])
 // Gate on PRESENCE only (not on version match) so a VERSION DRIFT still RUNS and
 // FAILS LOUDLY in Alarm 2 (skipping on mismatch would silence the very drift we
 // want to catch). We only skip when c9watch is entirely absent / non-Linux.
@@ -177,6 +199,20 @@ describeLive('LIVE c9watch contract — the two-part drift alarm (Story 0.5)', (
         expect(session.id.length).toBeGreaterThan(0)
         expect(Number.isInteger(session.pid)).toBe(true)
         expect(session.pid).toBeGreaterThanOrEqual(0)
+        // STATUS-ENUM-SURFACE TRIPWIRE: status must be within the KNOWN set. An
+        // unexpected value FAILS LOUDLY with the status NAME (a c9watch enum token —
+        // safe to log, NOT session content) so a human re-characterizes the surface +
+        // re-checks the column mapping (contract §4). This is TEST-ONLY: the runtime
+        // schema keeps `status: z.string()` (no enum lock; a new status → needs-you).
+        if (!KNOWN_STATUSES.has(session.status)) {
+          throw new Error(
+            `c9watch ${C9WATCH_FIXTURE_VERSION} STATUS DRIFT: unexpected session status ` +
+              `"${session.status}" not in known set ` +
+              `{${[...KNOWN_STATUSES].join(', ')}} — re-characterize the status surface ` +
+              `and the column mapping in c9watch-0.8.1-contract.md §4. ` +
+              `(status NAME logged intentionally; it is a c9watch enum token, not session content)`
+          )
+        }
         // `modified` is parse-once-coerced to an epoch-millis NUMBER when present
         // (proves the dual ns/ms ISO+tz precision validated and transformed).
         if (session.modified !== undefined) {
@@ -252,6 +288,17 @@ describeLive('LIVE c9watch contract — the two-part drift alarm (Story 0.5)', (
     expect(typeof line.sessionId).toBe('string')
     expect(typeof line.timestamp).toBe('number') // ISO+tz coerced to epoch-millis
     expect(line.session.id).toBe(line.sessionId)
+    // STATUS-ENUM-SURFACE TRIPWIRE (same as the list path): the watch line's session
+    // status must be within the KNOWN set. A drift FAILS LOUDLY with the status NAME
+    // only (enum token, not session content). TEST-ONLY — schema stays z.string().
+    if (!KNOWN_STATUSES.has(line.session.status)) {
+      throw new Error(
+        `c9watch ${C9WATCH_FIXTURE_VERSION} STATUS DRIFT: unexpected watch-line status ` +
+          `"${line.session.status}" not in known set ` +
+          `{${[...KNOWN_STATUSES].join(', ')}} — re-characterize the status surface ` +
+          `and the column mapping in c9watch-0.8.1-contract.md §4.`
+      )
+    }
     // Per-test timeout MUST exceed the 6000ms quiet-window timer above (Vitest's
     // default is 5000ms) so a quiet machine resolves to a clean pass instead of a
     // spurious Vitest test-timeout. 15s leaves ample headroom for spawn + the burst.

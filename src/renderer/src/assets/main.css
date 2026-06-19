@@ -1,4 +1,7 @@
-/* Story 0.1 bare cockpit shell — minimal reset. Design tokens are Story 1.3. */
+/* Story 0.1 bare cockpit shell — minimal reset.
+ * Story 1.3 — design tokens imported here once at the renderer root (AC-1). */
+@import '../styles/tokens.css';
+
 * {
   box-sizing: border-box;
 }
@@ -14,7 +17,21 @@ body,
 }
 
 body {
-  background: #181825;
-  color: #cdd6f4;
-  font-family: sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+/* Screen-reader-only utility — visually hidden but present in the accessibility
+ * tree (Story 1.3, UX-DR29: status is conveyed even when the label is not shown). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

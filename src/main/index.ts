@@ -9,6 +9,19 @@ import icon from '../../resources/icon.png?asset'
 // Story 0.2 — channels go through the typed contract, never string literals.
 import { CH } from '../shared/ipc/contract'
 import type { PtyResizeRequest, SmokeReport } from '../shared/ipc/contract'
+// Story 1.4 fix — validate-at-source for the watch:status connection-state push.
+import { WatchStatusSchema } from '../shared/schemas/watchDelta'
+// Story 1.4 — validate-at-source enrichment of the session.updated delta (extracted
+// to its own module so it stays unit-testable without pulling electron/node-pty).
+import { enrichDelta } from './c9watch/enrichDelta'
+// Story 1.1 — the c9watch adapter: feed (spawn + NDJSON line-split + reconnect) +
+// reducer (Zod-validate → Map<id,Session> + list seed/reconcile + epoch).
+import { createReducer } from './c9watch/reducer'
+import { createFeed, type Feed } from './c9watch/feed'
+// Story 1.2 — the column-transition tracker: consumes each reducer delta + the
+// reduced map, emits attention.raised on a needs-you ENTRY edge (cold-start
+// suppressed / reconnect re-raised), stamps time-entered-column, debounces flaps.
+import { createAttentionTracker } from './c9watch/attention'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -35,6 +48,99 @@ const SHELL = process.env.SHELL || (process.platform === 'win32' ? 'powershell.e
 // `app.on('activate')` neither throws (duplicate ipcMain.handle) nor accumulates
 // stacked ipcMain.on listeners (Review F1). [Story 0.1 single-PTY spike]
 const ptys = new Map<Electron.WebContents, IPty>()
+
+// Story 1.1 — the live c9watch feed → reducer → renderer wiring. ONE feed per
+// window; the feed pushes validated session deltas (frozen `session.updated`/
+// `session.removed`, epoch-framed) over CH.watchEvents. The feed is INDEPENDENT of
+// the PTY registry above — a watch reconnect must never touch PTY state.
+const feeds = new Map<Electron.WebContents, Feed>()
+
+// Smoke mode is a packaged node-pty exit gate (no c9watch on the box); never spin
+// up the live feed there.
+function registerWatchFeed(window: BrowserWindow): void {
+  if (SMOKE) return
+  const wc = window.webContents
+  if (feeds.has(wc)) return
+
+  const reducer = createReducer({
+    now: () => Date.now(),
+    // never-log-the-parsed-value: PATH + CODE only (Critical Guardrail #6).
+    log: (err) => console.warn(`[c9watch][feed] dropped line path=${err.path} code=${err.code}`)
+  })
+  // Story 1.2 — one tracker per window (same lifetime as the reducer/feed). It reads
+  // the reducer's already-validated deltas + map (parse-once; never re-parses) and
+  // produces the entry-transition attention.raised events. Injected now() for
+  // determinism (the default Date.now in production).
+  const tracker = createAttentionTracker({ now: () => Date.now() })
+  const feed = createFeed({
+    reducer,
+    onDelta: (delta) => {
+      if (wc.isDestroyed()) return
+      // Story 1.4 ORDERING (re-ordered from 1.2): the tracker MUST process THIS delta
+      // BEFORE we enrich+send a `session.updated`, so `tracker.columnOf(id)` /
+      // `tracker.enteredColumnAt(id)` reflect this edge. So we run `tracker.onDelta`
+      // FIRST (it both updates the tracker's column map AND returns any attention.raised
+      // for the edge), THEN enrich the updated delta from the now-current tracker, THEN
+      // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
+      // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
+      const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
+      const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
+      // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
+      // enricher logged it by path+code) — we do not ship a half-formed delta. A
+      // `session.removed` (no enrichment) and a passed `session.updated` send as-is —
+      // epoch-framed on the SAME CH.watchEvents channel (const, never a string literal).
+      if (outbound !== null) wc.send(CH.watchEvents, outbound)
+      // Then any attention.raised for the SAME edge, framed with the SAME epoch.
+      // Re-check the destroyed window per send: a late event after close is a no-op.
+      for (const raised of raisedEvents) {
+        if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
+      }
+    },
+    // Story 1.4 fix — surface the feed's REAL connection state on its own channel
+    // (CH.watchStatus). This is the signal the renderer's reconnect banner is driven
+    // by (AC-6 / UX-DR17 = a real watch-stream GAP), NOT line silence (a quiet
+    // `watch --changes-only` emits 0 lines — silence is the normal steady state).
+    // Validate AT SOURCE before send (zod-boundaries.md: main→renderer = validate at
+    // source); a malformed status never crosses the seam. CH.* const, never a literal.
+    onStatus: (status) => {
+      if (wc.isDestroyed()) return
+      const r = WatchStatusSchema.safeParse(status)
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        console.error(
+          `[c9watch][feed] dropped watch:status path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+        return
+      }
+      wc.send(CH.watchStatus, r.data)
+    }
+  })
+  feeds.set(wc, feed)
+
+  // start() runs the initial `c9watch list` seed then attaches the watch stream. A
+  // missing/unrunnable c9watch CLI (e.g. dev box without it) must NOT crash the app
+  // (never-crash) — the board simply stays empty until the feed can start.
+  feed.start().catch((err) => {
+    console.error(
+      '[c9watch][feed] failed to start (board will stay empty):',
+      err instanceof Error ? err.message : 'unknown'
+    )
+  })
+}
+
+// Stop + drop a window's feed. Idempotent. Called on window close (clean teardown
+// via the feed's AbortController — no leaked watch child, no stacked listeners).
+function teardownWatchFeed(wc: Electron.WebContents): void {
+  const feed = feeds.get(wc)
+  if (!feed) return
+  feeds.delete(wc)
+  feed.stop().catch((err) => {
+    console.error(
+      '[c9watch][feed] error during teardown:',
+      err instanceof Error ? err.message : 'unknown'
+    )
+  })
+}
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
 // process.env type lies about this) and strip the smoke-harness vars so they do
@@ -180,6 +286,16 @@ function createWindow(): void {
     const wc = mainWindow.webContents
     ptys.get(wc)?.kill()
     ptys.delete(wc)
+    // Story 1.1 — stop the watch feed cleanly (AbortController teardown), reaping
+    // the watch child. Independent of the PTY teardown above.
+    teardownWatchFeed(wc)
+  })
+
+  // Story 1.1 — start the live c9watch feed for this window once it is ready to
+  // show (the renderer can receive CH.watchEvents deltas by then). Registered per
+  // window, torn down on close; smoke mode skips it.
+  mainWindow.on('ready-to-show', () => {
+    registerWatchFeed(mainWindow)
   })
 
   // HMR for renderer base on electron-vite cli.

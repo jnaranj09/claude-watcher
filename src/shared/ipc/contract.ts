@@ -38,12 +38,29 @@ export const CH = {
   sessionStop: 'session:stop',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
+  // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
+  // deltas on `watch:events`). Main surfaces the feed's real reconnect state here;
+  // see `WatchStatus` below for why this is a dedicated channel, not a union member.
+  watchStatus: 'watch:status',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
 export type Channel = (typeof CH)[keyof typeof CH]
+
+/**
+ * The three LIVE board columns (Story 1.4 — shared home).
+ *
+ * This union has ONE definition shared by main, preload, AND renderer so no
+ * string-literal copy can drift. The classifier home stays
+ * `src/main/c9watch/columns.ts` (`columnForStatus`); that module IMPORTS this
+ * `Column` type from the contract (the contract is the only layer all three sides
+ * may import — the renderer must never reach into `src/main`). There is NO `done`
+ * column: an exited session VANISHES (`session.removed`), it never lands in one.
+ * [Source: story 1.4 Task 1.1; src/main/c9watch/columns.ts; c9watch-0.8.1-contract.md §4]
+ */
+export type Column = 'working' | 'needs-you' | 'idle'
 
 // ---------------------------------------------------------------------------
 // Payload types (PascalCase, no `I` prefix, camelCase fields).
@@ -101,8 +118,60 @@ export type SmokeReport = Record<string, unknown>
 // [Source: epics.md#Story 0.2 AC; #Epic 0 scope; architecture.md#Format Patterns]
 // ---------------------------------------------------------------------------
 
-/** A session was updated (state/fields changed) — board should re-render it. */
+/**
+ * A session was updated (state/fields changed) — board should re-render it.
+ *
+ * Story 1.4 WIDENING (payload-type widening of THIS member only — the frozen
+ * `AttentionEvent` union's three `type` members are NOT reshaped):
+ *   - `column` + `enteredColumnAt` — the board's column placement + the UX-DR10
+ *     sort key, COMPUTED in main by the Story-1.2 tracker (`tracker.columnOf(id)` /
+ *     `tracker.enteredColumnAt(id)`) and VALIDATED AT SOURCE in `main/index.ts`
+ *     before `wc.send` (.claude/rules/zod-boundaries.md: main→renderer = validate
+ *     at source). These are the two fields AC-7 / FROZEN-2 enumerate.
+ *   - `pid` + `pendingToolName?` — the remaining native c9watch fields AC-1
+ *     requires every card to show VERBATIM (`sessionName`/`projectPath`/`status`
+ *     were already on the wire; `pid`/`pendingToolName` were not). They ride this
+ *     same updated member so the renderer's `BoardSession` projection is built
+ *     PURELY from the validated delta — the renderer never re-parses c9watch JSON
+ *     (AC-8 / parse-once). Read from the reducer's already-parsed `Session` in
+ *     main; never re-validated in the renderer.
+ * The frozen union is unchanged: this adds fields to a MEMBER, it does not add or
+ * remove a `type` discriminant (same precedent as Story 1.2 adding `attention.raised`
+ * as a third `event` value). [Source: story 1.4 Task 1 / AC-1 / AC-7 / FROZEN-2;
+ * .claude/rules/ipc.md (frozen-union rule); .claude/rules/zod-boundaries.md]
+ */
 export type SessionUpdatedEvent = {
+  type: 'session.updated'
+  /** Stable session id (UUID). Never key on pid. */
+  id: string
+  sessionName: string
+  projectPath: string
+  /** New status string from c9watch (not enum-locked). */
+  status: string
+  /** Board column placement, computed by the Story-1.2 tracker. */
+  column: Column
+  /** Epoch-millis the session entered its current column (UX-DR10 sort key). */
+  enteredColumnAt: number
+  /** Process id — a native c9watch field shown verbatim on the card (AC-1).
+   *  A wandering thread id; NEVER used as identity (key on `id`). */
+  pid: number
+  /** What the session is blocked on, when c9watch reports one (AC-1). */
+  pendingToolName?: string
+}
+
+/**
+ * Story 1.4 — the BARE `session.updated` the REDUCER produces, BEFORE main's
+ * enrichment stage. The reducer (Story 1.1) reduces the c9watch feed into session
+ * truth but does NOT know a session's `column`/`enteredColumnAt` (that is the
+ * Story-1.2 tracker's job, downstream). So the reduce stage emits this bare member;
+ * the ship stage (`enrichDelta` in `main/index.ts`) upgrades it to the enriched,
+ * renderer-facing `SessionUpdatedEvent` and validates AT SOURCE before `wc.send`.
+ *
+ * "main parses + reduces, then ships VALIDATED deltas" (.claude/rules/state.md) — the
+ * reduce stage (this bare type) and the ship stage (the enriched `SessionUpdatedEvent`)
+ * are distinct; the renderer only ever sees the enriched wire type.
+ */
+export type ReducerSessionUpdatedEvent = {
   type: 'session.updated'
   /** Stable session id (UUID). Never key on pid. */
   id: string
@@ -128,7 +197,8 @@ export type AttentionRaisedEvent = {
   id: string
   sessionName: string
   projectPath: string
-  /** The status that triggered the alert (e.g. WaitingForInput). */
+  /** The status that triggered the alert — a needs-you status (e.g. NeedsAttention
+   *  / NeedsPermission). Note: WaitingForInput is IDLE (calm) and never raises. */
   status: string
   /** The pending tool awaiting the human, when c9watch reports one. */
   pendingToolName?: string
@@ -142,3 +212,79 @@ export type AttentionRaisedEvent = {
  * `type` field"); epics.md#Epic 0 scope ("the frozen `AttentionEvent` type")]
  */
 export type AttentionEvent = SessionUpdatedEvent | SessionRemovedEvent | AttentionRaisedEvent
+
+/**
+ * `watch:events` payload — a single session delta produced by the main-process
+ * c9watch adapter, FRAMED with the snapshot's monotonic `epoch`.
+ *
+ * The `event` is one of the FROZEN `AttentionEvent` members. Story 1.1 emitted
+ * `session.updated` / `session.removed` only; Story 1.2 ALSO rides
+ * `attention.raised` on this same epoch-framed channel (the column-transition
+ * tracker's entry-edge event) — so `event` is now the FULL `AttentionEvent` union.
+ *
+ * This is a payload-TYPE WIDENING, NOT a reshape of the frozen `AttentionEvent`
+ * union itself (Epic 2 relies on that union's shape verbatim): `attention.raised`
+ * simply becomes a third valid `event` value on the existing `watch:events` channel
+ * — no new channel, no new union member. [Source: story 1.2 Task 4; AC-3]
+ *
+ * The epoch rides ALONGSIDE the event as the channel's transport frame, so the
+ * renderer can DISCARD any delta whose epoch is older than the latest it has seen
+ * (AC-2: "the renderer discards any delta older than the current epoch; idempotent
+ * apply"). The epoch is monotonic — it only ever increases.
+ * [Source: story 1.1 AC-2/AC-4, story 1.2 Task 4; architecture.md#Communication/State
+ *  Patterns ("each snapshot carries a monotonic epoch … renderer discards stale");
+ *  src/shared/ipc/contract.ts (frozen AttentionEvent); .claude/rules/ipc.md]
+ */
+export type WatchEventsPayload = {
+  /** Monotonic snapshot epoch this delta belongs to (only ever increases). */
+  epoch: number
+  /** The frozen session/attention event (Story 1.1: updated/removed; Story 1.2 adds
+   *  attention.raised — the full frozen AttentionEvent union, NOT reshaped). Story 1.4:
+   *  `session.updated` is the ENRICHED member (column/enteredColumnAt/pid/pendingToolName). */
+  event: AttentionEvent
+}
+
+/**
+ * Story 1.4 — the BARE epoch-framed delta the REDUCER produces (and the tracker
+ * consumes), BEFORE enrichment. Its `event` is the bare `session.updated`
+ * (`ReducerSessionUpdatedEvent`) / `session.removed` / `attention.raised`. The ship
+ * stage (`enrichDelta`) maps a bare `session.updated` to the enriched
+ * `WatchEventsPayload` the renderer receives; removed/raised pass through unchanged.
+ *
+ * The tracker (`attention.ts`) only reads the `type` discriminant + `id`/`status` off
+ * the event, so it consumes this bare payload directly — it never needs the enriched
+ * fields. [Source: story 1.4 Task 1; .claude/rules/state.md (reduce → ship stages)]
+ */
+export type ReducerWatchEventsPayload = {
+  /** Monotonic snapshot epoch this delta belongs to (only ever increases). */
+  epoch: number
+  /** The bare reducer/tracker event (pre-enrichment). */
+  event: ReducerSessionUpdatedEvent | SessionRemovedEvent | AttentionRaisedEvent
+}
+
+/**
+ * Story 1.4 FIX — `watch:status` push: the feed's REAL connection/liveness state.
+ *
+ * Why a DEDICATED channel (not a member of the frozen `AttentionEvent` union, and not
+ * a field on `WatchEventsPayload`): connection state is NOT a session event. It carries
+ * no `id`/epoch, is not stale-discardable, and has a different lifecycle (it fires on the
+ * watch CHILD's exit/restart, independent of any session delta). Folding it into the
+ * frozen union would reshape a contract Epic-2 relies on; folding it onto the epoch-framed
+ * `WatchEventsPayload` would force a phantom event/epoch for a state that has neither.
+ * `.claude/rules/ipc.md` ("prefer a small dedicated typed channel/event") → its own channel.
+ *
+ * This REPLACES the renderer's old line-silence inference of `reconnecting`: the verified
+ * contract (`c9watch-0.8.1-contract.md` — `watch --changes-only` emits 0 lines on a quiet
+ * machine) means silence is the NORMAL steady state, not a gap. Main already detects the
+ * watch child's `exit` and runs a serialized auto-reconnect (Story 1.1, feed.ts); it emits
+ * `reconnecting: true` while that reconnect is in flight and `reconnecting: false` once the
+ * watch restarted + the `list` reconcile applied. Validated AT SOURCE before `wc.send`
+ * (.claude/rules/zod-boundaries.md: main→renderer = validate at source).
+ * [Source: story 1.4 code-review MED; AC-6 / UX-DR17 (banner = a real watch-stream GAP,
+ *  NOT line silence); src/main/c9watch/feed.ts (reconnect lifecycle)]
+ */
+export type WatchStatus = {
+  /** True while the watch child has died and a reconnect is in flight; false once the
+   *  watch is restarted and the `list` reconcile has been applied. */
+  reconnecting: boolean
+}

@@ -1,7 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 // Story 0.2 — channels go through the typed contract, never string literals.
 import { CH } from '../shared/ipc/contract'
-import type { PtyExitEvent, SmokeConfig, SmokeReport } from '../shared/ipc/contract'
+import type {
+  PtyExitEvent,
+  SmokeConfig,
+  SmokeReport,
+  WatchEventsPayload,
+  WatchStatus
+} from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
 // contextIsolation stays ON — the renderer gets ONLY these functions, never
@@ -45,14 +51,44 @@ const ptyApi = {
 
 export type PtyApi = typeof ptyApi
 
+// Story 1.4 — the watch bridge: a push-only main→renderer subscription for the
+// epoch-framed c9watch deltas (`session.updated`/`session.removed`/`attention.raised`).
+// The renderer subscribes via `window.watch.onEvents(...)` and NEVER touches
+// ipcRenderer directly (contextIsolation stays ON). Mirrors `ptyApi.onData`'s
+// subscribe-returns-unsubscribe pattern. `CH.watchEvents` is a const, never a literal.
+const watchApi = {
+  /** Subscribe to epoch-framed c9watch deltas. Returns an unsubscribe fn. */
+  onEvents(cb: (payload: WatchEventsPayload) => void): () => void {
+    const listener = (_evt: unknown, payload: WatchEventsPayload): void => cb(payload)
+    ipcRenderer.on(CH.watchEvents, listener)
+    return () => ipcRenderer.removeListener(CH.watchEvents, listener)
+  },
+  /** Story 1.4 fix — subscribe to the watch CONNECTION state (reconnecting on/off).
+   *  This drives the reconnect banner off main's REAL signal, not line silence.
+   *  Returns an unsubscribe fn. `CH.watchStatus` is a const, never a literal. */
+  onStatus(cb: (status: WatchStatus) => void): () => void {
+    const listener = (_evt: unknown, status: WatchStatus): void => cb(status)
+    ipcRenderer.on(CH.watchStatus, listener)
+    return () => ipcRenderer.removeListener(CH.watchStatus, listener)
+  }
+}
+
+export type WatchApi = typeof watchApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
+    contextBridge.exposeInMainWorld('watch', watchApi)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // contextIsolation is required for this app; this branch should never run.
-  // @ts-ignore (define in dts)
+  // DEAD PATH: contextIsolation is required for this app (Guardrail #5 — never
+  // weakened), so this branch never runs in production. Kept only so the file is
+  // valid without contextBridge. The assignments are typed against the `Window`
+  // augment in index.d.ts, but in this branch `window` is the bare DOM lib type.
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.pty is in index.d.ts
   window.pty = ptyApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.watch is in index.d.ts
+  window.watch = watchApi
 }

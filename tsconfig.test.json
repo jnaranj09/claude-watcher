@@ -10,6 +10,12 @@
   "include": [
     "src/__fixtures__/**/*",
     "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/renderer/src/test/**/*",
+    // Story 1.4 — the renderer's ambient `Window` augment (window.pty / window.watch)
+    // so renderer component tests that touch the bridges typecheck under this program
+    // (the web build program already includes env.d.ts; this program did not).
+    "src/renderer/src/env.d.ts",
     "tests/unit/**/*",
     "tests/main/**/*",
     "tests/e2e/**/*"
@@ -19,7 +25,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
-    "types": ["node", "vitest/globals"],
+    // `vite/client` provides the ambient `*.module.css` module declaration so the
+    // renderer COMPONENT tests (which import scoped CSS Modules) typecheck under
+    // this program — the web build program gets the same via env.d.ts. [Story 1.3]
+    "types": ["node", "vitest/globals", "vite/client"],
     "paths": {
       "@renderer/*": ["src/renderer/src/*"]
     },

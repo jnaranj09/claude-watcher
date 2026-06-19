@@ -17,7 +17,10 @@
 //   - one session carries the undocumented `customTitle` field (Story 0.5 live
 //     finding) — it has NO schema declaration and survives via `.passthrough()`.
 //   - statuses are MIXED across sessions (Working / WaitingForInput / NeedsAttention /
-//     NeedsPermission) so column/attention logic (Epic 1/2) has real material.
+//     NeedsPermission / Connecting) so column/attention logic (Epic 1/2) has real
+//     material for the CORRECTED status→column mapping (contract §4.3): Working &
+//     Connecting → working; NeedsAttention & NeedsPermission → needs-you;
+//     WaitingForInput → idle (Story 1.2 rework — the prior inverted mapping is gone).
 //   - exactly ONE malformed line, interleaved BETWEEN two good lines (fail-closed test).
 //
 // SCHEMA-VERSIONED from day one: `C9WATCH_FIXTURE_VERSION` makes a future c9watch
@@ -104,6 +107,35 @@ export const fakeListSnapshot = {
       projectPath: '/home/u/projects/infra',
       sessionName: 'infra',
       status: 'NeedsPermission'
+    },
+    {
+      // Story 1.2 rework — a CONNECTING session: the transient startup state while
+      // c9watch is attaching (contract §4.1). Corrected mapping: Connecting → working
+      // (an alive session coming up, grouped WITH working — NOT needs-you). No pending
+      // tool yet; lean-ish shape.
+      id: '66666666-6666-4666-8666-666666666666',
+      modified: '2026-06-18T23:56:50.500+00:00',
+      pid: 848220,
+      projectPath: '/home/u/projects/payments',
+      sessionName: 'payments',
+      status: 'Connecting'
+    },
+    {
+      // Story 1.2 rework — a dedicated IDLE session: WaitingForInput is the calm IDLE
+      // bucket ("waiting for your next prompt", an alive session awaiting the operator)
+      // — the CORRECTED semantic (contract §4.2). Corrected mapping: WaitingForInput →
+      // idle (a LIVE column), NOT needs-you. This one is distinct from the `auth` idle
+      // session above (which stops in the watch stream), so an idle card survives the
+      // whole feed for column coverage.
+      firstPrompt: 'Summarize the open PRs and suggest a merge order.',
+      id: '77777777-7777-4777-8777-777777777777',
+      latestMessage: 'Done — anything else?',
+      messageCount: 12,
+      modified: '2026-06-18T23:57:00.250+00:00',
+      pid: 848330,
+      projectPath: '/home/u/projects/reports',
+      sessionName: 'reports',
+      status: 'WaitingForInput'
     }
   ]
 } as const

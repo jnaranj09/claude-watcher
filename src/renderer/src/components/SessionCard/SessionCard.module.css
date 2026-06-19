@@ -1,0 +1,123 @@
+/* Story 1.3 — SessionCard (AC-4, AC-8).
+ * One anatomy, three presentations (hero / calm / watch-only) via a `variant`.
+ * Chrome is sans (`--font-ui`); c9watch-verbatim data is mono (`--font-mono`).
+ * Keyboard-focusable with a lavender AA focus ring. */
+
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: var(--card-min-height);
+  padding: var(--space-3);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rounded-md);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+/* Lavender AA focus ring — cool, never warm (so it can't imitate the gold alert). */
+.root:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── hero — large, full-contrast, near ─────────────────────────────────────── */
+.hero {
+  background: var(--bg-card-hero);
+}
+
+/* 3px left accent bar in the hero column's accent (gold = needs-you / blue = working). */
+.hero.accentNeedsYou {
+  border-left: 3px solid var(--needs-you);
+}
+
+.hero.accentWorking {
+  border-left: 3px solid var(--working);
+}
+
+/* ── calm — compact, dimmed, far ───────────────────────────────────────────── */
+.calm {
+  background: var(--bg-card-calm);
+  opacity: 0.82;
+  color: var(--text-dim);
+}
+
+/* ── watch-only — same anatomy, no terminal affordance, Konsole tag ─────────── */
+.watchOnly {
+  background: var(--bg-card-calm);
+}
+
+/* ── Anatomy ───────────────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* sessionName — SANS, body ramp (the primary line). */
+.sessionName {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  line-height: var(--line-height-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* projectPath / pendingToolName / pid — MONO (verbatim machine data). */
+.projectPath,
+.pendingToolName {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  font-weight: var(--font-weight-mono);
+  line-height: var(--line-height-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectPath {
+  color: var(--text-secondary);
+}
+
+/* pendingToolName — the "what it's blocked on"; gold (a genuine needs-you signal). */
+.pendingToolName {
+  color: var(--needs-you);
+}
+
+/* Muted footer — `pid · tasks · cost` (meta ramp); pid value in mono. */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  line-height: var(--line-height-meta);
+  color: var(--text-muted);
+}
+
+.pid {
+  font-family: var(--font-mono);
+}
+
+.sep {
+  color: var(--text-muted);
+}
+
+/* Muted `Konsole` tag on watch-only cards. */
+.konsoleTag {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-sm);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  line-height: var(--line-height-label);
+  color: var(--text-muted);
+}

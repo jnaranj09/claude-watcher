@@ -1,0 +1,169 @@
+/* Story 1.5 — the ADAPTIVE center-hero board (UX-DR7). Replaces Story 1.4's static
+ * repeat(3, 1fr) with an unequal 3-slot grid: center hero ~50%, two flanks ~25% each.
+ * Three columns ALWAYS render and never collapse (UX-DR15). Tokens from styles/tokens.css.
+ *
+ * MOTION CONTRACT (UX-DR27 / FROZEN-3): the hero swap animates COMPOSITOR-ONLY — only
+ * transform + opacity, NEVER layout-thrashing props (no top/left/margin/height, and NOT a
+ * transition on the grid-track `fr` widths, which forces synchronous layout each frame).
+ * The board JUMP is the grid re-order itself; the columns ease in/out via a transform/opacity
+ * settle keyed by their slot. `prefers-reduced-motion: reduce` drops the settle entirely
+ * (instant reposition) — the size + color signal still carries urgency (UX-DR29 floor).
+ * Mirrors the property discipline of styles/emphasis.module.css. */
+
+.board {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+/* The status line at the top of the board — hosts the reconnect banner. */
+.statusLine {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* The adaptive 3-slot grid (UX-DR7): center hero ~50%, two flanks ~25% each. The slot
+ * ORDER is left-flank · center-hero · right-flank; placement is decided in Board.tsx
+ * (right = idle, center = hero, left = the non-hero hero-eligible column). */
+.grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 0.66fr 1.25fr 0.66fr;
+  gap: var(--gutter);
+  padding: var(--gutter);
+  overflow: auto;
+}
+
+/* One column — header (always) + a card stack (or an empty hint). Never collapses.
+ * The COMPOSITOR-ONLY settle on a hero swap rides here: only transform + opacity ease,
+ * ~280ms (in the 250–300ms band). The grid track-width change itself is instant (no `fr`
+ * transition → no per-frame synchronous layout); the column visually settles via transform.
+ * `will-change` is hinted only while a column is in the hero slot (see `.hero`). */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  min-width: 0;
+  background: var(--bg-col-calm);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-3);
+  transition:
+    transform 280ms ease,
+    opacity 280ms ease;
+}
+
+/* The hero column (center slot): full hero background + a faint accent edge. The edge hue
+ * is keyed by `data-hero-accent` so gold stays the loudest thing and the Working blue is
+ * LOW-opacity (so "all quiet" reads calm, never an alert — UX-DR3). */
+.hero {
+  background: var(--bg-col-hero);
+  /* Compositor-only hint: this column is the animating one. Flanks keep will-change:auto. */
+  will-change: transform, opacity;
+}
+
+.hero[data-hero-accent='needs-you'] {
+  box-shadow: inset 0 0 0 1px rgba(255, 207, 41, 0.12);
+}
+
+.hero[data-hero-accent='working'] {
+  box-shadow: inset 0 0 0 1px rgba(137, 180, 250, 0.1);
+}
+
+/* Accessibility floor (UX-DR27 / UX-DR29 / FROZEN-5): honor reduced-motion → NO animated
+ * swap; the hero repositions INSTANTLY. The cascade SELECTION is unchanged — only the
+ * settle is dropped; size/proximity + color still carry the urgency signal. Mirrors the
+ * exact `@media (prefers-reduced-motion: reduce)` pattern shipped in emphasis.module.css. */
+@media (prefers-reduced-motion: reduce) {
+  .column {
+    transition: none;
+  }
+
+  .hero {
+    will-change: auto;
+  }
+}
+
+.cardStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+}
+
+/* Empty-column hint — terse, muted; the column keeps its header above it. */
+.emptyHint {
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  padding: var(--space-2) 0;
+}
+
+/* Empty BOARD (zero sessions, cold-loaded) — headline + line + the single primary. */
+.emptyBoard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.emptyBoardHeadline {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-display);
+  line-height: var(--line-height-display);
+  color: var(--text-primary);
+}
+
+.emptyBoardLine {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--text-secondary);
+  max-width: 42ch;
+}
+
+.newSessionButton {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  cursor: pointer;
+}
+
+.newSessionButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Reconnect banner — thin, non-modal, on the status line (UX-DR17). */
+.reconnectBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--gutter);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+  line-height: var(--line-height-meta);
+}
+
+/* ── Cold-load skeleton (UX-DR16: ghost cards, never a spinner-on-empty) ───────── */
+.skeletonCard {
+  min-height: var(--card-min-height);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rounded-md);
+  background: var(--bg-card-calm);
+  opacity: 0.5;
+}
