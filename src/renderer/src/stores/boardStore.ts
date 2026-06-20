@@ -74,6 +74,14 @@ export const HERO_SWAP_DEBOUNCE_MS = 400
  *  a flank — so the cascade chooses only between these two. */
 export type HeroColumn = Extract<Column, 'needs-you' | 'working'>
 
+/** Story 3.4 — return a shallow copy of `record` without `key` (immutable delete). Pure; no
+ *  mutation of the input. Used to clear an ack/binding entry on a c9watch column-leave/removal. */
+function omitKey<V>(record: Record<string, V>, key: string): Record<string, V> {
+  const next = { ...record }
+  delete next[key]
+  return next
+}
+
 /**
  * Story 1.5 — the PURE, undebounced cascade (AC-1, AC-2, AC-8). Returns the RAW hero by
  * the corrected cascade Needs-you → Working → Idle, restricted to the two hero-eligible
@@ -122,8 +130,45 @@ export interface BoardState {
    *  truth). Set from a `CH.attentionActivate` push when the operator activates a notification
    *  AND the card is present; null when nothing is selected. Cleared when the selected session
    *  is removed from the board. This is a locate-and-highlight affordance — NOT navigation,
-   *  NOT a window raise. [state.md: selection = renderer view-state] */
+   *  NOT a window raise. [state.md: selection = renderer view-state]
+   *
+   *  Story 3.2 (FR-11 / UX-DR24 / F6) — the focused-session selection RECONCILES with this SAME
+   *  `selectedId` (jump-to-card + focused-session are ONE selection; do NOT invent a parallel
+   *  one). Focusing a card sets `selectedId` + `viewMode='focused'`. */
   selectedId: string | null
+  /** Story 3.2 (FR-11 / UX-DR24 / F6) — Board ↔ Focused-session VIEW-STATE (NOT routing, NOT a
+   *  second window — single-window). `'board'` shows the three-column board; `'focused'` shows
+   *  the focused session's EmbeddedTerminal + Esc-to-Board. Default `'board'`. */
+  viewMode: 'board' | 'focused'
+  /** Story 3.2 (FR-11 / UX-DR19) — the OPAQUE terminalId the Focused-session renders (the
+   *  optimistic App-launched terminal). Set the MOMENT a launch returns its terminalId — BEFORE
+   *  the Tgid correlation join binds a c9watch session `id` (the terminal is typeable immediately,
+   *  never blocked on the join). Distinct from `selectedId` (the session id, set when a card is
+   *  activated / when the join reconciles in a later story). null when no terminal is focused. */
+  focusedTerminalId: string | null
+  /** Story 3.4 (FR-16) — THE ONE shared per-session attention/acknowledge state (AC-4). Maps a
+   *  session `id` → epoch-millis it was acknowledged (opened/switched-to while in needs-you). This
+   *  is the SINGLE source for "which needs-you sessions are still UNacknowledged" — it drives BOTH
+   *  the rail's needs-you emphasis (`selectRailEmphasis`) AND the Story-2.2 board-card highlight.
+   *  Do NOT invent a second/parallel ack flag. [architecture.md:546-549 — "attention acknowledged"
+   *  is renderer view-state, Zustand, NEVER round-tripped to main; UX-DR28.]
+   *
+   *  RECONCILE WITH c9watch TRUTH (AC-4): the entry is CLEARED when the session leaves the
+   *  needs-you column (`session.updated` column!=='needs-you') or is removed (`session.removed`).
+   *  Ack is only meaningful while the session is in needs-you, so clearing on exit means a RE-ENTRY
+   *  into needs-you re-emphasizes (new attention = a new event). The OS tray badge is INDEPENDENT
+   *  (main-owned, c9watch-truth — `badge.ts`), recomputed every delta; it is NOT driven by this ack
+   *  state and is NEVER round-tripped to c9watch — so the two layers never contradict ("badge can't
+   *  outlive the handled session": both fall together on the same c9watch column-leave/removal). */
+  acknowledgedById: Record<string, number>
+  /** Story 3.4 (FR-16 / Task 4.1) — the sessionId → terminalId reverse map (renderer VIEW-STATE).
+   *  Populated from the `CH.launchCorrelated` push (`window.launch.onCorrelated`) the moment a
+   *  launch's Tgid join lands in main. The attention rail uses it to switch the visible terminal BY
+   *  session id (a pure renderer show/hide of the kept-alive terminals — NO per-switch IPC). The
+   *  entry is cleared on `session.removed` (the session — and so its binding — is gone). A session
+   *  with NO entry yet (pre-correlation) is alert-only-non-switchable; it becomes switchable the
+   *  moment the binding lands (degrade gracefully, never crash). */
+  terminalIdBySessionId: Record<string, string>
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Apply main's pushed connection state (CH.watchStatus). `true` anchors the debounce
@@ -142,6 +187,50 @@ export interface BoardState {
    *  NOT present in `sessionsById` is a NO-OP (the card may have already left the board);
    *  passing `null` clears the selection. View-state only — no window raise, no navigation. */
   setSelected: (id: string | null) => void
+  /** Story 3.2 (FR-11 / UX-DR19 / F6) — drop into the Focused-session for a freshly LAUNCHED
+   *  terminal. Sets `viewMode='focused'` + `focusedTerminalId=terminalId` OPTIMISTICALLY (main
+   *  holds the PTY; the terminal is typeable immediately, not blocked on the Tgid join). The
+   *  c9watch session `id` is not known yet — `selectedId` reconciles later (a future story
+   *  receives the join). Single-window in-app view-state only — NO routing, NO window raise.
+   *  (Named `openLaunchedTerminal` not `focus*` — this is an in-app VIEW transition, NOT an OS
+   *  window focus/raise; the Story-2.2 view-state invariant treats `focus`/`raise` action names
+   *  as window operations, which this is NOT.) */
+  openLaunchedTerminal: (terminalId: string) => void
+  /** Story 3.2 (FR-11 / F6) — activate a card by its session `id` (the Board `onActivateCard`
+   *  seam): SELECT it (the ONE selection, reconciled with the Story-2.2 `selectedId`) and drop
+   *  into its Focused-session IF a terminal is known for it. A no-op if the card is not present.
+   *
+   *  SCOPE (3.2): the `sessionId → terminalId` reverse map (so a card click can open the
+   *  app-launched session's terminal) is NOT built here — that pairing arrives when Story 3.3/3.4
+   *  wire the launched-set FILTER + the focused-session rail. So in 3.2 `activateCard` ONLY
+   *  selects (highlights the card); it switches to the Focused view ONLY when a `focusedTerminalId`
+   *  is already set (it does NOT claim `viewMode='focused'` with no terminal to show — that would
+   *  be a ghost state the UI silently ignores). The launch path (`openLaunchedTerminal`) is the
+   *  one that actually enters the Focused view in 3.2. In-app view-state only — NO window raise. */
+  activateCard: (id: string) => void
+  /** Story 3.2 (FR-11 / UX-DR21 / F6) — return to the Board (Esc-to-Board). Sets
+   *  `viewMode='board'`. Leaves `selectedId` intact so the card stays highlighted on the board
+   *  (the selection persists; only the view changes). In-app view-state only. */
+  showBoard: () => void
+  /** Story 3.4 (FR-16 / AC-4) — ACKNOWLEDGE a session (the operator opened/switched-to it). Stamps
+   *  `acknowledgedById[id] = now()` so `selectRailEmphasis(id)` returns 'calm' even while c9watch
+   *  still reports it in needs-you (UX-DR28: opening clears that session's IN-APP emphasis; the OS
+   *  badge is independent c9watch-truth). Idempotent re-stamp is harmless. Called from the rail-row
+   *  click + the open/switch paths (openLaunchedTerminal / activateCard / switchFocusedTerminal). */
+  acknowledge: (id: string) => void
+  /** Story 3.4 (FR-16 / Task 4.1) — record a launch correlation binding from the `CH.launchCorrelated`
+   *  push: `terminalIdBySessionId[sessionId] = terminalId`. View-state only (the rail switches the
+   *  visible terminal by session id). Idempotent. */
+  addCorrelation: (sessionId: string, terminalId: string) => void
+  /** Story 3.4 (FR-16 / AC-3 / Task 4.3) — switch the VISIBLE terminal to `terminalId` (a rail click
+   *  on a session whose binding is known). PURE renderer view-state: sets `focusedTerminalId` +
+   *  `viewMode='focused'`; the kept-alive terminals (visibility:hidden) are NOT recreated and NO
+   *  input is sent (alert-only, FR-9-consistent). NOT named `switchFocused*` — like
+   *  `openLaunchedTerminal`, this is an in-app VIEW transition, NOT an OS window focus/raise (the
+   *  Story-2.2 view-state invariant treats `focus`/`raise` names as window operations, which this is
+   *  NOT). Does NOT acknowledge by itself — the caller pairs it with `acknowledge(sessionId)` (the
+   *  rail row knows the sessionId; this action takes only the terminalId so it stays a pure switch). */
+  switchTerminal: (terminalId: string) => void
 }
 
 export interface BoardStoreOptions {
@@ -206,6 +295,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     heroPendingTarget: null,
     // Story 2.2 (FR-9) — nothing selected until a notification is activated for a present card.
     selectedId: null,
+    // Story 3.2 (FR-11) — the board view + no focused terminal until the first launch/activate.
+    viewMode: 'board',
+    focusedTerminalId: null,
+    // Story 3.4 (FR-16) — nothing acknowledged + no correlation bindings until the first
+    // acknowledge / the first CH.launchCorrelated push.
+    acknowledgedById: {},
+    terminalIdBySessionId: {},
 
     applyWatchEvent: (payload) => {
       const state = get()
@@ -230,10 +326,18 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
         }
         const sessionsById = { ...state.sessionsById, [event.id]: next }
+        // Story 3.4 (FR-16 / AC-4) — reconcile the ack state with c9watch truth: when a session
+        // LEAVES the needs-you column, clear its acknowledged entry (ack is only meaningful while
+        // it is waiting; a RE-ENTRY into needs-you must re-emphasize as a new event). The badge is
+        // independent main-owned truth, so the two layers fall together coherently — "badge can't
+        // outlive the handled session." A still-needs-you update leaves the ack entry intact.
+        const ackCleared =
+          event.column !== 'needs-you' && state.acknowledgedById[event.id] !== undefined
         set({
           sessionsById,
           epoch: payload.epoch,
           coldLoaded: true, // first delta of epoch ≥ 1 flips the cold-load skeleton off
+          ...(ackCleared ? { acknowledgedById: omitKey(state.acknowledgedById, event.id) } : {}),
           // Story 1.5 — re-evaluate the pending hero AFTER the count change (Task 1.3).
           ...reevaluateHero(state, sessionsById)
         })
@@ -244,6 +348,11 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
         // AC-2 — the card VANISHES (no Done column). Drop by id.
         const nextById = { ...state.sessionsById }
         delete nextById[event.id]
+        // Story 3.4 (FR-16 / AC-4 / Task 4.1) — a removed session's ack entry + its terminal binding
+        // are stale: clear both so the emphasis falls coherently with the badge (which also recomputes
+        // DOWN on this same c9watch removal), and the rail no longer holds a binding for a gone session.
+        const ackCleared = state.acknowledgedById[event.id] !== undefined
+        const bindingCleared = state.terminalIdBySessionId[event.id] !== undefined
         set({
           sessionsById: nextById,
           epoch: payload.epoch,
@@ -251,6 +360,10 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           // Story 2.2 (FR-9) — if the REMOVED session was the selected card, clear the
           // selection (the highlighted card no longer exists). Otherwise leave it untouched.
           ...(state.selectedId === event.id ? { selectedId: null } : {}),
+          ...(ackCleared ? { acknowledgedById: omitKey(state.acknowledgedById, event.id) } : {}),
+          ...(bindingCleared
+            ? { terminalIdBySessionId: omitKey(state.terminalIdBySessionId, event.id) }
+            : {}),
           // Story 1.5 — a removal can empty Needs-you → re-evaluate the pending hero.
           ...reevaluateHero(state, nextById)
         })
@@ -315,6 +428,62 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       const state = get()
       if (state.sessionsById[id] === undefined) return // absent card → no-op
       if (state.selectedId !== id) set({ selectedId: id })
+    },
+
+    openLaunchedTerminal: (terminalId) => {
+      // Optimistic drop-into-Focused-session the moment the launch returns its terminalId (UX-DR19).
+      // The terminal renders + is typeable immediately; the session `id` (selectedId) reconciles
+      // later. Single-window in-app VIEW-STATE only — no routing, no window raise.
+      set({ viewMode: 'focused', focusedTerminalId: terminalId })
+    },
+
+    activateCard: (id) => {
+      // Activate a present card (the Board onActivateCard seam): SELECT it (ONE selection,
+      // reconciled with the Story-2.2 selectedId). A no-op for an absent card. Enter the Focused
+      // view ONLY when a terminal is already focused (the sessionId→terminalId reverse map is a
+      // Story-3.3/3.4 concern) — never claim viewMode='focused' with no terminal to show (a ghost
+      // state the UI silently ignores). The launch path is the one that enters Focused in 3.2.
+      const state = get()
+      if (state.sessionsById[id] === undefined) return
+      // Story 3.4 (AC-4 / UX-DR28) — opening a session ACKNOWLEDGES it (clears its in-app emphasis).
+      // The known sessionId stamps the ONE ack state (rail + card read the same selectRailEmphasis).
+      set({
+        selectedId: id,
+        acknowledgedById: { ...state.acknowledgedById, [id]: now() },
+        ...(state.focusedTerminalId !== null ? { viewMode: 'focused' as const } : {})
+      })
+    },
+
+    showBoard: () => {
+      // Esc-to-Board (UX-DR21). Return to the board view; leave selectedId intact (the card stays
+      // highlighted on the board). View-state only.
+      if (get().viewMode !== 'board') set({ viewMode: 'board' })
+    },
+
+    acknowledge: (id) => {
+      // Story 3.4 (AC-4 / UX-DR28) — stamp the acknowledged time (injected now() for determinism).
+      // Clears that session's IN-APP emphasis (rail + card) via selectRailEmphasis; the OS badge is
+      // independent c9watch-truth and is untouched here. Re-stamp is harmless (idempotent in effect).
+      const state = get()
+      set({ acknowledgedById: { ...state.acknowledgedById, [id]: now() } })
+    },
+
+    addCorrelation: (sessionId, terminalId) => {
+      // Story 3.4 (Task 4.1) — record the launch correlation binding (from CH.launchCorrelated). The
+      // rail switches the visible terminal by session id off this map. Idempotent; no-op if unchanged.
+      const state = get()
+      if (state.terminalIdBySessionId[sessionId] === terminalId) return
+      set({ terminalIdBySessionId: { ...state.terminalIdBySessionId, [sessionId]: terminalId } })
+    },
+
+    switchTerminal: (terminalId) => {
+      // Story 3.4 (AC-3 / Task 4.3) — switch the visible terminal (a rail click). PURE view-state:
+      // the kept-alive terminals are shown/hidden via visibility (terminal.md), never recreated, and
+      // NO input is sent. Enter the Focused view if not already there. Does NOT acknowledge (the
+      // caller pairs it with acknowledge(sessionId) — this action knows only the terminalId).
+      const state = get()
+      if (state.focusedTerminalId === terminalId && state.viewMode === 'focused') return
+      set({ viewMode: 'focused', focusedTerminalId: terminalId })
     }
   }))
 }
@@ -361,6 +530,74 @@ export const selectHeroColumn = (state: BoardState): HeroColumn => state.heroCol
 /** Story 2.2 (FR-9) — the SELECTED card's id (a primitive — safe without useShallow). The
  *  card with this id renders the selected affordance; null when nothing is selected. */
 export const selectSelectedId = (state: BoardState): string | null => state.selectedId
+
+/** Story 3.2 (FR-11) — the current view mode (primitive). App.tsx switches Board ↔ Focused. */
+export const selectViewMode = (state: BoardState): 'board' | 'focused' => state.viewMode
+
+/** Story 3.2 (FR-11) — the focused terminal's opaque id (primitive). The Focused-session view
+ *  renders this terminal's EmbeddedTerminal; null when no terminal is focused. */
+export const selectFocusedTerminalId = (state: BoardState): string | null => state.focusedTerminalId
+
+// ---------------------------------------------------------------------------
+// Story 3.4 (FR-16) — the ONE shared attention/acknowledge selectors. Rail emphasis AND the
+// Story-2.2 board-card emphasis BOTH read `selectRailEmphasis` (one state, no parallel flag).
+//
+// NOTE the DISTINCTION from `selectedId` (Story 2.2): `selectedId` is "which card is SELECTED"
+// (locate-and-highlight / which terminal is being viewed); `selectRailEmphasis` is "does this
+// session NEED YOU, UNacknowledged." They are orthogonal concerns over the SAME store. The rail's
+// ACTIVE row maps to the focused terminal's session (the one being viewed), not to selectedId.
+// ---------------------------------------------------------------------------
+
+/** True iff the session has been acknowledged (opened/switched-to while in needs-you). A primitive
+ *  parameterized selector — safe without useShallow. */
+export const selectIsAcknowledged = (state: BoardState, id: string): boolean =>
+  state.acknowledgedById[id] !== undefined
+
+/** The rail/card emphasis for a session: `'needs-you'` iff it is in the needs-you column AND NOT
+ *  acknowledged; otherwise `'calm'`. The ONE derivation BOTH the rail row and the board card read
+ *  (no second ack flag). A primitive string — safe without useShallow (per-row subscription). */
+export function selectRailEmphasis(state: BoardState, id: string): 'needs-you' | 'calm' {
+  const session = state.sessionsById[id]
+  if (session === undefined || session.column !== 'needs-you') return 'calm'
+  return state.acknowledgedById[id] !== undefined ? 'calm' : 'needs-you'
+}
+
+/** The terminalId bound to a session id (from the CH.launchCorrelated push), or undefined if the
+ *  binding has not landed yet (pre-correlation → alert-only-non-switchable). Primitive. */
+export const selectTerminalIdForSession = (state: BoardState, id: string): string | undefined =>
+  state.terminalIdBySessionId[id]
+
+/** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
+ *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the
+ *  correlated bindings (`terminalIdBySessionId` values) UNION the current `focusedTerminalId` (the
+ *  optimistic just-launched terminal whose binding may not have landed yet). Returns a STABLE,
+ *  SORTED, de-duplicated string[] so an equal set under `useShallow` does not re-render / remount
+ *  the terminals. Derived; not stored. */
+export function selectKeptAliveTerminalIds(state: BoardState): string[] {
+  const ids = new Set<string>(Object.values(state.terminalIdBySessionId))
+  if (state.focusedTerminalId !== null) ids.add(state.focusedTerminalId)
+  return [...ids].sort()
+}
+
+/** Story 3.4 (FR-16 / AC-1) — the SORTED session-id list the attention rail renders. SAME source
+ *  as the board (`sessionsById` = the post-3.3 launched-set-filtered feed main ships). STABLE sort:
+ *  needs-you sessions FIRST (they want you), then by `enteredColumnAt` ascending (oldest-waiting
+ *  first), calm rows below in the same entered-time order. Returns ONLY the ids (a string[]) so the
+ *  rail subscribes to a small, stable projection (per-row emphasis is a separate narrow selector,
+ *  so an emphasis flip does not re-sort/re-render the whole rail — Task 3.6). Derived; not stored. */
+export function selectRailOrder(state: BoardState): string[] {
+  return Object.values(state.sessionsById)
+    .slice()
+    .sort((a, b) => {
+      const aNeeds = a.column === 'needs-you' ? 0 : 1
+      const bNeeds = b.column === 'needs-you' ? 0 : 1
+      if (aNeeds !== bNeeds) return aNeeds - bNeeds
+      if (a.enteredColumnAt !== b.enteredColumnAt) return a.enteredColumnAt - b.enteredColumnAt
+      // Final tiebreak on id so the order is fully deterministic (no render churn on equal times).
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+    })
+    .map((s) => s.id)
+}
 
 // ---------------------------------------------------------------------------
 // The app singleton store + bound hooks. Tests use `createBoardStore({ now })`

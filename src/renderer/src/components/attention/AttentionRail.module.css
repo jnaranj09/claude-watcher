@@ -1,0 +1,177 @@
+/* Story 3.4 (FR-16) — the attention rail (UX-DR9/27/29).
+ *
+ * Always-present nav region; collapsible to 56px icons, NEVER hidden. Rows = status dot + short
+ * name; needs-you rows enlarge 44→56px + 14%-gold fill + needs-you border + pulse (the pulse +
+ * reduced-motion fallback come from the SHIPPED emphasis.module.css via needsYouEmphasisClass on
+ * the card; here the rail composes its OWN row styling and keeps the enlarge in reduced-motion,
+ * dropping only the pulse). Idle rows stay calm; the active row (the session being viewed) is
+ * highlighted. The pulse is compositor-only (transform/opacity), never layout — it must not
+ * contend with the terminal echo budget (UX-DR27). */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  width: var(--rail-width);
+  flex: 0 0 var(--rail-width);
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.rail.collapsed {
+  width: var(--rail-width-collapsed);
+  flex-basis: var(--rail-width-collapsed);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  min-height: 40px;
+}
+
+.collapsed .header {
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+.title {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-heading);
+  color: var(--text-secondary);
+  letter-spacing: var(--letter-spacing-heading);
+  text-transform: uppercase;
+}
+
+.collapseToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.collapseToggle:hover {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+}
+
+.collapseToggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.collapsed .list {
+  padding: var(--space-2) 0;
+  align-items: center;
+}
+
+.listItem {
+  display: block;
+  width: 100%;
+}
+
+/* Idle/calm row: the baseline. 44px tall, no enlarge, no pulse, no gold. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: var(--bg-card-calm);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.collapsed .row {
+  width: 44px;
+  min-width: 44px;
+  justify-content: center;
+  padding: var(--space-2) 0;
+  gap: 0;
+}
+
+.row:hover {
+  background: var(--bg-surface-raised);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.initial {
+  font-weight: var(--font-weight-heading);
+  color: var(--text-secondary);
+}
+
+/* Needs-you emphasis (AC-2): enlarge 44→56px + 14%-gold fill + needs-you border. The PULSE +
+ * its reduced-motion fallback are NOT defined here — they come from the SHIPPED
+ * emphasis.module.css `needsYouEmphasisClass`, which the rail row ALSO applies (CONSUMED, not
+ * re-authored — SM-C1). This rule only owns the rail's OWN layout (enlarge/fill/border); the
+ * shipped class owns the @keyframes needsYouPulse + the @media (prefers-reduced-motion) drop. So
+ * reduced-motion keeps THIS enlarge/fill/border (static) and only the pulse stops — exactly the
+ * UX-DR27/29 floor. We deliberately do NOT set `animation`/`color`/`transform` here (the shipped
+ * class owns motion + the gold token color). */
+.emphasized {
+  min-height: 56px;
+  /* 14% gold fill over the gold token (alpha is on the fill, NOT a new hue). */
+  background: color-mix(in srgb, var(--needs-you) 14%, var(--bg-card-calm));
+  border-color: var(--needs-you);
+}
+
+.collapsed .emphasized {
+  width: 56px;
+  min-width: 56px;
+}
+
+/* The ACTIVE row (the session currently being viewed in the focused terminal) — highlighted via
+ * the shipped lavender focus-ring token + a raised surface (NOT a new color). */
+.active {
+  border-color: var(--focus-ring);
+  background: var(--bg-surface-raised);
+}
+
+/* When a row is BOTH active and emphasized, keep the gold needs-you signal dominant (it still
+ * needs you) but mark the active state with the lavender ring via an inner box-shadow. */
+.emphasized.active {
+  box-shadow: inset 0 0 0 1px var(--focus-ring);
+}

@@ -1,0 +1,79 @@
+/* Story 3.2 (FR-11) → Story 3.4 (FR-16) — the Focused-session layout: the persistent attention
+   rail | the main column (Esc-to-Board bar + the kept-alive terminals). Uses the DESIGN.md tokens
+   via the generated :root custom properties — NO new colors. */
+
+.focused {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-base);
+}
+
+/* The main column to the right of the rail. */
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex: 0 0 auto;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  cursor: pointer;
+}
+
+.backButton:hover {
+  background: var(--bg-surface);
+}
+
+.backButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.hint {
+  font-size: var(--font-size-caption, 12px);
+  color: var(--text-secondary);
+}
+
+/* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned
+   to fill it (inset:0), so the hidden ones (visibility:hidden — kept alive, NEVER display:none)
+   keep a NON-ZERO box for the next fit(), and only the active one is visible on top. */
+.terminalWrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-2);
+  box-sizing: border-box;
+}
+
+/* Each EmbeddedTerminal's root frame is direct child of .terminalWrap; stack them. The component
+   already toggles visibility on its inner host via the `active` prop. We position the FRAME to
+   fill the wrap so each kept-alive terminal has the same full-size box. */
+.terminalWrap > * {
+  position: absolute;
+  inset: var(--space-2);
+}

@@ -1,10 +1,14 @@
-// Story 1.3 — SessionCard (AC-4, AC-8).
+// Story 1.3 — SessionCard (AC-4, AC-8). Story 3.3 — the `watch-only` variant RETIRED.
 //
-// One card anatomy, three presentations driven by a `variant` prop:
+// One card anatomy, TWO live presentations driven by a `variant` prop:
 //   - hero       — large, full-contrast (`bg-card-hero`), a 3px left accent bar in
 //                  the hero column's accent (gold = needs-you / blue = working).
 //   - calm       — compact, ~0.82 opacity, `text-dim` body (the recessed "far" card).
-//   - watch-only — same anatomy, NO terminal affordance, a muted `Konsole` tag.
+//
+// Story 3.3 (FR-12 dropped) — the `watch-only` variant (the muted `Konsole` tag, built in
+// Story 1.3 but NEVER wired by any caller) is RETIRED: the Board shows ONLY app-launched
+// sessions, so there is no external/Konsole card to present. UX-DR6 loses its watch-only
+// presentation; UX-DR20 (click-to-focus-failed) is DROPPED.
 //
 // PRESENTATIONAL ONLY: props are already-typed in-process data (NO c9watch parsing,
 // NO IPC, NO store). The card is keyboard-focusable with a lavender AA focus ring
@@ -12,9 +16,10 @@
 // component only takes the callback. Status is dot + text label (never color-only).
 import type { JSX, KeyboardEvent } from 'react'
 import { StatusDot, type DotStatus } from '../StatusDot/StatusDot'
+import { needsYouEmphasisClass } from '../../styles/emphasis'
 import styles from './SessionCard.module.css'
 
-export type SessionCardVariant = 'hero' | 'calm' | 'watch-only'
+export type SessionCardVariant = 'hero' | 'calm'
 
 /** Drives the hero accent bar. The two hero columns are needs-you (gold) and
  *  working (blue); idle never takes the hero, so it is not an accent option. */
@@ -45,12 +50,17 @@ export interface SessionCardProps {
    *  affordance via the shipped lavender focus-ring / raised-surface tokens — NOT a new color,
    *  NOT a window raise. Default false. */
   selected?: boolean
+  /** Story 3.4 (FR-16 / AC-4) — true when this session NEEDS YOU and is UNacknowledged. Driven by
+   *  the SHARED `selectRailEmphasis` (the SAME state the attention rail reads — ONE ack state, no
+   *  parallel flag). Applies the SHIPPED Epic-1 `needsYouEmphasisClass` (the pulse + reduced-motion
+   *  fallback + gold token) — CONSUMED, not re-authored. Orthogonal to `selected` (which card is
+   *  being viewed) — this is "which card still needs you." Default false. */
+  emphasized?: boolean
 }
 
 const VARIANT_CLASS: Record<SessionCardVariant, string> = {
   hero: styles.hero ?? '',
-  calm: styles.calm ?? '',
-  'watch-only': styles.watchOnly ?? ''
+  calm: styles.calm ?? ''
 }
 
 const ACCENT_CLASS: Record<CardAccent, string> = {
@@ -70,14 +80,19 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     tasks,
     cost,
     onActivate,
-    selected = false
+    selected = false,
+    emphasized = false
   } = props
 
-  // The accent bar only renders on the hero variant (calm/watch-only are recessed).
+  // The accent bar only renders on the hero variant (calm is recessed).
   const accentClass = variant === 'hero' ? ACCENT_CLASS[accent] : ''
   // Story 2.2 (FR-9) — the selected (locate-and-highlight) affordance reuses the shipped
   // lavender focus-ring + raised-surface tokens (no new highlight color). Never a window raise.
   const selectedClass = selected ? (styles.selected ?? '') : ''
+  // Story 3.4 (FR-16 / AC-4) — the needs-you-unacknowledged emphasis: the SHIPPED Epic-1 pulse
+  // class (gold token + pulse + reduced-motion fallback, all in emphasis.module.css). CONSUMED,
+  // not re-authored. Driven by the SHARED ack state (selectRailEmphasis) — the rail reads the same.
+  const emphasisClass = emphasized ? needsYouEmphasisClass : ''
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -88,10 +103,11 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
 
   return (
     <div
-      className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${selectedClass}`}
+      className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${selectedClass} ${emphasisClass}`}
       data-variant={variant}
       data-accent={accent}
       {...(selected ? { 'data-selected': true } : {})}
+      {...(emphasized ? { 'data-emphasized': true } : {})}
       role="button"
       tabIndex={0}
       onClick={() => onActivate?.()}
@@ -135,12 +151,6 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
           </>
         )}
       </div>
-
-      {variant === 'watch-only' && (
-        <span className={styles.konsoleTag} data-testid="konsole-tag">
-          Konsole
-        </span>
-      )}
     </div>
   )
 }

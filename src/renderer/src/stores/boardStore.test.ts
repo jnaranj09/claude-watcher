@@ -19,6 +19,11 @@ import {
   selectReconnecting,
   selectHeroColumn,
   selectSelectedId,
+  selectViewMode,
+  selectFocusedTerminalId,
+  selectIsAcknowledged,
+  selectRailEmphasis,
+  selectTerminalIdForSession,
   RECONNECT_THRESHOLD_MS,
   HERO_SWAP_DEBOUNCE_MS,
   type BoardState
@@ -180,9 +185,26 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
       .join('\n')
     expect(code).not.toMatch(/@xterm|node-pty/)
     expect(code).not.toMatch(/\bnew Terminal\b/)
-    // And the state shape carries no terminal field.
+    // And the state shape holds no terminal INSTANCE/REFERENCE. The Story-3.2 view-state DOES
+    // carry a `focusedTerminalId` — but that is an OPAQUE STRING id (which terminal is focused),
+    // exactly like `selectedId` is a session-id string; the xterm/PTY/MessagePort INSTANCES stay
+    // in imperative refs inside EmbeddedTerminal (terminal.md / state.md). So the invariant is
+    // "no terminal OBJECT in the store", not "no string id naming a terminal". Assert every
+    // non-function state value is a primitive / plain projection — never an xterm-like object
+    // (an object exposing terminal methods like open/write/dispose/onData).
     const store = createBoardStore({ now: () => FIXED_NOW })
-    expect(Object.keys(store.getState()).filter((k) => /term|pty|xterm/i.test(k))).toEqual([])
+    const looksLikeTerminal = (v: unknown): boolean =>
+      typeof v === 'object' &&
+      v !== null &&
+      ['write', 'dispose', 'onData', 'open', 'resize', 'kill'].some(
+        (m) => typeof (v as Record<string, unknown>)[m] === 'function'
+      )
+    const terminalLikeValues = Object.entries(store.getState())
+      .filter(([, v]) => typeof v !== 'function')
+      .filter(([, v]) => looksLikeTerminal(v))
+    expect(terminalLikeValues).toEqual([])
+    // focusedTerminalId is a string id (view-state), not a terminal reference.
+    expect(store.getState().focusedTerminalId === null).toBe(true)
   })
 })
 
@@ -536,5 +558,213 @@ describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () 
     // The ONLY new selection mutator is setSelected — no raise/focus/navigate action.
     expect(actionNames).toContain('setSelected')
     expect(actionNames.some((k) => /raise|focus|navigate|summon|window/i.test(k))).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 3.2 (FR-11) — the Board ↔ Focused-session VIEW-STATE (F6 / UX-DR19/21/24).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', () => {
+  it('defaults to the board view with no focused terminal', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectViewMode(store.getState())).toBe('board')
+    expect(selectFocusedTerminalId(store.getState())).toBeNull()
+  })
+
+  it('openLaunchedTerminal drops into the Focused view OPTIMISTICALLY (terminal id set, no session id needed)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('launch-term-1')
+    expect(selectViewMode(store.getState())).toBe('focused')
+    expect(selectFocusedTerminalId(store.getState())).toBe('launch-term-1')
+    // UX-DR19: the session id is NOT required to focus the launched terminal (it reconciles later).
+    expect(selectSelectedId(store.getState())).toBeNull()
+  })
+
+  it('activateCard(presentId) SELECTS (ONE selection) but stays on the board when no terminal is focused', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().activateCard('a')
+    // ONE selection: activateCard sets the SAME selectedId the Story-2.2 setSelected uses.
+    expect(selectSelectedId(store.getState())).toBe('a')
+    // No terminal is known for this card in 3.2 (the reverse map is 3.3/3.4) → NO ghost
+    // viewMode='focused' state; the view stays on the board.
+    expect(selectViewMode(store.getState())).toBe('board')
+  })
+
+  it('activateCard(presentId) DOES enter Focused when a terminal is already focused (no ghost state)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    // A terminal is already focused (e.g. a prior launch) → activating a card enters Focused.
+    store.getState().openLaunchedTerminal('launch-term-1')
+    store.getState().showBoard() // back to board, but focusedTerminalId persists
+    store.getState().activateCard('a')
+    expect(selectViewMode(store.getState())).toBe('focused')
+    expect(selectSelectedId(store.getState())).toBe('a')
+  })
+
+  it('activateCard(absentId) is a NO-OP (no view change, no selection)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().activateCard('ghost')
+    expect(selectViewMode(store.getState())).toBe('board')
+    expect(selectSelectedId(store.getState())).toBeNull()
+  })
+
+  it('showBoard returns to the board (Esc-to-Board) and leaves the selection highlighted', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    // Enter Focused via a launch (the path that actually focuses a terminal in 3.2), then select.
+    store.getState().openLaunchedTerminal('launch-term-1')
+    store.getState().setSelected('a')
+    expect(selectViewMode(store.getState())).toBe('focused')
+    store.getState().showBoard()
+    expect(selectViewMode(store.getState())).toBe('board')
+    // The selection persists so the card stays highlighted on the board (only the view changed).
+    expect(selectSelectedId(store.getState())).toBe('a')
+  })
+
+  it('view transitions are in-app view-state only — NO window-raise/navigate action exists', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    const state = store.getState()
+    const actionNames = Object.keys(state).filter(
+      (k) => typeof (state as unknown as Record<string, unknown>)[k] === 'function'
+    )
+    // The Story-3.2 view actions are openLaunchedTerminal / activateCard / showBoard — NONE is a
+    // window raise/focus/navigate/summon operation (single-window view-state, UX-DR24).
+    expect(actionNames).toEqual(
+      expect.arrayContaining(['openLaunchedTerminal', 'activateCard', 'showBoard'])
+    )
+    expect(actionNames.some((k) => /raise|navigate|summon|window/i.test(k))).toBe(false)
+  })
+})
+
+// ===========================================================================
+// Story 3.4 (FR-16) — the ONE shared per-session attention/acknowledge state (AC-4).
+// ===========================================================================
+describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis (AC-4)', () => {
+  it('a needs-you session is emphasized; acknowledging it clears the emphasis (UX-DR28)', () => {
+    const clock = makeClock()
+    const store = createBoardStore({ now: clock.now })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    // Before acknowledge: emphasized (needs-you + not acknowledged).
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('needs-you')
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+
+    store.getState().acknowledge('a')
+    // After acknowledge: calm (in-app emphasis cleared even though c9watch still says needs-you).
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
+    // The ack stamp is the injected now() (determinism).
+    expect(store.getState().acknowledgedById['a']).toBe(clock.now())
+  })
+
+  it('a NON-needs-you session is never emphasized regardless of ack', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    store.getState().applyWatchEvent(updated(1, 'i', 'idle', 100))
+    expect(selectRailEmphasis(store.getState(), 'w')).toBe('calm')
+    expect(selectRailEmphasis(store.getState(), 'i')).toBe('calm')
+  })
+
+  it('an absent session is calm (never crash on an unknown id)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectRailEmphasis(store.getState(), 'ghost')).toBe('calm')
+    expect(selectIsAcknowledged(store.getState(), 'ghost')).toBe(false)
+  })
+
+  it('emphasis RETURNS on a needs-you RE-ENTRY (clearing on column-leave makes re-entry a new event)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().acknowledge('a')
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
+
+    // c9watch reports the session LEFT needs-you (handled) → ack entry cleared.
+    store.getState().applyWatchEvent(updated(2, 'a', 'working', 200))
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm') // not needs-you now
+
+    // c9watch reports it RE-ENTERS needs-you → a NEW attention event → re-emphasized.
+    store.getState().applyWatchEvent(updated(3, 'a', 'needs-you', 300))
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('needs-you')
+  })
+
+  it('the ack entry is CLEARED when the session is REMOVED (badge can’t outlive the handled session)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().acknowledge('a')
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+
+    store.getState().applyWatchEvent(removed(2, 'a'))
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    expect(store.getState().acknowledgedById['a']).toBeUndefined()
+  })
+
+  it('a still-needs-you update does NOT clear the ack (only a column-LEAVE does)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().acknowledge('a')
+    // Another needs-you update (e.g. a status field change while still waiting) keeps it acknowledged.
+    store
+      .getState()
+      .applyWatchEvent(updated(2, 'a', 'needs-you', 100, { status: 'NeedsPermission' }))
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
+  })
+
+  it('there is ONE ack state — no parallel/second acknowledge flag on the store', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    const keys = Object.keys(store.getState())
+    const ackish = keys.filter((k) => /ack|acknowledg/i.test(k))
+    expect(ackish).toEqual(['acknowledgedById', 'acknowledge'])
+  })
+
+  it('activateCard ALSO acknowledges the opened session (the open/select path, UX-DR28)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().activateCard('a')
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
+  })
+})
+
+describe('boardStore — Story 3.4 terminalIdBySessionId + switchTerminal (AC-3, Task 4)', () => {
+  it('addCorrelation records the sessionId→terminalId binding (idempotent)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectTerminalIdForSession(store.getState(), 'a')).toBeUndefined()
+    store.getState().addCorrelation('a', 'launch-1')
+    expect(selectTerminalIdForSession(store.getState(), 'a')).toBe('launch-1')
+    const before = store.getState().terminalIdBySessionId
+    store.getState().addCorrelation('a', 'launch-1') // idempotent — same object reference
+    expect(store.getState().terminalIdBySessionId).toBe(before)
+  })
+
+  it('the binding is CLEARED when the session is removed', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().addCorrelation('a', 'launch-1')
+    store.getState().applyWatchEvent(removed(2, 'a'))
+    expect(selectTerminalIdForSession(store.getState(), 'a')).toBeUndefined()
+  })
+
+  it('switchTerminal sets focusedTerminalId + viewMode=focused (pure view-state, no input)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().switchTerminal('launch-2')
+    expect(selectFocusedTerminalId(store.getState())).toBe('launch-2')
+    expect(selectViewMode(store.getState())).toBe('focused')
+    // Switching to the SAME terminal while already focused is a no-op (no re-set churn).
+    const before = store.getState()
+    store.getState().switchTerminal('launch-2')
+    expect(store.getState()).toBe(before)
+  })
+
+  it('switchTerminal does NOT acknowledge by itself (the caller pairs it with acknowledge)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().addCorrelation('a', 'launch-1')
+    store.getState().switchTerminal('launch-1')
+    // The switch alone does not clear emphasis — the rail click calls acknowledge(sessionId) too.
+    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    store.getState().acknowledge('a')
+    expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
   })
 })

@@ -34,8 +34,27 @@ export const CH = {
   smokeReport: 'smoke:report',
 
   // --- Named in the architecture, wired in later epics ---
+  // Story 3.2 (FR-11) — `session:launch` is now WIRED (was reserved-but-unwired): the
+  // renderer asks main to launch a raw `claude` under node-pty in a picked cwd. Returns the
+  // opaque `terminalId` the renderer's EmbeddedTerminal opens against. `session:stop` stays
+  // RESERVED (the Epic-4 FR-15 per-session stop — NOT this story). See SessionLaunchRequest /
+  // SessionLaunchResult below.
   sessionLaunch: 'session:launch',
   sessionStop: 'session:stop',
+  // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
+  // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
+  // that binds an app-spawned `claude` to its c9watch session `id`). It carries the
+  // `{ terminalId, sessionId }` binding the renderer cannot derive itself (the join is a
+  // main-only /proc Tgid computation). The renderer builds a `terminalIdBySessionId` view-state
+  // so the attention rail can switch the visible terminal BY session id — a pure renderer
+  // show/hide of the kept-alive terminals (NO per-switch IPC). This is a SEPARATE channel, NOT a
+  // new member of the FROZEN `AttentionEvent` union. See `LaunchCorrelatedEvent` below.
+  launchCorrelated: 'launch:correlated',
+  // Story 3.2 (FR-11) — the native KDE directory picker. An `invoke` that opens the OS
+  // `dialog.showOpenDialog({ properties: ['openDirectory'] })` in MAIN and returns the chosen
+  // path, or `null` on cancel. The dialog runs in MAIN (it is an OS dialog); the renderer
+  // NEVER opens a dialog itself (UX-DR23). See SessionPickDirectoryResult below.
+  sessionPickDirectory: 'session:pick-directory',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
@@ -48,7 +67,35 @@ export const CH = {
   // it is present on the board, else no-ops. See `AttentionActivatePayload` below.
   attentionActivate: 'attention:activate',
   settingsGet: 'settings:get',
-  settingsSet: 'settings:set'
+  settingsSet: 'settings:set',
+
+  // --- Story 3.1 (FR-10) — the embedded-terminal lifecycle/control seam ---
+  // The BYTE path does NOT ride these channels — it rides a transferred MessagePort
+  // (MessageChannelMain). Only the lifecycle/control (open → port transfer, resize,
+  // stop, exit/dead push) rides IPC. [Source: .claude/rules/ipc.md; architecture.md:553]
+  //
+  // `terminal:open`   renderer → main : ({ terminalId }) — main spawns ONE pty + a
+  //                   MessageChannel, wires port1↔pty, and TRANSFERS port2 back to the
+  //                   renderer on this same channel's reply (the port rides the event).
+  // `terminal:resize` renderer → main : ({ terminalId, cols, rows }) — main resizes the
+  //                   PTY FIRST (renderer computed cols/rows via fit()); terminal.md.
+  // `terminal:stop`   renderer → main : ({ terminalId }) — destroy: port.close() THEN
+  //                   pty.kill() (architecture.md:554).
+  // `terminal:exit`   main → renderer : a dead-terminal push (the pty exited/died) → the
+  //                   per-terminal "Terminal exited." pane (UX-DR18).
+  terminalOpen: 'terminal:open',
+  terminalResize: 'terminal:resize',
+  terminalStop: 'terminal:stop',
+  terminalExit: 'terminal:exit',
+
+  // Story 3.5 (SM-2) — the telemetry acknowledge signal: renderer → main (ADDITIVE —
+  // does NOT reshape the FROZEN `AttentionEvent` union). The renderer signals the
+  // acknowledge moment: `{ sessionId, acknowledgedAt }`. MAIN computes the wait duration
+  // (`acknowledgedAt − enteredColumnAt`) because MAIN owns the tracker's `enteredColumnAt`
+  // (the Story-1.2 attention tracker). Recommended as an `invoke` (typed parse-and-throw
+  // + back-pressure, consistent with `settings:set`) — returns void. [story 3.5 FROZEN-3;
+  // .claude/rules/ipc.md 4-file recipe; src/shared/schemas/telemetry.ts (TelemetryAcknowledgeSchema)]
+  telemetryAcknowledge: 'telemetry:acknowledge'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
@@ -331,3 +378,178 @@ export type AttentionActivatePayload = {
  * [Source: story 2.4 Task 3; AC-5/7; src/shared/schemas/settings.ts; .claude/rules/ipc.md]
  */
 export type { Settings, SettingsPatch } from '../schemas/settings'
+
+// ---------------------------------------------------------------------------
+// Story 3.2 (FR-11) — the in-app LAUNCH seam payload types (native picker + raw
+// `claude` launch). These are NEW, separate channels — the frozen `AttentionEvent`
+// union + the watch/settings/terminal seams are NOT reshaped. The launch builds ON
+// TOP of the Story-3.1 embedded terminal: the launch spawns the PTY in main and hands
+// the renderer the SAME opaque `terminalId` its `EmbeddedTerminal` opens against (F1/F6).
+// The picked directory path + the launch request are UNTRUSTED cross-process input →
+// the main handler parse-and-throws (zod-boundaries.md IPC-arg row); never log the path.
+// [Source: story 3.2 Task 1; UX-DR23 (native picker); AR-7 (raw launch); .claude/rules/ipc.md]
+// ---------------------------------------------------------------------------
+
+/**
+ * `session:pick-directory` invoke return — the chosen working directory, or `null` on
+ * cancel. The dialog runs in MAIN (an OS dialog); cancel ⇒ `null` ⇒ no-op (no launch, no
+ * view change — UX-DR23). The path is a string the renderer hands straight back to
+ * `session:launch`; it is re-validated (parse-and-throw) at the launch boundary, never
+ * trusted as a launch arg just because the picker produced it.
+ */
+export type SessionPickDirectoryResult = string | null
+
+/**
+ * `session:launch` request — the picked working directory the raw `claude` launches in.
+ * UNTRUSTED cross-process input → parse-and-throw at the main boundary (a blank/non-string
+ * cwd FAILS CLOSED). NEVER log the `cwd` value (a directory path leaks the operator's
+ * filesystem layout — log path/code only). [zod-boundaries.md IPC-arg row]
+ */
+export type SessionLaunchRequest = {
+  /** The directory the native picker returned — where `claude` is spawned (AR-7 raw launch). */
+  cwd: string
+}
+
+/**
+ * `session:launch` invoke return — the opaque `terminalId` the renderer's `EmbeddedTerminal`
+ * opens against (mirrors the Story-3.1 terminal keying — terminals key by `terminalId`, NEVER
+ * the session `id`, NEVER a pid — F6). The terminal is typeable IMMEDIATELY (AC-3: never
+ * blocked on the Tgid correlation join). The c9watch session `id` is NOT known yet at launch
+ * (the join binds the app-spawned claude `Tgid` to the session `id` later, on a feed delta) —
+ * so the launch reply carries only the `terminalId`, and the optimistic App-launched card is
+ * derived from main's session truth once the join lands (UX-DR19).
+ */
+export type SessionLaunchResult = {
+  /** The opaque per-terminal id (NOT a session id, NOT a pid — F6). */
+  terminalId: string
+}
+
+/**
+ * Story 3.4 (FR-16) — `launch:correlated` push payload: main → renderer.
+ *
+ * Emitted ONCE per launch, the moment the Story-3.2 Tgid correlation join LANDS in
+ * `correlateAgainst` (right after `launch.correlatedId = result.id` / `launchedSet.add(result.id)`).
+ * It surfaces the `terminalId ↔ sessionId` binding — born in main (the /proc Tgid join is a
+ * main-only computation the renderer cannot run) — so the renderer can build a
+ * `terminalIdBySessionId` view-state. The attention rail uses that map to switch the visible
+ * terminal BY session id (a pure renderer show/hide of the kept-alive terminals; NO per-switch IPC).
+ *
+ * Both fields are already-trusted, safe-to-keep main values: `terminalId` is a main-minted opaque
+ * id; `sessionId` is the parse-once c9watch session `id` (the stable UUID — NEVER a pid). It is
+ * validated AT SOURCE in main before send (main→renderer delta; zod-boundaries.md). This is a NEW,
+ * SEPARATE channel — the FROZEN `AttentionEvent` union is NOT reshaped. [Source: story 3.4 Task 1]
+ */
+export type LaunchCorrelatedEvent = {
+  /** The opaque per-terminal id the launch minted (NOT a session id, NOT a pid — F6). */
+  terminalId: string
+  /** The c9watch session id the launch correlated to (the stable UUID; NEVER a pid). */
+  sessionId: string
+}
+
+// ---------------------------------------------------------------------------
+// Story 3.1 (FR-10) — the embedded-terminal lifecycle payload types.
+//
+// PascalCase types, camelCase fields. The renderer reaches the PTY ONLY through the
+// typed preload bridge + the transferred MessagePort — never `ipcRenderer`/Node
+// directly (F4). The frozen `AttentionEvent` union + the watch/settings seams are NOT
+// reshaped — these are a NEW, separate set of channels. [Source: .claude/rules/ipc.md
+//  4-file recipe; architecture.md:553-559]
+// ---------------------------------------------------------------------------
+
+/**
+ * `terminal:open` request — the renderer asks main to spawn a PTY for `terminalId` and
+ * transfer back the MessagePort the bytes will ride. `terminalId` is an OPAQUE
+ * per-terminal id (NOT the session `id` — session↔terminal pairing is Story 3.2; F6).
+ * The arg is parse-and-throw-typed at the main boundary (untrusted cross-process input).
+ */
+export type TerminalOpenRequest = {
+  /** Opaque per-terminal id. Never the session id; never a pid (F6). */
+  terminalId: string
+}
+
+/**
+ * `terminal:resize` request — renderer-computed terminal dimensions for `terminalId`.
+ * The renderer computes cols/rows via `fit()` FIRST, then main resizes the PTY FIRST,
+ * then the terminal reflows (terminal.md resize-ordering). Parse-and-throw at the boundary.
+ */
+export type TerminalResizeRequest = {
+  terminalId: string
+  cols: number
+  rows: number
+}
+
+/** `terminal:stop` request — destroy the terminal `terminalId` (port.close() THEN
+ *  pty.kill()). Parse-and-throw at the boundary. */
+export type TerminalStopRequest = {
+  terminalId: string
+}
+
+/**
+ * `terminal:exit` event — main → renderer push when a terminal's PTY exits/dies. Drives
+ * the per-terminal "Terminal exited." dead-terminal pane (UX-DR18). Validated AT SOURCE
+ * in main before send (main→renderer delta; zod-boundaries.md). The dead state is
+ * per-terminal local renderer state, never a global error (AC-4).
+ */
+export type TerminalExitEvent = {
+  terminalId: string
+  /** The PTY exit code (0 = clean exit; non-zero = error/crash). */
+  exitCode: number
+}
+
+// ---------------------------------------------------------------------------
+// Story 3.1 — the MessagePort BYTE protocol (the messages that ride the transferred
+// port, NOT IPC). Discriminated unions on `type`, mirroring the event convention. The
+// port is bidirectional: main→renderer carries output bytes; renderer→main carries
+// keystrokes + the renderer-ACK flow-control signal. These are NOT `CH.*` channels —
+// the port is its own transport — but they are typed here so both sides share one shape.
+// The byte path is exercised by the packaged smoke (no `MessagePortMain` in jsdom).
+// [Source: architecture.md:553-559; .claude/rules/ipc.md byte-transport note]
+// ---------------------------------------------------------------------------
+
+/** main → renderer over the port: a chunk of PTY output bytes to write to xterm. */
+export type TerminalPortOutput = {
+  type: 'output'
+  data: string
+}
+
+/** main → renderer over the port: the PTY exited (mirrors `terminal:exit`, but on the
+ *  port so the renderer sees it in-band with the byte stream it is draining). */
+export type TerminalPortExit = {
+  type: 'exit'
+  exitCode: number
+}
+
+/** Messages MAIN posts to the renderer over the port. */
+export type TerminalPortMainMessage = TerminalPortOutput | TerminalPortExit
+
+/** renderer → main over the port: keystroke bytes from xterm's `onData`. */
+export type TerminalPortInput = {
+  type: 'input'
+  data: string
+}
+
+/** renderer → main over the port: the renderer ACKed one rendered output chunk
+ *  (xterm.write's callback fired) — the flow-control drain signal (AR-4). */
+export type TerminalPortAck = {
+  type: 'ack'
+}
+
+/** Messages the RENDERER posts to main over the port. */
+export type TerminalPortRendererMessage = TerminalPortInput | TerminalPortAck
+
+// ---------------------------------------------------------------------------
+// Story 3.5 (SM-2) — the telemetry-acknowledge IPC payload type.
+//
+// The renderer signals the acknowledge moment via `CH.telemetryAcknowledge`; MAIN
+// computes the wait duration. This is an ADDITIVE channel — the FROZEN `AttentionEvent`
+// union is NOT reshaped. The payload type is the schema-inferred `TelemetryAcknowledgeRequest`
+// from `src/shared/schemas/telemetry.ts` (one source of truth — never a hand-written copy).
+// [Source: story 3.5 Task 3.1; FROZEN-3; .claude/rules/ipc.md 4-file recipe]
+// ---------------------------------------------------------------------------
+
+/**
+ * `telemetry:acknowledge` invoke arg — the renderer signals ONLY `{ sessionId, acknowledgedAt }`;
+ * MAIN reads its tracker for `enteredColumnAt` and computes `waitMs`. UNTRUSTED cross-process
+ * input → parse-and-throw at the main boundary (zod-boundaries.md IPC-arg row). Returns void.
+ */
+export type { TelemetryAcknowledgeRequest } from '../schemas/telemetry'

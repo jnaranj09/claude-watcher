@@ -27,6 +27,7 @@ import {
   useBoard,
   useColumnSessions,
   selectColumnCount,
+  selectRailEmphasis,
   type BoardSession
 } from '../../stores/boardStore'
 import styles from './Board.module.css'
@@ -62,6 +63,38 @@ const DOT_STATUS_FOR_COLUMN: Record<BoardColumn, DotStatus> = {
   working: 'working',
   'needs-you': 'needs-you',
   idle: 'idle'
+}
+
+/** Story 3.4 (FR-16 / AC-4 / Task 2.4) — one board card that subscribes NARROWLY to its OWN
+ *  `selectRailEmphasis(id)` (the SHARED ack state — the same the attention rail reads). A per-row
+ *  component so one card's emphasis flip does not re-render the whole column (state.md narrow
+ *  selectors). Drives the SessionCard's `emphasized` prop, which consumes the shipped Epic-1 pulse. */
+function EmphasizedSessionCard(props: {
+  session: BoardSession
+  variant: 'hero' | 'calm'
+  status: DotStatus
+  accent: CardAccent
+  selected: boolean
+  onActivateCard?: ((id: string) => void) | undefined
+}): JSX.Element {
+  const { session, variant, status, accent, selected, onActivateCard } = props
+  const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
+  return (
+    <SessionCard
+      variant={variant}
+      sessionName={session.sessionName}
+      projectPath={session.projectPath}
+      status={status}
+      accent={accent}
+      pid={session.pid}
+      selected={selected}
+      emphasized={emphasized}
+      {...(session.pendingToolName !== undefined
+        ? { pendingToolName: session.pendingToolName }
+        : {})}
+      {...(onActivateCard ? { onActivate: () => onActivateCard(session.id) } : {})}
+    />
+  )
 }
 
 export interface ColumnProps {
@@ -107,19 +140,14 @@ export function Column({
       ) : (
         <div className={styles.cardStack}>
           {sessions.map((session: BoardSession) => (
-            <SessionCard
+            <EmphasizedSessionCard
               key={session.id}
+              session={session}
               variant={variant}
-              sessionName={session.sessionName}
-              projectPath={session.projectPath}
               status={DOT_STATUS_FOR_COLUMN[column]}
               accent={cardAccentFor(column)}
-              pid={session.pid}
               selected={session.id === selectedId}
-              {...(session.pendingToolName !== undefined
-                ? { pendingToolName: session.pendingToolName }
-                : {})}
-              {...(onActivateCard ? { onActivate: () => onActivateCard(session.id) } : {})}
+              onActivateCard={onActivateCard}
             />
           ))}
         </div>

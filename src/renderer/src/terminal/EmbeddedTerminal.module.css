@@ -1,0 +1,77 @@
+/* Story 3.1 (FR-10) — the embedded-terminal frame (UX-DR13). A thin lg-cornered frame on the
+   deepest neutral-black bg-terminal; NO chrome inside the terminal region. Uses the DESIGN.md
+   tokens via :root custom properties — NO new colors. [Source: UX-DR13; src/.../styles/tokens] */
+
+.frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-terminal);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rounded-lg);
+  overflow: hidden;
+}
+
+/* The xterm host. flex:1 + min-height:0 so it fills the frame and fit() sees a non-zero box.
+   padding gives the thin frame a breathing edge without chrome inside the terminal. */
+.host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--space-2);
+}
+
+/* Kept-alive hidden terminals use visibility:hidden, NEVER display:none (display:none collapses
+   the box to 0×0 and breaks the next fit() — terminal.md). The element keeps its layout box. */
+.hidden {
+  visibility: hidden;
+}
+
+/* Dead-terminal pane (UX-DR18): "Terminal exited." + Reopen/Stop. PER-TERMINAL local state —
+   the board + sibling terminals are untouched. Overlays the frame; centered, labeled controls. */
+.dead {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: var(--bg-terminal);
+  color: var(--text-secondary);
+}
+
+.deadMessage {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  color: var(--text-secondary);
+}
+
+.deadActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.deadButton {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  color: var(--text-primary);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  cursor: pointer;
+}
+
+.deadButton:hover {
+  background: var(--bg-surface);
+}
+
+.deadButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

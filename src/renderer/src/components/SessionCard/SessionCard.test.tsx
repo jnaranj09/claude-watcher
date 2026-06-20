@@ -1,9 +1,11 @@
-// Story 1.3 — SessionCard tests (AC-4, AC-8).
+// Story 1.3 — SessionCard tests (AC-4, AC-8). Story 3.3 — `watch-only` variant RETIRED.
 //
-// Asserts: each variant renders the shared anatomy; mono vs sans field placement;
-// the hero accent bar follows `accent` (and only on hero); the status dot carries
-// a label (never color-only); the card is keyboard-focusable and `onActivate`
-// fires on click AND Enter; watch-only shows the Konsole tag.
+// Asserts: each LIVE variant (hero / calm) renders the shared anatomy; mono vs sans field
+// placement; the hero accent bar follows `accent` (and only on hero); the status dot carries
+// a label (never color-only); the card is keyboard-focusable and `onActivate` fires on click
+// AND Enter. The `watch-only` variant + its muted `Konsole` tag are RETIRED (Story 3.3,
+// FR-12 dropped) — the Board shows ONLY app-launched sessions, so there is no external/Konsole
+// card to present. The retired-variant anatomy case + Konsole-tag test are GONE (not weakened).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { SessionCard, type SessionCardProps } from './SessionCard'
 import { renderComponent, fireEvent } from '../../test/renderComponent'
@@ -26,26 +28,21 @@ function baseProps(overrides: Partial<SessionCardProps> = {}): SessionCardProps 
   }
 }
 
-describe('SessionCard — one anatomy, three presentations (AC-4, AC-8)', () => {
-  it.each(['hero', 'calm', 'watch-only'] as const)(
-    'renders the shared anatomy for the %s variant',
-    (variant) => {
-      const { container, unmount } = renderComponent(<SessionCard {...baseProps({ variant })} />)
-      cleanup = unmount
+describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch-only retired)', () => {
+  it.each(['hero', 'calm'] as const)('renders the shared anatomy for the %s variant', (variant) => {
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps({ variant })} />)
+    cleanup = unmount
 
-      const root = container.querySelector('[data-variant]')
-      expect(root?.getAttribute('data-variant')).toBe(variant)
-      expect(container.querySelector('[data-testid="session-name"]')?.textContent).toBe(
-        'deploy-prod'
-      )
-      expect(container.querySelector('[data-testid="project-path"]')?.textContent).toBe(
-        '~/work/acme/api'
-      )
-      expect(container.querySelector('[data-testid="pid"]')?.textContent).toBe('4242')
-      // The status dot's label is present (accessibility floor — never color-only).
-      expect(container.querySelector('[data-testid="status-label"]')).not.toBeNull()
-    }
-  )
+    const root = container.querySelector('[data-variant]')
+    expect(root?.getAttribute('data-variant')).toBe(variant)
+    expect(container.querySelector('[data-testid="session-name"]')?.textContent).toBe('deploy-prod')
+    expect(container.querySelector('[data-testid="project-path"]')?.textContent).toBe(
+      '~/work/acme/api'
+    )
+    expect(container.querySelector('[data-testid="pid"]')?.textContent).toBe('4242')
+    // The status dot's label is present (accessibility floor — never color-only).
+    expect(container.querySelector('[data-testid="status-label"]')).not.toBeNull()
+  })
 
   it('sessionName uses SANS (font-ui); path/tool/pid use MONO (font-mono)', () => {
     const { container, unmount } = renderComponent(
@@ -108,16 +105,16 @@ describe('SessionCard — one anatomy, three presentations (AC-4, AC-8)', () => 
     expect(heroClass).not.toBe(calmClass)
   })
 
-  it('watch-only shows the muted Konsole tag; other variants do not', () => {
-    const watch = renderComponent(<SessionCard {...baseProps({ variant: 'watch-only' })} />)
-    expect(watch.container.querySelector('[data-testid="konsole-tag"]')?.textContent).toBe(
-      'Konsole'
-    )
-    watch.unmount()
-
+  it('never renders a Konsole tag — the watch-only variant is RETIRED (Story 3.3)', () => {
+    // The Board shows ONLY app-launched sessions; the muted Konsole tag (built in Story 1.3,
+    // never wired) is gone. Neither live variant renders it.
     const hero = renderComponent(<SessionCard {...baseProps({ variant: 'hero' })} />)
     expect(hero.container.querySelector('[data-testid="konsole-tag"]')).toBeNull()
     hero.unmount()
+
+    const calm = renderComponent(<SessionCard {...baseProps({ variant: 'calm' })} />)
+    expect(calm.container.querySelector('[data-testid="konsole-tag"]')).toBeNull()
+    calm.unmount()
   })
 
   it('is keyboard-focusable (role=button, tabIndex=0)', () => {
@@ -154,5 +151,22 @@ describe('SessionCard — one anatomy, three presentations (AC-4, AC-8)', () => 
     cleanup = unmount
     expect(container.querySelector('[data-testid="tasks"]')?.textContent).toBe('3 tasks')
     expect(container.querySelector('[data-testid="cost"]')?.textContent).toBe('$0.12')
+  })
+
+  // Story 3.4 (FR-16 / AC-4) — the needs-you-unacknowledged emphasis prop. Driven by the SHARED
+  // selectRailEmphasis (same state the rail reads); consumes the shipped Epic-1 emphasis class.
+  it('applies the shipped needsYouEmphasisClass + data-emphasized when emphasized=true', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ emphasized: true })} />
+    )
+    cleanup = unmount
+    const root = container.querySelector('[data-variant]')
+    expect(root?.getAttribute('data-emphasized')).toBe('true')
+  })
+
+  it('does NOT emphasize by default (emphasized=false)', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)
+    cleanup = unmount
+    expect(container.querySelector('[data-variant]')?.getAttribute('data-emphasized')).toBeNull()
   })
 })

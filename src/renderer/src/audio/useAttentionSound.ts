@@ -38,6 +38,11 @@ export function useAttentionSound(
   useEffect(() => {
     const off = window.watch.onEvents((payload) => {
       // ONLY react to the attention edge; session.updated/removed never play (AC-1/by-type).
+      // Story 3.3 — NO renderer-side launched-vs-external filter here: main GATES the
+      // attention.raised SEND at the source (index.ts onDelta), so the renderer only ever
+      // receives a LAUNCHED session's raise. An external session's raise never crosses the seam,
+      // so the sound auto-narrows with zero edits here. Do NOT add a redundant membership filter
+      // (the renderer has no launched-set; main owns it — adding one would be a drift-prone copy).
       if (payload.event.type !== 'attention.raised') return
       // Live mute check (AC-3 — immediate, no restart). NO debounce here (AC-2).
       if (!isSoundEnabled()) return

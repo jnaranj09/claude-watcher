@@ -9,7 +9,13 @@ import type {
   WatchStatus,
   AttentionActivatePayload,
   Settings,
-  SettingsPatch
+  SettingsPatch,
+  TerminalExitEvent,
+  SessionPickDirectoryResult,
+  SessionLaunchRequest,
+  SessionLaunchResult,
+  LaunchCorrelatedEvent,
+  TelemetryAcknowledgeRequest
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -114,12 +120,112 @@ const settingsApi = {
 
 export type SettingsApi = typeof settingsApi
 
+// Story 3.1 (FR-10) — the embedded-terminal bridge. The renderer reaches the PTY ONLY
+// through this typed bridge + the transferred MessagePort — NEVER ipcRenderer/Node directly
+// (F4; contextIsolation stays ON). The LIFECYCLE/control rides typed IPC (CH.* consts):
+// open/resize/stop + the dead-terminal onExit push. The BYTE path rides the MessagePort that
+// `terminal:open` transfers — surfaced to the renderer via the `open` callback's `port` arg.
+//
+// `MessagePort` is a structured-cloneable transferable; the preload receives it on
+// `ipcRenderer.on(CH.terminalOpen)` (`event.ports[0]`) and hands it to the renderer's callback.
+// The renderer wires `term.onData → port.postMessage` (keystrokes + ack) and
+// `port.onmessage → term.write` (output) imperatively — the byte path never touches the store.
+const terminalApi = {
+  /** Open a terminal for `terminalId`. Main spawns a pty + transfers the MessagePort the bytes
+   *  ride; the `cb` fires ONCE with `{ terminalId, port }` when that port arrives. Returns an
+   *  unsubscribe fn that detaches the open listener (call it once paired). */
+  open(terminalId: string, cb: (port: MessagePort) => void): () => void {
+    const listener = (event: Electron.IpcRendererEvent, payload: { terminalId: string }): void => {
+      // Only fire for THIS terminalId (the open channel is shared across terminals).
+      const port = event.ports[0]
+      if (payload.terminalId === terminalId && port) cb(port)
+    }
+    ipcRenderer.on(CH.terminalOpen, listener)
+    ipcRenderer.send(CH.terminalOpen, { terminalId })
+    return () => ipcRenderer.removeListener(CH.terminalOpen, listener)
+  },
+  /** Resize the terminal's pty (renderer computed cols/rows via fit() FIRST; main resizes the
+   *  pty FIRST, then the terminal reflows — terminal.md). Rejects on a malformed dim. */
+  resize(terminalId: string, cols: number, rows: number): Promise<void> {
+    return ipcRenderer.invoke(CH.terminalResize, { terminalId, cols, rows })
+  },
+  /** Stop + destroy the terminal (port.close() THEN pty.kill() in main). */
+  stop(terminalId: string): Promise<void> {
+    return ipcRenderer.invoke(CH.terminalStop, { terminalId })
+  },
+  /** Subscribe to the dead-terminal push (the pty exited/died). Returns an unsubscribe fn.
+   *  Drives the per-terminal "Terminal exited." pane (UX-DR18). `CH.terminalExit` is a const. */
+  onExit(cb: (info: TerminalExitEvent) => void): () => void {
+    const listener = (_evt: unknown, info: TerminalExitEvent): void => cb(info)
+    ipcRenderer.on(CH.terminalExit, listener)
+    return () => ipcRenderer.removeListener(CH.terminalExit, listener)
+  }
+}
+
+export type TerminalApi = typeof terminalApi
+
+// Story 3.2 (FR-11) — the in-app LAUNCH bridge. The renderer triggers the native KDE directory
+// picker + the raw `claude` launch ONLY through this typed bridge — NEVER ipcRenderer/Node or a
+// dialog directly (F2/F8; contextIsolation stays ON). Both are typed invokes (CH.* consts):
+//   - `pickDirectory()` opens the OS dialog in MAIN and returns the chosen path or null on cancel.
+//   - `launch(cwd)` asks main to spawn raw `claude` in `cwd`; main parse-and-throws the untrusted
+//     cwd at the boundary and returns the opaque terminalId the EmbeddedTerminal opens against.
+// Mirrors `settingsApi`'s invoke pattern. `CH.*` consts, never string literals.
+const launchApi = {
+  /** Open the native KDE directory chooser (MAIN). Resolves to the chosen path, or null on
+   *  cancel (cancel ⇒ no-op — UX-DR23). The renderer NEVER opens a dialog itself. */
+  pickDirectory(): Promise<SessionPickDirectoryResult> {
+    return ipcRenderer.invoke(CH.sessionPickDirectory)
+  },
+  /** Launch raw `claude` in `cwd`. Main validates `cwd` (parse-and-throw on bad input), spawns
+   *  the PTY, and returns `{ terminalId }`. Rejects the promise on an invalid cwd. */
+  launch(cwd: string): Promise<SessionLaunchResult> {
+    const req: SessionLaunchRequest = { cwd }
+    return ipcRenderer.invoke(CH.sessionLaunch, req)
+  },
+  /** Story 3.4 (FR-16) — subscribe to the launch CORRELATION push (the `{ terminalId, sessionId }`
+   *  binding, fired once when a launch's Tgid join lands in main). The renderer builds a
+   *  `terminalIdBySessionId` view-state from it so the attention rail can switch the visible
+   *  terminal by session id. Returns an unsubscribe fn. Mirrors `attentionApi.onActivate` exactly
+   *  (subscribe-returns-unsubscribe). `CH.launchCorrelated` is a const, never a literal. */
+  onCorrelated(cb: (event: LaunchCorrelatedEvent) => void): () => void {
+    const listener = (_evt: unknown, event: LaunchCorrelatedEvent): void => cb(event)
+    ipcRenderer.on(CH.launchCorrelated, listener)
+    return () => ipcRenderer.removeListener(CH.launchCorrelated, listener)
+  }
+}
+
+export type LaunchApi = typeof launchApi
+
+// Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
+// The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
+// touches ipcRenderer directly (contextIsolation stays ON). MAIN computes the wait duration.
+// `CH.telemetryAcknowledge` is a const, never a string literal (no-literal-channels). The arg is
+// UNTRUSTED cross-process input → parse-and-throw at the main boundary (zod-boundaries.md).
+// Mirrors `settingsApi.set`'s invoke pattern. Returns void (duration computed + stored in MAIN).
+// [Source: story 3.5 Task 3.4; FROZEN-3; .claude/rules/ipc.md]
+const telemetryApi = {
+  /** Signal the acknowledge moment to MAIN (session looked at / opened). MAIN reads the tracker
+   *  for `enteredColumnAt`, computes `waitMs`, and appends the telemetry event. `sessionId` is
+   *  the stable session UUID (never pid); `acknowledgedAt` is `Date.now()` from the renderer.
+   *  Rejects the promise on an invalid arg (parse-and-throw at the main boundary). */
+  acknowledge(sessionId: string, acknowledgedAt: number): Promise<void> {
+    const req: TelemetryAcknowledgeRequest = { sessionId, acknowledgedAt }
+    return ipcRenderer.invoke(CH.telemetryAcknowledge, req)
+  }
+}
+
+export type TelemetryApi = typeof telemetryApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
     contextBridge.exposeInMainWorld('watch', watchApi)
     contextBridge.exposeInMainWorld('attention', attentionApi)
     contextBridge.exposeInMainWorld('settings', settingsApi)
+    contextBridge.exposeInMainWorld('terminal', terminalApi)
+    contextBridge.exposeInMainWorld('launch', launchApi)
+    contextBridge.exposeInMainWorld('telemetry', telemetryApi)
   } catch (error) {
     console.error(error)
   }
@@ -136,4 +242,10 @@ if (process.contextIsolated) {
   window.attention = attentionApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.settings is in index.d.ts
   window.settings = settingsApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.terminal is in index.d.ts
+  window.terminal = terminalApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.launch is in index.d.ts
+  window.launch = launchApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.telemetry is in index.d.ts
+  window.telemetry = telemetryApi
 }

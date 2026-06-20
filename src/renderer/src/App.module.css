@@ -25,8 +25,62 @@
   letter-spacing: 0.02em;
 }
 
+/* Story 3.2 (FR-11) — the header actions cluster: + New session (UX-DR21) + Settings. */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.newSessionHeaderButton {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  cursor: pointer;
+}
+
+.newSessionHeaderButton:hover {
+  background: var(--bg-surface);
+}
+
+.newSessionHeaderButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .main {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* Story 3.4 (B-1 fix) — the Board ↔ Focused-session STACK. Both views are mounted at once and
+   stacked; the inactive one is hidden with visibility:hidden (set inline) so a view switch is a
+   pure show/hide and NEVER unmounts the kept-alive terminals (unmounting kills the live PTY —
+   terminal.md). A positioning context so each layer fills it with a NON-ZERO box even when hidden
+   (visibility:hidden keeps the box; display:none would collapse it to 0×0 and break the next
+   fit()). */
+.viewStack {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.viewLayer {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  /* A hidden layer must not receive pointer events (the visible layer sits on top of the same box;
+     visibility:hidden already blocks hit-testing on the hidden one, this is belt-and-braces). */
+}
+
+.viewLayer[data-active='false'] {
+  pointer-events: none;
 }

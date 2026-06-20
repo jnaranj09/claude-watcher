@@ -1,6 +1,8 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog } from 'electron'
+import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
+import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import * as os from 'os'
 import * as pty from 'node-pty'
@@ -8,7 +10,22 @@ import type { IPty } from 'node-pty'
 import icon from '../../resources/icon.png?asset'
 // Story 0.2 — channels go through the typed contract, never string literals.
 import { CH } from '../shared/ipc/contract'
-import type { PtyResizeRequest, SmokeReport } from '../shared/ipc/contract'
+import type {
+  PtyResizeRequest,
+  SmokeReport,
+  TerminalPortMainMessage,
+  TerminalPortRendererMessage
+} from '../shared/ipc/contract'
+// Story 3.1 (FR-10) — the embedded-terminal transport: the MAIN-side terminal manager (one
+// node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
+// MessagePort byte path) + its cross-process IPC-arg schemas (parse-and-throw at the boundary).
+import { createTerminalManager, type PortLike, type TerminalManager } from './pty/terminalManager'
+import {
+  TerminalOpenSchema,
+  TerminalResizeSchema,
+  TerminalStopSchema,
+  TerminalExitSchema
+} from '../shared/schemas/terminal'
 // Story 1.4 fix — validate-at-source for the watch:status connection-state push.
 // Story 2.2 — validate-at-source for the FR-9 attention:activate push.
 import { WatchStatusSchema, AttentionActivateSchema } from '../shared/schemas/watchDelta'
@@ -24,6 +41,10 @@ import { computeBadgeCount } from './kde/badge'
 // Story 1.4 — validate-at-source enrichment of the session.updated delta (extracted
 // to its own module so it stays unit-testable without pulling electron/node-pty).
 import { enrichDelta } from './c9watch/enrichDelta'
+// Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate (pure; reads only the event id +
+// the launched-set predicate). Drops external/Konsole deltas at the ship chokepoint so the
+// board shows ONLY app-launched sessions. Kept in its own pure module for unit coverage.
+import { shouldShipToBoard } from './c9watch/shipGate'
 // Story 1.1 — the c9watch adapter: feed (spawn + NDJSON line-split + reconnect) +
 // reducer (Zod-validate → Map<id,Session> + list seed/reconcile + epoch).
 import { createReducer } from './c9watch/reducer'
@@ -31,7 +52,7 @@ import { createFeed, type Feed } from './c9watch/feed'
 // Story 1.2 — the column-transition tracker: consumes each reducer delta + the
 // reduced map, emits attention.raised on a needs-you ENTRY edge (cold-start
 // suppressed / reconnect re-raised), stamps time-entered-column, debounces flaps.
-import { createAttentionTracker } from './c9watch/attention'
+import { createAttentionTracker, type AttentionTracker } from './c9watch/attention'
 // Story 2.4 — the app-global settings store (electron-store in MAIN, behind a DI seam) +
 // its versioned-Zod payload schema. The store is constructed ONCE (settings are app-global,
 // NOT per-window like the feed/tray) and registered on the typed CH.settingsGet/Set channels.
@@ -39,6 +60,20 @@ import { createAttentionTracker } from './c9watch/attention'
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema } from '../shared/schemas/settings'
+// Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
+// `claude` launch service (reuses the terminal manager + ptyFactory; reuses pidCorrelation.ts
+// for the Tgid join) + the per-run launched-set it POPULATES. The picked dir + launch request
+// are UNTRUSTED cross-process input → Zod parse-and-throw at the boundary (never log the path).
+import { createLaunchService, type LaunchService } from './pty/launchSession'
+import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
+import { readStatusFromProc, readCommFromProc, listChildrenFromProc } from './pty/pidCorrelation'
+import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
+// Story 3.5 (SM-2) — the append-only JSONL telemetry store (DI-seam'd, never-crash) +
+// the REAL fs-backed line store (Electron-touching; injected from here — keeps telemetry.ts
+// Electron-free + unit-testable). The Zod arg schema for the telemetry:acknowledge IPC arg.
+import { createTelemetryStore, type TelemetryStore } from './persistence/telemetry'
+import { createFsTelemetryLineStore } from './persistence/fsTelemetryLineStore'
+import { TelemetryAcknowledgeSchema, TELEMETRY_VERSION } from '../shared/schemas/telemetry'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -66,6 +101,29 @@ const SHELL = process.env.SHELL || (process.platform === 'win32' ? 'powershell.e
 // stacked ipcMain.on listeners (Review F1). [Story 0.1 single-PTY spike]
 const ptys = new Map<Electron.WebContents, IPty>()
 
+// Story 3.1 (FR-10) — the ONE terminal manager. Embedded terminals are app-global like the
+// settings store (NOT window-scoped like the feed): the manager keys terminals by an opaque
+// terminalId and dispatches per-terminal, so it does not need per-window instances. It is
+// INDEPENDENT of both the PTY spike registry (`ptys`) and the feed registry (`feeds`) — a
+// c9watch watch reconnect must NEVER touch the PTY ports (architecture.md:568; the feed and
+// terminal transports are separate). Constructed in registerTerminalIpc (after app-ready).
+let terminalManager: TerminalManager | null = null
+
+// Story 3.1 — which window opened each terminalId, so a dead-terminal push (onExit) routes to
+// the right renderer. Populated on terminal:open, consulted + pruned on exit/stop. A window
+// close prunes its terminals (teardownWindowTerminals). Keyed by the opaque terminalId (F6).
+const terminalOwners = new Map<string, Electron.WebContents>()
+
+// Story 3.2 (FR-11) — the in-app LAUNCH flow. The launch SERVICE spawns raw `claude` under the
+// REUSED terminal manager (file/cwd override) and runs the Tgid correlation join (REUSING
+// pidCorrelation.ts), POPULATING the per-run LAUNCHED-SET. Both are app-global (like the
+// terminal manager + settings store — keyed by the stable session id / opaque terminalId, NOT
+// per-window). Constructed after app-ready (so the terminal manager exists). The launched-set is
+// born here; Story 3.3 CONSUMES it as the board+attention filter — 3.2 does NOT yet filter on it
+// (the board still shows all sessions). [Source: story 3.2 Tasks 2/3/4; F5]
+const launchedSet: LaunchedSet = createLaunchedSet()
+let launchService: LaunchService | null = null
+
 // Story 1.1 — the live c9watch feed → reducer → renderer wiring. ONE feed per
 // window; the feed pushes validated session deltas (frozen `session.updated`/
 // `session.removed`, epoch-framed) over CH.watchEvents. The feed is INDEPENDENT of
@@ -78,6 +136,13 @@ const feeds = new Map<Electron.WebContents, Feed>()
 // delta + after the seed, destroyed in teardownWatchFeed. A tray/paint failure degrades to a
 // no-op and never touches the feed (never-crash).
 const trays = new Map<Electron.WebContents, TrayController>()
+
+// Story 3.5 (SM-2) — one tracker reference per window, stored here so the app-global
+// telemetry IPC handler can look up `tracker.columnOf(id)` + `tracker.enteredColumnAt(id)`
+// when the acknowledge lands. SAME lifetime as the feed (constructed in registerWatchFeed,
+// removed in teardownWatchFeed). The tracker is created inside registerWatchFeed; we just
+// keep a reference here for the IPC handler's access pattern. [story 3.5 Task 4.1 / FROZEN-3]
+const trackers = new Map<Electron.WebContents, AttentionTracker>()
 
 // Smoke mode is a packaged node-pty exit gate (no c9watch on the box); never spin
 // up the live feed there.
@@ -96,6 +161,10 @@ function registerWatchFeed(window: BrowserWindow): void {
   // produces the entry-transition attention.raised events. Injected now() for
   // determinism (the default Date.now in production).
   const tracker = createAttentionTracker({ now: () => Date.now() })
+  // Story 3.5 (SM-2) — store the tracker reference in the per-window map so the
+  // app-global telemetry IPC handler can look up columnOf/enteredColumnAt. Same lifetime
+  // as the feed; removed in teardownWatchFeed (below).
+  trackers.set(wc, tracker)
   // Story 2.2 — one notifier per window (same lifetime as the reducer/tracker/feed). It
   // fires a KDE notification 1:1 off the tracker's attention.raised (no extra debounce — the
   // tracker's per-session ~700ms emission debounce is the sole storm-suppression authority).
@@ -143,6 +212,15 @@ function registerWatchFeed(window: BrowserWindow): void {
       // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
       // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
       const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
+      // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
+      // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 — the
+      // onDelta path already runs per delta with the current snapshotMap; no new polling loop).
+      // This RE-RESOLVES the Tgid each time (the reported pid wanders — never cached) and adds a
+      // landed join's session id to the launched-set. It NEVER throws (fail-closed throughout) and
+      // is independent of the board ship below — a correlation failure never blocks a delta. The
+      // launch service is null until app-ready constructs it (a race during startup is a no-op).
+      // It CONSUMES the reducer's already-parsed Session map (parse-once; never re-parses JSON).
+      launchService?.correlateAgainst(reducer.snapshotMap().values())
       // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
       // for EVERY delta type (session.updated can raise/lower the count via a column change;
       // session.removed lowers it when the removed session was in needs-you). The badge counts
@@ -150,16 +228,36 @@ function registerWatchFeed(window: BrowserWindow): void {
       // (cheap, can't drift) rather than incrementally diff; the controller no-ops when the
       // count is unchanged. Derives from the SAME snapshotMap + columnForStatus the board uses
       // (single source of truth, AC-3). Never throws (never-crash, AC-8).
-      tray.setCount(computeBadgeCount(reducer.snapshotMap()))
+      // Story 3.3 — narrow the count to LAUNCHED sessions only (the SAME membership source as the
+      // board + attention): an external needs-you session never bumps the tray badge (AC-3).
+      tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
       const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
       // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
       // enricher logged it by path+code) — we do not ship a half-formed delta. A
       // `session.removed` (no enrichment) and a passed `session.updated` send as-is —
       // epoch-framed on the SAME CH.watchEvents channel (const, never a string literal).
-      if (outbound !== null) wc.send(CH.watchEvents, outbound)
+      // Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate: ship ONLY launched-set
+      // members. An external/Konsole session's delta is NOT sent, so the renderer board store
+      // never learns of it and it never becomes a card (AC-2). The gate keys on the stable
+      // `id` (NEVER pid). `session.removed` is INSIDE the gate by design: if its id is in the
+      // set, the removed delta DOES ship so the card vanishes (edge case (a) — no stranded
+      // stale card); if its id was never launched, there was no card to remove anyway.
+      if (outbound !== null && shouldShipToBoard(outbound.event, (id) => launchedSet.has(id))) {
+        wc.send(CH.watchEvents, outbound)
+      }
       // Then any attention.raised for the SAME edge, framed with the SAME epoch.
       // Re-check the destroyed window per send: a late event after close is a no-op.
+      // Story 3.3 — the ATTENTION emission gate at the SOURCE: only a LAUNCHED session's raise
+      // is emitted. Gating BOTH the renderer SEND and notifier.notify() here narrows EVERY
+      // attention consumer from ONE place — the renderer never receives an external raise so the
+      // SOUND (useAttentionSound, rides CH.watchEvents) and any rail SOURCE (Story 3.4) auto-
+      // narrow, and the JUMP-TO-CARD (CH.attentionActivate, pushed from the notifier's
+      // onActivate) cannot fire because no notification is ever created. Do NOT add a redundant
+      // filter inside any renderer consumer (it would be a second, drift-prone source). The
+      // Story-1.2 tracker still COMPUTES attention.raised above (raisedEvents) — only EMISSION is
+      // gated here, never the computation, and the frozen AttentionEvent union is NOT reshaped.
       for (const raised of raisedEvents) {
+        if (!launchedSet.has(raised.id)) continue
         if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
         // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
         // raisedEvents array is already debounced by the tracker; add NO second debounce).
@@ -200,7 +298,11 @@ function registerWatchFeed(window: BrowserWindow): void {
       // plain base icon). The seed deltas already flowed through onDelta above; this is the
       // idempotent post-seed reconcile (the controller no-ops when unchanged). Re-check the
       // window isn't gone by the time the seed resolves.
-      if (!wc.isDestroyed()) tray.setCount(computeBadgeCount(reducer.snapshotMap()))
+      // Story 3.3 — narrow the seed count to LAUNCHED sessions too (same membership source). At
+      // cold-start the launched-set is empty (nothing launched yet), so this is 0 — the empty
+      // board is the NORMAL cold state (FR-1 amended / F5).
+      if (!wc.isDestroyed())
+        tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
     })
     .catch((err) => {
       console.error(
@@ -220,6 +322,9 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
     trays.delete(wc)
     tray.destroy()
   }
+  // Story 3.5 (SM-2) — remove the per-window tracker reference (same lifetime as the feed).
+  // The telemetry IPC handler will see no tracker for a destroyed window → graceful no-op.
+  trackers.delete(wc)
   const feed = feeds.get(wc)
   if (!feed) return
   feeds.delete(wc)
@@ -346,6 +451,12 @@ function registerPtyIpc(): void {
 // app-ready (electron-store needs userData). A null until then; registerSettingsIpc reads it.
 let settingsStore: SettingsStore | null = null
 
+// Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
+// (AR-9: no database; Zod-validated + versioned; corrupt read → back up + start fresh).
+// Null until AFTER app-ready (app.getPath('userData') needs ready). The per-window tracker
+// is consulted by the IPC handler — reads `tracker.columnOf(id)` + `tracker.enteredColumnAt(id)`.
+let telemetryStore: TelemetryStore | null = null
+
 // Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
 // the value directly; `settings:set` PARSE-AND-THROW-TYPEs the untrusted patch at the boundary
 // (zod-boundaries.md: renderer→main = THROW), then the store merges + re-validates + persists
@@ -370,6 +481,313 @@ function registerSettingsIpc(): void {
     if (settingsStore === null) throw new Error('settings store not initialized')
     const patch = SettingsPatchSchema.parse(raw)
     return settingsStore.set(patch)
+  })
+}
+
+// Story 3.5 (SM-2) — register the telemetry-acknowledge IPC ONCE (mirrors registerSettingsIpc:
+// single-registration, app-global, parse-and-throw on the arg). Channels are CH.* consts only —
+// never a string literal (no-literal-channels). The arg is UNTRUSTED cross-process input →
+// TelemetryAcknowledgeSchema.parse(raw) throws a typed error on a bad arg (zod-boundaries.md
+// IPC-arg row). MAIN computes the duration (it owns tracker.enteredColumnAt). Never logs the
+// value — log path+code only (Guardrail #6; the arg carries sessionId which is an opaque UUID
+// but the rule is uniform). The invoke returns void. [story 3.5 Task 3.3 / FROZEN-3]
+function registerTelemetryIpc(): void {
+  ipcMain.handle(CH.telemetryAcknowledge, (evt, raw: unknown) => {
+    // PARSE-AND-THROW at the untrusted cross-process input boundary (zod-boundaries.md IPC-arg
+    // row). A malformed arg rejects the invoke — the throw is the signal, nothing is logged here.
+    const { sessionId, acknowledgedAt } = TelemetryAcknowledgeSchema.parse(raw)
+
+    // Defensive: telemetryStore is null until app-ready (race); skip gracefully.
+    // [mirrors settingsStore === null guard at index.ts:441,455]
+    if (telemetryStore === null) {
+      console.warn('[c9watch][telemetry] code=telemetry_store_not_initialized')
+      return
+    }
+
+    // Fetch the per-window tracker via the event sender (the tracker is per-window, keyed by wc).
+    const wc = evt.sender
+    const tracker = trackers.get(wc)
+    if (tracker === undefined) {
+      // Window has no tracker (e.g. smoke mode / destroyed window). Skip gracefully.
+      console.warn('[c9watch][telemetry] code=telemetry_no_tracker sessionId=' + sessionId)
+      return
+    }
+
+    // Story 3.5 FROZEN-4: if the session is NOT in a waiting column at the moment the
+    // acknowledge lands (it already left needs-you/idle, or is unknown to the tracker),
+    // write NO telemetry event — the wait is unmeasurable. Do NOT build a grace-period.
+    const column = tracker.columnOf(sessionId)
+    if (column !== 'needs-you' && column !== 'idle') {
+      // Session not in a waiting column — skip (not waiting, unknown, or working). Code-only log.
+      console.warn(`[c9watch][telemetry] code=telemetry_skip_not_waiting sessionId=${sessionId}`)
+      return
+    }
+
+    const enteredColumnAt = tracker.enteredColumnAt(sessionId)
+    if (enteredColumnAt === undefined) {
+      // Should not happen if columnOf returned a value, but be defensive.
+      console.warn(`[c9watch][telemetry] code=telemetry_skip_no_entered_at sessionId=${sessionId}`)
+      return
+    }
+
+    // Compute the wait duration. A negative waitMs is a clock/edge anomaly — SKIP (FROZEN-4).
+    const waitMs = acknowledgedAt - enteredColumnAt
+    if (waitMs < 0) {
+      console.warn(`[c9watch][telemetry] code=telemetry_skip_negative_wait sessionId=${sessionId}`)
+      return
+    }
+
+    // Build + record the event. The launched flag comes from the per-run launched-set (SM-1 basis).
+    // All fields are already validated (sessionId from parse, column from tracker, waitMs >= 0).
+    try {
+      telemetryStore.record({
+        version: TELEMETRY_VERSION,
+        kind: 'idle-wait',
+        sessionId,
+        column,
+        enteredColumnAt,
+        acknowledgedAt,
+        waitMs,
+        launched: launchedSet.has(sessionId)
+      })
+    } catch (err) {
+      // The store's record() never throws itself (never-crash), but be defensive on the outer
+      // path too. Code-only log — never log the event value (Guardrail #6).
+      console.warn(
+        '[c9watch][telemetry] code=telemetry_record_error',
+        err instanceof Error ? err.message : 'unknown'
+      )
+    }
+  })
+}
+
+// Story 3.1 (FR-10) — adapt an Electron `MessagePortMain` (the MAIN end, port1) to the
+// manager's tiny `PortLike` seam. The manager is transport-agnostic + unit-testable against a
+// fake port (no `MessagePortMain` in jsdom — ipc.md); this is the ONE place the real port is
+// adapted. The byte path (this port) is exercised by the packaged smoke. Messages are typed
+// both ways: main posts `TerminalPortMainMessage` (output/exit); the renderer posts
+// `TerminalPortRendererMessage` (input/ack). Electron delivers the renderer's message in
+// `event.data` — we trust the SHAPE here (it is our own renderer over a private port, not the
+// generic renderer→main IPC arg surface) but keep the typed projection explicit.
+function adaptMessagePort(port: MessagePortMain): PortLike {
+  return {
+    postMessage: (message: TerminalPortMainMessage): void => port.postMessage(message),
+    onMessage: (cb: (message: TerminalPortRendererMessage) => void): void => {
+      port.on('message', (event) => cb(event.data as TerminalPortRendererMessage))
+    },
+    start: (): void => port.start(),
+    close: (): void => port.close()
+  }
+}
+
+// Story 3.1 (FR-10) — register the terminal-lifecycle IPC ONCE (mirrors registerPtyIpc /
+// registerSettingsIpc; Review-F1 single-registration so app.activate re-creating a window can
+// neither throw on duplicate ipcMain.handle nor stack ipcMain.on listeners). Channels are
+// CH.* consts only — never a string literal (no-literal-channels). Cross-process args are
+// UNTRUSTED → parse-and-throw-typed at the boundary (zod-boundaries.md IPC-arg row); the throw
+// rejects the invoke. The BYTE path rides the transferred MessagePort, NOT these channels.
+function registerTerminalIpc(): void {
+  // Build the ONE app-global terminal manager. The pty factory + log are the DI seams (the
+  // real node-pty-backed createPty is the default). onExit is the dead-terminal push: validate
+  // AT SOURCE (main→renderer delta; zod-boundaries.md) then send CH.terminalExit to the OWNING
+  // window. A failure here never throws out (never-crash). The spawned shell + sanitized env
+  // mirror the Story-0.1 spike (buildPtyEnv strips the smoke vars).
+  terminalManager = createTerminalManager({
+    spawnDefaults: { file: SHELL, cwd: os.homedir(), env: buildPtyEnv() },
+    onExit: (terminalId, exitCode) => {
+      const wc = terminalOwners.get(terminalId)
+      terminalOwners.delete(terminalId)
+      // Story 3.4 (FR-16) — resolves deferred NB-1 (deferred-work.md:76): a launched `claude` that
+      // exits NATURALLY (not via the Stop button, which already calls forget) must also drop its
+      // launch tracking, so a dead launch's PendingLaunch / spawn override does not linger in the
+      // map until app exit. Idempotent + never throws; the launched-set membership for an
+      // ALREADY-joined session is left intact (the set is per-run, not per-terminal). Runs even if
+      // the owning window is gone (below) — the forget is independent of the dead-terminal push.
+      launchService?.forget(terminalId)
+      if (!wc || wc.isDestroyed()) return
+      // Validate AT SOURCE before send: a malformed exit never crosses the seam.
+      const r = TerminalExitSchema.safeParse({ terminalId, exitCode })
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        console.error(
+          `[c9watch][term] dropped terminal:exit path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+        return
+      }
+      wc.send(CH.terminalExit, r.data)
+    },
+    // never-log-the-value: a code= ONLY, never a pty/session value (Guardrail #6).
+    log: (message) => console.warn(message)
+  })
+
+  // terminal:open — create a MessageChannel, wire its MAIN end (port1) to a fresh pty via the
+  // manager, and TRANSFER the renderer end (port2) back on this invoke's reply. The renderer
+  // receives the port and rides bytes over it. The arg is parse-and-throw-typed (a malformed
+  // open rejects). Returns nothing structural — the port IS the return, transferred via
+  // `event.ports` on the reply. We use `ipcMain.on` + `event.senderFrame`/`port` transfer
+  // semantics: Electron transfers ports posted back to the sender via webContents.postMessage.
+  ipcMain.on(CH.terminalOpen, (event, raw: unknown) => {
+    // We use `ipcMain.on` (not `handle`) because the open must TRANSFER a MessagePort back, which
+    // rides `wc.postMessage(channel, msg, [port])` — an `invoke` handler cannot RETURN a port.
+    // So failures cannot reject the invoke; instead a failure that has a VALID terminalId pushes a
+    // dead-terminal signal (CH.terminalExit) so the renderer flips to the dead pane rather than
+    // HANGING on a port that never arrives (code-review M-2). Parse FIRST so we hold the id even
+    // when the manager isn't ready yet.
+    const wc = event.sender
+    const parsed = TerminalOpenSchema.safeParse(raw)
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      // never-log-the-value: PATH + CODE only. A malformed open carries no usable id, so we can
+      // only drop+log it (this is a programmer error — the renderer always sends `{terminalId}`).
+      console.error(
+        `[c9watch][term] dropped terminal:open path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+      )
+      return
+    }
+    const { terminalId } = parsed.data
+    if (terminalManager === null) {
+      // The manager isn't ready (a race against app-ready construction). Surface it as a dead
+      // terminal so the renderer's open() callback path resolves to the dead pane, not a hang.
+      const r = TerminalExitSchema.safeParse({ terminalId, exitCode: 1 })
+      if (r.success && !wc.isDestroyed()) wc.send(CH.terminalExit, r.data)
+      return
+    }
+    const { port1, port2 } = new MessageChannelMain()
+    // Record the owning window so a dead-terminal push (onExit) routes back here.
+    terminalOwners.set(terminalId, wc)
+    // Story 3.2 (FR-11) — if this terminalId is an app LAUNCH (the renderer opened the
+    // EmbeddedTerminal against a launch-minted id), consume its spawn override so the manager
+    // spawns raw `claude` in the picked cwd instead of the default shell. A non-launch
+    // terminalId (the Story-3.1 host path) has no override → null → the unchanged shell spawn.
+    const spawnOverride = launchService?.takeSpawnOverride(terminalId) ?? undefined
+    // Open the terminal (manager wires port1 ↔ pty + flow control). Initial dims are the
+    // renderer's first fit() over CH.terminalResize; spawn at a sane default until then. A spawn
+    // failure degrades to the manager's onExit → CH.terminalExit (dead pane), never a hang.
+    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, spawnOverride)
+    // Transfer port2 to the renderer, tagged with the terminalId so the renderer can pair it.
+    // The renderer listens on CH.terminalOpen for the `{ terminalId }` payload + `ports[0]`.
+    if (!wc.isDestroyed()) wc.postMessage(CH.terminalOpen, { terminalId }, [port2])
+  })
+
+  // terminal:resize — main resizes the pty FIRST (the renderer already computed cols/rows via
+  // fit(); terminal.md). UNTRUSTED arg → parse-and-throw-typed (this is an invoke so a reject
+  // surfaces to the renderer). An out-of-range dim FAILS CLOSED.
+  ipcMain.handle(CH.terminalResize, (_event, raw: unknown) => {
+    if (terminalManager === null) throw new Error('terminal manager not initialized')
+    const { terminalId, cols, rows } = TerminalResizeSchema.parse(raw)
+    terminalManager.resize(terminalId, cols, rows)
+  })
+
+  // terminal:stop — destroy the terminal (port.close() THEN pty.kill(), in the manager).
+  // UNTRUSTED arg → parse-and-throw-typed.
+  ipcMain.handle(CH.terminalStop, (_event, raw: unknown) => {
+    if (terminalManager === null) throw new Error('terminal manager not initialized')
+    const { terminalId } = TerminalStopSchema.parse(raw)
+    terminalManager.stop(terminalId)
+    // Story 3.2 — drop the launch tracking for a stopped terminal (its pending correlation /
+    // spawn override no longer applies). Idempotent + never throws; the launched-set membership
+    // for an ALREADY-joined session is left intact (the set is per-run, not per-terminal).
+    launchService?.forget(terminalId)
+  })
+}
+
+// Story 3.2 (FR-11) — the RAW `claude` spawn config (F3, FROZEN DECISION).
+//
+// FROZEN DECISION (F3 fork resolved with live evidence): we spawn `claude` via a LOGIN SHELL
+// that runs claude AS A CHILD — `$SHELL -l -c 'claude'` — NOT the direct spawn and NOT
+// `exec claude`. Rationale grounded in the Story-0.4 LIVE evidence (oq-6 finding §E3): the
+// validated correlation walk (`resolveClaudeDescendant`, reused AS-IS) resolves claude as a
+// CHILD of the node-pty shell leader (the proven live ancestry `claude(664817) → bash(189223)`).
+//   - A DIRECT spawn (`file: 'claude'`) would make claude the PTY LEADER (term.pid == claude), so
+//     `resolveClaudeDescendant(term.pid)` finds NO claude CHILD → CLAUDE_NOT_RESOLVED forever
+//     (the as-is descendant walk only inspects children). It would also break on a minimal
+//     KDE-launched-app PATH where bare `claude` is not resolvable.
+//   - `exec claude` REPLACES the shell with claude (same defeat: claude becomes the leader).
+//   - The LOGIN SHELL (`-l`) resolves PATH/rc reliably (KDE app env can have a minimal PATH), and
+//     running `claude` (no exec) keeps it a CHILD — EXACTLY the shape the validated walk expects,
+//     keeping the layer thin (one shell, then claude). AR-7 "raw / minimal shell layering" is
+//     honored: a single login shell whose only job is to launch claude.
+// The env is the sanitized buildPtyEnv() (drops undefined keys + strips the smoke vars). [Source:
+// F3; AR-7; oq-6-pid-correlation-finding.md §E3 (claude → bash child ancestry, walk validated)]
+function rawClaudeSpawn(): { file: string; args: string[]; env: Record<string, string> } {
+  return { file: SHELL, args: ['-l', '-c', 'claude'], env: buildPtyEnv() }
+}
+
+// Story 3.2 (FR-11) — register the launch IPC ONCE (mirrors registerTerminalIpc / registerPtyIpc;
+// Review-F1 single-registration). Constructs the app-global launch service (reusing the terminal
+// manager + the launched-set + the production /proc readers). Channels are CH.* consts only.
+// Cross-process args are UNTRUSTED → parse-and-throw at the boundary (zod-boundaries.md IPC-arg
+// row); NEVER log the picked path value (it leaks the operator's filesystem layout).
+function registerLaunchIpc(): void {
+  // The launch service spawns through the SAME terminal manager (reuse) + the production
+  // pidCorrelation readers (Linux /proc). It POPULATES the app-global launched-set on a landed
+  // Tgid join. A null terminal manager (a race vs app-ready) is guarded at the handler.
+  if (terminalManager === null) {
+    // Defensive: registerLaunchIpc is called AFTER registerTerminalIpc in the ready block, so
+    // this never trips in practice; surface it as a code rather than spawn a half-wired service.
+    console.error('[c9watch][launch] code=launch_ipc_before_terminal_manager')
+  }
+  launchService = createLaunchService({
+    // The launch SPAWN rides the existing terminal:open handler; the launch service only reads
+    // the spawned shell leader pid for the correlation walk (pidOf). The terminal manager is
+    // non-null by construction order (registerTerminalIpc ran first); pidOf is null-safe.
+    terminalManager: {
+      pidOf: (terminalId) => terminalManager?.pidOf(terminalId) ?? null
+    },
+    launchedSet,
+    spawn: rawClaudeSpawn(),
+    readStatus: readStatusFromProc,
+    readComm: readCommFromProc,
+    listChildren: listChildrenFromProc,
+    // Opaque, unique per launch (NOT a session id, NOT a pid — F6). crypto UUID is plenty unique.
+    newTerminalId: () => `launch-${randomUUID()}`,
+    // Story 3.4 (FR-16) — push the terminalId ↔ sessionId binding to the OWNING window when a
+    // launch's Tgid join lands. Resolve the owner from `terminalOwners` (the same map the
+    // dead-terminal onExit uses); VALIDATE AT SOURCE (LaunchCorrelatedSchema) before send so a
+    // malformed binding never crosses the seam (main→renderer delta; zod-boundaries.md). Re-check
+    // the destroyed window per send (a late event after close is a no-op, mirroring the wc.send
+    // guards above). never-log-the-value: PATH + CODE only on a parse miss (Guardrail #6).
+    onCorrelated: (binding) => {
+      const wc = terminalOwners.get(binding.terminalId)
+      if (!wc || wc.isDestroyed()) return
+      const r = LaunchCorrelatedSchema.safeParse(binding)
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        console.error(
+          `[c9watch][launch] dropped launch:correlated path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+        return
+      }
+      wc.send(CH.launchCorrelated, r.data)
+    },
+    // never-log-the-value: a code= ONLY, never a path/pty/session value (Guardrail #6).
+    log: (message) => console.warn(message)
+  })
+
+  // session:pick-directory — open the NATIVE KDE directory chooser in MAIN and return the chosen
+  // path, or null on cancel (UX-DR23). The renderer NEVER opens a dialog itself. Modal-to-window
+  // (pass the owning BrowserWindow) on KDE. This is an invoke (returns the value directly).
+  ipcMain.handle(CH.sessionPickDirectory, async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    // showOpenDialog accepts an optional parent window; pass it so the dialog is modal-to-window.
+    const result = owner
+      ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'] })
+      : await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    // Cancel ⇒ canceled:true (or empty filePaths) ⇒ null ⇒ the renderer no-ops (no launch).
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0] ?? null
+  })
+
+  // session:launch — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS boundary (a
+  // blank/non-string cwd rejects the invoke). NEVER log the cwd value — the throw IS the signal.
+  // On a valid cwd, the launch service spawns raw `claude` (via the reused terminal manager) and
+  // returns the opaque terminalId the renderer's EmbeddedTerminal opens against. The terminal is
+  // typeable IMMEDIATELY; the Tgid correlation reconciles asynchronously on feed deltas (UX-DR19).
+  ipcMain.handle(CH.sessionLaunch, (_event, raw: unknown) => {
+    if (launchService === null) throw new Error('launch service not initialized')
+    const { cwd } = SessionLaunchSchema.parse(raw)
+    const { terminalId } = launchService.launch({ cwd })
+    return { terminalId }
   })
 }
 
@@ -410,6 +828,16 @@ function createWindow(): void {
     // Story 1.1 — stop the watch feed cleanly (AbortController teardown), reaping
     // the watch child. Independent of the PTY teardown above.
     teardownWatchFeed(wc)
+    // Story 3.1 — tear down every embedded terminal this window owned (port.close() THEN
+    // pty.kill(), in the manager) so no PTY leaks past the window. Independent of the feed +
+    // the Story-0.1 PTY spike above. The unguarded-destruction window (Epic-4 Quit-guard) is
+    // flagged in the story; a clean window close kills its PTYs (no orphan from a normal close).
+    for (const [terminalId, owner] of [...terminalOwners.entries()]) {
+      if (owner === wc) {
+        terminalOwners.delete(terminalId)
+        terminalManager?.stop(terminalId)
+      }
+    }
   })
 
   // Story 1.1 — start the live c9watch feed for this window once it is ready to
@@ -470,6 +898,38 @@ app
       settingsStore = createSettingsStore()
     }
     registerSettingsIpc()
+
+    // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
+    // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.
+    // Construction fails closed on a corrupt persisted JSONL (backs up + starts fresh —
+    // never crashes); a total failure degrades to an in-memory-only store so the app still
+    // runs (never-crash, mirrors settingsStore construction above). Smoke mode skips
+    // persistence (in-memory line store — keeps the smoke harness from writing userData).
+    try {
+      telemetryStore = SMOKE
+        ? createTelemetryStore()
+        : createTelemetryStore({
+            lineStore: createFsTelemetryLineStore(app.getPath('userData'))
+          })
+    } catch (err) {
+      console.error(
+        '[c9watch][telemetry] code=telemetry_store_init_failed (using in-memory):',
+        err instanceof Error ? err.message : 'unknown'
+      )
+      telemetryStore = createTelemetryStore()
+    }
+    registerTelemetryIpc()
+
+    // Story 3.1 (FR-10) — build the terminal manager + register its lifecycle IPC ONCE
+    // (app-global, not per-window; mirrors registerSettingsIpc). The MessagePort byte path
+    // is wired per terminal:open. Smoke mode does not open embedded terminals (the smoke
+    // drives the Story-0.1 single-PTY window.pty path via SmokeCockpit — unchanged), so this
+    // registration is harmless there.
+    registerTerminalIpc()
+
+    // Story 3.2 (FR-11) — register the launch IPC ONCE (after the terminal manager exists, since
+    // the launch service spawns through it). Mirrors registerTerminalIpc single-registration.
+    registerLaunchIpc()
 
     createWindow()
 

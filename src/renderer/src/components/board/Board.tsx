@@ -105,6 +105,11 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
   // notification). Set the board selection to the originating card; the store no-ops if that
   // card is not present. INFORMATIONAL ONLY: this locates-and-highlights the card — it does NOT
   // raise/focus the window and sends no input to the agent. Returns the unsubscribe on unmount.
+  // Story 3.3 — NO renderer-side launched-vs-external filter here: main GATES the attention
+  // emission at the source (index.ts onDelta), so an external session never creates a
+  // notification → never produces a jump-to-card signal. This subscription already only ever
+  // sees LAUNCHED activations. Do NOT add a redundant filter (it would be a second, drift-prone
+  // membership source — the renderer has no launched-set; main owns it).
   useEffect(() => {
     const off = window.attention.onActivate(({ id }) => boardStore.getState().setSelected(id))
     return off
@@ -159,12 +164,14 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
         </div>
       ) : total === 0 ? (
         // AC-4 — empty board (cold-loaded, zero sessions). Headline + line + the ONE
-        // primary action. `+ New session` is a SEAM (launch is Epic-3 / FR-11).
+        // primary action. `+ New session` launches an in-app session (Epic-3 / FR-11).
+        // Story 3.3 (FR-1 amended) — the Board shows ONLY app-launched sessions, so the empty
+        // board is the NORMAL cold state and the ONLY affordance is `+ New session`. The old
+        // "…or start one in Konsole and it'll appear here" invite is GONE: external/Konsole
+        // sessions are intentionally never shown (the launched-set is the single gate, AC-4/F5).
         <div className={styles.emptyBoard} data-testid="empty-board">
           <p className={styles.emptyBoardHeadline}>No sessions yet.</p>
-          <p className={styles.emptyBoardLine}>
-            Launch one with + New session, or start one in Konsole and it&apos;ll appear here.
-          </p>
+          <p className={styles.emptyBoardLine}>Launch one with + New session to get started.</p>
           <button
             type="button"
             className={styles.newSessionButton}
