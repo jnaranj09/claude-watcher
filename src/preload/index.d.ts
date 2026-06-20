@@ -5,7 +5,8 @@ import type {
   SettingsApi,
   TerminalApi,
   LaunchApi,
-  TelemetryApi
+  TelemetryApi,
+  QuitApi
 } from './index'
 
 declare global {
@@ -23,5 +24,7 @@ declare global {
     launch: LaunchApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi
+    // Story 4.2 (FR-14) — the quit-guard bridge (requestQuit / confirm / cancel / onGuardShow).
+    quit: QuitApi
   }
 }

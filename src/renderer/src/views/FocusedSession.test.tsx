@@ -166,3 +166,72 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(boardStore.getState().focusedTerminalId).toBe('launch-other')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Story 4.3 (FR-15) — the ⏹ Stop session header button tests
+// ---------------------------------------------------------------------------
+
+describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', () => {
+  it('renders the ⏹ Stop session button in the focused header', () => {
+    boardStore.getState().openLaunchedTerminal('launch-stop-test')
+    const r = render()
+    const stopBtn = r.container.querySelector('[data-testid="focused-stop"]')
+    expect(stopBtn).not.toBeNull()
+  })
+
+  it('clicking ⏹ Stop session opens the Stop-confirm with the focused terminalId', () => {
+    boardStore.getState().openLaunchedTerminal('launch-stop-click')
+    const r = render()
+    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
+    expect(stopBtn).not.toBeNull()
+
+    stopBtn?.click()
+
+    // The Stop-confirm should be open with the correct terminalId.
+    expect(boardStore.getState().stopConfirm).not.toBeNull()
+    expect(boardStore.getState().stopConfirm?.terminalId).toBe('launch-stop-click')
+  })
+
+  it('clicking ⏹ Stop session includes a sessionName in the payload (verbatim name or terminalId fallback)', () => {
+    // When correlated, the sessionName should be the c9watch name.
+    boardStore.getState().applyWatchEvent(updated(1, 'sess-corr', 'working', 100))
+    boardStore.getState().addCorrelation('sess-corr', 'launch-corr-term')
+    boardStore.getState().switchTerminal('launch-corr-term')
+    const r = render()
+    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
+    stopBtn?.click()
+
+    const payload = boardStore.getState().stopConfirm
+    expect(payload).not.toBeNull()
+    expect(payload?.terminalId).toBe('launch-corr-term')
+    // The session name should be the c9watch name (s-sess-corr from the `updated` helper).
+    expect(payload?.sessionName).toBe('s-sess-corr')
+  })
+
+  it('clicking ⏹ Stop session degrades gracefully to terminalId when no correlation exists', () => {
+    // Pre-correlation: no session bound to this terminal yet → fall back to bare terminalId.
+    boardStore.getState().openLaunchedTerminal('launch-pre-corr')
+    const r = render()
+    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
+    stopBtn?.click()
+
+    const payload = boardStore.getState().stopConfirm
+    expect(payload).not.toBeNull()
+    // No session correlated → sessionName falls back to bare terminalId (never crashes).
+    expect(payload?.sessionName).toBe('launch-pre-corr')
+  })
+
+  it('the ⏹ Stop session button is rendered and focusedTerminalId is wired to the payload', () => {
+    // The null-guard in handleStopSession is internal; verify the button correctly passes
+    // the focused terminalId from the store into the payload (not a hardcoded value).
+    boardStore.getState().openLaunchedTerminal('launch-id-wire-check')
+    const r = render()
+    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
+    expect(stopBtn).not.toBeNull()
+    stopBtn?.click()
+    // The payload terminalId must match the store's focusedTerminalId exactly.
+    expect(boardStore.getState().stopConfirm?.terminalId).toBe(
+      boardStore.getState().focusedTerminalId ?? 'launch-id-wire-check'
+    )
+  })
+})

@@ -31,7 +31,21 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
-import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
+import type { Column, WatchEventsPayload, QuitGuardPayload } from '../../../shared/ipc/contract'
+
+/**
+ * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
+ * Non-null when the operator triggered the Stop-confirm for a focused session. Null when no
+ * confirm is shown. The renderer renders `<StopConfirm/>` from this payload.
+ * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
+ * [state.md: modal open/closed = renderer view-state; session truth = main]
+ */
+export interface StopConfirmPayload {
+  /** The opaque terminalId to stop (via window.terminal.stop(terminalId) — CH.terminalStop). */
+  terminalId: string
+  /** The session name to display verbatim in the confirm dialog (UX-DR22). */
+  sessionName: string
+}
 import { sortByEnteredColumn } from '../lib/sortByEnteredColumn'
 
 /**
@@ -169,6 +183,24 @@ export interface BoardState {
    *  with NO entry yet (pre-correlation) is alert-only-non-switchable; it becomes switchable the
    *  moment the binding lands (degrade gracefully, never crash). */
   terminalIdBySessionId: Record<string, string>
+  /**
+   * Story 4.2 (FR-14) — the QUIT-GUARD modal payload (RENDERER VIEW-STATE; not session truth).
+   * Non-null when main detected ≥1 live app-launched session and pushed the guard payload via
+   * `CH.quitGuardShow`. Null when no guard is shown. The renderer renders `<QuitGuard/>` from
+   * this payload — it does NOT re-derive the count (session truth stays MAIN-owned — state.md).
+   * Set via `showQuitGuard(payload)`; cleared via `clearQuitGuard()`.
+   * [state.md: modal open/closed = renderer view-state; session truth = main]
+   */
+  quitGuard: QuitGuardPayload | null
+  /**
+   * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
+   * Non-null when the operator triggered the Stop-confirm for a focused session. Null when no
+   * confirm is shown. The renderer renders `<StopConfirm/>` from this payload.
+   * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
+   * Single-modal rule (UX-DR14): cannot co-exist with quitGuard.
+   * [state.md: modal open/closed = renderer view-state; session truth = main]
+   */
+  stopConfirm: StopConfirmPayload | null
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Apply main's pushed connection state (CH.watchStatus). `true` anchors the debounce
@@ -231,6 +263,33 @@ export interface BoardState {
    *  NOT). Does NOT acknowledge by itself — the caller pairs it with `acknowledge(sessionId)` (the
    *  rail row knows the sessionId; this action takes only the terminalId so it stays a pure switch). */
   switchTerminal: (terminalId: string) => void
+  /**
+   * Story 4.2 (FR-14) — open the Quit-guard modal with the payload main computed + pushed.
+   * Sets `quitGuard = payload`. Pure, small action. No side effects.
+   * Single-modal rule (UX-DR14): if Settings is open (local state in Settings component),
+   * it will be hidden by the guard overlay (z-index: 60 > Settings z-50). The guard takes
+   * precedence — a quit decision dominates a settings panel.
+   */
+  showQuitGuard: (payload: QuitGuardPayload) => void
+  /**
+   * Story 4.2 (FR-14) — close the Quit-guard modal (operator cancelled).
+   * Sets `quitGuard = null`. No teardown — see FROZEN #1.
+   */
+  clearQuitGuard: () => void
+  /**
+   * Story 4.3 (FR-15) — open the Stop-confirm modal for a specific session.
+   * Sets `stopConfirm = payload`. Pure, small, no side effects. No IPC here —
+   * the explicit `window.terminal.stop` call happens at the component call site
+   * BEFORE view-state changes (FROZEN F1; state.md: no IPC inside store actions).
+   * Single-modal rule (UX-DR14): do NOT show when quitGuard is open.
+   */
+  showStopConfirm: (payload: StopConfirmPayload) => void
+  /**
+   * Story 4.3 (FR-15) — close the Stop-confirm modal (operator cancelled OR stop completed).
+   * Sets `stopConfirm = null`. No teardown here — the explicit stop happens at the call site
+   * BEFORE this (FROZEN F1).
+   */
+  clearStopConfirm: () => void
 }
 
 export interface BoardStoreOptions {
@@ -302,6 +361,10 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // acknowledge / the first CH.launchCorrelated push.
     acknowledgedById: {},
     terminalIdBySessionId: {},
+    // Story 4.2 (FR-14) — no quit guard shown until main pushes the guard payload.
+    quitGuard: null,
+    // Story 4.3 (FR-15) — no stop confirm shown until the operator triggers it.
+    stopConfirm: null,
 
     applyWatchEvent: (payload) => {
       const state = get()
@@ -484,6 +547,37 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       const state = get()
       if (state.focusedTerminalId === terminalId && state.viewMode === 'focused') return
       set({ viewMode: 'focused', focusedTerminalId: terminalId })
+    },
+
+    showQuitGuard: (payload) => {
+      // Story 4.2 (FR-14) — open the Quit-guard modal (main detected ≥1 live session).
+      // Pure, small, no side effects. Session truth stays MAIN-owned; this is the renderer
+      // view-state that makes the modal visible. [state.md: modal open/closed = view-state]
+      set({ quitGuard: payload })
+    },
+
+    clearQuitGuard: () => {
+      // Story 4.2 (FR-14) — close the Quit-guard modal (operator cancelled). The before-quit
+      // e.preventDefault() already aborted the quit; this clears the renderer overlay.
+      // No teardown — every PTY stays live (FROZEN #1).
+      const state = get()
+      if (state.quitGuard !== null) set({ quitGuard: null })
+    },
+
+    showStopConfirm: (payload) => {
+      // Story 4.3 (FR-15) — open the Stop-confirm modal. Pure, small, no side effects.
+      // The explicit window.terminal.stop MUST happen at the component call site BEFORE
+      // clearing view-state (FROZEN F1; the modal's Stop button handles this ordering).
+      // [state.md: modal open/closed = view-state; no IPC inside store actions]
+      set({ stopConfirm: payload })
+    },
+
+    clearStopConfirm: () => {
+      // Story 4.3 (FR-15) — close the Stop-confirm modal (cancelled or stop completed).
+      // No PTY teardown here — the explicit window.terminal.stop runs BEFORE this at the
+      // call site (FROZEN F1).
+      const state = get()
+      if (state.stopConfirm !== null) set({ stopConfirm: null })
     }
   }))
 }
@@ -566,6 +660,20 @@ export function selectRailEmphasis(state: BoardState, id: string): 'needs-you' |
  *  binding has not landed yet (pre-correlation → alert-only-non-switchable). Primitive. */
 export const selectTerminalIdForSession = (state: BoardState, id: string): string | undefined =>
   state.terminalIdBySessionId[id]
+
+/**
+ * Story 4.2 (FR-14) — the Quit-guard modal payload (RENDERER VIEW-STATE; null = no guard shown).
+ * A primitive-ish selector (returns an object or null); callers that need object fields use
+ * this directly — it's already narrow (the whole modal payload or null).
+ */
+export const selectQuitGuard = (state: BoardState): QuitGuardPayload | null => state.quitGuard
+
+/**
+ * Story 4.3 (FR-15) — the Stop-confirm modal payload (RENDERER VIEW-STATE; null = no confirm shown).
+ * Non-null when the operator triggered the Stop-confirm for a focused session.
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null => state.stopConfirm
 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the

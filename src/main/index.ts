@@ -74,6 +74,29 @@ import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/l
 import { createTelemetryStore, type TelemetryStore } from './persistence/telemetry'
 import { createFsTelemetryLineStore } from './persistence/fsTelemetryLineStore'
 import { TelemetryAcknowledgeSchema, TELEMETRY_VERSION } from '../shared/schemas/telemetry'
+// Story 4.1 (FR-13) — centralized clean teardown (SM-3 = 0 orphans). Extracted for
+// unit coverage (mirrors shipGate.ts precedent). Wired on `before-quit` so EVERY quit
+// path (app.quit(), window-all-closed → app.quit(), tray Quit) tears down owned sessions.
+// B-1/M-2: stop PTYs EXPLICITLY IN MAIN (terminalManager.destroyAll → port.close THEN
+// pty.kill) — NEVER via an incidental renderer unmount. See App.tsx ~199-203 (M-2 latch
+// WARNING) and App.launch.test.tsx (the B-1 guardrail that MUST stay green).
+import { teardownAllSessions } from './lifecycle/teardownAllSessions'
+// Story 4.2 (FR-14) — the Quit-guard: liveness compute + cancel-safe decision helper.
+// The before-quit is REFACTORED from the 4-1 unconditional teardown into guard-then-teardown
+// in ONE handler (FROZEN #1: cancel-must-not-kill). The liveness compute is the same
+// launched-set ∩ reducer-map ∩ columnForStatus triple the badge uses (single source of truth).
+import {
+  computeLiveLaunchedSessions,
+  type ReducerLike
+} from './lifecycle/computeLiveLaunchedSessions'
+import {
+  handleBeforeQuit,
+  handleQuitConfirm,
+  handleQuitCancel,
+  type QuitGuardState
+} from './lifecycle/quitGuard'
+import { QuitGuardPayloadSchema } from '../shared/schemas/quitGuard'
+import type { QuitGuardPayload } from '../shared/ipc/contract'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -144,6 +167,20 @@ const trays = new Map<Electron.WebContents, TrayController>()
 // keep a reference here for the IPC handler's access pattern. [story 3.5 Task 4.1 / FROZEN-3]
 const trackers = new Map<Electron.WebContents, AttentionTracker>()
 
+// Story 4.2 (FR-14) — app-global reducer registry (ARCH-FORK-1 option A).
+// Mirrors the existing `trackers` map (same lifetime: set in registerWatchFeed, deleted in
+// teardownWatchFeed). The quit handler reads `reducer.snapshotMap()` via this map to compute
+// the live session count without restructuring registerWatchFeed. Single source of truth
+// (state.md): the reducer remains the authority; this is just a registry handle. The telemetry
+// handler ALREADY reads the app-global `trackers` map (index.ts ~534) — this is the same pattern.
+const reducers = new Map<Electron.WebContents, ReducerLike>()
+
+// Story 4.2 (FR-14) — mutable quit-guard state (owned at app scope; one app, one guard).
+// Initialized here so the before-quit handler, quitConfirm, and quitCancel all share ONE state.
+// isQuitting flips true ONLY when a real quit proceeds (guard passed / nothing-live).
+// pendingGuard is true while the operator is viewing the Quit-guard modal.
+const quitGuardState: QuitGuardState = { isQuitting: false, pendingGuard: false }
+
 // Smoke mode is a packaged node-pty exit gate (no c9watch on the box); never spin
 // up the live feed there.
 function registerWatchFeed(window: BrowserWindow): void {
@@ -156,6 +193,10 @@ function registerWatchFeed(window: BrowserWindow): void {
     // never-log-the-parsed-value: PATH + CODE only (Critical Guardrail #6).
     log: (err) => console.warn(`[c9watch][feed] dropped line path=${err.path} code=${err.code}`)
   })
+  // Story 4.2 (FR-14) — store the reducer reference in the app-global registry so the
+  // quit handler can read reducer.snapshotMap() for the liveness compute (ARCH-FORK-1 option A).
+  // Same lifetime as the feed; deleted in teardownWatchFeed alongside trackers.delete.
+  reducers.set(wc, reducer)
   // Story 1.2 — one tracker per window (same lifetime as the reducer/feed). It reads
   // the reducer's already-validated deltas + map (parse-once; never re-parses) and
   // produces the entry-transition attention.raised events. Injected now() for
@@ -325,6 +366,9 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   // Story 3.5 (SM-2) — remove the per-window tracker reference (same lifetime as the feed).
   // The telemetry IPC handler will see no tracker for a destroyed window → graceful no-op.
   trackers.delete(wc)
+  // Story 4.2 (FR-14) — remove the per-window reducer reference (ARCH-FORK-1 option A).
+  // Same lifetime as the feed; mirrors the trackers.delete above.
+  reducers.delete(wc)
   const feed = feeds.get(wc)
   if (!feed) return
   feeds.delete(wc)
@@ -334,6 +378,24 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
       err instanceof Error ? err.message : 'unknown'
     )
   })
+}
+
+// Story 4.1 (FR-13) — stop every terminal this window owned (explicit-MAIN teardown).
+// Called from the `on('closed')` per-window path AND shared with teardownAllSessions
+// (via the clearTerminalOwners dep) so there is ONE teardown contract: always explicit
+// in MAIN, never incidental via a renderer unmount (B-1/M-2 hard constraint).
+// Idempotent: after teardownAllSessions runs (on `before-quit`) the terminalOwners map
+// is already clear, so this loop is a safe no-op on a normal app-quit close.
+function teardownWindowTerminals(wc: Electron.WebContents): void {
+  for (const [terminalId, owner] of [...terminalOwners.entries()]) {
+    if (owner === wc) {
+      terminalOwners.delete(terminalId)
+      // B-1/M-2: explicit stop in MAIN — port.close() THEN pty.kill() (FROZEN #1/#2;
+      // architecture.md:554). NEVER rely on a renderer FocusedSession/EmbeddedTerminal
+      // unmount to kill the PTY (that is the exact B-1 path; App.tsx ~199-203 WARNING).
+      terminalManager?.stop(terminalId)
+    }
+  }
 }
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
@@ -791,6 +853,49 @@ function registerLaunchIpc(): void {
   })
 }
 
+// Story 4.2 (FR-14) — register the quit-guard IPC ONCE (mirrors registerSettingsIpc /
+// registerTerminalIpc single-registration at app-ready — Review-F1). Channels are CH.* consts
+// only — never a string literal (no-literal-channels). The three renderer→main invokes are
+// payload-less typed wrappers; they carry no cross-process args to parse. The main→renderer
+// guard-show push is validated AT SOURCE in handleBeforeQuit (not here). isQuitting / pendingGuard
+// live in the app-global quitGuardState; the before-quit handler reads/sets them atomically.
+function registerQuitIpc(): void {
+  // app:request-quit — renderer asks main to begin a true quit. Routes through app.quit() so
+  // it flows through the ONE before-quit guard decision (the one chokepoint, FROZEN #3).
+  // The renderer NEVER calls app.quit() directly (it can't — sandboxed). Returns void.
+  ipcMain.handle(CH.appRequestQuit, () => {
+    app.quit()
+  })
+
+  // quit:confirm — "Quit anyway" was clicked. Main proceeds: sets isQuitting, teardown, quit.
+  // The re-entrant before-quit (triggered by the quit) sees isQuitting=true and short-circuits.
+  ipcMain.handle(CH.quitConfirm, () => {
+    handleQuitConfirm(quitGuardState, {
+      teardownAllSessions,
+      teardownDeps: {
+        terminalManager,
+        feeds: feeds.values(),
+        clearTerminalOwners: () => terminalOwners.clear()
+      },
+      computeLiveLaunchedSessions,
+      computeDeps: {
+        reducers: reducers.values(),
+        isLaunched: (id) => launchedSet.has(id)
+      },
+      pushGuard: () => {
+        /* no-op: pushGuard is unused in the quitConfirm path */
+      },
+      proceedQuit: () => app.quit()
+    })
+  })
+
+  // quit:cancel — the operator cancelled. No teardown; every PTY stays live (FROZEN #1).
+  // The before-quit's e.preventDefault() already aborted this quit attempt.
+  ipcMain.handle(CH.quitCancel, () => {
+    handleQuitCancel(quitGuardState)
+  })
+}
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -814,6 +919,26 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  // Story 4.2 (FR-14 / UX-DR25 / FROZEN #4 / Epic-4 DECISION #2) — minimize-to-taskbar.
+  // A title-bar window-close MINIMIZES instead of quitting: `e.preventDefault()` + `minimize()`.
+  // `isQuitting` (quitGuardState) flips true ONLY when a real quit PROCEEDS (guard passed /
+  // nothing-live). On a real quit, this handler falls through (lets Electron close the window
+  // normally so `window-all-closed` fires → `app.quit()` → before-quit sees isQuitting=true
+  // and short-circuits). Sessions keep running; the tray badge stays live (badge.ts UNTOUCHED).
+  //
+  // ZERO `window.show()`/raise/focus anywhere (Epic-4 DECISION #2 — strictest no-self-raise).
+  // Restore is 100% DE-native (the taskbar entry). A minimized window NEVER fires
+  // `window-all-closed` (it is not closed), so the `window-all-closed → app.quit()` path
+  // (below) still composes correctly: only a REAL quit close triggers it.
+  //
+  // [Source: epics.md Epic-4 DECISION #2 (line 190); UX-DR25 (line 111); EXPERIENCE.md:122-126]
+  mainWindow.on('close', (e) => {
+    if (!quitGuardState.isQuitting) {
+      e.preventDefault()
+      mainWindow.minimize()
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     // Fire-and-forget: open externally; we deny the in-app window regardless. The
     // handler must return synchronously, so the promise is intentionally voided.
@@ -826,18 +951,16 @@ function createWindow(): void {
     ptys.get(wc)?.kill()
     ptys.delete(wc)
     // Story 1.1 — stop the watch feed cleanly (AbortController teardown), reaping
-    // the watch child. Independent of the PTY teardown above.
+    // the watch child. Independent of the PTY teardown below.
     teardownWatchFeed(wc)
-    // Story 3.1 — tear down every embedded terminal this window owned (port.close() THEN
-    // pty.kill(), in the manager) so no PTY leaks past the window. Independent of the feed +
-    // the Story-0.1 PTY spike above. The unguarded-destruction window (Epic-4 Quit-guard) is
-    // flagged in the story; a clean window close kills its PTYs (no orphan from a normal close).
-    for (const [terminalId, owner] of [...terminalOwners.entries()]) {
-      if (owner === wc) {
-        terminalOwners.delete(terminalId)
-        terminalManager?.stop(terminalId)
-      }
-    }
+    // Story 3.1 / Story 4.1 — tear down every embedded terminal this window owned via the
+    // shared teardownWindowTerminals helper (explicit MAIN stop: port.close() THEN pty.kill(),
+    // inside terminalManager.stop). B-1/M-2 hard constraint: NEVER rely on an incidental
+    // renderer unmount to kill PTYs (App.tsx ~199-203 M-2 latch WARNING). On a normal
+    // app-quit, teardownAllSessions (before-quit) already ran and cleared terminalOwners →
+    // this loop is a safe idempotent no-op. On a direct window close (4-2 will flip this to
+    // minimize instead), it tears down this window's terminals cleanly.
+    teardownWindowTerminals(wc)
   })
 
   // Story 1.1 — start the live c9watch feed for this window once it is ready to
@@ -931,6 +1054,10 @@ app
     // the launch service spawns through it). Mirrors registerTerminalIpc single-registration.
     registerLaunchIpc()
 
+    // Story 4.2 (FR-14) — register the quit-guard IPC ONCE (app:request-quit, quit:confirm,
+    // quit:cancel). Single-registration mirrors the established pattern above.
+    registerQuitIpc()
+
     createWindow()
 
     app.on('activate', function () {
@@ -945,6 +1072,76 @@ app
     console.error('[c9watch] app failed to become ready', err)
     app.quit()
   })
+
+// Story 4.2 (FR-14) — REFACTORED `before-quit`: the combined guard-then-teardown handler.
+//
+// Story 4.1 had an unconditional teardown here. Story 4.2 makes it CONDITIONAL (the guard gate):
+//   - If a real quit is already in progress (isQuitting=true) → short-circuit and return.
+//     Electron processes `before-quit` synchronously before the quit proceeds; the re-entrant
+//     call (from quitConfirm's app.quit() or handleBeforeQuit's proceedQuit) sees isQuitting=true
+//     and returns immediately so teardown is NOT called twice.
+//   - If nothing live (total===0) → set isQuitting=true, run teardown, proceed.
+//   - If ≥1 live session → e.preventDefault() + push the guard payload to the renderer.
+//     teardownAllSessions is NOT called here (deferred to quitConfirm).
+//
+// the guard WRAPS teardown — a cancelled quit tears down NOTHING (FROZEN #1).
+//
+// ONE combined handler (NOT two listeners — a second `before-quit` listener that teardowns
+// independently would kill PTYs even on cancel because Electron does NOT stop other
+// `before-quit` listeners when one calls e.preventDefault() — FROZEN #1).
+//
+// B-1/M-2 HARD CONSTRAINT (unchanged from 4.1): teardown stops PTYs EXPLICITLY IN MAIN
+// (terminalManager.destroyAll → port.close() THEN pty.kill()) — NEVER via an incidental
+// renderer unmount. Order: STOP FIRST (here or in quitConfirm), then any renderer unmount.
+//
+// port.close() BEFORE pty.kill() (FROZEN #2) is INSIDE terminalManager.destroyAll() →
+// teardown() — REUSE it, do NOT reimplement. [Source: story 4.2 Task 2; FROZEN #1/#2/#3]
+app.on('before-quit', (e) => {
+  // Short-circuit: a real quit is already in progress (quitConfirm or nothing-live path set
+  // this). Return immediately so teardown is NOT called twice and the quit proceeds normally.
+  if (quitGuardState.isQuitting) return
+
+  // The main window's webContents — needed to push the guard payload to the renderer.
+  // We use BrowserWindow.getAllWindows() (the single window) so this is not captured at
+  // module scope (it only exists after createWindow()). A null/destroyed wc → no push; the
+  // nothing-live path still runs teardown cleanly (the guard is a renderer-only concern).
+  const mainWin = BrowserWindow.getAllWindows()[0]
+  const wc = mainWin?.webContents
+
+  const showed = handleBeforeQuit(quitGuardState, {
+    teardownAllSessions,
+    teardownDeps: {
+      terminalManager,
+      feeds: feeds.values(),
+      clearTerminalOwners: () => terminalOwners.clear()
+    },
+    computeLiveLaunchedSessions,
+    computeDeps: {
+      reducers: reducers.values(),
+      isLaunched: (id) => launchedSet.has(id)
+    },
+    pushGuard: (payload: QuitGuardPayload) => {
+      if (!wc || wc.isDestroyed()) return
+      // Validate AT SOURCE before send: main→renderer delta must be well-formed (zod-boundaries.md).
+      const r = QuitGuardPayloadSchema.safeParse(payload)
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        // never-log-the-value: PATH + CODE only — QuitGuardPayload carries sessionName data.
+        console.error(
+          `[c9watch][quit] dropped quit:guard-show path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+        return
+      }
+      wc.send(CH.quitGuardShow, r.data)
+    },
+    proceedQuit: () => app.quit()
+  })
+
+  // If the guard was shown (≥1 live session), prevent the quit and await the operator's decision.
+  if (showed) {
+    e.preventDefault()
+  }
+})
 
 // Quit when all windows are closed, except on macOS.
 app.on('window-all-closed', () => {

@@ -40,6 +40,13 @@ export const CH = {
   // RESERVED (the Epic-4 FR-15 per-session stop — NOT this story). See SessionLaunchRequest /
   // SessionLaunchResult below.
   sessionLaunch: 'session:launch',
+  // Story 4.3 (FR-15) — `session:stop` stays RESERVED (superseded-by-reuse).
+  // The Story-4.3 per-session Stop action REUSES `terminal:stop` (`CH.terminalStop`) on the
+  // focused `terminalId` via `window.terminal.stop(focusedTerminalId)` — the proven SM-3 path
+  // (Story 3.1; `terminalManager.stop` = port.close() THEN pty.kill() + `launchService.forget`).
+  // The renderer already holds `focusedTerminalId`; a session-level alias would only add a thin
+  // session→terminal indirection that re-derives what the renderer already has — no gain, more
+  // blast radius. Leave reserved; do NOT wire or add a handler for `session:stop`.
   sessionStop: 'session:stop',
   // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
   // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
@@ -95,7 +102,39 @@ export const CH = {
   // (the Story-1.2 attention tracker). Recommended as an `invoke` (typed parse-and-throw
   // + back-pressure, consistent with `settings:set`) — returns void. [story 3.5 FROZEN-3;
   // .claude/rules/ipc.md 4-file recipe; src/shared/schemas/telemetry.ts (TelemetryAcknowledgeSchema)]
-  telemetryAcknowledge: 'telemetry:acknowledge'
+  telemetryAcknowledge: 'telemetry:acknowledge',
+
+  // Story 4.2 (FR-14) — the Quit-guard round-trip (ADDITIVE; frozen AttentionEvent union
+  // NOT reshaped; all new channels are CH.* consts — no-literal-channels enforced).
+  //
+  // ONE quit chokepoint: Ctrl+Q (renderer keydown → app:request-quit invoke → main app.quit()
+  // → the one before-quit decision). Tray Quit already calls app.quit() (no change needed
+  // there). A confirmed quit or a nothing-live quit flows through the same chokepoint.
+  //
+  // `app:request-quit`  renderer → main INVOKE (no payload). The Ctrl+Q chokepoint: the
+  //                     renderer asks main to begin a true quit by calling app.quit(), which
+  //                     flows through the ONE before-quit guard decision. NOT a direct quit
+  //                     from the renderer (sandboxed). Returns void.
+  //
+  // `quit:guard-show`   main → renderer PUSH carrying QuitGuardPayload. Fired when main's
+  //                     before-quit finds ≥1 live app-launched session and needs confirmation.
+  //                     Validated AT SOURCE in main before wc.send. The frozen AttentionEvent
+  //                     union is NOT reshaped — this is a separate channel.
+  //
+  // `quit:confirm`      renderer → main INVOKE (no payload). The operator chose "Quit anyway"
+  //                     → main sets isQuitting, calls teardownAllSessions, then app.quit().
+  //                     Returns void.
+  //
+  // `quit:cancel`       renderer → main INVOKE (no payload). The operator cancelled → main
+  //                     clears the pending-quit state; no teardown; every PTY stays live.
+  //                     The before-quit preventDefault() already aborted THIS quit. Returns void.
+  //
+  // [Source: story 4.2 Task 3.1; .claude/rules/ipc.md (4-file recipe, conventions, frozen union,
+  //  no-literal-channels); FROZEN #1/#2/#3; ARCH-FORK-1 (option A)]
+  appRequestQuit: 'app:request-quit',
+  quitGuardShow: 'quit:guard-show',
+  quitConfirm: 'quit:confirm',
+  quitCancel: 'quit:cancel'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
@@ -553,3 +592,47 @@ export type TerminalPortRendererMessage = TerminalPortInput | TerminalPortAck
  * input → parse-and-throw at the main boundary (zod-boundaries.md IPC-arg row). Returns void.
  */
 export type { TelemetryAcknowledgeRequest } from '../schemas/telemetry'
+
+// ---------------------------------------------------------------------------
+// Story 4.2 (FR-14) — the Quit-guard payload type (ADDITIVE; frozen union NOT reshaped).
+//
+// `quit:guard-show` carries this payload from main → renderer. Main validates AT SOURCE
+// before wc.send (main→renderer = validate at source; zod-boundaries.md). The renderer
+// stores `quitGuard: QuitGuardPayload | null` as RENDERER VIEW-STATE in boardStore
+// (session truth stays MAIN-owned; the modal open/closed is view-state — state.md).
+//
+// NEVER log a session value/path: QuitGuardPayload carries sessionName which is
+// session-shaped data — log path/code only on a parse miss (zod-boundaries.md).
+//
+// [Source: story 4.2 Task 3.1; .claude/rules/ipc.md; .claude/rules/zod-boundaries.md;
+//  .claude/rules/state.md; src/shared/schemas/quitGuard.ts (the Zod schema)]
+// ---------------------------------------------------------------------------
+
+/** Per-session row in the Quit-guard modal list. */
+export type QuitGuardSession = {
+  /** Stable session id (UUID). NEVER pid (identity = id). */
+  id: string
+  sessionName: string
+  status: string
+  /** Board column — computed by `columnForStatus` (same classifier as the board/badge). */
+  column: Column
+}
+
+/**
+ * `quit:guard-show` push payload — main → renderer.
+ *
+ * Fired when the quit guard finds ≥1 live app-launched session. Main validates AT SOURCE
+ * before send. The renderer renders the Quit-guard modal from this payload; it does NOT
+ * re-derive the count (session truth stays MAIN-owned — state.md).
+ */
+export type QuitGuardPayload = {
+  /** Total live app-launched sessions (launched-set ∩ present in any window's reducer). */
+  total: number
+  /**
+   * How many of those are in the `working` column (actively running agents).
+   * The modal highlights "N agents are still working." using this count.
+   */
+  workingCount: number
+  /** Per-session detail for the modal list. */
+  sessions: QuitGuardSession[]
+}

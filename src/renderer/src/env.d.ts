@@ -19,7 +19,8 @@ import type {
   LaunchCorrelatedEvent,
   PtyExitEvent,
   SmokeConfig,
-  SmokeReport
+  SmokeReport,
+  QuitGuardPayload
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -81,6 +82,15 @@ declare global {
     // { sessionId, acknowledgedAt }. UNTRUSTED cross-process input → parse-and-throw in MAIN.
     telemetry: {
       acknowledge(sessionId: string, acknowledgedAt: number): Promise<void>
+    }
+    // Story 4.2 (FR-14) — mirrors src/preload/index.ts `quitApi`. The renderer initiates quit,
+    // confirms, or cancels the quit guard ONLY through this typed bridge (never app.quit() or
+    // ipcRenderer directly — sandboxed renderer). Session truth stays MAIN-owned.
+    quit: {
+      requestQuit(): Promise<void>
+      confirm(): Promise<void>
+      cancel(): Promise<void>
+      onGuardShow(cb: (payload: QuitGuardPayload) => void): () => void
     }
   }
 }

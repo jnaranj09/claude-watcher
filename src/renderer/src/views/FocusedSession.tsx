@@ -32,6 +32,26 @@ import {
 import { acknowledgeSession } from '../utils/acknowledgeSession'
 import styles from './FocusedSession.module.css'
 
+/**
+ * Story 4.3 (FR-15) — resolve a human-readable name for the focused terminal.
+ * The focused terminal may or may not have a correlated session (pre-correlation = no card yet).
+ * Falls back gracefully to the bare terminalId rather than crashing (FROZEN F4: never crash).
+ * Never logs a session name or path — only a code on failure.
+ */
+function resolveSessionName(terminalId: string): string {
+  const state = boardStore.getState()
+  // Reverse-lookup: find a sessionId whose terminalId matches the focused terminal.
+  const sessionId = Object.entries(state.terminalIdBySessionId).find(
+    ([, tid]) => tid === terminalId
+  )?.[0]
+  if (sessionId !== undefined) {
+    const session = state.sessionsById[sessionId]
+    if (session !== undefined) return session.sessionName
+  }
+  // Pre-correlation or no card yet: degrade gracefully to the bare terminalId (never crash).
+  return terminalId
+}
+
 export interface FocusedSessionProps {
   /** Return to the Board (Esc-to-Board / the "← Board" affordance). */
   onBack: () => void
@@ -57,6 +77,15 @@ export function FocusedSession({ onBack }: FocusedSessionProps): JSX.Element {
     if (terminalId !== undefined) state.switchTerminal(terminalId)
   }, [])
 
+  // Story 4.3 (FR-15) — open the Stop-confirm for the currently-focused terminal.
+  // Does NOT stop directly; raises the confirm (UX-DR14: destructive action needs confirm).
+  // No-op guard: if focusedTerminalId is null (should not happen in the focused view, but guard).
+  const handleStopSession = useCallback((): void => {
+    if (focusedTerminalId === null) return
+    const sessionName = resolveSessionName(focusedTerminalId)
+    boardStore.getState().showStopConfirm({ terminalId: focusedTerminalId, sessionName })
+  }, [focusedTerminalId])
+
   return (
     <div className={styles.focused} data-testid="focused-session">
       <AttentionRail onActivateSession={onActivateSession} />
@@ -72,6 +101,17 @@ export function FocusedSession({ onBack }: FocusedSessionProps): JSX.Element {
             ← Board
           </button>
           <span className={styles.hint}>Esc to return</span>
+          {/* Story 4.3 (FR-15) — the ⏹ Stop session affordance (UX-DR14: opens a confirm,
+              does NOT stop directly; danger styling is on the confirm's Stop button). */}
+          <button
+            type="button"
+            className={styles.stopButton}
+            data-testid="focused-stop"
+            onClick={handleStopSession}
+            aria-label="Stop this session"
+          >
+            ⏹ Stop session
+          </button>
         </div>
         <div className={styles.terminalWrap}>
           {keptAlive.map((terminalId) => (

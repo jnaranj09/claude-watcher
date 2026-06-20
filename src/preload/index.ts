@@ -15,7 +15,8 @@ import type {
   SessionLaunchRequest,
   SessionLaunchResult,
   LaunchCorrelatedEvent,
-  TelemetryAcknowledgeRequest
+  TelemetryAcknowledgeRequest,
+  QuitGuardPayload
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -217,6 +218,43 @@ const telemetryApi = {
 
 export type TelemetryApi = typeof telemetryApi
 
+// Story 4.2 (FR-14) — the quit-guard bridge. The renderer triggers the quit flow and
+// renders the Quit-guard modal ONLY through this typed bridge — NEVER ipcRenderer/Node
+// directly (contextIsolation stays ON; FROZEN #5). Three typed invokes (CH.* consts):
+//   - `requestQuit()` → app:request-quit → main app.quit() (the Ctrl+Q one chokepoint).
+//   - `confirm()` → quit:confirm → main proceeds: isQuitting, teardown, quit.
+//   - `cancel()` → quit:cancel → main clears pending-quit state; no teardown.
+// One subscription:
+//   - `onGuardShow(cb)` → subscribe to quit:guard-show (main pushes when ≥1 live session).
+//     Returns an unsubscribe fn (subscribe-returns-unsubscribe — mirrors attentionApi.onActivate).
+// Mirrors `settingsApi.*` invoke pattern + `attentionApi.onActivate` subscription pattern.
+// CH.* consts, never string literals (no-literal-channels).
+// [Source: story 4.2 Task 3.4; .claude/rules/ipc.md; FROZEN #3/#5; src/preload/index.ts (patterns)]
+const quitApi = {
+  /** Ask main to begin a true quit (→ app.quit() → the ONE before-quit decision). Ctrl+Q
+   *  chokepoint — the renderer NEVER calls app.quit() directly (sandboxed). Returns void. */
+  requestQuit(): Promise<void> {
+    return ipcRenderer.invoke(CH.appRequestQuit)
+  },
+  /** Confirm "Quit anyway" — main proceeds: teardown + quit. Returns void. */
+  confirm(): Promise<void> {
+    return ipcRenderer.invoke(CH.quitConfirm)
+  },
+  /** Cancel — main clears the pending-quit state; no teardown; every PTY stays live. Returns void. */
+  cancel(): Promise<void> {
+    return ipcRenderer.invoke(CH.quitCancel)
+  },
+  /** Subscribe to the guard-show push (main → renderer). Returns an unsubscribe fn.
+   *  Mirrors attentionApi.onActivate (subscribe-returns-unsubscribe). CH.quitGuardShow const. */
+  onGuardShow(cb: (payload: QuitGuardPayload) => void): () => void {
+    const listener = (_evt: unknown, payload: QuitGuardPayload): void => cb(payload)
+    ipcRenderer.on(CH.quitGuardShow, listener)
+    return () => ipcRenderer.removeListener(CH.quitGuardShow, listener)
+  }
+}
+
+export type QuitApi = typeof quitApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -226,6 +264,9 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('terminal', terminalApi)
     contextBridge.exposeInMainWorld('launch', launchApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
+    // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
+    // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
+    contextBridge.exposeInMainWorld('quit', quitApi)
   } catch (error) {
     console.error(error)
   }
@@ -248,4 +289,6 @@ if (process.contextIsolated) {
   window.launch = launchApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.telemetry is in index.d.ts
   window.telemetry = telemetryApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.quit is in index.d.ts
+  window.quit = quitApi
 }

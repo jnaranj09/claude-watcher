@@ -32,8 +32,17 @@ import {
   useBoard,
   selectViewMode,
   selectFocusedTerminalId,
-  selectKeptAliveTerminalIds
+  selectKeptAliveTerminalIds,
+  selectQuitGuard,
+  selectStopConfirm
 } from './stores/boardStore'
+// Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
+// is non-null). Imported here and rendered over the board/focused view when the guard is active.
+import { QuitGuard } from './components/QuitGuard/QuitGuard'
+// Story 4.3 (FR-15) — the Stop-confirm modal (renderer view-state; shown when boardStore.stopConfirm
+// is non-null). Rendered as a stacked overlay (same z-60 family as the QuitGuard; they never co-exist
+// — single-modal rule UX-DR14). The Stop-confirm never co-exists with the Quit-guard.
+import { StopConfirm } from './components/StopConfirm/StopConfirm'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal,
 // FROZEN-5). Used at the activateCard call site to also emit the telemetry signal.
 import { acknowledgeSession } from './utils/acknowledgeSession'
@@ -71,6 +80,10 @@ function App(): React.JSX.Element {
   // Story 3.2 (FR-11) — the Board ↔ Focused-session VIEW-STATE (renderer view-state, F6).
   const viewMode = useBoard(selectViewMode)
   const focusedTerminalId = useBoard(selectFocusedTerminalId)
+  // Story 4.2 (FR-14) — the Quit-guard payload (non-null while the guard modal is open).
+  const quitGuard = useBoard(selectQuitGuard)
+  // Story 4.3 (FR-15) — the Stop-confirm payload (non-null while the confirm is open).
+  const stopConfirm = useBoard(selectStopConfirm)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -87,6 +100,19 @@ function App(): React.JSX.Element {
     const off = window.launch.onCorrelated(({ terminalId, sessionId }) =>
       boardStore.getState().addCorrelation(sessionId, terminalId)
     )
+    return off
+  }, [smoke])
+
+  // Story 4.2 (FR-14) — subscribe to the quit-guard-show push ONCE (non-smoke only).
+  // Main emits `CH.quitGuardShow` when ≥1 live app-launched session is found at quit time.
+  // The renderer opens the guard modal by setting boardStore.quitGuard (RENDERER VIEW-STATE).
+  // Mirrors the `window.launch.onCorrelated` effect above (subscribe-returns-unsubscribe).
+  // Guard: `window.quit` is present in real Electron but absent in tests that pre-date Story 4.2
+  // (App.launch.test.tsx stubs only the bridges it touches; it must not be modified — AR-12).
+  useEffect(() => {
+    if (smoke !== false) return
+    if (!window.quit) return
+    const off = window.quit.onGuardShow((payload) => boardStore.getState().showQuitGuard(payload))
     return off
   }, [smoke])
 
@@ -136,9 +162,18 @@ function App(): React.JSX.Element {
   }, [])
 
   // Story 3.2 (FR-11 / UX-DR21) — global keybindings: Ctrl+N → new session; Esc → Board.
+  // Story 4.2 (FR-14) — adds Ctrl+Q → requestQuit (the one chokepoint); Esc-guard-open → cancel.
+  // Story 4.3 (FR-15) — adds Ctrl+W → Stop-confirm (focused only; no-op on board; NEVER the window).
+  //
+  // Esc disambiguation (RESOLVED — UX-DR14): topmost layer wins; the order is:
+  //   1. Stop-confirm open → Esc = Cancel (clearStopConfirm); return.
+  //   2. Quit-guard open → Esc = Cancel (clearQuitGuard + window.quit.cancel()); return.
+  //   3. Else → showBoard (Focused → Board; no-op on the board).
+  // The Stop-confirm and Quit-guard are mutually exclusive (single-modal rule), so the order
+  // is defensive but safe.
+  //
   // Gated on NON-smoke + NON-terminal-host below via the early returns, so this effect only runs
-  // for the real app view. Esc returns Focused → Board (closing the topmost layer); a no-op on
-  // the board. Ctrl+N opens the picker from anywhere. The handlers above never throw.
+  // for the real app view. Ctrl+N opens the picker from anywhere. The handlers above never throw.
   useEffect(() => {
     if (smoke !== false) return
     const onKey = (e: KeyboardEvent): void => {
@@ -147,7 +182,55 @@ function App(): React.JSX.Element {
         void handleNewSession()
         return
       }
+      // Story 4.2 (FR-14 / UX-DR21) — Ctrl+Q → requestQuit (the ONE quit chokepoint).
+      // The renderer NEVER calls app.quit() directly (sandboxed); it routes through
+      // app:request-quit → main app.quit() → the one before-quit guard decision (FROZEN #3).
+      // Guard: window.quit may be absent in pre-4.2 test environments (App.launch.test.tsx).
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
+        e.preventDefault()
+        if (window.quit) void window.quit.requestQuit()
+        return
+      }
+      // Story 4.3 (FR-15 / UX-DR21) — Ctrl+W → show the Stop-confirm for the focused session.
+      // MUST e.preventDefault() to NEVER close the window (UX-DR21).
+      // Only acts when a session is focused (viewMode==='focused' AND focusedTerminalId!==null).
+      // No-op on the board (preventDefault still fires to suppress Electron/browser default close).
+      // Single-modal guard: do NOT open if either modal is already open (UX-DR14).
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W')) {
+        e.preventDefault()
+        const state = boardStore.getState()
+        if (
+          state.viewMode === 'focused' &&
+          state.focusedTerminalId !== null &&
+          state.quitGuard === null &&
+          state.stopConfirm === null
+        ) {
+          // Resolve the session name for the dialog (degrade gracefully if not yet correlated).
+          const terminalId = state.focusedTerminalId
+          const sessionId = Object.entries(state.terminalIdBySessionId).find(
+            ([, tid]) => tid === terminalId
+          )?.[0]
+          const sessionName =
+            (sessionId !== undefined ? state.sessionsById[sessionId]?.sessionName : undefined) ??
+            terminalId
+          state.showStopConfirm({ terminalId, sessionName })
+        }
+        return
+      }
       if (e.key === 'Escape') {
+        // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
+        // (UX-DR14: close the topmost layer.) Return without falling through.
+        if (boardStore.getState().stopConfirm !== null) {
+          boardStore.getState().clearStopConfirm()
+          return
+        }
+        // Story 4.2 — Esc disambiguation: if the Quit-guard is open, Esc = Cancel the guard
+        // (UX-DR14: close the topmost layer). Return without falling through to showBoard.
+        if (boardStore.getState().quitGuard !== null) {
+          boardStore.getState().clearQuitGuard()
+          if (window.quit) void window.quit.cancel()
+          return
+        }
         // Esc returns Focused → Board (UX-DR21). No-op on the board (showBoard guards).
         boardStore.getState().showBoard()
       }
@@ -251,6 +334,20 @@ function App(): React.JSX.Element {
           )}
         </div>
       </main>
+      {/* Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; non-null when main
+          detected ≥1 live app-launched session at quit time). Rendered as a stacked overlay
+          (z-60, above Settings z-50) — UX-DR14 single-modal rule: the guard takes precedence.
+          The Quit-guard modal does NOT teardown on close (FROZEN #1 — no teardown-via-unmount).
+          Cancel → clearQuitGuard() + window.quit.cancel(). Esc = Cancel (guarded in keydown). */}
+      {quitGuard !== null && <QuitGuard payload={quitGuard} />}
+      {/* Story 4.3 (FR-15) — the Stop-confirm modal (renderer view-state; non-null when the
+          operator triggered per-session stop via ⏹ Stop session button or Ctrl+W). Rendered
+          as a stacked overlay (z-60, same layer as QuitGuard — they never co-exist per the
+          single-modal rule UX-DR14). The Stop-confirm does NOT teardown on open (FROZEN F1 —
+          the explicit stop runs INSIDE the modal's confirm handler, not on mount/unmount).
+          Cancel → clearStopConfirm(). Stop → window.terminal.stop THEN clearStopConfirm + showBoard.
+          Esc = Cancel (guarded in keydown above). */}
+      {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
     </div>
   )
 }
