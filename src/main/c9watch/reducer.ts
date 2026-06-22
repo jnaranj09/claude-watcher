@@ -182,10 +182,13 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     }
 
     // R1 — apply per event semantics. `WatchLineSchema.event` is typed
-    // `'started' | 'changed' | 'stopped'`, but `stopped` was already routed to
-    // `applyStop` above (peek at line ~145), so only `started`/`changed` reach here.
-    // We branch EXPLICITLY on each so a future schema/routing drift cannot silently
-    // fold an unexpected event into the `changed` path (the reviewer's H2 concern).
+    // `'started' | 'changed' | 'status_changed' | 'stopped'`, but `stopped` was
+    // already routed to `applyStop` above (peek at line ~145), so only
+    // `started`/`changed`/`status_changed` reach here.
+    // We branch EXPLICITLY on each accepted value so a future schema/routing drift
+    // cannot silently fold an unexpected event into the update path (the reviewer's
+    // H2 concern). `status_changed` is the real c9watch 0.8.1 event value for live
+    // transitions; `changed` is kept as a harmless alias (Story 5.2).
     const session = line.session
     if (line.event === 'started') {
       // a started event is the genuine birth of a session → upsert.
@@ -194,12 +197,12 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       return [frame(toUpdated(session))]
     }
 
-    if (line.event === 'changed') {
+    if (line.event === 'changed' || line.event === 'status_changed') {
       if (!map.has(session.id)) {
-        // DESYNC: a `changed` for an id we have no baseline for (missed its
-        // `started`, e.g. across a gap). Do NOT invent a card from a partial signal
-        // — the next `list` reconcile heals it idempotently + level-triggered.
-        // DROP + log.
+        // DESYNC: a `changed`/`status_changed` for an id we have no baseline for
+        // (missed its `started`, e.g. across a gap). Do NOT invent a card from a
+        // partial signal — the next `list` reconcile heals it idempotently +
+        // level-triggered. DROP + log.
         log({ path: '(desync)', code: 'unknown_id_changed' })
         return []
       }
@@ -209,8 +212,9 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     }
 
     // Unreachable in production: `stopped` was peeled off before the strict parse,
-    // and the enum admits no other value. Fail closed (drop + log) rather than
-    // silently misroute, should routing/schema ever drift apart.
+    // and the enum admits only `started | changed | status_changed` here (stopped
+    // already routed to applyStop). Fail closed (drop + log) rather than silently
+    // misroute, should routing/schema ever drift apart.
     log({ path: 'event', code: 'unexpected_event' })
     return []
   }

@@ -122,11 +122,17 @@ export type ListEnvelope = z.infer<typeof ListEnvelopeSchema>
 /**
  * A `watch` NDJSON line envelope: one object per line. `--changes-only` skips
  * the initial burst and emits change + stop events.
- * [Source: epics.md#Verified Facts ("`watch` → NDJSON, one object per line")]
+ *
+ * NOTE (Story 5.2 — c9watch 0.8.1 event-enum correction): the binary emits
+ * `"status_changed"` (not `"changed"`) for live transitions. `"changed"` is kept
+ * as a harmless alias for robustness. Corrected enum:
+ * `started | changed | status_changed | stopped`.
+ * [Source: epics.md#Verified Facts ("`watch` → NDJSON, one object per line");
+ *  Story 5.2 root cause — c9watch 0.8.1 emits "status_changed", not "changed"]
  */
 export const WatchLineSchema = z
   .object({
-    event: z.enum(['started', 'changed', 'stopped']),
+    event: z.enum(['started', 'changed', 'status_changed', 'stopped']),
     session: SessionSchema,
     sessionId: z.string(),
     timestamp: IsoToEpochMillis // ISO-8601 -> epoch millis

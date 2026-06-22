@@ -119,10 +119,14 @@ export interface LaunchService {
    *  join). The MessagePort transfer rides the SAME Story-3.1 terminal:open path in main — this
    *  service registers the pending spawnOverride for `terminalId`; main consults it on open. */
   launch(req: LaunchRequest): LaunchOutcome
-  /** The pending spawnOverride for a terminalId (file/cwd/env) — main reads this on terminal:open
-   *  so the launched terminal spawns `claude` in the picked cwd instead of the default shell.
-   *  Returns null for a non-launch terminalId (the Story-3.1 host path). Cleared once consumed. */
-  takeSpawnOverride(terminalId: string): {
+  /** The DURABLE spawnOverride (file/cwd/env) for a launch terminalId — main reads this on EVERY
+   *  terminal:open so the launched terminal spawns `claude` in the picked cwd instead of the
+   *  default shell. NON-CONSUMING (Story 5.4): the override is the durable spawn-recipe and
+   *  survives reads, stops, and natural exits — so (a) a StrictMode dev double-mount's SURVIVING
+   *  open still spawns claude, and (b) Reopen re-spawns claude (never the default `$SHELL`). A
+   *  consume-once read was the latent Reopen bug + half of the dev blank-terminal bug. Returns
+   *  null for a non-launch terminalId (the Story-3.1 host path). Reclaimed only at process exit. */
+  peekSpawnOverride(terminalId: string): {
     file: string
     args?: string[]
     cwd: string
@@ -135,7 +139,8 @@ export interface LaunchService {
   correlateAgainst(sessions: Iterable<Session>): void
   /** Whether a terminalId is an app launch still awaiting its correlation join (diagnostics/tests). */
   isPending(terminalId: string): boolean
-  /** Drop a launch's tracking (e.g. its terminal was torn down). Idempotent. */
+  /** Drop a launch's CORRELATION tracking (called when its claude exits for real). The durable
+   *  spawn-override (the Reopen recipe) is KEPT — see peekSpawnOverride. Idempotent. */
   forget(terminalId: string): void
 }
 
@@ -158,9 +163,11 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
   const newTerminalId = options.newTerminalId ?? defaultNewTerminalId
   const platform = options.platform ?? process.platform
 
-  /** Launches keyed by terminalId. A launch stays here until forget() (its terminal torn down). */
+  /** Launches keyed by terminalId. A launch's CORRELATION tracking stays here until forget() (its
+   *  claude exits for real); the durable spawn-override below outlives it (see peekSpawnOverride). */
   const launches = new Map<string, PendingLaunch>()
-  /** Pending spawn overrides keyed by terminalId — consumed once on terminal:open. */
+  /** Durable spawn-overrides keyed by terminalId — the spawn-recipe read on EVERY terminal:open
+   *  (Story 5.4 NON-consuming; never deleted, reclaimed at process exit). */
   const overrides = new Map<
     string,
     { file: string; args?: string[]; cwd: string; env?: Record<string, string> }
@@ -168,9 +175,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
 
   function launch(req: LaunchRequest): LaunchOutcome {
     const terminalId = newTerminalId()
-    // Register the spawn override main will consume on terminal:open (the renderer opens the
+    // Register the spawn override main reads on terminal:open (the renderer opens the
     // EmbeddedTerminal against this terminalId, which triggers terminal:open in main; main reads
-    // takeSpawnOverride to spawn `claude` in the picked cwd instead of the default shell).
+    // peekSpawnOverride to spawn `claude` in the picked cwd instead of the default shell).
     overrides.set(terminalId, {
       file: options.spawn.file,
       ...(options.spawn.args !== undefined ? { args: options.spawn.args } : {}),
@@ -181,13 +188,14 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     return { terminalId }
   }
 
-  function takeSpawnOverride(
+  function peekSpawnOverride(
     terminalId: string
   ): { file: string; args?: string[]; cwd: string; env?: Record<string, string> } | null {
-    const ov = overrides.get(terminalId)
-    if (ov === undefined) return null
-    overrides.delete(terminalId)
-    return ov
+    // NON-CONSUMING (Story 5.4): do NOT delete on read. The override is the durable spawn-recipe
+    // for this launch terminalId — it must survive EVERY terminal:open so a StrictMode dev
+    // double-mount's surviving open AND a Reopen both re-spawn `claude` (not the default `$SHELL`).
+    // A consume-once read was the latent Reopen bug + half of the dev blank-terminal bug.
+    return overrides.get(terminalId) ?? null
   }
 
   /** Resolve the app-spawned claude `Tgid` for a launch from its shell leader pid. Returns null
@@ -280,9 +288,15 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
   }
 
   function forget(terminalId: string): void {
+    // Story 5.4 — drop ONLY the correlation tracking. The spawn-override is the DURABLE
+    // spawn-recipe and is deliberately KEPT so a Reopen after a natural `claude` exit re-spawns
+    // claude (not the default `$SHELL`). forget() is called when claude exits FOR REAL (the
+    // terminalManager onExit, index.ts) to stop re-correlating a dead launch; it is NOT called on
+    // the incidental unmount-stop (a StrictMode dev transient — see CH.terminalStop), so that
+    // surviving mount keeps both its correlation tracking and its recipe. The `overrides` map is
+    // bounded by the number of launches in a session and is reclaimed at process exit.
     launches.delete(terminalId)
-    overrides.delete(terminalId)
   }
 
-  return { launch, takeSpawnOverride, correlateAgainst, isPending, forget }
+  return { launch, peekSpawnOverride, correlateAgainst, isPending, forget }
 }

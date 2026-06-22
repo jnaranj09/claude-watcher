@@ -182,6 +182,30 @@ describe('Board — cold-load skeleton (AC-5)', () => {
   })
 })
 
+describe('Board — cold-load-complete via watch:status (Story 5.3 — status push clears skeleton on empty board)', () => {
+  it('pushing a status(false) on a fresh zero-session board clears the skeleton and shows the empty board', () => {
+    // This is the end-to-end proof of the Story 5.3 fix: the startup emitStatus(false)
+    // from feed.ts reaches the Board's onStatus subscription, calls setReconnecting(false),
+    // which now flips coldLoaded:true — even when zero sessions have shipped to the board.
+    const { pushStatus } = stubBridges()
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    // Before the status push: skeleton is showing (cold-load not done).
+    expect(container.querySelector('[data-testid="skeleton-board"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
+    // Push the startup status (mirrors feed.ts emitStatus(false) after list seed).
+    act(() => {
+      pushStatus(false)
+    })
+    // After the status push: skeleton is gone, empty-board is showing.
+    expect(container.querySelector('[data-testid="skeleton-board"]')).toBeNull()
+    expect(container.querySelector('[data-testid="empty-board"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="empty-board"]')?.textContent).toContain(
+      'No sessions yet.'
+    )
+  })
+})
+
 describe('Board — empty states never collapse (AC-4)', () => {
   it('empty board (cold-loaded, zero sessions) shows the headline + the single + New session', () => {
     // Cold-load with NO sessions: a removed delta on an empty store flips coldLoaded.

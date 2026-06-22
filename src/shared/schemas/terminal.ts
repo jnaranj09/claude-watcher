@@ -28,9 +28,12 @@ export const TERMINAL_MAX_DIM = 1000
  *  SessionSchema's `id`). NEVER the session id and NEVER a pid (F6). */
 const TerminalIdSchema = z.string().min(1)
 
-/** `terminal:open` arg — `{ terminalId }`. */
+/** `terminal:open` arg — `{ terminalId, openToken }`. Story 5.4 adds `openToken`: a per-OPEN
+ *  token (non-empty string) main echoes back on the port transfer so the renderer pairs THIS port
+ *  to THIS open. Fails closed (a missing/blank token throws — the renderer always sends one). */
 export const TerminalOpenSchema = z.object({
-  terminalId: TerminalIdSchema
+  terminalId: TerminalIdSchema,
+  openToken: z.string().min(1)
 })
 
 /** `terminal:resize` arg — `{ terminalId, cols, rows }`; cols/rows are positive

@@ -504,6 +504,12 @@ export type LaunchCorrelatedEvent = {
 export type TerminalOpenRequest = {
   /** Opaque per-terminal id. Never the session id; never a pid (F6). */
   terminalId: string
+  /** Story 5.4 — a per-OPEN token (fresh for each create-effect run; NOT stable per terminal).
+   *  Main echoes it back on the port transfer so the renderer pairs THIS port to THIS open. It
+   *  disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or Reopen):
+   *  without it the renderer could pair the STALE (already-closed) port from the prior open and
+   *  ignore the live one → a blank terminal. Opaque non-empty string; never an identity key. */
+  openToken: string
 }
 
 /**
@@ -544,6 +550,17 @@ export type TerminalExitEvent = {
 // The byte path is exercised by the packaged smoke (no `MessagePortMain` in jsdom).
 // [Source: architecture.md:553-559; .claude/rules/ipc.md byte-transport note]
 // ---------------------------------------------------------------------------
+
+// Story 5.1 — the window.postMessage tag for the preload→renderer main-world-port
+// forward. NOT an IPC channel (no-literal-channels does NOT apply); it is a payload
+// string that disambiguates the forward from unrelated postMessage traffic. ONE shared
+// const here so preload and renderer can't drift. The preload forwards the real port
+// via `window.postMessage({ tag: TERMINAL_PORT_TAG, terminalId, openToken }, '*', [port])`;
+// the renderer reads `e.data.tag === TERMINAL_PORT_TAG && e.data.terminalId === terminalId &&
+// e.data.openToken === openToken` (Story 5.4 adds the openToken match so a re-open of the same
+// terminalId can't pair the stale port from the prior open).
+// [Source: story 5.1 Task 2; story 5.4; Electron "MessagePort in the main world" docs; ipc.md]
+export const TERMINAL_PORT_TAG = 'c9watch:terminal-port' as const
 
 /** main → renderer over the port: a chunk of PTY output bytes to write to xterm. */
 export type TerminalPortOutput = {

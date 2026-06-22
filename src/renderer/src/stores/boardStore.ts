@@ -441,6 +441,14 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 
     setReconnecting: (reconnecting) => {
       const state = get()
+      // Story 5.3 — COLD-LOAD-COMPLETE: receiving ANY `watch:status` push means main's
+      // feed is live and has completed its initial `list` seed → cold-load is done.
+      // This MUST be at the TOP, before the early-return paths below, because a
+      // fresh-store startup `setReconnecting(false)` hits the recovery branch whose
+      // `set(...)` does NOT run (both `reconnecting:false` and `reconnectingSince:null`),
+      // so without this guarded flip the skeleton would hang forever on an empty board.
+      // The `coldLoaded` flip is orthogonal to the reconnect-banner debounce.
+      if (!state.coldLoaded) set({ coldLoaded: true })
       if (reconnecting) {
         // Main's watch child died and a reconnect is in flight. Anchor the debounce
         // window (do NOT show the banner yet — `tickReconnect` reveals it once the gap

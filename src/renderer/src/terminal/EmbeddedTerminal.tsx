@@ -33,6 +33,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import type {
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
@@ -53,6 +54,16 @@ export interface EmbeddedTerminalProps {
 /** The local dead-terminal state — the ONLY React state here (per-terminal pane state, AC-4).
  *  The xterm instance itself is NEVER in React state (terminal.md). */
 type DeadState = { exitCode: number } | null
+
+// Story 5.4 — a process-monotonic counter minting a fresh per-OPEN token for each create-effect
+// run. The token disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or
+// Reopen): main echoes it on the port transfer so the renderer pairs THIS port to THIS open and
+// never the stale (already-closed) port from the prior open — the second-order cause of the dev
+// blank-terminal bug. A plain counter is enough: the token only needs to be unique among opens
+// within THIS renderer; it is never persisted or shared. NOT crypto.randomUUID() — that is
+// secure-context-only and is `undefined` under file:// in the packaged app (a dev-vs-prod trap);
+// NOT Date.now()/Math.random().
+let openTokenSeq = 0
 
 export function EmbeddedTerminal({
   terminalId,
@@ -86,6 +97,10 @@ export function EmbeddedTerminal({
     if (!container || termRef.current) return
 
     setDead(null)
+
+    // Story 5.4 — mint THIS open's token (fresh per effect run). Captured by the port listener +
+    // the open() call below so a re-open of the same terminalId pairs only ITS port, never a stale.
+    const openToken = `open-${++openTokenSeq}`
 
     const term = new Terminal({
       cursorBlink: true,
@@ -142,10 +157,29 @@ export function EmbeddedTerminal({
       port.postMessage(msg)
     })
 
-    // Open the terminal: main spawns the pty + transfers the MessagePort the bytes ride. The
-    // callback fires ONCE with the port; we wire output → term.write(data, ackCallback) so the
-    // renderer ACKs each rendered chunk (the flow-control drain signal main pauses/resumes on).
-    const unsubscribeOpen = window.terminal.open(terminalId, (port) => {
+    // Story 5.1 fix — receive the real MessagePort via the main-world-port pattern.
+    // `contextBridge` CANNOT marshal a live port as a callback arg (stripped of methods).
+    // The preload forwards it via `window.postMessage(TERMINAL_PORT_TAG, '*', [port])`;
+    // we pair it here via a `window` `'message'` listener keyed on the tag + terminalId + openToken.
+    // The listener is one-shot: once it pairs its port it removes itself (a terminal receives
+    // exactly one port per open; a Reopen bumps openNonce and re-runs this effect with a
+    // fresh listener + a fresh openToken). Match on terminalId so kept-alive terminals can't
+    // cross-wire, AND on openToken (Story 5.4) so a re-open of the SAME terminalId (a StrictMode
+    // dev double-mount, or Reopen) pairs only THIS open's port — never the stale, already-closed
+    // port from the prior open (which would leave the terminal blank).
+    const portHandler = (
+      e: MessageEvent<{ tag: string; terminalId: string; openToken: string }>
+    ): void => {
+      if (
+        e.data?.tag !== TERMINAL_PORT_TAG ||
+        e.data?.terminalId !== terminalId ||
+        e.data?.openToken !== openToken
+      )
+        return
+      const port = e.ports[0]
+      if (!port) return
+      // One-shot: remove the listener immediately after pairing (no re-fire risk).
+      window.removeEventListener('message', portHandler)
       portRef.current = port
       port.onmessage = (event: MessageEvent<TerminalPortMainMessage>): void => {
         const m = event.data
@@ -166,7 +200,12 @@ export function EmbeddedTerminal({
       // First fit AFTER the port is wired so the initial resize reaches a live pty.
       doFit()
       term.focus()
-    })
+    }
+    window.addEventListener('message', portHandler)
+    // Open the terminal: triggers main to spawn the pty + transfer the MessagePort.
+    // The port arrives asynchronously via the window 'message' listener above (tagged with THIS
+    // openToken so a re-open of the same terminalId can't deliver us a stale port).
+    const unsubscribeOpen = window.terminal.open(terminalId, openToken)
 
     // The durable dead-terminal signal (CH.terminalExit) — drives the pane even if the port is
     // already gone. PER-TERMINAL local state; the board + siblings are untouched (AC-4).
@@ -180,6 +219,10 @@ export function EmbeddedTerminal({
     return () => {
       ro.disconnect()
       dataDisposable.dispose()
+      // Clean up the message listener if the port was never delivered (e.g. manager not ready
+      // → dead-pane push via CH.terminalExit; the portHandler never fired). If it already fired
+      // it removed itself (one-shot), so this is a safe no-op in the happy path.
+      window.removeEventListener('message', portHandler)
       unsubscribeOpen()
       offExit()
       // Stop the pty cleanly (port.close() THEN pty.kill() in main) — no orphan from a normal

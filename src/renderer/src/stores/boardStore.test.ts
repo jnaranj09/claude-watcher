@@ -348,6 +348,41 @@ describe('boardStore — reconnect banner is driven by main’s REAL signal, not
   })
 })
 
+describe('boardStore — setReconnecting flips coldLoaded (Story 5.3 — cold-load-complete on status push)', () => {
+  it('setReconnecting(false) on a FRESH store with ZERO sessions flips coldLoaded to true (the empty-board defect path)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    // Non-vacuous: confirm coldLoaded starts false (no delta has arrived).
+    expect(selectColdLoaded(store.getState())).toBe(false)
+    // Startup status arrives (feed.ts emits false after initial list seed).
+    store.getState().setReconnecting(false)
+    expect(selectColdLoaded(store.getState())).toBe(true)
+    // The reconnect-banner state is untouched — no reconnect was signalled.
+    expect(selectReconnecting(store.getState())).toBe(false)
+    expect(store.getState().reconnectingSince).toBeNull()
+  })
+
+  it('setReconnecting(true) ALSO flips coldLoaded true (any watch:status push = heard from feed), and still anchors the debounce', () => {
+    const clock = makeClock()
+    const store = createBoardStore({ now: clock.now })
+    const st = (): BoardState => store.getState()
+    // Non-vacuous: confirm coldLoaded starts false.
+    expect(selectColdLoaded(st())).toBe(false)
+    // main signals reconnecting (watch child died).
+    st().setReconnecting(true)
+    expect(selectColdLoaded(st())).toBe(true)
+    // Banner debounce is still anchored correctly — NOT shown until threshold.
+    st().tickReconnect()
+    expect(selectReconnecting(st())).toBe(false)
+    clock.advance(RECONNECT_THRESHOLD_MS + 1)
+    st().tickReconnect()
+    expect(selectReconnecting(st())).toBe(true)
+    // Recovery clears banner; coldLoaded stays true.
+    st().setReconnecting(false)
+    expect(selectReconnecting(st())).toBe(false)
+    expect(selectColdLoaded(st())).toBe(true)
+  })
+})
+
 describe('boardStore — cascadeHero (the pure cascade Needs-you → Working → Idle; AC-1, AC-2)', () => {
   it('needs-you present (>0) → the hero is needs-you', () => {
     expect(cascadeHero(1)).toBe('needs-you')

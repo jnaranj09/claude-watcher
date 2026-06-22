@@ -57,11 +57,16 @@ declare global {
       set(patch: SettingsPatch): Promise<Settings>
     }
     // Story 3.1 (FR-10) — mirrors src/preload/index.ts `terminalApi`. The renderer reaches
-    // the PTY ONLY through this typed bridge + the transferred MessagePort (the `open`
-    // callback's `port` arg) — never ipcRenderer/Node directly (F4). Lifecycle/control rides
-    // typed IPC; the byte path rides the MessagePort imperatively (never the store).
+    // the PTY ONLY through this typed bridge + the transferred MessagePort — never
+    // ipcRenderer/Node directly (F4). Lifecycle/control rides typed IPC; the byte path rides
+    // the MessagePort delivered via the main-world-port pattern (story 5.1 fix: no callback arg).
+    // Story 5.1: `open` no longer takes a callback. The preload forwards the real port via
+    // `window.postMessage(TERMINAL_PORT_TAG, '*', [port])`; the renderer pairs it via a `window`
+    // `'message'` listener keyed on TERMINAL_PORT_TAG + terminalId. Story 5.4: `open` takes a
+    // per-open `openToken` (echoed by main) so the listener pairs THIS port to THIS open, never the
+    // stale port from a prior open of the same terminalId (StrictMode double-mount / Reopen).
     terminal: {
-      open(terminalId: string, cb: (port: MessagePort) => void): () => void
+      open(terminalId: string, openToken: string): () => void
       resize(terminalId: string, cols: number, rows: number): Promise<void>
       stop(terminalId: string): Promise<void>
       onExit(cb: (info: TerminalExitEvent) => void): () => void

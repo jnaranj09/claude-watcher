@@ -240,15 +240,17 @@ describe('feed — auto-reconnect (drain → restart → list → diff), no tran
       now: () => FIXED_NOW
     })
     await feed.start()
-    // A quiet, connected feed has emitted NO status (silence ≠ reconnecting).
-    expect(statuses).toEqual([])
+    // Story 5.3: after start() the feed emits exactly ONE startup (cold-load-complete)
+    // status `false` — the signal that the initial `list` seed is done, so the renderer
+    // can leave the skeleton even when zero sessions were shipped to the board.
+    expect(statuses).toEqual([false])
 
     // The watch child dies → the feed reconnects: reconnecting:true while in flight,
     // then false once the restart + list reconcile settle.
     children[0]?.exit(1)
     await feed.whenReconnected()
 
-    expect(statuses).toEqual([true, false])
+    expect(statuses).toEqual([false, true, false])
     await feed.stop()
   })
 

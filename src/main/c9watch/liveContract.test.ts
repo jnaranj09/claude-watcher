@@ -147,6 +147,46 @@ function parseJsonOrDrift(raw: string, label: string): unknown {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DETERMINISTIC DRIFT ALARM — Story 5.2 (no live gate; runs everywhere).
+//
+// The original Story-0.5 alarm had a blind spot: `c9watch watch --changes-only`
+// on a quiet box emits NOTHING in the bounded window, so the live watch-line
+// alarm never exercised a real `status_changed` line. This deterministic
+// assertion closes that gap: it parses an INLINE fixture modeled on the real
+// c9watch 0.8.1 `status_changed` line shape through the PRODUCTION
+// `WatchLineSchema` — so a future event-value drift (e.g. the enum reverts to
+// `"changed"`) fails LOUDLY here even on a quiet/non-Linux box.
+// Honor never-log-the-parsed-value: value-free helpers only (path+code on drift).
+// [Source: Story 5.2 AC#4; .claude/rules/zod-boundaries.md (never-log-the-value)]
+// ─────────────────────────────────────────────────────────────────────────────
+describe('DETERMINISTIC drift alarm — status_changed watch-line shape (Story 5.2)', () => {
+  it('an inline status_changed-shaped fixture parses cleanly through WatchLineSchema (AC#4)', () => {
+    // Inline fixture modeled on the real c9watch 0.8.1 watch NDJSON line shape.
+    // The sessionId and session.id MUST match (R3 guard is upstream in the reducer;
+    // the schema itself does not enforce it — but we use a valid inline fixture
+    // to prove the SCHEMA accepts the event value, not just the reducer routing).
+    const fixtureId = 'a1b2c3d4-0000-4000-8000-000000000001'
+    const rawFixture: unknown = {
+      event: 'status_changed',
+      sessionId: fixtureId,
+      timestamp: '2026-06-22T10:00:00.000+00:00',
+      session: {
+        id: fixtureId,
+        status: 'Working',
+        projectPath: '/home/user/projects/test',
+        pid: 12345,
+        sessionName: 'test-session'
+      }
+    }
+    // parseOrDrift reports path+code only on drift — NEVER the fixture value.
+    const line = parseOrDrift(WatchLineSchema, rawFixture, 'status_changed-fixture')
+    expect(line.event).toBe('status_changed')
+    expect(typeof line.sessionId).toBe('string')
+    expect(typeof line.timestamp).toBe('number') // ISO+tz coerced to epoch-millis
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 describeLive('LIVE c9watch contract — the two-part drift alarm (Story 0.5)', () => {
   // Every spawned `watch` process group, killed whole on every path (no orphans).
   const groups: number[] = []
@@ -284,7 +324,8 @@ describeLive('LIVE c9watch contract — the two-part drift alarm (Story 0.5)', (
     const line = parseOrDrift(WatchLineSchema, parsedJson, 'watch')
 
     // Structural assertions ONLY (no value dumped):
-    expect(['started', 'changed', 'stopped']).toContain(line.event)
+    // Story 5.2: widened to include 'status_changed' (the real c9watch 0.8.1 event value).
+    expect(['started', 'changed', 'status_changed', 'stopped']).toContain(line.event)
     expect(typeof line.sessionId).toBe('string')
     expect(typeof line.timestamp).toBe('number') // ISO+tz coerced to epoch-millis
     expect(line.session.id).toBe(line.sessionId)

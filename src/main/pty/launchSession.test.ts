@@ -91,11 +91,13 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
 
     const out = svc.launch({ cwd: '/home/op/proj' })
     expect(out.terminalId).toBe('t-1')
-    // The spawn override main consumes on terminal:open carries file=claude + the picked cwd.
-    const ov = svc.takeSpawnOverride('t-1')
+    // The spawn override main reads on terminal:open carries file=claude + the picked cwd.
+    const ov = svc.peekSpawnOverride('t-1')
     expect(ov).toEqual({ file: 'claude', cwd: '/home/op/proj', env: { PATH: '/usr/bin' } })
-    // Consumed once — a second take is null (it rode the single terminal:open).
-    expect(svc.takeSpawnOverride('t-1')).toBeNull()
+    // NON-CONSUMING (Story 5.4): a second peek returns the SAME override. The recipe is durable so
+    // a StrictMode dev double-mount's surviving open AND a Reopen both still spawn claude (a
+    // consume-once read was the dev blank-terminal bug + the latent Reopen bug).
+    expect(svc.peekSpawnOverride('t-1')).toEqual(ov)
   })
 
   it('a non-launch terminalId has no override (the Story-3.1 host path is unaffected)', () => {
@@ -109,7 +111,7 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
       listChildren: listChildrenFrom({}),
       platform: 'linux'
     })
-    expect(svc.takeSpawnOverride('host-term-0')).toBeNull()
+    expect(svc.peekSpawnOverride('host-term-0')).toBeNull()
   })
 })
 
@@ -355,8 +357,8 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
   })
 })
 
-describe('launchSession — forget (terminal teardown drops tracking)', () => {
-  it('forget() drops a launch + its override (idempotent)', () => {
+describe('launchSession — forget (drops correlation tracking, KEEPS the recipe)', () => {
+  it('forget() drops a launch’s correlation tracking but KEEPS its spawn-override (idempotent)', () => {
     const manager: LaunchTerminalManager = { pidOf: () => null }
     const svc = createLaunchService({
       terminalManager: manager,
@@ -371,8 +373,13 @@ describe('launchSession — forget (terminal teardown drops tracking)', () => {
     svc.launch({ cwd: '/p' })
     expect(svc.isPending('t-1')).toBe(true)
     svc.forget('t-1')
+    // Correlation tracking dropped — the launch is no longer pending / re-correlated.
     expect(svc.isPending('t-1')).toBe(false)
-    expect(svc.takeSpawnOverride('t-1')).toBeNull()
+    // ...but the spawn-override (the Reopen recipe) SURVIVES forget (Story 5.4): forget() runs when
+    // claude exits FOR REAL, and a dead-pane Reopen must still re-spawn claude (not the default
+    // $SHELL). A pre-5.4 forget that also deleted the override broke Reopen.
+    expect(svc.peekSpawnOverride('t-1')).toEqual({ file: 'claude', cwd: '/p' })
     svc.forget('t-1') // idempotent
+    expect(svc.peekSpawnOverride('t-1')).toEqual({ file: 'claude', cwd: '/p' })
   })
 })

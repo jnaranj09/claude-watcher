@@ -18,9 +18,9 @@ import {
 
 const FIXED_NOW = 1_750_000_000_000
 
-/** A valid `started`/`changed` watch line whose top-level sessionId === session.id. */
+/** A valid `started`/`changed`/`status_changed` watch line whose top-level sessionId === session.id. */
 function watchLine(
-  event: 'started' | 'changed',
+  event: 'started' | 'changed' | 'status_changed',
   id: string,
   over: Record<string, unknown> = {}
 ): string {
@@ -185,6 +185,30 @@ describe('reducer — Decision R1 (unknown-id changed vs started)', () => {
     const deltas = r.applyLine(watchLine('changed', id, { status: 'WaitingForInput' }))
     expect(deltas).toHaveLength(1)
     expect(r.snapshotMap().get(id)?.status).toBe('WaitingForInput')
+  })
+
+  // Story 5.2 — status_changed is the real c9watch 0.8.1 event value for live transitions.
+  it('status_changed for a KNOWN id updates the session → one session.updated delta (AC#1)', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'eeee0001-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'NeedsAttention' }))
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event.type).toBe('session.updated')
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsAttention')
+  })
+
+  it('status_changed for an UNKNOWN id is a desync → DROP + log unknown_id_changed (AC#2)', () => {
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const id = 'ffff0001-0000-4000-8000-000000000001'
+    const deltas = r.applyLine(watchLine('status_changed', id))
+    expect(deltas).toHaveLength(0) // no delta — card NOT invented
+    expect(r.snapshotMap().has(id)).toBe(false)
+    expect(log).toHaveBeenCalledTimes(1)
+    const logged = log.mock.calls[0]?.[0]
+    expect(logged?.code).toBe('unknown_id_changed')
+    expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
   })
 })
 

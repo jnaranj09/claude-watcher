@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 // Story 0.2 — channels go through the typed contract, never string literals.
-import { CH } from '../shared/ipc/contract'
+import { CH, TERMINAL_PORT_TAG } from '../shared/ipc/contract'
 import type {
   PtyExitEvent,
   SmokeConfig,
@@ -125,24 +125,47 @@ export type SettingsApi = typeof settingsApi
 // through this typed bridge + the transferred MessagePort — NEVER ipcRenderer/Node directly
 // (F4; contextIsolation stays ON). The LIFECYCLE/control rides typed IPC (CH.* consts):
 // open/resize/stop + the dead-terminal onExit push. The BYTE path rides the MessagePort that
-// `terminal:open` transfers — surfaced to the renderer via the `open` callback's `port` arg.
+// `terminal:open` transfers — delivered to the renderer via the main-world-port pattern.
 //
-// `MessagePort` is a structured-cloneable transferable; the preload receives it on
-// `ipcRenderer.on(CH.terminalOpen)` (`event.ports[0]`) and hands it to the renderer's callback.
-// The renderer wires `term.onData → port.postMessage` (keystrokes + ack) and
-// `port.onmessage → term.write` (output) imperatively — the byte path never touches the store.
+// Story 5.1 fix: `contextBridge` CANNOT marshal a live `MessagePort` as a function-call
+// argument across the isolated→main world boundary — it arrives stripped of its methods
+// (`port.start`/`port.postMessage`/`onmessage` undefined). The ONLY supported way to get
+// a live port into the sandboxed main world is the documented Electron "MessagePort in the
+// main world" pattern: preload forwards the real port via `window.postMessage(tag, '*', [port])`
+// (from the isolated world — which shares the SAME window event loop as the main world),
+// and the renderer reads `e.ports[0]` from a `window` `'message'` listener.
+// `CH.terminalOpen` stays the lifecycle/port-transfer channel; NO new IPC channel.
+// `TERMINAL_PORT_TAG` is the shared payload tag (NOT a CH.* channel; ipc.md no-literal-channels
+// targets ipcMain/ipcRenderer call sites, NOT window.postMessage tags).
 const terminalApi = {
-  /** Open a terminal for `terminalId`. Main spawns a pty + transfers the MessagePort the bytes
-   *  ride; the `cb` fires ONCE with `{ terminalId, port }` when that port arrives. Returns an
-   *  unsubscribe fn that detaches the open listener (call it once paired). */
-  open(terminalId: string, cb: (port: MessagePort) => void): () => void {
-    const listener = (event: Electron.IpcRendererEvent, payload: { terminalId: string }): void => {
-      // Only fire for THIS terminalId (the open channel is shared across terminals).
+  /** Open a terminal for `terminalId` with a per-open `openToken` (Story 5.4 — fresh per
+   *  create-effect run; disambiguates a re-open of the same id). Main spawns a pty + transfers the
+   *  MessagePort the bytes ride, echoing the token. The preload forwards the real port to the main
+   *  world via `window.postMessage({ tag: TERMINAL_PORT_TAG, terminalId, openToken }, '*', [port])`
+   *  so the renderer can pair THIS port to THIS open via a `window` `'message'` listener (the
+   *  documented Electron main-world-port pattern). Returns an unsubscribe fn (call on cleanup). */
+  open(terminalId: string, openToken: string): () => void {
+    const listener = (
+      event: Electron.IpcRendererEvent,
+      payload: { terminalId: string; openToken: string }
+    ): void => {
+      // Fire only for THIS terminalId AND THIS open's token (Story 5.4). The CH.terminalOpen reply
+      // channel is shared across terminals AND across re-opens of the same terminalId (a StrictMode
+      // dev double-mount, or Reopen) — matching terminalId alone could forward the STALE port from a
+      // prior open of the same id. Preserve on-before-send ordering (listener registered BEFORE
+      // send, so the reply from main cannot be missed — src/preload/index.ts ordering invariant).
       const port = event.ports[0]
-      if (payload.terminalId === terminalId && port) cb(port)
+      if (payload.terminalId === terminalId && payload.openToken === openToken && port) {
+        // Forward the REAL port into the main world via window.postMessage. The isolated world
+        // shares the same window event loop; the transfer list delivers a live port the renderer
+        // reads as `e.ports[0]` from a `window` `'message'` listener. Echo the token so the
+        // renderer pairs THIS port to THIS open.
+        window.postMessage({ tag: TERMINAL_PORT_TAG, terminalId, openToken }, '*', [port])
+      }
     }
+    // Register listener BEFORE send (on-before-send ordering — cannot miss the reply).
     ipcRenderer.on(CH.terminalOpen, listener)
-    ipcRenderer.send(CH.terminalOpen, { terminalId })
+    ipcRenderer.send(CH.terminalOpen, { terminalId, openToken })
     return () => ipcRenderer.removeListener(CH.terminalOpen, listener)
   },
   /** Resize the terminal's pty (renderer computed cols/rows via fit() FIRST; main resizes the

@@ -19,23 +19,34 @@ import {
   TERMINAL_MAX_DIM
 } from './terminal'
 
-describe('TerminalOpenSchema — { terminalId } (parse-and-throw)', () => {
+describe('TerminalOpenSchema — { terminalId, openToken } (parse-and-throw)', () => {
   it('parses a well-formed open arg', () => {
-    expect(TerminalOpenSchema.parse({ terminalId: 'host-term-0' })).toEqual({
-      terminalId: 'host-term-0'
+    expect(TerminalOpenSchema.parse({ terminalId: 'host-term-0', openToken: 'open-1' })).toEqual({
+      terminalId: 'host-term-0',
+      openToken: 'open-1'
     })
   })
 
   it('a BLANK terminalId fails closed (mirrors SessionSchema id)', () => {
-    expect(() => TerminalOpenSchema.parse({ terminalId: '' })).toThrow()
+    expect(() => TerminalOpenSchema.parse({ terminalId: '', openToken: 'open-1' })).toThrow()
   })
 
   it('a missing terminalId fails closed', () => {
-    expect(() => TerminalOpenSchema.parse({})).toThrow()
+    expect(() => TerminalOpenSchema.parse({ openToken: 'open-1' })).toThrow()
   })
 
   it('a non-string terminalId fails closed', () => {
-    expect(() => TerminalOpenSchema.parse({ terminalId: 42 })).toThrow()
+    expect(() => TerminalOpenSchema.parse({ terminalId: 42, openToken: 'open-1' })).toThrow()
+  })
+
+  // Story 5.4 — the per-open token is REQUIRED (the renderer always sends one). A missing or blank
+  // token fails closed so a malformed open can never bypass the port-disambiguation match.
+  it('a missing openToken fails closed (Story 5.4)', () => {
+    expect(() => TerminalOpenSchema.parse({ terminalId: 'host-term-0' })).toThrow()
+  })
+
+  it('a BLANK openToken fails closed (Story 5.4)', () => {
+    expect(() => TerminalOpenSchema.parse({ terminalId: 'host-term-0', openToken: '' })).toThrow()
   })
 })
 

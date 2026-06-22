@@ -7,6 +7,9 @@ out
 # Story 0.3 — incremental typecheck caches (PostToolUse hook + tsc --incremental).
 *.tsbuildinfo
 
+# Playwright-Electron e2e artifacts (screenshots, traces) — regenerable, never tracked.
+test-results/
+
 # BMAD tooling — method skill library + config/scripts (regenerable, not project code).
 # The implementation record (stories, sprint status, findings, planning artifacts) is
 # kept under _bmad-output/ and IS tracked.

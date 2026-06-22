@@ -281,6 +281,13 @@ export function createFeed(options: FeedOptions): Feed {
     const raw = await listFn()
     const { deltas } = reducer.seedFromSnapshot(raw)
     emit(deltas)
+    // Story 5.3 — COLD-LOAD-COMPLETE signal: emit a one-time startup status after the
+    // initial `list` seed so the renderer can leave the skeleton even when the
+    // launched-only ship gate (Story 3.3) produced ZERO board deltas (empty board).
+    // Timing is safe: `start()` awaits `listFn()` first, so the renderer's `onStatus`
+    // subscription is mounted by the time this fires — the same post-`await` guarantee
+    // the seed deltas already rely on. Distinct from the reconnect emits below.
+    emitStatus(false)
     // Then attach the live watch stream.
     spawnChild()
   }

@@ -399,13 +399,14 @@ function teardownWindowTerminals(wc: Electron.WebContents): void {
 }
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
-// process.env type lies about this) and strip the smoke-harness vars so they do
-// not leak into the spawned shell or anything it launches.
+// process.env type lies about this) and strip the test/harness vars (C9_SMOKE* and the
+// Story-5.4 C9_TEST_PICK_DIR picker seam) so they do not leak into the spawned shell or
+// anything it launches (e.g. claude).
 function buildPtyEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue
-    if (k === 'C9_SMOKE' || k === 'C9_SMOKE_OUT') continue
+    if (k === 'C9_SMOKE' || k === 'C9_SMOKE_OUT' || k === 'C9_TEST_PICK_DIR') continue
     env[k] = v
   }
   return env
@@ -659,10 +660,13 @@ function registerTerminalIpc(): void {
     onExit: (terminalId, exitCode) => {
       const wc = terminalOwners.get(terminalId)
       terminalOwners.delete(terminalId)
-      // Story 3.4 (FR-16) — resolves deferred NB-1 (deferred-work.md:76): a launched `claude` that
-      // exits NATURALLY (not via the Stop button, which already calls forget) must also drop its
-      // launch tracking, so a dead launch's PendingLaunch / spawn override does not linger in the
-      // map until app exit. Idempotent + never throws; the launched-set membership for an
+      // Story 3.4 (FR-16) / Story 5.4 — a launched `claude` that exits FOR REAL drops its
+      // CORRELATION tracking here so a dead launch's PendingLaunch does not linger / keep
+      // re-correlating. Story 5.4 narrows forget() to the correlation tracking ONLY: the
+      // spawn-override (the Reopen recipe) is deliberately KEPT so the dead-pane "Reopen" affordance
+      // re-spawns claude, not the default `$SHELL`. This is the ONLY forget() call site — the
+      // CH.terminalStop handler intentionally does NOT forget (a StrictMode dev transient stop must
+      // not drop tracking). Idempotent + never throws; the launched-set membership for an
       // ALREADY-joined session is left intact (the set is per-run, not per-terminal). Runs even if
       // the owning window is gone (below) — the forget is independent of the dead-terminal push.
       launchService?.forget(terminalId)
@@ -706,7 +710,7 @@ function registerTerminalIpc(): void {
       )
       return
     }
-    const { terminalId } = parsed.data
+    const { terminalId, openToken } = parsed.data
     if (terminalManager === null) {
       // The manager isn't ready (a race against app-ready construction). Surface it as a dead
       // terminal so the renderer's open() callback path resolves to the dead pane, not a hang.
@@ -721,14 +725,18 @@ function registerTerminalIpc(): void {
     // EmbeddedTerminal against a launch-minted id), consume its spawn override so the manager
     // spawns raw `claude` in the picked cwd instead of the default shell. A non-launch
     // terminalId (the Story-3.1 host path) has no override → null → the unchanged shell spawn.
-    const spawnOverride = launchService?.takeSpawnOverride(terminalId) ?? undefined
+    const spawnOverride = launchService?.peekSpawnOverride(terminalId) ?? undefined
     // Open the terminal (manager wires port1 ↔ pty + flow control). Initial dims are the
     // renderer's first fit() over CH.terminalResize; spawn at a sane default until then. A spawn
     // failure degrades to the manager's onExit → CH.terminalExit (dead pane), never a hang.
     terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, spawnOverride)
-    // Transfer port2 to the renderer, tagged with the terminalId so the renderer can pair it.
-    // The renderer listens on CH.terminalOpen for the `{ terminalId }` payload + `ports[0]`.
-    if (!wc.isDestroyed()) wc.postMessage(CH.terminalOpen, { terminalId }, [port2])
+    // Transfer port2 to the renderer, ECHOING the renderer's per-open `openToken` (Story 5.4)
+    // alongside the terminalId so the renderer can pair THIS port to THIS open. The token
+    // disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or Reopen):
+    // without it the renderer's one-shot listener could pair the STALE (already-closed) port from
+    // the prior open and ignore the live one → a blank terminal. The renderer listens on
+    // CH.terminalOpen for the `{ terminalId, openToken }` payload + `ports[0]`.
+    if (!wc.isDestroyed()) wc.postMessage(CH.terminalOpen, { terminalId, openToken }, [port2])
   })
 
   // terminal:resize — main resizes the pty FIRST (the renderer already computed cols/rows via
@@ -746,10 +754,13 @@ function registerTerminalIpc(): void {
     if (terminalManager === null) throw new Error('terminal manager not initialized')
     const { terminalId } = TerminalStopSchema.parse(raw)
     terminalManager.stop(terminalId)
-    // Story 3.2 — drop the launch tracking for a stopped terminal (its pending correlation /
-    // spawn override no longer applies). Idempotent + never throws; the launched-set membership
-    // for an ALREADY-joined session is left intact (the set is per-run, not per-terminal).
-    launchService?.forget(terminalId)
+    // Story 5.4 — do NOT forget the launch here. This handler fires on EVERY EmbeddedTerminal
+    // unmount, INCLUDING the transient unmount React StrictMode performs in dev (mount → cleanup
+    // → mount). Forgetting here would drop the launch's correlation tracking AND (pre-5.4) its
+    // spawn-override on that transient stop, so the surviving mount re-spawned the default
+    // `$SHELL` instead of `claude` — the dev blank/wrong-terminal bug. A launch's correlation
+    // tracking is dropped only when its claude exits FOR REAL (the terminalManager onExit →
+    // launchService.forget), and the spawn-override (the Reopen recipe) is kept regardless.
   })
 }
 
@@ -830,6 +841,12 @@ function registerLaunchIpc(): void {
   // path, or null on cancel (UX-DR23). The renderer NEVER opens a dialog itself. Modal-to-window
   // (pass the owning BrowserWindow) on KDE. This is an invoke (returns the value directly).
   ipcMain.handle(CH.sessionPickDirectory, async (event) => {
+    // Story 5.4 — TEST-ONLY seam (mirrors the C9_SMOKE env gate): when C9_TEST_PICK_DIR is set,
+    // bypass the native KDE dialog (which Playwright cannot drive) and return that path. This
+    // exists SOLELY so the launch-path e2e can exercise `+ New session → claude` end-to-end on the
+    // built app. Inert in normal use (the env var is never set in production). Never logged.
+    const testPickDir = process.env.C9_TEST_PICK_DIR
+    if (testPickDir !== undefined && testPickDir !== '') return testPickDir
     const owner = BrowserWindow.fromWebContents(event.sender)
     // showOpenDialog accepts an optional parent window; pass it so the dialog is modal-to-window.
     const result = owner
