@@ -18,10 +18,19 @@
 //     wandering thread id of that process.
 //
 // The app-spawned side: node-pty gives you the PANE/SHELL leader pid (the
-// smoke's `ptyPid`), not claude. claude is a DESCENDANT (`claude → bash →
-// konsole` live ancestry). Resolve it by walking the shell's children
-// (`/proc/<shell-pid>/task/<tid>/children`, preferred — no extra binary) with a
-// `pgrep -P` fallback, validating the matched child's `comm`/`Name` is `claude`.
+// smoke's `ptyPid`), not claude. The c9watch-tracked session is SOME process in
+// that PTY's subtree.
+//
+// ── STORY 5.5 — SUBTREE-ANCESTRY MATCH (the live correlation) ─────────────────
+// The original oq-6 walk assumed the tracked claude is an IMMEDIATE child named
+// `claude` of the shell. claude 2.1.186 launched via the app breaks that: the
+// `bash -l -c claude` login shell EXECS the native `claude` ELF (so the PTY leader
+// IS claude), and the c9watch-tracked session runs DEEPER (`claude → npm exec
+// claude → MainThread`, comm != `claude`). So the live correlation now matches a
+// session to a launched terminal iff the session's process (its Tgid) is a
+// DESCENDANT of the terminal's PTY leader pid — `isAncestorOf(leaderPid,
+// sessionTgid)`, walking `PPid` UP. Shape-agnostic + 1:1. The old
+// `resolveClaudeDescendant` (immediate-child walk) is RETAINED but unwired.
 //
 // ── DESIGN: DI SEAMS (architecture.md#Testing & Test Seams) ──────────────────
 // Every impure read (`/proc`, `pgrep`) is an INJECTED reader so the logic is
@@ -149,6 +158,16 @@ export function resolveTgid(reportedPid: number, readStatus: ReadStatus): number
  * the AC-2 mechanism. node-pty hands you the shell leader, NOT claude; claude is
  * a child of that shell (`claude → bash → …` live ancestry).
  *
+ * ⚠ SUPERSEDED (Story 5.5) — NO LONGER WIRED into the live correlation. It assumed
+ * the tracked claude is an IMMEDIATE child named `claude` of the pane shell. claude
+ * 2.1.186 launched via the app does NOT have that shape: the `bash -l -c claude`
+ * login shell EXECS into the native `claude` ELF (so the PTY leader IS claude), and
+ * the c9watch-TRACKED session runs as a DEEP descendant (`claude → npm exec claude →
+ * MainThread`, comm != `claude`). So this immediate-child-named-`claude` walk returns
+ * CLAUDE_NOT_RESOLVED forever for an app launch. The live correlation now matches by
+ * SUBTREE ANCESTRY instead (see `isAncestorOf` / `correlate`). This function + its
+ * readers are RETAINED as a tested utility + the oq-6 record. [Source: Story 5.5]
+ *
  * Lists the shell's children via the injected `listChildren` seam (the real impl
  * reads `/proc/<shell>/task/*\/children`, falling back to `pgrep -P`), then
  * VALIDATES each child's `comm`/`Name` is exactly `claude` before returning it —
@@ -186,40 +205,98 @@ export function resolveClaudeDescendant(
   return CLAUDE_NOT_RESOLVED
 }
 
-/** The correlation result: the stable session `id` (identity) + whether the
- *  app-resolved claude process matches this session. We key the result on `id`,
- *  NEVER on a pid. */
+/** Bound the ancestry walk so a degenerate/looping `/proc` chain can never spin.
+ *  A real process tree is at most a few dozen deep; 128 is a generous fail-closed cap. */
+const MAX_ANCESTRY_DEPTH = 128
+
+/**
+ * THE ANCESTRY PRIMITIVE (Story 5.5): is `ancestorPid` an ancestor of (or equal to)
+ * `descendantPid`? Walks the `PPid` chain UP from `descendantPid` via the injected
+ * `readStatus` seam; returns true the moment it reaches `ancestorPid`.
+ *
+ * This is the correlation that WORKS for claude 2.1.186's actual process shape: the
+ * app owns a PTY whose leader pid is `ancestorPid`; the c9watch-tracked session is
+ * SOME descendant of it (`claude → npm exec claude → MainThread`), regardless of name
+ * or depth. It is shape-agnostic (claude as leader, child, or deep descendant) and 1:1
+ * (each PTY leader owns a disjoint subtree).
+ *
+ * FAIL CLOSED:
+ *   - a pid in the chain is gone/denied (readStatus throws)  → false (not under).
+ *   - a malformed/absent `PPid:`                              → false.
+ *   - reaching pid ≤ 1 (init) without hitting ancestorPid     → false.
+ *   - a self-parent loop or depth > MAX_ANCESTRY_DEPTH        → false.
+ * It NEVER throws and NEVER logs the `/proc` blob (Guardrail #4).
+ *
+ * [Source: Story 5.5; live tree `463321 → 463125 → 462856` (session → npm exec claude
+ *  → PTY leader); c9watch's own `self` ownership model is PID ancestry.]
+ */
+export function isAncestorOf(
+  ancestorPid: number,
+  descendantPid: number,
+  readStatus: ReadStatus
+): boolean {
+  let pid = descendantPid
+  for (let depth = 0; depth < MAX_ANCESTRY_DEPTH; depth++) {
+    if (pid === ancestorPid) return true // reached the PTY leader (or started AT it)
+    if (pid <= 1) return false // hit init/kthreadd without crossing the leader — not under it
+    let ppid: number | undefined
+    try {
+      ppid = parsePpid(readStatus(pid))
+    } catch {
+      return false // process gone/denied between scans — fail closed
+    }
+    if (ppid === undefined || ppid === pid) return false // malformed or self-loop — fail closed
+    pid = ppid
+  }
+  return false // degenerate depth — fail closed
+}
+
+/** Parse the `PPid:` value out of a `/proc/<pid>/status` blob. Returns the parent pid,
+ *  or `undefined` if the field is absent/malformed (same digits-only discipline as Tgid).
+ *  NEVER echoes the blob. */
+function parsePpid(statusBlob: string): number | undefined {
+  const raw = parseStatusField(statusBlob, 'PPid')
+  if (raw === undefined || !/^\d+$/.test(raw)) return undefined
+  const ppid = Number.parseInt(raw, 10)
+  return Number.isInteger(ppid) && ppid >= 0 ? ppid : undefined
+}
+
+/** The correlation result: the stable session `id` (identity) + whether the session's
+ *  process belongs to (descends from) the launched terminal's PTY. We key the result on
+ *  `id`, NEVER on a pid. */
 export interface CorrelationResult {
   /** The stable session identity (UUID) — the key, never the pid. */
   readonly id: string
-  /** True iff the session's reported pid resolves (via Tgid) to the same claude
-   *  process the app spawned. */
+  /** True iff the session's process (its Tgid) is a descendant of the launched
+   *  terminal's PTY leader (subtree-ancestry match — Story 5.5). */
   readonly matched: boolean
 }
 
 /**
- * THE JOIN (AC-1): correlate an app-spawned claude process to a c9watch session,
- * keyed on the stable `id`.
+ * THE JOIN (Story 5.5): correlate a c9watch session to an app-launched terminal by
+ * SUBTREE ANCESTRY, keyed on the stable `id`.
  *
- * Computes `resolveTgid(session.pid)` (the session's reported pid is a wandering
- * thread id) and compares it to `appClaudeTgid` (the app-resolved claude process
- * TGID from `resolveClaudeDescendant` → `resolveTgid`). Returns the match keyed
- * on `session.id`.
+ * Resolves the session's stable process id (`resolveTgid(session.pid)` — the reported
+ * pid is a wandering thread id), then asks whether that process is a DESCENDANT of the
+ * launched terminal's PTY leader (`ptyLeaderPid` = node-pty's pane-leader pid). The
+ * terminal "owns" every process in its PTY subtree, so the session it spawned matches —
+ * regardless of how deep claude nests its tracked session (`claude → npm exec claude →
+ * MainThread`) or what that process is named.
  *
- * It NEVER does `spawnedPid === session.pid` — that equality is the OQ-6 trap and
- * is proven to fail (the reported pid wanders).
+ * This REPLACES the pre-5.5 `sessionTgid === appClaudeTgid` equality (which assumed the
+ * tracked session IS the immediate `claude` child — false for claude 2.1.186). It still
+ * NEVER does `spawnedPid === session.pid` (the OQ-6 wandering-pid trap).
  *
- * FAIL CLOSED: if the session's reported pid is gone/denied/malformed (the
- * process-gone race or a /proc miss), `resolveTgid` throws; we catch it and
- * return `{ id, matched: false }` — no crash, no wrong match. The id is always
- * preserved so the caller can keep/track the card pid-pending.
+ * FAIL CLOSED: if the session's reported pid is gone/denied/malformed, `resolveTgid`
+ * throws → caught → `{ id, matched: false }`. The ancestry walk is itself fail-closed
+ * (a gone pid in the chain → not-a-match). No crash, no wrong match; the id (an opaque
+ * UUID) is always preserved so the caller keeps the card pid-pending.
  *
- * [Source: epics.md#Verified Facts ("naive `spawnedPid === reportedPid` FAILS",
- *  "three pids → one Tgid"); src/shared/schemas/session.ts:62,65 (id=identity,
- *  pid=non-identity); UX-DR19 (reconcile when the join lands).]
+ * [Source: Story 5.5; src/shared/schemas/session.ts:62,65 (id=identity, pid=non-identity);
+ *  UX-DR19 (reconcile when the join lands); live tree session→…→PTY-leader ancestry.]
  */
 export function correlate(
-  appClaudeTgid: number,
+  ptyLeaderPid: number,
   session: Pick<Session, 'id' | 'pid'>,
   readStatus: ReadStatus
 ): CorrelationResult {
@@ -231,7 +308,7 @@ export function correlate(
     // We do NOT log the raw blob; the id is an opaque UUID, safe to keep.
     return { id: session.id, matched: false }
   }
-  return { id: session.id, matched: sessionTgid === appClaudeTgid }
+  return { id: session.id, matched: isAncestorOf(ptyLeaderPid, sessionTgid, readStatus) }
 }
 
 // ── REAL `/proc` READER SEAMS (Linux-only; the integration test injects these) ─

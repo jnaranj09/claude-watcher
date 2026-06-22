@@ -5,8 +5,12 @@
 // EXACTLY two ways:
 //   (a) file/cwd — spawn raw `claude` in the picked dir (AR-7 raw launch), not `$SHELL` in
 //       `$HOME` — passed to the REUSED terminalManager as a per-open spawnOverride; and
-//   (b) the post-spawn correlation — bind the app-spawned claude to its c9watch session via
-//       the Story-0.4 `pidCorrelation.ts` `Tgid` join (REUSED as-is), keyed on the stable id.
+//   (b) the post-spawn correlation — bind the app launch to its c9watch session by SUBTREE
+//       ANCESTRY (Story 5.5): a session matches iff its process descends from the terminal's PTY
+//       leader pid (`pidOf`). Keyed on the stable id. (Pre-5.5 this matched the session's Tgid to
+//       an immediate `claude` child of the shell; that shape never holds for claude 2.1.186 —
+//       `bash -l -c claude` execs the claude ELF and the tracked session is a deep `npm exec
+//       claude` descendant — so the join never landed. See pidCorrelation.ts `isAncestorOf`.)
 //
 // THE OPTIMISTIC CARD + THE JOIN (UX-DR19, F4) — at launch, main holds the PTY (the shell
 // leader pid via terminalManager.pidOf) but NOT yet the c9watch session `id` (the join binds
@@ -35,15 +39,11 @@
 // pattern + the createTerminalManager/createTrayController DI-seam shape (inject + code-only log).
 // [Source: story 3.2 Tasks 2/3/4; F3/F4/F5; AR-7; oq-6-pid-correlation-finding.md §"The
 //  correlation contract"; src/main/pty/pidCorrelation.ts; src/main/pty/terminalManager.ts]
-import {
-  resolveClaudeDescendant,
-  resolveTgid,
-  correlate,
-  CLAUDE_NOT_RESOLVED,
-  type ReadStatus,
-  type ReadComm,
-  type ListChildren
-} from './pidCorrelation'
+// Story 5.5 — the correlation is now SUBTREE ANCESTRY: `correlate` matches a session to a
+// launched terminal iff the session's process descends from the terminal's PTY leader pid
+// (`pidOf`). The pre-5.5 immediate-`claude`-child walk (resolveClaudeDescendant + the
+// comm/children readers) is no longer used here.
+import { correlate, type ReadStatus } from './pidCorrelation'
 import type { LaunchedSet } from './launchedSet'
 import type { Session } from '../../shared/schemas/session'
 
@@ -79,11 +79,10 @@ export interface LaunchServiceOptions {
    *  the documented login-shell fallback supplied by the caller. `env` is the sanitized child
    *  env (buildPtyEnv — strips the smoke vars). */
   spawn: { file: string; args?: string[]; env?: Record<string, string> }
-  /** The `/proc` reader seams (pidCorrelation.ts). Inject fakes in unit tests (no live claude);
-   *  main injects the production `readStatusFromProc`/`readCommFromProc`/`listChildrenFromProc`. */
+  /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
+   *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
+   *  session's Tgid AND to walk PPid ancestry up to the terminal's PTY leader. */
   readStatus: ReadStatus
-  readComm: ReadComm
-  listChildren: ListChildren
   /** Mint a fresh opaque terminalId per launch (NOT the session id, NOT a pid — F6). Injected
    *  for deterministic tests; defaults to a crypto-random id in main. */
   newTerminalId?: () => string
@@ -198,32 +197,6 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     return overrides.get(terminalId) ?? null
   }
 
-  /** Resolve the app-spawned claude `Tgid` for a launch from its shell leader pid. Returns null
-   *  when claude is not resolvable YET (the t0 window) or on any fail-closed `/proc` miss — the
-   *  caller skips the join this tick and retries on the next delta. NEVER throws; never logs the
-   *  value (only a code=). */
-  function resolveAppClaudeTgid(terminalId: string): number | null {
-    const shellPid = options.terminalManager.pidOf(terminalId)
-    if (shellPid === null) return null // terminal gone / pid unknown — fail closed, retry later
-    let claudePid: number | typeof CLAUDE_NOT_RESOLVED
-    try {
-      claudePid = resolveClaudeDescendant(shellPid, options.listChildren, options.readComm)
-    } catch {
-      // resolveClaudeDescendant is fail-closed by design, but belt-and-suspenders: a reader that
-      // throws unexpectedly must never escape the per-delta correlation. Code only — never the value.
-      log('[c9watch][launch] code=descendant_resolve_failed')
-      return null
-    }
-    if (claudePid === CLAUDE_NOT_RESOLVED) return null // claude not spawned/scanned yet (t0 gap)
-    try {
-      return resolveTgid(claudePid, options.readStatus)
-    } catch {
-      // The claude child vanished/denied/malformed between resolve + Tgid read — fail closed.
-      log('[c9watch][launch] code=app_tgid_resolve_failed')
-      return null
-    }
-  }
-
   function correlateAgainst(sessions: Iterable<Session>): void {
     // Linux-only: /proc is Linux. On a non-Linux host the launch still works (the terminal is
     // typeable); only the Tgid join is skipped (the launched-set stays empty — accepted).
@@ -234,7 +207,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     for (const l of launches.values()) {
       if (l.correlatedId === null) pending.push(l)
     }
-    if (pending.length === 0) return
+    if (pending.length === 0) return // silent in steady state — no launch awaiting a join
 
     // Materialize the sessions once (we iterate them per pending launch). Cheap — it is the
     // reducer's already-parsed Session map (parse-once boundary; we never re-parse c9watch JSON).
@@ -242,16 +215,19 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     if (sessionList.length === 0) return
 
     for (const launch of pending) {
-      // Re-resolve the app claude Tgid EVERY tick — the reported pid wanders; never cache it as
-      // identity (oq-6 caveat #2). Null ⇒ not resolvable yet ⇒ retry next delta (optimistic card).
-      const appClaudeTgid = resolveAppClaudeTgid(launch.terminalId)
-      if (appClaudeTgid === null) continue
+      // The terminal's PTY leader pid (node-pty's pane leader; it does NOT wander). Null until the
+      // terminal is open / once it is gone ⇒ skip this tick, retry next delta (the optimistic
+      // card). Story 5.5: correlate by SUBTREE ANCESTRY off this leader — a session matches iff its
+      // process descends from this PTY leader — NOT by resolving an immediate `claude` child (which
+      // never exists for claude 2.1.186's `claude → npm exec claude → MainThread` shape).
+      const leaderPid = options.terminalManager.pidOf(launch.terminalId)
+      if (leaderPid === null) continue
       for (const session of sessionList) {
         // Skip sessions already claimed by ANOTHER landed launch (one session ↔ one launch).
         if (options.launchedSet.has(session.id)) continue
         let result: { id: string; matched: boolean }
         try {
-          result = correlate(appClaudeTgid, session, options.readStatus)
+          result = correlate(leaderPid, session, options.readStatus)
         } catch {
           // correlate is fail-closed (it catches resolveTgid throws), but never let an
           // unexpected throw escape the per-session loop — one bad session ≠ board down.

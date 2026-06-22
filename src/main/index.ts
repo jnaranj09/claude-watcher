@@ -66,7 +66,7 @@ import { SettingsPatchSchema } from '../shared/schemas/settings'
 // are UNTRUSTED cross-process input → Zod parse-and-throw at the boundary (never log the path).
 import { createLaunchService, type LaunchService } from './pty/launchSession'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
-import { readStatusFromProc, readCommFromProc, listChildrenFromProc } from './pty/pidCorrelation'
+import { readStatusFromProc } from './pty/pidCorrelation'
 import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
 // Story 3.5 (SM-2) — the append-only JSONL telemetry store (DI-seam'd, never-crash) +
 // the REAL fs-backed line store (Electron-touching; injected from here — keeps telemetry.ts
@@ -766,6 +766,13 @@ function registerTerminalIpc(): void {
 
 // Story 3.2 (FR-11) — the RAW `claude` spawn config (F3, FROZEN DECISION).
 //
+// STORY 5.5 UPDATE: the descendant-walk rationale below NO LONGER constrains the spawn — the
+// correlation now matches by SUBTREE ANCESTRY off the PTY leader (pidCorrelation.ts `isAncestorOf`),
+// which works whatever the spawn shape (in practice `bash -l -c claude` execs the claude ELF, so
+// the PTY leader IS claude and the tracked session is a deep `npm exec claude` descendant — both
+// are under the leader). We KEEP `$SHELL -l -c claude` purely for the LOGIN-SHELL PATH/rc benefit
+// (the second bullet below); the "claude must stay a child" reasoning is now moot.
+//
 // FROZEN DECISION (F3 fork resolved with live evidence): we spawn `claude` via a LOGIN SHELL
 // that runs claude AS A CHILD — `$SHELL -l -c 'claude'` — NOT the direct spawn and NOT
 // `exec claude`. Rationale grounded in the Story-0.4 LIVE evidence (oq-6 finding §E3): the
@@ -809,9 +816,9 @@ function registerLaunchIpc(): void {
     },
     launchedSet,
     spawn: rawClaudeSpawn(),
+    // Story 5.5 — the ONLY `/proc` seam the correlation needs now: status (for the session's Tgid
+    // + the PPid ancestry walk up to the PTY leader). The pre-5.5 comm/children readers are gone.
     readStatus: readStatusFromProc,
-    readComm: readCommFromProc,
-    listChildren: listChildrenFromProc,
     // Opaque, unique per launch (NOT a session id, NOT a pid — F6). crypto UUID is plenty unique.
     newTerminalId: () => `launch-${randomUUID()}`,
     // Story 3.4 (FR-16) — push the terminalId ↔ sessionId binding to the OWNING window when a

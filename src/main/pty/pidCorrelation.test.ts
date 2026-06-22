@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs'
 import {
   resolveTgid,
   resolveClaudeDescendant,
+  isAncestorOf,
   correlate,
   CLAUDE_NOT_RESOLVED,
   TgidParseError,
@@ -62,6 +63,19 @@ function statusThread(pid: number, tgid: number, name = 'HeapHelper'): string {
  *  case. Mirrors the real `/proc/664817/status` (the `claude` process). */
 function statusLeader(pid: number, name = 'claude'): string {
   return statusThread(pid, pid, name)
+}
+
+/** A status blob with an explicit PPid — for the Story-5.5 ancestry-walk tests
+ *  (the walk reads Tgid + PPid). `Pid == Tgid` (a process leader in the chain). */
+function statusNode(pid: number, ppid: number, name = 'x'): string {
+  return [
+    `Name:\t${name}`,
+    'State:\tS (sleeping)',
+    `Tgid:\t${pid}`,
+    `Pid:\t${pid}`,
+    `PPid:\t${ppid}`,
+    ''
+  ].join('\n')
 }
 
 /** Build a `ReadStatus` seam from a pid→blob table; a missing pid THROWS (the
@@ -217,17 +231,103 @@ describe('resolveClaudeDescendant — shell-layer resolution (AC-2)', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('correlate — the join, keyed on stable id (AC-1)', () => {
-  it('matches a session whose reported pid is a wandering thread of the app claude TGID', () => {
-    const session = { id: 'sess-uuid-1', pid: 664819 } // HeapHelper thread
-    const read = readStatusFrom({ 664819: statusThread(664819, 664817) })
-    expect(correlate(664817, session, read)).toEqual({ id: 'sess-uuid-1', matched: true })
+describe('isAncestorOf — subtree ancestry walk (Story 5.5)', () => {
+  // The live claude 2.1.186 launch chain: PTY leader → npm exec claude → session leader.
+  const LEADER = 462856
+  const NPM = 463125
+  const SESSION = 463321
+  const tree = readStatusFrom({
+    [SESSION]: statusNode(SESSION, NPM, 'MainThread'),
+    [NPM]: statusNode(NPM, LEADER, 'npm exec claude'),
+    [LEADER]: statusNode(LEADER, 461573, 'claude')
   })
 
-  it('does NOT match a session belonging to a DIFFERENT claude', () => {
-    const session = { id: 'sess-uuid-2', pid: 770002 }
-    const read = readStatusFrom({ 770002: statusThread(770002, 770000) }) // Tgid 770000
-    expect(correlate(664817, session, read)).toEqual({ id: 'sess-uuid-2', matched: false })
+  it('true when start IS the ancestor (degenerate self — leader is the session)', () => {
+    expect(isAncestorOf(LEADER, LEADER, tree)).toBe(true)
+  })
+
+  it('true for an immediate child', () => {
+    expect(isAncestorOf(LEADER, NPM, tree)).toBe(true)
+  })
+
+  it('true for a DEEP descendant — the real `leader → npm exec claude → MainThread` shape', () => {
+    // This is the exact case the pre-5.5 immediate-child walk could NOT resolve.
+    expect(isAncestorOf(LEADER, SESSION, tree)).toBe(true)
+  })
+
+  it('false when the process is NOT under the ancestor (chain reaches init first)', () => {
+    // A separate tree whose chain hits PPid 1 without crossing LEADER.
+    const other = readStatusFrom({ 990000: statusNode(990000, 1, 'MainThread') })
+    expect(isAncestorOf(LEADER, 990000, other)).toBe(false)
+  })
+
+  it('FAILS CLOSED when a pid in the chain is gone (reader throws → not under)', () => {
+    // SESSION points at NPM, but NPM is absent → the walk cannot reach LEADER → false.
+    const broken = readStatusFrom({ [SESSION]: statusNode(SESSION, NPM, 'MainThread') })
+    expect(isAncestorOf(LEADER, SESSION, broken)).toBe(false)
+  })
+
+  it('FAILS CLOSED on a malformed/absent PPid (never coerces)', () => {
+    const noPpid = readStatusFrom({ 7: 'Name:\tx\nTgid:\t7\nPid:\t7\n' }) // no PPid line
+    expect(isAncestorOf(LEADER, 7, noPpid)).toBe(false)
+  })
+
+  it('FAILS CLOSED on a self-parent loop (PPid == Pid) instead of spinning', () => {
+    const loop = readStatusFrom({ 50: statusNode(50, 50, 'x') }) // parent is itself
+    expect(isAncestorOf(LEADER, 50, loop)).toBe(false)
+  })
+
+  it('does not match across a sibling subtree (1:1 — each leader owns a disjoint tree)', () => {
+    // A second launch's leader; SESSION is under LEADER, not under OTHER_LEADER.
+    const OTHER_LEADER = 999999
+    expect(isAncestorOf(OTHER_LEADER, SESSION, tree)).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('correlate — the join by SUBTREE ANCESTRY off the PTY leader, keyed on id (Story 5.5)', () => {
+  it('matches a session that DESCENDS from the PTY leader via a wandering reported pid', () => {
+    // The real shape: the tracked session is a DEEP descendant of the PTY leader, and the
+    // reported pid is a wandering thread of it. resolveTgid(reported) → session leader; the
+    // ancestry walk session → npm → leader matches. Neither naive equality NOR the pre-5.5
+    // Tgid===leader equality would have matched (the session's Tgid != the leader pid).
+    const LEADER = 462856
+    const NPM = 463125
+    const SESSION = 463321
+    const REPORTED = 463325 // a wandering thread of SESSION
+    const read = readStatusFrom({
+      [REPORTED]: statusThread(REPORTED, SESSION), // thread → Tgid SESSION
+      [SESSION]: statusNode(SESSION, NPM, 'MainThread'),
+      [NPM]: statusNode(NPM, LEADER, 'npm exec claude'),
+      [LEADER]: statusNode(LEADER, 461573, 'claude')
+    })
+    expect(correlate(LEADER, { id: 'deep', pid: REPORTED }, read)).toEqual({
+      id: 'deep',
+      matched: true
+    })
+    expect(SESSION).not.toBe(LEADER) // the session is NOT the leader — only ancestry finds it
+  })
+
+  it('does NOT match a session in a DIFFERENT subtree (no false claim)', () => {
+    const LEADER = 462856
+    const OTHER = 770000
+    const read = readStatusFrom({
+      770002: statusThread(770002, OTHER), // thread → Tgid OTHER
+      [OTHER]: statusNode(OTHER, 1, 'MainThread') // OTHER's parent is init → not under LEADER
+    })
+    expect(correlate(LEADER, { id: 'other', pid: 770002 }, read)).toEqual({
+      id: 'other',
+      matched: false
+    })
+  })
+
+  it('matches a session whose process IS the PTY leader (degenerate ancestry)', () => {
+    // If a future claude makes the tracked session the PTY leader itself, ancestry still matches.
+    const read = readStatusFrom({ 664819: statusThread(664819, 664817) })
+    expect(correlate(664817, { id: 'sess-uuid-1', pid: 664819 }, read)).toEqual({
+      id: 'sess-uuid-1',
+      matched: true
+    })
   })
 
   it('FAILS CLOSED (unmatched, no crash) when the reported pid is gone from /proc (race)', () => {
@@ -242,19 +342,26 @@ describe('correlate — the join, keyed on stable id (AC-1)', () => {
     expect(correlate(664817, session, read)).toEqual({ id: 'sess-uuid-4', matched: false })
   })
 
-  it('NEVER uses spawnedPid === reportedPid: equal pids that resolve to different Tgids do NOT match', () => {
-    // Pathological: reported pid happens to equal the app claude TGID numerically,
-    // but its OWN Tgid is different (it is a thread of another process). The naive
-    // equality would (wrongly) match; correlate must NOT — it compares Tgids.
-    const session = { id: 'sess-uuid-5', pid: 664817 }
-    const read = readStatusFrom({ 664817: statusThread(664817, 555000) }) // Tgid 555000 != 664817
-    expect(correlate(664817, session, read)).toEqual({ id: 'sess-uuid-5', matched: false })
+  it('NEVER uses spawnedPid === reportedPid: a reported pid equal to the leader but with a DIFFERENT Tgid does NOT match', () => {
+    // Pathological: reported pid numerically equals the leader, but its OWN Tgid is a thread of
+    // another process whose chain never reaches the leader → no match.
+    const session = { id: 'sess-uuid-5', pid: 462856 }
+    const read = readStatusFrom({
+      462856: statusThread(462856, 555000), // Tgid 555000 != leader 462856
+      555000: statusNode(555000, 1, 'x') // 555000's parent is init → not under 462856
+    })
+    expect(correlate(462856, session, read)).toEqual({ id: 'sess-uuid-5', matched: false })
   })
 
   it('keys the result on id (identity), never on pid', () => {
-    const session = { id: 'the-stable-uuid', pid: 664819 }
-    const read = readStatusFrom({ 664819: statusThread(664819, 664817) })
-    const result = correlate(664817, session, read)
+    const LEADER = 462856
+    const SESSION = 463321
+    const read = readStatusFrom({
+      463325: statusThread(463325, SESSION),
+      [SESSION]: statusNode(SESSION, LEADER, 'MainThread'),
+      [LEADER]: statusNode(LEADER, 461573, 'claude')
+    })
+    const result = correlate(LEADER, { id: 'the-stable-uuid', pid: 463325 }, read)
     expect(result.id).toBe('the-stable-uuid')
     expect(Object.keys(result)).toEqual(['id', 'matched']) // no pid in the result
   })
