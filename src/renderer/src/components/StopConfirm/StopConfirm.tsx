@@ -79,7 +79,12 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
     void window.terminal.stop(terminalId).catch(() => {
       console.warn('[c9watch][stop] code=stop_failed')
     })
-    // (2) THEN change the renderer view-state: clear the confirm + return to the board.
+    // (2) Drop the launched-terminal registry entry so the "N starting" banner clears.
+    //     Idempotent: no-op for non-registry terminalIds (e.g. plain #terminals shells).
+    //     Natural-exit path (CH.terminalExit / onExit) is silent for an explicit stop, so we
+    //     must remove the entry here. [Bug #3 — Story 5.6 AC-5 only wired the natural-exit path]
+    boardStore.getState().forgetLaunchedTerminal(terminalId)
+    // (3) THEN change the renderer view-state: clear the confirm + return to the board.
     //     The explicit stop above GUARANTEES the kill; any subsequent unmount-stop is a safe no-op.
     boardStore.getState().clearStopConfirm()
     boardStore.getState().showBoard()

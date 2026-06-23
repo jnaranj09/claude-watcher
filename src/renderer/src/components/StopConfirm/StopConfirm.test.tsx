@@ -316,6 +316,59 @@ describe('StopConfirm — THE EXPLICIT-STOP-BEFORE-VIEW-CHANGE ordering (F1 / FR
 })
 
 // ---------------------------------------------------------------------------
+// (e-bug3) Bug #3 fix: clicking Stop calls forgetLaunchedTerminal(terminalId)
+//
+// When the operator stops a session via the Stop button, the renderer-owned
+// launchedTerminals registry must be cleared — otherwise the "N starting" banner
+// persists forever. The natural-exit path (CH.terminalExit / onExit) is silent for
+// an explicit stop, so forgetLaunchedTerminal must be called here.
+//
+// forgetLaunchedTerminal is idempotent: if terminalId is not in the registry
+// (e.g. a plain #terminals shell), it is a no-op.
+//
+// NON-VACUITY: with the forgetLaunchedTerminal call removed from handleStop(),
+// the test below FAILS (spy never called). Restored → GREEN.
+// ---------------------------------------------------------------------------
+
+describe('StopConfirm — Bug #3: forgetLaunchedTerminal called on explicit Stop', () => {
+  it('clicking Stop calls boardStore.getState().forgetLaunchedTerminal with the correct terminalId', () => {
+    const forgetSpy = vi.spyOn(boardStore.getState(), 'forgetLaunchedTerminal')
+
+    const payload = makePayload({ terminalId: 'term-abc123' })
+    const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
+    cleanup = unmount
+
+    const stopBtn = container.querySelector<HTMLButtonElement>('[data-testid="stop-confirm-stop"]')
+    act(() => {
+      stopBtn?.click()
+    })
+
+    expect(forgetSpy).toHaveBeenCalledTimes(1)
+    expect(forgetSpy).toHaveBeenCalledWith('term-abc123')
+
+    forgetSpy.mockRestore()
+  })
+
+  it('clicking Cancel does NOT call forgetLaunchedTerminal (session keeps running)', () => {
+    const forgetSpy = vi.spyOn(boardStore.getState(), 'forgetLaunchedTerminal')
+
+    const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
+    cleanup = unmount
+
+    const cancelBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-cancel"]'
+    )
+    act(() => {
+      cancelBtn?.click()
+    })
+
+    expect(forgetSpy).not.toHaveBeenCalled()
+
+    forgetSpy.mockRestore()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // (f) Enter while Cancel is focused → Cancel (default-focused = default action)
 // ---------------------------------------------------------------------------
 
