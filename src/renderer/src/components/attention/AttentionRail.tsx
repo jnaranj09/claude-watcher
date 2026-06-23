@@ -40,7 +40,9 @@ import {
   selectRailEmphasis,
   selectFocusedTerminalId,
   selectTerminalIdForSession,
-  type BoardState
+  selectStartingTerminals,
+  type BoardState,
+  type LaunchedTerminal
 } from '../../stores/boardStore'
 import { shortName } from './railName'
 import styles from './AttentionRail.module.css'
@@ -121,6 +123,44 @@ function RailRow(props: {
   )
 }
 
+/**
+ * Story 5.6 (rail gap) — a single calm "starting" row for a launched-but-not-yet-correlated
+ * terminal. CALM-NEUTRAL: cwd-basename label + muted "starting…" sublabel; NO status dot, NO
+ * gold, NO pulse, NO accent bar. A <button> for keyboard activation (Enter/Space) with the
+ * shipped lavender focus-ring. Click → `boardStore.getState().switchTerminal(terminalId)` —
+ * pure view-state switch, NO acknowledge, NO IPC (these are not c9watch sessions).
+ */
+function StartingRailRow(props: { terminal: LaunchedTerminal; collapsed: boolean }): JSX.Element {
+  const { terminal, collapsed } = props
+  const { terminalId, label } = terminal
+
+  function handleClick(): void {
+    boardStore.getState().switchTerminal(terminalId)
+  }
+
+  return (
+    <button
+      type="button"
+      className={styles.startingRow}
+      data-testid="starting-rail-row"
+      data-terminal-id={terminalId}
+      aria-label={collapsed ? label : `${label} — starting`}
+      onClick={handleClick}
+    >
+      {collapsed ? (
+        <span className={styles.startingRowInitial} aria-hidden>
+          {label.charAt(0).toUpperCase()}
+        </span>
+      ) : (
+        <>
+          <span className={styles.startingRowName}>{label}</span>
+          <span className={styles.startingRowStatus}>starting…</span>
+        </>
+      )}
+    </button>
+  )
+}
+
 export interface AttentionRailProps {
   /** Activate a rail row's session: switch the visible terminal (if its binding is known) AND
    *  acknowledge it. Wired by the Focused-session view (Task 4.3). */
@@ -132,6 +172,10 @@ export function AttentionRail({ onActivateSession }: AttentionRailProps): JSX.El
   // useShallow so a sort that returns an equal list does not re-render). An emphasis flip does NOT
   // change this list (per-row emphasis is a separate subscription).
   const order = useBoard(useShallow(selectRailOrder))
+  // Story 5.6 (rail gap) — launched-but-not-yet-correlated terminals: the "Starting" group.
+  // useShallow because selectStartingTerminals returns an array. Supersede is automatic:
+  // once a terminal correlates AND has a card in sessionsById, selectStartingTerminals drops it.
+  const startingTerminals = useBoard(useShallow(selectStartingTerminals))
   // Collapse is RENDERER VIEW-STATE; local to the rail (do NOT round-trip to main). UX-DR9:
   // collapsible to 56px icons, NEVER hidden.
   const [collapsed, setCollapsed] = useState(false)
@@ -205,6 +249,25 @@ export function AttentionRail({ onActivateSession }: AttentionRailProps): JSX.El
           </li>
         ))}
       </ul>
+      {/* Story 5.6 (rail gap) — "Starting" group: calm, BELOW the session rows so it never
+          competes with needs-you emphasis. Rendered only when ≥1 starting terminal exists.
+          Supersede is automatic via selectStartingTerminals (drops once correlated + card present). */}
+      {startingTerminals.length > 0 && (
+        <div className={styles.startingSection} data-testid="starting-rail-section">
+          {!collapsed && (
+            <span className={styles.startingLabel} aria-hidden="true">
+              Starting
+            </span>
+          )}
+          <ul className={styles.list} data-testid="starting-rail-list">
+            {startingTerminals.map((lt) => (
+              <li key={lt.terminalId} className={styles.listItem}>
+                <StartingRailRow terminal={lt} collapsed={collapsed} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </nav>
   )
 }

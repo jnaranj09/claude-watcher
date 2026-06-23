@@ -46,7 +46,10 @@ function resetStore(): void {
     focusedTerminalId: null,
     selectedId: null,
     acknowledgedById: {},
-    terminalIdBySessionId: {}
+    terminalIdBySessionId: {},
+    // Story 5.6 (rail gap): reset the launched-terminals registry so starting-group
+    // tests do not bleed state into each other (prior tests left entries).
+    launchedTerminals: {}
   })
 }
 
@@ -208,5 +211,110 @@ describe('railName.shortName', () => {
     expect(shortName({ sessionName: 'web', projectPath: '/x/y' })).toBe('web')
     expect(shortName({ sessionName: '  ', projectPath: '/home/op/my-proj' })).toBe('my-proj')
     expect(shortName({ sessionName: '', projectPath: '' })).toBe('(session)')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Story 5.6 (rail gap) — "Starting" group: launched-but-not-yet-correlated
+// terminals appear in the rail as calm rows below the session rows.
+// ---------------------------------------------------------------------------
+describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
+  it('renders one calm starting row per selectStartingTerminals entry', () => {
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('tid-a', 'alpha')
+      boardStore.getState().openLaunchedTerminal('tid-b', 'beta')
+    })
+    const r = render()
+    const rows = r.container.querySelectorAll('[data-testid="starting-rail-row"]')
+    expect(rows.length).toBe(2)
+    // Each row displays the label and "starting…"
+    const section = r.container.querySelector('[data-testid="starting-rail-section"]')
+    expect(section).not.toBeNull()
+    const rowA = r.container.querySelector('[data-terminal-id="tid-a"]')
+    expect(rowA).not.toBeNull()
+    expect(rowA?.textContent).toContain('alpha')
+    expect(rowA?.textContent).toContain('starting…')
+    const rowB = r.container.querySelector('[data-terminal-id="tid-b"]')
+    expect(rowB).not.toBeNull()
+    expect(rowB?.textContent).toContain('beta')
+    expect(rowB?.textContent).toContain('starting…')
+  })
+
+  it('clicking a starting row calls switchTerminal(terminalId)', () => {
+    act(() => boardStore.getState().openLaunchedTerminal('tid-x', 'xray'))
+    const r = render()
+    // Reset to board so we can verify switchTerminal actually flips to focused.
+    act(() => boardStore.getState().showBoard())
+    const row = r.container.querySelector<HTMLButtonElement>('[data-terminal-id="tid-x"]')
+    expect(row).not.toBeNull()
+    act(() => row?.click())
+    // switchTerminal sets viewMode='focused' + focusedTerminalId=terminalId — pure view-state.
+    const state = boardStore.getState()
+    expect(state.focusedTerminalId).toBe('tid-x')
+    expect(state.viewMode).toBe('focused')
+  })
+
+  it('clicking a starting row does NOT call onActivateSession (no acknowledge; not a c9watch session)', () => {
+    act(() => boardStore.getState().openLaunchedTerminal('tid-y', 'yankee'))
+    const onActivate = vi.fn()
+    const r = render(onActivate)
+    const row = r.container.querySelector<HTMLButtonElement>('[data-terminal-id="tid-y"]')
+    act(() => row?.click())
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('a correlated terminal (has card in sessionsById) does NOT appear as a starting row (supersede)', () => {
+    // Launch + correlate + add a card — the terminal should disappear from the starting group.
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('tid-corr', 'correlated')
+      boardStore.getState().addCorrelation('sess-1', 'tid-corr')
+      boardStore.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
+    })
+    const r = render()
+    const startingSection = r.container.querySelector('[data-testid="starting-rail-section"]')
+    // selectStartingTerminals excludes 'tid-corr' since sessionsById has its card.
+    expect(startingSection).toBeNull()
+    // The session row IS present in the normal rail list.
+    expect(r.container.querySelectorAll('[data-testid="rail-row"]').length).toBe(1)
+  })
+
+  it('renders NO starting group when there are no starting terminals', () => {
+    // No launched terminals at all.
+    const r = render()
+    expect(r.container.querySelector('[data-testid="starting-rail-section"]')).toBeNull()
+    expect(r.container.querySelectorAll('[data-testid="starting-rail-row"]').length).toBe(0)
+  })
+
+  it('starting row is a <button> activatable by keyboard (Enter = click)', () => {
+    act(() => boardStore.getState().openLaunchedTerminal('tid-kbd', 'keyboard'))
+    const r = render()
+    const row = r.container.querySelector('[data-terminal-id="tid-kbd"]')
+    expect(row?.tagName).toBe('BUTTON')
+  })
+
+  it('in collapsed mode, starting row renders an initial, not the full label+status', () => {
+    act(() => boardStore.getState().openLaunchedTerminal('tid-coll', 'delta'))
+    const r = render()
+    const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
+    act(() => toggle?.click())
+    const row = r.container.querySelector('[data-terminal-id="tid-coll"]')
+    expect(row).not.toBeNull()
+    // Collapsed: shows initial only; full name and "starting…" are hidden.
+    expect(row?.textContent).toContain('D') // initial of 'delta'
+    expect(row?.textContent).not.toContain('starting…')
+    expect(row?.textContent).not.toContain('delta')
+  })
+
+  it('NON-VACUITY: removing the starting-rows rendering makes this test fail (fault injection proof)', () => {
+    // This test proves the starting rows render is load-bearing.
+    // Without the startingTerminals rendering, querySelectorAll below returns 0.
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('tid-nv1', 'nv-alpha')
+      boardStore.getState().openLaunchedTerminal('tid-nv2', 'nv-beta')
+    })
+    const r = render()
+    // If StartingRailRow rendering were removed, this assertion would go RED.
+    const rows = r.container.querySelectorAll('[data-testid="starting-rail-row"]')
+    expect(rows.length).toBe(2)
   })
 })
