@@ -178,7 +178,9 @@ describe('EmbeddedTerminal — mount + lifecycle wiring (AC-1/2)', () => {
     const r = render({ terminalId: 't-1' })
     act(() => r.unmount())
     cleanup = undefined
-    expect(fakes.stop).toHaveBeenCalledWith('t-1')
+    // Story 5.6: the cleanup stop now passes the effect's openToken so main can identify
+    // a stale StrictMode cleanup-stop. Assert called with the terminalId + a non-empty token.
+    expect(fakes.stop).toHaveBeenCalledWith('t-1', expect.stringMatching(/^open-\d+$/))
   })
 })
 

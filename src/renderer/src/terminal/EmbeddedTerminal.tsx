@@ -227,8 +227,11 @@ export function EmbeddedTerminal({
       offExit()
       // Stop the pty cleanly (port.close() THEN pty.kill() in main) — no orphan from a normal
       // close. fire-and-forget: a stop reject is non-fatal on teardown.
+      // Story 5.6 — pass THIS effect's openToken so main can identify a stale StrictMode
+      // cleanup-stop (where open(tok2) has already updated the stored token to tok2, making
+      // this stop(tok1) stale → no-op). The PTY stays alive, wired to mount2's port.
       void window.terminal
-        .stop(terminalId)
+        .stop(terminalId, openToken)
         .catch(() => console.warn('[c9watch][term] code=stop_failed'))
       const port = portRef.current
       if (port) {

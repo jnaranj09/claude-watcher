@@ -71,31 +71,47 @@ interface LiveTerminal {
   port: PortLike
   ptyDataDisposable: { dispose(): void }
   ptyExitDisposable: { dispose(): void }
+  /** The `openToken` from the MOST RECENT open() call for this terminalId.
+   *  Updated on every re-attach so a stale cleanup-stop (carrying the old token) is no-op'd. */
+  openToken: string | undefined
   /** Guards double-teardown (exit + explicit stop racing). */
   destroyed: boolean
 }
 
 export interface TerminalManager {
   /** Open a terminal for `terminalId`, wiring the given main-end port to a fresh pty.
-   *  Spawn-once per terminalId (a re-open of a live id is a no-op). A spawn/wire failure
-   *  degrades to an immediate dead-terminal signal (never throws).
+   *
+   *  Story 5.6 — RE-ATTACH on a live re-open: when `terminalId` is already live, the manager
+   *  does NOT re-spawn the pty. Instead it REPLACES the port: closes the old port + disposes
+   *  its data wiring, wires the NEW port to the EXISTING pty (pty.onData → new port output,
+   *  new port.onmessage → pty.write input, a FRESH flow controller for the new port), re-points
+   *  pty.onExit's exit message to the new port, and UPDATES the stored openToken to the new one.
+   *  This means index.ts's reply port is ALWAYS wired to a live PTY — never a dead port.
    *
    *  `spawnOverride` (Story 3.2) overrides the `spawnDefaults` `file`/`args`/`cwd`/`env` for
    *  THIS open only — used by the FR-11 launch to spawn raw `claude` in the picked cwd instead
-   *  of the default `$SHELL` in `$HOME`. Omitted ⇒ the Story-3.1 shell spawn (unchanged). */
+   *  of the default `$SHELL` in `$HOME`. Omitted ⇒ the Story-3.1 shell spawn (unchanged).
+   *
+   *  A spawn/wire failure degrades to an immediate dead-terminal signal (never throws). */
   open(
     terminalId: string,
     port: PortLike,
     cols: number,
     rows: number,
-    spawnOverride?: Partial<Omit<CreatePtyOptions, 'cols' | 'rows'>>
+    spawnOverride?: Partial<Omit<CreatePtyOptions, 'cols' | 'rows'>>,
+    openToken?: string
   ): void
   /** Resize the terminal's pty (main resizes FIRST — terminal.md). No-op for an unknown
    *  or destroyed terminal. */
   resize(terminalId: string, cols: number, rows: number): void
   /** Destroy the terminal: port.close() THEN pty.kill() (architecture.md:554). Idempotent;
-   *  never throws. */
-  stop(terminalId: string): void
+   *  never throws.
+   *
+   *  Story 5.6 — token-aware stop: when `openToken` is PROVIDED and does NOT match the
+   *  terminal's current stored token, the stop is STALE (a superseded open's cleanup-stop)
+   *  and is a NO-OP. When `openToken` is omitted (user/force stop) OR matches, the terminal
+   *  is killed unconditionally. */
+  stop(terminalId: string, openToken?: string): void
   /** Whether a terminal id is currently live (for tests/diagnostics). */
   has(terminalId: string): boolean
   /** The PTY shell/pane-leader pid for a live terminal, or null if unknown/destroyed. Story
@@ -149,15 +165,123 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     }
   }
 
+  /** Wire a port to an EXISTING pty (re-attach path). Closes the old port + its data wiring,
+   *  then wires the new port. Called only when `terminalId` is already in `terminals`. */
+  function reAttach(
+    terminalId: string,
+    live: LiveTerminal,
+    port: PortLike,
+    openToken: string | undefined
+  ): void {
+    // Dispose the old pty data disposable so the old port doesn't get further onData events.
+    try {
+      live.ptyDataDisposable.dispose()
+    } catch {
+      /* ignore */
+    }
+    // Close the old port — it is superseded; the renderer already discarded it.
+    try {
+      live.port.close()
+    } catch {
+      log('[c9watch][term] code=port_close_failed_on_reattach')
+    }
+
+    const term = live.pty
+
+    // Fresh flow controller for the new port. The old flow state is discarded — the new mount
+    // starts with a clean backlog (the old port's in-flight ACKs will never arrive).
+    const flow = createFlowController({
+      ...(options.flowControl?.highWater !== undefined
+        ? { highWater: options.flowControl.highWater }
+        : {}),
+      ...(options.flowControl?.lowWater !== undefined
+        ? { lowWater: options.flowControl.lowWater }
+        : {}),
+      pause: () => {
+        try {
+          term.pause()
+        } catch {
+          log('[c9watch][term] code=pty_pause_failed')
+        }
+      },
+      resume: () => {
+        try {
+          term.resume()
+        } catch {
+          log('[c9watch][term] code=pty_resume_failed')
+        }
+      }
+    })
+
+    // pty output → NEW port. Captures the new `port` and `flow` in closure.
+    const ptyDataDisposable = term.onData((data) => {
+      const liveNow = terminals.get(terminalId)
+      if (!liveNow || liveNow.destroyed) return
+      try {
+        port.postMessage({ type: 'output', data })
+        flow.onSent()
+      } catch {
+        log('[c9watch][term] code=port_post_failed')
+      }
+    })
+
+    // NEW port input → pty. Captures the new `port` and `flow` in closure.
+    port.onMessage((message) => {
+      const liveNow = terminals.get(terminalId)
+      if (!liveNow || liveNow.destroyed) return
+      const r = TerminalPortRendererMessageSchema.safeParse(message)
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        log(
+          `[c9watch][term] dropped port message path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+        return
+      }
+      const valid = r.data
+      if (valid.type === 'input') {
+        try {
+          term.write(valid.data)
+        } catch {
+          log('[c9watch][term] code=pty_write_failed')
+        }
+      } else {
+        flow.onAck()
+      }
+    })
+
+    // Update the live terminal record in-place: new port, new ptyDataDisposable, new openToken.
+    // ptyExitDisposable stays: it was wired to the pty at spawn and its closure already captures
+    // the live terminals map (reads `terminals.get(terminalId)` dynamically — so it will look up
+    // the updated record, which now points to the new port). We DON'T replace ptyExitDisposable.
+    live.port = port
+    live.ptyDataDisposable = ptyDataDisposable
+    live.openToken = openToken
+
+    // Begin delivering queued messages on the new port.
+    try {
+      port.start()
+    } catch {
+      log('[c9watch][term] code=port_start_failed')
+    }
+  }
+
   function open(
     terminalId: string,
     port: PortLike,
     cols: number,
     rows: number,
-    spawnOverride?: Partial<Omit<CreatePtyOptions, 'cols' | 'rows'>>
+    spawnOverride?: Partial<Omit<CreatePtyOptions, 'cols' | 'rows'>>,
+    openToken?: string
   ): void {
-    // Spawn-once per terminalId: a re-open of a live id is a no-op (idempotent).
-    if (terminals.has(terminalId)) return
+    // Story 5.6 — RE-ATTACH on a live re-open: when the terminalId is already live, do NOT
+    // re-spawn. Instead replace the port so the renderer's new mount is always wired to the
+    // live pty. This fixes the StrictMode inverted-ordering blank terminal (the no-op dropped
+    // the new port, leaving mount2 paired to a dead port1 that was never wired).
+    const existing = terminals.get(terminalId)
+    if (existing !== undefined) {
+      reAttach(terminalId, existing, port, openToken)
+      return
+    }
 
     let term: IPtyLike
     try {
@@ -224,7 +348,8 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     const ptyExitDisposable = term.onExit(({ exitCode }) => {
       const liveNow = terminals.get(terminalId)
       try {
-        port.postMessage({ type: 'exit', exitCode })
+        // After a re-attach, liveNow.port is the NEW port — exit message goes to the live mount.
+        liveNow?.port.postMessage({ type: 'exit', exitCode })
       } catch {
         /* the port may already be gone; the IPC onExit below is the durable signal */
       }
@@ -268,6 +393,7 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
       port,
       ptyDataDisposable,
       ptyExitDisposable,
+      openToken,
       destroyed: false
     })
 
@@ -294,9 +420,16 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     }
   }
 
-  function stop(terminalId: string): void {
+  function stop(terminalId: string, openToken?: string): void {
     const live = terminals.get(terminalId)
     if (!live) return
+    // Story 5.6 — token-aware stop: if openToken is provided AND it does NOT match the
+    // terminal's current stored token, this stop is STALE (a superseded open's cleanup-stop —
+    // e.g. the StrictMode transient unmount of mount1, after open(tok2) already updated the
+    // stored token to tok2). NO-OP: the PTY must stay alive, wired to mount2's port.
+    // If openToken is omitted (user-initiated / force stop, quit teardown) OR matches
+    // the stored token → kill unconditionally (unchanged behavior).
+    if (openToken !== undefined && openToken !== live.openToken) return
     // Explicit stop: tear down (port.close() THEN pty.kill()) and DO NOT fire onExit (the
     // renderer initiated this — it doesn't need a dead-terminal push for its own stop).
     teardown(terminalId, live)

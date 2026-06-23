@@ -44,9 +44,13 @@ export const TerminalResizeSchema = z.object({
   rows: z.number().int().min(TERMINAL_MIN_DIM).max(TERMINAL_MAX_DIM)
 })
 
-/** `terminal:stop` arg — `{ terminalId }`. */
+/** `terminal:stop` arg — `{ terminalId, openToken? }`.
+ *  Story 5.6 — the optional `openToken` lets a stale StrictMode cleanup-stop self-identify
+ *  and be no-op'd by the manager (the stored token will have been updated by the re-open).
+ *  Omitting it (user-initiated / force-stop) is still valid and results in an unconditional kill. */
 export const TerminalStopSchema = z.object({
-  terminalId: TerminalIdSchema
+  terminalId: TerminalIdSchema,
+  openToken: z.string().min(1).optional()
 })
 
 /** `terminal:exit` push — validate-at-source before main → renderer send (a malformed

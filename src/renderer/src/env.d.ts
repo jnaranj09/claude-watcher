@@ -65,10 +65,12 @@ declare global {
     // `'message'` listener keyed on TERMINAL_PORT_TAG + terminalId. Story 5.4: `open` takes a
     // per-open `openToken` (echoed by main) so the listener pairs THIS port to THIS open, never the
     // stale port from a prior open of the same terminalId (StrictMode double-mount / Reopen).
+    // Story 5.6: `stop` gains an optional `openToken`; when provided, a stale StrictMode cleanup-stop
+    // (token mismatch) is a no-op in main — the PTY stays alive, wired to the new mount's port.
     terminal: {
       open(terminalId: string, openToken: string): () => void
       resize(terminalId: string, cols: number, rows: number): Promise<void>
-      stop(terminalId: string): Promise<void>
+      stop(terminalId: string, openToken?: string): Promise<void>
       onExit(cb: (info: TerminalExitEvent) => void): () => void
     }
     // Story 3.2 (FR-11) — mirrors src/preload/index.ts `launchApi`. The renderer triggers the

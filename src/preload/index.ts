@@ -173,9 +173,15 @@ const terminalApi = {
   resize(terminalId: string, cols: number, rows: number): Promise<void> {
     return ipcRenderer.invoke(CH.terminalResize, { terminalId, cols, rows })
   },
-  /** Stop + destroy the terminal (port.close() THEN pty.kill() in main). */
-  stop(terminalId: string): Promise<void> {
-    return ipcRenderer.invoke(CH.terminalStop, { terminalId })
+  /** Stop + destroy the terminal (port.close() THEN pty.kill() in main).
+   *  Story 5.6 — the optional `openToken` lets the manager identify and no-op a stale
+   *  StrictMode cleanup-stop (where the token no longer matches the current open). Omitting it
+   *  (user-initiated stop from StopConfirm / dead-pane Stop) is an unconditional kill. */
+  stop(terminalId: string, openToken?: string): Promise<void> {
+    return ipcRenderer.invoke(CH.terminalStop, {
+      terminalId,
+      ...(openToken !== undefined ? { openToken } : {})
+    })
   },
   /** Subscribe to the dead-terminal push (the pty exited/died). Returns an unsubscribe fn.
    *  Drives the per-terminal "Terminal exited." pane (UX-DR18). `CH.terminalExit` is a const. */

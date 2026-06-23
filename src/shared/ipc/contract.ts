@@ -524,9 +524,14 @@ export type TerminalResizeRequest = {
 }
 
 /** `terminal:stop` request — destroy the terminal `terminalId` (port.close() THEN
- *  pty.kill()). Parse-and-throw at the boundary. */
+ *  pty.kill()). Parse-and-throw at the boundary.
+ *  Story 5.6 — `openToken` is ADDITIVE and optional: when provided, the manager only kills if
+ *  the token matches the terminal's current open token (stale cleanup-stops self-identify and
+ *  are no-op'd). Omitting it (user-initiated / quit teardown) is an unconditional kill. */
 export type TerminalStopRequest = {
   terminalId: string
+  /** Optional per-open token (Story 5.6). When provided, a stale (superseded) stop is a no-op. */
+  openToken?: string
 }
 
 /**

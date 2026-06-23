@@ -729,7 +729,9 @@ function registerTerminalIpc(): void {
     // Open the terminal (manager wires port1 ↔ pty + flow control). Initial dims are the
     // renderer's first fit() over CH.terminalResize; spawn at a sane default until then. A spawn
     // failure degrades to the manager's onExit → CH.terminalExit (dead pane), never a hang.
-    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, spawnOverride)
+    // Story 5.6 — pass openToken so the manager can (a) update the stored token on re-attach, and
+    // (b) let a stale cleanup-stop (carrying the old token) self-identify as a no-op.
+    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, spawnOverride, openToken)
     // Transfer port2 to the renderer, ECHOING the renderer's per-open `openToken` (Story 5.4)
     // alongside the terminalId so the renderer can pair THIS port to THIS open. The token
     // disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or Reopen):
@@ -752,8 +754,11 @@ function registerTerminalIpc(): void {
   // UNTRUSTED arg → parse-and-throw-typed.
   ipcMain.handle(CH.terminalStop, (_event, raw: unknown) => {
     if (terminalManager === null) throw new Error('terminal manager not initialized')
-    const { terminalId } = TerminalStopSchema.parse(raw)
-    terminalManager.stop(terminalId)
+    const { terminalId, openToken } = TerminalStopSchema.parse(raw)
+    // Story 5.6 — forward the optional openToken to the manager. The manager no-ops if the token
+    // is stale (a superseded StrictMode cleanup-stop). Omitted (user-initiated / quit teardown) →
+    // unconditional kill (unchanged behavior). See terminalManager.stop() for the full semantics.
+    terminalManager.stop(terminalId, openToken)
     // Story 5.4 — do NOT forget the launch here. This handler fires on EVERY EmbeddedTerminal
     // unmount, INCLUDING the transient unmount React StrictMode performs in dev (mount → cleanup
     // → mount). Forgetting here would drop the launch's correlation tracking AND (pre-5.4) its

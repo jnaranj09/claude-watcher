@@ -111,7 +111,7 @@ function makeFakePort(order: string[]): {
 const SPAWN_DEFAULTS = { file: '/bin/bash' }
 
 describe('createTerminalManager — spawn-once + lifecycle (AC-1)', () => {
-  it('spawns ONE pty per terminalId and is a no-op on re-open of a live id', () => {
+  it('spawns ONE pty per terminalId and RE-ATTACHes on a re-open of a live id (Story 5.6)', () => {
     let spawnCount = 0
     const fakePty = makeFakePty()
     const ptyFactory: PtyFactory = () => {
@@ -125,13 +125,26 @@ describe('createTerminalManager — spawn-once + lifecycle (AC-1)', () => {
       onExit: vi.fn()
     })
 
-    mgr.open('t1', makeFakePort(order).port, 80, 24)
+    const portA = makeFakePort(order)
+    mgr.open('t1', portA.port, 80, 24, undefined, 'tokA')
     expect(spawnCount).toBe(1)
     expect(mgr.has('t1')).toBe(true)
 
-    // Re-open of the SAME live id — no second spawn.
-    mgr.open('t1', makeFakePort(order).port, 80, 24)
-    expect(spawnCount).toBe(1)
+    // Re-open of the SAME live id — NO second spawn; instead re-attaches the new port.
+    const portB = makeFakePort(order)
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB')
+    expect(spawnCount).toBe(1) // still just 1 spawn
+    expect(mgr.has('t1')).toBe(true) // terminal still live
+    // The old port should have been closed (superseded by re-attach).
+    expect(portA.closed()).toBe(true)
+    // The new port should have been started.
+    expect(portB.started()).toBe(true)
+
+    // Output from the pty now goes to portB, not portA.
+    fakePty.emitData('hello')
+    expect(portB.posts.filter((p) => p.type === 'output')).toHaveLength(1)
+    // portA receives nothing after re-attach (it was closed).
+    expect(portA.posts.filter((p) => p.type === 'output')).toHaveLength(0)
   })
 
   it('forwards resize cols/rows to the pty (main resizes FIRST)', () => {
@@ -359,6 +372,181 @@ describe('createTerminalManager — flow control over the port (AC-1; Task 3.3)'
     })
     mgr.open('t1', fakePort.port, 80, 24)
     expect(fakePort.started()).toBe(true)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 5.6 — re-attach + token-aware stop (the StrictMode double-mount fix).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('createTerminalManager — Story 5.6 re-attach + token-aware stop', () => {
+  it('re-attach: open(tokA) → open(tokB) wires portB to the SAME live pty, closes portA', () => {
+    const fakePty = makeFakePty()
+    const onExit = vi.fn()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit
+    })
+
+    const portA = makeFakePort([])
+    const portB = makeFakePort([])
+    mgr.open('t1', portA.port, 80, 24, undefined, 'tokA')
+    // Re-open same id with a new port + token (StrictMode double-mount).
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB')
+
+    // Only ONE spawn ever happened.
+    expect(mgr.has('t1')).toBe(true)
+
+    // Old port closed; new port started.
+    expect(portA.closed()).toBe(true)
+    expect(portB.started()).toBe(true)
+
+    // The PTY is still live (no kill, no onExit fired).
+    expect(fakePty.killed()).toBe(false)
+    expect(onExit).not.toHaveBeenCalled()
+
+    // pty output now routes to portB.
+    fakePty.emitData('x')
+    expect(portB.posts.filter((p) => p.type === 'output')).toHaveLength(1)
+    // portA gets nothing after re-attach.
+    expect(portA.posts.filter((p) => p.type === 'output')).toHaveLength(0)
+
+    // Input from portB is written to the pty.
+    portB.emitFromRenderer({ type: 'input', data: 'ls\n' })
+    expect(fakePty.writes).toEqual(['ls\n'])
+  })
+
+  it('stale stop(tokA) after open(tokB) is a NO-OP — PTY stays alive, portB still wired', () => {
+    const fakePty = makeFakePty()
+    const onExit = vi.fn()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit
+    })
+
+    const portA = makeFakePort([])
+    const portB = makeFakePort([])
+    mgr.open('t1', portA.port, 80, 24, undefined, 'tokA')
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB') // re-attach, stored token → tokB
+
+    // StrictMode transient cleanup-stop for mount1 (stale token tokA).
+    mgr.stop('t1', 'tokA') // STALE → NO-OP
+
+    // PTY must still be alive.
+    expect(fakePty.killed()).toBe(false)
+    expect(mgr.has('t1')).toBe(true)
+    expect(onExit).not.toHaveBeenCalled()
+
+    // portB still wired: output still arrives.
+    fakePty.emitData('still alive')
+    expect(portB.posts.filter((p) => p.type === 'output')).toHaveLength(1)
+
+    // Now the real stop (matching token) kills the terminal.
+    mgr.stop('t1', 'tokB') // matches → kill
+    expect(fakePty.killed()).toBe(true)
+    expect(mgr.has('t1')).toBe(false)
+  })
+
+  it('full StrictMode ordering: open(tokA) → open(tokB) re-attach → stop(tokA) stale NO-OP → stop(tokB) kills', () => {
+    const fakePty = makeFakePty()
+    const onExit = vi.fn()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit
+    })
+    const portA = makeFakePort([])
+    const portB = makeFakePort([])
+    mgr.open('t1', portA.port, 80, 24, undefined, 'tokA')
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB')
+    mgr.stop('t1', 'tokA') // stale — no-op
+
+    expect(mgr.has('t1')).toBe(true)
+    expect(fakePty.killed()).toBe(false)
+
+    // Explicit user stop (no token = force kill).
+    mgr.stop('t1')
+    expect(mgr.has('t1')).toBe(false)
+    expect(fakePty.killed()).toBe(true)
+  })
+
+  it('FIFO ordering still works: open(tokA) → stop(tokA) matching → kills → open(tokB) fresh spawn', () => {
+    let spawnCount = 0
+    const ptys = [makeFakePty(), makeFakePty()]
+    let i = 0
+    const ptyFactory: PtyFactory = () => {
+      spawnCount++
+      return ptys[i++]!.pty
+    }
+    const onExit = vi.fn()
+    const mgr = createTerminalManager({ ptyFactory, spawnDefaults: SPAWN_DEFAULTS, onExit })
+
+    const portA = makeFakePort([])
+    mgr.open('t1', portA.port, 80, 24, undefined, 'tokA')
+    expect(spawnCount).toBe(1)
+
+    // Matching stop kills terminal #1.
+    mgr.stop('t1', 'tokA')
+    expect(mgr.has('t1')).toBe(false)
+    expect(ptys[0]!.killed()).toBe(true)
+
+    // Second open mints a fresh pty (terminal #1 is gone).
+    const portB = makeFakePort([])
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB')
+    expect(spawnCount).toBe(2) // fresh spawn
+    expect(mgr.has('t1')).toBe(true)
+  })
+
+  it('tokenless stop() is always an unconditional kill (user-initiated / quit path)', () => {
+    const fakePty = makeFakePty()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn()
+    })
+    mgr.open('t1', makeFakePort([]).port, 80, 24, undefined, 'tokA')
+    // No token → unconditional kill regardless of stored token.
+    mgr.stop('t1')
+    expect(fakePty.killed()).toBe(true)
+    expect(mgr.has('t1')).toBe(false)
+  })
+
+  // ── FAULT-INJECTION GUARDS (must go RED when the guard is removed) ──────────
+  it('FAULT-INJECTION: removing the stale-token check makes stop(tokA) kill the PTY — guard is load-bearing', () => {
+    // This test passes a stale token and ASSERTS the PTY is NOT killed.
+    // If the stale-token guard were removed the PTY would be killed → this test would go RED.
+    const fakePty = makeFakePty()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn()
+    })
+    mgr.open('t1', makeFakePort([]).port, 80, 24, undefined, 'tokA')
+    mgr.open('t1', makeFakePort([]).port, 80, 24, undefined, 'tokB') // re-attach, stored → tokB
+    mgr.stop('t1', 'tokA') // stale
+
+    // Guard assertion: PTY must still be alive (if guard is absent, this is false → RED).
+    expect(fakePty.killed()).toBe(false)
+    expect(mgr.has('t1')).toBe(true)
+  })
+
+  it('FAULT-INJECTION: removing re-attach makes the new port dead (old NO-OP path) — guard is load-bearing', () => {
+    // Without re-attach, open() on a live id is a no-op: portB is never started.
+    // With re-attach, portB IS started. This test asserts portB.started() is true.
+    // Removing re-attach → portB.started() is false → RED.
+    const fakePty = makeFakePty()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn()
+    })
+    mgr.open('t1', makeFakePort([]).port, 80, 24, undefined, 'tokA')
+    const portB = makeFakePort([])
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB')
+
+    // Guard assertion: portB must be started (if no re-attach, it never is → RED).
+    expect(portB.started()).toBe(true)
   })
 })
 
