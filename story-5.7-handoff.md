@@ -3,10 +3,45 @@
 > Continuity doc for a fresh session. Self-contained; read top-to-bottom. The project's own
 > guidance (`CLAUDE.md` + `.claude/rules/*`) and the BMad flow still apply.
 > Written 2026-06-22, after Stories 5.5 + 5.6 landed on `main`.
+> UPDATED 2026-06-23: investigation done + fork RESOLVED (Option B) — see the DECISION section.
+
+## ✅ DECISION (2026-06-23) — Option B, fork RESOLVED (Jose)
+
+**Story 5.7 will fix the DESYNC drop via OPTION B — reducer upsert.** When an unknown-id
+`changed`/`status_changed` reaches the DESYNC branch (`reducer.ts:200-208`), UPSERT the session
+exactly like `started` (`map.set(session.id, session)` + emit `toUpdated(session)`) instead of
+dropping it — PLUS keep a `code=desync_healed` log so the heal stays observable (risk #3).
+
+**Why B is safe (static evidence — the investigation is DONE):**
+- The DESYNC drop runs DOWNSTREAM of `WatchLineSchema.safeParse`. That schema REQUIRES a full
+  `SessionSchema` on every non-stopped event incl. `status_changed` (`session.ts:133-140`), and
+  `SessionSchema` makes every card-building field REQUIRED — `id`, `status`, `projectPath`, `pid`,
+  `sessionName` (`session.ts:59-67`). So any line reaching the drop is already CARD-COMPLETE → the
+  upsert builds a real card with NO `list` reconcile needed.
+- Contract doc + reducer/liveContract fixtures corroborate; `--compact` still carries every
+  required field.
+
+**Risk analysis (the full reasoning was worked through in chat 2026-06-23):**
+
+| # | Risk | Severity |
+| --- | --- | --- |
+| 1 | External/Konsole sessions leaking onto the board | **NOT a risk** — the launched-set ship gate (`shipGate.ts:38-43`, `shouldShipToBoard = isLaunched(id)`) drops every non-launched id at the SHIP chokepoint. B changes the reducer MAP, not the gate; external sessions already enter the map via `started` today and are filtered the same way. |
+| 2 | Stale/empty field VALUES on a brand-new-id `status_changed` | **The one residual.** Schema guarantees fields EXIST, not that values are meaningful. → the live-value check below. Bounded: `started` builds cards from the same fields. |
+| 3 | Lost desync observability if the upsert is silent | Minor — keep a `code=desync_healed` log (folded into the decision above). |
+| 4 | Doesn't generalize to other desync classes | Coverage limit, not a bug (the trade vs A′). A′ stays a documented future backstop. |
+| 5 | Resurrection of a legitimately-removed id | Minor — `stopped` uses a separate schema path; add a test. |
+
+**The ONE open item before shipping = the live-value check (risk #2):** capture a real
+`c9watch watch` (NOT `--compact`) line for a freshly-launched session and confirm its `session`
+carries MEANINGFUL `sessionName` + `projectPath` + valid `pid` (not empty placeholders). Meaningful
+→ ship B; placeholder → reconsider A′. Add the captured line as a `liveContract.test.ts` fixture.
 
 ## Status / where this sits
 
-- **`main` == `epic-5-defect-remediation` == `8ac8929`.** Local-only repo (no remote).
+- **`8ac8929` was the 5.5/5.6 baseline.** Since then `main` advanced with Fixes #1–#4 (incl.
+  Fix #4 = the blank-terminal kept-alive-frame-stacking bug) + the troubleshooting playbook
+  (`.claude/rules/troubleshooting.md`) + this handoff; `epic-5-defect-remediation` is kept ff'd to
+  `main` (the `main == epic` invariant holds). Local-only repo (no remote).
   - `b7e887e` — **Story 5.5**: correlate launch↔session by SUBTREE ANCESTRY (`isAncestorOf`). Made the eventual correlation join *work* for claude 2.1.186's process shape. Necessary-not-sufficient.
   - `8ac8929` — **Story 5.6**: `launchedTerminals` registry + the **Starting banner**. Made an app-launched terminal **reachable** (and kept-alive) WITHOUT waiting on c9watch.
 - **Story 5.7 is NOT started.** This handoff is its scoping seed. It is the last piece of the Story-5.5 empty-board root cause (memory `story-5-5-empty-board-rootcause`).
@@ -34,7 +69,10 @@ Why it's decisive: the `started` branch directly above the DESYNC drop already b
 
 **How to find out (cheap):** capture a real line. Run `c9watch watch --changes-only` (or `--changes-only` equivalent) in a terminal, launch a `claude` in another dir, send it one message, and inspect the emitted `status_changed` JSON for that new session — does its `session` object have the full fields or just id+status? Cross-check the contract doc `_bmad-output/implementation-artifacts/c9watch-0.8.1-contract.md` (it documents the line shapes; note Story 5.2 already corrected one drift there — verify it against the live binary, don't trust the doc alone). The existing drift alarm `liveContract.test.ts` is the place to add a captured fixture.
 
-## The design fork (resolve after the investigation)
+## The design fork — ✅ RESOLVED: Option B (see DECISION at top)
+
+> The options below are kept as the reasoning record. Jose chose **Option B** on 2026-06-23 after
+> the static payload-completeness investigation; A′ remains a documented future backstop.
 
 - **Option B — reducer upsert on unknown-id `status_changed`** (`reducer.ts:201-208`). Event-driven, no polling, likely ~3 lines IF the payload is full. Cleanest. The risk is purely "is the payload full enough" (the investigation above).
 - **Option A — feed periodic/on-demand `list` reconcile** (`feed.ts`). Make the DESYNC comment's promise true: re-run `listFn()` off the reconnect path. Heals ANY desync (not just status_changed-for-unknown-id), more robust. Costs: (1) `defaultList` is `execFileSync('c9watch', ['list'])` — a SYNCHRONOUS BLOCKING exec on the main thread (`feed.ts:93-112`); a blind timer repeatedly blocks main → prefer an async list or a low frequency; (2) pick a cadence; (3) the `list` snapshot path throws on malformed and the caller backs off (zod-boundaries) — preserve that.
@@ -73,13 +111,13 @@ Orchestrate; spawn subagents per step (memory `bmad-orchestration-model-split`):
 - **code-review = Opus** (fresh, re-runs the gate first-hand; fault-injects every guard).
 - The **orchestrator (Opus main loop) owns git + the sprint-status transitions**; nothing auto-commits (confirm-before-commit). Stories committed individually, then ff-merged to `main`.
 
-## How to start (concrete first steps)
+## How to start (concrete first steps) — fork ALREADY resolved (Option B)
 
-1. Read memory `story-5-5-empty-board-rootcause` + this handoff.
-2. **Do the investigation:** capture a real `status_changed`-for-a-new-session line and determine if its `session` payload is full or partial. This decides Option B vs A.
-3. Present the fork + payload evidence to Jose for the call (mirror the 5.6 UX steer).
-4. Run `bmad-create-story` for `story 5.7 — heal the feed DESYNC so a launched session's c9watch card appears (fix B)`, carrying the chosen option. Add a `5-7-...: backlog` line to `sprint-status.yaml` if create-story needs it (5.7 is not yet in the ledger).
-5. dev (Sonnet) → code-review (Opus) → commit → ff-merge.
+1. Read memory `story-5-5-empty-board-rootcause` + this handoff (esp. the DECISION section at top).
+2. **Investigation: DONE (static).** Payload is schema-card-complete → Option B (reducer upsert). No `list` reconcile needed.
+3. **The one open item — live-value check (risk #2):** capture a real `c9watch watch` (NOT `--compact`) line for a freshly-launched session; confirm `sessionName`/`projectPath`/`pid` are MEANINGFUL, not placeholders. Add it as a `liveContract.test.ts` fixture. (Can be folded into the real-KDE manual gate, which already launches + sends a message.)
+4. Run `bmad-create-story` (Opus, orchestrated) for `story 5.7 — heal the feed DESYNC (fix B: reducer upsert on unknown-id status_changed, + desync_healed log)`, carrying Option B. Add a `5-7-...: backlog` line to `sprint-status.yaml` (5.7 is not yet in the ledger).
+5. dev (Sonnet, high thinking) → code-review (Opus) → commit → ff-merge to `main`.
 
 ## Manual gate (real-KDE, Jose — the proof fix B works)
 
