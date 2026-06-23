@@ -283,9 +283,19 @@ export function EmbeddedTerminal({
   }
 
   return (
-    <div className={styles.frame} data-testid="embedded-terminal" data-terminal-id={terminalId}>
-      {/* Kept-alive hidden uses visibility:hidden (the .hidden class), NEVER display:none. */}
-      <div ref={containerRef} className={`${styles.host} ${active ? '' : styles.hidden}`} />
+    <div
+      className={`${styles.frame} ${active ? '' : styles.hidden}`}
+      data-testid="embedded-terminal"
+      data-terminal-id={terminalId}
+    >
+      {/* Kept-alive hidden uses visibility:hidden on the WHOLE frame (the .hidden class), NEVER
+          display:none. It MUST be the frame, not just the inner host: the frame paints an OPAQUE
+          bg-terminal background, and all kept-alive frames are stacked (position:absolute, same
+          z-index) in .terminalWrap — so hiding only the host left an inactive frame's opaque
+          background painting OVER the active terminal whenever it sorted later in DOM order,
+          blanking the visible terminal while a 2nd terminal was alive. visibility:hidden keeps the
+          layout box, so the inner host stays sized for fit(). */}
+      <div ref={containerRef} className={styles.host} />
       {dead !== null && (
         <div className={styles.dead} role="alert" data-testid="dead-terminal">
           <span className={styles.deadMessage}>Terminal exited.</span>

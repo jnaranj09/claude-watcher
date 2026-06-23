@@ -386,19 +386,22 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4)', () => {
 })
 
 describe('EmbeddedTerminal — kept-alive hidden uses visibility:hidden, never display:none (AC-3)', () => {
-  it('active=false applies the hidden class (visibility:hidden) to the host', () => {
+  it('active=false applies the hidden class (visibility:hidden) to the FRAME', () => {
     const r = render({ terminalId: 't-1', active: false })
-    const host = r.container.querySelector('[data-testid="embedded-terminal"] > div')
-    expect(host).not.toBeNull()
+    // The hidden class is on the FRAME (the test-id root), NOT the inner host: the frame paints an
+    // opaque background and stacked frames would otherwise cover the active terminal (see the
+    // EmbeddedTerminal render comment). Hiding the whole frame is the fix.
+    const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
+    expect(frame).not.toBeNull()
     // The CSS-module `.hidden` class is applied (it sets visibility:hidden, asserted in the
     // CSS source test below — never display:none).
-    expect(host?.className).toMatch(/hidden/)
+    expect(frame?.className).toMatch(/hidden/)
   })
 
   it('active=true does NOT apply the hidden class', () => {
     const r = render({ terminalId: 't-1', active: true })
-    const host = r.container.querySelector('[data-testid="embedded-terminal"] > div')
-    expect(host?.className ?? '').not.toMatch(/\bhidden\b/)
+    const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
+    expect(frame?.className ?? '').not.toMatch(/\bhidden\b/)
   })
 })
 

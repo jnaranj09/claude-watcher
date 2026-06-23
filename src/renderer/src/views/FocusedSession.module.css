@@ -101,9 +101,11 @@
   box-sizing: border-box;
 }
 
-/* Each EmbeddedTerminal's root frame is direct child of .terminalWrap; stack them. The component
-   already toggles visibility on its inner host via the `active` prop. We position the FRAME to
-   fill the wrap so each kept-alive terminal has the same full-size box. */
+/* Each EmbeddedTerminal's root frame is a direct child of .terminalWrap; stack them. The component
+   toggles visibility:hidden on the WHOLE frame via the `active` prop (NOT just its inner host — the
+   frame's OPAQUE bg-terminal background would otherwise paint over an earlier-stacked active
+   terminal, blanking it while a 2nd terminal is alive). We position the FRAME to fill the wrap so
+   each kept-alive terminal has the same full-size box. */
 .terminalWrap > * {
   position: absolute;
   inset: var(--space-2);
