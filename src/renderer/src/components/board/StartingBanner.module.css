@@ -1,0 +1,115 @@
+/*
+ * Story 5.6 — Starting-terminals banner (status-line region of the Board).
+ *
+ * DESIGN CONTRACT (UX resolved — Jose 2026-06-22):
+ *   - CALM-NEUTRAL: no accent bar, no status dot, no gold, STATIC.
+ *   - Motion is reserved for Needs-you signals; a starting session must stay quiet.
+ *   - Banner collapses when there are zero starting terminals (render-nothing in TSX).
+ *   - Popover recommended (no board reflow); inline is acceptable.
+ *   - Each entry: font-mono cwd-basename + muted "starting…"; hover bg-surface-raised.
+ */
+
+/* The clickable collapsed trigger line in the status-line region. */
+.bannerTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--gutter);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-meta);
+  line-height: var(--line-height-meta);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.bannerTrigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.bannerTrigger:hover {
+  color: var(--text-primary);
+}
+
+/* Glyph prefix — a neutral, non-gold indicator (spinner-free per STATIC contract). */
+.glyph {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rounded-full);
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Popover panel — transient-floating surface (`shadow-pop`). */
+.popover {
+  position: absolute;
+  z-index: 40;
+  left: var(--gutter);
+  top: 100%; /* anchored to the banner row's bottom via relative wrapper */
+  min-width: 240px;
+  max-width: 400px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+/* Relative wrapper so the popover anchors to the banner row. */
+.bannerWrapper {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+/* Individual starting-terminal entry row — calm-neutral. */
+.entryButton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.entryButton:last-child {
+  border-bottom: none;
+}
+
+.entryButton:hover,
+.entryButton:focus-visible {
+  background: var(--bg-surface-raised);
+  outline: none;
+}
+
+.entryButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* The cwd-basename label — monospace, calm. NO gold, NO accent. */
+.entryLabel {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  font-weight: var(--font-weight-mono);
+  line-height: var(--line-height-mono);
+  color: var(--text-primary);
+}
+
+/* The "starting…" sublabel — muted status line. */
+.entryStatus {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  line-height: var(--line-height-meta);
+  color: var(--text-muted);
+}

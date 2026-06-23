@@ -16,6 +16,8 @@ import { useEffect, type JSX } from 'react'
 import { Column } from './Column'
 import { ColumnHeader } from '../ColumnHeader/ColumnHeader'
 import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
+// Story 5.6 (AC-3, AC-6) — the compact starting-terminals banner (status-line region).
+import { StartingBanner } from './StartingBanner'
 import {
   boardStore,
   useBoard,
@@ -25,8 +27,10 @@ import {
   selectColumnCount,
   selectHeroColumn,
   selectSelectedId,
+  selectStartingTerminals,
   type HeroColumn
 } from '../../stores/boardStore'
+import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
 import styles from './Board.module.css'
@@ -86,6 +90,10 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
   const hero = useBoard(selectHeroColumn)
   // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
   const selectedId = useBoard(selectSelectedId)
+  // Story 5.6 (AC-6 optional) — starting terminals count (for the empty-board copy softening).
+  // useShallow required (array selector). We only need the count here; the StartingBanner
+  // component subscribes independently to the full list.
+  const startingCount = useBoard(useShallow((s) => selectStartingTerminals(s).length))
 
   // Mount the watch subscription ONCE; feed validated deltas into the store. The
   // store applies idempotently (stale-epoch discard) so a reconnect never drops a
@@ -150,6 +158,10 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
             Reconnecting to c9watch…
           </div>
         )}
+        {/* Story 5.6 (AC-3, AC-6) — the compact starting-terminals banner. Renders ABOVE and
+            OUTSIDE the skeleton/empty/live ternary so it shows in every board state. Renders
+            nothing when there are zero starting terminals (no DOM footprint). */}
+        <StartingBanner />
       </div>
 
       <LiveAnnouncer message={coldLoaded ? announcement : ''} />
@@ -169,9 +181,17 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
         // board is the NORMAL cold state and the ONLY affordance is `+ New session`. The old
         // "…or start one in Konsole and it'll appear here" invite is GONE: external/Konsole
         // sessions are intentionally never shown (the launched-set is the single gate, AC-4/F5).
+        // Story 5.6 (AC-6 optional) — when starting terminals exist, soften the "No sessions
+        // yet." copy (a launch is in flight) while keeping `+ New session` reachable.
         <div className={styles.emptyBoard} data-testid="empty-board">
-          <p className={styles.emptyBoardHeadline}>No sessions yet.</p>
-          <p className={styles.emptyBoardLine}>Launch one with + New session to get started.</p>
+          <p className={styles.emptyBoardHeadline}>
+            {startingCount > 0 ? 'Starting…' : 'No sessions yet.'}
+          </p>
+          <p className={styles.emptyBoardLine}>
+            {startingCount > 0
+              ? 'Waiting for c9watch to register the session.'
+              : 'Launch one with + New session to get started.'}
+          </p>
           <button
             type="button"
             className={styles.newSessionButton}

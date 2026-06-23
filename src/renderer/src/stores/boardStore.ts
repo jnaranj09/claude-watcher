@@ -49,6 +49,21 @@ export interface StopConfirmPayload {
 import { sortByEnteredColumn } from '../lib/sortByEnteredColumn'
 
 /**
+ * Story 5.6 (AC-1) — a single app-launched terminal's metadata (RENDERER VIEW-STATE).
+ * Holds OPAQUE STRINGS + timestamps ONLY — never a Terminal/xterm instance, never a pid,
+ * never session truth. See state.md: "active terminal" is renderer-owned; the xterm/PTY
+ * INSTANCES stay in imperative refs inside EmbeddedTerminal (terminal.md / state.md SM-C2).
+ */
+export interface LaunchedTerminal {
+  /** The opaque terminalId returned by window.launch.launch(cwd). */
+  terminalId: string
+  /** Epoch-millis when the launch was recorded (stamped via the injected now()). */
+  launchedAt: number
+  /** Display label — the basename of the picked cwd (e.g. "myproject"). */
+  label: string
+}
+
+/**
  * The renderer-facing session view-model (Task 3.3) — a PROJECTION of session truth,
  * built PURELY from the validated `session.updated` delta (which now carries all of
  * these fields). camelCase; no invented attributes beyond what the wire provides.
@@ -184,6 +199,19 @@ export interface BoardState {
    *  moment the binding lands (degrade gracefully, never crash). */
   terminalIdBySessionId: Record<string, string>
   /**
+   * Story 5.6 (AC-1) — the renderer's OWN list of app-launched terminals (RENDERER VIEW-STATE;
+   * NOT session truth — session truth stays MAIN-owned). Keyed by the opaque `terminalId`.
+   * An entry is recorded the moment a launch returns its terminalId (`openLaunchedTerminal`);
+   * cleared when the PTY exits naturally (`forgetLaunchedTerminal`).
+   *
+   * HARD limits (state.md / terminal.md / state.md SM-C2):
+   *   (a) NEVER holds xterm/Terminal objects (those stay in imperative refs).
+   *   (b) NEVER becomes a parallel store of session truth (board columns = main's projection).
+   *   (c) Metadata ONLY: { terminalId, launchedAt, label } — opaque strings + timestamps.
+   * [state.md: "active terminal" is renderer view-state; architecture.md:548]
+   */
+  launchedTerminals: Record<string, LaunchedTerminal>
+  /**
    * Story 4.2 (FR-14) — the QUIT-GUARD modal payload (RENDERER VIEW-STATE; not session truth).
    * Non-null when main detected ≥1 live app-launched session and pushed the guard payload via
    * `CH.quitGuardShow`. Null when no guard is shown. The renderer renders `<QuitGuard/>` from
@@ -226,8 +254,15 @@ export interface BoardState {
    *  receives the join). Single-window in-app view-state only — NO routing, NO window raise.
    *  (Named `openLaunchedTerminal` not `focus*` — this is an in-app VIEW transition, NOT an OS
    *  window focus/raise; the Story-2.2 view-state invariant treats `focus`/`raise` action names
-   *  as window operations, which this is NOT.) */
-  openLaunchedTerminal: (terminalId: string) => void
+   *  as window operations, which this is NOT.)
+   *  Story 5.6 (AC-1): also records the `launchedTerminals` entry with `label` (cwd basename)
+   *  and `launchedAt` stamped from the store-factory closure `now`. */
+  openLaunchedTerminal: (terminalId: string, label: string) => void
+  /** Story 5.6 (AC-5) — remove a launched terminal from the registry when its PTY exits
+   *  naturally (the `window.terminal.onExit` push). Idempotent: a terminalId not in the
+   *  registry (e.g. a plain #terminals shell) is a no-op. Also removes it from
+   *  `selectKeptAliveTerminalIds` so it is no longer kept mounted. */
+  forgetLaunchedTerminal: (terminalId: string) => void
   /** Story 3.2 (FR-11 / F6) — activate a card by its session `id` (the Board `onActivateCard`
    *  seam): SELECT it (the ONE selection, reconciled with the Story-2.2 `selectedId`) and drop
    *  into its Focused-session IF a terminal is known for it. A no-op if the card is not present.
@@ -365,6 +400,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     quitGuard: null,
     // Story 4.3 (FR-15) — no stop confirm shown until the operator triggers it.
     stopConfirm: null,
+    // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
+    launchedTerminals: {},
 
     applyWatchEvent: (payload) => {
       const state = get()
@@ -501,11 +538,33 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (state.selectedId !== id) set({ selectedId: id })
     },
 
-    openLaunchedTerminal: (terminalId) => {
+    openLaunchedTerminal: (terminalId, label) => {
       // Optimistic drop-into-Focused-session the moment the launch returns its terminalId (UX-DR19).
       // The terminal renders + is typeable immediately; the session `id` (selectedId) reconciles
       // later. Single-window in-app VIEW-STATE only — no routing, no window raise.
-      set({ viewMode: 'focused', focusedTerminalId: terminalId })
+      // Story 5.6 (AC-1): record the registry entry with label + launchedAt stamped from closure now().
+      const state = get()
+      const existing = state.launchedTerminals[terminalId]
+      const entry: LaunchedTerminal = { terminalId, launchedAt: now(), label }
+      set({
+        viewMode: 'focused',
+        focusedTerminalId: terminalId,
+        // Register the launch ONCE, keyed on terminalId — never restamp launchedAt on a re-open
+        // (the label is the stable cwd basename; a re-open must not re-sort the Starting list).
+        ...(existing !== undefined
+          ? {}
+          : { launchedTerminals: { ...state.launchedTerminals, [terminalId]: entry } })
+      })
+    },
+
+    forgetLaunchedTerminal: (terminalId) => {
+      // Story 5.6 (AC-5) — remove the launched terminal registry entry on natural PTY exit.
+      // Idempotent: a terminalId not in the registry is a no-op (e.g. a plain #terminals shell).
+      const state = get()
+      if (state.launchedTerminals[terminalId] === undefined) return
+      const next = { ...state.launchedTerminals }
+      delete next[terminalId]
+      set({ launchedTerminals: next })
     },
 
     activateCard: (id) => {
@@ -686,13 +745,51 @@ export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the
  *  correlated bindings (`terminalIdBySessionId` values) UNION the current `focusedTerminalId` (the
- *  optimistic just-launched terminal whose binding may not have landed yet). Returns a STABLE,
- *  SORTED, de-duplicated string[] so an equal set under `useShallow` does not re-render / remount
- *  the terminals. Derived; not stored. */
+ *  optimistic just-launched terminal whose binding may not have landed yet) UNION every
+ *  `launchedTerminals` key (Story 5.6 AC-2: a registry entry keeps its PTY mounted even after
+ *  focus moves away or a second launch arrives before correlation — the load-bearing term that
+ *  closes the silent-kill). Returns a STABLE, SORTED, de-duplicated string[] so an equal set
+ *  under `useShallow` does not re-render / remount the terminals. Derived; not stored. */
 export function selectKeptAliveTerminalIds(state: BoardState): string[] {
   const ids = new Set<string>(Object.values(state.terminalIdBySessionId))
   if (state.focusedTerminalId !== null) ids.add(state.focusedTerminalId)
+  // Story 5.6 (AC-2): fold every registry key so a launched terminal is NEVER unmounted/killed
+  // by focus moving away (e.g. a second launch) before it correlates. DO NOT remove this term.
+  for (const terminalId of Object.keys(state.launchedTerminals)) {
+    ids.add(terminalId)
+  }
   return [...ids].sort()
+}
+
+/**
+ * Story 5.6 (AC-3) — the launched terminals that are NOT YET represented by a c9watch board card
+ * ("starting" — live PTY, no card yet). STABLE, SORTED (by launchedAt then terminalId).
+ *
+ * Membership predicate: a `launchedTerminals` entry is "starting" iff no `sessionsById` card
+ * exists whose corresponding `terminalIdBySessionId` binding maps to this terminalId.
+ * Once `addCorrelation` lands AND the card is present in `sessionsById`, the entry drops
+ * from this result → supersede is automatic, no double-card (AC-4).
+ *
+ * Supersede window: between `launch:correlated` landing and the next card-carrying delta
+ * shipping from main, the predicate keeps the strip entry up (~one delta) — correct, avoids
+ * a flicker gap (the card isn't present yet, so this guards the "no card" case correctly).
+ *
+ * REQUIRES `useShallow` at the call site (returns an array). Derived; not stored.
+ */
+export function selectStartingTerminals(state: BoardState): LaunchedTerminal[] {
+  // Build a set of terminalIds that already have a card in sessionsById via the correlation map.
+  const correlatedTerminalIds = new Set<string>()
+  for (const [sessionId, terminalId] of Object.entries(state.terminalIdBySessionId)) {
+    if (state.sessionsById[sessionId] !== undefined) {
+      correlatedTerminalIds.add(terminalId)
+    }
+  }
+  return Object.values(state.launchedTerminals)
+    .filter((lt) => !correlatedTerminalIds.has(lt.terminalId))
+    .sort((a, b) => {
+      if (a.launchedAt !== b.launchedAt) return a.launchedAt - b.launchedAt
+      return a.terminalId < b.terminalId ? -1 : a.terminalId > b.terminalId ? 1 : 0
+    })
 }
 
 /** Story 3.4 (FR-16 / AC-1) — the SORTED session-id list the attention rail renders. SAME source

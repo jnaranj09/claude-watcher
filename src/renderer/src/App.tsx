@@ -103,6 +103,21 @@ function App(): React.JSX.Element {
     return off
   }, [smoke])
 
+  // Story 5.6 (AC-5) — subscribe to the terminal-exit push ONCE (non-smoke only).
+  // Main emits `CH.terminalExit` when a PTY exits naturally; we remove its registry entry so
+  // it leaves both `selectStartingTerminals` and `selectKeptAliveTerminalIds`. Mirrors the
+  // `window.launch.onCorrelated` effect above (subscribe-returns-unsubscribe, StrictMode-safe).
+  // `window.terminal.onExit` exists in preload (preload/index.ts:182-186) + typed in index.d.ts.
+  // `App.launch.test.tsx` stubs `window.terminal.onExit: vi.fn(() => () => {})` (:91) so the new
+  // subscription mounts cleanly there WITHOUT touching the frozen file.
+  useEffect(() => {
+    if (smoke !== false) return
+    const off = window.terminal.onExit(({ terminalId }) =>
+      boardStore.getState().forgetLaunchedTerminal(terminalId)
+    )
+    return off
+  }, [smoke])
+
   // Story 4.2 (FR-14) — subscribe to the quit-guard-show push ONCE (non-smoke only).
   // Main emits `CH.quitGuardShow` when ≥1 live app-launched session is found at quit time.
   // The renderer opens the guard modal by setting boardStore.quitGuard (RENDERER VIEW-STATE).
@@ -134,7 +149,9 @@ function App(): React.JSX.Element {
       const { terminalId } = await window.launch.launch(cwd)
       // Optimistic drop-into-Focused-session: render the terminal the moment the launch returns
       // its id (the terminal is typeable immediately; the Tgid join reconciles asynchronously).
-      boardStore.getState().openLaunchedTerminal(terminalId)
+      // Story 5.6 (AC-1): pass the cwd basename as `label` for the Starting banner display.
+      const label = cwd.split('/').filter(Boolean).pop() ?? cwd
+      boardStore.getState().openLaunchedTerminal(terminalId, label)
     } catch {
       // never-log-the-value: a code only (the rejected invoke carries the cwd — keep it off logs).
       console.warn('[c9watch][launch] code=launch_failed')
