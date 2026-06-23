@@ -41,6 +41,14 @@ useEffect(() => {
   main on every fit.
 - **Kept-alive terminals:** hide with `visibility: hidden`, NOT `display: none`
   (`display:none` collapses the box to 0×0 and breaks the next `fit()`).
+- **Hide the WHOLE frame, not just the inner host.** Kept-alive terminal frames are
+  stacked (`position:absolute`, same z-index) in `.terminalWrap`, and each frame paints
+  an OPAQUE `bg-terminal` background. If `visibility:hidden` is applied only to the inner
+  host, an inactive frame still paints its opaque background — and when it sorts later in
+  DOM order it covers the active terminal, blanking the one you're looking at whenever a
+  2nd terminal is alive. Apply the hidden toggle to the frame; `visibility:hidden` keeps
+  the layout box so the inner host stays sized for `fit()`. (This was the blank-2nd-
+  terminal bug — see `.claude/rules/troubleshooting.md` worked example.)
 - **`convertEol: false`** — let the PTY own newline semantics.
 - **WebGL is the active renderer; canvas/dom is fallback only.** On WebGL context
   loss, dispose the addon, flip to canvas, and surface it (don't keep claiming

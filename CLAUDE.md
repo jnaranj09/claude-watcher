@@ -47,6 +47,14 @@ When two rules collide, the one EARLIER in this list wins:
 5. **state ownership** — session-truth = main (from c9watch); view-state = renderer
    Zustand; derived = selectors. → `.claude/rules/state.md`
 
+## Debugging a symptom? Characterize before you theorize
+
+Before reading code or fanning out subagents on ANY bug, run the three Step-0 questions
+(data present? depends on a sibling? console empty?) — they pin the layer in under a
+minute and stop you chasing the wrong one. → `.claude/rules/troubleshooting.md`
+(symptom→layer table, cheap kill-tests, and the not-trustworthy `two-launch-screenshot`
+diagnostics trap).
+
 ## Load-bearing gotchas (the ones that cost a day if forgotten)
 
 - **node-pty + packaging:** node-pty is a native module. Keep it EXTERNALIZED in the
