@@ -165,16 +165,19 @@ describe('reducer — Decision R1 (unknown-id changed vs started)', () => {
     expect(deltas[0]?.event.type).toBe('session.updated')
   })
 
-  it('changed for an UNKNOWN id is a desync → DROP + log (does NOT invent a card)', () => {
+  it('changed for an UNKNOWN id is a desync → UPSERT + desync_healed log (Story 5.7, AC#1/#2)', () => {
     const log = vi.fn<(err: { path: string; code: string }) => void>()
     const r = createReducer({ now: () => FIXED_NOW, log })
     const id = 'cccccccc-0000-4000-8000-000000000001'
     const deltas = r.applyLine(watchLine('changed', id))
-    expect(deltas).toHaveLength(0) // no delta — nothing invented
-    expect(r.snapshotMap().has(id)).toBe(false) // card NOT invented
+    expect(deltas).toHaveLength(1) // one session.updated delta — card upserted
+    expect(deltas[0]?.event.type).toBe('session.updated')
+    expect(r.snapshotMap().has(id)).toBe(true) // card IS now in the map
+    expect(r.snapshotMap().get(id)?.id).toBe(id)
     expect(log).toHaveBeenCalledTimes(1)
     const logged = log.mock.calls[0]?.[0]
-    expect(logged?.code).toBe('unknown_id_changed')
+    expect(logged?.code).toBe('desync_healed') // heal observable, not a drop
+    expect(logged?.path).toBe('(desync)')
     expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
   })
 
@@ -198,17 +201,64 @@ describe('reducer — Decision R1 (unknown-id changed vs started)', () => {
     expect(r.snapshotMap().get(id)?.status).toBe('NeedsAttention')
   })
 
-  it('status_changed for an UNKNOWN id is a desync → DROP + log unknown_id_changed (AC#2)', () => {
+  it('status_changed for an UNKNOWN id is a desync → UPSERT + desync_healed log (Story 5.7, AC#1/#2)', () => {
     const log = vi.fn<(err: { path: string; code: string }) => void>()
     const r = createReducer({ now: () => FIXED_NOW, log })
     const id = 'ffff0001-0000-4000-8000-000000000001'
     const deltas = r.applyLine(watchLine('status_changed', id))
-    expect(deltas).toHaveLength(0) // no delta — card NOT invented
-    expect(r.snapshotMap().has(id)).toBe(false)
+    expect(deltas).toHaveLength(1) // one session.updated delta — card upserted
+    expect(deltas[0]?.event.type).toBe('session.updated')
+    expect(r.snapshotMap().has(id)).toBe(true) // card IS now in the map
+    expect(r.snapshotMap().get(id)?.id).toBe(id)
     expect(log).toHaveBeenCalledTimes(1)
     const logged = log.mock.calls[0]?.[0]
-    expect(logged?.code).toBe('unknown_id_changed')
+    expect(logged?.code).toBe('desync_healed') // heal observable, not a drop
+    expect(logged?.path).toBe('(desync)')
     expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
+  })
+
+  // Story 5.7 AC#4 — RESURRECTION: a stopped id re-appearing via status_changed is treated as
+  // an unknown-id heal → upserted as a fresh card. This LOCKS the chosen post-stop behavior.
+  // (The ship gate still protects the board: a resurrected non-launched id is dropped there.)
+  it('status_changed for a PREVIOUSLY-STOPPED id is resurrected via desync heal → upsert + desync_healed log (AC#4)', () => {
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const id = 'aaaa5700-0000-4000-8000-000000000001'
+
+    // 1. Seed the session via started.
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+    expect(r.snapshotMap().has(id)).toBe(true)
+
+    // 2. Stop it — the id is removed from the map.
+    r.applyLine(leanStopLine(id, id))
+    expect(r.snapshotMap().has(id)).toBe(false)
+
+    // 3. A later status_changed for the same id — the heal path does NOT distinguish
+    //    "never seen" from "seen-then-stopped". It treats it as an unknown-id and upserts.
+    log.mockClear()
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'Working' }))
+    expect(deltas).toHaveLength(1) // resurrected → one session.updated delta
+    expect(deltas[0]?.event.type).toBe('session.updated')
+    expect(r.snapshotMap().has(id)).toBe(true) // fresh card in the map
+    expect(r.snapshotMap().get(id)?.id).toBe(id)
+    expect(log).toHaveBeenCalledTimes(1)
+    const logged = log.mock.calls[0]?.[0]
+    expect(logged?.code).toBe('desync_healed')
+    expect(logged?.path).toBe('(desync)')
+    expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
+  })
+
+  // Story 5.7 AC#3 — a KNOWN-id normal update does NOT emit a desync_healed log.
+  it('status_changed for a KNOWN id emits NO desync_healed log (normal update path, AC#3)', () => {
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const id = 'bbbb5700-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+    log.mockClear() // clear the implicit started log (none expected, but be explicit)
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'NeedsAttention' }))
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event.type).toBe('session.updated')
+    expect(log).not.toHaveBeenCalled() // NO desync_healed log for a known-id update
   })
 })
 

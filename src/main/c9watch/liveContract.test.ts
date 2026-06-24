@@ -187,6 +187,54 @@ describe('DETERMINISTIC drift alarm — status_changed watch-line shape (Story 5
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DETERMINISTIC DRIFT ALARM — Story 5.7 (no live gate; runs everywhere).
+//
+// Closes the coverage hole that let the original DESYNC bug ship: proves that a
+// REAL new-id `status_changed` line (first event seen for a freshly app-launched
+// session under --changes-only) carries MEANINGFUL card-building fields, not just
+// that the schema accepts the shape. Without this, a future c9watch drift that
+// empties sessionName/projectPath/pid would still parse OK but produce a
+// placeholder card — and pass the Story 5.2 fixture silently.
+//
+// Source: live capture 2026-06-23 with `c9watch watch --changes-only` running,
+// fresh `claude` in /tmp/probe57, first event was `status_changed` (0 `started`).
+// `firstPrompt` and `latestMessage` SCRUBBED to inert placeholders — they are the
+// never-log sensitive fields. All other fields are from the real capture.
+// Honor never-log-the-parsed-value: value-free helpers only (path+code on drift).
+// [Source: Story 5.7 AC#5; story-5.7-handoff.md (live-value check, risk #2);
+//  .claude/rules/zod-boundaries.md (never-log-the-value)]
+// ─────────────────────────────────────────────────────────────────────────────
+describe('DETERMINISTIC drift alarm — new-id status_changed meaningful fields (Story 5.7)', () => {
+  it('2026-06-23 live-captured new-id status_changed (scrubbed) parses card-complete with meaningful values (AC#5)', () => {
+    // Real line captured 2026-06-23: a fresh app-launched claude's FIRST event under
+    // `c9watch watch --changes-only` was a `status_changed` (no preceding `started`).
+    // firstPrompt and latestMessage are SCRUBBED — they carried session content that
+    // must never be logged or committed. All other fields are from the real capture.
+    const rawLine: unknown = JSON.parse(
+      '{"event":"status_changed","session":{"firstPrompt":"<scrubbed>","id":"5277e22a-736e-499c-a90e-1379f65cc32b","latestMessage":"<scrubbed>","messageCount":3,"modified":"2026-06-23T22:32:49.171026804+00:00","pendingToolName":"Question","pid":1023340,"projectPath":"/tmp/probe57","sessionName":"probe57","status":"Working"},"sessionId":"5277e22a-736e-499c-a90e-1379f65cc32b","timestamp":"2026-06-23T22:32:49.505261541+00:00"}'
+    )
+    // parseOrDrift reports path+code only on drift — NEVER the fixture value.
+    const line = parseOrDrift(WatchLineSchema, rawLine, 'story-5.7-new-id-status_changed-scrubbed')
+
+    // (a) Schema accepts the event value.
+    expect(line.event).toBe('status_changed')
+    expect(line.sessionId).toBe('5277e22a-736e-499c-a90e-1379f65cc32b')
+
+    // (b) Card-building fields are MEANINGFUL — not empty / zero / placeholder.
+    // A future drift that empties these (the risk #2 failure mode) fails LOUDLY here.
+    const session = line.session
+    expect(session.sessionName).toBeTruthy() // non-empty string
+    expect(session.projectPath).toBeTruthy() // non-empty string
+    expect(session.pid).toBeGreaterThan(0) // valid pid
+    expect(session.status).toBeTruthy() // non-empty status
+
+    // (c) The scrubbed sensitive fields pass through as strings (schema is .passthrough(),
+    // so firstPrompt/latestMessage are unknown; we only assert the structural parse succeeded
+    // above — never assert their values here, that would re-log the placeholder at failure).
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 describeLive('LIVE c9watch contract — the two-part drift alarm (Story 0.5)', () => {
   // Every spawned `watch` process group, killed whole on every path (no orphans).
   const groups: number[] = []

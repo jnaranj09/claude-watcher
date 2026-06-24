@@ -199,14 +199,31 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
 
     if (line.event === 'changed' || line.event === 'status_changed') {
       if (!map.has(session.id)) {
-        // DESYNC: a `changed`/`status_changed` for an id we have no baseline for
-        // (missed its `started`, e.g. across a gap). Do NOT invent a card from a
-        // partial signal — the next `list` reconcile heals it idempotently +
-        // level-triggered. DROP + log.
-        log({ path: '(desync)', code: 'unknown_id_changed' })
-        return []
+        // DESYNC HEAL (Story 5.7, 2026-06-23) — Option B: upsert the session exactly
+        // like `started` instead of dropping it.
+        //
+        // Why this is safe: any line reaching here has already passed WatchLineSchema
+        // (session.ts:133-140), which requires the full SessionSchema on every
+        // non-stopped event — so every card-building field (id, status, projectPath,
+        // pid, sessionName) is present and schema-validated. A live capture
+        // (2026-06-23) confirmed those fields carry MEANINGFUL values on a fresh
+        // app-launched session's first --changes-only event: real sessionName,
+        // projectPath, pid; no placeholders. The upsert builds a complete card with no
+        // `list` reconcile needed. See story-5.7-handoff.md for the full decision log.
+        //
+        // ~~Do NOT invent a card from a partial signal — the next `list` reconcile~~
+        // ~~heals it idempotently + level-triggered. DROP + log.~~
+        // (2026-06-23, Story 5.7): the above comment was FALSE on a stable connection.
+        // The feed re-runs `list` ONLY on reconnect (feed.ts:reconnect path); on a
+        // stable connection the watch child never exits, so that promise was never kept.
+        // The session missed its `started` (--changes-only suppresses it), hit this
+        // branch, got dropped, never entered the map, never correlated (Story 5.5),
+        // never shipped a card (Story 3.3 gate) → the graduated-card was never shown.
+        // See story-5.7-handoff.md problem statement. Option A′ (reconcile-on-demand)
+        // remains a documented backstop for other desync classes not covered by B.
+        log({ path: '(desync)', code: 'desync_healed' })
       }
-      map.set(session.id, session) // normal update
+      map.set(session.id, session) // upsert — both heal and normal update land here
       lastApplied = now()
       return [frame(toUpdated(session))]
     }
