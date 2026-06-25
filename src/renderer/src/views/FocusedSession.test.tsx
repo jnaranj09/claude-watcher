@@ -237,3 +237,63 @@ describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', 
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// Spec: terminal-input-breathing-room — reserved bottom tool strip (2026-06-24)
+// ---------------------------------------------------------------------------
+
+describe('FocusedSession — reserved bottom tool strip (breathing room spec)', () => {
+  it('renders a .toolStrip sibling AFTER .terminalWrap inside .main (aria-hidden)', () => {
+    boardStore.getState().openLaunchedTerminal('launch-strip-test', 'strip-test')
+    const r = render()
+
+    // Locate .main by finding the focused-session root and then its second child
+    // (index 1 = .main; index 0 = the attention rail).
+    const focused = r.container.querySelector('[data-testid="focused-session"]')
+    expect(focused).not.toBeNull()
+
+    // .main is the second child of the focused wrapper (after AttentionRail).
+    const main = focused?.children[1] as HTMLElement | undefined
+    expect(main).not.toBeUndefined()
+
+    // Find .terminalWrap and .toolStrip among .main's direct children.
+    const children = main !== undefined ? [...main.children] : []
+    const terminalWrapIndex = children.findIndex((el) => el.className.includes('terminalWrap'))
+    const toolStripIndex = children.findIndex((el) => el.className.includes('toolStrip'))
+
+    // Both must be present.
+    expect(terminalWrapIndex).toBeGreaterThanOrEqual(0)
+    expect(toolStripIndex).toBeGreaterThanOrEqual(0)
+
+    // .toolStrip must come AFTER .terminalWrap (sibling, not child).
+    expect(toolStripIndex).toBeGreaterThan(terminalWrapIndex)
+
+    // The strip carries aria-hidden="true".
+    const toolStrip = children[toolStripIndex]
+    expect(toolStrip?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('the tool strip is NOT inside .terminalWrap (must stay out of the terminal stacking context)', () => {
+    boardStore.getState().openLaunchedTerminal('launch-strip-placement', 'strip-placement')
+    const r = render()
+
+    const focused = r.container.querySelector('[data-testid="focused-session"]')
+    const main = focused?.children[1] as HTMLElement | undefined
+    const terminalWrap =
+      main !== undefined
+        ? [...main.children].find((el) => el.className.includes('terminalWrap'))
+        : undefined
+
+    expect(terminalWrap).not.toBeUndefined()
+
+    // The .toolStrip div must NOT be a descendant of .terminalWrap.
+    // (Query by CSS module class substring — it is NOT a child of the wrap.)
+    const stripInsideWrap =
+      terminalWrap !== undefined
+        ? [...terminalWrap.querySelectorAll('*')].find((el) =>
+            el.className.includes('toolStrip')
+          )
+        : undefined
+    expect(stripInsideWrap).toBeUndefined()
+  })
+})

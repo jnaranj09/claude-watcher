@@ -19,6 +19,7 @@
   min-width: 0;
   height: 100%;
   box-sizing: border-box;
+  --terminal-tools-h: 40px; /* reserved bottom strip; tunable */
 }
 
 .bar {
@@ -108,5 +109,13 @@
    each kept-alive terminal has the same full-size box. */
 .terminalWrap > * {
   position: absolute;
-  inset: var(--space-2);
+  inset: var(--space-3); /* was var(--space-2); modest all-around padding */
+}
+
+/* Reserved bottom strip — breathing room now, toolbar mount point later.
+   Fixed height (no grow/shrink) so the terminal lifts off the window edge.
+   No bg / no border for now (see Ask-First: optional faint divider). */
+.toolStrip {
+  flex: 0 0 var(--terminal-tools-h);
+  box-sizing: border-box;
 }
