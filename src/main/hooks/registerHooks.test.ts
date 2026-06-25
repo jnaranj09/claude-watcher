@@ -40,6 +40,9 @@ describe('registerHooks — idempotent merge into settings.json', () => {
     const parsed = readSettings(path) as Record<string, unknown>
     const hooks = parsed['hooks'] as Record<string, unknown>
     expect(hooks).toBeDefined()
+    // Notification is a registered event (Phase 2: permission_prompt → needs-you).
+    expect(REGISTERED_EVENTS).toContain('Notification')
+    expect(hooks['Notification']).toBeDefined()
     for (const eventName of REGISTERED_EVENTS) {
       const arr = hooks[eventName] as unknown[]
       expect(Array.isArray(arr)).toBe(true)
@@ -65,6 +68,8 @@ describe('registerHooks — idempotent merge into settings.json', () => {
 
     const parsed = readSettings(path) as Record<string, unknown>
     const hooks = parsed['hooks'] as Record<string, unknown>
+    // Notification merges idempotently like every other registered event.
+    expect(hooks['Notification']).toBeDefined()
     for (const eventName of REGISTERED_EVENTS) {
       const arr = hooks[eventName] as unknown[]
       // Count occurrences of our HOOK_URL in this event's hook list

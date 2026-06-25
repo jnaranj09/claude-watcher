@@ -327,7 +327,7 @@ function registerWatchFeed(window: BrowserWindow): void {
   // HookStatusChange and dispatches applyHookStatus → handleDelta.
   const hookServer = createHookServer({
     onHookEvent: (evt) => {
-      const change = hookStatus(evt.hook_event_name)
+      const change = hookStatus(evt)
       if (change === null) return // unrecognized event — ignore
       reducer.applyHookStatus(evt.session_id, change, HOOK_AUTHORITY_MS).forEach(handleDelta)
     },

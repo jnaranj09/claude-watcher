@@ -36,7 +36,7 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
     expect(result.data.cwd).toBe('/home/user/project')
   })
 
-  it('passes through unknown fields (e.g. last_assistant_message, prompt) without failing', () => {
+  it('passes through unknown fields (e.g. prompt, tool_input) without failing', () => {
     const result = HookEventSchema.safeParse({
       session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
       hook_event_name: 'Stop',
@@ -46,6 +46,97 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
     })
     // .passthrough() means unknown keys are preserved, not rejected
     expect(result.success).toBe(true)
+  })
+
+  it('passes through a truly-unknown key (passthrough still absorbs after Phase-2 optionals)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'PreToolUse',
+      some_brand_new_field: 'a field this schema has never heard of',
+      another_unknown: { nested: 'value' }
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    // the unknown key survives parse (passthrough preserves it)
+    expect((result.data as Record<string, unknown>).some_brand_new_field).toBe(
+      'a field this schema has never heard of'
+    )
+  })
+
+  it('parses the Phase-2 typed optionals when present (notification_type, tool_name, last_assistant_message)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Notification',
+      notification_type: 'permission_prompt',
+      tool_name: 'AskUserQuestion',
+      last_assistant_message: 'Are we good to proceed?'
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.notification_type).toBe('permission_prompt')
+    expect(result.data.tool_name).toBe('AskUserQuestion')
+    expect(result.data.last_assistant_message).toBe('Are we good to proceed?')
+  })
+
+  it('keeps the Phase-2 optionals free strings (an unknown value still parses — NOT enum-locked)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Notification',
+      notification_type: 'some_brand_new_notification_kind',
+      tool_name: 'SomeFutureTool'
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.notification_type).toBe('some_brand_new_notification_kind')
+    expect(result.data.tool_name).toBe('SomeFutureTool')
+  })
+
+  it('parses when the Phase-2 optionals are absent (optional → undefined, still valid)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Stop'
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.notification_type).toBeUndefined()
+    expect(result.data.tool_name).toBeUndefined()
+    expect(result.data.last_assistant_message).toBeUndefined()
+  })
+
+  it('fails closed on a WRONG TYPE for a present notification_type (number, not string)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Notification',
+      notification_type: 123
+    })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    const issue = result.error.issues[0]
+    expect((issue?.path ?? []).join('.')).toBe('notification_type')
+  })
+
+  it('fails closed on a WRONG TYPE for a present tool_name (object, not string)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'PreToolUse',
+      tool_name: { not: 'a string' }
+    })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    const issue = result.error.issues[0]
+    expect((issue?.path ?? []).join('.')).toBe('tool_name')
+  })
+
+  it('fails closed on a WRONG TYPE for a present last_assistant_message (number, not string)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Stop',
+      last_assistant_message: 42
+    })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    const issue = result.error.issues[0]
+    expect((issue?.path ?? []).join('.')).toBe('last_assistant_message')
   })
 
   it('fails closed on a blank session_id', () => {

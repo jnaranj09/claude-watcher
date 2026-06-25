@@ -1,38 +1,67 @@
-// Hook-status feature — pure event-name → HookStatusChange mapper.
+// Hook-status feature — pure event-OBJECT → HookStatusChange mapper.
 //
-// Maps a Claude Code lifecycle hook event name to the appropriate reducer action.
-// Returns `null` for any unrecognized event name (future events pass through the
-// HTTP boundary but are quietly ignored). This is the ONLY place the mapping lives.
+// Maps a validated Claude Code lifecycle hook EVENT to the appropriate reducer
+// action. Phase 2 reads typed optional fields off the event (notification_type,
+// tool_name, last_assistant_message) so hooks can express `needs-you` directly:
+//   - Notification(permission_prompt) → NeedsPermission  (→ needs-you column)
+//   - PreToolUse(AskUserQuestion)     → NeedsAttention   (→ needs-you column)
+//   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
+// Returns `null` for any event we choose to ignore (idle_prompt — Stop owns idle)
+// or any unrecognized event name (future events pass the HTTP boundary but are
+// quietly ignored — never fail-closed on an unknown name). This is the ONLY place
+// the mapping lives.
 //
-// Using type-only import for HookStatusChange (consistent-type-imports enforced by
-// ESLint). The reducer does NOT import this module — the hooks layer owns the
-// consumer-side mapping; the reducer owns the HookStatusChange input contract.
-// [.claude/rules/ipc.md; spec Code Map]
+// Using type-only imports (consistent-type-imports enforced by ESLint). The reducer
+// does NOT import this module — the hooks layer owns the consumer-side mapping; the
+// reducer owns the HookStatusChange input contract.
+// [.claude/rules/ipc.md; .claude/rules/zod-boundaries.md; spec Code Map]
 
 import type { HookStatusChange } from '../c9watch/reducer'
+import type { HookEvent } from '../../shared/schemas/hookEvent'
+import { endsWithQuestion } from './endsWithQuestion'
 
 /**
- * Map a Claude Code lifecycle hook event name to a `HookStatusChange`, or `null`
- * if the event name is unrecognized / should be ignored.
+ * Map a validated Claude Code lifecycle hook event to a `HookStatusChange`, or
+ * `null` if the event should be ignored.
  *
- * Mapping (from the I/O matrix):
- * - `UserPromptSubmit` | `PreToolUse` | `PostToolUse` | `SessionStart` → `Working`
- * - `Stop` → `WaitingForInput`
+ * Mapping:
+ * - `Notification` & `notification_type === 'permission_prompt'` → `NeedsPermission`
+ * - `Notification` & `idle_prompt` (or any other type)          → `null` (ignore — Stop owns idle)
+ * - `PreToolUse` & `tool_name === 'AskUserQuestion'`            → `NeedsAttention`
+ * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` | `SessionStart` → `Working`
+ * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question,
+ *            else `WaitingForInput` (idle; absent message → idle, safe default)
  * - `SessionEnd` → `{ kind: 'removed' }`
  * - anything else → `null` (future events ignored, never fail-closed on an unknown name)
  *
- * This is a PURE function: no side-effects, no I/O, deterministic.
+ * This is a PURE function: no side-effects, no I/O, no logging (the event fields
+ * are SENSITIVE — never log `evt` or any field), deterministic.
  */
-export function hookStatus(name: string): HookStatusChange | null {
-  switch (name) {
-    case 'UserPromptSubmit':
+export function hookStatus(evt: HookEvent): HookStatusChange | null {
+  switch (evt.hook_event_name) {
+    case 'Notification':
+      // Only an immediate permission_prompt drives needs-you. idle_prompt (a ~60s
+      // debounce) and any other notification type are ignored — Stop owns idle.
+      return evt.notification_type === 'permission_prompt'
+        ? { kind: 'status', status: 'NeedsPermission' }
+        : null
+
     case 'PreToolUse':
+      // AskUserQuestion is a deterministic "blocking on a structured question" signal.
+      return evt.tool_name === 'AskUserQuestion'
+        ? { kind: 'status', status: 'NeedsAttention' }
+        : { kind: 'status', status: 'Working' }
+
+    case 'UserPromptSubmit':
     case 'PostToolUse':
     case 'SessionStart':
       return { kind: 'status', status: 'Working' }
 
     case 'Stop':
-      return { kind: 'status', status: 'WaitingForInput' }
+      // A turn that ends by asking the user something flips to needs-you; otherwise idle.
+      return endsWithQuestion(evt.last_assistant_message)
+        ? { kind: 'status', status: 'NeedsAttention' }
+        : { kind: 'status', status: 'WaitingForInput' }
 
     case 'SessionEnd':
       return { kind: 'removed' }

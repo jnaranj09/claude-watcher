@@ -19,6 +19,8 @@ export const HOOK_URL = `http://${HOST}:${PORT}/`
  * carries `session_id` (verified in the P0 spike, claude v2.1.190).
  *
  * - Active events (UserPromptSubmit / PreToolUse / PostToolUse / SessionStart) → `Working`
+ * - Notification → carries `notification_type`: `permission_prompt` → `NeedsPermission`
+ *   (immediate, sub-second); `idle_prompt` is ignored (~60s debounce — Stop owns idle)
  * - Stop → `WaitingForInput`
  * - SessionEnd → `session.removed`
  */
@@ -27,6 +29,7 @@ export const REGISTERED_EVENTS: readonly string[] = [
   'PreToolUse',
   'PostToolUse',
   'SessionStart',
+  'Notification',
   'Stop',
   'SessionEnd'
 ]

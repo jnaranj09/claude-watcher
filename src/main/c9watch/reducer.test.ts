@@ -469,6 +469,80 @@ describe('reducer — applyHookStatus (hook-status feature)', () => {
     if (evt2?.type === 'session.updated') expect(evt2.status).toBe('WaitingForInput')
   })
 
+  // Phase 2 — hooks express needs-you directly. NeedsPermission/NeedsAttention are real
+  // c9watch status strings; the reducer carries the free string through verbatim (no
+  // enum-lock, no reducer change). columnForStatus maps both to needs-you BY CONSTRUCTION
+  // (asserted end-to-end below), so the reducer's only job is to ship the status faithfully.
+  it('hook NeedsPermission ships a session.updated CARRYING status NeedsPermission', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hookperm-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+
+    const deltas = r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' }, 10_000)
+    expect(deltas).toHaveLength(1)
+    const evt = deltas[0]?.event
+    expect(evt?.type).toBe('session.updated')
+    if (evt?.type === 'session.updated') expect(evt.status).toBe('NeedsPermission')
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsPermission')
+  })
+
+  it('hook NeedsAttention ships a session.updated CARRYING status NeedsAttention', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hookattn-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+
+    const deltas = r.applyHookStatus(id, { kind: 'status', status: 'NeedsAttention' }, 10_000)
+    expect(deltas).toHaveLength(1)
+    const evt = deltas[0]?.event
+    expect(evt?.type).toBe('session.updated')
+    if (evt?.type === 'session.updated') expect(evt.status).toBe('NeedsAttention')
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsAttention')
+  })
+
+  it('authority window honors a NeedsPermission hook: a stale c9watch line within the window does NOT override it', () => {
+    // hook stamps NeedsPermission at T=0 (window=10000). A c9watch line at T=5000 (within
+    // the window) reports Working — the hook-set needs-you status must WIN (otherwise the
+    // 10s-late poll would silently downgrade the board out of needs-you, the exact lag
+    // Phase 2 exists to kill).
+    let currentTime = FIXED_NOW
+    const r = createReducer({ now: () => currentTime })
+    const id = 'hookperm-0000-4000-8000-000000000002'
+
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+
+    currentTime = FIXED_NOW
+    r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' }, 10_000)
+
+    currentTime = FIXED_NOW + 5_000 // within the 10s window
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'Working' }))
+
+    expect(deltas).toHaveLength(1)
+    const evt = deltas[0]?.event
+    expect(evt?.type).toBe('session.updated')
+    if (evt?.type === 'session.updated') expect(evt.status).toBe('NeedsPermission') // hook wins
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsPermission')
+  })
+
+  it('authority window honors a NeedsAttention hook: a stale c9watch line within the window does NOT override it', () => {
+    let currentTime = FIXED_NOW
+    const r = createReducer({ now: () => currentTime })
+    const id = 'hookattn-0000-4000-8000-000000000002'
+
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+
+    currentTime = FIXED_NOW
+    r.applyHookStatus(id, { kind: 'status', status: 'NeedsAttention' }, 10_000)
+
+    currentTime = FIXED_NOW + 5_000 // within the 10s window
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'WaitingForInput' }))
+
+    expect(deltas).toHaveLength(1)
+    const evt = deltas[0]?.event
+    expect(evt?.type).toBe('session.updated')
+    if (evt?.type === 'session.updated') expect(evt.status).toBe('NeedsAttention') // hook wins
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsAttention')
+  })
+
   it('hook removed emits session.removed and deletes from map', () => {
     const r = createReducer({ now: () => FIXED_NOW })
     const id = 'hook0003-0000-4000-8000-000000000001'

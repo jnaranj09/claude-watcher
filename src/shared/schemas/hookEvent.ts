@@ -24,14 +24,23 @@ import { z } from 'zod'
  *
  * IMPORTANT: `.passthrough()` only absorbs UNKNOWN keys. The declared keys are still
  * strictly validated — blank session_id or missing hook_event_name will fail closed.
+ *
+ * Phase 2: `notification_type`, `tool_name`, and `last_assistant_message` are promoted
+ * from passthrough extras to TYPED OPTIONALS so hookStatus can read them to drive
+ * `needs-you`. They stay free strings (NOT enum-locked) — a new/unknown value must pass,
+ * not fail closed. Absent is fine (optional); a present field of the WRONG TYPE still
+ * fails closed (same min/strict discipline as the other declared keys).
  */
 export const HookEventSchema = z
   .object({
     session_id: z.string().min(1), // stable UUID — the identity key; blank fails closed
     hook_event_name: z.string(), // lifecycle event name; NOT enum-locked
-    cwd: z.string().optional() // working dir (verified in P0 spike); safe to capture
+    cwd: z.string().optional(), // working dir (verified in P0 spike); safe to capture
+    notification_type: z.string().optional(), // Notification kind (e.g. permission_prompt); NOT enum-locked
+    tool_name: z.string().optional(), // PreToolUse tool name (e.g. AskUserQuestion); NOT enum-locked
+    last_assistant_message: z.string().optional() // Stop prose (SENSITIVE — never log the value)
   })
-  .passthrough() // absorbs prompt/tool_input/last_assistant_message without validating
+  .passthrough() // absorbs remaining prompt/tool_input fields without validating
 
 /**
  * The hook event type — INFERRED from the schema (one source of truth, never a
