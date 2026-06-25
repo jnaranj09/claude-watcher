@@ -437,3 +437,153 @@ describe('reducer — Decision R2/R3 epoch idempotency + reconnect-no-drop (AC-2
     expect(lineDeltas[0]?.epoch).toBe(seed.epoch)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Hook-status feature: applyHookStatus + authority-window guard in applyLine
+// ---------------------------------------------------------------------------
+
+describe('reducer — applyHookStatus (hook-status feature)', () => {
+  it('hook Working sets status to Working + emits session.updated', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook0001-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id, { status: 'WaitingForInput' }))
+
+    const deltas = r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+    expect(deltas).toHaveLength(1)
+    const evt0 = deltas[0]?.event
+    expect(evt0?.type).toBe('session.updated')
+    if (evt0?.type === 'session.updated') expect(evt0.status).toBe('Working')
+    // The map should reflect Working
+    expect(r.snapshotMap().get(id)?.status).toBe('Working')
+  })
+
+  it('hook WaitingForInput sets status + emits session.updated', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook0002-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+
+    const deltas = r.applyHookStatus(id, { kind: 'status', status: 'WaitingForInput' }, 10_000)
+    expect(deltas).toHaveLength(1)
+    const evt2 = deltas[0]?.event
+    expect(evt2?.type).toBe('session.updated')
+    if (evt2?.type === 'session.updated') expect(evt2.status).toBe('WaitingForInput')
+  })
+
+  it('hook removed emits session.removed and deletes from map', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook0003-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id))
+
+    const deltas = r.applyHookStatus(id, { kind: 'removed' }, 10_000)
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event.type).toBe('session.removed')
+    expect(r.snapshotMap().has(id)).toBe(false)
+  })
+
+  it('unknown session_id → [] + log { path: "(hook)", code: "hook_unknown_id" } (no upsert)', () => {
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const id = 'hook0004-0000-4000-8000-000000000001'
+    // id NOT in the map
+
+    const deltas = r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+    expect(deltas).toHaveLength(0) // no-op
+    expect(r.snapshotMap().has(id)).toBe(false) // NOT upserted (deliberate divergence)
+    expect(log).toHaveBeenCalledTimes(1)
+    const logged = log.mock.calls[0]?.[0]
+    expect(logged?.path).toBe('(hook)')
+    expect(logged?.code).toBe('hook_unknown_id')
+    // Only {path, code} — no body/value
+    expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
+  })
+
+  it('authority window: c9watch line arriving before expiry keeps hook status, merges other fields', () => {
+    // Simulate: hook stamps Working at T=0 with WINDOW=10000.
+    // A c9watch line arrives at T=5000 (within the window) with WaitingForInput.
+    // Expected: status stays Working (hook wins), but other fields (e.g. projectPath) update.
+    let currentTime = FIXED_NOW
+    const r = createReducer({ now: () => currentTime })
+    const id = 'hook0005-0000-4000-8000-000000000001'
+
+    // Seed the session
+    r.applyLine(watchLine('started', id, { status: 'Working', projectPath: '/old' }))
+
+    // Hook fires at T=0: stamps Working + hookAuthorityUntil = T + 10000
+    currentTime = FIXED_NOW
+    r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+
+    // c9watch line arrives at T=5000 (within window): reports WaitingForInput + new projectPath
+    currentTime = FIXED_NOW + 5_000 // within the 10s window
+    const line = watchLine('status_changed', id, { status: 'WaitingForInput', projectPath: '/new' })
+    const deltas = r.applyLine(line)
+
+    // Delta is emitted (the merge still produces an update)
+    expect(deltas).toHaveLength(1)
+    const evtMerge = deltas[0]?.event
+    expect(evtMerge?.type).toBe('session.updated')
+    // Hook status is PRESERVED (Working, not WaitingForInput)
+    if (evtMerge?.type === 'session.updated') expect(evtMerge.status).toBe('Working')
+    // Other fields are still updated (merge not suppress)
+    expect(r.snapshotMap().get(id)?.projectPath).toBe('/new')
+  })
+
+  it('authority window: c9watch line arriving after expiry lets c9watch resume authority', () => {
+    let currentTime = FIXED_NOW
+    const r = createReducer({ now: () => currentTime })
+    const id = 'hook0006-0000-4000-8000-000000000001'
+
+    // Seed the session
+    r.applyLine(watchLine('started', id, { status: 'Working' }))
+
+    // Hook fires at T=0: stamps Working + window=10000
+    currentTime = FIXED_NOW
+    r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+
+    // c9watch line arrives AFTER the window: T = FIXED_NOW + 15000
+    currentTime = FIXED_NOW + 15_000 // window has expired
+    const line = watchLine('status_changed', id, { status: 'WaitingForInput' })
+    const deltas = r.applyLine(line)
+
+    expect(deltas).toHaveLength(1)
+    // c9watch resumes: WaitingForInput wins after the window
+    const evtExpired = deltas[0]?.event
+    if (evtExpired?.type === 'session.updated') expect(evtExpired.status).toBe('WaitingForInput')
+    expect(r.snapshotMap().get(id)?.status).toBe('WaitingForInput')
+  })
+
+  it('hook stamps hookAuthorityUntil using the SAME injected now() clock (single clock)', () => {
+    const nowValues: number[] = []
+    let currentTime = FIXED_NOW
+    const r = createReducer({
+      now: () => {
+        nowValues.push(currentTime)
+        return currentTime
+      }
+    })
+    const id = 'hook0007-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id))
+    nowValues.length = 0 // reset after seed
+
+    r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+    // The now() was called; the stamp should be FIXED_NOW + 10000
+    // We verify this indirectly: a c9watch line at T = FIXED_NOW + 9999 is still suppressed
+    currentTime = FIXED_NOW + 9_999
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'WaitingForInput' }))
+    const evtClock = deltas[0]?.event
+    if (evtClock?.type === 'session.updated') expect(evtClock.status).toBe('Working') // still suppressed → hook wins
+  })
+
+  it('snapshotMap does not expose statusSource or hookAuthorityUntil to callers', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook0008-0000-4000-8000-000000000001'
+    r.applyLine(watchLine('started', id))
+    r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+
+    const snap = r.snapshotMap()
+    const session = snap.get(id) as Record<string, unknown>
+    expect(session).toBeDefined()
+    // Internal hook fields must NOT be visible on the public Session snapshot
+    expect(Object.prototype.hasOwnProperty.call(session, 'statusSource')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(session, 'hookAuthorityUntil')).toBe(false)
+  })
+})

@@ -28,6 +28,30 @@ import type {
   ReducerWatchEventsPayload
 } from '../../shared/ipc/contract'
 
+/**
+ * Reducer-internal extended session that carries the hook-authority stamp.
+ * NEVER emitted to the renderer or added to SessionSchema. The renderer stays
+ * unaware of `statusSource`/`hookAuthorityUntil`. [spec Design Notes]
+ */
+type StoredSession = Session & {
+  /** Which source last set the `status` field. */
+  statusSource?: 'hook' | 'c9watch'
+  /**
+   * Epoch-millis until which the hook-set status outranks a c9watch-polled line.
+   * `applyLine` suppresses (but still merges other fields from) a c9watch line that
+   * arrives before this timestamp. After expiry, c9watch resumes authority.
+   */
+  hookAuthorityUntil?: number
+}
+
+/**
+ * The discriminated union of hook-driven status changes. Exported so `hookStatus.ts`
+ * can import the input contract without the reducer importing the hooks layer.
+ * (consistent-type-imports: import type only — the reducer must NOT be a runtime
+ * dependency of the hooks layer.)
+ */
+export type HookStatusChange = { kind: 'status'; status: string } | { kind: 'removed' }
+
 /** A boundary failure record — PATH + CODE only, NEVER the parsed/raw value.
  *  (A ZodError stringifies its INPUT, which can carry PTY content / prompts /
  *  secrets. .claude/rules/zod-boundaries.md#Never-log-the-parsed-value.) */
@@ -56,6 +80,21 @@ export interface Reducer {
   /** Parse + validate + apply ONE raw `watch` NDJSON line; returns the deltas it
    *  produced (empty if the line was dropped or was a no-op). Never throws. */
   applyLine(rawLine: string): SessionDelta[]
+  /**
+   * Apply a hook-driven status change (or session removal) for a known session `id`.
+   * Returns the deltas produced (a single `session.updated` or `session.removed`).
+   *
+   * IMPORTANT: unknown `id` → returns `[]` + logs `{ path: '(hook)', code: 'hook_unknown_id' }`.
+   * This is a DELIBERATE divergence from the Story-5.7 desync-heal upsert in `applyLine`
+   * (which upserts an unknown-id changed line). Hook signals are authority over STATUS for an
+   * already-known session only; they must NOT synthesize a card for an unknown session —
+   * discovery remains c9watch's job.
+   *
+   * Stamps `hookAuthorityUntil = now() + authorityWindowMs` using the reducer's injected `now()`
+   * (single deterministic clock). The reducer does NOT import the hooks/ module; the
+   * `HOOK_AUTHORITY_MS` constant is passed by the caller.
+   */
+  applyHookStatus(id: string, change: HookStatusChange, authorityWindowMs: number): SessionDelta[]
   /** Parse a `list` snapshot (THROWS on a malformed envelope — the caller decides
    *  reconnect/back-off), bump the monotonic epoch, diff vs the current map, and
    *  return the reconcile deltas. Idempotent: re-applying the same snapshot
@@ -124,12 +163,50 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   const now = options.now ?? Date.now
   const log = options.log ?? defaultLog
 
-  const map = new Map<string, Session>()
+  // StoredSession extends Session with hook-authority fields (reducer-internal only;
+  // never emitted or added to SessionSchema).
+  const map = new Map<string, StoredSession>()
   let currentEpoch = 0
   let lastApplied: number | null = null
 
   function frame(event: ReducerSessionUpdatedEvent | SessionRemovedEvent): SessionDelta {
     return { epoch: currentEpoch, event }
+  }
+
+  /**
+   * Apply a hook-driven status change for a KNOWN session.
+   * Unknown id → return [] + log hook_unknown_id (deliberate no-upsert — see interface).
+   * Stamps hookAuthorityUntil = now() + authorityWindowMs using the injected clock.
+   */
+  function applyHookStatus(
+    id: string,
+    change: HookStatusChange,
+    authorityWindowMs: number
+  ): SessionDelta[] {
+    const stored = map.get(id)
+    if (stored === undefined) {
+      // Unknown id: no-op + log. Path = '(hook)' to distinguish from c9watch drops.
+      log({ path: '(hook)', code: 'hook_unknown_id' })
+      return []
+    }
+
+    if (change.kind === 'removed') {
+      // SessionEnd: remove the session from the map and emit session.removed.
+      map.delete(id)
+      lastApplied = now()
+      return [frame(toRemoved(id, stored))]
+    }
+
+    // kind === 'status': update status + stamp hook authority window.
+    const updated: StoredSession = {
+      ...stored,
+      status: change.status,
+      statusSource: 'hook',
+      hookAuthorityUntil: now() + authorityWindowMs
+    }
+    map.set(id, updated)
+    lastApplied = now()
+    return [frame(toUpdated(updated))]
   }
 
   function applyLine(rawLine: string): SessionDelta[] {
@@ -192,13 +269,16 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     const session = line.session
     if (line.event === 'started') {
       // a started event is the genuine birth of a session → upsert.
+      // Hook-authority fields are NOT carried by c9watch lines; a fresh started event
+      // replaces the stored session entirely (the session is genuinely new).
       map.set(session.id, session)
       lastApplied = now()
       return [frame(toUpdated(session))]
     }
 
     if (line.event === 'changed' || line.event === 'status_changed') {
-      if (!map.has(session.id)) {
+      const stored = map.get(session.id)
+      if (stored === undefined) {
         // DESYNC HEAL (Story 5.7, 2026-06-23) — Option B: upsert the session exactly
         // like `started` instead of dropping it.
         //
@@ -222,8 +302,31 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
         // See story-5.7-handoff.md problem statement. Option A′ (reconcile-on-demand)
         // remains a documented backstop for other desync classes not covered by B.
         log({ path: '(desync)', code: 'desync_healed' })
+        map.set(session.id, session) // upsert — desync heal; no prior hook authority
+        lastApplied = now()
+        return [frame(toUpdated(session))]
       }
-      map.set(session.id, session) // upsert — both heal and normal update land here
+
+      // Hook-authority suppression guard (spec Design Notes): if the session has an
+      // active hook-authority window (now() < hookAuthorityUntil), KEEP the hook-set
+      // status + stamp, but still merge the line's other fields so they stay fresh.
+      // After the window expires, behave normally (the c9watch line wins).
+      const hookUntil = stored.hookAuthorityUntil
+      if (hookUntil !== undefined && now() < hookUntil) {
+        // Under hook authority: merge all fields EXCEPT status (keep the hook-set one).
+        // Also preserve the hook-authority stamp fields so the window remains active.
+        // Use explicit presence checks to satisfy exactOptionalPropertyTypes.
+        const merged: StoredSession = { ...session, status: stored.status }
+        if (stored.statusSource !== undefined) merged.statusSource = stored.statusSource
+        if (stored.hookAuthorityUntil !== undefined)
+          merged.hookAuthorityUntil = stored.hookAuthorityUntil
+        map.set(session.id, merged)
+        lastApplied = now()
+        return [frame(toUpdated(merged))]
+      }
+
+      // Normal update: hook authority expired or was never set — c9watch resumes.
+      map.set(session.id, session) // upsert — clears hook stamp by omission
       lastApplied = now()
       return [frame(toUpdated(session))]
     }
@@ -318,9 +421,25 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
 
   return {
     applyLine,
+    applyHookStatus,
     seedFromSnapshot,
     seedFromSnapshotRaw,
-    snapshotMap: () => new Map(map),
+    // snapshotMap strips the internal StoredSession hook-authority fields before
+    // returning, so callers always see a clean Session map (the hook stamp is
+    // reducer-internal and must never leak to the renderer or tests).
+    snapshotMap: (): Map<string, Session> => {
+      const out = new Map<string, Session>()
+      for (const [id, stored] of map) {
+        // Build a plain Session by omitting the internal StoredSession fields.
+        // We cannot use destructure-rest here (no-unused-vars on the omitted names),
+        // so we copy the stored object and delete the internal keys on the copy.
+        const copy = { ...stored } as Record<string, unknown>
+        delete copy['statusSource']
+        delete copy['hookAuthorityUntil']
+        out.set(id, copy as Session)
+      }
+      return out
+    },
     size: () => map.size,
     epoch: () => currentEpoch,
     lastAppliedAt: () => lastApplied

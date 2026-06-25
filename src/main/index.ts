@@ -14,7 +14,8 @@ import type {
   PtyResizeRequest,
   SmokeReport,
   TerminalPortMainMessage,
-  TerminalPortRendererMessage
+  TerminalPortRendererMessage,
+  ReducerWatchEventsPayload
 } from '../shared/ipc/contract'
 // Story 3.1 (FR-10) — the embedded-terminal transport: the MAIN-side terminal manager (one
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
@@ -97,6 +98,14 @@ import {
 } from './lifecycle/quitGuard'
 import { QuitGuardPayloadSchema } from '../shared/schemas/quitGuard'
 import type { QuitGuardPayload } from '../shared/ipc/contract'
+// Hook-status feature — real-time session status from Claude Code lifecycle hooks.
+// The hook server binds a localhost HTTP listener; hook events flow through the SAME
+// handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
+// registerHooks idempotently merges the app hook block into ~/.claude/settings.json.
+import { createHookServer, type HookServer } from './hooks/hookServer'
+import { hookStatus } from './hooks/hookStatus'
+import { registerHooks } from './hooks/registerHooks'
+import { HOOK_AUTHORITY_MS } from './hooks/hookContract'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -152,6 +161,9 @@ let launchService: LaunchService | null = null
 // `session.removed`, epoch-framed) over CH.watchEvents. The feed is INDEPENDENT of
 // the PTY registry above — a watch reconnect must never touch PTY state.
 const feeds = new Map<Electron.WebContents, Feed>()
+// Hook-status feature — per-window hook HTTP listener handle, closed in teardownWatchFeed
+// (mirrors `feeds`). Prevents an EADDRINUSE leak when a window closes→reopens or HMR reloads.
+const hookServers = new Map<Electron.WebContents, HookServer>()
 
 // Story 2.3 — one tray controller per window (same lifetime as the feed/reducer/tracker/
 // notifier). It mirrors the live needs-you+idle count onto the OS tray icon (PAINTED badge,
@@ -241,72 +253,91 @@ function registerWatchFeed(window: BrowserWindow): void {
     log: (message) => console.warn(message)
   })
   trays.set(wc, tray)
+  // Hook-status feature — extract the onDelta body into a named handleDelta so that
+  // hook deltas can route through the SAME chokepoint (same enrich/column/tray/attention
+  // treatment). The spec requires this extraction: hook events call
+  // reducer.applyHookStatus(...).forEach(handleDelta) — same path, no new channel.
+  function handleDelta(delta: ReducerWatchEventsPayload): void {
+    if (wc.isDestroyed()) return
+    // Story 1.4 ORDERING (re-ordered from 1.2): the tracker MUST process THIS delta
+    // BEFORE we enrich+send a `session.updated`, so `tracker.columnOf(id)` /
+    // `tracker.enteredColumnAt(id)` reflect this edge. So we run `tracker.onDelta`
+    // FIRST (it both updates the tracker's column map AND returns any attention.raised
+    // for the edge), THEN enrich the updated delta from the now-current tracker, THEN
+    // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
+    // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
+    const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
+    // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
+    // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 — the
+    // onDelta path already runs per delta with the current snapshotMap; no new polling loop).
+    // This RE-RESOLVES the Tgid each time (the reported pid wanders — never cached) and adds a
+    // landed join's session id to the launched-set. It NEVER throws (fail-closed throughout) and
+    // is independent of the board ship below — a correlation failure never blocks a delta. The
+    // launch service is null until app-ready constructs it (a race during startup is a no-op).
+    // It CONSUMES the reducer's already-parsed Session map (parse-once; never re-parses JSON).
+    launchService?.correlateAgainst(reducer.snapshotMap().values())
+    // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
+    // for EVERY delta type (session.updated can raise/lower the count via a column change;
+    // session.removed lowers it when the removed session was in needs-you). The badge counts
+    // needs-you ONLY (Jose 2026-06-19 / UX-DR3) — idle/working never count. Recompute-from-truth
+    // (cheap, can't drift) rather than incrementally diff; the controller no-ops when the
+    // count is unchanged. Derives from the SAME snapshotMap + columnForStatus the board uses
+    // (single source of truth, AC-3). Never throws (never-crash, AC-8).
+    // Story 3.3 — narrow the count to LAUNCHED sessions only (the SAME membership source as the
+    // board + attention): an external needs-you session never bumps the tray badge (AC-3).
+    tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
+    const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
+    // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
+    // enricher logged it by path+code) — we do not ship a half-formed delta. A
+    // `session.removed` (no enrichment) and a passed `session.updated` send as-is —
+    // epoch-framed on the SAME CH.watchEvents channel (const, never a string literal).
+    // Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate: ship ONLY launched-set
+    // members. An external/Konsole session's delta is NOT sent, so the renderer board store
+    // never learns of it and it never becomes a card (AC-2). The gate keys on the stable
+    // `id` (NEVER pid). `session.removed` is INSIDE the gate by design: if its id is in the
+    // set, the removed delta DOES ship so the card vanishes (edge case (a) — no stranded
+    // stale card); if its id was never launched, there was no card to remove anyway.
+    if (outbound !== null && shouldShipToBoard(outbound.event, (id) => launchedSet.has(id))) {
+      wc.send(CH.watchEvents, outbound)
+    }
+    // Then any attention.raised for the SAME edge, framed with the SAME epoch.
+    // Re-check the destroyed window per send: a late event after close is a no-op.
+    // Story 3.3 — the ATTENTION emission gate at the SOURCE: only a LAUNCHED session's raise
+    // is emitted. Gating BOTH the renderer SEND and notifier.notify() here narrows EVERY
+    // attention consumer from ONE place — the renderer never receives an external raise so the
+    // SOUND (useAttentionSound, rides CH.watchEvents) and any rail SOURCE (Story 3.4) auto-
+    // narrow, and the JUMP-TO-CARD (CH.attentionActivate, pushed from the notifier's
+    // onActivate) cannot fire because no notification is ever created. Do NOT add a redundant
+    // filter inside any renderer consumer (it would be a second, drift-prone source). The
+    // Story-1.2 tracker still COMPUTES attention.raised above (raisedEvents) — only EMISSION is
+    // gated here, never the computation, and the frozen AttentionEvent union is NOT reshaped.
+    for (const raised of raisedEvents) {
+      if (!launchedSet.has(raised.id)) continue
+      if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
+      // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
+      // raisedEvents array is already debounced by the tracker; add NO second debounce).
+      // The notifier never throws (never-crash) and only ever sees the tracker's needs-you-
+      // entry output, so it never fires on session.updated/removed (AC-2, by construction).
+      notifier.notify(raised)
+    }
+  }
+
+  // Hook-status feature — start the localhost HTTP hook listener. Hook events route through
+  // handleDelta (same chokepoint as c9watch deltas). onHookEvent maps the event name to a
+  // HookStatusChange and dispatches applyHookStatus → handleDelta.
+  const hookServer = createHookServer({
+    onHookEvent: (evt) => {
+      const change = hookStatus(evt.hook_event_name)
+      if (change === null) return // unrecognized event — ignore
+      reducer.applyHookStatus(evt.session_id, change, HOOK_AUTHORITY_MS).forEach(handleDelta)
+    },
+    log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
+  })
+  hookServers.set(wc, hookServer)
+
   const feed = createFeed({
     reducer,
-    onDelta: (delta) => {
-      if (wc.isDestroyed()) return
-      // Story 1.4 ORDERING (re-ordered from 1.2): the tracker MUST process THIS delta
-      // BEFORE we enrich+send a `session.updated`, so `tracker.columnOf(id)` /
-      // `tracker.enteredColumnAt(id)` reflect this edge. So we run `tracker.onDelta`
-      // FIRST (it both updates the tracker's column map AND returns any attention.raised
-      // for the edge), THEN enrich the updated delta from the now-current tracker, THEN
-      // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
-      // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
-      const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
-      // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
-      // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 — the
-      // onDelta path already runs per delta with the current snapshotMap; no new polling loop).
-      // This RE-RESOLVES the Tgid each time (the reported pid wanders — never cached) and adds a
-      // landed join's session id to the launched-set. It NEVER throws (fail-closed throughout) and
-      // is independent of the board ship below — a correlation failure never blocks a delta. The
-      // launch service is null until app-ready constructs it (a race during startup is a no-op).
-      // It CONSUMES the reducer's already-parsed Session map (parse-once; never re-parses JSON).
-      launchService?.correlateAgainst(reducer.snapshotMap().values())
-      // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
-      // for EVERY delta type (session.updated can raise/lower the count via a column change;
-      // session.removed lowers it when the removed session was in needs-you). The badge counts
-      // needs-you ONLY (Jose 2026-06-19 / UX-DR3) — idle/working never count. Recompute-from-truth
-      // (cheap, can't drift) rather than incrementally diff; the controller no-ops when the
-      // count is unchanged. Derives from the SAME snapshotMap + columnForStatus the board uses
-      // (single source of truth, AC-3). Never throws (never-crash, AC-8).
-      // Story 3.3 — narrow the count to LAUNCHED sessions only (the SAME membership source as the
-      // board + attention): an external needs-you session never bumps the tray badge (AC-3).
-      tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
-      const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
-      // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
-      // enricher logged it by path+code) — we do not ship a half-formed delta. A
-      // `session.removed` (no enrichment) and a passed `session.updated` send as-is —
-      // epoch-framed on the SAME CH.watchEvents channel (const, never a string literal).
-      // Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate: ship ONLY launched-set
-      // members. An external/Konsole session's delta is NOT sent, so the renderer board store
-      // never learns of it and it never becomes a card (AC-2). The gate keys on the stable
-      // `id` (NEVER pid). `session.removed` is INSIDE the gate by design: if its id is in the
-      // set, the removed delta DOES ship so the card vanishes (edge case (a) — no stranded
-      // stale card); if its id was never launched, there was no card to remove anyway.
-      if (outbound !== null && shouldShipToBoard(outbound.event, (id) => launchedSet.has(id))) {
-        wc.send(CH.watchEvents, outbound)
-      }
-      // Then any attention.raised for the SAME edge, framed with the SAME epoch.
-      // Re-check the destroyed window per send: a late event after close is a no-op.
-      // Story 3.3 — the ATTENTION emission gate at the SOURCE: only a LAUNCHED session's raise
-      // is emitted. Gating BOTH the renderer SEND and notifier.notify() here narrows EVERY
-      // attention consumer from ONE place — the renderer never receives an external raise so the
-      // SOUND (useAttentionSound, rides CH.watchEvents) and any rail SOURCE (Story 3.4) auto-
-      // narrow, and the JUMP-TO-CARD (CH.attentionActivate, pushed from the notifier's
-      // onActivate) cannot fire because no notification is ever created. Do NOT add a redundant
-      // filter inside any renderer consumer (it would be a second, drift-prone source). The
-      // Story-1.2 tracker still COMPUTES attention.raised above (raisedEvents) — only EMISSION is
-      // gated here, never the computation, and the frozen AttentionEvent union is NOT reshaped.
-      for (const raised of raisedEvents) {
-        if (!launchedSet.has(raised.id)) continue
-        if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
-        // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
-        // raisedEvents array is already debounced by the tracker; add NO second debounce).
-        // The notifier never throws (never-crash) and only ever sees the tracker's needs-you-
-        // entry output, so it never fires on session.updated/removed (AC-2, by construction).
-        notifier.notify(raised)
-      }
-    },
+    onDelta: handleDelta,
     // Story 1.4 fix — surface the feed's REAL connection state on its own channel
     // (CH.watchStatus). This is the signal the renderer's reconnect banner is driven
     // by (AC-6 / UX-DR17 = a real watch-stream GAP), NOT line silence (a quiet
@@ -369,6 +400,14 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   // Story 4.2 (FR-14) — remove the per-window reducer reference (ARCH-FORK-1 option A).
   // Same lifetime as the feed; mirrors the trackers.delete above.
   reducers.delete(wc)
+  // Hook-status feature — close the per-window hook listener so a window close→reopen
+  // ('activate') or dev HMR reload does not leak the listener and hit EADDRINUSE on the
+  // next bind. Idempotent; close() never throws.
+  const hookServer = hookServers.get(wc)
+  if (hookServer) {
+    hookServers.delete(wc)
+    hookServer.close()
+  }
   const feed = feeds.get(wc)
   if (!feed) return
   feeds.delete(wc)
@@ -1086,6 +1125,24 @@ app
     // Story 4.2 (FR-14) — register the quit-guard IPC ONCE (app:request-quit, quit:confirm,
     // quit:cancel). Single-registration mirrors the established pattern above.
     registerQuitIpc()
+
+    // Hook-status feature — idempotently merge the app hook block into ~/.claude/settings.json
+    // ONCE at app startup (USER scope: covers all local Claude Code sessions). Safe to call on
+    // every launch — dedupes by HOOK_URL, preserves existing hooks, backs up before first write.
+    // ENOENT → creates from {}; unparseable → backs up + skips (never clobbers user config).
+    // Non-blocking: a registration failure must not prevent the app from starting.
+    if (!SMOKE) {
+      try {
+        registerHooks({
+          log: (msg) => console.warn(msg)
+        })
+      } catch (err) {
+        console.warn(
+          '[c9watch][registerHooks] code=register_hooks_failed:',
+          err instanceof Error ? err.message : 'unknown'
+        )
+      }
+    }
 
     createWindow()
 
