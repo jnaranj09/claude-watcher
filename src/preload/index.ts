@@ -284,6 +284,30 @@ const quitApi = {
 
 export type QuitApi = typeof quitApi
 
+// Terminal clipboard feature — the OS clipboard text bridge. Power stays in MAIN (Electron
+// `clipboard` module; the sandboxed renderer NEVER touches the OS clipboard directly —
+// security posture). Both are typed invokes (CH.* consts; never a string literal):
+//   - `readText()` → reads the current clipboard text; returns '' for image-only clipboards.
+//   - `writeText(text)` → writes text to the OS clipboard; main parse-and-throws the untrusted
+//     text arg at the boundary (zod-boundaries.md IPC-arg row). Rejects on a non-string arg.
+// The IMAGE path does NOT ride this bridge — the renderer forwards `\x16` via the existing
+// port input frame and `claude` reads the OS image itself. No image bytes cross the seam.
+// [Source: spec-terminal-clipboard.md; .claude/rules/ipc.md; .claude/rules/zod-boundaries.md]
+const clipboardApi = {
+  /** Read the current OS clipboard text. Returns '' if the clipboard has no text (e.g.
+   *  image-only clipboard), which the renderer uses to disable the Paste menu entry. */
+  readText(): Promise<string> {
+    return ipcRenderer.invoke(CH.clipboardReadText)
+  },
+  /** Write text to the OS clipboard. Main validates the arg (parse-and-throw on non-string);
+   *  rejects the promise on an invalid arg. NEVER log the text value (user content). */
+  writeText(text: string): Promise<void> {
+    return ipcRenderer.invoke(CH.clipboardWriteText, { text })
+  }
+}
+
+export type ClipboardApi = typeof clipboardApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -296,6 +320,9 @@ if (process.contextIsolated) {
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
     contextBridge.exposeInMainWorld('quit', quitApi)
+    // Terminal clipboard feature — the OS clipboard text bridge (clipboard:read-text /
+    // clipboard:write-text). The renderer reaches Electron clipboard ONLY via this bridge.
+    contextBridge.exposeInMainWorld('clipboard', clipboardApi)
   } catch (error) {
     console.error(error)
   }
@@ -320,4 +347,6 @@ if (process.contextIsolated) {
   window.telemetry = telemetryApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.quit is in index.d.ts
   window.quit = quitApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.clipboard is in index.d.ts
+  window.clipboard = clipboardApi
 }

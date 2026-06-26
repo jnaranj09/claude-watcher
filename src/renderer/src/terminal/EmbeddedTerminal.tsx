@@ -28,7 +28,7 @@
 // → surface it); kept-alive hidden uses visibility:hidden (the CSS .hidden class), never
 // display:none. [Source: src/renderer/src/SmokeCockpit.tsx; .claude/rules/terminal.md;
 //  src/renderer/src/styles/xtermTheme.ts; src/renderer/src/stores/settingsStore.ts]
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -41,6 +41,7 @@ import type {
 } from '../../../shared/ipc/contract'
 import { xtermTheme } from '../styles/xtermTheme'
 import { useSettings, selectTerminalFontSize } from '../stores/settingsStore'
+import { TerminalContextMenu } from './TerminalContextMenu'
 import styles from './EmbeddedTerminal.module.css'
 
 export interface EmbeddedTerminalProps {
@@ -51,9 +52,25 @@ export interface EmbeddedTerminalProps {
   active?: boolean
 }
 
-/** The local dead-terminal state — the ONLY React state here (per-terminal pane state, AC-4).
- *  The xterm instance itself is NEVER in React state (terminal.md). */
+/** The local dead-terminal state — the ONLY React state here before the clipboard feature
+ *  (per-terminal pane state, AC-4). The xterm instance itself is NEVER in React state (terminal.md). */
 type DeadState = { exitCode: number } | null
+
+/**
+ * Context menu open state — the position + entry-enable flags for the Copy/Paste menu.
+ * `null` means the menu is closed. This is the ONLY new React state added by the clipboard
+ * feature (view-state — state.md). xterm + selection are NEVER here (stay in refs).
+ */
+type MenuState = {
+  /** Cursor viewport x (from contextmenu event.clientX). */
+  x: number
+  /** Cursor viewport y (from contextmenu event.clientY). */
+  y: number
+  /** True when `term.hasSelection()` at the time of right-click. */
+  canCopy: boolean
+  /** True when `clipboard.readText()` returned a non-empty string (updated async). */
+  canPaste: boolean
+}
 
 // Story 5.4 — a process-monotonic counter minting a fresh per-OPEN token for each create-effect
 // run. The token disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or
@@ -78,6 +95,9 @@ export function EmbeddedTerminal({
   // its bytes are NEVER in React state — only this small pane/lifecycle flag is.
   const [dead, setDead] = useState<DeadState>(null)
   const [openNonce, setOpenNonce] = useState(0)
+  // Terminal clipboard feature — context menu open/position (view-state; state.md).
+  // The xterm instance + selection are NOT here: they stay in termRef/portRef (terminal.md).
+  const [menu, setMenu] = useState<MenuState | null>(null)
 
   // The operator-controlled font size (Story 2.4). Subscribed via a NARROW selector (state.md)
   // so an unrelated settings change doesn't re-run anything heavy. A change re-applies to the
@@ -216,7 +236,82 @@ export function EmbeddedTerminal({
     const ro = new ResizeObserver(() => doFit())
     ro.observe(container)
 
+    // ── Terminal clipboard feature ────────────────────────────────────────────────
+    //
+    // (1) Ctrl+V takeover — forward `\x16` to the PTY, suppress xterm's text-paste.
+    //
+    // Problem: xterm intercepts Ctrl+V via a DOM `paste` event on its internal textarea
+    // and sends the clipboard TEXT to the PTY — so `claude`'s own `Ctrl+V` image-paste
+    // never fires (the `0x16` byte never reaches claude's stdin).
+    //
+    // Fix: attachCustomKeyEventHandler captures Ctrl+V keydown and manually posts `\x16`
+    // over the existing port input frame, then returns `false` (xterm does nothing further).
+    // A capture-phase `paste` listener on the container also calls stopImmediatePropagation()
+    // so xterm's paste handler (on the descendant textarea) never fires — ensuring exactly
+    // ONE `\x16` per keypress, never a text paste (Konsole parity). [spec §Ctrl+V takeover]
+    term.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+      if (
+        event.type === 'keydown' &&
+        event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        event.key.toLowerCase() === 'v'
+      ) {
+        // Forward the raw control byte to the PTY over the EXISTING port input frame.
+        // No new byte-transport path — the same {type:'input'} message the onData handler uses.
+        const port = portRef.current
+        if (port) {
+          const msg: TerminalPortRendererMessage = { type: 'input', data: '\x16' }
+          port.postMessage(msg)
+        }
+        return false // suppress xterm: no key-sequence write, no built-in paste
+      }
+      return true // all other keys pass through to xterm unchanged
+    })
+
+    // Capture-phase paste suppressor — catches the browser `paste` event BEFORE xterm's
+    // textarea listener fires. Prevents clipboard text from being sent to the PTY via the
+    // paste path. Combined with the custom key handler above, Ctrl+V sends exactly one
+    // `\x16` and NEVER a text paste. Disposed in cleanup below.
+    const pasteHandler = (e: Event): void => {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
+    container.addEventListener('paste', pasteHandler, true) // capture phase
+
+    // (2) Right-click context menu — Copy / Paste entries.
+    //
+    // Opens a renderer-drawn menu at the cursor position; the menu component handles dismiss.
+    // `canCopy` is set at right-click time from `term.hasSelection()`. `canPaste` is initially
+    // false and updated async after `clipboard.readText()` resolves (menu shows immediately,
+    // Paste entry lights up a moment later if the clipboard has text).
+    // [spec §Context menu; .claude/rules/ipc.md; .claude/rules/zod-boundaries.md]
+    const contextMenuHandler = (e: MouseEvent): void => {
+      e.preventDefault()
+      const t = termRef.current
+      const canCopy = t ? t.hasSelection() : false
+      setMenu({ x: e.clientX, y: e.clientY, canCopy, canPaste: false })
+      // Read the clipboard text async to decide if Paste should be enabled.
+      // void-wrapped (no-floating-promises). NEVER log the text value (user content).
+      void window.clipboard
+        .readText()
+        .then((text) => {
+          setMenu((prev) => (prev !== null ? { ...prev, canPaste: text.length > 0 } : prev))
+        })
+        .catch(() => {
+          // Paste stays disabled; no log needed (clipboard read failure is non-fatal).
+        })
+    }
+    container.addEventListener('contextmenu', contextMenuHandler)
+
     return () => {
+      // Clipboard feature cleanup — remove listeners BEFORE disposing the terminal.
+      container.removeEventListener('contextmenu', contextMenuHandler)
+      container.removeEventListener('paste', pasteHandler, true)
+      // Dismiss any open context menu when this effect re-runs (Reopen) or unmounts.
+      setMenu(null)
+
       ro.disconnect()
       dataDisposable.dispose()
       // Clean up the message listener if the port was never delivered (e.g. manager not ready
@@ -282,6 +377,46 @@ export function EmbeddedTerminal({
     setDead({ exitCode: dead?.exitCode ?? 0 })
   }
 
+  // ── Terminal clipboard feature — context menu action handlers ─────────────
+  //
+  // These use `termRef.current` (a ref, not state) so they stay stable across renders
+  // and can safely be called asynchronously without stale-closure concerns. All Promise
+  // calls are void-wrapped (no-floating-promises). NEVER log the clipboard text value
+  // (user content; Guardrail #6; .claude/rules/zod-boundaries.md).
+
+  /** Copy: write `term.getSelection()` to the OS clipboard (guard empty selection). */
+  const handleCopy = (): void => {
+    const t = termRef.current
+    const sel = t?.getSelection() ?? ''
+    setMenu(null)
+    if (!sel) return
+    void window.clipboard
+      .writeText(sel)
+      .catch(() => console.warn('[c9watch][clipboard] code=clipboard_write_failed'))
+  }
+
+  /** Paste: read OS clipboard text → `term.paste(text)` if non-empty (bracketed paste). */
+  const handlePaste = (): void => {
+    const t = termRef.current
+    setMenu(null)
+    if (!t) return
+    void window.clipboard
+      .readText()
+      .then((text) => {
+        if (text) t.paste(text)
+      })
+      .catch(() => console.warn('[c9watch][clipboard] code=clipboard_paste_failed'))
+  }
+
+  /**
+   * Dismiss the context menu (called by TerminalContextMenu on outside-click/Esc/scroll/blur).
+   * Wrapped in useCallback so its identity is stable across renders — TerminalContextMenu puts
+   * it in the dismiss-listener effect's dep array to avoid listener churn per render.
+   */
+  const handleMenuDismiss = useCallback((): void => {
+    setMenu(null)
+  }, []) // setMenu is guaranteed stable by React
+
   return (
     <div
       className={`${styles.frame} ${active ? '' : styles.hidden}`}
@@ -308,6 +443,21 @@ export function EmbeddedTerminal({
             </button>
           </div>
         </div>
+      )}
+      {/* Terminal clipboard feature — context menu portal (renders into document.body via
+          createPortal; position:fixed; z-index 1000 above all kept-alive frames).
+          Mounted only when the user right-clicks this terminal (menu !== null).
+          Siblings' menus are untouched: each EmbeddedTerminal owns its own `menu` state. */}
+      {menu !== null && (
+        <TerminalContextMenu
+          x={menu.x}
+          y={menu.y}
+          canCopy={menu.canCopy}
+          canPaste={menu.canPaste}
+          onCopy={handleCopy}
+          onPaste={handlePaste}
+          onDismiss={handleMenuDismiss}
+        />
       )}
     </div>
   )

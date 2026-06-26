@@ -134,7 +134,18 @@ export const CH = {
   appRequestQuit: 'app:request-quit',
   quitGuardShow: 'quit:guard-show',
   quitConfirm: 'quit:confirm',
-  quitCancel: 'quit:cancel'
+  quitCancel: 'quit:cancel',
+
+  // Terminal clipboard feature — the text clipboard bridge (renderer ↔ main).
+  // Power stays in MAIN (Electron `clipboard` module; the sandboxed renderer NEVER
+  // touches the OS clipboard directly — security posture). Both are typed invokes:
+  //   - `clipboard:read-text`  invoke() → string  (no arg; returns '' for image-only)
+  //   - `clipboard:write-text` invoke({ text }) → void  (arg is UNTRUSTED; parse-and-throw)
+  // The IMAGE path does NOT ride these channels — `claude` reads the OS image itself
+  // when the renderer forwards `\x16` via the existing port input frame. No image bytes
+  // ever cross the renderer/IPC seam. [Source: spec-terminal-clipboard.md; .claude/rules/ipc.md]
+  clipboardReadText: 'clipboard:read-text',
+  clipboardWriteText: 'clipboard:write-text'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
@@ -658,3 +669,23 @@ export type QuitGuardPayload = {
   /** Per-session detail for the modal list. */
   sessions: QuitGuardSession[]
 }
+
+// ---------------------------------------------------------------------------
+// Terminal clipboard feature — clipboard text bridge payload type.
+//
+// `clipboard:write-text` invoke arg — the text the renderer asks main to write
+// to the OS clipboard. UNTRUSTED cross-process input → parse-and-throw at the main
+// boundary (zod-boundaries.md IPC-arg row). NEVER log the text value (user content;
+// Guardrail #6 — log path+code only on a parse failure).
+//
+// `clipboard:read-text` has no request payload (a plain invoke() → string).
+//
+// [Source: spec-terminal-clipboard.md; .claude/rules/ipc.md; .claude/rules/zod-boundaries.md]
+// ---------------------------------------------------------------------------
+
+/**
+ * `clipboard:write-text` invoke arg — the text to write to the OS clipboard.
+ * UNTRUSTED cross-process input → parse-and-throw at the main boundary.
+ * NEVER log the `text` value (user content; Guardrail #6).
+ */
+export type ClipboardWriteTextRequest = { text: string }

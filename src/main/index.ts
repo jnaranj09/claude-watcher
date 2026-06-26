@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog, clipboard } from 'electron'
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
@@ -98,6 +98,9 @@ import {
 } from './lifecycle/quitGuard'
 import { QuitGuardPayloadSchema } from '../shared/schemas/quitGuard'
 import type { QuitGuardPayload } from '../shared/ipc/contract'
+// Terminal clipboard feature — the Zod arg schema for CH.clipboardWriteText (renderer→main).
+// Parse-and-throw at the boundary; NEVER log the text value (user content — Guardrail #6).
+import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
@@ -921,6 +924,29 @@ function registerLaunchIpc(): void {
   })
 }
 
+// Terminal clipboard feature — register the clipboard text bridge ONCE (mirrors
+// registerSettingsIpc / registerTerminalIpc single-registration; Review-F1). Power stays in
+// MAIN (Electron `clipboard` module; sandboxed renderer NEVER touches the OS clipboard
+// directly — security posture). Channels are CH.* consts — never a string literal.
+// The write arg is UNTRUSTED cross-process input → parse-and-throw-typed
+// (zod-boundaries.md IPC-arg row). NEVER log the clipboard text value (user content;
+// Guardrail #6 — the throw IS the signal). The read handler has no arg.
+function registerClipboardIpc(): void {
+  // clipboard:read-text — read the OS clipboard text and return it directly. No arg to
+  // parse; the read is safe (no cross-process input). Returns '' if the clipboard has no
+  // text (e.g. image-only clipboard), which the renderer interprets as "Paste disabled".
+  ipcMain.handle(CH.clipboardReadText, () => clipboard.readText())
+
+  // clipboard:write-text — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS
+  // boundary (a malformed write arg rejects the invoke). NEVER log the text value —
+  // the throw IS the signal; user clipboard content must not enter the log stream
+  // (Guardrail #6; .claude/rules/zod-boundaries.md IPC-arg row).
+  ipcMain.handle(CH.clipboardWriteText, (_evt, raw: unknown) => {
+    const { text } = ClipboardWriteTextSchema.parse(raw)
+    clipboard.writeText(text)
+  })
+}
+
 // Story 4.2 (FR-14) — register the quit-guard IPC ONCE (mirrors registerSettingsIpc /
 // registerTerminalIpc single-registration at app-ready — Review-F1). Channels are CH.* consts
 // only — never a string literal (no-literal-channels). The three renderer→main invokes are
@@ -1125,6 +1151,10 @@ app
     // Story 4.2 (FR-14) — register the quit-guard IPC ONCE (app:request-quit, quit:confirm,
     // quit:cancel). Single-registration mirrors the established pattern above.
     registerQuitIpc()
+
+    // Terminal clipboard feature — register the clipboard text bridge ONCE (clipboard:read-text,
+    // clipboard:write-text). Power stays in MAIN; renderer reaches it via window.clipboard.*.
+    registerClipboardIpc()
 
     // Hook-status feature — idempotently merge the app hook block into ~/.claude/settings.json
     // ONCE at app startup (USER scope: covers all local Claude Code sessions). Safe to call on

@@ -99,5 +99,14 @@ declare global {
       cancel(): Promise<void>
       onGuardShow(cb: (payload: QuitGuardPayload) => void): () => void
     }
+    // Terminal clipboard feature — mirrors src/preload/index.ts `clipboardApi`. The renderer
+    // reads/writes the OS clipboard ONLY through this typed bridge — never navigator.clipboard
+    // or any direct OS access (sandbox: true; power stays in MAIN via Electron clipboard module).
+    // IMAGE paste does NOT ride this bridge: the renderer forwards `\x16` and `claude` reads
+    // the OS image itself. This bridge is TEXT-only. [spec-terminal-clipboard.md]
+    clipboard: {
+      readText(): Promise<string>
+      writeText(text: string): Promise<void>
+    }
   }
 }

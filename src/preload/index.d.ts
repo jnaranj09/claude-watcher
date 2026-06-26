@@ -6,7 +6,8 @@ import type {
   TerminalApi,
   LaunchApi,
   TelemetryApi,
-  QuitApi
+  QuitApi,
+  ClipboardApi
 } from './index'
 
 declare global {
@@ -26,5 +27,8 @@ declare global {
     telemetry: TelemetryApi
     // Story 4.2 (FR-14) — the quit-guard bridge (requestQuit / confirm / cancel / onGuardShow).
     quit: QuitApi
+    // Terminal clipboard feature — OS clipboard text bridge (read-text / write-text via MAIN).
+    // Power stays in MAIN (Electron clipboard module; renderer never touches OS clipboard directly).
+    clipboard: ClipboardApi
   }
 }
