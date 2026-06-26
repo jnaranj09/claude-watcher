@@ -110,6 +110,13 @@
 .terminalWrap > * {
   position: absolute;
   inset: var(--space-3); /* was var(--space-2); modest all-around padding */
+  /* Override .frame's width/height:100% — an absolutely-positioned box can't honor
+     left+right+width at once (CSS keeps left+width, drops right), which made the frame
+     flush-right/bottom while the left/top gutter showed. width/height:auto lets `inset`
+     govern all four sides → symmetric gutters. (.frame keeps 100% for its flex-child use
+     in TerminalHost, which this child-scoped override leaves untouched.) */
+  width: auto;
+  height: auto;
 }
 
 /* Reserved bottom strip — breathing room now, toolbar mount point later.
