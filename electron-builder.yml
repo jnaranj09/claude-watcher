@@ -33,9 +33,7 @@ dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
   target:
-    - AppImage
-    - snap
-    - deb
+    - rpm
   maintainer: electronjs.org
   category: Utility
   # Story 2.3 AC-6 — canonical `.desktop` identity (tray/notification window association, AR-10).
@@ -50,8 +48,6 @@ linux:
   desktop:
     entry:
       Categories: Utility;
-appImage:
-  artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
   provider: generic
