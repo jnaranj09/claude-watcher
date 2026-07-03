@@ -36,6 +36,13 @@
 .dead {
   position: absolute;
   inset: 0;
+  /* Story 6.5 (e2e-caught defect): the overlay MUST also win the HIT-TEST, not just paint.
+     xterm's render layers carry positive z-indexes — the WebGL addon sets an inline
+     z-index on each `xterm-*-layer` canvas, and xterm.css goes up to 11 (scrollbar) —
+     while `z-index: auto` here left those canvases intercepting pointer events over the
+     whole pane, so the ONE New-session button was visible but UNCLICKABLE. 12 clears
+     xterm's highest layer; the terminal context menu (z-index 1000) stays above. */
+  z-index: 12;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -82,6 +82,8 @@ function EmphasizedSessionCard(props: {
   return (
     <SessionCard
       variant={variant}
+      // Story 6.5 — expose the stable id as `data-session-id` for the Playwright e2e.
+      sessionId={session.id}
       sessionName={session.sessionName}
       projectPath={session.projectPath}
       status={status}

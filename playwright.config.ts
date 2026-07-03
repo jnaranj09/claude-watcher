@@ -20,6 +20,12 @@ export default defineConfig({
   // No web server / browser projects: Electron is driven via Playwright's
   // `_electron` launcher inside the spec (Epic-3), not a browser project here.
   fullyParallel: false,
+  // Story 6.5 — ONE worker so spec FILES run serially too (fullyParallel:false only serializes
+  // WITHIN a file). The native-engine spec requires exclusive ownership of the fixed hook port
+  // 127.0.0.1:9279 (its pre-check skips when the port is taken; the app tolerates EADDRINUSE
+  // silently) — a sibling spec's Electron instance running in a parallel worker would hold the
+  // port and falsely skip / cross-wire the hook POSTs.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: 'list'

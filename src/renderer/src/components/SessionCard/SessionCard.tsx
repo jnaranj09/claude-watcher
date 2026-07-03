@@ -27,6 +27,11 @@ export type CardAccent = 'needs-you' | 'working'
 
 export interface SessionCardProps {
   variant: SessionCardVariant
+  /** Story 6.5 — the stable session id (the launch-minted uuid), exposed verbatim as
+   *  `data-session-id` on the card root so the Playwright e2e can read the identity off the
+   *  board card and drive hook POSTs / column assertions against it. PRESENTATIONAL ONLY
+   *  (an attribute, no behavior); optional so presentational callers/tests are untouched. */
+  sessionId?: string
   /** Card title (sessionName) — SANS. */
   sessionName: string
   /** c9watch-verbatim path — MONO. */
@@ -71,6 +76,7 @@ const ACCENT_CLASS: Record<CardAccent, string> = {
 export function SessionCard(props: SessionCardProps): JSX.Element {
   const {
     variant,
+    sessionId,
     sessionName,
     projectPath,
     status,
@@ -106,6 +112,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${selectedClass} ${emphasisClass}`}
       data-variant={variant}
       data-accent={accent}
+      {...(sessionId !== undefined ? { 'data-session-id': sessionId } : {})}
       {...(selected ? { 'data-selected': true } : {})}
       {...(emphasized ? { 'data-emphasized': true } : {})}
       role="button"
