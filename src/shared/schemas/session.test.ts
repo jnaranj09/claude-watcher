@@ -1,26 +1,17 @@
-// Story 0.3 — the session-adapter behavioral checks, migrated to Vitest so the
-// Stop hook's `vitest run` exercises the Story-0.2 Zod identity adapter (AC-4).
+// The Session-shape behavioral checks (Story 0.2/0.3, trimmed in Story 6.4).
 //
-// This preserves the coverage of the zero-dep `tests/schema/session.check.mjs`
-// (which stays in the repo as a belt-and-suspenders zero-dep gate) — the 4
-// human-resolved Story-0.2 review decisions:
+// The c9watch wire-boundary tests (list envelope, watch NDJSON line, id-keyed map +
+// DuplicateSessionIdError) died with the CLI — those schemas are gone. What remains
+// under test is the surviving `SessionSchema` (the reducer-storage + renderer
+// contract) and its load-bearing policies:
 //   1. TIMESTAMPS — strict ISO-8601 WITH tz offset, fails closed.
 //   2. RE-PARSE — parse-once boundary (documented; not re-validated).
-//   3. ID KEYING — blank id rejected; duplicate id SIGNALS (DuplicateSessionIdError).
+//   3. ID — blank id rejected at the schema.
 //   4. PID — required int >= 0.
-// Plus the original 0.2 policies (passthrough, status not enum-locked, list
-// wrapper not a bare array, watch NDJSON line) AND the Story-0.3 polymorphic
-// `pendingToolInput` correction (string AND object variants validate).
-// [Source: 0-2 File List (`tests/schema/session.check.mjs`); 0-2 Completion Notes]
+// Plus the original 0.2 policies (passthrough, status not enum-locked) AND the
+// Story-0.3 polymorphic `pendingToolInput` correction (string AND object variants).
 import { describe, it, expect } from 'vitest'
-import {
-  SessionSchema,
-  ListEnvelopeSchema,
-  WatchLineSchema,
-  keyById,
-  parseListKeyedById,
-  DuplicateSessionIdError
-} from './session'
+import { SessionSchema } from './session'
 
 /** A minimal valid compact session (the always-present fields). */
 const base = Object.freeze({
@@ -68,20 +59,12 @@ describe('Decision 1 — strict ISO-8601 timestamps (fail closed)', () => {
   })
 })
 
-describe('Decision 3 — id keying (reject empty, signal on duplicate)', () => {
+describe('Decision 3 — identity id (reject empty)', () => {
   it('rejects a blank id', () => {
     expect(ok({ ...base, id: '' })).toBe(false)
   })
   it('accepts a non-blank id', () => {
     expect(ok({ ...base, id: 'x' })).toBe(true)
-  })
-  it('THROWS DuplicateSessionIdError on duplicate ids', () => {
-    const dup = [SessionSchema.parse(base), SessionSchema.parse({ ...base, pid: 5678 })]
-    expect(() => keyById(dup)).toThrow(DuplicateSessionIdError)
-  })
-  it('keys unique ids without throwing (size 2)', () => {
-    const unique = [SessionSchema.parse(base), SessionSchema.parse({ ...base, id: 'a2' })]
-    expect(keyById(unique).size).toBe(2)
   })
 })
 
@@ -108,7 +91,7 @@ describe('Decision 4 — pid int >= 0 (required)', () => {
 
 describe('Original 0.2 policies (regression guard)', () => {
   it('passthrough admits unknown additions', () => {
-    expect(ok({ ...base, brandNewC9Field: 'x' })).toBe(true)
+    expect(ok({ ...base, brandNewField: 'x' })).toBe(true)
   })
   it('status is NOT enum-locked (a new status passes)', () => {
     expect(ok({ ...base, status: 'SomeFutureStatus' })).toBe(true)
@@ -116,43 +99,12 @@ describe('Original 0.2 policies (regression guard)', () => {
   it('a known-key malformation fails closed (status as number)', () => {
     expect(ok({ ...base, status: 5 })).toBe(false)
   })
-  it('validates the list wrapper and keys by id (size 2)', () => {
-    const list = {
-      diagnostics: { claudeProcessesFound: 2, fdaLikelyNeeded: false, processesWithCwd: 2 },
-      sessions: [base, { ...base, id: 'a2' }]
-    }
-    expect(ListEnvelopeSchema.safeParse(list).success).toBe(true)
-    expect(parseListKeyedById(list).sessionsById.size).toBe(2)
-  })
-  it('rejects a bare array as a list (must be the wrapper)', () => {
-    expect(ListEnvelopeSchema.safeParse([base]).success).toBe(false)
-  })
-  it('validates a watch NDJSON line and coerces its timestamp to epoch-millis', () => {
-    const line = {
-      event: 'changed',
-      session: base,
-      sessionId: 'a1b2c3',
-      timestamp: '2024-01-15T10:00:00+02:00'
-    }
-    const r = WatchLineSchema.safeParse(line)
-    expect(r.success).toBe(true)
-    expect(typeof (r.success ? r.data.timestamp : undefined)).toBe('number')
-  })
-  it('rejects a watch line with a tz-less timestamp', () => {
-    const line = {
-      event: 'changed',
-      session: base,
-      sessionId: 'a1b2c3',
-      timestamp: '2024-01-15T10:00:00'
-    }
-    expect(WatchLineSchema.safeParse(line).success).toBe(false)
-  })
 })
 
 describe('Story-0.3 — polymorphic pendingToolInput (string AND object variants)', () => {
-  // Grounded in the live c9watch 0.8.1 capture (2026-06-18): pendingToolInput is
-  // an OBJECT for `pendingToolName: "Agent"` and a STRING for `Question`/others.
-  // Both MUST validate; neither variant may fail-closed and drop the session.
+  // Grounded in the live capture (2026-06-18): pendingToolInput is an OBJECT for
+  // `pendingToolName: "Agent"` and a STRING for `Question`/others. Both MUST
+  // validate; neither variant may fail-closed and drop the session.
   it('accepts a STRING pendingToolInput (e.g. a Question session)', () => {
     expect(
       ok({ ...base, pendingToolName: 'Question', pendingToolInput: 'Which file should I edit?' })
@@ -176,11 +128,7 @@ describe('Story-0.3 — polymorphic pendingToolInput (string AND object variants
   })
 })
 
-describe('Story-0.5 — live-capture reconciliation (dual timestamp precision + customTitle)', () => {
-  // Grounded in the live c9watch 0.8.1 capture (2026-06-19): `modified`/`timestamp`
-  // occur in BOTH nanosecond (9-digit) AND millisecond (3-digit) ISO+tz precisions,
-  // and an undocumented `customTitle` field rides through `.passthrough()`.
-  // [Source: c9watch-0.8.1-contract.md §5/§7; live `c9watch list --pretty` 2026-06-19]
+describe('Dual timestamp precision + passthrough survival (Story 0.5 heritage)', () => {
   it('accepts MILLISECOND-precision modified (3 fractional digits, +00:00 offset)', () => {
     expect(ok({ ...base, modified: '2026-06-18T23:55:01.100+00:00' })).toBe(true)
   })
@@ -192,9 +140,7 @@ describe('Story-0.5 — live-capture reconciliation (dual timestamp precision + 
     expect(r.success).toBe(true)
     expect(typeof (r.success ? r.data.modified : undefined)).toBe('number')
   })
-  it('absorbs the undocumented customTitle via passthrough (no schema declaration)', () => {
-    // customTitle is the live drift this spike caught; it must validate without a
-    // schema change AND survive onto the parsed value (fail-OPEN on additions).
+  it('an undeclared addition survives onto the parsed value (fail-OPEN on additions)', () => {
     const r = SessionSchema.safeParse({ ...base, customTitle: 'epic0' })
     expect(r.success).toBe(true)
     expect(r.success ? (r.data as Record<string, unknown>).customTitle : undefined).toBe('epic0')

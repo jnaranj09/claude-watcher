@@ -22,25 +22,9 @@ import { createAttentionTracker } from '../c9watch/attention'
 import { enrichDelta } from '../c9watch/enrichDelta'
 import { hookStatus } from './hookStatus'
 import { HookEventSchema } from '../../shared/schemas/hookEvent'
+import { launchedSession } from '../../__fixtures__/fakeSessions'
 
 const FIXED_NOW = 1_750_000_000_000
-const HOOK_AUTHORITY_MS = 10_000
-
-/** A valid `started` watch line whose top-level sessionId === session.id (seeds a KNOWN id). */
-function startedLine(id: string): string {
-  return JSON.stringify({
-    event: 'started',
-    sessionId: id,
-    timestamp: '2026-06-18T23:57:10.134+00:00',
-    session: {
-      id,
-      status: 'Working',
-      projectPath: '/home/u/projects/x',
-      pid: 999,
-      sessionName: 'x'
-    }
-  })
-}
 
 /**
  * Run the production chain for ONE hook event and return the enriched delta the
@@ -52,8 +36,11 @@ function runHookToColumn(id: string, rawHookBody: unknown): ReturnType<typeof en
   const tracker = createAttentionTracker({ now: () => FIXED_NOW })
 
   // The session must be KNOWN before a hook can change its status (applyHookStatus does
-  // NOT upsert an unknown id — discovery stays c9watch's job).
-  reducer.applyLine(startedLine(id))
+  // NOT upsert an unknown id — external sessions stay off the board). In the native
+  // engine a session becomes known at SPAWN via upsertLaunched (Story 6.2).
+  for (const delta of reducer.upsertLaunched(launchedSession(id, { status: 'Working' }))) {
+    tracker.onDelta(delta, reducer.snapshotMap())
+  }
 
   // The hook body crosses the SAME fail-closed Zod boundary it would over HTTP.
   const evt = HookEventSchema.parse(rawHookBody)
@@ -62,7 +49,7 @@ function runHookToColumn(id: string, rawHookBody: unknown): ReturnType<typeof en
   expect(change).not.toBeNull()
   if (change === null) throw new Error('unreachable: change asserted non-null')
 
-  const deltas = reducer.applyHookStatus(id, change, HOOK_AUTHORITY_MS)
+  const deltas = reducer.applyHookStatus(id, change)
   expect(deltas).toHaveLength(1)
   const delta = deltas[0]
   if (delta === undefined) throw new Error('unreachable: delta asserted present')

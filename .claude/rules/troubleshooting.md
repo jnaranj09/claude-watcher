@@ -1,6 +1,7 @@
 # Rule: how to troubleshoot this app (read BEFORE you theorize)
 
-This app spans three process layers (main / preload / renderer) plus the c9watch feed.
+This app spans three process layers (main / preload / renderer) plus the native
+session engine (spawn-time launch synthesis + the :9279 hook ingest).
 A symptom in one layer is easy to misattribute to another — and chasing the wrong
 layer is the main way time gets wasted here. The fix is to **characterize the symptom
 before reading any code**, which usually pins the layer in under a minute.
@@ -40,7 +41,7 @@ StrictMode/WebGL" theory until you have all three answers.
 | Terminal wrong size / clipped, content there | `fit()` on a 0×0 box, resize ordering | log `clientWidth/Height` in `doFit`; → `terminal.md` |
 | Garbled / wrong-session bytes | port cross-wire / `openToken` mismatch | compare minted vs echoed `openToken` (renderer ↔ main) |
 | Blank only in dev, fine in packaged build | StrictMode double-mount race | disable StrictMode in the renderer entry and re-run |
-| Launched session has no board card | c9watch feed reducer DESYNC / correlation | feed the fixture (`src/__fixtures__`); → `state.md`, story-5.x memory |
+| Launched session has no board card | launch synthesis / hook ingest (upsertLaunched never ran, or hooks not registered) | replay the fixture bodies (`src/__fixtures__/fakeHookFeed`) or POST one by hand to `127.0.0.1:9279`; → `state.md`, story-5.x/6.x memory |
 | One bad session blanks the whole board | never-crash / Zod boundary violation | → `zod-boundaries.md` (drop+log-by-path, don't poison) |
 
 ## Cheap kill-tests (run BEFORE a deep code read)
@@ -53,8 +54,9 @@ StrictMode/WebGL" theory until you have all three answers.
   If it recovers, the cause is shared/stacking, not the component.
 - **Disable StrictMode** — removes the dev mount→cleanup→remount cycle. Splits a
   dev-only double-mount race from a steady-state bug.
-- **Feed the fixture** — drive the board from `src/__fixtures__/fakeC9watchFeed` instead
-  of live c9watch. Splits "c9watch drifted" from "our reducer/correlation is wrong."
+- **Feed the fixture** — drive the ingest from `src/__fixtures__/fakeHookFeed` (or
+  `curl -X POST 127.0.0.1:9279 -d '<body>'` with a fixture body) instead of a live
+  claude. Splits "claude's hook payloads drifted" from "our reducer/ingest is wrong."
 - **Inspect the live DOM** (DevTools Elements) — for any paint/layout symptom, read the
   computed `visibility`, `clientWidth/Height`, `position`, and z-stacking of the actual
   nodes. A CSS bug is invisible in logs but obvious in the computed styles.

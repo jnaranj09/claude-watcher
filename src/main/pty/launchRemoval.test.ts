@@ -27,7 +27,6 @@ import { createLaunchedSet } from './launchedSet'
 import { createReducer, type Reducer, type SessionDelta } from '../c9watch/reducer'
 
 const FIXED_NOW = 1_750_000_000_000
-const HOOK_AUTHORITY_MS = 10_000
 const CWD = '/home/op/proj'
 
 /** A fake terminal manager exposing EXACTLY the Story-5.6 stop semantics the gate relies on:
@@ -77,7 +76,7 @@ function boardSeam(reducer: Reducer): {
   const shipped: SessionDelta[] = []
   return {
     removeLaunched: (sessionId) => {
-      shipped.push(...reducer.applyHookStatus(sessionId, { kind: 'removed' }, HOOK_AUTHORITY_MS))
+      shipped.push(...reducer.applyHookStatus(sessionId, { kind: 'removed' }))
     },
     shipped
   }
@@ -285,7 +284,7 @@ describe('Story 6.3 — double removal & the late SessionEnd hook (idempotent, q
     // 2) claude's SessionEnd hook lands LATER for the same id (belt-and-suspenders): the
     // hook-server path calls applyHookStatus(removed) — it must emit [] and stay silent
     // (no hook_unknown_id noise for an already-removed launched session).
-    const late = reducer.applyHookStatus(sessionId, { kind: 'removed' }, HOOK_AUTHORITY_MS)
+    const late = reducer.applyHookStatus(sessionId, { kind: 'removed' })
     expect(late).toHaveLength(0)
     expect(log).not.toHaveBeenCalled()
   })

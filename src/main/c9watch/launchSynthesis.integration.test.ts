@@ -90,11 +90,10 @@ describe('Story 6.2 — upsertLaunched delta survives the full enrich/ship pipel
       .forEach((d) => tracker.onDelta(d, reducer.snapshotMap()))
 
     // Stop hook → WaitingForInput (idle). The synthesized card transitions, enriched + valid.
-    const deltas = reducer.applyHookStatus(
-      SESSION_ID,
-      { kind: 'status', status: 'WaitingForInput' },
-      10_000
-    )
+    const deltas = reducer.applyHookStatus(SESSION_ID, {
+      kind: 'status',
+      status: 'WaitingForInput'
+    })
     expect(deltas).toHaveLength(1)
     const delta = deltas[0]
     if (delta === undefined) throw new Error('unreachable — asserted length above')

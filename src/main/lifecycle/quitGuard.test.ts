@@ -39,11 +39,10 @@ function freshState(): QuitGuardState {
   return { isQuitting: false, pendingGuard: false }
 }
 
-/** Build a fake TeardownDeps (spies; no real terminals or feeds). */
+/** Build a fake TeardownDeps (spies; no real terminals). */
 function fakeTeardownDeps(): TeardownDeps {
   return {
     terminalManager: null,
-    feeds: [],
     clearTerminalOwners: vi.fn()
   }
 }

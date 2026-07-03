@@ -34,7 +34,7 @@ import type { QuitGuardPayload } from '../../shared/ipc/contract'
 export interface QuitGuardDeps {
   /** The teardown function (REUSE; injected for test isolation). */
   teardownAllSessions: (deps: TeardownDeps) => void
-  /** The teardown dependencies (terminal manager, feeds, clearTerminalOwners). */
+  /** The teardown dependencies (terminal manager, clearTerminalOwners). */
   teardownDeps: TeardownDeps
   /** The liveness compute (injected for test isolation). */
   computeLiveLaunchedSessions: (deps: ComputeDeps) => LiveLaunchedSessions

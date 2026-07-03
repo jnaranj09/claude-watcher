@@ -46,10 +46,11 @@ import { enrichDelta } from './c9watch/enrichDelta'
 // the launched-set predicate). Drops external/Konsole deltas at the ship chokepoint so the
 // board shows ONLY app-launched sessions. Kept in its own pure module for unit coverage.
 import { shouldShipToBoard } from './c9watch/shipGate'
-// Story 1.1 — the c9watch adapter: feed (spawn + NDJSON line-split + reconnect) +
-// reducer (Zod-validate → Map<id,Session> + list seed/reconcile + epoch).
+// The session reducer — the authoritative Map<id,Session> + typed session deltas.
+// Story 6.4: the c9watch CLI feed is RETIRED; sessions are born at spawn
+// (upsertLaunched, Story 6.2) and transitioned/removed by hooks + stop/exit
+// (applyHookStatus, Stories 6.3/hook-ingest). The dir name `c9watch/` is historical.
 import { createReducer } from './c9watch/reducer'
-import { createFeed, type Feed } from './c9watch/feed'
 // Story 1.2 — the column-transition tracker: consumes each reducer delta + the
 // reduced map, emits attention.raised on a needs-you ENTRY edge (cold-start
 // suppressed / reconnect re-raised), stamps time-entered-column, debounces flaps.
@@ -118,7 +119,6 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 import { createHookServer, type HookServer } from './hooks/hookServer'
 import { hookStatus } from './hooks/hookStatus'
 import { registerHooks } from './hooks/registerHooks'
-import { HOOK_AUTHORITY_MS } from './hooks/hookContract'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -149,9 +149,10 @@ const ptys = new Map<Electron.WebContents, IPty>()
 // Story 3.1 (FR-10) — the ONE terminal manager. Embedded terminals are app-global like the
 // settings store (NOT window-scoped like the feed): the manager keys terminals by an opaque
 // terminalId and dispatches per-terminal, so it does not need per-window instances. It is
-// INDEPENDENT of both the PTY spike registry (`ptys`) and the feed registry (`feeds`) — a
-// c9watch watch reconnect must NEVER touch the PTY ports (architecture.md:568; the feed and
-// terminal transports are separate). Constructed in registerTerminalIpc (after app-ready).
+// INDEPENDENT of both the PTY spike registry (`ptys`) and the per-window session-engine
+// registries (`reducers`/`trackers`) — a session delta must NEVER touch the PTY ports
+// (the engine and terminal transports are separate). Constructed in registerTerminalIpc
+// (after app-ready).
 let terminalManager: TerminalManager | null = null
 
 // Story 3.1 — which window opened each terminalId, so a dead-terminal push (onExit) routes to
@@ -169,13 +170,9 @@ const terminalOwners = new Map<string, Electron.WebContents>()
 const launchedSet: LaunchedSet = createLaunchedSet()
 let launchService: LaunchService | null = null
 
-// Story 1.1 — the live c9watch feed → reducer → renderer wiring. ONE feed per
-// window; the feed pushes validated session deltas (frozen `session.updated`/
-// `session.removed`, epoch-framed) over CH.watchEvents. The feed is INDEPENDENT of
-// the PTY registry above — a watch reconnect must never touch PTY state.
-const feeds = new Map<Electron.WebContents, Feed>()
 // Hook-status feature — per-window hook HTTP listener handle, closed in teardownWatchFeed
-// (mirrors `feeds`). Prevents an EADDRINUSE leak when a window closes→reopens or HMR reloads.
+// (mirrors `trackers`/`reducers`). Prevents an EADDRINUSE leak when a window
+// closes→reopens or HMR reloads.
 const hookServers = new Map<Electron.WebContents, HookServer>()
 
 // Story 2.3 — one tray controller per window (same lifetime as the feed/reducer/tracker/
@@ -222,12 +219,18 @@ const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 // pendingGuard is true while the operator is viewing the Quit-guard modal.
 const quitGuardState: QuitGuardState = { isQuitting: false, pendingGuard: false }
 
-// Smoke mode is a packaged node-pty exit gate (no c9watch on the box); never spin
-// up the live feed there.
+// Story 6.4 — the NATIVE SESSION ENGINE wiring (the function name predates the CLI
+// retirement and is kept for continuity — there is no c9watch feed anymore). The
+// "engine" is: the per-window reducer + tracker + tray + notifier below, the hook
+// server (status transitions), the Story-6.2 spawn-time launch synthesis (instant
+// card), and the Story-6.3 stop/exit removal.
+//
+// Smoke mode is a packaged node-pty exit gate (no board/session engine needed there);
+// never spin up the engine there.
 function registerWatchFeed(window: BrowserWindow): void {
   if (SMOKE) return
   const wc = window.webContents
-  if (feeds.has(wc)) return
+  if (reducers.has(wc)) return
 
   const reducer = createReducer({
     now: () => Date.now(),
@@ -370,9 +373,7 @@ function registerWatchFeed(window: BrowserWindow): void {
     // the applyStop-style already-gone no-op), so the belt-and-suspenders SessionEnd hook
     // arriving later is quiet.
     removeLaunched: (sessionId) => {
-      reducer
-        .applyHookStatus(sessionId, { kind: 'removed' }, HOOK_AUTHORITY_MS)
-        .forEach(handleDelta)
+      reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
     }
   })
 
@@ -383,63 +384,55 @@ function registerWatchFeed(window: BrowserWindow): void {
     onHookEvent: (evt) => {
       const change = hookStatus(evt)
       if (change === null) return // unrecognized event — ignore
-      reducer.applyHookStatus(evt.session_id, change, HOOK_AUTHORITY_MS).forEach(handleDelta)
+      reducer.applyHookStatus(evt.session_id, change).forEach(handleDelta)
     },
     log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
   })
   hookServers.set(wc, hookServer)
 
-  const feed = createFeed({
-    reducer,
-    onDelta: handleDelta,
-    // Story 1.4 fix — surface the feed's REAL connection state on its own channel
-    // (CH.watchStatus). This is the signal the renderer's reconnect banner is driven
-    // by (AC-6 / UX-DR17 = a real watch-stream GAP), NOT line silence (a quiet
-    // `watch --changes-only` emits 0 lines — silence is the normal steady state).
-    // Validate AT SOURCE before send (zod-boundaries.md: main→renderer = validate at
-    // source); a malformed status never crosses the seam. CH.* const, never a literal.
-    onStatus: (status) => {
-      if (wc.isDestroyed()) return
-      const r = WatchStatusSchema.safeParse(status)
-      if (!r.success) {
-        const issue = r.error.issues[0]
-        console.error(
-          `[c9watch][feed] dropped watch:status path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
-        )
-        return
-      }
-      wc.send(CH.watchStatus, r.data)
-    }
-  })
-  feeds.set(wc, feed)
-
-  // start() runs the initial `c9watch list` seed then attaches the watch stream. A
-  // missing/unrunnable c9watch CLI (e.g. dev box without it) must NOT crash the app
-  // (never-crash) — the board simply stays empty until the feed can start.
-  feed
-    .start()
-    .then(() => {
-      // Story 2.3 — seed the initial badge AFTER the first `list` snapshot resolves, so the
-      // count is correct at cold-start even if the seed produced no deltas (empty board → 0 →
-      // plain base icon). The seed deltas already flowed through onDelta above; this is the
-      // idempotent post-seed reconcile (the controller no-ops when unchanged). Re-check the
-      // window isn't gone by the time the seed resolves.
-      // Story 3.3 — narrow the seed count to LAUNCHED sessions too (same membership source). At
-      // cold-start the launched-set is empty (nothing launched yet), so this is 0 — the empty
-      // board is the NORMAL cold state (FR-1 amended / F5).
-      if (!wc.isDestroyed())
-        tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
-    })
-    .catch((err) => {
+  // Story 6.4 — ENGINE START (the c9watch feed is retired; nothing is spawned here).
+  //
+  // (1) The Story-5.3 COLD-LOAD-COMPLETE contract: the renderer skeleton clears on the
+  //     one-time `CH.watchStatus { reconnecting: false }` push. Emit that same signal at
+  //     engine start, validated AT SOURCE (zod-boundaries.md: main→renderer = validate
+  //     at source; CH.* const, never a literal). The reconnect-banner path simply never
+  //     fires anymore (there is no watch child to lose) — the channel + payload types
+  //     stay so the renderer is untouched.
+  //
+  //     TIMING: the retired feed emitted this after `await c9watch list` — a real async
+  //     gap that let the renderer's onStatus subscription (a React effect, mounted just
+  //     after first paint / 'ready-to-show') attach first. Preserve an equivalent gap:
+  //     defer the emit a tick, then re-emit once after a short beat as belt-and-
+  //     suspenders — the consumer is idempotent (`setReconnecting(false)` on an
+  //     already-cold-loaded store is a no-op), so the repeat can never flap the UI,
+  //     while a lost first emit can strand the skeleton forever.
+  const emitEngineStarted = (): void => {
+    if (wc.isDestroyed()) return
+    const r = WatchStatusSchema.safeParse({ reconnecting: false })
+    if (!r.success) {
+      const issue = r.error.issues[0]
       console.error(
-        '[c9watch][feed] failed to start (board will stay empty):',
-        err instanceof Error ? err.message : 'unknown'
+        `[c9watch][engine] dropped watch:status path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
       )
-    })
+      return
+    }
+    wc.send(CH.watchStatus, r.data)
+  }
+  setTimeout(emitEngineStarted, 0)
+  setTimeout(emitEngineStarted, ENGINE_STARTED_RESEND_MS)
+
+  // (2) Story 2.3 — seed the initial tray badge. At cold start the launched-set is
+  //     empty (nothing launched yet), so this is 0 — the empty board is the NORMAL
+  //     cold state (FR-1 amended / F5). Same membership source as the board (Story 3.3).
+  tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
 }
 
-// Stop + drop a window's feed. Idempotent. Called on window close (clean teardown
-// via the feed's AbortController — no leaked watch child, no stacked listeners).
+/** Story 6.4 — the one guarded re-emit of the cold-load-complete signal (see above). */
+const ENGINE_STARTED_RESEND_MS = 1_000
+
+// Drop a window's session-engine registries (tray/tracker/reducer/board seam) and
+// close its hook listener. Idempotent. Called on window close. (The name predates the
+// Story-6.4 CLI retirement — there is no feed to stop anymore.)
 function teardownWatchFeed(wc: Electron.WebContents): void {
   // Story 2.3 — destroy the per-window tray controller (no leaked Tray). Idempotent + never
   // throws; safe to run even if the feed below is absent.
@@ -465,15 +458,6 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
     hookServers.delete(wc)
     hookServer.close()
   }
-  const feed = feeds.get(wc)
-  if (!feed) return
-  feeds.delete(wc)
-  feed.stop().catch((err) => {
-    console.error(
-      '[c9watch][feed] error during teardown:',
-      err instanceof Error ? err.message : 'unknown'
-    )
-  })
 }
 
 // Story 4.1 (FR-13) — stop every terminal this window owned (explicit-MAIN teardown).
@@ -1114,7 +1098,6 @@ function registerQuitIpc(): void {
       teardownAllSessions,
       teardownDeps: {
         terminalManager,
-        feeds: feeds.values(),
         clearTerminalOwners: () => terminalOwners.clear()
       },
       computeLiveLaunchedSessions,
@@ -1190,8 +1173,8 @@ function createWindow(): void {
     const wc = mainWindow.webContents
     ptys.get(wc)?.kill()
     ptys.delete(wc)
-    // Story 1.1 — stop the watch feed cleanly (AbortController teardown), reaping
-    // the watch child. Independent of the PTY teardown below.
+    // Drop this window's session-engine registries + close its hook listener.
+    // Independent of the PTY teardown below.
     teardownWatchFeed(wc)
     // Story 3.1 / Story 4.1 — tear down every embedded terminal this window owned via the
     // shared teardownWindowTerminals helper (explicit MAIN stop: port.close() THEN pty.kill(),
@@ -1203,7 +1186,7 @@ function createWindow(): void {
     teardownWindowTerminals(wc)
   })
 
-  // Story 1.1 — start the live c9watch feed for this window once it is ready to
+  // Story 6.4 — start the native session engine for this window once it is ready to
   // show (the renderer can receive CH.watchEvents deltas by then). Registered per
   // window, torn down on close; smoke mode skips it.
   mainWindow.on('ready-to-show', () => {
@@ -1374,7 +1357,6 @@ app.on('before-quit', (e) => {
     teardownAllSessions,
     teardownDeps: {
       terminalManager,
-      feeds: feeds.values(),
       clearTerminalOwners: () => terminalOwners.clear()
     },
     computeLiveLaunchedSessions,

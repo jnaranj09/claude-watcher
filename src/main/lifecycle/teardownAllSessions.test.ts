@@ -1,17 +1,19 @@
-// Story 4.1 — SM-3 = 0 orphans unit test + feed-stopped assertion.
+// Story 4.1 — SM-3 = 0 orphans unit test.
+// Story 6.4 — the feed-stopped assertions died with the c9watch feed (there is no
+// long-lived watch child to reap anymore; the hook listener closes per-window in
+// index.ts, not on this quit path).
 //
 // Proves the centralized teardown invariants via INJECTED fakes (NO real node-pty,
-// NO real MessagePort, NO real feed — ban deep vi.mock — AR-11):
+// NO real MessagePort — ban deep vi.mock — AR-11):
 //
 //   (a) For EVERY terminal, port.close() is called BEFORE pty.kill() — ordering.
 //   (b) Teardown is IDEMPOTENT — a second call is a safe no-op (no double-kill throw).
 //   (c) After teardown, terminalManager.has(id) is false for every prior id (0 orphans).
 //   (d) A terminal that already exited (pty onExit fired) is NOT double-killed.
-//   (e) Every live feed is stopped (feed.stop() is called on teardown).
-//   (f) After teardown, clearTerminalOwners is called.
+//   (e) After teardown, clearTerminalOwners is called.
 //
 // The teardown ORDER is:
-//   terminalManager.destroyAll() → clearTerminalOwners() → feed.stop() [voided]
+//   terminalManager.destroyAll() → clearTerminalOwners()
 //
 // Mirrors terminalManager.test.ts's destroy-ordering assertion.
 // [Source: story 4.1 Tasks 3; AC #1/#3/#5; SM-3; AR-11; FROZEN #2]
@@ -19,7 +21,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createTerminalManager, type PortLike } from '../pty/terminalManager'
 import type { IPtyLike, PtyFactory } from '../pty/ptyFactory'
-import type { Feed } from '../c9watch/feed'
 import { teardownAllSessions, type TeardownDeps } from './teardownAllSessions'
 import type { TerminalPortRendererMessage } from '../../shared/ipc/contract'
 
@@ -86,21 +87,6 @@ function makeFakePtyWithLog(callLog: string[], ptyId: string): ReturnType<typeof
   return base
 }
 
-// ---------------------------------------------------------------------------
-// Fake feed — spy on stop().
-// ---------------------------------------------------------------------------
-function makeFakeFeed(): { feed: Feed; stopCalled: () => boolean } {
-  let stopped = false
-  const feed: Feed = {
-    start: vi.fn().mockResolvedValue(undefined),
-    stop: vi.fn(async () => {
-      stopped = true
-    }),
-    whenReconnected: vi.fn().mockResolvedValue(undefined)
-  }
-  return { feed, stopCalled: () => stopped }
-}
-
 const SPAWN_DEFAULTS = { file: '/bin/bash' }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +124,6 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
     const clearOwners = vi.fn()
     const deps: TeardownDeps = {
       terminalManager: mgr,
-      feeds: [],
       clearTerminalOwners: clearOwners
     }
 
@@ -176,7 +161,7 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
     mgr.open('t1', makeFakePort(callLog, 't1'), 80, 24)
 
     const clearOwners = vi.fn()
-    const deps: TeardownDeps = { terminalManager: mgr, feeds: [], clearTerminalOwners: clearOwners }
+    const deps: TeardownDeps = { terminalManager: mgr, clearTerminalOwners: clearOwners }
 
     // First call tears everything down.
     expect(() => teardownAllSessions(deps)).not.toThrow()
@@ -208,7 +193,7 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
 
     // Now run teardownAllSessions — 't1' is no longer in the manager, so nothing new fires.
     const clearOwners = vi.fn()
-    const deps: TeardownDeps = { terminalManager: mgr, feeds: [], clearTerminalOwners: clearOwners }
+    const deps: TeardownDeps = { terminalManager: mgr, clearTerminalOwners: clearOwners }
     expect(() => teardownAllSessions(deps)).not.toThrow()
 
     // pty.kill count must not have grown — no double-kill.
@@ -220,7 +205,6 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
     const clearOwners = vi.fn()
     const deps: TeardownDeps = {
       terminalManager: null,
-      feeds: [],
       clearTerminalOwners: clearOwners
     }
     expect(() => teardownAllSessions(deps)).not.toThrow()
@@ -229,93 +213,12 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// (e) Feed is stopped on teardownAllSessions.
-// ---------------------------------------------------------------------------
-describe('teardownAllSessions — feed.stop() called on every live feed (AC #3)', () => {
-  it('calls stop() on a single feed and the terminal manager tears down its terminals', async () => {
-    const callLog: string[] = []
-    const fakePty = makeFakePtyWithLog(callLog, 't1')
-    const ptyFactory: PtyFactory = () => fakePty.pty
-    const mgr = createTerminalManager({
-      ptyFactory,
-      spawnDefaults: SPAWN_DEFAULTS,
-      onExit: vi.fn()
-    })
-    mgr.open('t1', makeFakePort(callLog, 't1'), 80, 24)
-
-    const { feed, stopCalled } = makeFakeFeed()
-    const clearOwners = vi.fn()
-    const deps: TeardownDeps = {
-      terminalManager: mgr,
-      feeds: [feed],
-      clearTerminalOwners: clearOwners
-    }
-
-    teardownAllSessions(deps)
-
-    // Flush micro-task queue so the voided Promise's catch can settle.
-    await Promise.resolve()
-
-    expect(stopCalled()).toBe(true)
-    expect(mgr.has('t1')).toBe(false)
-  })
-
-  it('calls stop() on MULTIPLE feeds — every feed is reaped', async () => {
-    const feedA = makeFakeFeed()
-    const feedB = makeFakeFeed()
-    const clearOwners = vi.fn()
-    const deps: TeardownDeps = {
-      terminalManager: null,
-      feeds: [feedA.feed, feedB.feed],
-      clearTerminalOwners: clearOwners
-    }
-
-    teardownAllSessions(deps)
-    await Promise.resolve()
-
-    expect(feedA.stopCalled()).toBe(true)
-    expect(feedB.stopCalled()).toBe(true)
-  })
-
-  it('a stop() error from one feed does not prevent the other feeds from being stopped', async () => {
-    // Feed A throws; Feed B must still be stopped.
-    const feedA: Feed = {
-      start: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockRejectedValue(new Error('boom')),
-      whenReconnected: vi.fn().mockResolvedValue(undefined)
-    }
-    let feedBStopped = false
-    const feedB: Feed = {
-      start: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn(async () => {
-        feedBStopped = true
-      }),
-      whenReconnected: vi.fn().mockResolvedValue(undefined)
-    }
-
-    const clearOwners = vi.fn()
-    const deps: TeardownDeps = {
-      terminalManager: null,
-      feeds: [feedA, feedB],
-      clearTerminalOwners: clearOwners
-    }
-
-    // Must not throw synchronously — errors are voided + caught asynchronously.
-    expect(() => teardownAllSessions(deps)).not.toThrow()
-    // Let the rejected Promise's catch handler run.
-    await Promise.resolve()
-
-    expect(feedBStopped).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// (f) clearTerminalOwners is called.
+// (e) clearTerminalOwners is called.
 // ---------------------------------------------------------------------------
 describe('teardownAllSessions — clearTerminalOwners called after destroyAll (AC #3)', () => {
   it('clearTerminalOwners is invoked once per teardown call', () => {
     const clear = vi.fn()
-    teardownAllSessions({ terminalManager: null, feeds: [], clearTerminalOwners: clear })
+    teardownAllSessions({ terminalManager: null, clearTerminalOwners: clear })
     expect(clear).toHaveBeenCalledTimes(1)
   })
 })

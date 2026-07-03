@@ -1,9 +1,8 @@
 // Hook-status feature — single source of truth for hook constants.
 //
 // Imported by hookServer.ts (the HTTP listener) and registerHooks.ts (the settings
-// merger). The REDUCER receives only `HOOK_AUTHORITY_MS` from its caller — it does NOT
-// import this module (the reducer must not depend on the hooks layer).
-// [.claude/rules/zod-boundaries.md; spec Code Map]
+// merger). The reducer does NOT import this module (it must not depend on the hooks
+// layer). [.claude/rules/zod-boundaries.md; spec Code Map]
 
 /** Localhost-only bind address. NEVER 0.0.0.0. */
 export const HOST = '127.0.0.1'
@@ -34,12 +33,9 @@ export const REGISTERED_EVENTS: readonly string[] = [
   'SessionEnd'
 ]
 
-/**
- * How long (ms) a hook-set status outranks a stale c9watch-polled status.
- * After this window expires, the next c9watch line resumes authority.
- * Ask-First decision: 10 000 ms.
- */
-export const HOOK_AUTHORITY_MS = 10_000
+// NOTE (Story 6.4): `HOOK_AUTHORITY_MS` (the hook-vs-c9watch authority window) was
+// removed with the c9watch CLI — hooks are the ONLY status source now, so there is
+// no competing poll to outrank.
 
 /**
  * Maximum accepted HTTP request body size in bytes.

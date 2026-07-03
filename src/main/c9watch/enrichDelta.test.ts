@@ -1,6 +1,8 @@
 // Story 1.4 — enrichDelta (validate-at-source) tests (AC-7; Tasks 7.3/7.4). main-unit
-// (node) project. Drives the REAL reducer + tracker with the EXISTING fake feed and a
-// FIXED injected now(), then enriches each delta and asserts:
+// (node) project. Story 6.4: migrated to the native-engine driver — the reducer is
+// seeded via `upsertLaunched` (the spawn-time synthesis) instead of the retired c9watch
+// `list` snapshot. Drives the REAL reducer + tracker with the launched-session fixtures
+// and a FIXED injected now(), then enriches each delta and asserts:
 //   - a session.updated carries column + enteredColumnAt + pid (+ pendingToolName when
 //     present), validated at source;
 //   - a session.removed passes through UNCHANGED (no enrichment of the frozen member);
@@ -13,15 +15,16 @@ import { createReducer } from './reducer'
 import { createAttentionTracker } from './attention'
 import { enrichDelta, type EnrichErrorRecord } from './enrichDelta'
 import { columnForStatus } from './columns'
-import { fakeListSnapshot } from '../../__fixtures__/fakeC9watchFeed'
+import {
+  fakeLaunchedSessions,
+  WORKING_ID as DASHBOARD_ID, // Working → working
+  NEEDS_ATTENTION_ID as WEBAPP_ID, // NeedsAttention → needs-you (pendingToolName 'Agent')
+  IDLE_ID as REPORTS_ID // WaitingForInput → idle (no pendingToolName)
+} from '../../__fixtures__/fakeSessions'
 
 const FIXED_NOW = 1_750_000_000_000
 
-const DASHBOARD_ID = '22222222-2222-4222-8222-222222222222' // Working → working
-const WEBAPP_ID = '47c6a173-9fe0-4f73-a8fc-0421af3fea24' // NeedsAttention → needs-you
-const REPORTS_ID = '77777777-7777-4777-8777-777777777777' // WaitingForInput → idle
-
-/** Build a wired reducer+tracker seeded from the fake list, mirroring index.ts order
+/** Build a wired reducer+tracker seeded via upsertLaunched, mirroring index.ts order
  *  (tracker processes the delta BEFORE enrichment reads columnOf/enteredColumnAt). */
 function seedWired(): {
   reducer: ReturnType<typeof createReducer>
@@ -29,10 +32,11 @@ function seedWired(): {
 } {
   const reducer = createReducer({ now: () => FIXED_NOW, log: () => {} })
   const tracker = createAttentionTracker({ now: () => FIXED_NOW })
-  const { deltas } = reducer.seedFromSnapshot(fakeListSnapshot)
-  for (const delta of deltas) {
-    // index.ts ordering: tracker sees the delta first, then enrichment reads it.
-    tracker.onDelta(delta, reducer.snapshotMap())
+  for (const session of fakeLaunchedSessions()) {
+    for (const delta of reducer.upsertLaunched(session)) {
+      // index.ts ordering: tracker sees the delta first, then enrichment reads it.
+      tracker.onDelta(delta, reducer.snapshotMap())
+    }
   }
   return { reducer, tracker }
 }
