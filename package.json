@@ -1,6 +1,6 @@
 {
   "name": "c9watch-webapp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "c9watch cockpit — Electron + React + TypeScript",
   "main": "./out/main/index.js",
   "author": "Jose Naranjo",
