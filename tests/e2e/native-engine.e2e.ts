@@ -6,6 +6,9 @@
 // immediately. This spec proves that end-to-end on the BUILT bundle with REAL hook POSTs:
 //
 //   Test 1 (the engine journey, one session's whole life):
+//     (0) COLD LOAD — on a fresh start, BEFORE any launch, the EMPTY board (not the
+//         skeleton) is visible: the two-shot engine-started `watch:status` signal is the
+//         ONLY skeleton-clear when no delta ever arrives (Story 5.3 contract, kept by 6.4).
 //     (1) INSTANT CARD — clicking `+ New session` (C9_TEST_PICK_DIR picker seam) synthesizes
 //         the board card at spawn, with NO external watcher to wait on (the retired c9watch
 //         poll is gone); the card exposes the launch-minted uuid via `data-session-id`.
@@ -241,6 +244,21 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
 
   try {
     await page.waitForLoadState('domcontentloaded', { timeout: 15000 })
+
+    // ── (0) COLD-LOAD SKELETON CLEARS WITH NO LAUNCH (Story 5.3/6.4 engine-started) ──
+    // On a fresh start ZERO deltas ever ship, so the ONLY thing clearing the cold-load
+    // skeleton is the two-shot `CH.watchStatus { reconnecting: false }` engine-started
+    // signal (index.ts registerWatchFeed). BEFORE any launch the EMPTY board (not the
+    // skeleton) must be visible — if the signal breaks, the skeleton hangs forever and
+    // this expect turns red. (10s comfortably covers the deferred emit + its 1s re-emit.)
+    await expect(
+      page.locator('[data-testid="empty-board"]'),
+      'a fresh no-launch start must clear the skeleton to the EMPTY board (engine-started signal)'
+    ).toBeVisible({ timeout: 10000 })
+    await expect(
+      page.locator('[data-testid="skeleton-board"]'),
+      'the cold-load skeleton must be gone once the engine-started signal lands'
+    ).toHaveCount(0)
 
     // Launch a session via the header button (picker seam returns launchDir; the launch
     // drops into the FOCUSED view where the EmbeddedTerminal mounts → terminal:open →

@@ -16,7 +16,6 @@ import {
   selectColumnCount,
   selectTotalCount,
   selectColdLoaded,
-  selectReconnecting,
   selectHeroColumn,
   selectSelectedId,
   selectViewMode,
@@ -26,7 +25,6 @@ import {
   selectTerminalIdForSession,
   selectKeptAliveTerminalIds,
   selectStartingTerminals,
-  RECONNECT_THRESHOLD_MS,
   HERO_SWAP_DEBOUNCE_MS,
   type BoardState
 } from './boardStore'
@@ -255,132 +253,47 @@ describe('boardStore selectors — column grouping + per-column sort (AC-3)', ()
   })
 })
 
-describe('boardStore — reconnect banner is driven by main’s REAL signal, not line silence (AC-6 fix)', () => {
-  it('REGRESSION: a QUIET fleet (no deltas past the threshold) does NOT show the banner', () => {
-    // The verified contract: `c9watch watch --changes-only` emits 0 lines on a quiet
-    // machine — silence is the NORMAL steady state. The OLD silence-based driver flagged
-    // this idle, healthy board as reconnecting after the threshold. The fix: with NO
-    // `reconnecting:true` signal from main, ticking far past the threshold keeps the
-    // banner hidden. (This test FAILS against the old `now() - lastDeltaAt` code.)
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    st().applyWatchEvent(updated(1, 'a', 'working', 100))
-    expect(selectReconnecting(st())).toBe(false)
-
-    // Quiet for well past the threshold — NO new deltas (normal idle fleet).
-    clock.advance(RECONNECT_THRESHOLD_MS * 5)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(false) // healthy + quiet ≠ reconnecting
-  })
-
-  it('a watch-child-exit (reconnecting:true) shows the banner past the debounce, and recovery clears it', () => {
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    st().applyWatchEvent(updated(1, 'a', 'working', 100))
-
-    // main pushes reconnecting:true (the watch child died). The banner is DEBOUNCED —
-    // it does not appear immediately (a brief blip must not flap it).
-    st().setReconnecting(true)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(false)
-
-    // Within the debounce window — still hidden.
-    clock.advance(RECONNECT_THRESHOLD_MS - 1)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(false)
-
-    // Past the debounce — the banner appears (the gap persisted).
-    clock.advance(2)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(true)
-
-    // Recovery: main pushes reconnecting:false (watch restarted + list reconcile applied)
-    // → the banner clears IMMEDIATELY (no debounce on recovery).
-    st().setReconnecting(false)
-    expect(selectReconnecting(st())).toBe(false)
-  })
-
-  it('a SHORT reconnect that recovers within the debounce window never flaps the banner', () => {
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    st().applyWatchEvent(updated(1, 'a', 'working', 100))
-    st().setReconnecting(true)
-    clock.advance(RECONNECT_THRESHOLD_MS - 1)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(false) // not yet shown
-    st().setReconnecting(false) // recovered fast
-    clock.advance(RECONNECT_THRESHOLD_MS * 5)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(false) // anchor cleared → never appears
-  })
-
-  it('NO transition is dropped across the reconnect (idempotent epoch apply still holds)', () => {
-    // The banner is purely a connection-state overlay; the session projection is driven
-    // by the epoch-framed deltas independently. A reconnect signal does not perturb the
-    // map, and the post-reconnect `list` reconcile (higher epoch) applies idempotently.
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    // Live: session 'a' working at epoch 1.
-    st().applyWatchEvent(updated(1, 'a', 'working', 100, { status: 'Working' }))
-    // Watch child dies — reconnecting signal in flight (banner state only).
-    st().setReconnecting(true)
-    clock.advance(RECONNECT_THRESHOLD_MS + 1)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(true)
-    // The reconnect `list` reconcile arrives at a higher epoch and moves 'a' to needs-you
-    // (a transition that occurred during the gap) — applied, not dropped.
-    st().applyWatchEvent(updated(2, 'a', 'needs-you', 500, { status: 'NeedsAttention' }))
-    expect(st().sessionsById['a']?.column).toBe('needs-you')
-    expect(st().epoch).toBe(2)
-    // A STALE replay of the old epoch is still discarded (idempotent).
-    st().applyWatchEvent(updated(1, 'a', 'working', 100, { status: 'Working' }))
-    expect(st().sessionsById['a']?.column).toBe('needs-you')
-    // Recovery clears the banner; the projection is intact.
-    st().setReconnecting(false)
-    expect(selectReconnecting(st())).toBe(false)
-    expect(st().sessionsById['a']?.column).toBe('needs-you')
-  })
-})
-
-describe('boardStore — setReconnecting flips coldLoaded (Story 5.3 — cold-load-complete on status push)', () => {
-  it('setReconnecting(false) on a FRESH store with ZERO sessions flips coldLoaded to true (the empty-board defect path)', () => {
+describe('boardStore — the engine-started cold-load contract (Story 5.3 / 6.4: watch:status clears the skeleton)', () => {
+  it('setReconnecting(false) with NO prior deltas flips coldLoaded true (the ONLY skeleton-clear when no delta ever arrives)', () => {
+    // The Story-6.4 native engine emits `CH.watchStatus { reconnecting: false }` at engine
+    // start; the Board routes it here. On a fresh, no-launch start ZERO deltas ever ship —
+    // this flip is the ONLY thing that clears the cold-load skeleton to the empty board.
+    // FAULT-INJECTION: deleting the coldLoaded flip inside setReconnecting turns this red
+    // (and the app's skeleton would hang forever on an empty cold start).
     const store = createBoardStore({ now: () => FIXED_NOW })
     // Non-vacuous: confirm coldLoaded starts false (no delta has arrived).
     expect(selectColdLoaded(store.getState())).toBe(false)
-    // Startup status arrives (feed.ts emits false after initial list seed).
+    expect(selectTotalCount(store.getState())).toBe(0) // truly no sessions — empty cold start
     store.getState().setReconnecting(false)
     expect(selectColdLoaded(store.getState())).toBe(true)
-    // The reconnect-banner state is untouched — no reconnect was signalled.
-    expect(selectReconnecting(store.getState())).toBe(false)
-    expect(store.getState().reconnectingSince).toBeNull()
   })
 
-  it('setReconnecting(true) ALSO flips coldLoaded true (any watch:status push = heard from feed), and still anchors the debounce', () => {
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
+  it('the TWO-SHOT engine-started emit is idempotent — a repeat push changes NOTHING (no UI flap)', () => {
+    // index.ts emits the signal twice (a lost first emit would strand the skeleton; the
+    // consumer must make the repeat harmless). A second push on a cold-loaded store must
+    // not produce a new state object (no re-render churn) and must not perturb anything.
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().setReconnecting(false)
+    const afterFirst = store.getState()
+    store.getState().setReconnecting(false)
+    expect(store.getState()).toBe(afterFirst) // the exact same state reference — a true no-op
+    expect(selectColdLoaded(store.getState())).toBe(true)
+  })
+
+  it('ANY watch:status push flips coldLoaded (the flag value is vestigial in the native engine)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectColdLoaded(store.getState())).toBe(false)
+    store.getState().setReconnecting(true) // never sent by the native engine, but must not strand the skeleton
+    expect(selectColdLoaded(store.getState())).toBe(true)
+  })
+
+  it('the status push does NOT perturb the session projection (deltas own the map)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
     const st = (): BoardState => store.getState()
-    // Non-vacuous: confirm coldLoaded starts false.
-    expect(selectColdLoaded(st())).toBe(false)
-    // main signals reconnecting (watch child died).
-    st().setReconnecting(true)
-    expect(selectColdLoaded(st())).toBe(true)
-    // Banner debounce is still anchored correctly — NOT shown until threshold.
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(false)
-    clock.advance(RECONNECT_THRESHOLD_MS + 1)
-    st().tickReconnect()
-    expect(selectReconnecting(st())).toBe(true)
-    // Recovery clears banner; coldLoaded stays true.
+    st().applyWatchEvent(updated(1, 'a', 'working', 100, { status: 'Working' }))
     st().setReconnecting(false)
-    expect(selectReconnecting(st())).toBe(false)
+    expect(st().sessionsById['a']?.column).toBe('working')
+    expect(st().epoch).toBe(1)
     expect(selectColdLoaded(st())).toBe(true)
   })
 })

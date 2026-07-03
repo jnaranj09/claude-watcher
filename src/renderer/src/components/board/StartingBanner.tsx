@@ -11,7 +11,7 @@
 //   - Single-entry optimisation: when exactly ONE starting terminal exists, clicking the
 //     banner opens it DIRECTLY (no list; skips the expand step).
 //   - Each entry click → `boardStore.getState().switchTerminal(terminalId)`.
-//   - Mount in Board.tsx `.statusLine` region alongside/below the reconnect banner.
+//   - Mount in Board.tsx `.statusLine` region (the board's status strip).
 //
 // [Source: story 5-6-keep-app-launched-terminals-reachable.md, Task 3]
 import { useState, type JSX } from 'react'

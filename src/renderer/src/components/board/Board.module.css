@@ -146,19 +146,6 @@
   outline-offset: 2px;
 }
 
-/* Reconnect banner — thin, non-modal, on the status line (UX-DR17). */
-.reconnectBanner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--gutter);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: var(--font-size-meta);
-  line-height: var(--line-height-meta);
-}
-
 /* ── Cold-load skeleton (UX-DR16: ghost cards, never a spinner-on-empty) ───────── */
 .skeletonCard {
   min-height: var(--card-min-height);

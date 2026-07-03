@@ -23,10 +23,12 @@
 //        `session.removed` IS the vanish signal Epic 2 consumes). There is NO
 //        "done" column; a present session is never placed in one.
 //   D3 — `attention.raised` is LEVEL-TRIGGERED on the `needs-you` ENTRY edge ONLY,
-//        not a replay. Entering `idle` or `working` raises NOTHING. Cold-start seed
-//        (the first epoch) establishes the baseline and SUPPRESSES raises (no launch
-//        storm). A reconnect reconcile (a later epoch) RE-RAISES a needs-you
-//        (re)entry (NFR-2 — no transition dropped across a gap).
+//        not a replay. Entering `idle` or `working` raises NOTHING. The FIRST
+//        observation of an id establishes its baseline and SUPPRESSES raises (no
+//        launch storm). (The historical reconnect-reconcile re-raise died with the
+//        Story-6.4 c9watch retirement: the reducer's epoch is a constant 0 — there is
+//        no snapshot reconcile — and a session can only be first-seen via
+//        `upsertLaunched`, which is always `Connecting` → working, never needs-you.)
 //   D4 — `enteredColumnAt` is stamped via injected `now()` (epoch-millis) on every
 //        column change — the UX-DR10 sort key (the SORT/RENDER is Story 1.4).
 //   D5 — a short, time-based, injected emission debounce: a session that leaves
@@ -86,17 +88,6 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
   /** id → tracked column state. Keyed by the stable `id`. */
   const tracked = new Map<string, TrackedColumn>()
 
-  // D3 — cold-start vs reconnect, distinguished by the reducer's MONOTONIC epoch.
-  // The reducer derives its epoch from a clock (`Math.max(epoch+1, now())`), so it is
-  // NOT a literal 1/2 counter — we must compare RELATIVE to the first epoch the tracker
-  // ever sees, not against a hardcoded 1. The very first snapshot the tracker observes
-  // is the COLD-START seed (its epoch == firstEpoch); every later snapshot is a
-  // RECONNECT reconcile (its epoch > firstEpoch, because each seedFromSnapshot bumps
-  // the epoch strictly). Watch lines ride the current (unchanged) epoch, so a watch
-  // line after cold start shares firstEpoch and a watch line after a reconnect shares
-  // that later epoch — the comparison stays correct for lines too.
-  let firstEpoch: number | null = null
-
   /** Build the frozen `attention.raised` from the already-validated Session (D3).
    *  pendingToolName is included ONLY when present (it is optional on both the
    *  Session and the union — never synthesize one). timestamp = injected now(),
@@ -121,13 +112,7 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
     delta: SessionDelta,
     sessionsById: ReadonlyMap<string, Session>
   ): AttentionRaisedEvent[] {
-    const { event, epoch } = delta
-
-    // Record the first epoch the tracker ever sees — the cold-start baseline (D3).
-    if (firstEpoch === null) firstEpoch = epoch
-    // From here `firstEpoch` is non-null; capture it so the cold-start-vs-reconnect
-    // comparison below narrows without a non-null assertion.
-    const baselineEpoch = firstEpoch
+    const { event } = delta
 
     // D2 — an exited session VANISHES. The reducer's session.removed (from a watch
     // `stopped` line OR absence-from-`list`-reconcile) IS the vanish signal Epic 2
@@ -154,20 +139,12 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
     const prior = tracked.get(id)
     const at = now()
 
-    // First time the tracker sees this id.
+    // First time the tracker sees this id — establish the baseline and SUPPRESS (D3:
+    // no launch storm). In the native engine an id can only be first-seen via
+    // `upsertLaunched` (always `Connecting` → working; hooks for unknown ids no-op), so
+    // a first observation is never a needs-you entry edge anyway.
     if (prior === undefined) {
-      // A reconnect (re)entry = a needs-you session surfacing on a snapshot LATER than
-      // the cold-start one (epoch > baselineEpoch). At cold start (epoch == baselineEpoch)
-      // we only establish the baseline — suppress (no launch storm). Entering working or
-      // idle never raises (AC-4), so this only matters for newColumn === 'needs-you'.
-      const isReconnectReentry = epoch > baselineEpoch && newColumn === 'needs-you'
       tracked.set(id, { column: newColumn, enteredColumnAt: at })
-      // D3 — cold-start seed establishes the baseline and SUPPRESSES raises. A reconnect
-      // reconcile surfacing a needs-you session the tracker did not previously hold IS a
-      // (re)entry → raise level-triggered (NFR-2).
-      if (isReconnectReentry) {
-        return raiseIfNotDebounced(id, sessionsById, at)
-      }
       return []
     }
 
@@ -199,16 +176,15 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
   }
 
   /** Emit the raise unless a recent leave-then-reenter falls inside the debounce
-   *  window (D5). `state` is the tracked entry when known (so we can read its
-   *  leftNeedsYouAt); for a first-seen reconnect (re)entry there is no prior leave
-   *  recorded, so it always raises. */
+   *  window (D5). `state` is the tracked entry (its `leftNeedsYouAt` anchors the
+   *  window; a session that never left needs-you has none recorded → always raises). */
   function raiseIfNotDebounced(
     id: string,
     sessionsById: ReadonlyMap<string, Session>,
     at: number,
-    state?: TrackedColumn
+    state: TrackedColumn
   ): AttentionRaisedEvent[] {
-    if (state?.leftNeedsYouAt !== undefined && at - state.leftNeedsYouAt < debounceMs) {
+    if (state.leftNeedsYouAt !== undefined && at - state.leftNeedsYouAt < debounceMs) {
       // Rapid flap: left needs-you and came back inside the window → suppress the
       // duplicate raise (the operator already has the card surfaced).
       return []

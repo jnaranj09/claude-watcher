@@ -41,7 +41,7 @@ declare global {
     // Mirrors src/preload/index.ts `watchApi` — the watch subscription bridges.
     watch: {
       onEvents(cb: (payload: WatchEventsPayload) => void): () => void
-      // Story 1.4 fix — the watch CONNECTION-state subscription (reconnect banner driver).
+      // Story 5.3/6.4 — the watch:status subscription (the engine-started cold-load signal).
       onStatus(cb: (status: WatchStatus) => void): () => void
     }
     // Story 2.2 (FR-9) — mirrors src/preload/index.ts `attentionApi`. The in-app

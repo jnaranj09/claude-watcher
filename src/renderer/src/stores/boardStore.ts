@@ -11,23 +11,21 @@
 //
 // Determinism: `now()` is injected into the store factory (state.md: "inject now() for
 // epoch-millis determinism"). The store does NOT call now() for sort (sort uses the
-// wire's `enteredColumnAt`); now() is reserved for the reconnect-banner DEBOUNCE the
-// store owns (see the reconnect note below).
+// wire's `enteredColumnAt`); now() drives the hero-swap debounce anchor and the
+// acknowledge/launch timestamps.
 //
-// RECONNECT BANNER (Story 1.4 code-review fix) — driven by main's REAL connection signal,
-// NOT by line silence. The verified contract (`c9watch-0.8.1-contract.md`) says
-// `c9watch watch --changes-only` emits 0 lines on a quiet machine — silence is the NORMAL
-// steady state, so the old `now() - lastDeltaAt > threshold` inference falsely flagged an
-// idle, healthy fleet as reconnecting. Main's feed already detects the watch child's exit
-// and runs a serialized auto-reconnect (Story 1.1), and now pushes that state over
-// `CH.watchStatus` → the Board calls `setReconnecting(...)`. `RECONNECT_THRESHOLD_MS` is now
-// a DEBOUNCE on the real `reconnecting:true` signal (UX-DR17: "only if a gap exceeds a
-// threshold") — `tickReconnect` flips the banner visible once the gap since the signal
-// exceeds the threshold; `setReconnecting(false)` clears it immediately on recovery.
+// COLD-LOAD-COMPLETE via `CH.watchStatus` (Story 5.3 contract, kept by the Story-6.4
+// native engine): at engine start main pushes `{ reconnecting: false }` (twice —
+// belt-and-suspenders; see index.ts registerWatchFeed). `setReconnecting` consumes it
+// and flips `coldLoaded` so the skeleton clears even when NO delta ever arrives (the
+// normal empty cold start). The historical reconnect BANNER died with the c9watch CLI
+// feed (Story 6.4 retirement — there is no watch child to lose, so `reconnecting:true`
+// is never sent); its debounce plumbing was stripped in the Epic-6 review cleanup.
 //
-// [Source: story 1.4 Tasks 3/5 + code-review MED; .claude/rules/state.md; architecture.md
-//  #Renderer Architecture (Zustand 5.0.14), #Communication/State Patterns (narrow
-//  selectors, useShallow, epoch discard); src/main/c9watch/feed.ts (reconnect lifecycle)]
+// [Source: story 1.4 Tasks 3/5 + code-review MED; story 5.3; spec-native-session-engine.md
+//  Story 6.4; .claude/rules/state.md; architecture.md #Renderer Architecture
+//  (Zustand 5.0.14), #Communication/State Patterns (narrow selectors, useShallow,
+//  epoch discard)]
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
@@ -83,20 +81,13 @@ export interface BoardSession {
   enteredColumnAt: number
 }
 
-/** DEBOUNCE applied to main's real `reconnecting:true` signal before the banner shows
- *  (AC-6 / UX-DR17: "only if a gap exceeds a threshold"). A named const (no magic
- *  number); a short reconnect that recovers within this window never flaps the banner.
- *  This is NOT a line-silence timer (silence is the normal quiet steady state). */
-export const RECONNECT_THRESHOLD_MS = 6_000
-
 /** Story 1.5 — the HERO-SWAP debounce window (AC-5 / FROZEN-4). The hero only commits
  *  to a new occupant after the RAW cascade result has stayed put past this threshold,
  *  so a single Needs-you session blinking in/out on the 0↔1 boundary does NOT thrash the
- *  center hero. The THIRD distinct debounce in the app — DISTINCT from Story 1.2's
- *  attention-emission debounce (main) and the reconnect-banner debounce above (connection
- *  state). 400ms is a sensible default (not docs-specified): long enough to swallow a
- *  sub-second flap, short enough that a genuine promotion still reads as immediate (well
- *  under the ~1s attention-latency NFR). Override via `BoardStoreOptions.heroSwapDebounceMs`. */
+ *  center hero. DISTINCT from Story 1.2's attention-emission debounce (main). 400ms is a
+ *  sensible default (not docs-specified): long enough to swallow a sub-second flap, short
+ *  enough that a genuine promotion still reads as immediate (well under the ~1s
+ *  attention-latency NFR). Override via `BoardStoreOptions.heroSwapDebounceMs`. */
 export const HERO_SWAP_DEBOUNCE_MS = 400
 
 /** The two HERO-ELIGIBLE columns. Idle is NEVER the hero (FROZEN-1 / AC-2) — it is always
@@ -135,14 +126,9 @@ export interface BoardState {
   sessionsById: Record<string, BoardSession>
   /** Highest epoch seen — older deltas are discarded (idempotent, AC-6). */
   epoch: number
-  /** False until the first delta of epoch ≥ 1 arrives (cold-load skeleton, AC-5). */
+  /** False until the first delta arrives OR the engine-started `watch:status` push lands
+   *  (the cold-load skeleton, AC-5 / Story 5.3 — see `setReconnecting`). */
   coldLoaded: boolean
-  /** Whether the reconnect BANNER should show (AC-6). Derived from main's real
-   *  `reconnecting` signal AFTER the debounce window — never set directly by the UI. */
-  reconnecting: boolean
-  /** Epoch-millis when main's `reconnecting:true` signal arrived (debounce anchor);
-   *  null when the feed is connected. Stamped via the injected `now()`. */
-  reconnectingSince: number | null
   /** Story 1.5 — the COMMITTED hero column (the center-slot occupant). Derived truth
    *  from the cascade, NOT user-selectable (AC-7 / FROZEN-6). Default `'working'` (the
    *  calm fall-through when nothing needs you). Only the debounce commit moves it; the
@@ -150,7 +136,7 @@ export interface BoardState {
   heroColumn: HeroColumn
   /** Story 1.5 — debounce anchor: epoch-millis (via injected now()) stamped when the RAW
    *  cascade result first DIFFERS from the committed `heroColumn`; null when committed and
-   *  raw agree (no pending swap). Mirrors `reconnectingSince`. */
+   *  raw agree (no pending swap). */
   heroPendingSince: number | null
   /** Story 1.5 — the pending swap TARGET (the raw cascade result awaiting the debounce);
    *  null when no swap is pending. */
@@ -231,17 +217,17 @@ export interface BoardState {
   stopConfirm: StopConfirmPayload | null
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
-  /** Apply main's pushed connection state (CH.watchStatus). `true` anchors the debounce
-   *  window (banner still hidden until `tickReconnect` crosses the threshold); `false`
-   *  recovers immediately (clears the banner + the anchor). */
+  /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
+   *  Story-6.4 native engine emits at start (`{ reconnecting: false }`, twice as belt-and-
+   *  suspenders): any push flips `coldLoaded` so the skeleton clears even when no delta
+   *  ever arrives. Idempotent (a repeat push on a cold-loaded store is a no-op — the
+   *  two-shot emit can never flap the UI). The `reconnecting` flag itself is vestigial —
+   *  the native engine has no watch child to lose and only ever sends `false`. */
   setReconnecting: (reconnecting: boolean) => void
-  /** Flip the banner visible once the gap since the `reconnecting:true` signal exceeds
-   *  the debounce threshold (UX-DR17). No-op while connected. Uses the injected now(). */
-  tickReconnect: () => void
   /** Story 1.5 — COMMIT a pending hero swap once it has stayed past the debounce window
-   *  (AC-5). Mirrors `tickReconnect`: no anchor → no-op; past `HERO_SWAP_DEBOUNCE_MS` since
-   *  the anchor → commit `heroColumn = heroPendingTarget` and clear the anchor. The Board
-   *  runs this on the existing tick interval. Uses the injected now(). */
+   *  (AC-5): no anchor → no-op; past `HERO_SWAP_DEBOUNCE_MS` since the anchor → commit
+   *  `heroColumn = heroPendingTarget` and clear the anchor. The Board runs this on its
+   *  tick interval. Uses the injected now(). */
   tickHero: () => void
   /** Story 2.2 (FR-9) — set the selected card (locate-and-highlight). Passing an `id` that is
    *  NOT present in `sessionsById` is a NO-OP (the card may have already left the board);
@@ -330,8 +316,6 @@ export interface BoardState {
 export interface BoardStoreOptions {
   /** Epoch-millis clock — inject for determinism; defaults to Date.now. */
   now?: () => number
-  /** Debounce threshold in ms before the reconnect banner shows. Defaults to the const. */
-  reconnectThresholdMs?: number
   /** Story 1.5 — HERO-SWAP debounce window in ms. Defaults to `HERO_SWAP_DEBOUNCE_MS`. */
   heroSwapDebounceMs?: number
 }
@@ -345,7 +329,6 @@ export type BoardStore = StoreApi<BoardState>
  */
 export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
   const now = options.now ?? Date.now
-  const reconnectThresholdMs = options.reconnectThresholdMs ?? RECONNECT_THRESHOLD_MS
   const heroSwapDebounceMs = options.heroSwapDebounceMs ?? HERO_SWAP_DEBOUNCE_MS
 
   /** Story 1.5 — recompute the hero DEBOUNCE bookkeeping after a count change (Task 1.3).
@@ -380,8 +363,6 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     sessionsById: {},
     epoch: 0,
     coldLoaded: false,
-    reconnecting: false,
-    reconnectingSince: null,
     // Story 1.5 — the hero defaults to Working (the calm fall-through); a needs-you
     // promotion swaps it past the debounce window. No denormalized hero card list (AC-8).
     heroColumn: 'working',
@@ -476,38 +457,15 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       set({ epoch: payload.epoch, coldLoaded: true })
     },
 
-    setReconnecting: (reconnecting) => {
-      const state = get()
-      // Story 5.3 — COLD-LOAD-COMPLETE: receiving ANY `watch:status` push means main's
-      // feed is live and has completed its initial `list` seed → cold-load is done.
-      // This MUST be at the TOP, before the early-return paths below, because a
-      // fresh-store startup `setReconnecting(false)` hits the recovery branch whose
-      // `set(...)` does NOT run (both `reconnecting:false` and `reconnectingSince:null`),
-      // so without this guarded flip the skeleton would hang forever on an empty board.
-      // The `coldLoaded` flip is orthogonal to the reconnect-banner debounce.
-      if (!state.coldLoaded) set({ coldLoaded: true })
-      if (reconnecting) {
-        // Main's watch child died and a reconnect is in flight. Anchor the debounce
-        // window (do NOT show the banner yet — `tickReconnect` reveals it once the gap
-        // exceeds the threshold). Idempotent: keep the original anchor on a repeat true.
-        if (state.reconnectingSince === null) set({ reconnectingSince: now() })
-        return
-      }
-      // Recovery — the watch restarted + the `list` reconcile applied. Clear the banner
-      // and the debounce anchor immediately.
-      if (state.reconnecting || state.reconnectingSince !== null) {
-        set({ reconnecting: false, reconnectingSince: null })
-      }
-    },
-
-    tickReconnect: () => {
-      const state = get()
-      // Debounce on the REAL signal (UX-DR17): no anchor → connected → banner stays
-      // hidden. Past the threshold since the `reconnecting:true` signal → reveal it.
-      // Uses the injected now() for determinism.
-      if (state.reconnectingSince === null) return
-      const visible = now() - state.reconnectingSince > reconnectThresholdMs
-      if (visible !== state.reconnecting) set({ reconnecting: visible })
+    setReconnecting: () => {
+      // Story 5.3 — COLD-LOAD-COMPLETE: receiving ANY `watch:status` push means the
+      // main-side session engine has started (Story 6.4 emits `{ reconnecting: false }`
+      // at engine start, twice as belt-and-suspenders) → cold-load is done, the skeleton
+      // clears even when no delta ever arrives (the normal empty cold start). Idempotent:
+      // a repeat push on a cold-loaded store changes nothing, so the two-shot emit can
+      // never flap the UI. The pushed `reconnecting` flag is vestigial (the native engine
+      // only ever sends false — the reconnect banner died with the c9watch feed).
+      if (!get().coldLoaded) set({ coldLoaded: true })
     },
 
     tickHero: () => {
@@ -679,9 +637,6 @@ export function selectTotalCount(state: BoardState): number {
 
 /** Cold-load flag (primitive). */
 export const selectColdLoaded = (state: BoardState): boolean => state.coldLoaded
-
-/** Reconnect-banner flag (primitive). */
-export const selectReconnecting = (state: BoardState): boolean => state.reconnecting
 
 /** Story 1.5 — the COMMITTED hero column (AC-8). A NARROW, PRIMITIVE selector (returns a
  *  `HeroColumn` string — safe without `useShallow`). Derives nothing more than the already

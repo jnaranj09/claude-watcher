@@ -52,8 +52,8 @@ import { shouldShipToBoard } from './c9watch/shipGate'
 // (applyHookStatus, Stories 6.3/hook-ingest). The dir name `c9watch/` is historical.
 import { createReducer } from './c9watch/reducer'
 // Story 1.2 — the column-transition tracker: consumes each reducer delta + the
-// reduced map, emits attention.raised on a needs-you ENTRY edge (cold-start
-// suppressed / reconnect re-raised), stamps time-entered-column, debounces flaps.
+// reduced map, emits attention.raised on a needs-you ENTRY edge (first observation
+// suppressed), stamps time-entered-column, debounces flaps.
 import { createAttentionTracker, type AttentionTracker } from './c9watch/attention'
 // Story 2.4 — the app-global settings store (electron-store in MAIN, behind a DI seam) +
 // its versioned-Zod payload schema. The store is constructed ONCE (settings are app-global,
@@ -73,6 +73,11 @@ import { createLaunchService, type LaunchService } from './pty/launchSession'
 // window's reducer → the SAME handleDelta chokepoint (session.removed → card gone NOW,
 // no SessionEnd hook / feed event needed).
 import { removeBoundSession, stopTerminalAndRemoveBound } from './pty/launchRemoval'
+// Story 6.2 — the extracted "should this open MINT?" decision (unit-tested in
+// launchMint.test.ts, mirroring the launchRemoval extraction): mint ONLY when an ACTUAL
+// pty spawn is about to happen — a re-attach to a LIVE terminal must never mint a second
+// uuid / ghost card / binding overwrite.
+import { mintForOpen } from './pty/launchMint'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
@@ -395,9 +400,9 @@ function registerWatchFeed(window: BrowserWindow): void {
   // (1) The Story-5.3 COLD-LOAD-COMPLETE contract: the renderer skeleton clears on the
   //     one-time `CH.watchStatus { reconnecting: false }` push. Emit that same signal at
   //     engine start, validated AT SOURCE (zod-boundaries.md: main→renderer = validate
-  //     at source; CH.* const, never a literal). The reconnect-banner path simply never
-  //     fires anymore (there is no watch child to lose) — the channel + payload types
-  //     stay so the renderer is untouched.
+  //     at source; CH.* const, never a literal). `reconnecting: true` is never sent
+  //     anymore (there is no watch child to lose) — the channel + payload types stay;
+  //     the renderer consumes the push purely as the cold-load signal.
   //
   //     TIMING: the retired feed emitted this after `await c9watch list` — a real async
   //     gap that let the renderer's onStatus subscription (a React effect, mounted just
@@ -819,14 +824,15 @@ function registerTerminalIpc(): void {
     terminalOwners.set(terminalId, wc)
     // Story 3.2 (FR-11) / Story 6.2 — if this terminalId is an app LAUNCH (the renderer opened
     // the EmbeddedTerminal against a launch-minted id) AND an ACTUAL pty spawn is about to
-    // happen, MINT the session identity at consume time: `mintSpawn` mints a fresh
-    // `--session-id` uuid, composes the claude spawn for the picked cwd, records the exact
-    // terminalId → sessionId binding, and adds the id to the launched-set. A re-open of a LIVE
-    // terminal re-attaches (Story 5.6 — no spawn) and must NOT mint/rebind; a Reopen of a DEAD
-    // terminal is a real spawn and gets a FRESH id (a consumed --session-id is never re-used).
-    // A non-launch terminalId (the Story-3.1 host path) mints null → the unchanged shell spawn.
-    const willSpawn = !terminalManager.has(terminalId)
-    const minted = willSpawn ? (launchService?.mintSpawn(terminalId) ?? null) : null
+    // happen, MINT the session identity at consume time via the extracted `mintForOpen`
+    // decision (launchMint.ts — unit-tested; fault-injection-proof): `mintSpawn` mints a
+    // fresh `--session-id` uuid, composes the claude spawn for the picked cwd, records the
+    // exact terminalId → sessionId binding, and adds the id to the launched-set. A re-open
+    // of a LIVE terminal re-attaches (Story 5.6 — no spawn) and must NOT mint/rebind; a
+    // Reopen of a DEAD terminal is a real spawn and gets a FRESH id (a consumed --session-id
+    // is never re-used). A non-launch terminalId (the Story-3.1 host path) mints null → the
+    // unchanged shell spawn.
+    const minted = mintForOpen(terminalId, terminalManager, launchService)
     // Open the terminal (manager wires port1 ↔ pty + flow control). Initial dims are the
     // renderer's first fit() over CH.terminalResize; spawn at a sane default until then. A spawn
     // failure degrades to the manager's onExit → CH.terminalExit (dead pane), never a hang.

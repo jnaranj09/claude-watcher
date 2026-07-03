@@ -2,20 +2,14 @@
 //
 // Renders the live <Board/> against the singleton boardStore (reset per test) and a
 // stubbed `window.watch`/`window.pty`. Asserts: cold-load skeleton renders before the
-// first delta then clears; empty-column hints (incl. the calm needs-you hint); empty
-// board headline + `+ New session`; reconnect banner shows past threshold; every
-// session → exactly one card (no dup); native fields verbatim; aria-live region present.
-// Uses the existing renderComponent helper (NO React Testing Library).
+// first delta then clears (via a delta OR the engine-started watch:status push);
+// empty-column hints (incl. the calm needs-you hint); empty board headline +
+// `+ New session`; every session → exactly one card (no dup); native fields verbatim;
+// aria-live region present. Uses the existing renderComponent helper (NO RTL).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act } from 'react'
 import { Board } from './Board'
-import {
-  boardStore,
-  RECONNECT_THRESHOLD_MS,
-  HERO_SWAP_DEBOUNCE_MS,
-  type BoardState,
-  type BoardSession
-} from '../../stores/boardStore'
+import { boardStore, HERO_SWAP_DEBOUNCE_MS } from '../../stores/boardStore'
 import { renderComponent } from '../../test/renderComponent'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -50,8 +44,6 @@ function resetStore(): void {
     sessionsById: {},
     epoch: 0,
     coldLoaded: false,
-    reconnecting: false,
-    reconnectingSince: null,
     heroColumn: 'working',
     heroPendingSince: null,
     heroPendingTarget: null,
@@ -63,17 +55,6 @@ function resetStore(): void {
 function applyDelta(payload: WatchEventsPayload): void {
   act(() => {
     boardStore.getState().applyWatchEvent(payload)
-  })
-}
-
-/** Patch store state INSIDE act() so the subscribed Board re-renders. */
-function setStore(
-  partial: Partial<Pick<BoardState, 'coldLoaded' | 'reconnecting'>> & {
-    sessionsById?: Record<string, BoardSession>
-  }
-): void {
-  act(() => {
-    boardStore.setState(partial)
   })
 }
 
@@ -141,8 +122,8 @@ function updated(
 }
 
 /** Commit a hero swap deterministically: the singleton store uses the real clock, so
- *  backdate the pending anchor past the debounce window and tick (mirrors how the
- *  reconnect-banner test crosses its debounce). After this the committed hero == target. */
+ *  backdate the pending anchor past the debounce window and tick. After this the
+ *  committed hero == target. */
 function commitHero(): void {
   act(() => {
     const since = boardStore.getState().heroPendingSince
@@ -182,11 +163,13 @@ describe('Board — cold-load skeleton (AC-5)', () => {
   })
 })
 
-describe('Board — cold-load-complete via watch:status (Story 5.3 — status push clears skeleton on empty board)', () => {
+describe('Board — cold-load-complete via watch:status (Story 5.3/6.4 — the engine-started push clears the skeleton)', () => {
   it('pushing a status(false) on a fresh zero-session board clears the skeleton and shows the empty board', () => {
-    // This is the end-to-end proof of the Story 5.3 fix: the startup emitStatus(false)
-    // from feed.ts reaches the Board's onStatus subscription, calls setReconnecting(false),
-    // which now flips coldLoaded:true — even when zero sessions have shipped to the board.
+    // The renderer-side proof of the engine-started signal: the Story-6.4 native engine's
+    // startup `CH.watchStatus { reconnecting: false }` (index.ts registerWatchFeed) reaches
+    // the Board's onStatus subscription, calls setReconnecting, and flips coldLoaded:true —
+    // even when ZERO deltas ever ship (the normal empty cold start). This is the ONLY
+    // skeleton-clear path on a fresh, no-launch start; break the signal and this turns red.
     const { pushStatus } = stubBridges()
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
@@ -292,53 +275,6 @@ describe('Board — live three columns, one card per session, verbatim fields (A
     const live = container.querySelector('[data-testid="live-announcer"]')
     expect(live).not.toBeNull()
     expect(live?.getAttribute('aria-live')).toBe('polite')
-  })
-})
-
-describe('Board — reconnect banner (AC-6)', () => {
-  it('shows the non-modal banner when the store is reconnecting and clears otherwise', () => {
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
-    const { container, unmount } = renderComponent(<Board />)
-    cleanup = unmount
-    // Not reconnecting yet → no banner.
-    expect(container.querySelector('[data-testid="reconnect-banner"]')).toBeNull()
-    // Flip the banner-visible flag (set by the debounce tick past the threshold).
-    setStore({ reconnecting: true })
-    const banner = container.querySelector('[data-testid="reconnect-banner"]')
-    expect(banner).not.toBeNull()
-    expect(banner?.textContent).toContain('Reconnecting to c9watch')
-    // Recovery clears it.
-    setStore({ reconnecting: false })
-    expect(container.querySelector('[data-testid="reconnect-banner"]')).toBeNull()
-  })
-
-  it('a main `reconnecting:true` push flows through window.watch.onStatus into the store', () => {
-    // Drive the banner through the REAL seam: the Board subscribes window.watch.onStatus
-    // and routes it to boardStore.setReconnecting. We push the signal, then (since the
-    // debounce anchor uses now()) tick the store far past the threshold and assert visible.
-    const bridges = stubBridges() // re-stub to capture this test's onStatus callback
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
-    const { container, unmount } = renderComponent(<Board />)
-    cleanup = unmount
-    expect(container.querySelector('[data-testid="reconnect-banner"]')).toBeNull()
-
-    // Push the connection-state signal through the bridge the Board registered.
-    act(() => bridges.pushStatus(true))
-    // Anchored but debounced — not visible immediately.
-    expect(container.querySelector('[data-testid="reconnect-banner"]')).toBeNull()
-
-    // Cross the debounce: advance the store's anchor past threshold and tick.
-    act(() => {
-      boardStore.setState({
-        reconnectingSince: boardStore.getState().reconnectingSince! - (RECONNECT_THRESHOLD_MS + 1)
-      })
-      boardStore.getState().tickReconnect()
-    })
-    expect(container.querySelector('[data-testid="reconnect-banner"]')).not.toBeNull()
-
-    // Recovery push clears it immediately.
-    act(() => bridges.pushStatus(false))
-    expect(container.querySelector('[data-testid="reconnect-banner"]')).toBeNull()
   })
 })
 
