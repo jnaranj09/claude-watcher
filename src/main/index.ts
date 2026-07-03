@@ -1175,8 +1175,14 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // CAPTURED BEFORE destruction: by the time `'closed'` fires the BrowserWindow is destroyed
+  // and even the `webContents` GETTER throws `Object has been destroyed` (Electron surfaces it
+  // as the main-process error popup on every real quit — the tray-Quit bug). The registries
+  // below key by the WebContents OBJECT reference, which stays valid as a Map key after
+  // destruction, so capturing at registration time is both safe and sufficient.
+  const closedWc = mainWindow.webContents
   mainWindow.on('closed', () => {
-    const wc = mainWindow.webContents
+    const wc = closedWc
     ptys.get(wc)?.kill()
     ptys.delete(wc)
     // Drop this window's session-engine registries + close its hook listener.
