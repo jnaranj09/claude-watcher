@@ -184,6 +184,13 @@ export interface LaunchService {
    *  spawn (null before the first mint / for a non-launch terminalId). Story 6.3 consumes
    *  this for exact stop/exit removal. */
   sessionIdFor(terminalId: string): string | null
+  /** Story 6.3 — clear the `terminalId → sessionId` binding after a stop/exit REMOVAL
+   *  consumed it (the card is gone; the binding no longer names a live launched session).
+   *  Idempotent. The durable spawn-override is NOT touched — a later Reopen still finds its
+   *  recipe and `mintSpawn` writes a FRESH binding. Clearing here keeps the lifecycle
+   *  coherent: a second stop/exit trigger for the same terminal resolves `sessionIdFor` to
+   *  null and no-ops (removal is idempotent by construction). */
+  unbind(terminalId: string): void
   /** Attempt the Tgid join for every not-yet-correlated launch against the current c9watch
    *  snapshot (AC-2/3/4). Called per feed delta (same synchronous tick as the reducer map). A
    *  landed join records the session id in the launched-set. Re-resolves Tgid each call (the
@@ -226,8 +233,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
   const overrides = new Map<string, { cwd: string }>()
   /** Story 6.2 — the EXACT terminalId → sessionId binding, written at each actual spawn
    *  (mintSpawn) and OVERWRITTEN by a Reopen's fresh id. Story 6.3 consumes it (sessionIdFor)
-   *  for immediate stop/exit removal. Outlives forget() (like the override — the binding is
-   *  the durable record of the last spawn's identity). */
+   *  for immediate stop/exit removal and CLEARS it (unbind) once that removal lands — so a
+   *  binding present means "the last spawn's session may still be on the board". Not touched
+   *  by forget() (correlation tracking is a separate lifecycle). */
   const bindings = new Map<string, string>()
 
   function launch(req: LaunchRequest): LaunchOutcome {
@@ -283,6 +291,13 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
 
   function sessionIdFor(terminalId: string): string | null {
     return bindings.get(terminalId) ?? null
+  }
+
+  function unbind(terminalId: string): void {
+    // Story 6.3 — the stop/exit removal consumed this binding; drop it so a second trigger
+    // (or a late SessionEnd-driven sweep) finds nothing to remove. Idempotent; the durable
+    // spawn-override and the launched-set membership are deliberately untouched.
+    bindings.delete(terminalId)
   }
 
   function correlateAgainst(sessions: Iterable<Session>): void {
@@ -362,5 +377,14 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     launches.delete(terminalId)
   }
 
-  return { launch, peekSpawnOverride, mintSpawn, sessionIdFor, correlateAgainst, isPending, forget }
+  return {
+    launch,
+    peekSpawnOverride,
+    mintSpawn,
+    sessionIdFor,
+    unbind,
+    correlateAgainst,
+    isPending,
+    forget
+  }
 }

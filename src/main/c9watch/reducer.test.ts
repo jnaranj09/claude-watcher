@@ -571,6 +571,41 @@ describe('reducer — applyHookStatus (hook-status feature)', () => {
     expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
   })
 
+  it('Story 6.3 — unknown session_id + removed → [] SILENTLY (idempotent removal, no log)', () => {
+    // The stop/exit fast-removal (index.ts) usually beats the belt-and-suspenders SessionEnd
+    // hook; the late hook removing an already-removed id must be the applyStop-style
+    // "already gone" no-op — emit nothing AND log nothing (no hook_unknown_id noise).
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const id = 'hook0004-0000-4000-8000-000000000002' // NOT in the map
+
+    const deltas = r.applyHookStatus(id, { kind: 'removed' }, 10_000)
+    expect(deltas).toHaveLength(0)
+    expect(log).not.toHaveBeenCalled()
+  })
+
+  it('Story 6.3 — double removal: hook-removed twice emits ONE session.removed then []', () => {
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const id = 'hook0004-0000-4000-8000-000000000003'
+    r.upsertLaunched({
+      id,
+      status: 'Connecting',
+      projectPath: '/p',
+      sessionName: 'p',
+      pid: 4321
+    })
+
+    const first = r.applyHookStatus(id, { kind: 'removed' }, 10_000)
+    expect(first).toHaveLength(1)
+    expect(first[0]?.event.type).toBe('session.removed')
+    expect(r.snapshotMap().has(id)).toBe(false)
+
+    const second = r.applyHookStatus(id, { kind: 'removed' }, 10_000)
+    expect(second).toHaveLength(0) // idempotent
+    expect(log).not.toHaveBeenCalled() // ...and quiet
+  })
+
   it('authority window: c9watch line arriving before expiry keeps hook status, merges other fields', () => {
     // Simulate: hook stamps Working at T=0 with WINDOW=10000.
     // A c9watch line arrives at T=5000 (within the window) with WaitingForInput.

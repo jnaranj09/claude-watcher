@@ -84,11 +84,16 @@ export interface Reducer {
    * Apply a hook-driven status change (or session removal) for a known session `id`.
    * Returns the deltas produced (a single `session.updated` or `session.removed`).
    *
-   * IMPORTANT: unknown `id` → returns `[]` + logs `{ path: '(hook)', code: 'hook_unknown_id' }`.
-   * This is a DELIBERATE divergence from the Story-5.7 desync-heal upsert in `applyLine`
-   * (which upserts an unknown-id changed line). Hook signals are authority over STATUS for an
-   * already-known session only; they must NOT synthesize a card for an unknown session —
-   * discovery remains c9watch's job.
+   * IMPORTANT: unknown `id` + `kind: 'status'` → returns `[]` + logs
+   * `{ path: '(hook)', code: 'hook_unknown_id' }`. This is a DELIBERATE divergence from the
+   * Story-5.7 desync-heal upsert in `applyLine` (which upserts an unknown-id changed line).
+   * Hook signals are authority over STATUS for an already-known session only; they must NOT
+   * synthesize a card for an unknown session — discovery remains c9watch's job.
+   *
+   * Unknown `id` + `kind: 'removed'` → returns `[]` SILENTLY (no log). Story 6.3: removal is
+   * idempotent — the stop/exit fast-removal path (index.ts) usually beats the belt-and-
+   * suspenders SessionEnd hook here, and removing an already-gone id is the applyStop-style
+   * "already gone" no-op, not an error (one removal, zero noise).
    *
    * Stamps `hookAuthorityUntil = now() + authorityWindowMs` using the reducer's injected `now()`
    * (single deterministic clock). The reducer does NOT import the hooks/ module; the
@@ -192,7 +197,8 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
 
   /**
    * Apply a hook-driven status change for a KNOWN session.
-   * Unknown id → return [] + log hook_unknown_id (deliberate no-upsert — see interface).
+   * Unknown id + status → return [] + log hook_unknown_id (deliberate no-upsert — see interface).
+   * Unknown id + removed → return [] silently (Story 6.3 idempotent removal — see interface).
    * Stamps hookAuthorityUntil = now() + authorityWindowMs using the injected clock.
    */
   function applyHookStatus(
@@ -202,7 +208,11 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   ): SessionDelta[] {
     const stored = map.get(id)
     if (stored === undefined) {
-      // Unknown id: no-op + log. Path = '(hook)' to distinguish from c9watch drops.
+      // Story 6.3 — removing an already-gone id is the applyStop-style idempotent no-op
+      // (emit nothing, LOG nothing): the stop/exit fast-removal usually beats the
+      // SessionEnd hook here, and that late hook must be quiet, not an error.
+      if (change.kind === 'removed') return []
+      // Unknown id + status: no-op + log. Path = '(hook)' to distinguish from c9watch drops.
       log({ path: '(hook)', code: 'hook_unknown_id' })
       return []
     }

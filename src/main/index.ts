@@ -66,6 +66,12 @@ import { SettingsPatchSchema } from '../shared/schemas/settings'
 // for the Tgid join) + the per-run launched-set it POPULATES. The picked dir + launch request
 // are UNTRUSTED cross-process input → Zod parse-and-throw at the boundary (never log the path).
 import { createLaunchService, type LaunchService } from './pty/launchSession'
+// Story 6.3 — FAST REMOVAL: the extracted stop/exit removal decision (unit-tested in
+// launchRemoval.test.ts). Stop and PTY-exit resolve the exact spawn-time terminalId →
+// sessionId binding, clear it, and route the bound session's removal through the owning
+// window's reducer → the SAME handleDelta chokepoint (session.removed → card gone NOW,
+// no SessionEnd hook / feed event needed).
+import { removeBoundSession, stopTerminalAndRemoveBound } from './pty/launchRemoval'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
@@ -194,15 +200,21 @@ const trackers = new Map<Electron.WebContents, AttentionTracker>()
 // handler ALREADY reads the app-global `trackers` map (index.ts ~534) — this is the same pattern.
 const reducers = new Map<Electron.WebContents, ReducerLike>()
 
-// Story 6.2 — per-window LAUNCH-SYNTHESIS seam. The (app-global) terminal:open handler mints
-// the session identity at spawn time and must feed the synthesized Session into the OWNING
-// window's reducer + handleDelta chokepoint — both are per-window closures inside
-// registerWatchFeed, so this map routes to them (same lifetime: set in registerWatchFeed,
-// deleted in teardownWatchFeed; mirrors `trackers`/`reducers`). The deltas take the SAME path
-// as every c9watch/hook delta (tracker → tray → enrich → ship gate). Absent entry (smoke mode
-// / a race before the feed wires) → the spawn still works; only the instant card is skipped
-// (never-crash — the terminal is never blocked on the board).
-const launchSynthesizers = new Map<Electron.WebContents, (session: Session) => void>()
+// Story 6.2/6.3 — per-window LAUNCH BOARD seam. The (app-global) terminal:open/stop handlers
+// and the manager onExit callback must reach the OWNING window's reducer + handleDelta
+// chokepoint — both are per-window closures inside registerWatchFeed, so this map routes to
+// them (same lifetime: set in registerWatchFeed, deleted in teardownWatchFeed; mirrors
+// `trackers`/`reducers`). The deltas take the SAME path as every c9watch/hook delta
+// (tracker → tray → enrich → ship gate). Absent entry (smoke mode / a race before the feed
+// wires) → the spawn/stop still works; only the board effect is skipped (never-crash — the
+// terminal is never blocked on the board).
+interface LaunchBoardSeam {
+  /** Story 6.2 — synthesize/refresh the instant card at spawn (upsertLaunched → handleDelta). */
+  upsertLaunched(session: Session): void
+  /** Story 6.3 — immediate stop/exit removal (applyHookStatus removed → handleDelta). */
+  removeLaunched(sessionId: string): void
+}
+const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 
 // Story 4.2 (FR-14) — mutable quit-guard state (owned at app scope; one app, one guard).
 // Initialized here so the before-quit handler, quitConfirm, and quitCancel all share ONE state.
@@ -345,8 +357,23 @@ function registerWatchFeed(window: BrowserWindow): void {
   // column for `Connecting`), tray, enrich (EnrichedSessionUpdatedSchema — sessionName/
   // projectPath/pid all present by construction), ship gate (the id is already in the
   // launched-set — mintSpawn added it BEFORE this runs).
-  launchSynthesizers.set(wc, (session) => {
-    reducer.upsertLaunched(session).forEach(handleDelta)
+  launchBoardSeams.set(wc, {
+    upsertLaunched: (session) => {
+      reducer.upsertLaunched(session).forEach(handleDelta)
+    },
+    // Story 6.3 — the fast stop/exit removal rides the HOOK-REMOVAL reducer path (REUSE,
+    // not a new reducer API): applyHookStatus(id, removed) deletes the session + emits
+    // `session.removed`, and the delta takes the SAME handleDelta chokepoint (tracker →
+    // tray → ship gate; the launched-set membership is never revoked, so the removed delta
+    // passes the gate and the card vanishes). Idempotent: an already-removed / never-
+    // synthesized id emits [] SILENTLY (the reducer's removed-path treats unknown-id as
+    // the applyStop-style already-gone no-op), so the belt-and-suspenders SessionEnd hook
+    // arriving later is quiet.
+    removeLaunched: (sessionId) => {
+      reducer
+        .applyHookStatus(sessionId, { kind: 'removed' }, HOOK_AUTHORITY_MS)
+        .forEach(handleDelta)
+    }
   })
 
   // Hook-status feature — start the localhost HTTP hook listener. Hook events route through
@@ -427,9 +454,9 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   // Story 4.2 (FR-14) — remove the per-window reducer reference (ARCH-FORK-1 option A).
   // Same lifetime as the feed; mirrors the trackers.delete above.
   reducers.delete(wc)
-  // Story 6.2 — remove the per-window launch-synthesis seam (same lifetime as the feed).
-  // A terminal:open racing a window close finds no synthesizer → graceful no-op.
-  launchSynthesizers.delete(wc)
+  // Story 6.2/6.3 — remove the per-window launch board seam (same lifetime as the feed).
+  // A terminal:open/stop racing a window close finds no seam → graceful no-op.
+  launchBoardSeams.delete(wc)
   // Hook-status feature — close the per-window hook listener so a window close→reopen
   // ('activate') or dev HMR reload does not leak the listener and hit EADDRINUSE on the
   // next bind. Idempotent; close() never throws.
@@ -739,17 +766,33 @@ function registerTerminalIpc(): void {
       // ALREADY-joined session is left intact (the set is per-run, not per-terminal). Runs even if
       // the owning window is gone (below) — the forget is independent of the dead-terminal push.
       launchService?.forget(terminalId)
-      if (!wc || wc.isDestroyed()) return
-      // Validate AT SOURCE before send: a malformed exit never crosses the seam.
-      const r = TerminalExitSchema.safeParse({ terminalId, exitCode })
-      if (!r.success) {
-        const issue = r.error.issues[0]
-        console.error(
-          `[c9watch][term] dropped terminal:exit path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
-        )
-        return
+      // Dead-pane push FIRST (validate at source), THEN the Story-6.3 card removal below —
+      // the renderer receives CH.terminalExit (the pane flips dead) before `session.removed`
+      // (the card vanishes). A malformed exit never crosses the seam.
+      if (wc && !wc.isDestroyed()) {
+        const r = TerminalExitSchema.safeParse({ terminalId, exitCode })
+        if (!r.success) {
+          const issue = r.error.issues[0]
+          console.error(
+            `[c9watch][term] dropped terminal:exit path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+          )
+        } else {
+          wc.send(CH.terminalExit, r.data)
+        }
       }
-      wc.send(CH.terminalExit, r.data)
+      // Story 6.3 — FAST REMOVAL (the double-ctrl+c case): a launched claude that exits for
+      // real removes its board card IMMEDIATELY — no SessionEnd hook / feed event needed.
+      // Resolve the exact spawn-time binding, clear it (a later Reopen mints a fresh id +
+      // binding anyway), and route the removal through the owning window's board seam →
+      // reducer.applyHookStatus(removed) → the SAME handleDelta chokepoint. Runs even when
+      // the owning window is gone (the unbind keeps the binding lifecycle coherent; the seam
+      // lookup is then a graceful no-op). Idempotent: no binding (plain shell / spawn-fail
+      // dust / already removed) → no-op; a late SessionEnd for the removed id emits [].
+      if (launchService !== null) {
+        removeBoundSession(terminalId, launchService, (sessionId) => {
+          if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId)
+        })
+      }
     },
     // never-log-the-value: a code= ONLY, never a pty/session value (Guardrail #6).
     log: (message) => console.warn(message)
@@ -827,7 +870,7 @@ function registerTerminalIpc(): void {
         // internal data, NOT external input, so it is NOT re-run through SessionSchema
         // (parse-once boundary). `Connecting` classifies into the `working` column; hooks own
         // every later transition (UserPromptSubmit → Working, Stop → WaitingForInput, …).
-        launchSynthesizers.get(wc)?.({
+        launchBoardSeams.get(wc)?.upsertLaunched({
           id: minted.sessionId,
           status: 'Connecting',
           projectPath: minted.spawn.cwd,
@@ -870,7 +913,23 @@ function registerTerminalIpc(): void {
     // Story 5.6 — forward the optional openToken to the manager. The manager no-ops if the token
     // is stale (a superseded StrictMode cleanup-stop). Omitted (user-initiated / quit teardown) →
     // unconditional kill (unchanged behavior). See terminalManager.stop() for the full semantics.
-    terminalManager.stop(terminalId, openToken)
+    //
+    // Story 6.3 — FAST REMOVAL: when THIS stop actually tears the pty down (NOT a stale-token
+    // StrictMode no-op, NOT an already-dead terminal — the helper's live-before/after gate),
+    // the bound launched session is removed from the owning window's reducer on the same tick:
+    // binding resolved + cleared, then applyHookStatus(removed) → handleDelta →
+    // `session.removed` → the card vanishes NOW, with no dependency on any external event.
+    // An explicit stop fires NO manager onExit, so this handler is the removal's ONLY trigger.
+    stopTerminalAndRemoveBound(
+      terminalId,
+      openToken,
+      terminalManager,
+      launchService,
+      (sessionId) => {
+        const wc = terminalOwners.get(terminalId)
+        if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId)
+      }
+    )
     // Story 5.4 — do NOT forget the launch here. This handler fires on EVERY EmbeddedTerminal
     // unmount, INCLUDING the transient unmount React StrictMode performs in dev (mount → cleanup
     // → mount). Forgetting here would drop the launch's correlation tracking AND (pre-5.4) its

@@ -271,6 +271,27 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
     expect(reopened?.spawn.args).toEqual(['-l', '-c', "claude --session-id 'sess-2'"])
     expect(svc.sessionIdFor('t-1')).toBe('sess-2')
   })
+
+  it('Story 6.3 — unbind() clears the binding, KEEPS the recipe, and is idempotent', () => {
+    let s = 0
+    const { svc } = mintService({ newSessionId: () => `sess-${++s}` })
+    svc.launch({ cwd: '/p' })
+    svc.mintSpawn('t-1')
+    expect(svc.sessionIdFor('t-1')).toBe('sess-1')
+
+    // A stop/exit removal consumed the binding → cleared (a second trigger resolves null).
+    svc.unbind('t-1')
+    expect(svc.sessionIdFor('t-1')).toBeNull()
+    svc.unbind('t-1') // idempotent — a double unbind never throws
+    expect(svc.sessionIdFor('t-1')).toBeNull()
+
+    // The durable spawn-override is untouched: a later Reopen still finds its recipe and
+    // mints a FRESH identity + binding (never the default $SHELL, never a stale id).
+    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p' })
+    const reopened = svc.mintSpawn('t-1')
+    expect(reopened?.sessionId).toBe('sess-2')
+    expect(svc.sessionIdFor('t-1')).toBe('sess-2')
+  })
 })
 
 describe('launchSession — optimistic card + the subtree-ancestry join (Story 5.5)', () => {
