@@ -5,13 +5,13 @@
 // (and the reconnect-reconcile re-raise cases, which died with `seedFromSnapshot`)
 // are gone; the tracker itself is UNCHANGED.
 //
-// Column mapping (contract §4.3, corrected): Working/Connecting → working;
+// Column mapping (contract §4.3, corrected): Working → working; Connecting → idle;
 // NeedsAttention/NeedsPermission/unknown → needs-you; WaitingForInput → idle.
 // attention.raised fires ONLY on entry into needs-you (NOT idle, NOT working).
 // A removed session VANISHES (session.removed; no event).
 //
 // Covers:
-//   - column assignment at launch + across hook transitions (incl. Connecting→working)
+//   - column assignment at launch + across hook transitions (incl. Connecting→idle)
 //   - first observation NEVER raises (the cold-start baseline), even into needs-you
 //   - an unknown status → needs-you (never throws)
 //   - a Working→NeedsAttention hook transition emits exactly ONE attention.raised
@@ -101,7 +101,7 @@ describe('attention tracker — column assignment from launch + hooks (D1, corre
     const h = harness()
     h.launchAll()
     expect(h.tracker.columnOf(WORKING_ID)).toBe('working') // Working
-    expect(h.tracker.columnOf(CONNECTING_ID)).toBe('working') // Connecting → working
+    expect(h.tracker.columnOf(CONNECTING_ID)).toBe('idle') // Connecting → idle (not yet claude's turn)
     expect(h.tracker.columnOf(NEEDS_ATTENTION_ID)).toBe('needs-you') // NeedsAttention
     expect(h.tracker.columnOf(NEEDS_PERMISSION_ID)).toBe('needs-you') // NeedsPermission
     expect(h.tracker.columnOf(IDLE_ID)).toBe('idle') // WaitingForInput → idle
@@ -130,7 +130,7 @@ describe('attention tracker — first observation never raises (D3 cold-start ba
     const h = harness()
     h.launch(launchedSession('88888888-8888-4888-8888-888888888888'))
     expect(h.attention).toHaveLength(0)
-    expect(h.tracker.columnOf('88888888-8888-4888-8888-888888888888')).toBe('working')
+    expect(h.tracker.columnOf('88888888-8888-4888-8888-888888888888')).toBe('idle')
   })
 })
 
@@ -220,7 +220,7 @@ describe('attention tracker — no event on entering working or idle (AC-4)', ()
     expect(h.tracker.columnOf(NEEDS_ATTENTION_ID)).toBe('idle')
   })
 
-  it('the Connecting→Working flip (UserPromptSubmit after spawn) emits NO attention.raised', () => {
+  it('the idle→Working flip (UserPromptSubmit after spawn) emits NO attention.raised', () => {
     const h = harness()
     const id = '99999999-9999-4999-8999-999999999999'
     h.launch(launchedSession(id)) // Connecting → working column

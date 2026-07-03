@@ -54,8 +54,13 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
 
     case 'UserPromptSubmit':
     case 'PostToolUse':
-    case 'SessionStart':
       return { kind: 'status', status: 'Working' }
+
+    case 'SessionStart':
+      // Claude BOOTING (or resuming) is not claude's turn — after startup it sits at
+      // the prompt waiting for the operator. Idle-by-truth; UserPromptSubmit is the
+      // edge that flips a session to Working.
+      return { kind: 'status', status: 'WaitingForInput' }
 
     case 'Stop':
       // A turn that ends by asking the user something flips to needs-you; otherwise idle.

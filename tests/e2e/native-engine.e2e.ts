@@ -283,16 +283,17 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
     // Navigate back to the BOARD (launch landed in the focused view) via the ← Board button
     // (deterministic — Esc also works but rides keydown through the focused xterm).
     await page.locator('[data-testid="focused-back"]').click()
-    // 'Connecting' (the synthesized status) classifies into the WORKING column.
+    // 'Connecting' (the synthesized status) classifies into the IDLE column — a fresh
+    // spawn is waiting for the operator's FIRST prompt, not claude's turn.
     await expect(
-      page.locator(`[data-column="working"] [data-session-id="${sessionId}"]`),
-      'the instant card must sit in the working column (Connecting → working)'
+      page.locator(`[data-column="idle"] [data-session-id="${sessionId}"]`),
+      'the instant card must sit in the idle column (Connecting → idle)'
     ).toBeVisible({ timeout: 5000 })
 
     // ── (2) HOOK-DRIVEN STATUS, end-to-end over REAL HTTP ────────────────────────────
     // Wait for the real claude descendant + a settle beat first: the REAL session's own
-    // startup hooks (SessionStart → Working) must land BEFORE our synthetic Stop, or they
-    // would race it and flip the card back to working mid-assertion.
+    // startup hooks (SessionStart → WaitingForInput, same idle column) must land BEFORE our
+    // synthetic POSTs so they cannot interleave mid-assertion.
     await waitForClaudeDescendant(electronPid!, 20000)
     await page.waitForTimeout(3000)
 

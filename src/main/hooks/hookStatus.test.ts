@@ -56,10 +56,18 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
   })
 
   // --- Plain active events → Working ---
-  it.each(['UserPromptSubmit', 'PostToolUse', 'SessionStart'] as const)('%s → Working', (name) => {
+  it.each(['UserPromptSubmit', 'PostToolUse'] as const)('%s → Working', (name) => {
     expect(hookStatus(evt({ hook_event_name: name }))).toEqual({
       kind: 'status',
       status: 'Working'
+    })
+  })
+
+  // --- SessionStart is NOT claude's turn: booting/resuming lands at the prompt, idle ---
+  it('SessionStart → WaitingForInput (booting is not working)', () => {
+    expect(hookStatus(evt({ hook_event_name: 'SessionStart' }))).toEqual({
+      kind: 'status',
+      status: 'WaitingForInput'
     })
   })
 

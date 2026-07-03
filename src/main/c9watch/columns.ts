@@ -39,20 +39,22 @@
 export type { Column } from '../../shared/ipc/contract'
 import type { Column } from '../../shared/ipc/contract'
 
-/** Statuses that map to the `working` column (D1): actively working, or the
- *  transient startup state coming up. `Connecting` groups WITH working — an alive
- *  session attaching is not yet a "needs you". */
-const WORKING_STATUSES: ReadonlySet<string> = new Set(['Working', 'Connecting'])
+/** The single status that maps to the `working` column (D1): it is CLAUDE'S TURN.
+ *  `Connecting` moved OUT of this set post-Epic-6: a just-spawned session is waiting
+ *  for the operator's FIRST prompt, so showing it as "working" was a lie inherited
+ *  from the c9watch-era semantics. */
+const WORKING_STATUSES: ReadonlySet<string> = new Set(['Working'])
 
-/** The single status that maps to the `idle` column (D1): the IDLE bucket — an
- *  alive session "waiting for your next prompt". This is the CORRECTED semantic
- *  (`WaitingForInput` = Idle, NOT needs-you). */
-const IDLE_STATUS = 'WaitingForInput' as const
+/** Statuses that map to the `idle` column (D1): an alive session "waiting for your
+ *  next prompt" (`WaitingForInput` = Idle, NOT needs-you — the corrected semantic),
+ *  plus `Connecting` (a just-spawned/booting session — the operator hasn't typed yet,
+ *  so it is idle-by-truth; it is NOT a "needs you" either). */
+const IDLE_STATUSES: ReadonlySet<string> = new Set(['WaitingForInput', 'Connecting'])
 
 /**
  * Classify a PRESENT session's c9watch `status` into one of the THREE live columns.
  *
- * `Working`/`Connecting` → `working`; `WaitingForInput` → `idle`;
+ * `Working` → `working`; `WaitingForInput`/`Connecting` → `idle`;
  * `NeedsAttention`/`NeedsPermission`/anything-else (incl. unknown/new statuses and
  * `''`) → `needs-you` (fail-toward-attention). Pure + side-effect-free (no `now()`,
  * no map, no logging) so it is trivially testable and cannot crash the board on a
@@ -62,7 +64,7 @@ const IDLE_STATUS = 'WaitingForInput' as const
  */
 export function columnForStatus(status: string): Column {
   if (WORKING_STATUSES.has(status)) return 'working'
-  if (status === IDLE_STATUS) return 'idle'
+  if (IDLE_STATUSES.has(status)) return 'idle'
   // NeedsAttention / NeedsPermission / unknown / '' → needs-you (fail-toward-attention).
   return 'needs-you'
 }

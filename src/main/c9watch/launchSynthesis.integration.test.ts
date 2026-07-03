@@ -51,7 +51,7 @@ describe('Story 6.2 — upsertLaunched delta survives the full enrich/ship pipel
     // handleDelta ordering (Story 1.4): the tracker processes THIS delta FIRST, so
     // columnOf/enteredColumnAt reflect the edge when the enrichment reads them.
     const raised = tracker.onDelta(delta, reducer.snapshotMap())
-    expect(raised).toEqual([]) // Connecting → working: no attention.raised on entry
+    expect(raised).toEqual([]) // Connecting → idle: no attention.raised on entry
 
     // The enrichment must NOT fail closed — every EnrichedSessionUpdatedSchema field is present.
     const outbound = enrichDelta(delta, tracker, reducer.snapshotMap(), log)
@@ -63,7 +63,7 @@ describe('Story 6.2 — upsertLaunched delta survives the full enrich/ship pipel
       sessionName: 'c9watch-webapp',
       projectPath: CWD,
       status: 'Connecting',
-      column: 'working', // Connecting classifies into the working column (columns.ts D1)
+      column: 'idle', // Connecting classifies into the idle column (fresh spawn = not claude's turn)
       enteredColumnAt: FIXED_NOW,
       pid: PTY_PID
       // no pendingToolName — omitted, not undefined (exactOptionalPropertyTypes)

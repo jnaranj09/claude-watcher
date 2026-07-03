@@ -2,7 +2,7 @@
 //
 // Proves (via DI-injected fakes — no real node-pty / Electron, AR-11):
 //   (a) External (non-launched) sessions are EXCLUDED from the result.
-//   (b) `Working`/`Connecting` sessions count toward `workingCount`; `needs-you`/`idle`
+//   (b) `Working` sessions count toward `workingCount`; Connecting/`needs-you`/`idle`
 //       are live but NOT working (workingCount unchanged).
 //   (c) Empty intersection → total === 0, workingCount === 0, sessions === [] (the
 //       no-prompt path that skips the guard).
@@ -91,14 +91,14 @@ describe('computeLiveLaunchedSessions — column classification', () => {
     expect(result.sessions[0]).toMatchObject({ id: 'a', column: 'working' })
   })
 
-  it('Connecting launched session → total 1, workingCount 1 (Connecting groups with Working)', () => {
+  it('Connecting launched session → total 1, workingCount 0 (a fresh spawn is idle, nothing to lose)', () => {
     const result = computeLiveLaunchedSessions({
       reducers: [fakeReducer([['b', 'Connecting']])],
       isLaunched: allLaunched
     })
     expect(result.total).toBe(1)
-    expect(result.workingCount).toBe(1)
-    expect(result.sessions[0]).toMatchObject({ id: 'b', column: 'working' })
+    expect(result.workingCount).toBe(0)
+    expect(result.sessions[0]).toMatchObject({ id: 'b', column: 'idle' })
   })
 
   it('NeedsAttention launched session → total 1, workingCount 0 (needs-you is live, not working)', () => {
@@ -163,7 +163,7 @@ describe('computeLiveLaunchedSessions — mixed launched + external', () => {
       isLaunched: allLaunched
     })
     expect(result.total).toBe(4)
-    expect(result.workingCount).toBe(2) // Working + Connecting
+    expect(result.workingCount).toBe(1) // only Working — Connecting is idle now
   })
 })
 

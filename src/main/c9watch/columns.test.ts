@@ -2,7 +2,7 @@
 //
 // D1 (CORRECTED 2026-06-18 — the prior inverted mapping is SUPERSEDED; authoritative
 // source c9watch-0.8.1-contract.md §4.3):
-//   `Working`/`Connecting`              → `working`
+//   `Working`                           → `working`   (`Connecting` → `idle`: fresh spawn)
 //   `NeedsAttention`/`NeedsPermission`  → `needs-you`
 //   `WaitingForInput`                   → `idle`   (a LIVE column — the IDLE bucket)
 //   unknown / brand-new / ''            → `needs-you` (fail-toward-attention; NEVER throws)
@@ -19,8 +19,8 @@ describe('columnForStatus — pure status→live-column classifier (D1, correcte
     expect(columnForStatus('Working')).toBe('working')
   })
 
-  it('maps Connecting → working (transient startup grouped with working)', () => {
-    expect(columnForStatus('Connecting')).toBe('working')
+  it('maps Connecting → idle (a just-spawned session waits for the FIRST prompt — not working)', () => {
+    expect(columnForStatus('Connecting')).toBe('idle')
   })
 
   it('maps NeedsAttention and NeedsPermission → needs-you', () => {
