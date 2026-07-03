@@ -7,10 +7,11 @@
 // `MessagePortMain` is absent), so tests can drive a real port via a dispatched
 // `MessageEvent` carrying a `new MessageChannel().port1`.
 //
-// Coverage preserved from story 3.1:
+// Coverage preserved from story 3.1 (re-shaped by Story 6.1 — one dead-pane button):
 //   - mounts without throwing + calls window.terminal.open(terminalId) ONCE;
 //   - dead-terminal pane (AC-4): renders on CH.terminalExit for THIS id, not another;
-//   - Reopen clears the dead pane + re-opens;
+//   - the dead pane renders exactly ONE button ("New session", data-testid="dead-new-session"):
+//     with the onNewSession prop it calls the prop; without it it falls back to re-open;
 //   - kept-alive hidden: applies the `.hidden` class (visibility:hidden, never display:none);
 //   - stop-on-unmount (clean teardown — no orphan from a normal close).
 // Coverage ADDED in story 5.1:
@@ -127,7 +128,11 @@ afterEach(() => {
   cleanup = undefined
 })
 
-function render(props: { terminalId: string; active?: boolean }): RenderResult {
+function render(props: {
+  terminalId: string
+  active?: boolean
+  onNewSession?: () => void
+}): RenderResult {
   const r = renderComponent(<EmbeddedTerminal {...props} />)
   cleanup = r.unmount
   return r
@@ -312,20 +317,20 @@ describe('EmbeddedTerminal — port delivery via window message (Story 5.1)', ()
     expect(port1.onmessage).not.toBeNull()
   })
 
-  // Story 5.4 — a Reopen (openNonce bump → create-effect re-run) mints a FRESH token. A port tagged
-  // with the prior open's (now stale) token must be ignored by the re-opened terminal; the fresh
-  // token pairs. This is the StrictMode-double-mount / Reopen port race in miniature.
-  it('after Reopen the prior open’s token is stale (ignored); the fresh token pairs', () => {
+  // Story 5.4 — a re-open (openNonce bump → create-effect re-run) mints a FRESH token. A port
+  // tagged with the prior open's (now stale) token must be ignored by the re-opened terminal; the
+  // fresh token pairs. This is the StrictMode-double-mount / re-open port race in miniature.
+  // Story 6.1: the re-open is driven via the dead pane's ONE "New session" button WITHOUT the
+  // onNewSession prop (the fallback path — same openNonce bump as the old Reopen button).
+  it('after a dead-pane re-open the prior open’s token is stale (ignored); the fresh token pairs', () => {
     const r = render({ terminalId: 't-1' })
     const firstToken = lastOpenToken()
 
-    // Drive the Reopen path: exit → dead pane → click Reopen → re-open with a fresh token.
+    // Drive the re-open path: exit → dead pane → click New session (no prop) → fresh token.
     act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 0 }))
-    const reopenBtn = [...r.container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Reopen'
-    )
+    const newSessionBtn = r.container.querySelector('[data-testid="dead-new-session"]')
     act(() => {
-      reopenBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      newSessionBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     const secondToken = lastOpenToken()
@@ -347,16 +352,18 @@ describe('EmbeddedTerminal — port delivery via window message (Story 5.1)', ()
   })
 })
 
-describe('EmbeddedTerminal — dead-terminal pane (AC-4)', () => {
-  it('renders "Terminal exited." + Reopen/Stop on a terminal:exit for THIS id', () => {
+describe('EmbeddedTerminal — dead-terminal pane (AC-4 / Story 6.1 one-button overlay)', () => {
+  it('renders "Terminal exited." + exactly ONE button (New session) on a terminal:exit for THIS id', () => {
     const r = render({ terminalId: 't-1' })
     act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 137 }))
     const dead = r.container.querySelector('[data-testid="dead-terminal"]')
     expect(dead).not.toBeNull()
     expect(dead?.textContent).toContain('Terminal exited.')
-    const buttons = [...r.container.querySelectorAll('button')].map((b) => b.textContent)
-    expect(buttons).toContain('Reopen')
-    expect(buttons).toContain('Stop')
+    // Story 6.1: EXACTLY ONE button — label "New session", testid dead-new-session. No Reopen/Stop.
+    const buttons = [...(dead?.querySelectorAll('button') ?? [])]
+    expect(buttons.length).toBe(1)
+    expect(buttons[0]?.textContent).toBe('New session')
+    expect(buttons[0]?.getAttribute('data-testid')).toBe('dead-new-session')
     // The dead pane is an alert (accessibility floor).
     expect(dead?.getAttribute('role')).toBe('alert')
   })
@@ -367,19 +374,36 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4)', () => {
     expect(r.container.querySelector('[data-testid="dead-terminal"]')).toBeNull()
   })
 
-  it('Reopen clears the dead pane and re-opens a fresh pty', () => {
+  it('click WITH onNewSession calls the prop (App launch flow) and does NOT re-open this pane', () => {
+    const onNewSession = vi.fn()
+    const r = render({ terminalId: 't-1', onNewSession })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+
+    const btn = r.container.querySelector('[data-testid="dead-new-session"]')
+    expect(btn).not.toBeNull()
+    act(() => {
+      btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    // The prop fired (the focused surface routes to App's handleNewSession)…
+    expect(onNewSession).toHaveBeenCalledTimes(1)
+    // …and THIS pane did not re-open: open() stays at the single mount call, dead pane stays up
+    // (the NEW terminal takes focus; this one remains kept-alive with its overlay).
+    expect(fakes.open).toHaveBeenCalledTimes(1)
+    expect(r.container.querySelector('[data-testid="dead-terminal"]')).not.toBeNull()
+  })
+
+  it('click WITHOUT onNewSession falls back to re-open (dead pane clears, fresh pty opened)', () => {
     const r = render({ terminalId: 't-1' })
     act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
     expect(r.container.querySelector('[data-testid="dead-terminal"]')).not.toBeNull()
 
-    const reopenBtn = [...r.container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Reopen'
-    )
+    const btn = r.container.querySelector('[data-testid="dead-new-session"]')
     act(() => {
-      reopenBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    // Dead pane gone; open() called again (a fresh pty into the same pane).
+    // Dead pane gone; open() called again (a fresh pty into the same pane — today's Reopen path).
     expect(r.container.querySelector('[data-testid="dead-terminal"]')).toBeNull()
     expect(fakes.open.mock.calls.length).toBeGreaterThanOrEqual(2)
   })

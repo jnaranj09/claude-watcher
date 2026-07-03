@@ -31,8 +31,8 @@
   visibility: hidden;
 }
 
-/* Dead-terminal pane (UX-DR18): "Terminal exited." + Reopen/Stop. PER-TERMINAL local state —
-   the board + sibling terminals are untouched. Overlays the frame; centered, labeled controls. */
+/* Dead-terminal pane (UX-DR18 / Story 6.1): "Terminal exited." + ONE New-session button.
+   PER-TERMINAL local state — the board + sibling terminals are untouched. Overlays the frame. */
 .dead {
   position: absolute;
   inset: 0;

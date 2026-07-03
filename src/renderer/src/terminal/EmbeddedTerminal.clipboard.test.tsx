@@ -432,7 +432,7 @@ describe('EmbeddedTerminal context menu', () => {
     expect(pasteSpy).toHaveBeenCalledWith('clipboard text')
   })
 
-  it('context menu is dismissed when the terminal effect re-runs (Reopen)', () => {
+  it('context menu is dismissed when the terminal effect re-runs (dead-pane re-open)', () => {
     const r = render({ terminalId: 't-dismiss-reopen' })
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
@@ -445,13 +445,12 @@ describe('EmbeddedTerminal context menu', () => {
     // Menu is open.
     expect(document.querySelector('[data-testid="terminal-context-menu"]')).not.toBeNull()
 
-    // Trigger Reopen (exit → dead pane → click Reopen).
+    // Trigger the re-open (exit → dead pane → click "New session"; no onNewSession prop here,
+    // so the Story-6.1 button takes the fallback re-open path — the openNonce bump).
     act(() => termFakes.emitExit({ terminalId: 't-dismiss-reopen', exitCode: 0 }))
-    const reopenBtn = [...r.container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Reopen'
-    )
+    const newSessionBtn = r.container.querySelector('[data-testid="dead-new-session"]')
     act(() => {
-      reopenBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      newSessionBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     // Menu must be dismissed (effect cleanup calls setMenu(null)).

@@ -178,6 +178,14 @@ function App(): React.JSX.Element {
     boardStore.getState().showBoard()
   }, [])
 
+  // Story 6.1 — a STABLE void-returning wrapper of handleNewSession for the always-mounted
+  // FocusedSession (same stability rule as handleBack). Threaded down to each EmbeddedTerminal
+  // so the dead pane's one "New session" button runs the SAME launch flow as the header button
+  // / Ctrl+N (picker → launch → focused view).
+  const handleNewSessionSync = useCallback((): void => {
+    void handleNewSession()
+  }, [handleNewSession])
+
   // Story 3.2 (FR-11 / UX-DR21) — global keybindings: Ctrl+N → new session; Esc → Board.
   // Story 4.2 (FR-14) — adds Ctrl+Q → requestQuit (the one chokepoint); Esc-guard-open → cancel.
   // Story 4.3 (FR-15) — adds Ctrl+W → Stop-confirm (focused only; no-op on board; NEVER the window).
@@ -346,7 +354,7 @@ function App(): React.JSX.Element {
               aria-hidden={!showFocused}
               inert={!showFocused}
             >
-              <FocusedSession onBack={handleBack} />
+              <FocusedSession onBack={handleBack} onNewSession={handleNewSessionSync} />
             </div>
           )}
         </div>

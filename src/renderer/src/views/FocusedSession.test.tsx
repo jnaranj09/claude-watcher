@@ -6,6 +6,7 @@
 // the focused terminal renders; "← Board" → onBack; a rail click switches the visible terminal +
 // acknowledges (no input sent).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { FocusedSession } from './FocusedSession'
 import { boardStore } from '../stores/boardStore'
@@ -92,8 +93,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function render(onBack: () => void = () => {}): RenderResult {
-  const r = renderComponent(<FocusedSession onBack={onBack} />)
+function render(onBack: () => void = () => {}, onNewSession: () => void = () => {}): RenderResult {
+  const r = renderComponent(<FocusedSession onBack={onBack} onNewSession={onNewSession} />)
   cleanup = r.unmount
   return r
 }
@@ -154,6 +155,36 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(boardStore.getState().acknowledgedById['b']).not.toBeUndefined()
     // window.terminal had NO input/write call — switching is pure view-state (the open() fake only
     // wires the port; there is no input API on the bridge, by construction — alert-only, FR-9).
+  })
+
+  // Story 6.1 — the focused surface threads onNewSession down to EmbeddedTerminal, so the dead
+  // pane's ONE "New session" button runs App's launch flow (NOT the plain re-open fallback).
+  it('threads onNewSession to the terminal: the dead pane button calls it (Story 6.1)', () => {
+    // A capturing onExit fake so the test can flip the terminal into its dead pane.
+    const exitCbs: Array<(info: { terminalId: string; exitCode: number }) => void> = []
+    ;(window as unknown as { terminal: unknown }).terminal = {
+      open: vi.fn(() => () => {}),
+      resize: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+      onExit: vi.fn((cb: (info: { terminalId: string; exitCode: number }) => void) => {
+        exitCbs.push(cb)
+        return () => {}
+      })
+    }
+    boardStore.getState().openLaunchedTerminal('launch-dead-thread', 'dead-thread')
+    const onNewSession = vi.fn()
+    const r = render(() => {}, onNewSession)
+
+    // Exit the focused terminal → its dead pane shows the ONE New-session button.
+    act(() => exitCbs.forEach((cb) => cb({ terminalId: 'launch-dead-thread', exitCode: 0 })))
+    const btn = r.container.querySelector<HTMLButtonElement>('[data-testid="dead-new-session"]')
+    expect(btn).not.toBeNull()
+
+    act(() => {
+      btn?.click()
+    })
+    // The threaded prop fired (App's handleNewSession flow), NOT the re-open fallback.
+    expect(onNewSession).toHaveBeenCalledTimes(1)
   })
 
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
@@ -290,9 +321,7 @@ describe('FocusedSession — reserved bottom tool strip (breathing room spec)', 
     // (Query by CSS module class substring — it is NOT a child of the wrap.)
     const stripInsideWrap =
       terminalWrap !== undefined
-        ? [...terminalWrap.querySelectorAll('*')].find((el) =>
-            el.className.includes('toolStrip')
-          )
+        ? [...terminalWrap.querySelectorAll('*')].find((el) => el.className.includes('toolStrip'))
         : undefined
     expect(stripInsideWrap).toBeUndefined()
   })

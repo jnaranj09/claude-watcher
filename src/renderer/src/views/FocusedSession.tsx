@@ -55,9 +55,13 @@ function resolveSessionName(terminalId: string): string {
 export interface FocusedSessionProps {
   /** Return to the Board (Esc-to-Board / the "← Board" affordance). */
   onBack: () => void
+  /** Story 6.1 — launch a NEW session (App's handleNewSession: picker → launch → focused view).
+   *  Threaded to every EmbeddedTerminal so the dead pane's one "New session" button uses the
+   *  SAME flow as the header button / Ctrl+N. */
+  onNewSession: () => void
 }
 
-export function FocusedSession({ onBack }: FocusedSessionProps): JSX.Element {
+export function FocusedSession({ onBack, onNewSession }: FocusedSessionProps): JSX.Element {
   // The currently-visible terminal (the others are kept alive but hidden). A primitive selector.
   const focusedTerminalId = useBoard(selectFocusedTerminalId)
   // The set of terminals to keep ALIVE (correlated ∪ focused). useShallow so an equal set does not
@@ -119,6 +123,7 @@ export function FocusedSession({ onBack }: FocusedSessionProps): JSX.Element {
               key={terminalId}
               terminalId={terminalId}
               active={terminalId === focusedTerminalId}
+              onNewSession={onNewSession}
             />
           ))}
         </div>

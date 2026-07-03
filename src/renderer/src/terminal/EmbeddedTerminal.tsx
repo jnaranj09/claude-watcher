@@ -50,6 +50,11 @@ export interface EmbeddedTerminalProps {
   /** When false, the terminal is kept ALIVE but hidden (visibility:hidden, never display:none —
    *  terminal.md). Defaults to true (visible). */
   active?: boolean
+  /** Story 6.1 — launch a NEW session from the dead pane. The focused-session surface threads
+   *  App's `handleNewSession` here (native dir picker → launch → focused view — the same flow as
+   *  the header button / Ctrl+N). When ABSENT (the plain-shell terminals view), the dead pane's
+   *  button falls back to re-opening a fresh pty into the SAME pane (the openNonce bump). */
+  onNewSession?: () => void
 }
 
 /** The local dead-terminal state — the ONLY React state here before the clipboard feature
@@ -74,7 +79,7 @@ type MenuState = {
 
 // Story 5.4 — a process-monotonic counter minting a fresh per-OPEN token for each create-effect
 // run. The token disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or
-// Reopen): main echoes it on the port transfer so the renderer pairs THIS port to THIS open and
+// a dead-pane re-open): main echoes it on the port transfer so the renderer pairs THIS port to THIS open and
 // never the stale (already-closed) port from the prior open — the second-order cause of the dev
 // blank-terminal bug. A plain counter is enough: the token only needs to be unique among opens
 // within THIS renderer; it is never persisted or shared. NOT crypto.randomUUID() — that is
@@ -84,15 +89,16 @@ let openTokenSeq = 0
 
 export function EmbeddedTerminal({
   terminalId,
-  active = true
+  active = true,
+  onNewSession
 }: EmbeddedTerminalProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const portRef = useRef<MessagePort | null>(null)
   // The dead-terminal pane is per-terminal LOCAL state (AC-4). A nonce bumps to force a fresh
-  // open() on Reopen (re-running the mount effect into the SAME pane). The xterm instance and
-  // its bytes are NEVER in React state — only this small pane/lifecycle flag is.
+  // open() on the dead-pane fallback re-open (re-running the mount effect into the SAME pane).
+  // The xterm instance and its bytes are NEVER in React state — only this small pane flag is.
   const [dead, setDead] = useState<DeadState>(null)
   const [openNonce, setOpenNonce] = useState(0)
   // Terminal clipboard feature — context menu open/position (view-state; state.md).
@@ -110,7 +116,7 @@ export function EmbeddedTerminal({
   const fontSizeRef = useRef(fontSize)
 
   // --- Create the terminal EXACTLY ONCE per (terminalId, openNonce) + wire the port. --------
-  // openNonce in the deps re-runs this on Reopen (the cleanup disposes the old terminal first).
+  // openNonce in the deps re-runs this on a re-open (the cleanup disposes the old terminal first).
   useEffect(() => {
     const container = containerRef.current
     // create-exactly-once: bail if no container or a terminal already exists in the ref.
@@ -182,10 +188,10 @@ export function EmbeddedTerminal({
     // The preload forwards it via `window.postMessage(TERMINAL_PORT_TAG, '*', [port])`;
     // we pair it here via a `window` `'message'` listener keyed on the tag + terminalId + openToken.
     // The listener is one-shot: once it pairs its port it removes itself (a terminal receives
-    // exactly one port per open; a Reopen bumps openNonce and re-runs this effect with a
+    // exactly one port per open; a re-open bumps openNonce and re-runs this effect with a
     // fresh listener + a fresh openToken). Match on terminalId so kept-alive terminals can't
     // cross-wire, AND on openToken (Story 5.4) so a re-open of the SAME terminalId (a StrictMode
-    // dev double-mount, or Reopen) pairs only THIS open's port — never the stale, already-closed
+    // dev double-mount, or a dead-pane re-open) pairs only THIS open's port — never the stale, already-closed
     // port from the prior open (which would leave the terminal blank).
     const portHandler = (
       e: MessageEvent<{ tag: string; terminalId: string; openToken: string }>
@@ -309,7 +315,7 @@ export function EmbeddedTerminal({
       // Clipboard feature cleanup — remove listeners BEFORE disposing the terminal.
       container.removeEventListener('contextmenu', contextMenuHandler)
       container.removeEventListener('paste', pasteHandler, true)
-      // Dismiss any open context menu when this effect re-runs (Reopen) or unmounts.
+      // Dismiss any open context menu when this effect re-runs (a re-open) or unmounts.
       setMenu(null)
 
       ro.disconnect()
@@ -342,14 +348,15 @@ export function EmbeddedTerminal({
       termRef.current = null
       fitRef.current = null
     }
-    // terminalId + openNonce are the ONLY recreate keys (a Reopen bumps openNonce). fontSize is
-    // applied live in the second effect, never here — so it is intentionally not a dependency.
+    // terminalId + openNonce are the ONLY recreate keys (the dead-pane fallback re-open bumps
+    // openNonce). fontSize is applied live in the second effect, never here — so it is
+    // intentionally not a dependency.
   }, [terminalId, openNonce])
 
   // --- Apply a LIVE font-size change WITHOUT recreating the terminal (F3/F5). ---------------
   // A settings change sets term.options.fontSize then re-fits (which re-sends dims to main).
   useEffect(() => {
-    // Keep the ref current so a later create (Reopen) starts at the live size.
+    // Keep the ref current so a later create (a re-open) starts at the live size.
     fontSizeRef.current = fontSize
     const term = termRef.current
     const fit = fitRef.current
@@ -363,18 +370,19 @@ export function EmbeddedTerminal({
       .catch(() => console.warn('[c9watch][term] code=resize_failed'))
   }, [fontSize, terminalId])
 
-  // Reopen: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty + port).
+  // Re-open fallback: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty +
+  // port). Only reachable from the dead pane's button when NO onNewSession prop was provided.
   const reopen = (): void => {
     setDead(null)
     setOpenNonce((n) => n + 1)
   }
-  // Stop: dispose the pane (the parent host decides what to render after). We stop the pty here
-  // too so a Stop from the dead pane reaps any lingering main-side state.
-  const stop = (): void => {
-    void window.terminal
-      .stop(terminalId)
-      .catch(() => console.warn('[c9watch][term] code=stop_failed'))
-    setDead({ exitCode: dead?.exitCode ?? 0 })
+  // Story 6.1 — the ONE dead-pane action. On the focused-session surface the prop is App's
+  // handleNewSession (picker → launch → focused view); this pane stays dead + kept-alive-hidden
+  // while the NEW terminal takes focus. Without the prop (plain-shell terminals view), fall back
+  // to re-opening a fresh pty into this same pane so the surface keeps a working action.
+  const handleDeadNewSession = (): void => {
+    if (onNewSession !== undefined) onNewSession()
+    else reopen()
   }
 
   // ── Terminal clipboard feature — context menu action handlers ─────────────
@@ -431,15 +439,18 @@ export function EmbeddedTerminal({
           blanking the visible terminal while a 2nd terminal was alive. visibility:hidden keeps the
           layout box, so the inner host stays sized for fit(). */}
       <div ref={containerRef} className={styles.host} />
+      {/* Story 6.1 — the dead pane shows exactly ONE action: New session. */}
       {dead !== null && (
         <div className={styles.dead} role="alert" data-testid="dead-terminal">
           <span className={styles.deadMessage}>Terminal exited.</span>
           <div className={styles.deadActions}>
-            <button type="button" className={styles.deadButton} onClick={reopen}>
-              Reopen
-            </button>
-            <button type="button" className={styles.deadButton} onClick={stop}>
-              Stop
+            <button
+              type="button"
+              className={styles.deadButton}
+              data-testid="dead-new-session"
+              onClick={handleDeadNewSession}
+            >
+              New session
             </button>
           </div>
         </div>
