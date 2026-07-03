@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog, clipboard } from 'electron'
 import type { MessagePortMain } from 'electron'
-import { join } from 'path'
+import { join, basename } from 'path'
 import { writeFileSync } from 'fs'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -69,6 +69,10 @@ import { createLaunchService, type LaunchService } from './pty/launchSession'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
+// Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
+// launch synthesis CONSTRUCTS a valid Session from main-owned values (minted uuid, picked
+// cwd, pty pid) — it never re-runs SessionSchema over internal data.
+import type { Session } from '../shared/schemas/session'
 // Story 3.5 (SM-2) — the append-only JSONL telemetry store (DI-seam'd, never-crash) +
 // the REAL fs-backed line store (Electron-touching; injected from here — keeps telemetry.ts
 // Electron-free + unit-testable). The Zod arg schema for the telemetry:acknowledge IPC arg.
@@ -189,6 +193,16 @@ const trackers = new Map<Electron.WebContents, AttentionTracker>()
 // (state.md): the reducer remains the authority; this is just a registry handle. The telemetry
 // handler ALREADY reads the app-global `trackers` map (index.ts ~534) — this is the same pattern.
 const reducers = new Map<Electron.WebContents, ReducerLike>()
+
+// Story 6.2 — per-window LAUNCH-SYNTHESIS seam. The (app-global) terminal:open handler mints
+// the session identity at spawn time and must feed the synthesized Session into the OWNING
+// window's reducer + handleDelta chokepoint — both are per-window closures inside
+// registerWatchFeed, so this map routes to them (same lifetime: set in registerWatchFeed,
+// deleted in teardownWatchFeed; mirrors `trackers`/`reducers`). The deltas take the SAME path
+// as every c9watch/hook delta (tracker → tray → enrich → ship gate). Absent entry (smoke mode
+// / a race before the feed wires) → the spawn still works; only the instant card is skipped
+// (never-crash — the terminal is never blocked on the board).
+const launchSynthesizers = new Map<Electron.WebContents, (session: Session) => void>()
 
 // Story 4.2 (FR-14) — mutable quit-guard state (owned at app scope; one app, one guard).
 // Initialized here so the before-quit handler, quitConfirm, and quitCancel all share ONE state.
@@ -325,6 +339,16 @@ function registerWatchFeed(window: BrowserWindow): void {
     }
   }
 
+  // Story 6.2 — expose THIS window's upsertLaunched → handleDelta path to the app-global
+  // terminal:open handler (the instant-card synthesis at spawn). The synthesized delta flows
+  // through the SAME chokepoint as every c9watch/hook delta — tracker (stamps the `working`
+  // column for `Connecting`), tray, enrich (EnrichedSessionUpdatedSchema — sessionName/
+  // projectPath/pid all present by construction), ship gate (the id is already in the
+  // launched-set — mintSpawn added it BEFORE this runs).
+  launchSynthesizers.set(wc, (session) => {
+    reducer.upsertLaunched(session).forEach(handleDelta)
+  })
+
   // Hook-status feature — start the localhost HTTP hook listener. Hook events route through
   // handleDelta (same chokepoint as c9watch deltas). onHookEvent maps the event name to a
   // HookStatusChange and dispatches applyHookStatus → handleDelta.
@@ -403,6 +427,9 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   // Story 4.2 (FR-14) — remove the per-window reducer reference (ARCH-FORK-1 option A).
   // Same lifetime as the feed; mirrors the trackers.delete above.
   reducers.delete(wc)
+  // Story 6.2 — remove the per-window launch-synthesis seam (same lifetime as the feed).
+  // A terminal:open racing a window close finds no synthesizer → graceful no-op.
+  launchSynthesizers.delete(wc)
   // Hook-status feature — close the per-window hook listener so a window close→reopen
   // ('activate') or dev HMR reload does not leak the listener and hit EADDRINUSE on the
   // next bind. Idempotent; close() never throws.
@@ -763,17 +790,22 @@ function registerTerminalIpc(): void {
     const { port1, port2 } = new MessageChannelMain()
     // Record the owning window so a dead-terminal push (onExit) routes back here.
     terminalOwners.set(terminalId, wc)
-    // Story 3.2 (FR-11) — if this terminalId is an app LAUNCH (the renderer opened the
-    // EmbeddedTerminal against a launch-minted id), consume its spawn override so the manager
-    // spawns raw `claude` in the picked cwd instead of the default shell. A non-launch
-    // terminalId (the Story-3.1 host path) has no override → null → the unchanged shell spawn.
-    const spawnOverride = launchService?.peekSpawnOverride(terminalId) ?? undefined
+    // Story 3.2 (FR-11) / Story 6.2 — if this terminalId is an app LAUNCH (the renderer opened
+    // the EmbeddedTerminal against a launch-minted id) AND an ACTUAL pty spawn is about to
+    // happen, MINT the session identity at consume time: `mintSpawn` mints a fresh
+    // `--session-id` uuid, composes the claude spawn for the picked cwd, records the exact
+    // terminalId → sessionId binding, and adds the id to the launched-set. A re-open of a LIVE
+    // terminal re-attaches (Story 5.6 — no spawn) and must NOT mint/rebind; a Reopen of a DEAD
+    // terminal is a real spawn and gets a FRESH id (a consumed --session-id is never re-used).
+    // A non-launch terminalId (the Story-3.1 host path) mints null → the unchanged shell spawn.
+    const willSpawn = !terminalManager.has(terminalId)
+    const minted = willSpawn ? (launchService?.mintSpawn(terminalId) ?? null) : null
     // Open the terminal (manager wires port1 ↔ pty + flow control). Initial dims are the
     // renderer's first fit() over CH.terminalResize; spawn at a sane default until then. A spawn
     // failure degrades to the manager's onExit → CH.terminalExit (dead pane), never a hang.
     // Story 5.6 — pass openToken so the manager can (a) update the stored token on re-attach, and
     // (b) let a stale cleanup-stop (carrying the old token) self-identify as a no-op.
-    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, spawnOverride, openToken)
+    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, minted?.spawn, openToken)
     // Transfer port2 to the renderer, ECHOING the renderer's per-open `openToken` (Story 5.4)
     // alongside the terminalId so the renderer can pair THIS port to THIS open. The token
     // disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or Reopen):
@@ -781,6 +813,44 @@ function registerTerminalIpc(): void {
     // the prior open and ignore the live one → a blank terminal. The renderer listens on
     // CH.terminalOpen for the `{ terminalId, openToken }` payload + `ports[0]`.
     if (!wc.isDestroyed()) wc.postMessage(CH.terminalOpen, { terminalId, openToken }, [port2])
+    // Story 6.2 — the INSTANT CARD + EXACT BINDING, synchronously at spawn (same tick):
+    if (minted !== null) {
+      // pidOf is null iff the spawn FAILED (the manager already degraded to the dead-terminal
+      // push and the terminal never entered its map) — synthesize no card for a spawn that
+      // never lived (the launched-set/binding dust from the mint is harmless: no delta ever
+      // carries that id, and a removal of a never-present id emits nothing).
+      const ptyPid = terminalManager.pidOf(terminalId)
+      if (ptyPid !== null) {
+        // (b) Synthesize the launched Session into THIS window's reducer via upsertLaunched →
+        // the SAME handleDelta chokepoint as every c9watch/hook delta. The Session is
+        // CONSTRUCTED from main-owned values (the minted uuid, the picked cwd, the pty pid) —
+        // internal data, NOT external input, so it is NOT re-run through SessionSchema
+        // (parse-once boundary). `Connecting` classifies into the `working` column; hooks own
+        // every later transition (UserPromptSubmit → Working, Stop → WaitingForInput, …).
+        launchSynthesizers.get(wc)?.({
+          id: minted.sessionId,
+          status: 'Connecting',
+          projectPath: minted.spawn.cwd,
+          sessionName: basename(minted.spawn.cwd),
+          pid: ptyPid
+        })
+        // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
+        // the Starting-banner join is instant (no ancestry walk, no c9watch discovery wait).
+        // Validate AT SOURCE before send (main→renderer delta; zod-boundaries.md), exactly as
+        // the ancestry-correlation push does; PATH + CODE only on a miss (Guardrail #6). The
+        // renderer's boardStore.addCorrelation is idempotent, and mintSpawn marked the launch
+        // already-joined so the ancestry walk can never fire a second push for this pair.
+        const r = LaunchCorrelatedSchema.safeParse({ terminalId, sessionId: minted.sessionId })
+        if (!r.success) {
+          const issue = r.error.issues[0]
+          console.error(
+            `[c9watch][launch] dropped launch:correlated path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+          )
+        } else if (!wc.isDestroyed()) {
+          wc.send(CH.launchCorrelated, r.data)
+        }
+      }
+    }
   })
 
   // terminal:resize — main resizes the pty FIRST (the renderer already computed cols/rows via
@@ -836,8 +906,23 @@ function registerTerminalIpc(): void {
 //     honored: a single login shell whose only job is to launch claude.
 // The env is the sanitized buildPtyEnv() (drops undefined keys + strips the smoke vars). [Source:
 // F3; AR-7; oq-6-pid-correlation-finding.md §E3 (claude → bash child ancestry, walk validated)]
-function rawClaudeSpawn(): { file: string; args: string[]; env: Record<string, string> } {
-  return { file: SHELL, args: ['-l', '-c', 'claude'], env: buildPtyEnv() }
+//
+// STORY 6.2 UPDATE: now a FACTORY over the freshly-minted session id. The launch service calls
+// it once per ACTUAL pty spawn so the composed command pins claude to the app-minted identity:
+// `$SHELL -l -c "claude --session-id '<uuid>'"`. The uuid is single-quoted for the shell (it is
+// a crypto randomUUID — hex + dashes — so quoting is belt-and-suspenders, but the command string
+// passes through a shell and MUST NOT rely on that). The `$SHELL -l -c` wrapper is unchanged
+// (the login-shell PATH/rc benefit). The env is computed per spawn (fresh buildPtyEnv).
+function rawClaudeSpawn(sessionId: string): {
+  file: string
+  args: string[]
+  env: Record<string, string>
+} {
+  return {
+    file: SHELL,
+    args: ['-l', '-c', `claude --session-id '${sessionId}'`],
+    env: buildPtyEnv()
+  }
 }
 
 // Story 3.2 (FR-11) — register the launch IPC ONCE (mirrors registerTerminalIpc / registerPtyIpc;
@@ -862,7 +947,9 @@ function registerLaunchIpc(): void {
       pidOf: (terminalId) => terminalManager?.pidOf(terminalId) ?? null
     },
     launchedSet,
-    spawn: rawClaudeSpawn(),
+    // Story 6.2 — the spawn FACTORY (not a static config): composes the raw-claude command for
+    // each freshly-minted session id at actual-spawn time (mintSpawn).
+    spawn: rawClaudeSpawn,
     // Story 5.5 — the ONLY `/proc` seam the correlation needs now: status (for the session's Tgid
     // + the PPid ancestry walk up to the PTY leader). The pre-5.5 comm/children readers are gone.
     readStatus: readStatusFromProc,

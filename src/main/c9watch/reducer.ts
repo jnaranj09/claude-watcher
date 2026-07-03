@@ -95,6 +95,23 @@ export interface Reducer {
    * `HOOK_AUTHORITY_MS` constant is passed by the caller.
    */
   applyHookStatus(id: string, change: HookStatusChange, authorityWindowMs: number): SessionDelta[]
+  /**
+   * Story 6.2 — synthesize/refresh an APP-LAUNCHED session at spawn time (the launch-minted
+   * `--session-id` identity). The input is MAIN-INTERNAL data — main constructed it from values
+   * it owns (the launch service's minted uuid, the picked cwd, the pty pid) — NOT external
+   * input, so it is deliberately NOT re-run through `SessionSchema` (parse-once boundary:
+   * construct a valid `Session` at the call site; re-validation is unsupported by design).
+   *
+   * UPSERT semantics (deliberate): an unknown `id` INSERTS; an EXISTING `id` is a NORMAL
+   * update — never a `DuplicateSessionIdError` (that throw guards the c9watch `list` boundary
+   * in `keyById`, not this internal path). The upsert REPLACES the stored session wholesale,
+   * clearing any hook-authority stamp by omission — a fresh spawn's `Connecting` is the new
+   * truth; the next hook event re-stamps its own authority window.
+   *
+   * Emits ONE epoch-framed `session.updated` (same delta shape as `applyLine`) for the caller
+   * to route through the SAME `handleDelta` chokepoint (tracker → enrich → ship gate).
+   */
+  upsertLaunched(session: Session): SessionDelta[]
   /** Parse a `list` snapshot (THROWS on a malformed envelope — the caller decides
    *  reconnect/back-off), bump the monotonic epoch, diff vs the current map, and
    *  return the reconcile deltas. Idempotent: re-applying the same snapshot
@@ -207,6 +224,18 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     map.set(id, updated)
     lastApplied = now()
     return [frame(toUpdated(updated))]
+  }
+
+  /**
+   * Story 6.2 — upsert an app-launched session (main-internal input; see the interface doc).
+   * Insert-or-replace keyed on the stable `id`; a same-id re-upsert is a normal update (no
+   * DuplicateSessionIdError on the launch path). Replacing wholesale drops any StoredSession
+   * hook-authority stamp by omission (fresh spawn = fresh truth).
+   */
+  function upsertLaunched(session: Session): SessionDelta[] {
+    map.set(session.id, session)
+    lastApplied = now()
+    return [frame(toUpdated(session))]
   }
 
   function applyLine(rawLine: string): SessionDelta[] {
@@ -422,6 +451,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   return {
     applyLine,
     applyHookStatus,
+    upsertLaunched,
     seedFromSnapshot,
     seedFromSnapshotRaw,
     // snapshotMap strips the internal StoredSession hook-authority fields before

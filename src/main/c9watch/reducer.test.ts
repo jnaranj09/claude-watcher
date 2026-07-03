@@ -661,3 +661,98 @@ describe('reducer — applyHookStatus (hook-status feature)', () => {
     expect(Object.prototype.hasOwnProperty.call(session, 'hookAuthorityUntil')).toBe(false)
   })
 })
+
+describe('reducer — upsertLaunched (Story 6.2: spawn-time launch synthesis)', () => {
+  /** The synthesized launch Session, exactly as index.ts constructs it at spawn: main-owned
+   *  values (minted uuid, picked cwd + its basename, the pty pid) — NOT re-parsed (parse-once). */
+  function launchedSession(
+    id: string,
+    over: Record<string, unknown> = {}
+  ): {
+    id: string
+    status: string
+    projectPath: string
+    sessionName: string
+    pid: number
+  } {
+    return {
+      id,
+      status: 'Connecting',
+      projectPath: '/home/op/proj',
+      sessionName: 'proj',
+      pid: 4242,
+      ...over
+    }
+  }
+
+  it('emits ONE epoch-framed session.updated carrying the synthesized fields + enters the map', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'launch01-0000-4000-8000-000000000001'
+
+    const deltas = r.upsertLaunched(launchedSession(id))
+
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event).toEqual({
+      type: 'session.updated',
+      id,
+      sessionName: 'proj',
+      projectPath: '/home/op/proj',
+      status: 'Connecting'
+    })
+    // Session truth: the full synthesized session (incl. pid) is in the authoritative map.
+    const stored = r.snapshotMap().get(id)
+    expect(stored?.pid).toBe(4242)
+    expect(stored?.status).toBe('Connecting')
+    expect(r.lastAppliedAt()).toBe(FIXED_NOW)
+  })
+
+  it('a subsequent applyHookStatus TRANSITIONS the synthesized session (hooks own the status)', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'launch02-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+
+    // UserPromptSubmit → Working (the hook path — NOT hook_unknown_id: the upsert made it known).
+    const deltas = r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+    expect(deltas).toHaveLength(1)
+    const evt = deltas[0]?.event
+    expect(evt?.type).toBe('session.updated')
+    if (evt?.type === 'session.updated') expect(evt.status).toBe('Working')
+    expect(r.snapshotMap().get(id)?.status).toBe('Working')
+  })
+
+  it('a SECOND upsertLaunched for the SAME id is a NORMAL update — never DuplicateSessionIdError', () => {
+    // DOCUMENTED DECISION (Story 6.2): the duplicate-id THROW guards the c9watch `list`
+    // boundary (keyById); the launch path upserts — a same-id re-upsert refreshes the stored
+    // session and emits ONE updated delta (no duplicate card, no crash).
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'launch03-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+
+    let deltas: SessionDelta[] = []
+    expect(() => {
+      deltas = r.upsertLaunched(launchedSession(id, { pid: 5151 }))
+    }).not.toThrow()
+
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event.type).toBe('session.updated')
+    expect(r.size()).toBe(1) // updated, not duplicated
+    expect(r.snapshotMap().get(id)?.pid).toBe(5151) // the refresh landed
+  })
+
+  it('the upsert REPLACES wholesale — a prior hook-authority stamp is cleared (fresh spawn = fresh truth)', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'launch04-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+    // A hook stamps authority (window 10s)...
+    r.applyHookStatus(id, { kind: 'status', status: 'Working' }, 10_000)
+    // ...then the frame re-spawns under the same id (a re-upsert): the stamp must clear.
+    r.upsertLaunched(launchedSession(id))
+
+    // A c9watch line INSIDE what would have been the window is NOT suppressed — the fresh
+    // upsert cleared the stamp by omission, so c9watch (still live until 6.4) wins normally.
+    const deltas = r.applyLine(watchLine('status_changed', id, { status: 'WaitingForInput' }))
+    const evt = deltas[0]?.event
+    if (evt?.type === 'session.updated') expect(evt.status).toBe('WaitingForInput')
+    expect(r.snapshotMap().get(id)?.status).toBe('WaitingForInput')
+  })
+})

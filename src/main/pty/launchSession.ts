@@ -43,6 +43,19 @@
 // launched terminal iff the session's process descends from the terminal's PTY leader pid
 // (`pidOf`). The pre-5.5 immediate-`claude`-child walk (resolveClaudeDescendant + the
 // comm/children readers) is no longer used here.
+// Story 6.2 — MINT THE SESSION ID AT LAUNCH (the native-session-engine keystone). claude
+// 2.1.199 accepts a caller-minted `--session-id <uuid>`: the transcript + every hook payload
+// carry that uuid as the session identity. So the launch service now OWNS the identity: at
+// each ACTUAL pty spawn (`mintSpawn`, called by the terminal:open handler — never on a
+// re-attach) it mints a FRESH `randomUUID()`, composes the spawn command via the injected
+// `spawn(sessionId)` factory, records the exact `terminalId → sessionId` binding
+// (`sessionIdFor` — Story 6.3 consumes it for removal), and adds the id to the launched-set
+// BEFORE the synthesized card's delta ships (the Story-3.3 ship gate passes immediately).
+// A Reopen of the same terminal frame is a NEW spawn → a NEW uuid (re-using a consumed
+// `--session-id` risks a claude-side duplicate/resume error) and OVERWRITES the binding.
+// The pre-6.2 ancestry correlation (`correlateAgainst`) stays in place and harmless: a
+// minted launch is marked correlated at mint, so the /proc walk never re-claims it.
+import { randomUUID } from 'node:crypto'
 import { correlate, type ReadStatus } from './pidCorrelation'
 import type { LaunchedSet } from './launchedSet'
 import type { Session } from '../../shared/schemas/session'
@@ -69,16 +82,36 @@ export interface LaunchOutcome {
   terminalId: string
 }
 
+/** Story 6.2 — the concrete spawn config for ONE actual pty spawn of a launch terminal:
+ *  the injected `spawn(sessionId)` factory's file/args/env + the durable picked cwd. */
+export interface LaunchSpawnConfig {
+  file: string
+  args?: string[]
+  cwd: string
+  env?: Record<string, string>
+}
+
+/** Story 6.2 — one consume-time mint: the fresh session identity + the spawn composed for it. */
+export interface MintedLaunchSpawn {
+  /** The freshly-minted session id (`randomUUID()`) — the EXACT identity claude will run as
+   *  (`--session-id`), the launched-set member, and the binding value for this terminalId. */
+  sessionId: string
+  /** The spawn config the terminal manager spawns with (carries `--session-id <sessionId>`). */
+  spawn: LaunchSpawnConfig
+}
+
 export interface LaunchServiceOptions {
   /** The REUSED Story-3.1 terminal manager (one node-pty/terminal behind the MessagePort
    *  transport). The launch spawns through it (file/cwd override) — NOT a second pty path. */
   terminalManager: LaunchTerminalManager
   /** The launched-set this service POPULATES on a landed join (Task 4). */
   launchedSet: LaunchedSet
-  /** The raw-claude spawn config (F3). `file` is normally `'claude'` (the direct spawn) with
-   *  the documented login-shell fallback supplied by the caller. `env` is the sanitized child
-   *  env (buildPtyEnv — strips the smoke vars). */
-  spawn: { file: string; args?: string[]; env?: Record<string, string> }
+  /** Story 6.2 — the raw-claude spawn FACTORY (was a static config). Called ONCE per ACTUAL
+   *  pty spawn with the freshly-minted session id, so the composed command pins claude to the
+   *  app-minted identity (`$SHELL -l -c "claude --session-id '<uuid>'"` in production —
+   *  index.ts `rawClaudeSpawn`). `env` is the sanitized child env (buildPtyEnv). The factory
+   *  seam keeps the shell-wrapper composition OUT of this service (it never string-splices). */
+  spawn: (sessionId: string) => { file: string; args?: string[]; env?: Record<string, string> }
   /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
    *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
    *  session's Tgid AND to walk PPid ancestry up to the terminal's PTY leader. */
@@ -86,6 +119,9 @@ export interface LaunchServiceOptions {
   /** Mint a fresh opaque terminalId per launch (NOT the session id, NOT a pid — F6). Injected
    *  for deterministic tests; defaults to a crypto-random id in main. */
   newTerminalId?: () => string
+  /** Story 6.2 — mint a fresh SESSION id per ACTUAL pty spawn (the `--session-id` identity).
+   *  Injected for deterministic tests; defaults to `randomUUID()` (node:crypto). */
+  newSessionId?: () => string
   /** Epoch-millis clock — injected for determinism (the launch timestamp; diagnostics only). */
   now?: () => number
   /** Platform gate — the correlation runs only on `'linux'` (/proc). Injected for tests;
@@ -118,19 +154,36 @@ export interface LaunchService {
    *  join). The MessagePort transfer rides the SAME Story-3.1 terminal:open path in main — this
    *  service registers the pending spawnOverride for `terminalId`; main consults it on open. */
   launch(req: LaunchRequest): LaunchOutcome
-  /** The DURABLE spawnOverride (file/cwd/env) for a launch terminalId — main reads this on EVERY
-   *  terminal:open so the launched terminal spawns `claude` in the picked cwd instead of the
-   *  default shell. NON-CONSUMING (Story 5.4): the override is the durable spawn-recipe and
-   *  survives reads, stops, and natural exits — so (a) a StrictMode dev double-mount's SURVIVING
-   *  open still spawns claude, and (b) Reopen re-spawns claude (never the default `$SHELL`). A
-   *  consume-once read was the latent Reopen bug + half of the dev blank-terminal bug. Returns
-   *  null for a non-launch terminalId (the Story-3.1 host path). Reclaimed only at process exit. */
-  peekSpawnOverride(terminalId: string): {
-    file: string
-    args?: string[]
-    cwd: string
-    env?: Record<string, string>
-  } | null
+  /** The DURABLE spawn-recipe query for a launch terminalId. NON-CONSUMING (Story 5.4): the
+   *  recipe survives reads, stops, and natural exits — so (a) a StrictMode dev double-mount's
+   *  SURVIVING open still spawns claude, and (b) Reopen re-spawns claude (never the default
+   *  `$SHELL`). A consume-once read was the latent Reopen bug + half of the dev blank-terminal
+   *  bug. Returns null for a non-launch terminalId (the Story-3.1 host path). Reclaimed only
+   *  at process exit.
+   *
+   *  Story 6.2 — NARROWED to the durable part (`cwd`): the concrete `file`/`args`/`env` are
+   *  now composed PER SPAWN by `mintSpawn` (they carry the freshly-minted `--session-id`, so
+   *  a static peek cannot return them). This is the "is this a launch terminal + where"
+   *  query; `mintSpawn` is the consume-time read the terminal:open handler uses. */
+  peekSpawnOverride(terminalId: string): { cwd: string } | null
+  /** Story 6.2 — the consume-time mint, called by the terminal:open handler ONLY when an
+   *  ACTUAL pty spawn is about to happen (never on a Story-5.6 re-attach of a live terminal).
+   *  For a launch terminalId it synchronously:
+   *    - mints a FRESH session uuid (a Reopen gets a NEW id — a consumed `--session-id` must
+   *      never be re-used),
+   *    - composes the spawn via the injected `spawn(sessionId)` factory + the durable cwd,
+   *    - records the exact `terminalId → sessionId` binding (OVERWRITING any prior — Reopen),
+   *    - adds the id to the launched-set (BEFORE the caller ships the synthesized delta, so
+   *      the Story-3.3 ship gate passes), and
+   *    - marks any pending ancestry correlation for this launch as already-joined (the /proc
+   *      walk never re-claims a minted launch — exact binding supersedes the heuristic).
+   *  NON-consuming of the recipe: the durable cwd survives, and the NEXT actual spawn mints
+   *  another fresh identity. Returns null for a non-launch terminalId (plain-shell path). */
+  mintSpawn(terminalId: string): MintedLaunchSpawn | null
+  /** Story 6.2 — the current `terminalId → sessionId` binding from the MOST RECENT actual
+   *  spawn (null before the first mint / for a non-launch terminalId). Story 6.3 consumes
+   *  this for exact stop/exit removal. */
+  sessionIdFor(terminalId: string): string | null
   /** Attempt the Tgid join for every not-yet-correlated launch against the current c9watch
    *  snapshot (AC-2/3/4). Called per feed delta (same synchronous tick as the reducer map). A
    *  landed join records the session id in the launched-set. Re-resolves Tgid each call (the
@@ -160,41 +213,76 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
   const log = options.log ?? ((message: string): void => console.warn(message))
   const now = options.now ?? Date.now
   const newTerminalId = options.newTerminalId ?? defaultNewTerminalId
+  const newSessionId = options.newSessionId ?? randomUUID
   const platform = options.platform ?? process.platform
 
   /** Launches keyed by terminalId. A launch's CORRELATION tracking stays here until forget() (its
    *  claude exits for real); the durable spawn-override below outlives it (see peekSpawnOverride). */
   const launches = new Map<string, PendingLaunch>()
-  /** Durable spawn-overrides keyed by terminalId — the spawn-recipe read on EVERY terminal:open
-   *  (Story 5.4 NON-consuming; never deleted, reclaimed at process exit). */
-  const overrides = new Map<
-    string,
-    { file: string; args?: string[]; cwd: string; env?: Record<string, string> }
-  >()
+  /** Durable spawn-overrides keyed by terminalId — Story 6.2 narrowed to the durable part (the
+   *  picked cwd); `file`/`args`/`env` are composed per spawn by `mintSpawn` (they carry the
+   *  freshly-minted `--session-id`). Story 5.4 NON-consuming; never deleted, reclaimed at
+   *  process exit — a Reopen after a natural claude exit still finds its recipe here. */
+  const overrides = new Map<string, { cwd: string }>()
+  /** Story 6.2 — the EXACT terminalId → sessionId binding, written at each actual spawn
+   *  (mintSpawn) and OVERWRITTEN by a Reopen's fresh id. Story 6.3 consumes it (sessionIdFor)
+   *  for immediate stop/exit removal. Outlives forget() (like the override — the binding is
+   *  the durable record of the last spawn's identity). */
+  const bindings = new Map<string, string>()
 
   function launch(req: LaunchRequest): LaunchOutcome {
     const terminalId = newTerminalId()
-    // Register the spawn override main reads on terminal:open (the renderer opens the
-    // EmbeddedTerminal against this terminalId, which triggers terminal:open in main; main reads
-    // peekSpawnOverride to spawn `claude` in the picked cwd instead of the default shell).
-    overrides.set(terminalId, {
-      file: options.spawn.file,
-      ...(options.spawn.args !== undefined ? { args: options.spawn.args } : {}),
-      cwd: req.cwd,
-      ...(options.spawn.env !== undefined ? { env: options.spawn.env } : {})
-    })
+    // Register the durable spawn recipe main consumes on terminal:open (the renderer opens the
+    // EmbeddedTerminal against this terminalId, which triggers terminal:open in main; main calls
+    // mintSpawn to mint the session identity + spawn `claude` in the picked cwd instead of the
+    // default shell). Story 6.2: only the cwd is durable — the identity is minted per spawn.
+    overrides.set(terminalId, { cwd: req.cwd })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
   }
 
-  function peekSpawnOverride(
-    terminalId: string
-  ): { file: string; args?: string[]; cwd: string; env?: Record<string, string> } | null {
-    // NON-CONSUMING (Story 5.4): do NOT delete on read. The override is the durable spawn-recipe
-    // for this launch terminalId — it must survive EVERY terminal:open so a StrictMode dev
-    // double-mount's surviving open AND a Reopen both re-spawn `claude` (not the default `$SHELL`).
+  function peekSpawnOverride(terminalId: string): { cwd: string } | null {
+    // NON-CONSUMING (Story 5.4): do NOT delete on read. The recipe is durable for this launch
+    // terminalId — it must survive EVERY terminal:open so a StrictMode dev double-mount's
+    // surviving open AND a Reopen both re-spawn `claude` (not the default `$SHELL`).
     // A consume-once read was the latent Reopen bug + half of the dev blank-terminal bug.
     return overrides.get(terminalId) ?? null
+  }
+
+  function mintSpawn(terminalId: string): MintedLaunchSpawn | null {
+    const override = overrides.get(terminalId)
+    if (override === undefined) return null // non-launch terminalId — the Story-3.1 shell path
+
+    // Fresh identity PER ACTUAL SPAWN (first open AND Reopen alike): claude consumes the
+    // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error.
+    const sessionId = newSessionId()
+    const base = options.spawn(sessionId)
+    const spawn: LaunchSpawnConfig = {
+      file: base.file,
+      ...(base.args !== undefined ? { args: base.args } : {}),
+      cwd: override.cwd,
+      ...(base.env !== undefined ? { env: base.env } : {})
+    }
+
+    // (c) Record the EXACT binding — a Reopen OVERWRITES with the new id (the old session is
+    // gone; the frame now hosts the fresh one). Story 6.3 reads this for removal.
+    bindings.set(terminalId, sessionId)
+    // (a) Launched-set membership BEFORE the caller ships the synthesized delta — the
+    // Story-3.3 board-ship gate passes on the very first `session.updated` for this id.
+    options.launchedSet.add(sessionId)
+    // The binding is EXACT at spawn — mark any pending ancestry correlation as already-joined
+    // so `correlateAgainst`'s /proc walk never re-claims this launch (and never fires a second
+    // onCorrelated push for it). Idempotent with the launched-set skip in the walk itself.
+    const pending = launches.get(terminalId)
+    if (pending !== undefined && pending.correlatedId === null) {
+      pending.correlatedId = sessionId
+    }
+
+    return { sessionId, spawn }
+  }
+
+  function sessionIdFor(terminalId: string): string | null {
+    return bindings.get(terminalId) ?? null
   }
 
   function correlateAgainst(sessions: Iterable<Session>): void {
@@ -274,5 +362,5 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     launches.delete(terminalId)
   }
 
-  return { launch, peekSpawnOverride, correlateAgainst, isPending, forget }
+  return { launch, peekSpawnOverride, mintSpawn, sessionIdFor, correlateAgainst, isPending, forget }
 }
