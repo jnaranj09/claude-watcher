@@ -1221,11 +1221,11 @@ function createWindow(): void {
 app
   .whenReady()
   .then(() => {
-    // Set app user model id for windows. CANONICAL appId = `com.c9watch.app` (Story 2.3 AC-6):
-    // reconciled to match `electron-builder.yml` (`appId`) + the `.desktop` file's
-    // `StartupWMClass`/filename so the tray + notification OS identity is consistent. This was
-    // the outlier (`com.c9watch`) — it moves to the canonical value. [FROZEN #5; AR-10]
-    electronApp.setAppUserModelId('com.c9watch.app')
+    // Set app user model id for windows. CANONICAL appId = `com.claudewatcher.app` (Story 2.3
+    // AC-6): must match `electron-builder.yml` (`appId`) + the `.desktop` file's
+    // `StartupWMClass`/filename so the tray + notification OS identity is consistent. [FROZEN #5;
+    // AR-10]
+    electronApp.setAppUserModelId('com.claudewatcher.app')
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.

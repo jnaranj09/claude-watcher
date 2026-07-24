@@ -277,7 +277,7 @@ function App(): React.JSX.Element {
     return (
       <div className={styles.app}>
         <header className={styles.header} data-testid="app-header">
-          <span className={styles.brand}>c9watch · terminals (3.1 proof)</span>
+          <span className={styles.brand}>Claude Watcher · terminals (3.1 proof)</span>
           <Settings />
         </header>
         <main className={styles.main}>
@@ -314,7 +314,7 @@ function App(): React.JSX.Element {
   return (
     <div className={styles.app}>
       <header className={styles.header} data-testid="app-header">
-        <span className={styles.brand}>c9watch</span>
+        <span className={styles.brand}>Claude Watcher</span>
         <div className={styles.headerActions}>
           <button
             type="button"

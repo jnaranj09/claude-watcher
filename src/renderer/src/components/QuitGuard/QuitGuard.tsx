@@ -15,7 +15,7 @@
 //   - NEVER logs session values — sessionName/status data stays off logs.
 //
 // Microcopy (UX-DR22 — terse, operator-to-operator):
-//   Title: "Quit c9watch?"
+//   Title: "Quit Claude Watcher?"
 //   Body:  "Quitting exits every session this app launched — their agent processes will be killed."
 //   Gold:  "{N} agents are still working." (workingCount)
 //   Buttons: Cancel / Quit anyway
@@ -76,13 +76,13 @@ export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
       data-testid="quit-guard-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Quit c9watch?"
+      aria-label="Quit Claude Watcher?"
     >
       <div className={styles.panel} data-testid="quit-guard-panel">
         {/* Header */}
         <div className={styles.header}>
           <span className={styles.title} data-testid="quit-guard-title">
-            Quit c9watch?
+            Quit Claude Watcher?
           </span>
         </div>
 

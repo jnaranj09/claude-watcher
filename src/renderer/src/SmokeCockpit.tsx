@@ -206,7 +206,7 @@ export function SmokeCockpit(): React.JSX.Element {
           alignItems: 'center'
         }}
       >
-        <span>c9watch cockpit</span>
+        <span>Claude Watcher</span>
         <span style={{ fontSize: 12, opacity: 0.7 }}>renderer: {renderer}</span>
       </header>
       <div ref={containerRef} style={{ flex: 1, minHeight: 0, padding: 4 }} />

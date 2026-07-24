@@ -151,7 +151,7 @@ function portInUse(port: number, host: string): Promise<boolean> {
 }
 
 const PORT_GUARD_SKIP_MESSAGE =
-  `127.0.0.1:${HOOK_PORT} is already bound (a dev/installed c9watch-webapp instance is ` +
+  `127.0.0.1:${HOOK_PORT} is already bound (a dev/installed Claude Watcher instance is ` +
   `running). The app under test must OWN the hook port — it tolerates EADDRINUSE silently, ` +
   `so running now would post hooks to the WRONG instance. Close the other instance and re-run.`
 

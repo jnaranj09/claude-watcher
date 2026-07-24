@@ -1,0 +1,20 @@
+<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+  <style type="text/css" id="current-color-scheme">
+    .ColorScheme-Text { color:#232629; }
+  </style>
+  <g class="ColorScheme-Text" fill="currentColor" stroke="currentColor">
+    <!-- Casco: domo + ala (silueta) -->
+    <path d="M 6 7.6 C 6 3.6 8 1.8 11 1.8 C 14 1.8 16 3.6 16 7.6 Z" stroke="none"/>
+    <rect x="3.6" y="7.4" width="14.8" height="2.4" rx="1.2" stroke="none"/>
+    <!-- Estrella: 7 rayos, con gap respecto al ala -->
+    <g fill="none" stroke-width="2.2" stroke-linecap="round">
+      <line x1="11" y1="15.6" x2="16.4" y2="15.6"/>
+      <line x1="11" y1="15.6" x2="14.9" y2="19.3"/>
+      <line x1="11" y1="15.6" x2="11"   y2="20.2"/>
+      <line x1="11" y1="15.6" x2="7.1"  y2="19.3"/>
+      <line x1="11" y1="15.6" x2="5.6"  y2="15.6"/>
+      <line x1="11" y1="15.6" x2="7.4"  y2="12.6"/>
+      <line x1="11" y1="15.6" x2="14.6" y2="12.6"/>
+    </g>
+  </g>
+</svg>

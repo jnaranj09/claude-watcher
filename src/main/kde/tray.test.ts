@@ -132,7 +132,7 @@ describe('tray controller — paints the count, repaints only on change (AC-1)',
     expect(painter.counts).toEqual([2, 0])
     expect(fakeTray.imagesSet[1]?.__count).toBe(0)
     // At zero the tooltip reverts to the plain app name (no "N sessions need you").
-    expect(fakeTray.tooltips[1]).toBe('c9watch')
+    expect(fakeTray.tooltips[1]).toBe('Claude Watcher')
   })
 
   it('a negative / NaN count is normalized to 0 (defensive)', () => {

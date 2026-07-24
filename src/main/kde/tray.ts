@@ -318,7 +318,7 @@ export function createTrayController(options: TrayControllerOptions = {}): TrayC
         return
       }
       tray.setImage(image)
-      tray.setToolTip(next > 0 ? `${next} sessions need you` : 'c9watch')
+      tray.setToolTip(next > 0 ? `${next} sessions need you` : 'Claude Watcher')
       lastCount = next
     } catch {
       // never-crash (AC-8): a setImage/paint failure must not take the feed/board down. Log a

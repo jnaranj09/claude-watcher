@@ -33,7 +33,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const bin = resolve(root, 'dist', 'linux-unpacked', 'c9watch-webapp')
+const bin = resolve(root, 'dist', 'linux-unpacked', 'claude-watcher')
 const out = resolve(root, 'dist', 'smoke-result.json')
 
 const DEADLINE_MS = 60_000 // verdict must appear within this window

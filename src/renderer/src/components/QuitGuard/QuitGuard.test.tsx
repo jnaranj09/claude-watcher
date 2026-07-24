@@ -79,12 +79,12 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('QuitGuard — content rendering', () => {
-  it('renders the title "Quit c9watch?"', () => {
+  it('renders the title "Quit Claude Watcher?"', () => {
     stubQuit()
     const { container, unmount } = renderComponent(<QuitGuard payload={makePayload()} />)
     cleanup = unmount
     const title = container.querySelector('[data-testid="quit-guard-title"]')
-    expect(title?.textContent).toContain('Quit c9watch?')
+    expect(title?.textContent).toContain('Quit Claude Watcher?')
   })
 
   it('renders the working-count gold alert when workingCount > 0', () => {
