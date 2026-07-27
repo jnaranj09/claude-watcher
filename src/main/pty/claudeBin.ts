@@ -1,0 +1,135 @@
+// Resolve the `claude` executable to an ABSOLUTE path — do NOT trust the login shell's PATH.
+//
+// THE BUG THIS FIXES (CachyOS/Arch + KDE, packaged install): the launch spawn is
+// `$SHELL -l -c "claude --session-id '<uuid>'"`. The `-l` was chosen for "the login-shell
+// PATH/rc benefit" (index.ts rawClaudeSpawn comment) — the assumption being that a login
+// shell reconstructs the operator's interactive PATH. On Arch that assumption is FALSE:
+//
+//   1. A KDE-menu-launched app inherits the graphical session PATH, which has NO
+//      `~/.local/bin` (verified: plasmashell's /proc/<pid>/environ →
+//      `/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:...` only).
+//   2. `bash -l` sources `~/.bash_profile`, which on Arch sources `~/.bashrc`.
+//   3. Arch's stock `~/.bashrc` opens with `[[ $- != *i* ]] && return` — and `-c` is
+//      NON-interactive, so it returns THERE.
+//   4. The `export PATH="$HOME/.local/bin:$PATH"` line sits BELOW that guard, so it never
+//      runs. `claude` (installed at `~/.local/bin/claude`) is not on PATH.
+//   5. bash exits 127 → the pty dies instantly → the board shows "Terminal exited." with no
+//      reason. It "works in dev" only because `npm run dev` inherits an INTERACTIVE PATH.
+//
+// So the shell can never be the thing that finds claude. Main resolves the binary itself and
+// passes an absolute path; the `-l` wrapper is kept (it is load-bearing for pid correlation —
+// claude must be a CHILD of the pty leader, see launchSession.ts F3).
+//
+// Pure over its seams (an injected `isExecutable` reader) so `main-unit` tests never touch
+// the real filesystem — mirrors the ptyFactory/readStatusFromProc DI precedent (AR-11).
+
+/** Where a resolution came from — a CODE for logging (never the path value). */
+export type ClaudeBinSource = 'override' | 'path' | 'wellKnown' | 'unresolved'
+
+export interface ClaudeBinResolution {
+  /** The command to put in the shell string. Absolute when resolved; bare `claude` when not
+   *  (the unresolved fallback preserves the pre-fix behavior rather than failing the launch
+   *  outright — a PATH we could not see may still work). */
+  readonly command: string
+  /** The directory holding the resolved binary, or null when unresolved. Prepended to the
+   *  child PATH so claude's own subprocess lookups see its siblings. */
+  readonly dir: string | null
+  /** Resolution provenance — log this CODE, never `command` (a path leaks the operator's
+   *  filesystem layout; see zod-boundaries.md never-log-the-value). */
+  readonly source: ClaudeBinSource
+}
+
+export interface ResolveClaudeBinDeps {
+  /** Is this absolute path an existing, executable file? Injected (real: fs.accessSync X_OK). */
+  isExecutable(path: string): boolean
+  /** The PATH to scan (the value the app itself inherited). */
+  readonly path: string | undefined
+  /** The operator's home dir (real: os.homedir()). */
+  readonly home: string
+  /** Explicit operator escape hatch — `CLAUDE_WATCHER_CLAUDE_BIN`. Wins over everything when
+   *  it is executable; when set-but-not-executable we log a code and fall through. */
+  readonly override?: string | undefined
+}
+
+/** Directory separator handling is POSIX-only by design — the launch path is Linux/KDE
+ *  (win32 takes the plain-shell path and never composes this command). */
+function join(dir: string, name: string): string {
+  return dir.endsWith('/') ? `${dir}${name}` : `${dir}/${name}`
+}
+
+function dirnameOf(p: string): string {
+  const i = p.lastIndexOf('/')
+  return i <= 0 ? '/' : p.slice(0, i)
+}
+
+/**
+ * Resolve `claude` to an absolute path. Order: explicit override → a scan of the inherited
+ * PATH → the well-known user-local install locations the official installer uses → give up
+ * and return bare `claude` (unchanged pre-fix behavior).
+ *
+ * The well-known list is what makes this fix work on a KDE-launched app: the app's own PATH
+ * is the stripped graphical-session one, so the PATH scan misses, and `~/.local/bin/claude`
+ * (the official Linux installer's target) is the entry that lands.
+ *
+ * Pure over `isExecutable`; never throws.
+ */
+export function resolveClaudeBin(deps: ResolveClaudeBinDeps): ClaudeBinResolution {
+  const { isExecutable, path, home, override } = deps
+
+  // 1. Operator override — absolute wins, so a non-standard install is always reachable.
+  if (override !== undefined && override !== '') {
+    if (isExecutable(override)) {
+      return { command: override, dir: dirnameOf(override), source: 'override' }
+    }
+    // Set but unusable: fall through to the normal search rather than hard-failing.
+  }
+
+  // 2. The inherited PATH. Empty segments mean "cwd" in POSIX PATH semantics — skipped
+  //    deliberately (a cwd-relative `claude` is not something we want to launch).
+  for (const seg of (path ?? '').split(':')) {
+    if (seg === '') continue
+    const candidate = join(seg, 'claude')
+    if (isExecutable(candidate)) {
+      return { command: candidate, dir: seg, source: 'path' }
+    }
+  }
+
+  // 3. Well-known install locations, most-specific first. `~/.local/bin/claude` is the
+  //    official installer's target; `~/.claude/local/claude` is the older local-install
+  //    layout; the system dirs cover a packaged/global install.
+  const wellKnown = [
+    join(join(home, '.local'), 'bin/claude'),
+    join(join(home, '.claude'), 'local/claude'),
+    '/usr/local/bin/claude',
+    '/usr/bin/claude'
+  ]
+  for (const candidate of wellKnown) {
+    if (isExecutable(candidate)) {
+      return { command: candidate, dir: dirnameOf(candidate), source: 'wellKnown' }
+    }
+  }
+
+  // 4. Unresolved — keep the pre-fix bare command so a PATH we could not observe still works.
+  return { command: 'claude', dir: null, source: 'unresolved' }
+}
+
+/**
+ * Single-quote a string for POSIX `sh -c`. The resolved path is interpolated into a command
+ * STRING, so a home dir containing a space (or a quote) must not split the command or escape
+ * the quoting. `'` is closed, escaped, and reopened — the standard POSIX-safe form.
+ */
+export function shellQuote(s: string): string {
+  return `'${s.split("'").join(`'\\''`)}'`
+}
+
+/**
+ * Prepend `dir` to a PATH value, without duplicating it. Gives claude's OWN subprocesses
+ * (its Bash tool, any sibling helper) the same lookup the operator gets in a terminal —
+ * under a KDE-launched app they would otherwise inherit the stripped session PATH.
+ */
+export function prependToPath(dir: string | null, path: string | undefined): string | undefined {
+  if (dir === null) return path
+  if (path === undefined || path === '') return dir
+  if (path.split(':').includes(dir)) return path
+  return `${dir}:${path}`
+}

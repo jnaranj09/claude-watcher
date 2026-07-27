@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog, clipboard } from 'electron'
 import type { MessagePortMain } from 'electron'
 import { join, basename } from 'path'
-import { writeFileSync } from 'fs'
+import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import * as os from 'os'
@@ -21,6 +21,7 @@ import type {
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
 // MessagePort byte path) + its cross-process IPC-arg schemas (parse-and-throw at the boundary).
 import { createTerminalManager, type PortLike, type TerminalManager } from './pty/terminalManager'
+import { resolveClaudeBin, shellQuote, prependToPath } from './pty/claudeBin'
 import {
   TerminalOpenSchema,
   TerminalResizeSchema,
@@ -962,15 +963,52 @@ function registerTerminalIpc(): void {
 // a crypto randomUUID — hex + dashes — so quoting is belt-and-suspenders, but the command string
 // passes through a shell and MUST NOT rely on that). The `$SHELL -l -c` wrapper is unchanged
 // (the login-shell PATH/rc benefit). The env is computed per spawn (fresh buildPtyEnv).
+//
+// CACHYOS/ARCH + KDE FIX: the "login-shell PATH/rc benefit" claimed above does NOT hold on
+// Arch. A KDE-menu-launched app inherits the graphical-session PATH (no `~/.local/bin`), and
+// `bash -l -c` sources `~/.bash_profile` → `~/.bashrc`, whose stock Arch first line is
+// `[[ $- != *i* ]] && return` — `-c` is non-interactive, so it returns BEFORE the
+// `export PATH="$HOME/.local/bin:$PATH"` below it. Bare `claude` was therefore not found,
+// bash exited 127, the pty died instantly, and the board showed "Terminal exited." with no
+// reason. (It worked under `npm run dev` only because that inherits an INTERACTIVE PATH.)
+// So main resolves the binary to an ABSOLUTE path itself (claudeBin.ts) instead of trusting
+// the shell, and prepends its directory to the child PATH so claude's own subprocesses get
+// the same lookup the operator has in a terminal. The `$SHELL -l -c` wrapper is UNCHANGED —
+// it is load-bearing for pid correlation (claude must be a CHILD of the pty leader, F3).
 function rawClaudeSpawn(sessionId: string): {
   file: string
   args: string[]
   env: Record<string, string>
 } {
+  const env = buildPtyEnv()
+  const claude = resolveClaudeBin({
+    isExecutable: (p) => {
+      try {
+        accessSync(p, fsConstants.X_OK)
+        return true
+      } catch {
+        return false // missing / not executable / unreadable dir — never throws out
+      }
+    },
+    path: env.PATH,
+    home: os.homedir(),
+    override: env.CLAUDE_WATCHER_CLAUDE_BIN
+  })
+
+  // Log the PROVENANCE CODE only — never the resolved path (it leaks the operator's
+  // filesystem layout; zod-boundaries.md never-log-the-value). `unresolved` is the code to
+  // look for when a launch dies instantly again.
+  console.log(`[c9watch][launch] claude_bin source=${claude.source}`)
+
+  const childPath = prependToPath(claude.dir, env.PATH)
+  if (childPath !== undefined) env.PATH = childPath
+
   return {
     file: SHELL,
-    args: ['-l', '-c', `claude --session-id '${sessionId}'`],
-    env: buildPtyEnv()
+    // The resolved path is shell-quoted: it is interpolated into a command STRING, so a home
+    // dir with a space must not split the command.
+    args: ['-l', '-c', `${shellQuote(claude.command)} --session-id '${sessionId}'`],
+    env
   }
 }
 
