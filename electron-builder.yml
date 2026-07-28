@@ -31,8 +31,10 @@ mac:
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
+  # Arch/CachyOS host — emit a `pacman -U`-installable package (.pkg.tar.zst).
+  # (Was rpm-only for Fedora; rpm needs `rpmbuild` on the build host, Arch does not ship it.)
   target:
-    - rpm
+    - pacman
   maintainer: electronjs.org
   category: Utility
   # Story 2.3 AC-6 — canonical `.desktop` identity (tray/notification window association, AR-10).
@@ -47,6 +49,22 @@ linux:
   desktop:
     entry:
       Categories: Utility;
+# Target-specific options live at the TOP level (`PacmanOptions`), not under `linux:` —
+# putting `depends` under `linux:` fails electron-builder's schema validation.
+pacman:
+  # Override electron-builder's built-in pacman depends (FpmTarget `getDefaultDepends`):
+  # its list carries `libappindicator-gtk3`, which is NOT in the Arch official repos, so
+  # `pacman -U` would refuse the package on an unmet dep. The rest of that list (ffmpeg,
+  # re2, minizip, http-parser, ...) is inherited Chromium-era cruft — Electron 39 bundles
+  # those. Below is the real runtime set for an Electron 39 app on Arch.
+  depends:
+    - gtk3
+    - nss
+    - libxss
+    - libnotify
+    - at-spi2-core
+    - libxtst
+    - xdg-utils
 npmRebuild: false
 publish:
   provider: generic
