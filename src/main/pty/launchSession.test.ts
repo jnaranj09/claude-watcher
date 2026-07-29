@@ -131,12 +131,14 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
       platform: 'linux'
     })
 
-    const out = svc.launch({ cwd: '/home/op/proj' })
+    const out = svc.launch({ cwd: '/home/op/proj', name: 'proj' })
     expect(out.terminalId).toBe('t-1')
     // The durable recipe main consults is the picked cwd (Story 6.2: file/args/env are composed
     // per spawn by mintSpawn — they carry the freshly-minted --session-id).
     const ov = svc.peekSpawnOverride('t-1')
-    expect(ov).toEqual({ cwd: '/home/op/proj' })
+    // Session-naming: the operator-typed name rides the SAME entry as the cwd — both are
+    // per-terminal launch-recipe values, set once at launch and read per spawn.
+    expect(ov).toEqual({ cwd: '/home/op/proj', name: 'proj' })
     // NON-CONSUMING (Story 5.4): a second peek returns the SAME recipe. The recipe is durable so
     // a StrictMode dev double-mount's surviving open AND a Reopen both still spawn claude (a
     // consume-once read was the dev blank-terminal bug + the latent Reopen bug).
@@ -181,7 +183,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
 
   it('composes `claude --session-id <uuid>` (uuid-shaped, single-quoted) through the injected factory', () => {
     const { svc } = mintService() // DEFAULT newSessionId — proves the real randomUUID shape
-    svc.launch({ cwd: '/home/op/proj' })
+    svc.launch({ cwd: '/home/op/proj', name: 'proj' })
 
     const minted = svc.mintSpawn('t-1')
     expect(minted).not.toBeNull()
@@ -198,7 +200,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
   it('adds the minted id to the launched-set AT spawn time (before any delta ships)', () => {
     let s = 0
     const { svc, set } = mintService({ newSessionId: () => `sess-${++s}` })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     expect(set.size()).toBe(0) // launch() alone mints NOTHING — identity is per actual spawn
     const minted = svc.mintSpawn('t-1')
     expect(minted?.sessionId).toBe('sess-1')
@@ -208,7 +210,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
   it('a second mint for the SAME terminal (Reopen) gets a FRESH id and OVERWRITES the binding', () => {
     let s = 0
     const { svc, set } = mintService({ newSessionId: () => `sess-${++s}` })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
 
     const first = svc.mintSpawn('t-1')
     expect(first?.sessionId).toBe('sess-1')
@@ -227,7 +229,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
 
   it('returns null for a non-launch terminalId (no binding, no membership — plain-shell path)', () => {
     const { svc, set } = mintService()
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     expect(svc.mintSpawn('host-term-0')).toBeNull()
     expect(svc.sessionIdFor('host-term-0')).toBeNull()
     expect(set.size()).toBe(0)
@@ -235,14 +237,14 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
 
   it('sessionIdFor is null before the first mint (launch() alone binds nothing)', () => {
     const { svc } = mintService()
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     expect(svc.sessionIdFor('t-1')).toBeNull()
   })
 
   it('marks the launch already-joined: the ancestry walk never re-claims it or double-pushes', () => {
     let s = 0
     const { svc, set, onCorrelated } = mintService({ newSessionId: () => `sess-${++s}` })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.mintSpawn('t-1')
 
     // The exact binding supersedes the heuristic: the launch is no longer pending...
@@ -257,7 +259,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
   it('the recipe is durable across forget(): a Reopen after a real exit mints a fresh claude spawn', () => {
     let s = 0
     const { svc } = mintService({ newSessionId: () => `sess-${++s}` })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.mintSpawn('t-1')
 
     // claude exits for real → index.ts onExit calls forget() (drops correlation tracking ONLY).
@@ -275,7 +277,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
   it('Story 6.3 — unbind() clears the binding, KEEPS the recipe, and is idempotent', () => {
     let s = 0
     const { svc } = mintService({ newSessionId: () => `sess-${++s}` })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.mintSpawn('t-1')
     expect(svc.sessionIdFor('t-1')).toBe('sess-1')
 
@@ -287,10 +289,94 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
 
     // The durable spawn-override is untouched: a later Reopen still finds its recipe and
     // mints a FRESH identity + binding (never the default $SHELL, never a stale id).
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p' })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p' })
     const reopened = svc.mintSpawn('t-1')
     expect(reopened?.sessionId).toBe('sess-2')
     expect(svc.sessionIdFor('t-1')).toBe('sess-2')
+  })
+})
+
+// Session-naming — the operator-typed name must reach the card synthesis.
+//
+// SCOPE NOTE (read before adding a "reopen keeps the name" test): a session name belongs to ONE
+// session. There is NO UI path that re-spawns a terminal frame under its previous name — the dead
+// pane's only action is "New session", which runs the full picker → name-prompt flow and mints a
+// NEW terminalId. The re-mint cases below pin the `overrides` map's non-consuming contract (the
+// same contract that makes a dev StrictMode double-mount re-spawn `claude` rather than `$SHELL`),
+// NOT a user-facing "keep my old name" guarantee.
+describe('launchSession — the operator-typed session name (session-naming)', () => {
+  function svcWithMints(ids: string[]): ReturnType<typeof createLaunchService> {
+    const { manager } = fakeTerminalManager({ 't-1': 100 })
+    let i = 0
+    return createLaunchService({
+      terminalManager: manager,
+      launchedSet: createLaunchedSet(),
+      spawn: shellClaudeSpawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't-1',
+      newSessionId: () => ids[i++] ?? 'sess-x',
+      platform: 'linux'
+    })
+  }
+
+  it('mintSpawn returns the operator name as displayName (not the cwd basename)', () => {
+    const svc = svcWithMints(['sess-1'])
+    svc.launch({ cwd: '/home/op/api', name: 'billing api' })
+    const minted = svc.mintSpawn('t-1')
+    expect(minted?.displayName).toBe('billing api')
+    // The cwd is unchanged — the name is additive, it does not redirect the spawn.
+    expect(minted?.spawn.cwd).toBe('/home/op/api')
+  })
+
+  it('a second mint of the SAME terminalId reads the name back (overrides is non-consuming)', () => {
+    const svc = svcWithMints(['sess-1', 'sess-2'])
+    svc.launch({ cwd: '/home/op/api', name: 'billing api' })
+
+    const first = svc.mintSpawn('t-1')
+    expect(first?.sessionId).toBe('sess-1')
+    expect(first?.displayName).toBe('billing api')
+
+    // The dev StrictMode double-mount shape: stop → re-open the same terminalId → a FRESH uuid.
+    // The recipe (cwd AND name) must still be there; reading it must not consume it.
+    const second = svc.mintSpawn('t-1')
+    expect(second?.sessionId).toBe('sess-2')
+    expect(second?.displayName).toBe('billing api')
+  })
+
+  it('forget() drops correlation tracking but NOT the recipe (Story 5.4 — cwd and name both stay)', () => {
+    const svc = svcWithMints(['sess-1', 'sess-2'])
+    svc.launch({ cwd: '/home/op/api', name: 'billing api' })
+    svc.mintSpawn('t-1')
+    svc.forget('t-1') // claude exited for real
+    const after = svc.mintSpawn('t-1')
+    expect(after?.spawn.cwd).toBe('/home/op/api')
+    expect(after?.displayName).toBe('billing api')
+  })
+
+  it('two launches in the SAME cwd keep DISTINCT names (spec AC-4 — the problem the feature solves)', () => {
+    const { manager } = fakeTerminalManager({ 't-1': 100, 't-2': 200 })
+    let t = 0
+    let s = 0
+    const svc = createLaunchService({
+      terminalManager: manager,
+      launchedSet: createLaunchedSet(),
+      spawn: shellClaudeSpawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => `t-${++t}`,
+      newSessionId: () => `sess-${++s}`,
+      platform: 'linux'
+    })
+    const a = svc.launch({ cwd: '/home/op/api', name: 'billing api' })
+    const b = svc.launch({ cwd: '/home/op/api', name: 'refunds api' })
+    expect(a.terminalId).not.toBe(b.terminalId)
+
+    const mintedA = svc.mintSpawn(a.terminalId)
+    const mintedB = svc.mintSpawn(b.terminalId)
+    expect(mintedA?.displayName).toBe('billing api')
+    expect(mintedB?.displayName).toBe('refunds api')
+    // Same directory, distinct identities — neither launch's name bleeds into the other.
+    expect(mintedA?.spawn.cwd).toBe(mintedB?.spawn.cwd)
+    expect(mintedA?.sessionId).not.toBe(mintedB?.sessionId)
   })
 })
 
@@ -306,7 +392,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
       newTerminalId: () => 't-1',
       platform: 'linux'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     // The reported pid is a deep descendant's wandering thread, NOT the leader — the naive
     // spawnedPid===reportedPid (or even Tgid===leader) would FAIL; the ANCESTRY walk succeeds.
     svc.correlateAgainst([session('sess-A', REPORTED_PID)])
@@ -335,7 +421,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
       newTerminalId: () => 't-1',
       platform: 'linux'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.correlateAgainst([session('sess-other', OTHER_REPORTED)])
 
     expect(set.size()).toBe(0) // NO false membership — the session isn't ours
@@ -353,7 +439,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
       newTerminalId: () => 't-1',
       platform: 'linux'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.correlateAgainst([session('sess-A', REPORTED_PID)])
 
     expect(svc.isPending('t-1')).toBe(true) // optimistic — retries when pidOf resolves
@@ -379,7 +465,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
       newTerminalId: () => 't-1',
       platform: 'linux'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
 
     // Tick 1: the session's process is not in /proc yet (subtree not spawned) → resolveTgid throws
     // → no match.
@@ -413,7 +499,7 @@ describe('launchSession — never-crash / fail-closed', () => {
       platform: 'linux',
       log
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     // sess-gone's pid 999999 is absent from /proc (reader throws → fail closed); sess-A joins.
     expect(() =>
       svc.correlateAgainst([session('sess-gone', 999999), session('sess-A', REPORTED_PID)])
@@ -434,7 +520,7 @@ describe('launchSession — never-crash / fail-closed', () => {
       newTerminalId: () => 't-2',
       platform: 'linux'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.correlateAgainst([session('sess-A', REPORTED_PID)])
     // sess-A was already claimed → this launch stays pending (it does not steal the claim).
     expect(svc.isPending('t-2')).toBe(true)
@@ -454,7 +540,7 @@ describe('launchSession — Linux gate (/proc is Linux)', () => {
       newTerminalId: () => 't-1',
       platform: 'darwin'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.correlateAgainst([session('sess-A', REPORTED_PID)])
     expect(set.size()).toBe(0) // correlation skipped off-Linux; the terminal still works
   })
@@ -474,7 +560,7 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
       platform: 'linux',
       onCorrelated
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.correlateAgainst([session('sess-A', REPORTED_PID)])
 
     expect(onCorrelated).toHaveBeenCalledTimes(1)
@@ -497,7 +583,7 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
       platform: 'linux',
       onCorrelated
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     svc.correlateAgainst([session('sess-A', REPORTED_PID)])
     expect(onCorrelated).not.toHaveBeenCalled()
   })
@@ -518,7 +604,7 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
       },
       log
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     expect(() => svc.correlateAgainst([session('sess-A', REPORTED_PID)])).not.toThrow()
     // The join STILL lands (the membership add precedes the callback) and the throw was logged code-only.
     expect(set.has('sess-A')).toBe(true)
@@ -537,7 +623,7 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       newTerminalId: () => 't-1',
       platform: 'linux'
     })
-    svc.launch({ cwd: '/p' })
+    svc.launch({ cwd: '/p', name: 'p' })
     expect(svc.isPending('t-1')).toBe(true)
     svc.forget('t-1')
     // Correlation tracking dropped — the launch is no longer pending / re-correlated.
@@ -545,8 +631,8 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
     // ...but the spawn-override (the Reopen recipe) SURVIVES forget (Story 5.4): forget() runs when
     // claude exits FOR REAL, and a dead-pane Reopen must still re-spawn claude (not the default
     // $SHELL). A pre-5.4 forget that also deleted the override broke Reopen.
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p' })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p' })
     svc.forget('t-1') // idempotent
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p' })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p' })
   })
 })

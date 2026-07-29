@@ -78,7 +78,8 @@ declare global {
     // ipcRenderer directly — F2/F8). Both are typed invokes over CH.sessionPickDirectory/Launch.
     launch: {
       pickDirectory(): Promise<SessionPickDirectoryResult>
-      launch(cwd: string): Promise<SessionLaunchResult>
+      // Session-naming: `name` is the operator-typed label from the create-time prompt.
+      launch(cwd: string, name: string): Promise<SessionLaunchResult>
       // Story 3.4 (FR-16) — the launch CORRELATION push subscription ({ terminalId, sessionId },
       // fired once when a launch's Tgid join lands). Builds the renderer's terminalIdBySessionId.
       onCorrelated(cb: (event: LaunchCorrelatedEvent) => void): () => void

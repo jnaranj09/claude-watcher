@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog, clipboard } from 'electron'
 import type { MessagePortMain } from 'electron'
-import { join, basename } from 'path'
+import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
 import { randomUUID } from 'node:crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -79,6 +79,8 @@ import { removeBoundSession, stopTerminalAndRemoveBound } from './pty/launchRemo
 // pty spawn is about to happen — a re-attach to a LIVE terminal must never mint a second
 // uuid / ghost card / binding overwrite.
 import { mintForOpen } from './pty/launchMint'
+// Session-naming — the extracted, unit-tested launch-card synthesis (see launchSynthesis.ts).
+import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
@@ -861,13 +863,11 @@ function registerTerminalIpc(): void {
         // internal data, NOT external input, so it is NOT re-run through SessionSchema
         // (parse-once boundary). `Connecting` classifies into the `working` column; hooks own
         // every later transition (UserPromptSubmit → Working, Stop → WaitingForInput, …).
-        launchBoardSeams.get(wc)?.upsertLaunched({
-          id: minted.sessionId,
-          status: 'Connecting',
-          projectPath: minted.spawn.cwd,
-          sessionName: basename(minted.spawn.cwd),
-          pid: ptyPid
-        })
+        // Session-naming: the synthesis itself lives in the extracted, unit-tested
+        // `buildLaunchedSession` (launchSynthesis.ts) — index.ts is not importable by any test,
+        // so inlining it left the operator's name reaching the board through an uncovered
+        // expression. Keep this a one-line call; put any synthesis logic in that module.
+        launchBoardSeams.get(wc)?.upsertLaunched(buildLaunchedSession(minted, ptyPid))
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
         // the Starting-banner join is instant (no ancestry walk, no c9watch discovery wait).
         // Validate AT SOURCE before send (main→renderer delta; zod-boundaries.md), exactly as
@@ -1092,8 +1092,12 @@ function registerLaunchIpc(): void {
   // typeable IMMEDIATELY; the Tgid correlation reconciles asynchronously on feed deltas (UX-DR19).
   ipcMain.handle(CH.sessionLaunch, (_event, raw: unknown) => {
     if (launchService === null) throw new Error('launch service not initialized')
-    const { cwd } = SessionLaunchSchema.parse(raw)
-    const { terminalId } = launchService.launch({ cwd })
+    // Both fields are UNTRUSTED cross-process input. `name` comes back already TRIMMED and
+    // length-bounded (SessionNameSchema); a blank/whitespace-only/over-long name rejects the
+    // invoke here and NOTHING spawns. Never log either value on the throw path — a cwd leaks
+    // the filesystem layout and a name is operator content (zod-boundaries.md).
+    const { cwd, name } = SessionLaunchSchema.parse(raw)
+    const { terminalId } = launchService.launch({ cwd, name })
     return { terminalId }
   })
 }

@@ -71,10 +71,14 @@ export interface LaunchTerminalManager {
   pidOf(terminalId: string): number | null
 }
 
-/** The launch invocation — raw `claude` in `cwd`. */
+/** The launch invocation — raw `claude` in `cwd`, under the operator's chosen name. */
 export interface LaunchRequest {
   /** The picked working directory (validated upstream at the IPC boundary). */
   cwd: string
+  /** The operator-typed session name from the create-time prompt (validated upstream by
+   *  `SessionNameSchema` — already trimmed and length-bounded when it reaches here). Becomes the
+   *  synthesized card's `sessionName` instead of the cwd basename. */
+  name: string
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -98,6 +102,13 @@ export interface MintedLaunchSpawn {
   sessionId: string
   /** The spawn config the terminal manager spawns with (carries `--session-id <sessionId>`). */
   spawn: LaunchSpawnConfig
+  /** The operator-typed session name recorded at `launch()`, read back off the spawn override so
+   *  the card synthesis uses it instead of the cwd basename. It rides that entry because it is a
+   *  per-terminal launch-recipe value with the same key and lifetime as `cwd` — NOT because a
+   *  session name is meant to outlive its session (it is not: the dead pane's only action mints a
+   *  NEW terminalId and re-prompts for a name). The one path that re-reads it is the dev
+   *  StrictMode double-mount, where the same terminalId is stopped and re-opened. */
+  displayName: string
 }
 
 export interface LaunchServiceOptions {
@@ -164,8 +175,11 @@ export interface LaunchService {
    *  Story 6.2 — NARROWED to the durable part (`cwd`): the concrete `file`/`args`/`env` are
    *  now composed PER SPAWN by `mintSpawn` (they carry the freshly-minted `--session-id`, so
    *  a static peek cannot return them). This is the "is this a launch terminal + where"
-   *  query; `mintSpawn` is the consume-time read the terminal:open handler uses. */
-  peekSpawnOverride(terminalId: string): { cwd: string } | null
+   *  query; `mintSpawn` is the consume-time read the terminal:open handler uses.
+   *
+   *  Session-naming: the operator-typed `name` rides the SAME entry (same key, same lifetime as
+   *  the cwd), so it is returned here too. */
+  peekSpawnOverride(terminalId: string): { cwd: string; name: string } | null
   /** Story 6.2 — the consume-time mint, called by the terminal:open handler ONLY when an
    *  ACTUAL pty spawn is about to happen (never on a Story-5.6 re-attach of a live terminal).
    *  For a launch terminalId it synchronously:
@@ -227,10 +241,13 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
    *  claude exits for real); the durable spawn-override below outlives it (see peekSpawnOverride). */
   const launches = new Map<string, PendingLaunch>()
   /** Durable spawn-overrides keyed by terminalId — Story 6.2 narrowed to the durable part (the
-   *  picked cwd); `file`/`args`/`env` are composed per spawn by `mintSpawn` (they carry the
-   *  freshly-minted `--session-id`). Story 5.4 NON-consuming; never deleted, reclaimed at
-   *  process exit — a Reopen after a natural claude exit still finds its recipe here. */
-  const overrides = new Map<string, { cwd: string }>()
+   *  picked cwd + the operator-typed name); `file`/`args`/`env` are composed per spawn by
+   *  `mintSpawn` (they carry the freshly-minted `--session-id`). Story 5.4 NON-consuming; never
+   *  deleted, reclaimed at process exit — so the surviving half of a dev StrictMode double-mount
+   *  still finds the recipe and re-spawns `claude` rather than the default `$SHELL`. The name
+   *  lives here because it is the same KIND of value as the cwd (per-terminal, set once at
+   *  launch), not because a name is expected to outlive its session. */
+  const overrides = new Map<string, { cwd: string; name: string }>()
   /** Story 6.2 — the EXACT terminalId → sessionId binding, written at each actual spawn
    *  (mintSpawn) and OVERWRITTEN by a Reopen's fresh id. Story 6.3 consumes it (sessionIdFor)
    *  for immediate stop/exit removal and CLEARS it (unbind) once that removal lands — so a
@@ -244,12 +261,14 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // EmbeddedTerminal against this terminalId, which triggers terminal:open in main; main calls
     // mintSpawn to mint the session identity + spawn `claude` in the picked cwd instead of the
     // default shell). Story 6.2: only the cwd is durable — the identity is minted per spawn.
-    overrides.set(terminalId, { cwd: req.cwd })
+    // Session-naming: the operator-typed name sits beside the cwd — both are per-terminal
+    // launch-recipe values with the same key and lifetime.
+    overrides.set(terminalId, { cwd: req.cwd, name: req.name })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
   }
 
-  function peekSpawnOverride(terminalId: string): { cwd: string } | null {
+  function peekSpawnOverride(terminalId: string): { cwd: string; name: string } | null {
     // NON-CONSUMING (Story 5.4): do NOT delete on read. The recipe is durable for this launch
     // terminalId — it must survive EVERY terminal:open so a StrictMode dev double-mount's
     // surviving open AND a Reopen both re-spawn `claude` (not the default `$SHELL`).
@@ -286,7 +305,8 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
       pending.correlatedId = sessionId
     }
 
-    return { sessionId, spawn }
+    // The operator's name rides back out of the override (never consumed, like the cwd).
+    return { sessionId, spawn, displayName: override.name }
   }
 
   function sessionIdFor(terminalId: string): string | null {

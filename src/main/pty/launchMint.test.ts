@@ -16,6 +16,7 @@
 //     terminalId both mint null, never throw.
 import { describe, it, expect, vi } from 'vitest'
 import { mintForOpen, type LiveTerminalSource } from './launchMint'
+import { buildLaunchedSession } from './launchSynthesis'
 import { createLaunchService, type LaunchService } from './launchSession'
 import { createLaunchedSet } from './launchedSet'
 import { createReducer, type Reducer } from '../c9watch/reducer'
@@ -64,13 +65,11 @@ function openMirror(
 ): ReturnType<typeof mintForOpen> {
   const minted = mintForOpen(terminalId, manager, svc)
   if (minted !== null) {
-    reducer.upsertLaunched({
-      id: minted.sessionId,
-      status: 'Connecting',
-      projectPath: minted.spawn.cwd,
-      sessionName: 'proj',
-      pid: 51234
-    })
+    // Session-naming: call the SHIPPED synthesis (`buildLaunchedSession`) instead of re-declaring
+    // the Session shape here. This mirror used to hardcode `sessionName: 'proj'`, which made it
+    // look naming-aware while asserting nothing about naming — the "asserts a re-implemented
+    // copy" defect class this repo keeps hitting. Now a synthesis regression reaches this file.
+    reducer.upsertLaunched(buildLaunchedSession(minted, 51234))
   }
   return minted
 }
@@ -83,7 +82,7 @@ describe('Story 6.2 — mintForOpen: fresh open mints exactly once', () => {
     const reducer = createReducer({ now: () => FIXED_NOW })
     const { manager } = fakeLiveTerminals() // nothing live yet — this open WILL spawn
 
-    const { terminalId } = svc.launch({ cwd: CWD })
+    const { terminalId } = svc.launch({ cwd: CWD, name: 'proj' })
     const minted = openMirror(terminalId, manager, svc, reducer)
 
     expect(mintSpy).toHaveBeenCalledTimes(1)
@@ -105,7 +104,7 @@ describe('Story 6.2 — mintForOpen: re-attach to a LIVE terminal NEVER mints (t
     const { manager, spawn } = fakeLiveTerminals()
 
     // Open #1 — the actual spawn: mints sess-1, upserts the card, pty goes live.
-    const { terminalId } = svc.launch({ cwd: CWD })
+    const { terminalId } = svc.launch({ cwd: CWD, name: 'proj' })
     const first = openMirror(terminalId, manager, svc, reducer)
     expect(first?.sessionId).toBe('sess-1')
     spawn(terminalId) // the manager now holds a LIVE pty for this terminalId
@@ -129,7 +128,7 @@ describe('Story 6.2 — mintForOpen: re-attach to a LIVE terminal NEVER mints (t
     const reducer = createReducer({ now: () => FIXED_NOW })
     const { manager, spawn } = fakeLiveTerminals()
 
-    const { terminalId } = svc.launch({ cwd: CWD })
+    const { terminalId } = svc.launch({ cwd: CWD, name: 'proj' })
     openMirror(terminalId, manager, svc, reducer) // spawn → sess-1 card
     spawn(terminalId)
     openMirror(terminalId, manager, svc, reducer) // re-attach → no-op (guard holds)
@@ -150,7 +149,7 @@ describe('Story 6.2 — mintForOpen: re-attach to a LIVE terminal NEVER mints (t
     const reducer = createReducer({ now: () => FIXED_NOW })
     const { manager, spawn, exit } = fakeLiveTerminals()
 
-    const { terminalId } = svc.launch({ cwd: CWD })
+    const { terminalId } = svc.launch({ cwd: CWD, name: 'proj' })
     openMirror(terminalId, manager, svc, reducer) // spawn #1 → sess-1
     spawn(terminalId)
     exit(terminalId) // claude died (double ctrl+c) — the pty is gone

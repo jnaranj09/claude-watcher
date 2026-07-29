@@ -33,6 +33,7 @@
 
 import { test, expect } from '@playwright/test'
 import { _electron as electron } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import path from 'path'
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync } from 'fs'
 import { tmpdir } from 'os'
@@ -40,10 +41,44 @@ import { tmpdir } from 'os'
 // The built entry point (after `npm run build:dir` / `npm run build`).
 const BUILT_MAIN = path.resolve(__dirname, '../../out/main/index.js')
 
+// The checkout root. Every Electron helper (renderer / GPU / zygote) carries it in its cmdline.
+const PROJECT_ROOT = path.resolve(__dirname, '../..')
+
+/**
+ * Is this descendant the LAUNCHED `claude`, rather than one of Electron's own helper processes?
+ *
+ * A bare `cmdline.includes('claude')` is NOT safe: the checkout path itself can contain "claude"
+ * (this repo lives at `.../claude-watcher/claude-watcher/`), so EVERY Electron zygote/renderer
+ * matched it. Measured on this machine: 6 of 7 descendants matched with NO session launched at
+ * all. That made this file's primary assertion VACUOUS (it passed whether or not `claude` ever
+ * spawned) and made the native-engine dead-pane test SIGKILL the app under test.
+ *
+ * Excluding anything whose cmdline mentions the checkout root removes all of Electron's own
+ * processes while leaving the real `claude` (resolved to an absolute path outside the repo,
+ * e.g. `~/.local/bin/claude` — see `resolveClaudeBin` in src/main/index.ts) untouched.
+ */
+function isLaunchedClaude(cmdline: string): boolean {
+  if (cmdline === '' || cmdline.includes(PROJECT_ROOT)) return false
+  return cmdline.includes('claude')
+}
+
 // Exact error message substrings that identify the MessagePort transport regression (Story 5.1).
 const PORT_BUG_SIGNATURES = ['port.start is not a function', 'port.postMessage is not a function']
 
 test.setTimeout(120000)
+
+/**
+ * Session-naming — confirm the create-time NAME PROMPT that now sits between the directory picker
+ * and the launch. Accepts the prefill (the cwd basename), which is what these specs assumed
+ * before the prompt existed, so their downstream assertions are unchanged.
+ * MUST be called after every `+ New session` / dead-pane New-session click: nothing spawns until
+ * it runs, so omitting it makes the following `embedded-terminal` wait time out.
+ */
+async function confirmSessionName(page: Page): Promise<void> {
+  const confirm = page.locator('[data-testid="session-name-confirm"]')
+  await confirm.waitFor({ state: 'visible', timeout: 20000 })
+  await confirm.click()
+}
 
 /** Read a process's PPid from /proc/<pid>/status (robust to a comm with spaces/parens). */
 function ppidOf(pid: number): number | null {
@@ -101,7 +136,7 @@ async function waitForClaudeDescendant(
   let last: { pid: number; cmdline: string }[] = []
   while (Date.now() < deadline) {
     last = descendantCmdlines(rootPid)
-    if (last.some((d) => d.cmdline.includes('claude'))) return last
+    if (last.some((d) => isLaunchedClaude(d.cmdline))) return last
     await new Promise((r) => setTimeout(r, 250))
   }
   return last
@@ -135,9 +170,12 @@ test('in-app launch spawns `claude` in the picked dir (override applied) + no po
     await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
 
     // 3. Click `+ New session`. With C9_TEST_PICK_DIR set, the picker returns launchDir without a
-    //    native dialog → launch(launchDir) → openLaunchedTerminal → FocusedSession mounts the
+    //    native dialog → the session-naming NAME PROMPT opens (prefilled with the cwd basename)
+    //    → confirming it launches → openLaunchedTerminal → FocusedSession mounts the
     //    EmbeddedTerminal → terminal:open → main spawns `$SHELL -l -c claude` in launchDir.
+    //    NOTE: nothing spawns until the prompt is confirmed — skipping it hangs at step 4.
     await newSessionBtn.click()
+    await confirmSessionName(page)
 
     // 4. The Focused-session's embedded terminal should mount.
     await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
@@ -146,7 +184,7 @@ test('in-app launch spawns `claude` in the picked dir (override applied) + no po
     //    runs `claude` (the `$SHELL -l -c claude` shell and/or its `claude` child). A LOST override
     //    would spawn the default `/bin/bash` with NO `claude` anywhere (the bug signature).
     const descendants = await waitForClaudeDescendant(electronPid!, 8000)
-    const claudeProcs = descendants.filter((d) => d.cmdline.includes('claude'))
+    const claudeProcs = descendants.filter((d) => isLaunchedClaude(d.cmdline))
     expect(
       claudeProcs.length,
       `No \`claude\` descendant of the Electron app — the launch spawn override was NOT applied ` +

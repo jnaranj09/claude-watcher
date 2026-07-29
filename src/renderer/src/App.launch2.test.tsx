@@ -124,10 +124,26 @@ async function renderApp(): Promise<RenderResult> {
   return r
 }
 
+/**
+ * Drive a full launch: header button → picker → the session-naming NAME PROMPT → launch.
+ *
+ * Session-naming inserted the prompt between the picker and the launch. These Story-5.6 registry
+ * tests care about the REGISTRY, not the naming, so the helper ACCEPTS the prefill — which is the
+ * cwd basename, exactly the label these tests already assert. Their expectations are unchanged.
+ */
 async function clickNewSession(r: RenderResult): Promise<void> {
   const button = r.container.querySelector<HTMLButtonElement>('[data-testid="header-new-session"]')
   await act(async () => {
     button?.click()
+    await Promise.resolve()
+  })
+  await flush()
+  const confirm = r.container.querySelector<HTMLButtonElement>(
+    '[data-testid="session-name-confirm"]'
+  )
+  if (confirm === null) throw new Error('the session-name prompt was not shown')
+  await act(async () => {
+    confirm.click()
     await Promise.resolve()
   })
   await flush()

@@ -22,10 +22,65 @@
 //  never-log-the-value); src/shared/schemas/terminal.ts / settings.ts (our-shape fail-closed)]
 import { z } from 'zod'
 
-/** `session:launch` arg — `{ cwd }`. `cwd` is a non-empty string (blank fails closed). NO
- *  `.passthrough()` — an unknown/malformed arg fails closed (our shape, not c9watch's). */
+/** The operator-typed session name's max length. A name is a board-card title + an attention-rail
+ *  row label, not free-form prose — 60 chars is well past what those surfaces can show (both
+ *  ellipsize) while still bounding what crosses the IPC seam. Mirrors the exported-constant
+ *  convention of `terminal.ts` (TERMINAL_MIN_DIM/MAX_DIM) so tests assert the boundary by name. */
+export const SESSION_NAME_MAX_LENGTH = 60
+
+/**
+ * True when `value` contains a C0 control char, DEL, or a C1 control char.
+ *
+ * Written as a code-point scan rather than a regex character class: a class holding literal
+ * control characters trips eslint's `no-control-regex` AND is invisible in a diff, so a reviewer
+ * cannot see what it matches. The bounds here are explicit and readable.
+ */
+function hasControlChar(value: string): boolean {
+  for (const ch of value) {
+    const cp = ch.codePointAt(0)
+    if (cp === undefined) continue
+    if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true
+  }
+  return false
+}
+
+/**
+ * The OPERATOR-TYPED session name (the create-time prompt; the rename flow will reuse this).
+ *
+ * `.trim()` runs BEFORE the length checks, so both bounds apply to the TRIMMED value: a
+ * whitespace-only name fails `min(1)` rather than being stored as blank, and a padded name is
+ * stored tidy. This is the ONE definition of "a legal session name" — do not re-declare the
+ * bounds at another call site.
+ *
+ * NEVER-LOG-THE-VALUE: a ZodError stringifies its INPUT. An operator-typed name can carry
+ * whatever the operator considers meaningful (a client name, a ticket id), so callers log the
+ * issue PATH + CODE only — never the value. The throw IS the boundary signal.
+ */
+export const SessionNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(SESSION_NAME_MAX_LENGTH)
+  // No CONTROL characters (C0 + DEL + C1). `trim()` only strips the EDGES, so an interior newline
+  // or an ANSI escape would otherwise survive into `sessionName` — which is rendered on the board
+  // card, the rail row, the Stop-confirm title and the OS notification title, all of which assume
+  // a single-line string. An `<input type="text">` cannot produce these, but this schema is the
+  // boundary for an UNTRUSTED renderer, so it must not rely on the widget.
+  //
+  // Checked by CODE POINT, not by a character class holding literal control chars: eslint's
+  // `no-control-regex` forbids the latter, and such a literal is invisible to a code reviewer.
+  .refine((name) => !hasControlChar(name), {
+    error: 'must not contain control characters'
+  })
+
+/** `session:launch` arg — `{ cwd, name }`. `cwd` is a non-empty string (blank fails closed);
+ *  `name` is the operator-typed label from the create-time prompt (trimmed, 1..60 — see
+ *  SessionNameSchema). NO `.passthrough()` — an unknown/malformed arg fails closed (our shape,
+ *  not c9watch's). Both fields are NEVER logged (a path leaks the filesystem layout; a name is
+ *  operator content). */
 export const SessionLaunchSchema = z.object({
-  cwd: z.string().min(1)
+  cwd: z.string().min(1),
+  name: SessionNameSchema
 })
 
 export type SessionLaunchArg = z.infer<typeof SessionLaunchSchema>

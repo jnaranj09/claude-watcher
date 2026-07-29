@@ -34,7 +34,8 @@ import {
   selectFocusedTerminalId,
   selectKeptAliveTerminalIds,
   selectQuitGuard,
-  selectStopConfirm
+  selectStopConfirm,
+  selectSessionNamePrompt
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -43,6 +44,13 @@ import { QuitGuard } from './components/QuitGuard/QuitGuard'
 // is non-null). Rendered as a stacked overlay (same z-60 family as the QuitGuard; they never co-exist
 // — single-modal rule UX-DR14). The Stop-confirm never co-exists with the Quit-guard.
 import { StopConfirm } from './components/StopConfirm/StopConfirm'
+// Session-naming — the create-time name prompt (renderer view-state; shown when
+// boardStore.sessionNamePrompt is non-null, i.e. after the directory picker and BEFORE the
+// launch). Same z-60 overlay family; it never co-exists with the other two modals.
+import { SessionNameDialog } from './components/SessionNameDialog/SessionNameDialog'
+// Session-naming — the ONE definition of a legal name length; the prefill is clamped to it so an
+// over-long directory basename never opens the dialog in an un-submittable state.
+import { SESSION_NAME_MAX_LENGTH } from '../../shared/schemas/launch'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal,
 // FROZEN-5). Used at the activateCard call site to also emit the telemetry signal.
 import { acknowledgeSession } from './utils/acknowledgeSession'
@@ -84,6 +92,8 @@ function App(): React.JSX.Element {
   const quitGuard = useBoard(selectQuitGuard)
   // Story 4.3 (FR-15) — the Stop-confirm payload (non-null while the confirm is open).
   const stopConfirm = useBoard(selectStopConfirm)
+  // Session-naming — the create-time name prompt payload (null = no prompt shown).
+  const sessionNamePrompt = useBoard(selectSessionNamePrompt)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -127,7 +137,14 @@ function App(): React.JSX.Element {
   useEffect(() => {
     if (smoke !== false) return
     if (!window.quit) return
-    const off = window.quit.onGuardShow((payload) => boardStore.getState().showQuitGuard(payload))
+    const off = window.quit.onGuardShow((payload) => {
+      // Session-naming: main pushes the guard unconditionally on before-quit, so it can arrive
+      // while the name prompt is open. Drop the pending launch first (nothing has spawned, so it
+      // costs nothing) — otherwise two modals stack, and submitting the name would spawn a NEW
+      // session AFTER main already snapshotted the live set for the guard's list.
+      boardStore.getState().clearSessionNamePrompt()
+      boardStore.getState().showQuitGuard(payload)
+    })
     return off
   }, [smoke])
 
@@ -136,7 +153,14 @@ function App(): React.JSX.Element {
   // CANCEL it is a NO-OP (no PTY spawned, no view change — the picker returns null). The renderer
   // NEVER opens a dialog itself — it triggers the OS dialog via the typed `window.launch` bridge.
   // A launch failure (a rejected invoke) logs a code (never the path value) and leaves the board.
+  // Session-naming: the picker no longer launches directly. It now opens the NAME PROMPT and
+  // stops — the launch fires from `handleNameSubmit` below once the operator has a name. So a
+  // cancel at EITHER step (picker or prompt) spawns nothing at all.
   const handleNewSession = useCallback(async (): Promise<void> => {
+    // Re-entry guard: if a prompt is already open, the operator is mid-naming. Opening the picker
+    // again would overwrite the stored cwd underneath a dialog whose input still holds the OLD
+    // typed name — submitting would then launch the NEW directory under the OLD name. Ignore.
+    if (boardStore.getState().sessionNamePrompt !== null) return
     let cwd: string | null
     try {
       cwd = await window.launch.pickDirectory()
@@ -145,15 +169,32 @@ function App(): React.JSX.Element {
       return
     }
     if (cwd === null) return // cancel ⇒ no-op (no launch, no view change)
+    // Prefill with the cwd basename — the pre-naming behavior, now a suggestion the operator
+    // can replace (the dialog selects the text on mount so typing overwrites it).
+    //
+    // CLAMPED to the schema's cap: an over-long prefill would open the dialog in an invalid
+    // state that the operator did not create. (The dialog ALSO refuses to submit over-length —
+    // belt and braces — but clamping here means the common case just works.)
+    const basename = (cwd.split('/').filter(Boolean).pop() ?? cwd).slice(0, SESSION_NAME_MAX_LENGTH)
+    boardStore.getState().showSessionNamePrompt({ cwd, initialName: basename })
+  }, [])
+
+  // Session-naming: the name prompt submitted — NOW launch. The dialog hands back an already-
+  // trimmed, non-empty name; main re-validates it at the IPC boundary (untrusted cross-process
+  // input) and rejects the invoke rather than spawning if it is malformed.
+  const handleNameSubmit = useCallback(async (cwd: string, name: string): Promise<void> => {
+    // Close the prompt first so a slow spawn cannot leave a dead modal over the board.
+    boardStore.getState().clearSessionNamePrompt()
     try {
-      const { terminalId } = await window.launch.launch(cwd)
+      const { terminalId } = await window.launch.launch(cwd, name)
       // Optimistic drop-into-Focused-session: render the terminal the moment the launch returns
       // its id (the terminal is typeable immediately; the Tgid join reconciles asynchronously).
-      // Story 5.6 (AC-1): pass the cwd basename as `label` for the Starting banner display.
-      const label = cwd.split('/').filter(Boolean).pop() ?? cwd
-      boardStore.getState().openLaunchedTerminal(terminalId, label)
+      // Story 5.6 (AC-1) + session-naming: the `label` for the Starting banner is now the
+      // OPERATOR's name, so the banner and the eventual card agree from the first frame.
+      boardStore.getState().openLaunchedTerminal(terminalId, name)
     } catch {
-      // never-log-the-value: a code only (the rejected invoke carries the cwd — keep it off logs).
+      // never-log-the-value: a code only. The rejected invoke carries BOTH the cwd (leaks the
+      // filesystem layout) and the operator-typed name (content) — keep both off the logs.
       console.warn('[c9watch][launch] code=launch_failed')
     }
   }, [])
@@ -220,7 +261,11 @@ function App(): React.JSX.Element {
       // MUST e.preventDefault() to NEVER close the window (UX-DR21).
       // Only acts when a session is focused (viewMode==='focused' AND focusedTerminalId!==null).
       // No-op on the board (preventDefault still fires to suppress Electron/browser default close).
-      // Single-modal guard: do NOT open if either modal is already open (UX-DR14).
+      // Single-modal guard: do NOT open if ANY modal is already open (UX-DR14) — including the
+      // session-naming prompt, which CAN be open over a focused session (naming a NEW session
+      // while an existing one runs). Without that term, Ctrl+W stacked StopConfirm at the same
+      // z-index under the name prompt: StopConfirm's mount effect steals focus out of the name
+      // input, so the visible dialog and the keyboard focus disagree.
       if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault()
         const state = boardStore.getState()
@@ -228,7 +273,8 @@ function App(): React.JSX.Element {
           state.viewMode === 'focused' &&
           state.focusedTerminalId !== null &&
           state.quitGuard === null &&
-          state.stopConfirm === null
+          state.stopConfirm === null &&
+          state.sessionNamePrompt === null
         ) {
           // Resolve the session name for the dialog (degrade gracefully if not yet correlated).
           const terminalId = state.focusedTerminalId
@@ -243,6 +289,15 @@ function App(): React.JSX.Element {
         return
       }
       if (e.key === 'Escape') {
+        // Session-naming — Esc disambiguation, TOPMOST layer. The prompt names a NOT-YET-LAUNCHED
+        // session, but it can be open while OTHER sessions run, so it is not exclusive by
+        // construction — the Ctrl+N/Ctrl+W guards and the quit-guard handler are what keep it the
+        // only modal on screen. Esc = cancel the pending launch entirely; no PTY was ever spawned,
+        // so there is nothing to tear down.
+        if (boardStore.getState().sessionNamePrompt !== null) {
+          boardStore.getState().clearSessionNamePrompt()
+          return
+        }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
         // (UX-DR14: close the topmost layer.) Return without falling through.
         if (boardStore.getState().stopConfirm !== null) {
@@ -310,10 +365,15 @@ function App(): React.JSX.Element {
   // (an explicit close) rather than rely on an incidental unmount.
   const hasFocusableTerminal = focusedTerminalId !== null || keptAliveTerminalIds.length > 0
   const showFocused = viewMode === 'focused' && focusedTerminalId !== null
+  // Session-naming: while the name prompt is open, everything behind it is INERT. Without this,
+  // Tab walks out of the dialog into the header "+ New session" button and on into the live xterm
+  // textarea — so keystrokes reach a running claude session while a modal is on screen. The
+  // dialog renders no focus trap of its own; this is the trap.
+  const namePromptOpen = sessionNamePrompt !== null
 
   return (
     <div className={styles.app}>
-      <header className={styles.header} data-testid="app-header">
+      <header className={styles.header} data-testid="app-header" inert={namePromptOpen}>
         <span className={styles.brand}>Claude Watcher</span>
         <div className={styles.headerActions}>
           <button
@@ -338,7 +398,7 @@ function App(): React.JSX.Element {
             data-active={!showFocused}
             style={showFocused ? { visibility: 'hidden' } : undefined}
             aria-hidden={showFocused}
-            inert={showFocused}
+            inert={showFocused || namePromptOpen}
           >
             <Board
               onNewSession={() => void handleNewSession()}
@@ -352,7 +412,7 @@ function App(): React.JSX.Element {
               data-active={showFocused}
               style={showFocused ? undefined : { visibility: 'hidden' }}
               aria-hidden={!showFocused}
-              inert={!showFocused}
+              inert={!showFocused || namePromptOpen}
             >
               <FocusedSession onBack={handleBack} onNewSession={handleNewSessionSync} />
             </div>
@@ -373,6 +433,24 @@ function App(): React.JSX.Element {
           Cancel → clearStopConfirm(). Stop → window.terminal.stop THEN clearStopConfirm + showBoard.
           Esc = Cancel (guarded in keydown above). */}
       {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
+      {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
+          directory picker returning a path and the operator submitting or cancelling). NOTHING is
+          spawned while it is open, so Cancel/Esc is a complete no-op: no PTY, no card, no view
+          change. Submit is what fires window.launch.launch. Same z-60 overlay layer as the other
+          two modals — it cannot co-exist with them (it only lives before a session exists). */}
+      {sessionNamePrompt !== null && (
+        <SessionNameDialog
+          // The dialog seeds its input from `initialName` on MOUNT only. Keying on the cwd forces
+          // a REMOUNT if the payload is ever replaced under it, so the input can never show one
+          // directory's name while `onSubmit` closes over another's path. `handleNewSession`
+          // already refuses to re-enter while a prompt is open — this is the second line.
+          key={sessionNamePrompt.cwd}
+          initialName={sessionNamePrompt.initialName}
+          hint={sessionNamePrompt.cwd}
+          onSubmit={(name) => void handleNameSubmit(sessionNamePrompt.cwd, name)}
+          onCancel={() => boardStore.getState().clearSessionNamePrompt()}
+        />
+      )}
     </div>
   )
 }

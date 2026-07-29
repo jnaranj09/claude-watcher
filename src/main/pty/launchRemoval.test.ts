@@ -23,6 +23,7 @@ import {
   type StoppableTerminalManager
 } from './launchRemoval'
 import { createLaunchService, type LaunchService } from './launchSession'
+import { buildLaunchedSession } from './launchSynthesis'
 import { createLaunchedSet } from './launchedSet'
 import { createReducer, type Reducer, type SessionDelta } from '../c9watch/reducer'
 
@@ -87,16 +88,12 @@ function launchAndSynthesize(
   svc: LaunchService,
   reducer: Reducer
 ): { terminalId: string; sessionId: string } {
-  const { terminalId } = svc.launch({ cwd: CWD })
+  const { terminalId } = svc.launch({ cwd: CWD, name: 'proj' })
   const minted = svc.mintSpawn(terminalId)
   if (minted === null) throw new Error('unreachable — a launch terminalId always mints')
-  reducer.upsertLaunched({
-    id: minted.sessionId,
-    status: 'Connecting',
-    projectPath: CWD,
-    sessionName: 'proj',
-    pid: 51234
-  })
+  // Session-naming: use the SHIPPED synthesis rather than a hand-rolled copy of the Session
+  // shape (see launchMint.test.ts openMirror for the same fix and the rationale).
+  reducer.upsertLaunched(buildLaunchedSession(minted, 51234))
   return { terminalId, sessionId: minted.sessionId }
 }
 
@@ -312,13 +309,7 @@ describe('Story 6.3 — Reopen after exit: fresh binding, no stale removal', () 
     if (reopened === null) throw new Error('unreachable — the durable recipe survives')
     expect(reopened.sessionId).toBe('sess-2')
     expect(svc.sessionIdFor(terminalId)).toBe('sess-2')
-    reducer.upsertLaunched({
-      id: reopened.sessionId,
-      status: 'Connecting',
-      projectPath: CWD,
-      sessionName: 'proj',
-      pid: 51299
-    })
+    reducer.upsertLaunched(buildLaunchedSession(reopened, 51299))
     spawn(terminalId, 'tok-2')
 
     // A later stop removes EXACTLY the new session — never a stale-binding removal.

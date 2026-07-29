@@ -44,7 +44,27 @@ export interface StopConfirmPayload {
   /** The session name to display verbatim in the confirm dialog (UX-DR22). */
   sessionName: string
 }
+
 import { sortByEnteredColumn } from '../lib/sortByEnteredColumn'
+
+/**
+ * Session-naming — the CREATE-TIME NAME PROMPT payload (RENDERER VIEW-STATE; not session truth).
+ * Non-null between "the directory picker returned a path" and "the operator submitted or
+ * cancelled the name". Null when no prompt is shown. The renderer renders
+ * `<SessionNameDialog/>` from this payload.
+ * Set via `showSessionNamePrompt(payload)`; cleared via `clearSessionNamePrompt()`.
+ * [state.md: modal open/closed = renderer view-state; session truth = main]
+ *
+ * Deliberately holds the picked `cwd`: the launch cannot fire until the name is known, so the
+ * cwd has to survive the round-trip through the modal. NOTHING is spawned while this is
+ * non-null — cancelling is a complete no-op.
+ */
+export interface SessionNamePromptPayload {
+  /** The directory the native picker returned — handed straight back to `window.launch.launch`. */
+  cwd: string
+  /** The value the dialog's input starts at (the cwd basename). The operator may replace it. */
+  initialName: string
+}
 
 /**
  * Story 5.6 (AC-1) — a single app-launched terminal's metadata (RENDERER VIEW-STATE).
@@ -215,6 +235,13 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state; session truth = main]
    */
   stopConfirm: StopConfirmPayload | null
+  /**
+   * Session-naming — the create-time NAME PROMPT payload (RENDERER VIEW-STATE; not session
+   * truth). Non-null while the operator is naming a session that has not been launched yet.
+   * Set via `showSessionNamePrompt(payload)`; cleared via `clearSessionNamePrompt()`.
+   * [state.md: modal open/closed = renderer view-state; session truth = main]
+   */
+  sessionNamePrompt: SessionNamePromptPayload | null
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -311,6 +338,19 @@ export interface BoardState {
    * BEFORE this (FROZEN F1).
    */
   clearStopConfirm: () => void
+  /**
+   * Session-naming — open the create-time name prompt for a just-picked directory.
+   * Sets `sessionNamePrompt = payload`. Pure, small, no side effects: the launch IPC fires at
+   * the App call site when the dialog submits, never from inside this action
+   * (state.md: no IPC inside store actions).
+   */
+  showSessionNamePrompt: (payload: SessionNamePromptPayload) => void
+  /**
+   * Session-naming — close the name prompt (operator cancelled OR the launch was fired).
+   * Sets `sessionNamePrompt = null`. No teardown: nothing has been spawned while the prompt is
+   * open, so cancelling leaves no PTY, no card, and no view change.
+   */
+  clearSessionNamePrompt: () => void
 }
 
 export interface BoardStoreOptions {
@@ -381,6 +421,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     quitGuard: null,
     // Story 4.3 (FR-15) — no stop confirm shown until the operator triggers it.
     stopConfirm: null,
+    // Session-naming — no name prompt shown until the directory picker returns a path.
+    sessionNamePrompt: null,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -603,6 +645,19 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // call site (FROZEN F1).
       const state = get()
       if (state.stopConfirm !== null) set({ stopConfirm: null })
+    },
+
+    showSessionNamePrompt: (payload) => {
+      // Session-naming — open the create-time name prompt. Pure: no launch IPC here (the App
+      // call site fires window.launch.launch when the dialog submits).
+      set({ sessionNamePrompt: payload })
+    },
+
+    clearSessionNamePrompt: () => {
+      // Session-naming — close the name prompt. Nothing was spawned while it was open, so
+      // there is nothing to tear down on the cancel path.
+      const state = get()
+      if (state.sessionNamePrompt !== null) set({ sessionNamePrompt: null })
     }
   }))
 }
@@ -696,6 +751,14 @@ export const selectQuitGuard = (state: BoardState): QuitGuardPayload | null => s
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null => state.stopConfirm
+
+/**
+ * Session-naming — the create-time name-prompt payload (RENDERER VIEW-STATE; null = no prompt).
+ * Non-null between the picker returning a path and the operator submitting or cancelling.
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectSessionNamePrompt = (state: BoardState): SessionNamePromptPayload | null =>
+  state.sessionNamePrompt
 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the

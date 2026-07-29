@@ -46,6 +46,7 @@
 
 import { test, expect } from '@playwright/test'
 import { _electron as electron } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import type { ElectronApplication } from '@playwright/test'
 import path from 'path'
 import http from 'http'
@@ -56,12 +57,46 @@ import { tmpdir } from 'os'
 // The built entry point (after `npm run build` / `build:dir`).
 const BUILT_MAIN = path.resolve(__dirname, '../../out/main/index.js')
 
+// The checkout root. Every Electron helper (renderer / GPU / zygote) carries it in its cmdline.
+const PROJECT_ROOT = path.resolve(__dirname, '../..')
+
+/**
+ * Is this descendant the LAUNCHED `claude`, rather than one of Electron's own helper processes?
+ *
+ * A bare `cmdline.includes('claude')` is NOT safe: the checkout path itself can contain "claude"
+ * (this repo lives at `.../claude-watcher/claude-watcher/`), so EVERY Electron zygote/renderer
+ * matched it. Measured on this machine: 6 of 7 descendants matched with NO session launched at
+ * all — so the dead-pane test below SIGKILLed the app under test instead of the launched claude,
+ * the page died, and the dead pane never rendered.
+ *
+ * Excluding anything whose cmdline mentions the checkout root removes all of Electron's own
+ * processes while leaving the real `claude` (resolved to an absolute path outside the repo,
+ * e.g. `~/.local/bin/claude` — see `resolveClaudeBin` in src/main/index.ts) untouched.
+ */
+function isLaunchedClaude(cmdline: string): boolean {
+  if (cmdline === '' || cmdline.includes(PROJECT_ROOT)) return false
+  return cmdline.includes('claude')
+}
+
 // The FIXED hook ingest endpoint (src/main/hooks/hookContract.ts — HOST/PORT are consts
 // there; duplicated here because the e2e drives the app strictly from the OUTSIDE).
 const HOOK_HOST = '127.0.0.1'
 const HOOK_PORT = 9279
 
 test.setTimeout(120000)
+
+/**
+ * Session-naming — confirm the create-time NAME PROMPT that now sits between the directory picker
+ * and the launch. Accepts the prefill (the cwd basename), which is what these specs assumed before
+ * the prompt existed, so their downstream assertions are unchanged.
+ * MUST be called after every `+ New session` / dead-pane New-session click: nothing spawns until
+ * it runs, so omitting it makes the following `embedded-terminal` wait time out.
+ */
+async function confirmSessionName(page: Page): Promise<void> {
+  const confirm = page.locator('[data-testid="session-name-confirm"]')
+  await confirm.waitFor({ state: 'visible', timeout: 20000 })
+  await confirm.click()
+}
 
 // ---------------------------------------------------------------------------------------
 // /proc helpers — copied from tests/e2e/launch.e2e.ts (same Linux-only walk).
@@ -121,7 +156,7 @@ async function waitForClaudeDescendant(
   let last: { pid: number; cmdline: string }[] = []
   while (Date.now() < deadline) {
     last = descendantCmdlines(rootPid)
-    if (last.some((d) => d.cmdline.includes('claude'))) return last
+    if (last.some((d) => isLaunchedClaude(d.cmdline))) return last
     await new Promise((r) => setTimeout(r, 250))
   }
   return last
@@ -188,7 +223,9 @@ async function teardownApp(app: ElectronApplication): Promise<void> {
   const pid = electronProcess.pid
   if (pid) {
     for (const d of descendantCmdlines(pid)) {
-      if (d.cmdline.includes('claude')) {
+      // Same precise predicate as the assertions: reap the LAUNCHED claude (which lives in its own
+      // session), not Electron's own helpers — the process-group kill below handles those.
+      if (isLaunchedClaude(d.cmdline)) {
         try {
           process.kill(d.pid, 'SIGKILL')
         } catch {
@@ -266,6 +303,7 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
     const newSessionBtn = page.locator('[data-testid="header-new-session"]')
     await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
     await newSessionBtn.click()
+    await confirmSessionName(page)
     await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
 
     // ── (1) INSTANT CARD ─────────────────────────────────────────────────────────────
@@ -383,6 +421,7 @@ test('dead pane: killed claude shows exactly one New-session button; clicking re
     const newSessionBtn = page.locator('[data-testid="header-new-session"]')
     await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
     await newSessionBtn.click()
+    await confirmSessionName(page)
     const firstTerminal = page.locator('[data-testid="embedded-terminal"]')
     await firstTerminal.waitFor({ state: 'visible', timeout: 20000 })
     const firstTerminalId = await firstTerminal.getAttribute('data-terminal-id')
@@ -392,7 +431,7 @@ test('dead pane: killed claude shows exactly one New-session button; clicking re
     // descendant → the PTY leader dies → the PTY exits → main pushes CH.terminalExit (the
     // pane flips dead) + removes the bound session's card (Story 6.3).
     const descendants = await waitForClaudeDescendant(electronPid!, 20000)
-    const claudeProcs = descendants.filter((d) => d.cmdline.includes('claude'))
+    const claudeProcs = descendants.filter((d) => isLaunchedClaude(d.cmdline))
     expect(
       claudeProcs.length,
       `No \`claude\` descendant found to kill. Descendant cmdlines:\n` +
@@ -419,6 +458,7 @@ test('dead pane: killed claude shows exactly one New-session button; clicking re
     // was removed, dropping it from the kept-alive set) or kept hidden — we assert on the
     // NEW terminal only.
     await deadBtn.click()
+    await confirmSessionName(page)
     const newTerminal = page.locator(
       `[data-testid="embedded-terminal"]:not([data-terminal-id="${firstTerminalId}"])`
     )

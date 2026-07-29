@@ -458,6 +458,16 @@ export type SessionPickDirectoryResult = string | null
 export type SessionLaunchRequest = {
   /** The directory the native picker returned — where `claude` is spawned (AR-7 raw launch). */
   cwd: string
+  /**
+   * The OPERATOR-TYPED session name from the create-time prompt (prefilled with the cwd
+   * basename, so this is the basename unless the operator changed it). Becomes the synthesized
+   * card's `sessionName` in place of the derived basename.
+   *
+   * UNTRUSTED + NEVER-LOGGABLE, exactly like `cwd`: validated by `SessionNameSchema`
+   * (trimmed, 1..`SESSION_NAME_MAX_LENGTH`) at the main boundary, and on a parse miss the
+   * caller logs path/code only — an operator-typed name is content, not an opaque id.
+   */
+  name: string
 }
 
 /**

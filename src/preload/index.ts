@@ -207,10 +207,13 @@ const launchApi = {
   pickDirectory(): Promise<SessionPickDirectoryResult> {
     return ipcRenderer.invoke(CH.sessionPickDirectory)
   },
-  /** Launch raw `claude` in `cwd`. Main validates `cwd` (parse-and-throw on bad input), spawns
-   *  the PTY, and returns `{ terminalId }`. Rejects the promise on an invalid cwd. */
-  launch(cwd: string): Promise<SessionLaunchResult> {
-    const req: SessionLaunchRequest = { cwd }
+  /** Launch raw `claude` in `cwd` under the operator-typed `name` (from the create-time prompt;
+   *  prefilled with the cwd basename). Main validates BOTH (parse-and-throw on bad input),
+   *  spawns the PTY, and returns `{ terminalId }`. Rejects the promise on an invalid cwd or a
+   *  blank / over-long name — in which case nothing spawns. The caller logs a `code=` only,
+   *  never the name or the path. */
+  launch(cwd: string, name: string): Promise<SessionLaunchResult> {
+    const req: SessionLaunchRequest = { cwd, name }
     return ipcRenderer.invoke(CH.sessionLaunch, req)
   },
   /** Story 3.4 (FR-16) — subscribe to the launch CORRELATION push (the `{ terminalId, sessionId }`
