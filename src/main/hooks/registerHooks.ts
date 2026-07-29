@@ -1,48 +1,148 @@
-// Hook-status feature — idempotent merger of the hook block into ~/.claude/settings.json.
+// Hook-status feature — idempotent merger of the hook block into the LAUNCHED PROJECT's
+// `.claude/settings.local.json`.
 //
-// USER-scope registration: the hook is written to ~/.claude/settings.json so it covers
-// ALL local Claude Code sessions (not just the per-project .claude/settings.json).
+// PROJECT-scope registration (NOT user-scope): the hook block is written to the
+// `.claude/settings.local.json` of the project the operator picked in the create-session
+// dialog (see "WHICH DIRECTORY" below for how that dir is resolved). The app therefore only
+// ever touches projects it actually launches a session in — it never edits
+// `~/.claude/settings.json`.
+// (It used to: registering user-scope meant the block reappeared in the global file on
+// every app start, undoing an operator who had deliberately scoped hooks per project.)
 //
-// Failure modes (must never clobber the user's global Claude config):
+// `settings.local.json` and NOT `settings.json` on purpose: `settings.json` is the SHARED,
+// checked-in project file, and a machine-written hook block there shows up as a diff on a
+// tracked file. `settings.local.json` is the personal, conventionally-gitignored override —
+// the right home for "this one machine runs Claude Watcher".
+//
+// Failure modes (must never clobber a config the operator wrote by hand):
 //   ENOENT → start from {}
-//   Unparseable → back up (.corrupt-<epoch>.json) + SKIP (no clobber — this is a
-//     user-global file, not the app's own settings; we never reset it to defaults).
-//   Write failure → log + skip (best-effort; not fatal).
+//   Unparseable → back up (.corrupt-<epoch>.json) + SKIP (no clobber — we never reset a
+//     hand-edited settings file to defaults).
+//   Write failure → log + skip (best-effort; not fatal — a launch must still spawn).
 //
 // Idempotency: dedupe by HOOK_URL. Existing hooks for any event key are preserved
 // unchanged. We write ONLY if the merge produced a change (string compare).
 // A one-time .bak backup is made before the first real write.
 //
+// WHICH DIRECTORY (the non-obvious part) — Claude Code resolves `settings.local.json` at the
+// REPOSITORY ROOT, not at the cwd: "Lives at the repository root (resolved through worktrees to
+// the main checkout). One file covers sessions started in any subdirectory or worktree of the
+// repository. Exception: outside git repos, or when the repo root is your home directory, the
+// file stays in your starting directory." [https://code.claude.com/docs/en/settings]
+// So writing to `<picked cwd>/.claude/` would be WRONG whenever the operator picks a
+// subdirectory of a repo — claude would read the repo root's file and never see our hooks, and
+// the board would show a permanently-`Connecting` card. `resolveSettingsDir` mirrors that
+// resolution; `registerHooks` always goes through it.
+//
+// NEVER-LOG-THE-VALUE: `projectDir` is an operator filesystem path (it leaks the machine's
+// layout), so every log here is a `code=` only — never the path, never the file content.
+//
 // [spec registerHooks.ts Code Map; .claude/rules/zod-boundaries.md persisted-file row]
 
-import { readFileSync, writeFileSync, copyFileSync, renameSync, mkdirSync, rmSync } from 'node:fs'
+import {
+  readFileSync,
+  writeFileSync,
+  copyFileSync,
+  renameSync,
+  mkdirSync,
+  rmSync,
+  lstatSync
+} from 'node:fs'
 import { homedir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
 import { HOOK_URL, REGISTERED_EVENTS } from './hookContract'
 
-const DEFAULT_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json')
+/**
+ * The directory whose `.claude/settings.local.json` Claude Code will actually READ for a session
+ * started in `cwd` — the git repository root, falling back to `cwd` itself.
+ *
+ * Mirrors the documented resolution (see the file header):
+ * - Walk up from `cwd` to the first directory holding a `.git` entry → that is the repo root.
+ * - A `.git` FILE (not a dir) means a linked worktree; its `gitdir:` line points into the main
+ *   checkout's `.git/worktrees/<name>`, so the main checkout is the prefix before `/.git/`.
+ *   Claude resolves worktrees to the main checkout, so we do too.
+ * - No `.git` anywhere up the tree → outside a repo → `cwd` (the documented exception).
+ * - Repo root === `$HOME` → also the documented exception → `cwd`. (Never scatter a hook block
+ *   into `~/.claude/settings.local.json` off the back of a launch in some home-dir subfolder.)
+ *
+ * FAIL-SOFT: every filesystem probe is wrapped — an EACCES/ENOENT/EIO on the walk falls back to
+ * `cwd` rather than throwing. A misplaced settings file degrades to "no status on the board";
+ * a throw here would fail the launch entirely (never-crash).
+ */
+export function resolveSettingsDir(cwd: string): string {
+  const start = resolve(cwd)
+  let dir = start
+  for (;;) {
+    const gitPath = join(dir, '.git')
+    let kind: 'dir' | 'file' | null = null
+    try {
+      const st = lstatSync(gitPath)
+      kind = st.isDirectory() ? 'dir' : 'file'
+    } catch {
+      kind = null // no .git here (or unreadable) — keep walking up
+    }
+
+    if (kind === 'file') {
+      // Linked worktree: `gitdir: /path/to/main/.git/worktrees/<name>`. Resolve to the main
+      // checkout. A malformed/unreadable pointer falls back to this dir (still a repo root).
+      try {
+        const pointer = readFileSync(gitPath, 'utf8').trim()
+        const match = /^gitdir:\s*(.+)$/m.exec(pointer)
+        const target = match?.[1]?.trim()
+        const marker = target === undefined ? -1 : target.indexOf(`${join('.git', 'worktrees')}`)
+        if (target !== undefined && marker > 0) {
+          return atHome(target.slice(0, marker - 1), start)
+        }
+      } catch {
+        /* fall through to "this dir is the root" */
+      }
+      return atHome(dir, start)
+    }
+    if (kind === 'dir') return atHome(dir, start)
+
+    const parent = dirname(dir)
+    if (parent === dir) return start // hit the filesystem root — outside any repo
+    dir = parent
+  }
+}
+
+/** The "repo root is $HOME" exception: fall back to the starting dir. */
+function atHome(root: string, start: string): string {
+  return resolve(root) === resolve(homedir()) ? start : root
+}
+
+/**
+ * The per-project Claude Code settings file this app writes its hook block into, for a session
+ * launched in `cwd`. The ONE definition of the target path — do not re-derive it at a call site.
+ */
+export function projectSettingsPath(cwd: string): string {
+  return join(resolveSettingsDir(cwd), '.claude', 'settings.local.json')
+}
 
 export interface RegisterHooksOptions {
   /**
-   * Path to the Claude Code settings file. Defaults to `~/.claude/settings.json`.
-   * Injectable so unit tests can use a temp file without touching the real config.
+   * The directory the session is being launched in (the operator-picked cwd, already
+   * validated at the `session:launch` IPC boundary). The hook block lands in
+   * `<repo root of projectDir>/.claude/settings.local.json` — see `resolveSettingsDir`.
+   * Unit tests pass a temp dir.
    */
-  settingsPath?: string
-  /** Log sink — code only, NEVER settings content. Defaults to console.warn. */
+  projectDir: string
+  /** Log sink — code only, NEVER settings content or the path. Defaults to console.warn. */
   log?: (message: string) => void
 }
 
 /**
- * Idempotently ensure the app's http hook block is present in the Claude Code user
- * settings file. Safe to call multiple times — dedupes by HOOK_URL.
+ * Idempotently ensure the app's http hook block is present in the settings file Claude Code
+ * will read for a session launched in `projectDir`. Safe to call on every launch — dedupes
+ * by HOOK_URL.
  *
- * - ENOENT: starts from `{}` (fresh file).
- * - Unparseable: backs up + SKIPs (never clobbers the user's global Claude config).
+ * - ENOENT: starts from `{}` (fresh file; `.claude/` is created if missing).
+ * - Unparseable: backs up + SKIPs (never clobbers a hand-written settings file).
  * - No change detected: skips the write.
  * - One-time .bak backup before the first real write.
  */
-export function registerHooks(options: RegisterHooksOptions = {}): void {
-  const settingsPath = options.settingsPath ?? DEFAULT_SETTINGS_PATH
+export function registerHooks(options: RegisterHooksOptions): void {
+  const settingsPath = projectSettingsPath(options.projectDir)
   const log = options.log ?? ((msg: string): void => console.warn(msg))
 
   // 1. Read the current file.
@@ -71,7 +171,7 @@ export function registerHooks(options: RegisterHooksOptions = {}): void {
       }
       parsed = value as Record<string, unknown>
     } catch {
-      // Unparseable: back up + SKIP (never clobber the user's global Claude config).
+      // Unparseable: back up + SKIP (never clobber a hand-written project settings file).
       try {
         const backupPath = settingsPath + `.corrupt-${Date.now()}.json`
         renameSync(settingsPath, backupPath)
@@ -79,7 +179,7 @@ export function registerHooks(options: RegisterHooksOptions = {}): void {
       } catch {
         log(`[c9watch][registerHooks] code=settings_backup_failed`)
       }
-      // Skip — do NOT write defaults over a corrupt user-global file.
+      // Skip — do NOT write defaults over a corrupt operator-written file.
       return
     }
   }
@@ -151,8 +251,8 @@ export function registerHooks(options: RegisterHooksOptions = {}): void {
   }
 
   // 6. Write the merged file ATOMICALLY (write a temp sibling, then rename) so a crash
-  // mid-write can never corrupt the user's GLOBAL Claude config. Ensure the parent dir
-  // exists first (a fresh machine may lack ~/.claude/).
+  // mid-write can never corrupt the operator's settings. Ensure the parent dir exists
+  // first (a project picked for the first time has no `.claude/` yet).
   const tmpPath = settingsPath + '.tmp'
   try {
     mkdirSync(dirname(settingsPath), { recursive: true })

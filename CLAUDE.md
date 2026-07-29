@@ -101,7 +101,10 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
   (status `Connecting`) — no discovery wait, no pid-ancestry correlation for new launches.
 - **Hooks own every status transition:** Claude Code lifecycle hooks POST to
-  `127.0.0.1:9279` (registered user-scope by `registerHooks`). ALL hook input goes through
+  `127.0.0.1:9279`. `registerHooks` writes the hook block PROJECT-scope, at launch time, into
+  `<picked cwd>/.claude/settings.local.json` — never `~/.claude/settings.json` and never the
+  shared `.claude/settings.json`, so the app only edits projects it launches into and never
+  fights an operator who scoped hooks by hand. ALL hook input goes through
   the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
   additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
