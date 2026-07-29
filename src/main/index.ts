@@ -123,7 +123,9 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
-// registerHooks idempotently merges the app hook block into ~/.claude/settings.json.
+// registerHooks idempotently merges the app hook block into the LAUNCHED PROJECT's
+// `.claude/settings.local.json` — PROJECT scope, at launch time. It is NOT called at
+// startup and never touches `~/.claude/settings.json`.
 import { createHookServer, type HookServer } from './hooks/hookServer'
 import { hookStatus } from './hooks/hookStatus'
 import { registerHooks } from './hooks/registerHooks'
@@ -1012,6 +1014,34 @@ function rawClaudeSpawn(sessionId: string): {
   }
 }
 
+// Hook-status feature — PROJECT-scope hook registration, run once per launch.
+//
+// The hook block goes into the `.claude/settings.local.json` of the project the operator just
+// picked (repo-root-resolved inside registerHooks — see resolveSettingsDir), so the app only
+// ever touches projects it actually launches a session in. This used to run at app startup
+// against `~/.claude/settings.json` (user scope), which re-added the block to the global file
+// on every start — overriding an operator who had deliberately scoped hooks to specific projects.
+//
+// Ordering: this runs BEFORE the PTY spawns. `launchService.launch()` only mints the terminalId;
+// the actual `claude` spawn happens when the renderer opens the EmbeddedTerminal against it
+// (CH.terminalOpen). So the settings file is on disk before claude reads it.
+//
+// NEVER-CRASH: a failed registration must not fail the launch — the session still spawns, it
+// just won't report status. registerHooks already swallows its own IO errors (code= log only);
+// the try/catch here is the belt-and-suspenders for an unexpected throw.
+// NEVER-LOG-THE-VALUE: `cwd` is never logged — only a `code=`.
+function registerHooksForLaunch(cwd: string): void {
+  if (SMOKE) return // a headless smoke run must not write into a real project
+  try {
+    registerHooks({ projectDir: cwd, log: (msg) => console.warn(msg) })
+  } catch (err) {
+    console.warn(
+      '[c9watch][registerHooks] code=register_hooks_failed:',
+      err instanceof Error ? err.message : 'unknown'
+    )
+  }
+}
+
 // Story 3.2 (FR-11) — register the launch IPC ONCE (mirrors registerTerminalIpc / registerPtyIpc;
 // Review-F1 single-registration). Constructs the app-global launch service (reusing the terminal
 // manager + the launched-set + the production /proc readers). Channels are CH.* consts only.
@@ -1097,6 +1127,9 @@ function registerLaunchIpc(): void {
     // invoke here and NOTHING spawns. Never log either value on the throw path — a cwd leaks
     // the filesystem layout and a name is operator content (zod-boundaries.md).
     const { cwd, name } = SessionLaunchSchema.parse(raw)
+    // Hook-status feature — ensure THIS project's `.claude/settings.local.json` carries our
+    // hook block before the PTY spawns. Never fails the launch (see registerHooksForLaunch).
+    registerHooksForLaunch(cwd)
     const { terminalId } = launchService.launch({ cwd, name })
     return { terminalId }
   })
@@ -1339,23 +1372,10 @@ app
     // clipboard:write-text). Power stays in MAIN; renderer reaches it via window.clipboard.*.
     registerClipboardIpc()
 
-    // Hook-status feature — idempotently merge the app hook block into ~/.claude/settings.json
-    // ONCE at app startup (USER scope: covers all local Claude Code sessions). Safe to call on
-    // every launch — dedupes by HOOK_URL, preserves existing hooks, backs up before first write.
-    // ENOENT → creates from {}; unparseable → backs up + skips (never clobbers user config).
-    // Non-blocking: a registration failure must not prevent the app from starting.
-    if (!SMOKE) {
-      try {
-        registerHooks({
-          log: (msg) => console.warn(msg)
-        })
-      } catch (err) {
-        console.warn(
-          '[c9watch][registerHooks] code=register_hooks_failed:',
-          err instanceof Error ? err.message : 'unknown'
-        )
-      }
-    }
+    // NOTE: hook registration is NOT done here. It happens per-launch, in the CH.sessionLaunch
+    // handler, against the picked project dir — see registerHooksForLaunch. Registering at
+    // startup meant writing into ~/.claude/settings.json (user scope), which re-added the block
+    // on every app start and overrode an operator who had scoped hooks per project.
 
     createWindow()
 
