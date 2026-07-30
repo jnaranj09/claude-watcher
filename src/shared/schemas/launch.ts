@@ -86,6 +86,28 @@ export const SessionLaunchSchema = z.object({
 export type SessionLaunchArg = z.infer<typeof SessionLaunchSchema>
 
 /**
+ * Session-naming A2 — `session:rename` arg: `{ id, name }`.
+ *
+ * `name` REUSES `SessionNameSchema`, so create-time and rename-time agree by construction on what
+ * a legal name is (trimmed, 1..`SESSION_NAME_MAX_LENGTH`, no control chars). Changing the rules in
+ * one place changes both — that is the whole reason the name schema was extracted.
+ *
+ * `id` is the STABLE session id (the launch-minted uuid) — non-empty, so a blank fails closed.
+ * Not `.uuid()`: the id is minted by this app but it is the reducer's map key, and an id that is
+ * merely UNKNOWN must reach the handler and take the `rename_unknown_id` no-op path rather than
+ * throwing at the boundary. Shape-check here; existence is the reducer's call.
+ *
+ * NO `.passthrough()` — our shape, fail-closed. NEITHER field is logged on a parse miss (`name` is
+ * operator content; a ZodError stringifies its input).
+ */
+export const SessionRenameSchema = z.object({
+  id: z.string().min(1),
+  name: SessionNameSchema
+})
+
+export type SessionRenameArg = z.infer<typeof SessionRenameSchema>
+
+/**
  * Story 3.4 (FR-16) — validate-AT-SOURCE for the `launch:correlated` push (main → renderer).
  *
  * The launch service emits `{ terminalId, sessionId }` toward the renderer the moment the Tgid

@@ -48,23 +48,41 @@ export interface StopConfirmPayload {
 import { sortByEnteredColumn } from '../lib/sortByEnteredColumn'
 
 /**
- * Session-naming — the CREATE-TIME NAME PROMPT payload (RENDERER VIEW-STATE; not session truth).
- * Non-null between "the directory picker returned a path" and "the operator submitted or
- * cancelled the name". Null when no prompt is shown. The renderer renders
- * `<SessionNameDialog/>` from this payload.
+ * Session-naming — the NAME PROMPT payload (RENDERER VIEW-STATE; not session truth). Null when no
+ * prompt is shown. The renderer renders ONE `<SessionNameDialog/>` from this payload.
  * Set via `showSessionNamePrompt(payload)`; cleared via `clearSessionNamePrompt()`.
  * [state.md: modal open/closed = renderer view-state; session truth = main]
  *
- * Deliberately holds the picked `cwd`: the launch cannot fire until the name is known, so the
- * cwd has to survive the round-trip through the modal. NOTHING is spawned while this is
- * non-null — cancelling is a complete no-op.
+ * ONE state, TWO modes — A2 (rename) reuses this rather than adding a second modal state, so the
+ * single-modal rule (UX-DR14) holds by construction: there is no way to have a create prompt and a
+ * rename prompt open at once.
+ *
+ * A DISCRIMINATED UNION, not a wide record with optional fields: the two modes carry genuinely
+ * different payloads (a `cwd` that does not exist as a session yet vs. a `sessionId` that does),
+ * and the union makes the illegal mixes — a rename with a cwd, a create with a session id —
+ * uncompilable instead of merely wrong at runtime.
  */
-export interface SessionNamePromptPayload {
-  /** The directory the native picker returned — handed straight back to `window.launch.launch`. */
-  cwd: string
-  /** The value the dialog's input starts at (the cwd basename). The operator may replace it. */
-  initialName: string
-}
+export type SessionNamePromptPayload =
+  | {
+      /** CREATE: naming a session that has NOT been launched yet. */
+      mode: 'create'
+      /** The directory the native picker returned — handed straight back to
+       *  `window.launch.launch`. The launch cannot fire until the name is known, so the cwd has to
+       *  survive the round-trip through the modal. NOTHING is spawned while the prompt is open, so
+       *  cancelling is a complete no-op. */
+      cwd: string
+      /** The value the dialog's input starts at (the cwd basename). The operator may replace it. */
+      initialName: string
+    }
+  | {
+      /** RENAME: retitling a session that ALREADY EXISTS on the board. */
+      mode: 'rename'
+      /** The stable session id (launch-minted uuid) to retitle — NEVER a pid, NEVER a terminalId.
+       *  Handed to `window.launch.rename`. */
+      sessionId: string
+      /** The value the dialog's input starts at (the session's CURRENT name). */
+      initialName: string
+    }
 
 /**
  * Story 5.6 (AC-1) — a single app-launched terminal's metadata (RENDERER VIEW-STATE).

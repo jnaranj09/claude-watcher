@@ -6,6 +6,7 @@
 // `src/main/c9watch/columns.ts` `Column`). The dot is ALWAYS paired with a text
 // label so color is never the only signal (the accessibility floor, UX-DR29).
 import type { JSX } from 'react'
+import { statusLabel } from './statusLabel'
 import styles from './StatusDot.module.css'
 
 /**
@@ -15,13 +16,6 @@ import styles from './StatusDot.module.css'
  * column/state).
  */
 export type DotStatus = 'working' | 'needs-you' | 'idle'
-
-/** Default human labels per state (used when no explicit `label` is given). */
-const DEFAULT_LABELS: Record<DotStatus, string> = {
-  working: 'Working',
-  'needs-you': 'Needs you',
-  idle: 'Idle'
-}
 
 const STATE_CLASS: Record<DotStatus, string> = {
   working: styles.working ?? '',
@@ -39,7 +33,7 @@ export interface StatusDotProps {
 }
 
 export function StatusDot({ status, label, labelHidden = false }: StatusDotProps): JSX.Element {
-  const text = label ?? DEFAULT_LABELS[status]
+  const text = label ?? statusLabel(status)
   return (
     <span className={styles.root} data-status={status}>
       <span

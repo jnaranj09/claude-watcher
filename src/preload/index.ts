@@ -14,6 +14,7 @@ import type {
   SessionPickDirectoryResult,
   SessionLaunchRequest,
   SessionLaunchResult,
+  SessionRenameRequest,
   LaunchCorrelatedEvent,
   TelemetryAcknowledgeRequest,
   QuitGuardPayload
@@ -215,6 +216,17 @@ const launchApi = {
   launch(cwd: string, name: string): Promise<SessionLaunchResult> {
     const req: SessionLaunchRequest = { cwd, name }
     return ipcRenderer.invoke(CH.sessionLaunch, req)
+  },
+  /** Session-naming A2 — retitle an EXISTING session by its stable session id (the launch-minted
+   *  uuid, NEVER a pid or terminalId). Main validates with the SAME `SessionNameSchema` the
+   *  create-time launch uses and parse-and-throws on bad input, so this REJECTS on a blank /
+   *  whitespace-only / over-long / control-char name and nothing is renamed. Resolves to void —
+   *  the retitled card arrives separately as a `session.updated` delta over CH.watchEvents. An
+   *  unknown id resolves quietly (main treats it as a no-op). The caller logs a `code=` only,
+   *  never the name. */
+  rename(id: string, name: string): Promise<void> {
+    const req: SessionRenameRequest = { id, name }
+    return ipcRenderer.invoke(CH.sessionRename, req)
   },
   /** Story 3.4 (FR-16) — subscribe to the launch CORRELATION push (the `{ terminalId, sessionId }`
    *  binding, fired once when a launch's Tgid join lands in main). The renderer builds a

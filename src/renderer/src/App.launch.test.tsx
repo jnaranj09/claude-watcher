@@ -354,7 +354,10 @@ describe('App — session-naming: the create-time name prompt', () => {
     await flush()
 
     expect(pickSpy).toHaveBeenCalledTimes(1) // still 1 — the re-entry was refused
-    expect(boardStore.getState().sessionNamePrompt?.cwd).toBe('/home/op/project')
+    // The prompt payload is a create/rename union — narrow before reading the create-only `cwd`.
+    const prompt = boardStore.getState().sessionNamePrompt
+    expect(prompt?.mode).toBe('create')
+    expect(prompt !== null && prompt.mode === 'create' ? prompt.cwd : null).toBe('/home/op/project')
 
     // Submitting still launches the ORIGINAL directory under the typed name.
     const confirm = r.container.querySelector<HTMLButtonElement>(

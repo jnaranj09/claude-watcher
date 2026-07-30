@@ -94,6 +94,26 @@
   width: 100%;
 }
 
+/* COLLAPSED: let the item shrink to its row so `.collapsed .list { align-items: center }` can
+ * actually centre it.
+ *
+ * MEASURED (real layout engine, not jsdom — troubleshooting.md Step-0 for a paint/layout symptom):
+ * the collapsed rail is 56px with a 1px right border, so the list's content box is 55px. With
+ * `width: 100%` the item was also 55px — already filling the cross axis, so `align-items: center`
+ * had nothing to centre, and the 44px row sat flush left with 12px of dead space on its right
+ * (0px left / 12px right to the rail edges). The 56px needs-you row was flush left too and spilled
+ * 1px past the content box.
+ *
+ * `.list` is `display: flex`, so these are FLEX ITEMS: `width: auto` resolves to the content size
+ * (a shrink-to-fit that a `display: block` box would NOT give on its own), and the cross-axis
+ * `align-items: center` then centres it. Re-measured after this rule: 5.5px / 5.5px for the 44px
+ * row. The 56px needs-you row is symmetric at -0.5px each side — it is 1px wider than the content
+ * box by design (its enlarge target equals the rail width); centred is the best available, and
+ * `.list` already clips with `overflow-x: hidden`. */
+.collapsed .listItem {
+  width: auto;
+}
+
 /* Idle/calm row: the baseline. 44px tall, no enlarge, no pulse, no gold. */
 .row {
   display: flex;
@@ -138,9 +158,63 @@
   white-space: nowrap;
 }
 
-.initial {
-  font-weight: var(--font-weight-heading);
+/* NOTE: the collapsed rail row's initial-letter glyph (`.initial`) is GONE — a collapsed row is the
+ * status circle alone (UX-DR9's "56px icons"; the dot already IS the icon). The only collapsed
+ * glyph left is `.startingRowGlyph` below, for the one row type that has no status dot. */
+
+/* ── A2 rename pencil (EXPANDED rail only) ─────────────────────────────────────
+ * The row is a real <button>, so the pencil cannot nest inside it (invalid HTML). It sits BESIDE
+ * the row in this wrapper, which is `position: relative` so the pencil can overlay the row's right
+ * edge instead of stealing width from the name. Overlaying (not a flex sibling that shrinks the
+ * row) keeps the row's own hit area full-width for activation. */
+.rowWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Revealed on row hover / keyboard focus anywhere in the wrapper, and always while itself focused.
+ * `opacity` rather than `display:none`, for the same reason as the card pencil: it must stay in the
+ * tab order, or rename becomes mouse-only. */
+.rowRenameButton {
+  position: absolute;
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: var(--bg-surface-raised);
   color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.rowWrap:hover .rowRenameButton,
+.rowWrap:focus-within .rowRenameButton {
+  opacity: 1;
+}
+
+.rowRenameButton:hover {
+  color: var(--text-primary);
+}
+
+.rowRenameButton:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Motion stays reserved for needs-you signals. */
+@media (prefers-reduced-motion: reduce) {
+  .rowRenameButton {
+    transition: none;
+  }
 }
 
 /* Needs-you emphasis (AC-2): enlarge 44→56px + 14%-gold fill + needs-you border. The PULSE +
@@ -274,8 +348,19 @@
   display: none;
 }
 
-/* Collapsed initial — mirrors rail's .initial. */
-.startingRowInitial {
-  font-weight: var(--font-weight-heading);
-  color: var(--text-secondary);
+/* Collapsed glyph — a NEUTRAL RING, not a letter and not a status dot.
+ *
+ * This row has no StatusDot by design (calm-neutral), so once the collapsed initial letter was
+ * removed from every row it would have rendered an empty button. The ring borrows StatusDot's 8px
+ * geometry so a collapsed rail reads as ONE column of circles, but it is hollow and uses the muted
+ * border token — never `--working` / `--needs-you` / `--idle`, so it can never be misread as a live
+ * status. Static: motion stays reserved for needs-you. */
+.startingRowGlyph {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--status-dot-size, 8px);
+  height: var(--status-dot-size, 8px);
+  border: 1px solid var(--text-muted);
+  border-radius: var(--rounded-full);
+  background: transparent;
 }

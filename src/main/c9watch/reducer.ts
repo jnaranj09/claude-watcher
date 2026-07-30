@@ -87,6 +87,26 @@ export interface Reducer {
    * ship gate).
    */
   upsertLaunched(session: Session): SessionDelta[]
+  /**
+   * Session-naming A2 — rename an EXISTING session. Swaps `sessionName` and NOTHING else.
+   *
+   * Unknown `id` → returns `[]` + logs `{ path: '(rename)', code: 'rename_unknown_id' }`,
+   * mirroring the `hook_unknown_id` no-op: a rename must never SYNTHESIZE a card (that would
+   * put a session on the board that was never launched by this app — the Story-3.3 ship gate).
+   * A rename racing a stop/exit that already removed the card is therefore a quiet no-op.
+   *
+   * Known `id` → emits ONE `session.updated` through the same `toUpdated`. Deliberately NOT a
+   * new delta type: every consumer already reads `sessionName` off that delta, so the rename
+   * needs no renderer-side plumbing beyond the existing store reducer.
+   *
+   * DOES NOT REORDER THE BOARD. `enteredColumnAt` is stamped by `attention.ts` only on a COLUMN
+   * change, and this re-emits with an UNCHANGED status — so the sort key survives. Do not add a
+   * re-stamp here; a rename is not a state transition.
+   *
+   * `name` arrives already validated + trimmed by `SessionNameSchema` at the IPC boundary. It is
+   * OPERATOR CONTENT — never logged (the unknown-id log above carries a marker path, no value).
+   */
+  renameSession(id: string, name: string): SessionDelta[]
   /** A defensive COPY of the current authoritative map. */
   snapshotMap(): Map<string, Session>
   /** Current session count. */
@@ -183,9 +203,30 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     return [frame(toUpdated(session))]
   }
 
+  /**
+   * Session-naming A2 — swap an existing session's `sessionName` (see the interface doc).
+   * Unknown id → [] + log rename_unknown_id (never synthesize a card from a rename).
+   */
+  function renameSession(id: string, name: string): SessionDelta[] {
+    const stored = map.get(id)
+    if (stored === undefined) {
+      // Path = '(rename)' marks the boundary; the NAME is operator content and never logged.
+      log({ path: '(rename)', code: 'rename_unknown_id' })
+      return []
+    }
+
+    // `sessionName` ONLY. Spreading `stored` keeps status/projectPath/pid untouched, which is what
+    // makes this safe to emit through `toUpdated` without disturbing the column or the sort key.
+    const renamed: Session = { ...stored, sessionName: name }
+    map.set(id, renamed)
+    lastApplied = now()
+    return [frame(toUpdated(renamed))]
+  }
+
   return {
     applyHookStatus,
     upsertLaunched,
+    renameSession,
     // A defensive copy so callers can never mutate the authoritative map.
     snapshotMap: (): Map<string, Session> => new Map(map),
     size: () => map.size,

@@ -83,7 +83,11 @@ import { mintForOpen } from './pty/launchMint'
 import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 import { readStatusFromProc } from './pty/pidCorrelation'
-import { SessionLaunchSchema, LaunchCorrelatedSchema } from '../shared/schemas/launch'
+import {
+  SessionLaunchSchema,
+  SessionRenameSchema,
+  LaunchCorrelatedSchema
+} from '../shared/schemas/launch'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
 // launch synthesis CONSTRUCTS a valid Session from main-owned values (minted uuid, picked
 // cwd, pty pid) — it never re-runs SessionSchema over internal data.
@@ -220,6 +224,9 @@ interface LaunchBoardSeam {
   upsertLaunched(session: Session): void
   /** Story 6.3 — immediate stop/exit removal (applyHookStatus removed → handleDelta). */
   removeLaunched(sessionId: string): void
+  /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
+   *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
+  renameLaunched(sessionId: string, name: string): void
 }
 const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 
@@ -384,6 +391,14 @@ function registerWatchFeed(window: BrowserWindow): void {
     // arriving later is quiet.
     removeLaunched: (sessionId) => {
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
+    },
+    // Session-naming A2 — the rename takes the SAME handleDelta chokepoint as every other delta
+    // (tracker → tray → enrich → ship gate), so the retitled card reaches the renderer as an
+    // ordinary `session.updated`. The tracker does NOT re-stamp `enteredColumnAt` here because the
+    // status is unchanged (attention.ts stamps on a COLUMN change only) — the board keeps its
+    // order, which is the behavior confirmed during A1 planning.
+    renameLaunched: (sessionId, name) => {
+      reducer.renameSession(sessionId, name).forEach(handleDelta)
     }
   })
 
@@ -1132,6 +1147,23 @@ function registerLaunchIpc(): void {
     registerHooksForLaunch(cwd)
     const { terminalId } = launchService.launch({ cwd, name })
     return { terminalId }
+  })
+
+  // session:rename — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS boundary: a
+  // blank id, or a blank/whitespace-only/over-long/control-char name, rejects the invoke and
+  // NOTHING is renamed. NEVER log either value on the throw path — the name is operator content
+  // (zod-boundaries.md IPC-arg row); the throw IS the signal.
+  //
+  // Routed by `event.sender` to the OWNING window's seam, exactly like the launch board seam
+  // above: session truth is per-window (one reducer per WebContents), so a rename must land in
+  // the reducer that owns that board — never broadcast to every window.
+  //
+  // An unknown id is NOT an error here: the reducer logs `rename_unknown_id` and emits nothing
+  // (a rename racing a stop/exit that already removed the card). Returns void — the retitled card
+  // arrives as a normal `session.updated` delta.
+  ipcMain.handle(CH.sessionRename, (event, raw: unknown) => {
+    const { id, name } = SessionRenameSchema.parse(raw)
+    launchBoardSeams.get(event.sender)?.renameLaunched(id, name)
   })
 }
 

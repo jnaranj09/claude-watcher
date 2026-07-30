@@ -59,9 +59,16 @@ export interface FocusedSessionProps {
    *  Threaded to every EmbeddedTerminal so the dead pane's one "New session" button uses the
    *  SAME flow as the header button / Ctrl+N. */
   onNewSession: () => void
+  /** Session-naming A2 — rename a rail row's session (opens the rename prompt). Threaded to the
+   *  AttentionRail; omitted ⇒ the rail renders no pencil. */
+  onRenameSession?: (sessionId: string) => void
 }
 
-export function FocusedSession({ onBack, onNewSession }: FocusedSessionProps): JSX.Element {
+export function FocusedSession({
+  onBack,
+  onNewSession,
+  onRenameSession
+}: FocusedSessionProps): JSX.Element {
   // The currently-visible terminal (the others are kept alive but hidden). A primitive selector.
   const focusedTerminalId = useBoard(selectFocusedTerminalId)
   // The set of terminals to keep ALIVE (correlated ∪ focused). useShallow so an equal set does not
@@ -92,7 +99,10 @@ export function FocusedSession({ onBack, onNewSession }: FocusedSessionProps): J
 
   return (
     <div className={styles.focused} data-testid="focused-session">
-      <AttentionRail onActivateSession={onActivateSession} />
+      <AttentionRail
+        onActivateSession={onActivateSession}
+        {...(onRenameSession ? { onRenameSession } : {})}
+      />
       <div className={styles.main}>
         <div className={styles.bar}>
           <button

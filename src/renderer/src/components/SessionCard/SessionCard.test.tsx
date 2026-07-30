@@ -16,6 +16,17 @@ afterEach(() => {
   cleanup = undefined
 })
 
+/** Read this component's stylesheet as TEXT. `import.meta.url` is not a file:// URL under Vite's
+ *  transform, so resolve from the vitest root (the repo root) instead. */
+async function readCss(): Promise<string> {
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  return readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/SessionCard/SessionCard.module.css'),
+    'utf8'
+  )
+}
+
 function baseProps(overrides: Partial<SessionCardProps> = {}): SessionCardProps {
   return {
     variant: 'hero',
@@ -168,5 +179,112 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)
     cleanup = unmount
     expect(container.querySelector('[data-variant]')?.getAttribute('data-emphasized')).toBeNull()
+  })
+
+  // ── A2 rename pencil ────────────────────────────────────────────────────────
+  it('renders NO pencil when onRename is omitted (presentational callers untouched)', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="card-rename"]')).toBeNull()
+  })
+
+  it('renders the pencil when onRename is wired, and fires it on click', () => {
+    const onRename = vi.fn()
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps({ onRename })} />)
+    cleanup = unmount
+    const pencil = container.querySelector<HTMLButtonElement>('[data-testid="card-rename"]')
+    expect(pencil).not.toBeNull()
+    fireEvent(pencil as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(onRename).toHaveBeenCalledTimes(1)
+  })
+
+  // LOAD-BEARING: the card root is role="button" with its own onClick, and the pencil is a DOM
+  // child. Without stopPropagation the rename click ALSO activates the card, dropping the operator
+  // into the focused-session view behind the rename dialog. Removing the stopPropagation in
+  // SessionCard's handleRenameClick must turn this red.
+  it('clicking the pencil does NOT also activate the card (stopPropagation)', () => {
+    const onActivate = vi.fn()
+    const onRename = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ onActivate, onRename })} />
+    )
+    cleanup = unmount
+    const pencil = container.querySelector('[data-testid="card-rename"]') as HTMLButtonElement
+    fireEvent(pencil, new MouseEvent('click', { bubbles: true }))
+    expect(onRename).toHaveBeenCalledTimes(1)
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  // The KEYBOARD path needs its own guard: Enter/Space on the focused pencil fires a keydown that
+  // bubbles to the card's own handleKeyDown (which calls onActivate) BEFORE the browser turns it
+  // into a click. Stopping only the click would leave this path activating the card.
+  it('Enter/Space on the pencil does NOT activate the card (keydown stopPropagation)', () => {
+    const onActivate = vi.fn()
+    const onRename = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ onActivate, onRename })} />
+    )
+    cleanup = unmount
+    const pencil = container.querySelector<HTMLButtonElement>('[data-testid="card-rename"]')
+    fireEvent(pencil as HTMLButtonElement, new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    fireEvent(pencil as HTMLButtonElement, new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    expect(onActivate).not.toHaveBeenCalled()
+    // `onRename` is unused here on purpose: jsdom does not synthesize a click from a keydown, so
+    // this case pins ONLY the no-activation guard. The click path above covers the invocation.
+    expect(onRename).not.toHaveBeenCalled()
+  })
+
+  it('the pencil is a real button with an accessible name naming the session', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ onRename: vi.fn() })} />
+    )
+    cleanup = unmount
+    const pencil = container.querySelector('[data-testid="card-rename"]')
+    expect(pencil?.tagName).toBe('BUTTON')
+    // Keyboard-reachable by construction: a <button> with no negative tabindex.
+    expect(pencil?.getAttribute('tabindex')).toBeNull()
+    expect(pencil?.getAttribute('aria-label')).toBe('Rename deploy-prod')
+  })
+
+  // ── Visual hierarchy: the NAME is the title, the PATH is reference detail ────
+  //
+  // This shipped INVERTED. `.calm` set a variant-level `color: var(--text-dim)` meaning "dimmed
+  // body", but every other child of the card sets its own colour (`.projectPath`,
+  // `.pendingToolName`, `.footer`/`.pid`/`.sep`, the StatusDot) — so the only element it reached
+  // was `.sessionName`. The card's title ended up the dimmest text on it (measured: luminance
+  // 0.059 vs the path's 0.352 and the pid's 0.138), i.e. the custom name looked greyed out and the
+  // path looked bold.
+  //
+  // jsdom cannot verify this — CSS modules are stubbed and there is no cascade or layout. The real
+  // colours were checked by loading this stylesheet in an Electron BrowserWindow. What IS worth
+  // pinning here is the MECHANISM: a variant-level bare `color` that silently retargets whichever
+  // child happens not to set its own.
+  it('the .calm variant declares no bare `color` (it would only reach .sessionName)', async () => {
+    const css = await readCss()
+    // Isolate the `.calm { ... }` block (the variant rule, not `.calm .sessionName`).
+    const block = /^\.calm\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
+    expect(block).not.toBe('')
+    // A `color:` here reaches only the one child without its own colour — that is the bug.
+    expect(/(^|;|\s)color\s*:/.test(block)).toBe(false)
+    // The recession is carried by opacity instead.
+    expect(block).toContain('opacity')
+  })
+
+  it('.sessionName sets its colour + weight EXPLICITLY, so no variant can demote the title', async () => {
+    const css = await readCss()
+    const block = /^\.sessionName\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
+    expect(block).toContain('color: var(--text-primary)')
+    expect(block).toContain('font-weight: var(--font-weight-heading)')
+  })
+
+  it('.projectPath is muted — a rung below the title in BOTH variants', async () => {
+    const css = await readCss()
+    // The path must not climb back to --text-secondary: that is the calm title's rung, and sharing
+    // it would flatten the hierarchy the operator scans by.
+    const block = /^\.projectPath\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
+    expect(block).toContain('color: var(--text-muted)')
+    expect(/^\.calm\s+\.sessionName\s*\{[^}]*color:\s*var\(--text-secondary\)/m.test(css)).toBe(
+      true
+    )
   })
 })

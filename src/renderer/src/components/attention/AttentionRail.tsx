@@ -45,6 +45,7 @@ import {
   type LaunchedTerminal
 } from '../../stores/boardStore'
 import { shortName } from './railName'
+import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './AttentionRail.module.css'
 
 /** The status dot state IS the session's column (the three live columns are the three dot states).
@@ -90,14 +91,21 @@ function RailRow(props: {
   id: string
   collapsed: boolean
   onActivate: (sessionId: string) => void
+  onRename?: ((sessionId: string) => void) | undefined
 }): JSX.Element | null {
-  const { id, collapsed, onActivate } = props
+  const { id, collapsed, onActivate, onRename } = props
   const view = useBoard(useShallow((s: BoardState) => selectRailRowView(s, id)))
   if (!view.present) return null
   const { name, status, emphasized, active } = view
-  const label = active ? `${name} (active)` : name
+  // The row's accessible name carries the STATUS TEXT, not just the session name. A <button> with
+  // its own `aria-label` does not expose its inner text to assistive tech — the label REPLACES the
+  // contents — so the dot's screen-reader-only status span below is never announced from in here.
+  // Without the status in this string, the status would reach a screen-reader user through dot
+  // COLOR alone (the UX-DR29 floor: color is never the sole signal).
+  const statusText = statusLabel(status)
+  const label = active ? `${name}, ${statusText} (active)` : `${name}, ${statusText}`
 
-  return (
+  const row = (
     <button
       type="button"
       className={`${styles.row} ${emphasized ? `${styles.emphasized} ${needsYouEmphasisClass}` : ''} ${active ? styles.active : ''}`}
@@ -106,20 +114,70 @@ function RailRow(props: {
       {...(emphasized ? { 'data-emphasized': true } : {})}
       {...(active ? { 'data-active': true } : {})}
       aria-label={label}
+      title={label}
       aria-current={active ? 'true' : undefined}
       onClick={() => onActivate(id)}
     >
-      <StatusDot status={status} labelHidden={collapsed} label={name} />
-      {collapsed ? (
-        <span className={styles.initial} aria-hidden>
-          {name.charAt(0).toUpperCase()}
-        </span>
-      ) : (
+      {/* `labelHidden` UNCONDITIONALLY, and NO `label` override. Both halves matter:
+          - `labelHidden={collapsed}` used to make the dot's label VISIBLE whenever the rail was
+            expanded, and `label={name}` made that visible label the SESSION NAME — so an expanded
+            row printed the name twice (once here, once in `.name` below). That was the bug.
+          - dropping the `label` override lets the dot fall back to its per-state status text, so
+            what it contributes is the STATUS, not a second copy of the title.
+          Mirrors SessionCard.tsx, which has always passed a bare `labelHidden`. */}
+      <StatusDot status={status} labelHidden />
+      {/* Collapsed is the CIRCLE ALONE. It used to also render the name's first letter beside the
+          dot ("● D"), which is what UX-DR9's "56px icons" never asked for — the dot already IS the
+          row's icon, and the letter made a 44px row carry two glyphs. The row stays identifiable
+          without it: the `aria-label` carries name + status for assistive tech, and the `title`
+          added above gives a sighted operator the same on hover (which is also what makes an
+          ellipsized name readable in the EXPANDED rail — `.name` truncates). */}
+      {!collapsed && (
         <span className={styles.name} data-testid="rail-row-name">
           {name}
         </span>
       )}
     </button>
+  )
+
+  // A2 — the rename pencil is a SIBLING of the row, never a child.
+  //
+  // This row is a real `<button>`, and a `<button>` inside a `<button>` is invalid HTML (unlike
+  // SessionCard, whose root is a `<div role="button">`, so a nested button is legal there). So the
+  // pencil goes beside the row inside the `<li>`, and the two share a flex wrapper.
+  //
+  // EXPANDED ONLY: a collapsed rail is 56px wide and its `<li>` shrink-wraps a 44/56px circle —
+  // there is no room for a second control, and squeezing one in would push the circle back
+  // off-centre (the exact thing the measured centring fix just corrected). Rename stays reachable
+  // in collapsed mode from the board card's pencil.
+  if (collapsed || onRename === undefined) return row
+
+  return (
+    <div className={styles.rowWrap}>
+      {row}
+      <button
+        type="button"
+        className={styles.rowRenameButton}
+        data-testid="rail-rename"
+        aria-label={`Rename ${name}`}
+        title={`Rename ${name}`}
+        onClick={() => onRename(id)}
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
+        </svg>
+      </button>
+    </div>
   )
 }
 
@@ -138,19 +196,30 @@ function StartingRailRow(props: { terminal: LaunchedTerminal; collapsed: boolean
     boardStore.getState().switchTerminal(terminalId)
   }
 
+  // Always "<name> — starting", collapsed or not. The aria-label used to drop the " — starting"
+  // suffix in collapsed mode — exactly the mode where no visible text explains the row at all.
+  // Doubles as the `title`, so the collapsed ring is identifiable on hover too.
+  const rowLabel = `${label} — starting`
+
   return (
     <button
       type="button"
       className={styles.startingRow}
       data-testid="starting-rail-row"
       data-terminal-id={terminalId}
-      aria-label={collapsed ? label : `${label} — starting`}
+      aria-label={rowLabel}
+      title={rowLabel}
       onClick={handleClick}
     >
+      {/* The OPEN QUESTION from deferred-work.md:150, resolved: RailRow's collapsed letter is gone
+          (the dot is its icon), but this row has NO status dot BY DESIGN — calm-neutral, no colour,
+          no pulse — so dropping its letter too would leave a literally empty button. It gets a
+          neutral RING instead: same 8px geometry as StatusDot so the collapsed rail reads as one
+          column of circles, but hollow and muted, which cannot be mistaken for a live status
+          colour. (The alternative in the docs — keep the letter — would have left this the only
+          row still showing a glyph, i.e. the inconsistency Goal B set out to remove.) */}
       {collapsed ? (
-        <span className={styles.startingRowInitial} aria-hidden>
-          {label.charAt(0).toUpperCase()}
-        </span>
+        <span className={styles.startingRowGlyph} data-testid="starting-rail-glyph" aria-hidden />
       ) : (
         <>
           <span className={styles.startingRowName}>{label}</span>
@@ -165,9 +234,16 @@ export interface AttentionRailProps {
   /** Activate a rail row's session: switch the visible terminal (if its binding is known) AND
    *  acknowledge it. Wired by the Focused-session view (Task 4.3). */
   onActivateSession: (sessionId: string) => void
+  /** Session-naming A2 — the operator asked to rename a row's session (the pencil). Omitted ⇒ no
+   *  pencil is rendered, so the rail stays usable in the presentational/test callers that do not
+   *  wire rename. Expanded rail only (see RailRow). */
+  onRenameSession?: (sessionId: string) => void
 }
 
-export function AttentionRail({ onActivateSession }: AttentionRailProps): JSX.Element {
+export function AttentionRail({
+  onActivateSession,
+  onRenameSession
+}: AttentionRailProps): JSX.Element {
   // The SORTED session-id list — the small, stable projection (state.md narrow selector, via
   // useShallow so a sort that returns an equal list does not re-render). An emphasis flip does NOT
   // change this list (per-row emphasis is a separate subscription).
@@ -245,7 +321,12 @@ export function AttentionRail({ onActivateSession }: AttentionRailProps): JSX.El
       <ul className={styles.list} data-testid="rail-list">
         {order.map((id) => (
           <li key={id} className={styles.listItem}>
-            <RailRow id={id} collapsed={collapsed} onActivate={onActivateSession} />
+            <RailRow
+              id={id}
+              collapsed={collapsed}
+              onActivate={onActivateSession}
+              onRename={onRenameSession}
+            />
           </li>
         ))}
       </ul>

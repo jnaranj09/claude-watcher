@@ -80,6 +80,10 @@ declare global {
       pickDirectory(): Promise<SessionPickDirectoryResult>
       // Session-naming: `name` is the operator-typed label from the create-time prompt.
       launch(cwd: string, name: string): Promise<SessionLaunchResult>
+      // Session-naming A2 — retitle an EXISTING session by its stable session id. Rejects on an
+      // illegal name (same SessionNameSchema as create); the retitled card arrives as a
+      // `session.updated` delta, not as the resolve value.
+      rename(id: string, name: string): Promise<void>
       // Story 3.4 (FR-16) — the launch CORRELATION push subscription ({ terminalId, sessionId },
       // fired once when a launch's Tgid join lands). Builds the renderer's terminalIdBySessionId.
       onCorrelated(cb: (event: LaunchCorrelatedEvent) => void): () => void

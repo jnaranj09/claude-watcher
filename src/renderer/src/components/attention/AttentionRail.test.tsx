@@ -7,7 +7,7 @@
 // onActivateSession with the sessionId; narrow per-row subscription.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { AttentionRail } from './AttentionRail'
 import { shortName } from './railName'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
@@ -69,6 +69,18 @@ function render(onActivateSession: (id: string) => void = () => {}): RenderResul
   return r
 }
 
+/** A2 — render with the rename seam wired (the pencil only exists when `onRenameSession` is). */
+function renderWithRename(
+  onRenameSession: (id: string) => void,
+  onActivateSession: (id: string) => void = () => {}
+): RenderResult {
+  const r = renderComponent(
+    <AttentionRail onActivateSession={onActivateSession} onRenameSession={onRenameSession} />
+  )
+  cleanup = r.unmount
+  return r
+}
+
 describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => {
   it('is always present and lists one row per app-launched board session (same source as board)', () => {
     act(() => {
@@ -94,6 +106,42 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
     expect(row?.querySelector('[data-testid="rail-row-name"]')?.textContent).toBe('deploy-prod')
   })
 
+  // REGRESSION PIN: an expanded row rendered the session name TWICE — the dot was given
+  // `label={name}` with `labelHidden={collapsed}`, so whenever the rail was expanded the dot
+  // printed the name as its own VISIBLE label, and `.name` printed it again. The pre-existing
+  // test above could not catch it: it only asserts a `status-label` NODE exists, which is true
+  // either way. Assert on the row's rendered TEXT, so re-adding `label={name}` turns this red.
+  it('renders the session name exactly ONCE in an expanded row (no duplicate title)', () => {
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
+    )
+    const r = render()
+    const row = r.container.querySelector('[data-session-id="a"]')
+    const occurrences = (row?.textContent ?? '').split('deploy-prod').length - 1
+    expect(occurrences).toBe(1)
+    // The dot's label contributes the STATUS, never a second copy of the title.
+    expect(row?.querySelector('[data-testid="status-label"]')?.textContent).toBe('Needs you')
+  })
+
+  // The status must survive non-visually. The row is a <button aria-label=…>, and an aria-label
+  // REPLACES the element's inner text for assistive tech — so the dot's sr-only status span is
+  // never announced from inside it. The status therefore has to be in the row's own label, or it
+  // reaches a screen-reader user through dot colour alone.
+  it("the row's accessible name carries the status text, not just the session name", () => {
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
+    )
+    const r = render()
+    const row = r.container.querySelector('[data-session-id="a"]')
+    const label = row?.getAttribute('aria-label') ?? ''
+    expect(label).toContain('deploy-prod')
+    expect(label).toContain('Needs you')
+  })
+
   it('collapses to icon-only rows (never hidden) — the rail and rows stay rendered', () => {
     act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100)))
     const r = render()
@@ -105,6 +153,11 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
     // Still present (NEVER hidden) — the row + dot remain; the visible name text is gone (icon-only).
     expect(r.container.querySelectorAll('[data-testid="rail-row"]').length).toBe(1)
     expect(r.container.querySelector('[data-testid="rail-row-name"]')).toBeNull()
+    // Goal B: the circle ALONE. The row used to also print the name's first letter beside the dot
+    // ("● D"). The only text left in a collapsed row is the dot's screen-reader-only status label,
+    // so pin the text EXACTLY — re-adding an initial glyph makes this red.
+    const row = r.container.querySelector('[data-testid="rail-row"]')
+    expect(row?.textContent).toBe('Needs you')
   })
 
   it('needs-you sessions sort FIRST, then by entered-column time (oldest waiting first)', () => {
@@ -292,17 +345,23 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
     expect(row?.tagName).toBe('BUTTON')
   })
 
-  it('in collapsed mode, starting row renders an initial, not the full label+status', () => {
+  // Goal B: a collapsed rail is a column of CIRCLES — no initial letters. A normal RailRow gets
+  // that for free (its StatusDot is the circle), but this row has no status dot by design, so it
+  // renders a neutral hollow RING instead. It must render NO text: the letter is what Goal B
+  // removed, and dropping it without a glyph would leave an empty button.
+  it('in collapsed mode, starting row renders a neutral ring and NO text (no initial letter)', () => {
     act(() => boardStore.getState().openLaunchedTerminal('tid-coll', 'delta'))
     const r = render()
     const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
     act(() => toggle?.click())
     const row = r.container.querySelector('[data-terminal-id="tid-coll"]')
     expect(row).not.toBeNull()
-    // Collapsed: shows initial only; full name and "starting…" are hidden.
-    expect(row?.textContent).toContain('D') // initial of 'delta'
-    expect(row?.textContent).not.toContain('starting…')
-    expect(row?.textContent).not.toContain('delta')
+    expect(row?.querySelector('[data-testid="starting-rail-glyph"]')).not.toBeNull()
+    // No glyph text at all — not the initial, not the name, not the sublabel.
+    expect(row?.textContent).toBe('')
+    // ...but the row is still identifiable non-visually and on hover.
+    expect(row?.getAttribute('aria-label')).toBe('delta — starting')
+    expect(row?.getAttribute('title')).toBe('delta — starting')
   })
 
   it('NON-VACUITY: removing the starting-rows rendering makes this test fail (fault injection proof)', () => {
@@ -316,5 +375,77 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
     // If StartingRailRow rendering were removed, this assertion would go RED.
     const rows = r.container.querySelectorAll('[data-testid="starting-rail-row"]')
     expect(rows.length).toBe(2)
+  })
+})
+
+// ── A2 rename from the rail ───────────────────────────────────────────────────
+describe('AttentionRail — rename affordance (session-naming A2)', () => {
+  it('renders NO pencil when onRenameSession is omitted', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    const r = render()
+    expect(r.container.querySelector('[data-testid="rail-rename"]')).toBeNull()
+  })
+
+  it('renders a pencil per row when wired, and fires it with that row\'s session id', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    const onRename = vi.fn()
+    const r = renderWithRename(onRename)
+    const pencil = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-rename"]')
+    expect(pencil).not.toBeNull()
+    fireEvent(pencil as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(onRename).toHaveBeenCalledWith('a')
+  })
+
+  // The pencil must NOT be inside the row: the row is a real <button>, and nesting a button in a
+  // button is invalid HTML (the browser un-nests it, which silently breaks the click target).
+  // SessionCard can nest one because its root is a div[role=button]; this cannot.
+  it('the pencil is a SIBLING of the row button, never nested inside it (valid HTML)', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    const r = renderWithRename(vi.fn())
+    const row = r.container.querySelector('[data-testid="rail-row"]')
+    const pencil = r.container.querySelector('[data-testid="rail-rename"]')
+    expect(row).not.toBeNull()
+    expect(pencil).not.toBeNull()
+    expect(row?.contains(pencil as Node)).toBe(false)
+    expect(pencil?.tagName).toBe('BUTTON')
+  })
+
+  it('clicking the pencil does NOT activate the row (they are separate controls)', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    const onActivate = vi.fn()
+    const onRename = vi.fn()
+    const r = renderWithRename(onRename, onActivate)
+    fireEvent(
+      r.container.querySelector('[data-testid="rail-rename"]') as HTMLButtonElement,
+      new MouseEvent('click', { bubbles: true })
+    )
+    expect(onRename).toHaveBeenCalledTimes(1)
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  // Collapsed is 56px wide and its <li> shrink-wraps the circle; a second control there would push
+  // the circle back off-centre (undoing the measured centring fix). Rename stays available from the
+  // board card in that mode.
+  it('renders NO pencil in COLLAPSED mode (no room; would de-centre the circle)', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    const r = renderWithRename(vi.fn())
+    expect(r.container.querySelector('[data-testid="rail-rename"]')).not.toBeNull()
+    const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
+    act(() => toggle?.click())
+    expect(r.container.querySelector('[data-testid="rail-rename"]')).toBeNull()
+    // ...and the row itself is still there (never hidden — UX-DR9).
+    expect(r.container.querySelector('[data-testid="rail-row"]')).not.toBeNull()
+  })
+
+  it('the pencil has an accessible name naming the session', () => {
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'a', 'working', 100, { sessionName: 'deploy-prod' }))
+    )
+    const r = renderWithRename(vi.fn())
+    expect(
+      r.container.querySelector('[data-testid="rail-rename"]')?.getAttribute('aria-label')
+    ).toBe('Rename deploy-prod')
   })
 })

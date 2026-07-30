@@ -76,8 +76,10 @@ function EmphasizedSessionCard(props: {
   accent: CardAccent
   selected: boolean
   onActivateCard?: ((id: string) => void) | undefined
+  /** A2 — rename seam, threaded straight through to the card's pencil. */
+  onRenameCard?: ((id: string) => void) | undefined
 }): JSX.Element {
-  const { session, variant, status, accent, selected, onActivateCard } = props
+  const { session, variant, status, accent, selected, onActivateCard, onRenameCard } = props
   const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
   return (
     <SessionCard
@@ -95,6 +97,7 @@ function EmphasizedSessionCard(props: {
         ? { pendingToolName: session.pendingToolName }
         : {})}
       {...(onActivateCard ? { onActivate: () => onActivateCard(session.id) } : {})}
+      {...(onRenameCard ? { onRename: () => onRenameCard(session.id) } : {})}
     />
   )
 }
@@ -107,6 +110,8 @@ export interface ColumnProps {
   isHero?: boolean
   /** Called when a card is activated (Epic-3 focused-session open — a no-op seam here). */
   onActivateCard?: (id: string) => void
+  /** Session-naming A2 — called when a card's rename pencil is activated. Omitted ⇒ no pencil. */
+  onRenameCard?: (id: string) => void
   /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
    *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
   selectedId?: string | null
@@ -116,6 +121,7 @@ export function Column({
   column,
   isHero = false,
   onActivateCard,
+  onRenameCard,
   selectedId = null
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
@@ -150,6 +156,7 @@ export function Column({
               accent={cardAccentFor(column)}
               selected={session.id === selectedId}
               onActivateCard={onActivateCard}
+              onRenameCard={onRenameCard}
             />
           ))}
         </div>

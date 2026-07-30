@@ -176,7 +176,40 @@ function App(): React.JSX.Element {
     // state that the operator did not create. (The dialog ALSO refuses to submit over-length —
     // belt and braces — but clamping here means the common case just works.)
     const basename = (cwd.split('/').filter(Boolean).pop() ?? cwd).slice(0, SESSION_NAME_MAX_LENGTH)
-    boardStore.getState().showSessionNamePrompt({ cwd, initialName: basename })
+    boardStore.getState().showSessionNamePrompt({ mode: 'create', cwd, initialName: basename })
+  }, [])
+
+  // Session-naming A2 — open the RENAME prompt for an EXISTING session. Reuses the same prompt
+  // state and the same dialog as create; only the mode differs. Nothing is renamed here — the IPC
+  // fires from `handleRenameSubmit` on submit, so cancelling is a complete no-op.
+  //
+  // Prefilled with the session's CURRENT name, read from the store at click time (session truth
+  // projected from main). The re-entry guard mirrors `handleNewSession`: never replace the payload
+  // under a dialog whose input already holds a typed value.
+  const handleRenameSession = useCallback((sessionId: string): void => {
+    const state = boardStore.getState()
+    if (state.sessionNamePrompt !== null) return
+    const current = state.sessionsById[sessionId]
+    if (current === undefined) return // gone (stopped/exited) ⇒ nothing to rename
+    state.showSessionNamePrompt({
+      mode: 'rename',
+      sessionId,
+      initialName: current.sessionName.slice(0, SESSION_NAME_MAX_LENGTH)
+    })
+  }, [])
+
+  // Session-naming A2 — the rename prompt submitted. Main re-validates the name at the IPC
+  // boundary (untrusted cross-process input) and rejects rather than renaming if it is malformed.
+  // The retitled card arrives on its own as a `session.updated` delta — we do NOT write the new
+  // name into the store here: session truth is main's, and the renderer only projects it.
+  const handleRenameSubmit = useCallback(async (sessionId: string, name: string): Promise<void> => {
+    boardStore.getState().clearSessionNamePrompt()
+    try {
+      await window.launch.rename(sessionId, name)
+    } catch {
+      // never-log-the-value: the name is operator content. A code only.
+      console.warn('[c9watch][launch] code=rename_failed')
+    }
   }, [])
 
   // Session-naming: the name prompt submitted — NOW launch. The dialog hands back an already-
@@ -403,6 +436,7 @@ function App(): React.JSX.Element {
             <Board
               onNewSession={() => void handleNewSession()}
               onActivateCard={handleActivateCard}
+              onRenameCard={handleRenameSession}
             />
           </div>
           {hasFocusableTerminal && (
@@ -414,7 +448,11 @@ function App(): React.JSX.Element {
               aria-hidden={!showFocused}
               inert={!showFocused || namePromptOpen}
             >
-              <FocusedSession onBack={handleBack} onNewSession={handleNewSessionSync} />
+              <FocusedSession
+                onBack={handleBack}
+                onNewSession={handleNewSessionSync}
+                onRenameSession={handleRenameSession}
+              />
             </div>
           )}
         </div>
@@ -438,19 +476,32 @@ function App(): React.JSX.Element {
           spawned while it is open, so Cancel/Esc is a complete no-op: no PTY, no card, no view
           change. Submit is what fires window.launch.launch. Same z-60 overlay layer as the other
           two modals — it cannot co-exist with them (it only lives before a session exists). */}
-      {sessionNamePrompt !== null && (
-        <SessionNameDialog
-          // The dialog seeds its input from `initialName` on MOUNT only. Keying on the cwd forces
-          // a REMOUNT if the payload is ever replaced under it, so the input can never show one
-          // directory's name while `onSubmit` closes over another's path. `handleNewSession`
-          // already refuses to re-enter while a prompt is open — this is the second line.
-          key={sessionNamePrompt.cwd}
-          initialName={sessionNamePrompt.initialName}
-          hint={sessionNamePrompt.cwd}
-          onSubmit={(name) => void handleNameSubmit(sessionNamePrompt.cwd, name)}
-          onCancel={() => boardStore.getState().clearSessionNamePrompt()}
-        />
-      )}
+      {sessionNamePrompt !== null &&
+        (sessionNamePrompt.mode === 'create' ? (
+          <SessionNameDialog
+            // The dialog seeds its input from `initialName` on MOUNT only. Keying on the cwd forces
+            // a REMOUNT if the payload is ever replaced under it, so the input can never show one
+            // directory's name while `onSubmit` closes over another's path. `handleNewSession`
+            // already refuses to re-enter while a prompt is open — this is the second line.
+            key={`create:${sessionNamePrompt.cwd}`}
+            initialName={sessionNamePrompt.initialName}
+            hint={sessionNamePrompt.cwd}
+            onSubmit={(name) => void handleNameSubmit(sessionNamePrompt.cwd, name)}
+            onCancel={() => boardStore.getState().clearSessionNamePrompt()}
+          />
+        ) : (
+          // A2 — the SAME dialog, reused unchanged (that is why it was built generic). Only the
+          // copy and the submit target differ: rename an existing session instead of launching a
+          // new one. Keyed by session id for the same remount reason as create.
+          <SessionNameDialog
+            key={`rename:${sessionNamePrompt.sessionId}`}
+            initialName={sessionNamePrompt.initialName}
+            title="Rename session"
+            confirmLabel="Rename"
+            onSubmit={(name) => void handleRenameSubmit(sessionNamePrompt.sessionId, name)}
+            onCancel={() => boardStore.getState().clearSessionNamePrompt()}
+          />
+        ))}
     </div>
   )
 }

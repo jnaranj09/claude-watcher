@@ -48,10 +48,17 @@
 }
 
 /* ── calm — compact, dimmed, far ───────────────────────────────────────────── */
+/* NOTE: no variant-level `color` here, deliberately. It used to set `color: var(--text-dim)`
+ * intending a "dimmed body", but EVERY other child sets its own colour (`.projectPath`,
+ * `.pendingToolName`, `.footer`/`.pid`/`.sep`, the StatusDot) — so the only thing it actually
+ * reached was `.sessionName`, making the card's TITLE the dimmest text on it, below even the pid.
+ * That is what inverted the visual hierarchy: the greyed-out item was the custom name and the
+ * bright one was the path. The recession now comes from `opacity` alone, plus an explicit
+ * `.calm .sessionName` step below — so a change to the calm treatment can never silently retarget
+ * one child again. */
 .calm {
   background: var(--bg-card-calm);
   opacity: 0.82;
-  color: var(--text-dim);
 }
 
 /* ── Anatomy ───────────────────────────────────────────────────────────────── */
@@ -62,15 +69,75 @@
   gap: var(--space-2);
 }
 
+/* ── A2 rename pencil ───────────────────────────────────────────────────────────
+ * Revealed on card hover / focus-within, and ALWAYS visible while itself focused.
+ *
+ * `opacity`, NOT `display:none` / `visibility:hidden`: the button must stay in the layout AND in
+ * the tab order at all times. Hiding it would make rename keyboard-unreachable, and a hover-only
+ * control is exactly the accessibility hole UX-DR29's "never the sole signal" thinking guards
+ * against. Reserved space also means revealing it never reflows the header (no title jump).
+ *
+ * `:focus-visible` on the button itself wins over the hidden default, so tabbing to it shows it
+ * even with no pointer anywhere near the card. */
+.renameButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.root:hover .renameButton,
+.root:focus-within .renameButton {
+  opacity: 1;
+}
+
+.renameButton:hover {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+}
+
+.renameButton:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Motion is reserved for needs-you signals; honour the reduced-motion preference here too. */
+@media (prefers-reduced-motion: reduce) {
+  .renameButton {
+    transition: none;
+  }
+}
+
 /* sessionName — SANS, body ramp (the primary line). */
+/* The card's TITLE, and it must read as one: the operator's custom name is the thing they scan for,
+ * the path is reference detail underneath it. Both the colour and the weight are set EXPLICITLY
+ * here rather than inherited, so no variant-level rule can quietly demote the title again. */
 .sessionName {
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
-  font-weight: var(--font-weight-body);
+  font-weight: var(--font-weight-heading);
   line-height: var(--line-height-body);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* On a calm (recessed "far") card the title steps down one rung — but it stays ABOVE
+ * `.projectPath`'s `--text-muted`, so the name-over-path hierarchy holds in both variants. */
+.calm .sessionName {
+  color: var(--text-secondary);
 }
 
 /* projectPath / pendingToolName / pid — MONO (verbatim machine data). */
@@ -85,8 +152,11 @@
   white-space: nowrap;
 }
 
+/* Reference detail UNDER the title — muted, one rung below the calm title and two below the hero
+ * one. It used to be `--text-secondary`, which (with the title inheriting the calm `--text-dim`)
+ * made the path the brightest thing on a calm card. */
 .projectPath {
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* pendingToolName — the "what it's blocked on"; gold (a genuine needs-you signal). */

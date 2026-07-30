@@ -187,6 +187,101 @@ describe('reducer — applyHookStatus (hooks own every status transition)', () =
   })
 })
 
+describe('reducer — renameSession (session-naming A2)', () => {
+  const ID = 'launch01-0000-4000-8000-00000000000r'
+
+  it('swaps sessionName ONLY and emits ONE epoch-framed session.updated', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(
+      launchedSession(ID, { projectPath: '/home/op/proj', sessionName: 'proj', pid: 4242 })
+    )
+    // A hook moves it off Connecting, so the test proves the rename preserves a REAL status
+    // rather than trivially preserving the synthesized default.
+    r.applyHookStatus(ID, { kind: 'status', status: 'Working' })
+
+    const deltas = r.renameSession(ID, 'deploy-prod')
+
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event).toEqual({
+      type: 'session.updated',
+      id: ID,
+      sessionName: 'deploy-prod',
+      projectPath: '/home/op/proj',
+      status: 'Working'
+    })
+    expect(deltas[0]?.epoch).toBe(r.epoch())
+    // Everything except the name survives — including the pid, which the delta never carries.
+    const stored = r.snapshotMap().get(ID)
+    expect(stored?.sessionName).toBe('deploy-prod')
+    expect(stored?.status).toBe('Working')
+    expect(stored?.projectPath).toBe('/home/op/proj')
+    expect(stored?.pid).toBe(4242)
+  })
+
+  it('unknown id → [] + log { path: "(rename)", code: "rename_unknown_id" } (never synthesizes)', () => {
+    const log = vi.fn()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+
+    const deltas = r.renameSession('never-launched-id', 'whatever')
+
+    expect(deltas).toEqual([])
+    // A rename must NOT put a card on the board — that is the Story-3.3 ship gate. Mirrors the
+    // hook_unknown_id no-op.
+    expect(r.size()).toBe(0)
+    expect(log).toHaveBeenCalledWith({ path: '(rename)', code: 'rename_unknown_id' })
+  })
+
+  it('NEVER logs the name — the unknown-id log carries a marker path and a code, nothing else', () => {
+    const log = vi.fn<(err: { path: string; code: string }) => void>()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    const secret = 'client-acme-invoice-dispute'
+
+    r.renameSession('never-launched-id', secret)
+
+    // The name is operator content (zod-boundaries.md never-log-the-value). Assert on the WHOLE
+    // serialized log call, so a future `log({ ...err, name })` cannot slip through.
+    expect(JSON.stringify(log.mock.calls)).not.toContain(secret)
+  })
+
+  it('does NOT reorder the board — the status is unchanged, so enteredColumnAt is never re-stamped', () => {
+    // The reducer does not own enteredColumnAt (attention.ts stamps it on a COLUMN change), so the
+    // guarantee this test can make at THIS layer is the precondition that makes it hold: a rename
+    // emits an UNCHANGED status. If a future edit re-derived status here, the sort key would move.
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession(ID, { sessionName: 'before' }))
+    r.applyHookStatus(ID, { kind: 'status', status: 'WaitingForInput' })
+
+    const [delta] = r.renameSession(ID, 'after')
+
+    expect(delta?.event).toMatchObject({ type: 'session.updated', status: 'WaitingForInput' })
+  })
+
+  it('a rename racing a stop/exit that already removed the card is a quiet no-op', () => {
+    const log = vi.fn()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    r.upsertLaunched(launchedSession(ID, { sessionName: 'gone-soon' }))
+    r.applyHookStatus(ID, { kind: 'removed' })
+
+    const deltas = r.renameSession(ID, 'too-late')
+
+    expect(deltas).toEqual([])
+    expect(r.size()).toBe(0)
+    // It DOES log here (unlike the idempotent-removal path): a rename of a gone session is a
+    // renderer/main disagreement worth a code, just never a resurrected card.
+    expect(log).toHaveBeenCalledWith({ path: '(rename)', code: 'rename_unknown_id' })
+  })
+
+  it('renaming twice keeps the last name and emits one delta each time', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession(ID, { sessionName: 'first' }))
+
+    expect(r.renameSession(ID, 'second')).toHaveLength(1)
+    expect(r.renameSession(ID, 'third')).toHaveLength(1)
+    expect(r.snapshotMap().get(ID)?.sessionName).toBe('third')
+    expect(r.size()).toBe(1)
+  })
+})
+
 describe('reducer — determinism + map hygiene', () => {
   it('the apply stamp is the injected now(), not the wall clock', () => {
     const r = createReducer({ now: () => FIXED_NOW })

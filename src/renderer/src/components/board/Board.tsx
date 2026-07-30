@@ -75,9 +75,11 @@ export interface BoardProps {
   onActivateCard?: (id: string) => void
   /** New-session launch seam (Epic-3 / FR-11). Defaults to a no-op. */
   onNewSession?: () => void
+  /** Session-naming A2 — card rename seam (the pencil). Omitted ⇒ no pencil is rendered. */
+  onRenameCard?: (id: string) => void
 }
 
-export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element {
+export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps): JSX.Element {
   const coldLoaded = useBoard(selectColdLoaded)
   const total = useBoard(selectTotalCount)
   const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you'))
@@ -205,6 +207,7 @@ export function Board({ onActivateCard, onNewSession }: BoardProps): JSX.Element
               isHero={column === hero}
               selectedId={selectedId}
               {...(onActivateCard ? { onActivateCard } : {})}
+              {...(onRenameCard ? { onRenameCard } : {})}
             />
           ))}
         </div>

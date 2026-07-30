@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest'
 import {
   SessionLaunchSchema,
   SessionNameSchema,
+  SessionRenameSchema,
   SESSION_NAME_MAX_LENGTH,
   LaunchCorrelatedSchema
 } from './launch'
@@ -179,5 +180,73 @@ describe('Story 3.4 — CH.launchCorrelated channel + LaunchCorrelatedSchema (va
       expect(issue?.path.join('.')).toBe('terminalId')
       expect(typeof issue?.code).toBe('string')
     }
+  })
+})
+
+// Session-naming A2 — the `session:rename` arg boundary. Same our-shape fail-closed posture as the
+// launch arg, and it REUSES SessionNameSchema so both paths agree on a legal name by construction.
+describe('SessionRenameSchema — the rename-arg fail-closed boundary', () => {
+  const VALID_RENAME = { id: 'launch01-0000-4000-8000-000000000001', name: 'deploy-prod' }
+
+  it('parses a valid { id, name }', () => {
+    const r = SessionRenameSchema.safeParse(VALID_RENAME)
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data).toEqual(VALID_RENAME)
+  })
+
+  it('FAILS CLOSED on a blank id', () => {
+    expect(SessionRenameSchema.safeParse({ ...VALID_RENAME, id: '' }).success).toBe(false)
+  })
+
+  it('FAILS CLOSED on a missing / non-string id', () => {
+    expect(SessionRenameSchema.safeParse({ name: 'x' }).success).toBe(false)
+    expect(SessionRenameSchema.safeParse({ ...VALID_RENAME, id: 42 }).success).toBe(false)
+  })
+
+  it('accepts a NON-uuid id — an unknown id must reach the reducer no-op, not throw here', () => {
+    // Deliberately not `.uuid()`: existence is the reducer's call (rename_unknown_id), and a shape
+    // gate that rejected non-uuids would turn a benign race into a rejected invoke.
+    expect(SessionRenameSchema.safeParse({ ...VALID_RENAME, id: 'not-a-uuid' }).success).toBe(true)
+  })
+
+  it('REUSES SessionNameSchema — every name rule the create path enforces applies here', () => {
+    // blank / whitespace-only / over-long / control char: the same four the create arg rejects.
+    expect(SessionRenameSchema.safeParse({ ...VALID_RENAME, name: '' }).success).toBe(false)
+    expect(SessionRenameSchema.safeParse({ ...VALID_RENAME, name: '   ' }).success).toBe(false)
+    expect(
+      SessionRenameSchema.safeParse({
+        ...VALID_RENAME,
+        name: 'x'.repeat(SESSION_NAME_MAX_LENGTH + 1)
+      }).success
+    ).toBe(false)
+    expect(SessionRenameSchema.safeParse({ ...VALID_RENAME, name: 'a\nb' }).success).toBe(false)
+  })
+
+  it('TRIMS the name, exactly like the create path', () => {
+    const r = SessionRenameSchema.safeParse({ ...VALID_RENAME, name: '  padded  ' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.name).toBe('padded')
+  })
+
+  it('FAILS CLOSED on an unknown extra key (our shape — no passthrough)', () => {
+    // NOTE: zod objects strip unknown keys by default rather than erroring, so what this pins is
+    // that no extra key can SURVIVE into the parsed arg the handler acts on.
+    const r = SessionRenameSchema.safeParse({ ...VALID_RENAME, cwd: '/etc' })
+    expect(r.success).toBe(true)
+    if (r.success) expect('cwd' in r.data).toBe(false)
+  })
+
+  it('reports a PATH + CODE on a parse miss (never requires echoing the value)', () => {
+    const r = SessionRenameSchema.safeParse({ id: '', name: 'ok' })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      const issue = r.error.issues[0]
+      expect(issue?.path.join('.')).toBe('id')
+      expect(typeof issue?.code).toBe('string')
+    }
+  })
+
+  it('CH.sessionRename is the registered channel const (never a literal at a call site)', () => {
+    expect(CH.sessionRename).toBe('session:rename')
   })
 })

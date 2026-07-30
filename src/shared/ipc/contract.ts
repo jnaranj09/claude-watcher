@@ -48,6 +48,12 @@ export const CH = {
   // session→terminal indirection that re-derives what the renderer already has — no gain, more
   // blast radius. Leave reserved; do NOT wire or add a handler for `session:stop`.
   sessionStop: 'session:stop',
+  // Session-naming A2 — `session:rename`: retitle an EXISTING session by its stable id. A REAL
+  // new channel, unlike `session:stop` above: there is nothing existing to reuse (a rename is not
+  // a terminal operation, and `terminal:*` is keyed by terminalId while the reducer's map is keyed
+  // by session id). Renderer → main invoke returning void; the retitled card comes back the normal
+  // way, as a `session.updated` delta over CH.watchEvents. See SessionRenameRequest below.
+  sessionRename: 'session:rename',
   // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
   // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
   // that binds an app-spawned `claude` to its c9watch session `id`). It carries the
@@ -482,6 +488,27 @@ export type SessionLaunchRequest = {
 export type SessionLaunchResult = {
   /** The opaque per-terminal id (NOT a session id, NOT a pid — F6). */
   terminalId: string
+}
+
+/**
+ * Session-naming A2 — `session:rename` request: retitle an EXISTING session.
+ *
+ * UNTRUSTED cross-process input → `SessionRenameSchema.parse` + throw at the main boundary.
+ * NEITHER field is loggable: `id` is an opaque uuid (safe but pointless to log) and `name` is
+ * OPERATOR CONTENT. On a parse miss the handler logs path/code only — the throw IS the signal.
+ * [zod-boundaries.md IPC-arg row]
+ *
+ * Keyed on the STABLE session `id` (the launch-minted uuid), NEVER a pid and NEVER a terminalId:
+ * the reducer's map is keyed by session id, and that is the identity a rename has to hit.
+ * Returns void — the renamed card reaches the renderer the normal way, as a `session.updated`
+ * delta over `CH.watchEvents`, not as an invoke reply.
+ */
+export type SessionRenameRequest = {
+  /** The stable session id (launch-minted uuid) to retitle. Unknown id is a no-op in main. */
+  id: string
+  /** The new operator-typed name. Validated by the SHARED `SessionNameSchema` — the same
+   *  definition the create-time prompt uses, so both paths agree on what a legal name is. */
+  name: string
 }
 
 /**
