@@ -150,6 +150,14 @@ export function EmbeddedTerminal({
       const webgl = new WebglAddon()
       webgl.onContextLoss(() => {
         webgl.dispose()
+        // FORCE a full redraw after the swap. The fallback renderer only paints DIRTY cells,
+        // so everything already on screen stays black until something else damages it — the
+        // terminal looks dead while the PTY is healthy and the buffer is intact (observed
+        // after an amdgpu ring reset killed the GPU process; a window resize was the only
+        // way back). clearTextureAtlas() drops the glyph cache the dead context owned;
+        // refresh(0, rows-1) repaints every row. [.claude/rules/terminal.md]
+        term.clearTextureAtlas()
+        term.refresh(0, term.rows - 1)
         console.warn('[c9watch][term] WebGL context lost — fell back to canvas/dom renderer')
       })
       term.loadAddon(webgl)

@@ -53,6 +53,13 @@ useEffect(() => {
 - **WebGL is the active renderer; canvas/dom is fallback only.** On WebGL context
   loss, dispose the addon, flip to canvas, and surface it (don't keep claiming
   WebGL). xterm falls back automatically once the addon is disposed.
+- **Force a full redraw after the fallback swap** — `term.clearTextureAtlas()` +
+  `term.refresh(0, term.rows - 1)`. The fallback renderer paints only DIRTY cells, so
+  every row already on screen stays black and the terminal looks dead while the PTY is
+  healthy and the buffer is intact; only an unrelated resize brings it back. This is
+  not theoretical: an `amdgpu` `ring gfx_0.0.0` reset killed the GPU process (2026-07-31)
+  and blanked every live terminal exactly this way. Guarded by
+  `EmbeddedTerminal.webgl.test.tsx`.
 
 ## NOT applicable here (don't copy from generic xterm guides)
 
