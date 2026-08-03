@@ -143,28 +143,6 @@ export function EmbeddedTerminal({
     term.loadAddon(fit)
     term.open(container)
 
-    // WebGL is the ACTIVE renderer; canvas/dom is fallback only (terminal.md). On context loss:
-    // dispose the addon → xterm falls back to canvas automatically → surface it (don't keep
-    // claiming WebGL). A construction failure also falls back.
-    try {
-      const webgl = new WebglAddon()
-      webgl.onContextLoss(() => {
-        webgl.dispose()
-        // FORCE a full redraw after the swap. The fallback renderer only paints DIRTY cells,
-        // so everything already on screen stays black until something else damages it — the
-        // terminal looks dead while the PTY is healthy and the buffer is intact (observed
-        // after an amdgpu ring reset killed the GPU process; a window resize was the only
-        // way back). clearTextureAtlas() drops the glyph cache the dead context owned;
-        // refresh(0, rows-1) repaints every row. [.claude/rules/terminal.md]
-        term.clearTextureAtlas()
-        term.refresh(0, term.rows - 1)
-        console.warn('[c9watch][term] WebGL context lost — fell back to canvas/dom renderer')
-      })
-      term.loadAddon(webgl)
-    } catch (e) {
-      console.warn('[c9watch][term] WebGL addon failed, using canvas/dom fallback', e)
-    }
-
     termRef.current = term
     fitRef.current = fit
 
@@ -181,6 +159,39 @@ export function EmbeddedTerminal({
       void window.terminal
         .resize(terminalId, term.cols, term.rows)
         .catch(() => console.warn('[c9watch][term] code=resize_failed'))
+    }
+
+    // WebGL is the ACTIVE renderer; canvas/dom is fallback only (terminal.md). On context loss:
+    // dispose the addon → xterm falls back to canvas automatically → surface it (don't keep
+    // claiming WebGL). A construction failure also falls back. Loaded AFTER doFit is defined so
+    // the loss handler can re-fit (see below) — loadAddon order is irrelevant to the addon itself.
+    try {
+      const webgl = new WebglAddon()
+      webgl.onContextLoss(() => {
+        webgl.dispose()
+        // RE-FIT before repainting. The fallback renderer measures its OWN cell size, so the
+        // cols/rows computed under WebGL no longer match the box — cols × cellWidth ends up
+        // WIDER than the frame. xterm parks its focused helper textarea on the cursor cell (in
+        // px), so as you keep typing that focused element walks past the right edge and the
+        // browser scrolls the frame to reveal it: the view slides right and never comes back
+        // (the frame clips, it has no user scrollbar). Only an unrelated window resize fixed it.
+        // doFit() recomputes cols/rows for the LIVE renderer and resizes the PTY first.
+        // The frame is also `overflow: clip` now, so it can never be scrolled at all — belt and
+        // suspenders, since a wrong cell measurement must not be able to hide the left columns.
+        doFit()
+        // FORCE a full redraw after the swap. The fallback renderer only paints DIRTY cells,
+        // so everything already on screen stays black until something else damages it — the
+        // terminal looks dead while the PTY is healthy and the buffer is intact (observed
+        // after an amdgpu ring reset killed the GPU process; a window resize was the only
+        // way back). clearTextureAtlas() drops the glyph cache the dead context owned;
+        // refresh(0, rows-1) repaints every row. [.claude/rules/terminal.md]
+        term.clearTextureAtlas()
+        term.refresh(0, term.rows - 1)
+        console.warn('[c9watch][term] WebGL context lost — fell back to canvas/dom renderer')
+      })
+      term.loadAddon(webgl)
+    } catch (e) {
+      console.warn('[c9watch][term] WebGL addon failed, using canvas/dom fallback', e)
     }
 
     // Keystrokes → the PTY over the port (NOT window.pty). One message per onData chunk.

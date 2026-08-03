@@ -41,6 +41,29 @@ vi.mock('@xterm/xterm', async () => {
 // The captured context-loss listeners + dispose spies, one entry per constructed addon.
 const webglAddons: { fireContextLoss: () => void; dispose: ReturnType<typeof vi.fn> }[] = []
 
+// Every FitAddon EmbeddedTerminal constructs, in creation order. The REAL FitAddon needs a live
+// render service to measure a cell (jsdom has no layout), so it is faked here — the assertion is
+// that the context-loss handler RE-FITS at all, not what dimensions it computes.
+const fitAddons: { fit: ReturnType<typeof vi.fn> }[] = []
+
+vi.mock('@xterm/addon-fit', () => {
+  class FakeFitAddon {
+    public fit = vi.fn()
+    public dispose = vi.fn()
+    constructor() {
+      fitAddons.push({ fit: this.fit })
+    }
+    // xterm calls activate() from term.loadAddon() — a no-op is enough here.
+    activate(): void {
+      /* no-op: the real addon would measure a cell jsdom cannot lay out */
+    }
+    proposeDimensions(): undefined {
+      return undefined
+    }
+  }
+  return { FitAddon: FakeFitAddon }
+})
+
 vi.mock('@xterm/addon-webgl', () => {
   class FakeWebglAddon {
     private listener: (() => void) | null = null
@@ -68,6 +91,7 @@ let cleanup: (() => void) | undefined
 beforeEach(() => {
   capturedTerminals.length = 0
   webglAddons.length = 0
+  fitAddons.length = 0
 
   // xterm assumes a real browser: shim matchMedia + ResizeObserver (jsdom omits both).
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -157,5 +181,53 @@ describe('EmbeddedTerminal — WebGL context loss (GPU-process crash recovery)',
       if (!term) return
       expect(spy).toHaveBeenCalledWith(0, term.rows - 1)
     })
+  })
+
+  // Second incident, same trigger (2026-08-03): after a context loss the terminal recovered its
+  // pixels but kept the cols it had measured under WebGL. The canvas/dom fallback measures its
+  // OWN cell size, so cols × cellWidth no longer fit the frame. xterm parks its focused helper
+  // textarea on the CURSOR CELL in px — so every keystroke pushed that focused element further
+  // past the right edge, the browser scrolled the frame to reveal it, and the left columns went
+  // off-screen with no way to scroll back. Re-fitting on loss keeps cols honest for the renderer
+  // that is actually painting. (The frame is `overflow: clip` now too, so it is not even a scroll
+  // container — but that is the guard; THIS is the cause.)
+  it('re-fits after the fallback swap so cols match the new renderer (and resizes the PTY)', () => {
+    const { container } = render('t-1')
+
+    const term = capturedTerminals[0]
+    const addon = webglAddons[0]
+    const fit = fitAddons[0]
+    expect(term).toBeDefined()
+    expect(addon).toBeDefined()
+    expect(fit).toBeDefined()
+    if (!term || !addon || !fit) return
+
+    // doFit() bails on a 0×0 box (fit() on 0×0 corrupts sizing — terminal.md), and jsdom has no
+    // layout, so give the host a non-zero box for this test only.
+    const host = container.querySelector('[data-testid="embedded-terminal"] > div')
+    expect(host).not.toBeNull()
+    if (!host) return
+    Object.defineProperty(host, 'clientWidth', { value: 800, configurable: true })
+    Object.defineProperty(host, 'clientHeight', { value: 600, configurable: true })
+
+    const resize = (window as unknown as { terminal: { resize: ReturnType<typeof vi.fn> } })
+      .terminal.resize
+    const refresh = vi.spyOn(term, 'refresh')
+
+    // Nothing has fitted yet: the port never paired and the ResizeObserver is a no-op shim.
+    expect(fit.fit).not.toHaveBeenCalled()
+
+    addon.fireContextLoss()
+
+    // 1. the geometry is recomputed for the renderer that is now painting
+    expect(fit.fit).toHaveBeenCalledTimes(1)
+    // 2. main resizes the PTY FIRST, then the terminal reflows (resize ordering — terminal.md)
+    expect(resize).toHaveBeenCalledWith('t-1', term.cols, term.rows)
+    // 3. the re-fit lands BEFORE the full repaint, so the repaint covers the corrected geometry
+    const fitOrder = fit.fit.mock.invocationCallOrder[0]
+    const refreshOrder = refresh.mock.invocationCallOrder[0]
+    expect(fitOrder).toBeDefined()
+    expect(refreshOrder).toBeDefined()
+    expect(fitOrder).toBeLessThan(refreshOrder as number)
   })
 })

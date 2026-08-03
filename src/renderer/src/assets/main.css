@@ -13,7 +13,11 @@ body,
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  /* `clip`, not `hidden` — the app shell is a fixed window that must NEVER scroll. `hidden` still
+     makes these scroll containers, so a focused descendant (xterm parks its helper textarea on the
+     cursor cell) could make the browser slide the WHOLE app sideways with no way to scroll back.
+     `clip` creates no scroll container. See EmbeddedTerminal.module.css .frame. */
+  overflow: clip;
 }
 
 body {

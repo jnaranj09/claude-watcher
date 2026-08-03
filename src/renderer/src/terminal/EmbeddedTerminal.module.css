@@ -13,7 +13,15 @@
   background: var(--bg-terminal);
   border: 1px solid var(--border-card);
   border-radius: var(--rounded-lg);
-  overflow: hidden;
+  /* `clip`, NOT `hidden`. Both clip the same way, but an `overflow:hidden` box is still a SCROLL
+     CONTAINER: the browser may scroll it programmatically to reveal a focused descendant, and the
+     operator cannot scroll it back (no scrollbar). xterm parks its focused helper textarea on the
+     CURSOR CELL in px — so whenever the terminal is wider than this box (e.g. stale cols after a
+     WebGL context loss swapped the renderer), typing walks the cursor past the right edge, the
+     browser scrolls the frame right, and the left columns disappear for good. `overflow: clip`
+     creates NO scroll container, so scrollLeft is permanently 0 and this cannot happen.
+     (The real cause is fixed at the source too — the loss handler re-fits; this is the guard.) */
+  overflow: clip;
 }
 
 /* The xterm host. flex:1 + min-height:0 so it fills the frame and fit() sees a non-zero box.

@@ -58,7 +58,11 @@
 .main {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  /* `clip`, not `hidden` — this shell never scrolls, and an `overflow:hidden` box IS a scroll
+     container the browser can scroll to reveal a focused descendant. Once .frame stopped being
+     scrollable, THIS would have become the next box to slide sideways. See the note in
+     EmbeddedTerminal.module.css .frame. */
+  overflow: clip;
 }
 
 /* Story 3.4 (B-1 fix) — the Board ↔ Focused-session STACK. Both views are mounted at once and
