@@ -50,9 +50,25 @@ useEffect(() => {
   the layout box so the inner host stays sized for `fit()`. (This was the blank-2nd-
   terminal bug — see `.claude/rules/troubleshooting.md` worked example.)
 - **`convertEol: false`** — let the PTY own newline semantics.
-- **WebGL is the active renderer; canvas/dom is fallback only.** On WebGL context
-  loss, dispose the addon, flip to canvas, and surface it (don't keep claiming
-  WebGL). xterm falls back automatically once the addon is disposed.
+- **The GPU is OFF app-wide — canvas/dom is THE renderer, not a fallback.** (Changed
+  2026-08-03; this bullet used to say the opposite.) `src/main/index.ts` calls
+  `app.disableHardwareAcceleration()` + `app.commandLine.appendSwitch('disable-software-rasterizer')`
+  before `ready`, so WebGL2 is genuinely absent, `new WebglAddon()` throws, and the
+  existing try/catch lands on canvas/dom. Do NOT "restore" WebGL as an optimization —
+  the packaged smoke gate now FAILS if `webglActive` is true (`SmokeCockpit.tsx`).
+  Why: an `amdgpu` **shader page fault inside our own GPU process** (`[gfxhub] page
+  fault ... Process claude-watcher ... Faulty UTCL2 client ID: SQC (data)`) hung the
+  graphics ring, the driver reset it, and every live WebGL context died at once —
+  blanking every open terminal while its PTY was healthy. Twice: 2026-07-31 and
+  2026-08-03. `coredumpctl` shows no coredump — the app never crashed, only the GPU
+  context did. The underlying defect is in the driver stack (mesa 26.1.6 / kernel
+  7.1.5-cachyos, AMD integrated GPU on a hybrid laptop), but recovery is not
+  prevention: every new terminal armed a fresh context and the fault kept returning.
+  Two seconds of a terminal cockpit's paint budget is not worth that.
+- **Keep the context-loss recovery anyway.** The `onContextLoss` handler (dispose →
+  `doFit()` → `clearTextureAtlas()` → `refresh(0, rows-1)`) and
+  `EmbeddedTerminal.webgl.test.tsx` stay. They are unreachable while the GPU is off,
+  and they are the safety net the moment anyone turns it back on.
 - **Force a full redraw after the fallback swap** — `term.clearTextureAtlas()` +
   `term.refresh(0, term.rows - 1)`. The fallback renderer paints only DIRTY cells, so
   every row already on screen stays black and the terminal looks dead while the PTY is

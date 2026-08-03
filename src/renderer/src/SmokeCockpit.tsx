@@ -147,7 +147,15 @@ export function SmokeCockpit(): React.JSX.Element {
           pass: topPainted && topAfterResize
         }
 
-        checks.webgl = { active: webglActive, pass: webglActive }
+        // GPU OFF (2026-08-03 incident) — this check FLIPPED meaning. It used to assert that
+        // WebGL was the active renderer. Main now calls app.disableHardwareAcceleration() +
+        // `disable-software-rasterizer` because an amdgpu shader page fault in our own GPU
+        // process kept resetting the graphics ring and blanking every live terminal (see the
+        // block above app.whenReady() in src/main/index.ts). So the packaged app MUST come up
+        // on the CPU renderer: `webglActive` true here means the GPU path came back — fail the
+        // gate loudly rather than let it regress silently. `renderer` is reported so the smoke
+        // JSON still says WHICH renderer painted. [.claude/rules/terminal.md]
+        checks.webgl = { active: webglActive, renderer: activeRenderer, pass: !webglActive }
 
         const allPass =
           (checks.typeEcho as { pass: boolean }).pass &&

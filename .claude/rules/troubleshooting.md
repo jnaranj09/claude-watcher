@@ -43,6 +43,7 @@ StrictMode/WebGL" theory until you have all three answers.
 | Blank only in dev, fine in packaged build | StrictMode double-mount race | disable StrictMode in the renderer entry and re-run |
 | Launched session has no board card | launch synthesis / hook ingest (upsertLaunched never ran, or hooks not registered) | replay the fixture bodies (`src/__fixtures__/fakeHookFeed`) or POST one by hand to `127.0.0.1:9279`; → `state.md`, story-5.x/6.x memory |
 | One bad session blanks the whole board | never-crash / Zod boundary violation | → `zod-boundaries.md` (drop+log-by-path, don't poison) |
+| **"App won't start"** — process alive, NO window, no error (only the harmless `Failed to load module "appmenu-gtk-module"`) | the window WAS created but never shown/mapped, or is minimized. NOT a startup crash | ask KWin, don't eyeball the screen: run the `workspace.windowList()` script (below). If the window is listed → it started fine |
 
 ## Cheap kill-tests (run BEFORE a deep code read)
 
@@ -60,6 +61,25 @@ StrictMode/WebGL" theory until you have all three answers.
 - **Inspect the live DOM** (DevTools Elements) — for any paint/layout symptom, read the
   computed `visibility`, `clientWidth/Height`, `position`, and z-stacking of the actual
   nodes. A CSS bug is invisible in logs but obvious in the computed styles.
+- **Ask the compositor whether the window exists** (KDE Wayland) — for ANY "the app didn't
+  start" report. `ps` cannot tell a renderer from a zygote and a screenshot cannot see a
+  minimized or stacked-under window, so both mislead. KWin knows:
+
+  ```bash
+  cat > /tmp/lw.js <<'EOF'
+  const l = workspace.windowList ? workspace.windowList() : workspace.clientList()
+  for (const w of l) print("WIN|" + w.resourceClass + "|" + w.caption + "|min=" + w.minimized
+    + "|geom=" + w.frameGeometry.x + "," + w.frameGeometry.y)
+  EOF
+  id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript /tmp/lw.js)
+  qdbus6 org.kde.KWin /Scripting/Script$id org.kde.kwin.Script.run
+  journalctl --user -n 50 | grep 'WIN|'
+  ```
+
+  A listed `com.claudewatcher.app` means the app started and the problem is show/stack/
+  minimize — NOT startup. (2026-08-03: `app.disableHardwareAcceleration()` made
+  `ready-to-show` never fire, so `show()` was never called; the window existed and was
+  invisible. Fixed with the `did-finish-load` fallback in `createWindow()`.)
 
 ## Known traps
 
