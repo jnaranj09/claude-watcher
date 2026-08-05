@@ -636,3 +636,66 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
     expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p' })
   })
 })
+
+describe('Session-rebind — terminalIdFor / rebind (claude changes its own id mid-run)', () => {
+  function reboundService(): ReturnType<typeof createLaunchService> {
+    let s = 0
+    return createLaunchService({
+      terminalManager: fakeTerminalManager({ 't-1': LEADER_PID }).manager,
+      launchedSet: createLaunchedSet(),
+      spawn: shellClaudeSpawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't-1',
+      newSessionId: () => `sess-${++s}`,
+      platform: 'linux'
+    })
+  }
+
+  it('terminalIdFor is the exact reverse of sessionIdFor', () => {
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' })
+    svc.mintSpawn('t-1')
+    expect(svc.sessionIdFor('t-1')).toBe('sess-1')
+    expect(svc.terminalIdFor('sess-1')).toBe('t-1')
+  })
+
+  it('terminalIdFor is null before any mint and for an unknown session id', () => {
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' })
+    expect(svc.terminalIdFor('sess-1')).toBeNull() // launch() alone binds nothing
+    svc.mintSpawn('t-1')
+    expect(svc.terminalIdFor('not-a-session')).toBeNull()
+  })
+
+  it('rebind MOVES a live binding so a later stop/exit removes the card the board shows', () => {
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' })
+    svc.mintSpawn('t-1')
+    svc.rebind('t-1', 'sess-new')
+    expect(svc.sessionIdFor('t-1')).toBe('sess-new')
+    expect(svc.terminalIdFor('sess-new')).toBe('t-1')
+    // The old id no longer resolves — one terminal, one binding.
+    expect(svc.terminalIdFor('sess-1')).toBeNull()
+  })
+
+  it('rebind NEVER invents a binding for a terminal that was never spawned (ship gate)', () => {
+    // Inventing one here would let a session that this app never launched reach the board.
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' }) // launched, but never minted/spawned
+    svc.rebind('t-1', 'sess-external')
+    expect(svc.sessionIdFor('t-1')).toBeNull()
+    expect(svc.terminalIdFor('sess-external')).toBeNull()
+    svc.rebind('never-seen-terminal', 'sess-external')
+    expect(svc.terminalIdFor('sess-external')).toBeNull()
+  })
+
+  it('a rebound binding is still cleared by unbind (removal stays idempotent)', () => {
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' })
+    svc.mintSpawn('t-1')
+    svc.rebind('t-1', 'sess-new')
+    svc.unbind('t-1')
+    expect(svc.sessionIdFor('t-1')).toBeNull()
+    expect(svc.terminalIdFor('sess-new')).toBeNull()
+  })
+})

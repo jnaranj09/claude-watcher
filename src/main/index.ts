@@ -133,6 +133,10 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 import { createHookServer, type HookServer } from './hooks/hookServer'
 import { hookStatus } from './hooks/hookStatus'
 import { registerHooks } from './hooks/registerHooks'
+// Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
+// the terminal, but fires SessionEnd for the old id and posts every later hook under a new
+// one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
+import { createOrphanRegistry, sessionEndKeepsCard } from './hooks/sessionRebind'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -183,6 +187,11 @@ const terminalOwners = new Map<string, Electron.WebContents>()
 // (the board still shows all sessions). [Source: story 3.2 Tasks 2/3/4; F5]
 const launchedSet: LaunchedSet = createLaunchedSet()
 let launchService: LaunchService | null = null
+
+// Session-rebind — live launched ptys whose bound session id went quiet (claude changed its own
+// id mid-run). APP-GLOBAL, keyed by terminalId, exactly like the terminal manager + launch
+// service it reasons about (a terminal is window-independent). Per-run only, never persisted.
+const orphanRegistry = createOrphanRegistry()
 
 // Hook-status feature — per-window hook HTTP listener handle, closed in teardownWatchFeed
 // (mirrors `trackers`/`reducers`). Prevents an EADDRINUSE leak when a window
@@ -405,10 +414,71 @@ function registerWatchFeed(window: BrowserWindow): void {
   // Hook-status feature — start the localhost HTTP hook listener. Hook events route through
   // handleDelta (same chokepoint as c9watch deltas). onHookEvent maps the event name to a
   // HookStatusChange and dispatches applyHookStatus → handleDelta.
+  // Session-rebind PART 2 — re-key this window's card from an orphaned launch's OLD session id
+  // to the NEW one claude now reports. Returns true when the card was adopted (the caller then
+  // applies the incoming status against the new id as normal).
+  //
+  // ORDER IS LOAD-BEARING: create the new card and re-bind BEFORE dropping the old one. A live
+  // launched terminal with no card is exactly what the renderer renders as "Starting"
+  // (boardStore `selectStartingTerminals`) — the symptom this whole change exists to kill — so
+  // the terminal must never be card-less, not even for one delta.
+  //
+  // The old id is deliberately LEFT in the launched-set: the set has no delete, membership is a
+  // per-run board-eligibility gate, and the old card is gone anyway (a stale member gates nothing).
+  function adoptOrphanedCard(cwd: string, newSessionId: string): boolean {
+    if (launchService === null || terminalManager === null) return false
+    const orphan = orphanRegistry.claim(cwd, Date.now(), terminalManager)
+    if (orphan === null) return false
+    const stored = reducer.snapshotMap().get(orphan.sessionId)
+    if (stored === undefined) {
+      // The card left by another path (stop/exit) — the orphan record is stale, drop it.
+      orphanRegistry.clear(orphan.terminalId)
+      return false
+    }
+    // Main-owned data reshaped by main (parse-once boundary: never re-run through SessionSchema).
+    launchedSet.add(newSessionId)
+    reducer.upsertLaunched({ ...stored, id: newSessionId }).forEach(handleDelta)
+    launchService.rebind(orphan.terminalId, newSessionId)
+    sendLaunchCorrelated(wc, orphan.terminalId, newSessionId)
+    reducer.applyHookStatus(orphan.sessionId, { kind: 'removed' }).forEach(handleDelta)
+    orphanRegistry.clear(orphan.terminalId)
+    // PATH + CODE only — never the cwd (leaks the filesystem layout) or any hook field.
+    console.warn('[c9watch][hooks] path=(hook) code=hook_session_id_rebound')
+    return true
+  }
+
   const hookServer = createHookServer({
     onHookEvent: (evt) => {
       const change = hookStatus(evt)
       if (change === null) return // unrecognized event — ignore
+
+      // Session-rebind PART 1 — removal is STOP/EXIT-driven (CLAUDE.md); this hook is only
+      // belt-and-suspenders. A SessionEnd for a session whose pty is STILL ALIVE is therefore
+      // not a removal at all — it is claude changing its own session id mid-run. Keep the card
+      // and remember the terminal so the new id can adopt it below.
+      if (change.kind === 'removed' && launchService !== null && terminalManager !== null) {
+        const keptTerminalId = sessionEndKeepsCard(evt.session_id, launchService, terminalManager)
+        if (keptTerminalId !== null) {
+          orphanRegistry.mark({
+            terminalId: keptTerminalId,
+            sessionId: evt.session_id,
+            cwd: evt.cwd ?? '',
+            orphanedAt: Date.now()
+          })
+          // PATH + CODE only — never the cwd or any hook field.
+          console.warn('[c9watch][hooks] path=(hook) code=hook_sessionend_pty_alive')
+          return
+        }
+      }
+
+      // Session-rebind PART 2 — an UNKNOWN id posting a status may be that same pty under its
+      // new id. Adopt only under sessionRebind.ts's narrow proof; anything looser would put an
+      // external session on the board (Story 3.3 ship gate). A miss falls through to the
+      // unchanged `hook_unknown_id` no-op below.
+      if (change.kind === 'status' && !reducer.snapshotMap().has(evt.session_id)) {
+        adoptOrphanedCard(evt.cwd ?? '', evt.session_id)
+      }
+
       reducer.applyHookStatus(evt.session_id, change).forEach(handleDelta)
     },
     log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
@@ -775,6 +845,9 @@ function registerTerminalIpc(): void {
       // ALREADY-joined session is left intact (the set is per-run, not per-terminal). Runs even if
       // the owning window is gone (below) — the forget is independent of the dead-terminal push.
       launchService?.forget(terminalId)
+      // Session-rebind — a dead pty can never be adopted, so drop any orphan record for it.
+      // `claim` already gates on liveness, so this is hygiene (bounded memory), not correctness.
+      orphanRegistry.clear(terminalId)
       // Dead-pane push FIRST (validate at source), THEN the Story-6.3 card removal below —
       // the renderer receives CH.terminalExit (the pane flips dead) before `session.removed`
       // (the card vanishes). A malformed exit never crosses the seam.
@@ -891,15 +964,7 @@ function registerTerminalIpc(): void {
         // the ancestry-correlation push does; PATH + CODE only on a miss (Guardrail #6). The
         // renderer's boardStore.addCorrelation is idempotent, and mintSpawn marked the launch
         // already-joined so the ancestry walk can never fire a second push for this pair.
-        const r = LaunchCorrelatedSchema.safeParse({ terminalId, sessionId: minted.sessionId })
-        if (!r.success) {
-          const issue = r.error.issues[0]
-          console.error(
-            `[c9watch][launch] dropped launch:correlated path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
-          )
-        } else if (!wc.isDestroyed()) {
-          wc.send(CH.launchCorrelated, r.data)
-        }
+        sendLaunchCorrelated(wc, terminalId, minted.sessionId)
       }
     }
   })
@@ -1027,6 +1092,27 @@ function rawClaudeSpawn(sessionId: string): {
     args: ['-l', '-c', `${shellQuote(claude.command)} --session-id '${sessionId}'`],
     env
   }
+}
+
+// Push an exact terminalId ↔ sessionId binding to a window (the Starting-banner join). Validated
+// AT SOURCE before send (main→renderer delta; zod-boundaries.md), PATH + CODE only on a miss
+// (Guardrail #6). The renderer's boardStore.addCorrelation is idempotent, so a repeat push for an
+// unchanged pair is free. Two call sites: the spawn-time mint (Story 6.2) and the session-rebind
+// adoption (a live terminal re-pointed at claude's new session id).
+function sendLaunchCorrelated(
+  wc: Electron.WebContents,
+  terminalId: string,
+  sessionId: string
+): void {
+  const r = LaunchCorrelatedSchema.safeParse({ terminalId, sessionId })
+  if (!r.success) {
+    const issue = r.error.issues[0]
+    console.error(
+      `[c9watch][launch] dropped launch:correlated path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+    )
+    return
+  }
+  if (!wc.isDestroyed()) wc.send(CH.launchCorrelated, r.data)
 }
 
 // Hook-status feature — PROJECT-scope hook registration, run once per launch.

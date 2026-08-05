@@ -198,6 +198,17 @@ export interface LaunchService {
    *  spawn (null before the first mint / for a non-launch terminalId). Story 6.3 consumes
    *  this for exact stop/exit removal. */
   sessionIdFor(terminalId: string): string | null
+  /** Session-rebind — the REVERSE of `sessionIdFor`: which terminal is bound to this session
+   *  id, or null. Consumed by the mid-run id-change guard (hooks/sessionRebind.ts): a
+   *  `SessionEnd` for a session whose terminal is still ALIVE is an id change, not a removal.
+   *  Bindings are 1:1 (mintSpawn overwrites per terminal), so the first match is the match. */
+  terminalIdFor(sessionId: string): string | null
+  /** Session-rebind — repoint a LIVE terminal's binding at a new session id, after claude
+   *  changed its own id mid-run. Unlike `mintSpawn` this does NOT spawn, mint, or touch the
+   *  durable spawn-override; it only moves the exact binding so a later stop/exit removes the
+   *  session the board is actually showing. A no-op for an unknown terminalId (never invents
+   *  a binding for a terminal that was never launched — the ship gate). */
+  rebind(terminalId: string, sessionId: string): void
   /** Story 6.3 — clear the `terminalId → sessionId` binding after a stop/exit REMOVAL
    *  consumed it (the card is gone; the binding no longer names a live launched session).
    *  Idempotent. The durable spawn-override is NOT touched — a later Reopen still finds its
@@ -313,6 +324,23 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     return bindings.get(terminalId) ?? null
   }
 
+  function terminalIdFor(sessionId: string): string | null {
+    // Bindings are 1:1 (mintSpawn overwrites the entry for its terminalId), so a linear scan
+    // over the live launches is exact and the map is bounded by the open terminals.
+    for (const [terminalId, boundId] of bindings) {
+      if (boundId === sessionId) return terminalId
+    }
+    return null
+  }
+
+  function rebind(terminalId: string, sessionId: string): void {
+    // Only ever MOVE an existing binding — never create one. A terminal with no binding was
+    // never launched by us (or its removal already consumed it), and inventing a binding here
+    // would let an external session reach the board (Story 3.3 ship gate).
+    if (!bindings.has(terminalId)) return
+    bindings.set(terminalId, sessionId)
+  }
+
   function unbind(terminalId: string): void {
     // Story 6.3 — the stop/exit removal consumed this binding; drop it so a second trigger
     // (or a late SessionEnd-driven sweep) finds nothing to remove. Idempotent; the durable
@@ -402,6 +430,8 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     peekSpawnOverride,
     mintSpawn,
     sessionIdFor,
+    terminalIdFor,
+    rebind,
     unbind,
     correlateAgainst,
     isPending,
