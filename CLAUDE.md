@@ -96,15 +96,31 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 
 ### The native session engine (the c9watch CLI is retired — Epic 6)
 
+- **Minimum claude is 2.1.245, enforced at launch** (`src/main/pty/claudeVersion.ts`). The
+  spawn passes `--session-id`, `-n` and `--settings`; a claude that does not know one of those
+  does NOT degrade — it rejects the argument and the session dies instantly. `CH.sessionLaunch`
+  probes `$SHELL -l -c "<claude> --version"` (the same shell the spawn uses), blocks with a
+  native error box naming both versions, and caches ONLY the ok verdict so an upgrade unblocks
+  without an app restart. It **fails OPEN** on an unreadable/unparseable version — the one
+  deliberate inversion of the fail-closed default, because a false block bricks a working
+  install. Bump the floor only alongside a re-verification of those three flags.
 - **Identity is minted at launch:** the app spawns `claude --session-id <uuid>` with a
   caller-minted UUID (verified on claude 2.1.199), so the terminal↔session binding is
   EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
   (status `Connecting`) — no discovery wait, no pid-ancestry correlation for new launches.
 - **Hooks own every status transition:** Claude Code lifecycle hooks POST to
-  `127.0.0.1:9279`. `registerHooks` writes the hook block PROJECT-scope, at launch time, into
-  `<picked cwd>/.claude/settings.local.json` — never `~/.claude/settings.json` and never the
-  shared `.claude/settings.json`, so the app only edits projects it launches into and never
-  fights an operator who scoped hooks by hand. ALL hook input goes through
+  `127.0.0.1:9279`. **ZERO FOOTPRINT — the app writes into NO project and NO user settings
+  file.** `hookSettingsFile.ts` writes the hook block into the app's OWN data dir
+  (`app.getPath('userData')`) and `composeClaudeCommand` hands it to each spawn as
+  `--settings <path>`, so the hooks scope to EXACTLY the sessions the app launches and a
+  plain `claude` in the same folder stays silent. Probe-verified on claude 2.1.245:
+  `--settings` MERGES with the project's own settings (an operator's own hooks/permissions
+  survive), and a stale block on the same URL is DEDUPED against the flag (one POST, not
+  two — which is what keeps the name-sync push-once safe).
+  This REPLACED `registerHooks`, which merged the block into
+  `<picked cwd>/.claude/settings.local.json` and left a permanent trace in every directory
+  the app was ever launched in. The app does NOT clean those up — they are the operator's
+  file to edit. ALL hook input goes through
   the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
   additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).

@@ -30,6 +30,12 @@ import { z } from 'zod'
  * `needs-you`. They stay free strings (NOT enum-locked) — a new/unknown value must pass,
  * not fail closed. Absent is fine (optional); a present field of the WRONG TYPE still
  * fails closed (same min/strict discipline as the other declared keys).
+ *
+ * Name-sync: `session_title` is claude's OWN current name for the session — the read-back
+ * half of the naming feature (main renames the card to match it, so a collision suffix, a
+ * hand-typed `/rename`, or a plan-accept retitle all reach the board). Verified live on
+ * claude 2.1.243 to ride `UserPromptSubmit` ONLY — `Stop`/`SessionEnd` do NOT carry it, so
+ * it MUST stay optional. It is OPERATOR CONTENT: never log the value, on any path.
  */
 export const HookEventSchema = z
   .object({
@@ -38,7 +44,8 @@ export const HookEventSchema = z
     cwd: z.string().optional(), // working dir (verified in P0 spike); safe to capture
     notification_type: z.string().optional(), // Notification kind (e.g. permission_prompt); NOT enum-locked
     tool_name: z.string().optional(), // PreToolUse tool name (e.g. AskUserQuestion); NOT enum-locked
-    last_assistant_message: z.string().optional() // Stop prose (SENSITIVE — never log the value)
+    last_assistant_message: z.string().optional(), // Stop prose (SENSITIVE — never log the value)
+    session_title: z.string().optional() // claude's CURRENT name for the session (SENSITIVE — never log)
   })
   .passthrough() // absorbs remaining prompt/tool_input fields without validating
 

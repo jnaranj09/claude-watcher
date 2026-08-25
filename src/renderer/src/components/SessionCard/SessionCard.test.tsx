@@ -226,8 +226,14 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     )
     cleanup = unmount
     const pencil = container.querySelector<HTMLButtonElement>('[data-testid="card-rename"]')
-    fireEvent(pencil as HTMLButtonElement, new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    fireEvent(pencil as HTMLButtonElement, new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    fireEvent(
+      pencil as HTMLButtonElement,
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    )
+    fireEvent(
+      pencil as HTMLButtonElement,
+      new KeyboardEvent('keydown', { key: ' ', bubbles: true })
+    )
     expect(onActivate).not.toHaveBeenCalled()
     // `onRename` is unused here on purpose: jsdom does not synthesize a click from a keydown, so
     // this case pins ONLY the no-activation guard. The click path above covers the invocation.

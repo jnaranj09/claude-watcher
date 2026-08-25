@@ -174,3 +174,58 @@ describe('Story 6.2 — mintForOpen: the null-service and plain-shell paths', ()
     expect(svc.sessionIdFor('host-term-0')).toBeNull() // no binding invented
   })
 })
+
+// Name-sync — the operator's name must reach the spawn FACTORY, not just the card. That is
+// what lets index.ts compose claude's `-n <name>`, so claude runs under the operator's name
+// instead of inventing its own title. Without this, the board card and `claude --resume`
+// disagree from the very first second. [spec-claude-session-name-sync.md]
+describe('name-sync — the launch name reaches the spawn factory', () => {
+  it('mintSpawn hands the operator-typed name to spawn(), beside the minted session id', () => {
+    const seen: Array<{ sessionId: string; displayName: string }> = []
+    const svc = createLaunchService({
+      terminalManager: { pidOf: () => null },
+      launchedSet: createLaunchedSet(),
+      spawn: (sessionId, displayName) => {
+        seen.push({ sessionId, displayName })
+        return { file: '/bin/bash', args: ['-l', '-c', 'claude'] }
+      },
+      readStatus: () => {
+        throw new Error('ENOENT')
+      },
+      newTerminalId: () => 't-1',
+      newSessionId: () => 'sess-1',
+      platform: 'linux'
+    })
+
+    const { terminalId } = svc.launch({ cwd: CWD, name: 'billing api' })
+    svc.mintSpawn(terminalId)
+
+    expect(seen).toEqual([{ sessionId: 'sess-1', displayName: 'billing api' }])
+  })
+
+  it('a re-mint of the SAME terminal passes the name again (the recipe is durable)', () => {
+    const names: string[] = []
+    let n = 0
+    const svc = createLaunchService({
+      terminalManager: { pidOf: () => null },
+      launchedSet: createLaunchedSet(),
+      spawn: (_sessionId, displayName) => {
+        names.push(displayName)
+        return { file: '/bin/bash', args: ['-l', '-c', 'claude'] }
+      },
+      readStatus: () => {
+        throw new Error('ENOENT')
+      },
+      newTerminalId: () => 't-1',
+      newSessionId: () => `sess-${++n}`,
+      platform: 'linux'
+    })
+
+    const { terminalId } = svc.launch({ cwd: CWD, name: 'billing api' })
+    svc.mintSpawn(terminalId)
+    svc.mintSpawn(terminalId) // the dev StrictMode double-mount path
+
+    // A fresh session id each time, but the SAME operator name — never reverting to a basename.
+    expect(names).toEqual(['billing api', 'billing api'])
+  })
+})

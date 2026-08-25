@@ -123,6 +123,51 @@ export function shellQuote(s: string): string {
 }
 
 /**
+ * Compose the `$SHELL -l -c "<this>"` command string that launches claude for ONE spawn.
+ *
+ * Lives HERE, not inlined at the `rawClaudeSpawn` call site, because no test can import
+ * `index.ts` — an inlined composition is unfalsifiable, which is exactly how the repo has
+ * lost guards before (see spec-session-naming.md's KEEP note on `launchSynthesis.ts`).
+ *
+ * Both interpolated values are shell-quoted, and that quoting is load-bearing for DIFFERENT
+ * reasons:
+ *   - `claudeCommand` — an operator's home dir may contain a space.
+ *   - `displayName` — `SessionNameSchema` bans control characters but ALLOWS an apostrophe,
+ *     so an un-quoted `it's mine` would terminate the quoting and split the command apart.
+ *     This is operator-supplied text reaching a shell; treat it as hostile.
+ *
+ * The session id is a crypto `randomUUID()` (hex + dashes), so quoting it is belt-and-
+ * braces — but the string still passes through a shell and must not rely on that.
+ *
+ * `displayName` becomes claude's `-n <name>`, so claude adopts the operator's name for its
+ * own session and `claude --resume` / the `/resume` picker agree with the board card. An
+ * empty name is skipped rather than emitting a bare `-n` (unreachable through the IPC
+ * boundary, which enforces `min(1)`, but a bare flag would eat the next argument).
+ *
+ * `hookSettingsPath` becomes `--settings <path>` — the ZERO-FOOTPRINT hook delivery that
+ * replaced merging a hook block into the launched project's `.claude/settings.local.json`.
+ * The hooks then scope to EXACTLY the sessions this app spawns; a plain `claude` in the same
+ * folder stays silent (probe-verified, claude 2.1.245). It is REQUIRED and nullable rather
+ * than optional so every call site must decide: `null` omits the flag, which is the fail-soft
+ * path when the settings file could not be written (the session still spawns — it just
+ * reports no status). Shell-quoted like the rest: the app's data dir is not guaranteed to be
+ * free of spaces.
+ */
+export function composeClaudeCommand(
+  claudeCommand: string,
+  sessionId: string,
+  displayName: string,
+  hookSettingsPath: string | null
+): string {
+  const nameArg = displayName.length > 0 ? ` -n ${shellQuote(displayName)}` : ''
+  const settingsArg =
+    hookSettingsPath !== null && hookSettingsPath.length > 0
+      ? ` --settings ${shellQuote(hookSettingsPath)}`
+      : ''
+  return `${shellQuote(claudeCommand)} --session-id '${sessionId}'${nameArg}${settingsArg}`
+}
+
+/**
  * Prepend `dir` to a PATH value, without duplicating it. Gives claude's OWN subprocesses
  * (its Bash tool, any sibling helper) the same lookup the operator gets in a terminal —
  * under a KDE-launched app they would otherwise inherit the stripped session PATH.

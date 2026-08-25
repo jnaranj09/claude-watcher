@@ -11,10 +11,14 @@ out
 test-results/
 
 # BMAD tooling — method skill library + config/scripts (regenerable, not project code).
-# The implementation record (stories, sprint status, findings, planning artifacts) is
-# kept under _bmad-output/ and IS tracked.
 .claude/skills/
 _bmad/
+
+# BMAD planning/implementation record — NOT tracked. This repo is public, and those
+# artifacts carry the operator's home paths, work email, and internal project names from
+# the environment they were written in. They stay on disk locally; they do not ship.
+# (One hand-checked exception is already tracked: the UX DESIGN.md, which is clean.)
+_bmad-output/
 
 # Personal per-project Claude overrides (the shared .claude/settings.json IS tracked).
 .claude/settings.local.json

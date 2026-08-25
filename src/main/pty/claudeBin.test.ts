@@ -8,8 +8,12 @@
 // that fixes it; `resolves the REAL KDE-session repro` below is its fault-injection proof —
 // drop the wellKnown block from resolveClaudeBin and that test goes red.
 
-import { describe, it, expect } from 'vitest'
-import { resolveClaudeBin, shellQuote, prependToPath } from './claudeBin'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { resolveClaudeBin, shellQuote, prependToPath, composeClaudeCommand } from './claudeBin'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /** The exact PATH a KDE-menu-launched app inherits on this machine (read from
  *  plasmashell's /proc/<pid>/environ). Note: no `~/.local/bin`. */
@@ -141,14 +145,12 @@ describe('resolveClaudeBin', () => {
 
 describe('shellQuote', () => {
   it('quotes a plain path', () => {
-    expect(shellQuote('/home/dev/.local/bin/claude')).toBe(
-      "'/home/dev/.local/bin/claude'"
-    )
+    expect(shellQuote('/home/dev/.local/bin/claude')).toBe("'/home/dev/.local/bin/claude'")
   })
 
   it('survives a home dir containing a space (the command must not split)', () => {
-    expect(shellQuote('/home/jose naranjo/.local/bin/claude')).toBe(
-      "'/home/jose naranjo/.local/bin/claude'"
+    expect(shellQuote('/home/dev user/.local/bin/claude')).toBe(
+      "'/home/dev user/.local/bin/claude'"
     )
   })
 
@@ -177,5 +179,128 @@ describe('prependToPath', () => {
     expect(prependToPath('/usr/bin', undefined)).toBe('/usr/bin')
     expect(prependToPath('/usr/bin', '')).toBe('/usr/bin')
     expect(prependToPath(null, undefined)).toBeUndefined()
+  })
+})
+
+// Name-sync — the composed launch command. This lives in claudeBin.ts precisely so it CAN be
+// tested: `rawClaudeSpawn` sits in index.ts, which nothing can import, so an inlined
+// composition would be unfalsifiable. [spec-claude-session-name-sync.md]
+describe('composeClaudeCommand', () => {
+  const BIN = '/home/dev/.local/bin/claude'
+  const SID = 'aaaaaaaa-0000-4000-8000-000000000001'
+
+  it('carries the minted session id AND the operator name as claude -n', () => {
+    expect(composeClaudeCommand(BIN, SID, 'billing api', null)).toBe(
+      `'${BIN}' --session-id '${SID}' -n 'billing api'`
+    )
+  })
+
+  it('QUOTES a name containing an apostrophe — the injection this guard exists for', () => {
+    // SessionNameSchema bans control characters but ALLOWS an apostrophe. Un-quoted, `it's`
+    // would close the shell quoting and split the command into pieces the shell then runs.
+    const cmd = composeClaudeCommand(BIN, SID, "it's mine", null)
+
+    expect(cmd).toBe(`'${BIN}' --session-id '${SID}' -n 'it'\\''s mine'`)
+  })
+
+  // Run the composed string through a REAL `$SHELL -l -c`, exactly as rawClaudeSpawn does,
+  // with a stub standing in for claude that reports the argv it actually received. Asserting
+  // the composed STRING proves what we wrote; this proves what the shell then does with it —
+  // which is the thing that actually matters for an injection guard.
+  describe('under a real shell', () => {
+    let stub = ''
+    beforeAll(() => {
+      stub = join(mkdtempSync(join(tmpdir(), 'c9-argv-')), 'claude-stub.sh')
+      // Print one argument per line so argument BOUNDARIES are visible (echo would hide them).
+      writeFileSync(stub, '#!/bin/sh\nfor a in "$@"; do printf "%s\\n" "$a"; done\n')
+      chmodSync(stub, 0o755)
+    })
+
+    const argvFor = (name: string, settingsPath: string | null = null): string[] =>
+      execFileSync('/bin/sh', ['-l', '-c', composeClaudeCommand(stub, SID, name, settingsPath)], {
+        encoding: 'utf8'
+      })
+        .split('\n')
+        .filter((l) => l !== '')
+
+    it('passes an apostrophe name as ONE argument, running nothing extra', () => {
+      expect(argvFor("it's mine")).toEqual(['--session-id', SID, '-n', "it's mine"])
+    })
+
+    it('does not let a name run a second command', () => {
+      // Un-quoted, the `;` would end the claude command and the shell would run the rest.
+      expect(argvFor("x'; echo PWNED; '")).toEqual(['--session-id', SID, '-n', "x'; echo PWNED; '"])
+    })
+
+    it('does not let a name substitute a command', () => {
+      expect(argvFor('$(echo PWNED) `echo PWNED2`')).toEqual([
+        '--session-id',
+        SID,
+        '-n',
+        '$(echo PWNED) `echo PWNED2`'
+      ])
+    })
+
+    it('delivers a spaced --settings path as ONE argument, name still intact', () => {
+      // Both operator-influenced values quoted at once: proves the two quoted arguments do not
+      // interfere with each other once a real shell splits the command.
+      expect(argvFor("it's mine", '/tmp/a b/hooks.json')).toEqual([
+        '--session-id',
+        SID,
+        '-n',
+        "it's mine",
+        '--settings',
+        '/tmp/a b/hooks.json'
+      ])
+    })
+  })
+
+  it('quotes a name with spaces, semicolons and substitutions as a single argument', () => {
+    const cmd = composeClaudeCommand(BIN, SID, 'a b; rm -rf /tmp/x $(whoami) `id`', null)
+
+    expect(cmd).toContain(`-n 'a b; rm -rf /tmp/x $(whoami) \`id\`'`)
+  })
+
+  it('omits -n entirely for an empty name — never emit a bare flag that eats the next arg', () => {
+    expect(composeClaudeCommand(BIN, SID, '', null)).toBe(`'${BIN}' --session-id '${SID}'`)
+  })
+
+  it('still quotes a claude path containing a space', () => {
+    expect(composeClaudeCommand('/home/dev user/bin/claude', SID, 'x', null)).toContain(
+      `'/home/dev user/bin/claude'`
+    )
+  })
+
+  // ZERO-FOOTPRINT hook delivery. The flag is how the hook block reaches claude now that
+  // nothing is written into the operator's project, so a session launched WITHOUT it reports
+  // no status at all — losing this arg silently breaks the whole board.
+  describe('--settings (zero-footprint hook delivery)', () => {
+    const SETTINGS = '/home/dev/.config/c9watch/claude-hooks.settings.json'
+
+    it('appends --settings with the hook file path', () => {
+      expect(composeClaudeCommand(BIN, SID, 'billing api', SETTINGS)).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'billing api' --settings '${SETTINGS}'`
+      )
+    })
+
+    it('omits the flag on null — the fail-soft path when the file could not be written', () => {
+      // A bare `--settings` would swallow the next argument, and there is no next argument
+      // here, so claude would take the flag with a missing value. Omit it entirely instead.
+      const cmd = composeClaudeCommand(BIN, SID, 'x', null)
+
+      expect(cmd).not.toContain('--settings')
+    })
+
+    it('omits the flag on an empty path too', () => {
+      expect(composeClaudeCommand(BIN, SID, 'x', '')).not.toContain('--settings')
+    })
+
+    it('QUOTES a settings path containing a space', () => {
+      // Electron's userData dir sits under the operator's home; a space there would split the
+      // path into two arguments and claude would read a file that does not exist.
+      const cmd = composeClaudeCommand(BIN, SID, 'x', '/home/dev user/.config/c9/hooks.json')
+
+      expect(cmd).toContain(`--settings '/home/dev user/.config/c9/hooks.json'`)
+    })
   })
 })

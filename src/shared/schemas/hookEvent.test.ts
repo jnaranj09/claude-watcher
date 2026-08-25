@@ -91,6 +91,42 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
     expect(result.data.tool_name).toBe('SomeFutureTool')
   })
 
+  it("parses session_title — claude's own name for the session (the name-sync read-back)", () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'UserPromptSubmit',
+      prompt: 'do the thing',
+      session_title: 'billing api'
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.session_title).toBe('billing api')
+  })
+
+  it('parses when session_title is ABSENT — Stop/SessionEnd verifiably do not carry it', () => {
+    // Live-probed on claude 2.1.243: only UserPromptSubmit carries session_title. If this
+    // field were ever made required, every Stop and SessionEnd would fail closed and the
+    // board would stop tracking status entirely.
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Stop'
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.session_title).toBeUndefined()
+  })
+
+  it('fails closed on a session_title of the WRONG TYPE (a number is not a name)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'UserPromptSubmit',
+      session_title: 42
+    })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.issues[0]?.path).toEqual(['session_title'])
+  })
+
   it('parses when the Phase-2 optionals are absent (optional → undefined, still valid)', () => {
     const result = HookEventSchema.safeParse({
       session_id: 'aaaaaaaa-0000-4000-8000-000000000001',

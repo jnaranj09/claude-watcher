@@ -3,6 +3,7 @@ import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import * as os from 'os'
 import * as pty from 'node-pty'
@@ -21,7 +22,11 @@ import type {
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
 // MessagePort byte path) + its cross-process IPC-arg schemas (parse-and-throw at the boundary).
 import { createTerminalManager, type PortLike, type TerminalManager } from './pty/terminalManager'
-import { resolveClaudeBin, shellQuote, prependToPath } from './pty/claudeBin'
+import { resolveClaudeBin, composeClaudeCommand, prependToPath, shellQuote } from './pty/claudeBin'
+// Version gate — the spawn depends on `--session-id`, `-n` and `--settings`; a claude that
+// does not know one of them dies instantly instead of degrading. Fails OPEN on an unreadable
+// version (see claudeVersion.ts for why that inversion is deliberate).
+import { gateClaudeVersion, tooOldMessage } from './pty/claudeVersion'
 import {
   TerminalOpenSchema,
   TerminalResizeSchema,
@@ -127,16 +132,23 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
-// registerHooks idempotently merges the app hook block into the LAUNCHED PROJECT's
-// `.claude/settings.local.json` — PROJECT scope, at launch time. It is NOT called at
-// startup and never touches `~/.claude/settings.json`.
+// ZERO FOOTPRINT: the hook block is handed to claude as `--settings <file>` from the app's
+// OWN data dir. The app writes NOTHING into the operator's projects — no
+// `.claude/settings.local.json`, no `~/.claude/settings.json` — and the hooks scope to
+// exactly the sessions it spawns. (This replaced the retired registerHooks merger.)
 import { createHookServer, type HookServer } from './hooks/hookServer'
 import { hookStatus } from './hooks/hookStatus'
-import { registerHooks } from './hooks/registerHooks'
+import { ensureHookSettingsFile } from './hooks/hookSettingsFile'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
 // one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
 import { createOrphanRegistry, sessionEndKeepsCard } from './hooks/sessionRebind'
+// Name-sync — the per-window store of names waiting to be pushed to claude on its next
+// UserPromptSubmit hook POST (the only way to rename an already-running session).
+import { createPendingTitles } from './hooks/pendingTitles'
+// Name-sync — the read-back decision (claude is the authority on its own name). Pure + here
+// rather than inline, so it is testable: nothing can import index.ts.
+import { titleReadBackRename } from './hooks/titleReadBack'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -386,6 +398,12 @@ function registerWatchFeed(window: BrowserWindow): void {
   // column for `Connecting`), tray, enrich (EnrichedSessionUpdatedSchema — sessionName/
   // projectPath/pid all present by construction), ship gate (the id is already in the
   // launched-set — mintSpawn added it BEFORE this runs).
+  // Name-sync — names waiting to be pushed to claude, keyed by session id. PER-WINDOW, like the
+  // reducer and the hook server beside it: session truth is per-window, so a pending rename
+  // belongs to the board that owns that session. Written by `renameLaunched`, read-and-cleared
+  // by the hook server's response builder.
+  const pendingTitles = createPendingTitles()
+
   launchBoardSeams.set(wc, {
     upsertLaunched: (session) => {
       reducer.upsertLaunched(session).forEach(handleDelta)
@@ -408,6 +426,11 @@ function registerWatchFeed(window: BrowserWindow): void {
     // order, which is the behavior confirmed during A1 planning.
     renameLaunched: (sessionId, name) => {
       reducer.renameSession(sessionId, name).forEach(handleDelta)
+      // Name-sync — the card is renamed above; claude is renamed by ANSWERING its next
+      // `UserPromptSubmit` POST with this name (the app cannot rename a running session any
+      // other way). Recorded here, pushed once by the hook server, then cleared. Until the
+      // operator submits their next prompt the two names disagree — an accepted limit.
+      pendingTitles.set(sessionId, name)
     }
   })
 
@@ -449,6 +472,27 @@ function registerWatchFeed(window: BrowserWindow): void {
 
   const hookServer = createHookServer({
     onHookEvent: (evt) => {
+      // Name-sync READ-BACK — claude's own name for the session, reported on every
+      // `UserPromptSubmit`. This runs BEFORE the status mapping (and before its unknown-event
+      // early return) because a name correction must not depend on the event also producing a
+      // status change. CLAUDE is the authority on its own name: it may differ from what we
+      // asked for because a live-name collision made claude add a suffix, because the operator
+      // typed `/rename` in the terminal, or because accepting a plan retitled the session.
+      // Only rename on a REAL difference — `renameSession` emits a `session.updated`
+      // unconditionally, so comparing first is what keeps every prompt from shipping a
+      // redundant delta. Never log `session_title` (operator content).
+      // `pendingTitles.has` is NON-consuming: the server consumes the title AFTER this
+      // callback returns, when it builds the response. A pending push means the incoming
+      // `session_title` predates that push and must not be believed.
+      const readBack = titleReadBackRename(
+        evt,
+        reducer.snapshotMap().get(evt.session_id)?.sessionName,
+        pendingTitles.has(evt.session_id)
+      )
+      if (readBack !== null) {
+        reducer.renameSession(evt.session_id, readBack).forEach(handleDelta)
+      }
+
       const change = hookStatus(evt)
       if (change === null) return // unrecognized event — ignore
 
@@ -479,8 +523,16 @@ function registerWatchFeed(window: BrowserWindow): void {
         adoptOrphanedCard(evt.cwd ?? '', evt.session_id)
       }
 
+      // A removed card can have no pending rename to push — drop it so a rename that raced a
+      // stop/exit is never delivered to a session that is gone.
+      if (change.kind === 'removed') pendingTitles.forget(evt.session_id)
+
       reducer.applyHookStatus(evt.session_id, change).forEach(handleDelta)
     },
+    // Name-sync WRITE — read-and-clear, so the name is pushed to claude exactly ONCE. Pushing
+    // it every prompt would fight claude's collision rule and re-suffix the name forever
+    // (see pendingTitles.ts).
+    takePendingTitle: (sessionId) => pendingTitles.take(sessionId),
     log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
   })
   hookServers.set(wc, hookServer)
@@ -1057,7 +1109,10 @@ function registerTerminalIpc(): void {
 // the shell, and prepends its directory to the child PATH so claude's own subprocesses get
 // the same lookup the operator has in a terminal. The `$SHELL -l -c` wrapper is UNCHANGED —
 // it is load-bearing for pid correlation (claude must be a CHILD of the pty leader, F3).
-function rawClaudeSpawn(sessionId: string): {
+function rawClaudeSpawn(
+  sessionId: string,
+  displayName: string
+): {
   file: string
   args: string[]
   env: Record<string, string>
@@ -1087,9 +1142,15 @@ function rawClaudeSpawn(sessionId: string): {
 
   return {
     file: SHELL,
-    // The resolved path is shell-quoted: it is interpolated into a command STRING, so a home
-    // dir with a space must not split the command.
-    args: ['-l', '-c', `${shellQuote(claude.command)} --session-id '${sessionId}'`],
+    // Composed in claudeBin.ts, NOT inlined here: nothing can import index.ts, so the quoting
+    // of the operator-typed name would otherwise be untestable. Name-sync adds `-n <name>` so
+    // claude runs under the operator's name instead of generating its own title, and
+    // `--settings <file>` carries the hook block WITHOUT touching the operator's project.
+    args: [
+      '-l',
+      '-c',
+      composeClaudeCommand(claude.command, sessionId, displayName, hookSettingsPathForSpawn())
+    ],
     env
   }
 }
@@ -1115,31 +1176,96 @@ function sendLaunchCorrelated(
   if (!wc.isDestroyed()) wc.send(CH.launchCorrelated, r.data)
 }
 
-// Hook-status feature — PROJECT-scope hook registration, run once per launch.
+// Claude version gate — read the installed version the SAME way the spawn resolves it.
 //
-// The hook block goes into the `.claude/settings.local.json` of the project the operator just
-// picked (repo-root-resolved inside registerHooks — see resolveSettingsDir), so the app only
-// ever touches projects it actually launches a session in. This used to run at app startup
-// against `~/.claude/settings.json` (user scope), which re-added the block to the global file
-// on every start — overriding an operator who had deliberately scoped hooks to specific projects.
+// The spawn runs `$SHELL -l -c "<claude> ..."`, and `resolveClaudeBin` may legitimately hand
+// back a bare `claude` that only resolves on the login shell's PATH. Probing through anything
+// else would report "missing" for an install that works fine, so the probe uses the same shell.
 //
-// Ordering: this runs BEFORE the PTY spawns. `launchService.launch()` only mints the terminalId;
-// the actual `claude` spawn happens when the renderer opens the EmbeddedTerminal against it
-// (CH.terminalOpen). So the settings file is on disk before claude reads it.
+// CACHING: only an `ok` verdict is cached. A blocked or unreadable result is re-probed on the
+// next launch, so upgrading claude un-blocks the app WITHOUT restarting it. The probe costs
+// ~67ms on this machine — cheap enough per launch, but not worth paying once it has passed.
 //
-// NEVER-CRASH: a failed registration must not fail the launch — the session still spawns, it
-// just won't report status. registerHooks already swallows its own IO errors (code= log only);
-// the try/catch here is the belt-and-suspenders for an unexpected throw.
-// NEVER-LOG-THE-VALUE: `cwd` is never logged — only a `code=`.
-function registerHooksForLaunch(cwd: string): void {
-  if (SMOKE) return // a headless smoke run must not write into a real project
+// NEVER-LOG-THE-VALUE: the resolved command is never logged, only a `code=`.
+let cachedVersionOk = false
+function readClaudeVersionRaw(): string | null {
   try {
-    registerHooks({ projectDir: cwd, log: (msg) => console.warn(msg) })
-  } catch (err) {
-    console.warn(
-      '[c9watch][registerHooks] code=register_hooks_failed:',
-      err instanceof Error ? err.message : 'unknown'
-    )
+    const claude = resolveClaudeBin({
+      isExecutable: (p) => {
+        try {
+          accessSync(p, fsConstants.X_OK)
+          return true
+        } catch {
+          return false
+        }
+      },
+      path: process.env.PATH,
+      home: os.homedir(),
+      override: process.env.CLAUDE_WATCHER_CLAUDE_BIN
+    })
+    return execFileSync(SHELL, ['-l', '-c', `${shellQuote(claude.command)} --version`], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
+  } catch {
+    // Missing binary, non-zero exit, timeout — all "unknown", which ALLOWS the launch.
+    console.warn('[c9watch][version] code=claude_version_unreadable')
+    return null
+  }
+}
+
+/**
+ * Block the launch when claude is verifiably too old. Returns true when the launch may proceed.
+ *
+ * The renderer SWALLOWS a rejected launch invoke (`catch { code=launch_failed }`), so throwing
+ * alone would close the dialog and show the operator nothing at all — a silent no-op, which is
+ * worse than the confusing terminal error this gate exists to replace. Main therefore surfaces
+ * the reason itself with a native error box, then the caller throws so nothing spawns. Doing it
+ * here avoids a new IPC channel (which the seam rule would otherwise require in 4-file lockstep).
+ */
+function claudeVersionAllowsLaunch(): boolean {
+  if (cachedVersionOk) return true
+
+  const gate = gateClaudeVersion(readClaudeVersionRaw())
+  if (gate.kind === 'ok') {
+    cachedVersionOk = true
+    return true
+  }
+  if (gate.kind === 'unknown') {
+    // FAIL-OPEN: a version we cannot read must not brick a working install. See claudeVersion.ts.
+    console.warn('[c9watch][version] code=claude_version_unknown_allowing_launch')
+    return true
+  }
+
+  console.warn('[c9watch][version] code=claude_version_too_old')
+  dialog.showErrorBox('Update claude', tooOldMessage(gate.version, gate.min))
+  return false
+}
+
+// Hook delivery — the app's OWN settings file, handed to claude with `--settings`.
+//
+// ZERO FOOTPRINT: this writes into `app.getPath('userData')`, never into the operator's
+// project. It replaced a merger that wrote the hook block into the launched project's
+// `.claude/settings.local.json`, which left a permanent trace in every directory the app was
+// ever launched in — one a plain `claude` in that folder then kept firing forever.
+//
+// Ordering: resolved at spawn-composition time, which is inside the `claude` spawn itself, so
+// the file is on disk before claude reads it.
+//
+// NEVER-CRASH: a failed write must not fail the launch. `ensureHookSettingsFile` swallows its
+// own IO errors and returns null; the try/catch is belt-and-braces for an unexpected throw.
+// Either way the flag is omitted and the session spawns WITHOUT status reporting — degraded,
+// not dead. NEVER-LOG-THE-VALUE: the path is never logged, only a `code=`.
+function hookSettingsPathForSpawn(): string | null {
+  try {
+    return ensureHookSettingsFile({
+      dir: app.getPath('userData'),
+      log: (msg) => console.warn(msg)
+    })
+  } catch {
+    console.warn('[c9watch][hookSettings] code=hook_settings_unavailable')
+    return null
   }
 }
 
@@ -1228,9 +1354,17 @@ function registerLaunchIpc(): void {
     // invoke here and NOTHING spawns. Never log either value on the throw path — a cwd leaks
     // the filesystem layout and a name is operator content (zod-boundaries.md).
     const { cwd, name } = SessionLaunchSchema.parse(raw)
-    // Hook-status feature — ensure THIS project's `.claude/settings.local.json` carries our
-    // hook block before the PTY spawns. Never fails the launch (see registerHooksForLaunch).
-    registerHooksForLaunch(cwd)
+    // Version gate — refuse to spawn against a claude too old for the flags the spawn depends
+    // on (`--session-id`, `-n`, `--settings`). An unknown flag kills the session instantly with
+    // an error that looks nothing like "your claude is old", so this fails EARLY and says why.
+    // Unknown/unreadable versions are allowed through (claudeVersion.ts explains the inversion).
+    if (!claudeVersionAllowsLaunch()) {
+      throw new Error('claude version below the supported minimum')
+    }
+    // NOTE: nothing is written into `cwd`. Hooks ride `--settings` from the app's own data dir,
+    // resolved at spawn-composition time (see hookSettingsPathForSpawn). The launch path used
+    // to merge a hook block into this project's `.claude/settings.local.json` — it no longer
+    // touches the operator's project at all.
     const { terminalId } = launchService.launch({ cwd, name })
     return { terminalId }
   })
@@ -1537,10 +1671,15 @@ app
     // clipboard:write-text). Power stays in MAIN; renderer reaches it via window.clipboard.*.
     registerClipboardIpc()
 
-    // NOTE: hook registration is NOT done here. It happens per-launch, in the CH.sessionLaunch
-    // handler, against the picked project dir — see registerHooksForLaunch. Registering at
-    // startup meant writing into ~/.claude/settings.json (user scope), which re-added the block
-    // on every app start and overrode an operator who had scoped hooks per project.
+    // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
+    // handed to each spawned `claude` via `--settings` from the app's own data dir
+    // (hookSettingsPathForSpawn). The app writes into no project and no user settings file.
+    //
+    // It does NOT clean up after the retired merger either: blocks that merger left in a
+    // project's `.claude/settings.local.json` are the OPERATOR's to remove. They are harmless
+    // — a stale block on the same URL is deduped against the flag, so one prompt still yields
+    // exactly one POST (probe-verified). Deleting an operator's settings entries unasked would
+    // be a worse footprint than the one this change removes.
 
     createWindow()
 

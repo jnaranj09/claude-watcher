@@ -12,6 +12,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { HookEventSchema, type HookEvent } from '../../shared/schemas/hookEvent'
 import { HOST, PORT, MAX_BODY_BYTES } from './hookContract'
+import { buildHookResponseBody } from './hookResponse'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 
 export interface HookServerOptions {
@@ -25,6 +26,10 @@ export interface HookServerOptions {
   host?: string
   /** Called once the server is listening, with the actually-bound port. */
   onListening?: (port: number) => void
+  /** Name-sync — read AND CLEAR this session's pending rename, or null when nothing is
+   *  pending. Wired to `pendingTitles.take` in main. Optional: when absent the server keeps
+   *  its historical always-empty-200 behaviour, so every existing test stays valid. */
+  takePendingTitle?: (sessionId: string) => string | null
 }
 
 export interface HookServer {
@@ -42,7 +47,7 @@ export interface HookServer {
  * Returns `{ close() }` — call to shut down cleanly (e.g. on app quit).
  */
 export function createHookServer(options: HookServerOptions): HookServer {
-  const { onHookEvent } = options
+  const { onHookEvent, takePendingTitle } = options
   const log =
     options.log ??
     ((err: BoundaryErrorRecord): void => {
@@ -111,6 +116,32 @@ export function createHookServer(options: HookServerOptions): HookServer {
         log({ path: '(hook)', code: 'hook_handler_error' })
       }
 
+      // Name-sync — the one place this server writes a RESPONSE BODY. Claude reads it as
+      // hook output, which is how a rename reaches a session that is already running.
+      // `takePendingTitle` is read-and-clear (push once, never per prompt — see
+      // pendingTitles.ts). Absent seam, or nothing pending, keeps the historical empty 200.
+      //
+      // NEVER-CRASH: a throw here must not cost every other session its ingest, so the
+      // fallback is the same empty 200 the server has always sent. Log by CODE only — the
+      // body carries an operator-typed name.
+      // The title getter is passed LAZILY: `take` is read-and-clear, so only the event that
+      // can actually deliver a rename may consume one. Eager consumption would let a Stop
+      // swallow a pending rename that then goes nowhere (see hookResponse.ts).
+      let body: string | null = null
+      try {
+        body = buildHookResponseBody(
+          result.data.hook_event_name,
+          () => takePendingTitle?.(result.data.session_id) ?? null
+        )
+      } catch {
+        log({ path: '(response)', code: 'hook_response_error' })
+        body = null
+      }
+
+      if (body !== null) {
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(body)
+        return
+      }
       res.writeHead(200).end()
     })
 

@@ -110,3 +110,48 @@ export const MALFORMED_BODY_INDEX = 2
 
 /** Count of well-formed (parseable + schema-valid) bodies in `fakeHookBodies`. */
 export const VALID_HOOK_BODY_COUNT = fakeHookBodies.length - 1
+
+// ---------------------------------------------------------------------------------------
+// Name-sync — the OBSERVED claude 2.1.243 payload shape, captured from a live probe run
+// (two runs, identical). The bodies above mirror 2.1.199 and predate several fields; these
+// record what the wire ACTUALLY carries now, so a schema that silently stops accepting real
+// traffic gets caught here rather than in production.
+//
+// The values are invented; only the KEY SETS and `session_title`'s presence are real. Real
+// captures carry prompts and filesystem paths — never commit those.
+// ---------------------------------------------------------------------------------------
+
+/** The claude version the name-sync bodies below were captured from. */
+export const HOOK_NAME_SYNC_FIXTURE_VERSION = '2.1.243' as const
+
+/** Observed `UserPromptSubmit` key set on 2.1.243. This is the ONLY event verified to carry
+ *  `session_title` — claude's own current name for the session, the read-back half of the
+ *  naming feature. `permission_mode` and `prompt_id` are also new since 2.1.199 and must ride
+ *  through `.passthrough()` untouched. */
+export const fakeUserPromptSubmitBody = JSON.stringify({
+  session_id: FAKE_HOOK_SESSION_ID,
+  transcript_path: `/home/u/.claude/projects/-home-u-projects-auth-service/${FAKE_HOOK_SESSION_ID}.jsonl`,
+  cwd: '/home/u/projects/auth-service',
+  hook_event_name: 'UserPromptSubmit',
+  permission_mode: 'default',
+  prompt_id: 'bbbbbbbb-2222-4222-8222-222222222222',
+  prompt: 'a prompt — SENSITIVE, absorbed by passthrough, never logged',
+  session_title: 'billing api'
+})
+
+/** Observed `Stop` key set on 2.1.243 — note it carries NO `session_title`. If the schema
+ *  ever made that field required, every Stop would fail closed and the board would stop
+ *  tracking idle entirely. */
+export const fakeStopBodyNoTitle = JSON.stringify({
+  session_id: FAKE_HOOK_SESSION_ID,
+  transcript_path: `/home/u/.claude/projects/-home-u-projects-auth-service/${FAKE_HOOK_SESSION_ID}.jsonl`,
+  cwd: '/home/u/projects/auth-service',
+  hook_event_name: 'Stop',
+  permission_mode: 'default',
+  prompt_id: 'bbbbbbbb-2222-4222-8222-222222222222',
+  stop_hook_active: false,
+  background_tasks: [],
+  session_crons: [],
+  effort: 'medium',
+  last_assistant_message: 'Done — edited token.ts and updated the tests.'
+})

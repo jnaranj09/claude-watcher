@@ -22,8 +22,11 @@ import {
   MALFORMED_BODY_INDEX,
   VALID_HOOK_BODY_COUNT,
   HOOK_FIXTURE_VERSION,
-  FAKE_HOOK_SESSION_ID
+  FAKE_HOOK_SESSION_ID,
+  fakeUserPromptSubmitBody,
+  fakeStopBodyNoTitle
 } from './fakeHookFeed'
+import { titleReadBackRename } from '../main/hooks/titleReadBack'
 
 /** A single error record — PATH + CODE only, NEVER the parsed/raw value. */
 interface BoundaryErrorRecord {
@@ -147,5 +150,40 @@ describe('fail-closed hook-feed replay against the real HookEventSchema boundary
     expect(log).toHaveBeenCalledTimes(1)
     expect(log.mock.calls[0]?.[0]?.path).toBe('session_id')
     expect(JSON.stringify(log.mock.calls)).not.toContain(SECRET)
+  })
+})
+
+// Name-sync — the boundary must accept the shape claude 2.1.243 ACTUALLY sends, including
+// fields that did not exist at 2.1.199. Hand-written payloads can drift from reality without
+// anyone noticing; these key sets came off a live probe.
+describe('observed claude 2.1.243 payloads (name-sync)', () => {
+  it('accepts the real UserPromptSubmit shape and exposes session_title', () => {
+    const result = HookEventSchema.safeParse(JSON.parse(fakeUserPromptSubmitBody))
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.session_title).toBe('billing api')
+    // New-since-2.1.199 keys must survive passthrough rather than fail the event closed.
+    const raw = result.data as Record<string, unknown>
+    expect(raw.permission_mode).toBe('default')
+    expect(raw.prompt_id).toBe('bbbbbbbb-2222-4222-8222-222222222222')
+  })
+
+  it('accepts the real Stop shape, which carries NO session_title', () => {
+    const result = HookEventSchema.safeParse(JSON.parse(fakeStopBodyNoTitle))
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    // Making session_title required would fail-close every Stop and kill idle tracking.
+    expect(result.data.session_title).toBeUndefined()
+    expect(result.data.last_assistant_message).toBeDefined()
+  })
+
+  it('the read-back ignores a Stop and acts on a UserPromptSubmit', () => {
+    const stop = HookEventSchema.parse(JSON.parse(fakeStopBodyNoTitle))
+    const submit = HookEventSchema.parse(JSON.parse(fakeUserPromptSubmitBody))
+
+    expect(titleReadBackRename(stop, 'old name', false)).toBeNull()
+    expect(titleReadBackRename(submit, 'old name', false)).toBe('billing api')
   })
 })

@@ -121,8 +121,16 @@ export interface LaunchServiceOptions {
    *  pty spawn with the freshly-minted session id, so the composed command pins claude to the
    *  app-minted identity (`$SHELL -l -c "claude --session-id '<uuid>'"` in production —
    *  index.ts `rawClaudeSpawn`). `env` is the sanitized child env (buildPtyEnv). The factory
-   *  seam keeps the shell-wrapper composition OUT of this service (it never string-splices). */
-  spawn: (sessionId: string) => { file: string; args?: string[]; env?: Record<string, string> }
+   *  seam keeps the shell-wrapper composition OUT of this service (it never string-splices).
+   *
+   *  Name-sync: `displayName` is the operator-typed name from the launch override, passed so
+   *  the composed command can carry claude's `-n <name>` flag — claude is then BORN with the
+   *  operator's name (verified on 2.1.243), instead of generating its own title. Quoting it
+   *  for the shell is the factory's job, not this service's. */
+  spawn: (
+    sessionId: string,
+    displayName: string
+  ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
    *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
    *  session's Tgid AND to walk PPid ancestry up to the terminal's PTY leader. */
@@ -294,7 +302,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // Fresh identity PER ACTUAL SPAWN (first open AND Reopen alike): claude consumes the
     // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error.
     const sessionId = newSessionId()
-    const base = options.spawn(sessionId)
+    // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
+    // generating its own title that would then disagree with the board card.
+    const base = options.spawn(sessionId, override.name)
     const spawn: LaunchSpawnConfig = {
       file: base.file,
       ...(base.args !== undefined ? { args: base.args } : {}),

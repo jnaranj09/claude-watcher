@@ -1,8 +1,8 @@
 // Hook-status feature — single source of truth for hook constants.
 //
-// Imported by hookServer.ts (the HTTP listener) and registerHooks.ts (the settings
-// merger). The reducer does NOT import this module (it must not depend on the hooks
-// layer). [.claude/rules/zod-boundaries.md; spec Code Map]
+// Imported by hookServer.ts (the HTTP listener) and hookSettingsFile.ts (the `--settings`
+// flag file handed to each spawned claude). The reducer does NOT import this module (it must
+// not depend on the hooks layer). [.claude/rules/zod-boundaries.md; spec Code Map]
 
 /** Localhost-only bind address. NEVER 0.0.0.0. */
 export const HOST = '127.0.0.1'
