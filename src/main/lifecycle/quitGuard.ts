@@ -51,6 +51,24 @@ export interface QuitGuardDeps {
    * call teardownAllSessions, then app.quit(). Injected so tests can assert the call.
    */
   proceedQuit: () => void
+  /**
+   * Bring the cockpit window up so the guard modal is actually SEEN (restore if minimized,
+   * show, focus). Called ONLY on the guard-show path, immediately BEFORE pushGuard.
+   *
+   * WHY THIS EXISTS: a title-bar close MINIMIZES this app (index.ts `close` → minimize), so
+   * the usual way to reach the tray Quit is with the window already down. Pushing the modal
+   * into a minimized window meant the quit looked like it did nothing at all — the operator
+   * had to guess that a dialog was waiting behind the taskbar.
+   *
+   * WHY IT DOES NOT BREAK no-self-raise (Epic-4 DECISION #2 / FROZEN #4): that rule bans the
+   * app raising ITSELF on session ATTENTION (a needs-you must never steal focus). This raise
+   * is OPERATOR-INITIATED — it answers the operator's own Quit click with the question that
+   * click provoked. It is wired on this path and nowhere else.
+   *
+   * never-crash: the injected implementation swallows its own Electron failures; a window
+   * that cannot be raised still gets the push.
+   */
+  raiseWindow: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +93,8 @@ export interface QuitGuardState {
  *
  * Flow:
  *   total === 0 → setIsQuitting(true), teardown, proceedQuit (no guard shown).
- *   total >= 1  → e.preventDefault() is assumed by caller; pushGuard (teardown deferred to confirm).
+ *   total >= 1  → e.preventDefault() is assumed by caller; raiseWindow THEN pushGuard
+ *                 (teardown deferred to confirm).
  *
  * The caller is responsible for: (a) the isQuitting short-circuit BEFORE calling this fn,
  * (b) calling `e.preventDefault()` before calling this fn when total >= 1.
@@ -102,6 +121,9 @@ export function handleBeforeQuit(state: QuitGuardState, deps: QuitGuardDeps): bo
   // ≥1 live session → show the guard, defer teardown.
   // The caller has already called e.preventDefault() before invoking us.
   state.pendingGuard = true
+  // Raise FIRST, then push: the window must be up by the time the modal mounts, otherwise the
+  // operator's Quit click appears to do nothing (see the raiseWindow doc above).
+  deps.raiseWindow()
   deps.pushGuard({
     total: live.total,
     workingCount: live.workingCount,

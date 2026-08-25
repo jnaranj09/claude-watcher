@@ -64,21 +64,31 @@ function fakeDeps(
   teardownSpy: ReturnType<typeof vi.fn>
   pushSpy: ReturnType<typeof vi.fn>
   proceedSpy: ReturnType<typeof vi.fn>
+  raiseSpy: ReturnType<typeof vi.fn>
+  calls: string[]
   tdDeps: TeardownDeps
 } {
   const tdDeps = teardownDeps ?? fakeTeardownDeps()
+  // Shared call log so a test can assert the ORDER of raiseWindow vs pushGuard.
+  const calls: string[] = []
   const teardownSpy = vi.fn()
-  const pushSpy = vi.fn()
+  const pushSpy = vi.fn(() => {
+    calls.push('push')
+  })
   const proceedSpy = vi.fn()
+  const raiseSpy = vi.fn(() => {
+    calls.push('raise')
+  })
   const deps: QuitGuardDeps = {
     teardownAllSessions: teardownSpy,
     teardownDeps: tdDeps,
     computeLiveLaunchedSessions: () => live,
     computeDeps: fakeComputeDeps(),
     pushGuard: pushSpy,
-    proceedQuit: proceedSpy
+    proceedQuit: proceedSpy,
+    raiseWindow: raiseSpy
   }
-  return { deps, teardownSpy, pushSpy, proceedSpy, tdDeps }
+  return { deps, teardownSpy, pushSpy, proceedSpy, raiseSpy, calls, tdDeps }
 }
 
 /** Live result with ≥1 session. */
@@ -135,6 +145,42 @@ describe('handleBeforeQuit — nothing-live (total === 0)', () => {
     const { deps } = fakeDeps(emptyResult())
     const showed = handleBeforeQuit(state, deps)
     expect(showed).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RAISE-FOR-GUARD — the guard must be VISIBLE before it can be answered.
+//
+// A title-bar close MINIMIZES this app (index.ts `close` → minimize), so the common way to
+// reach the tray Quit is with the window already down. Pushing the modal to a minimized
+// window makes the quit look like it did nothing. `raiseWindow` is the narrow, OPERATOR-
+// INITIATED exception to the no-self-raise rule (Epic-4 DECISION #2): it fires ONLY on the
+// guard-show path, never on an attention event.
+//
+// NON-VACUOUS: deleting the `deps.raiseWindow()` call in handleBeforeQuit turns the first
+// two tests red; moving it after `pushGuard` turns the order test red.
+// ---------------------------------------------------------------------------
+
+describe('handleBeforeQuit — raiseWindow (the guard must be visible)', () => {
+  it('raiseWindow IS called when the guard is shown (≥1 live session)', () => {
+    const state = freshState()
+    const { deps, raiseSpy } = fakeDeps(liveResult(1))
+    handleBeforeQuit(state, deps)
+    expect(raiseSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('raiseWindow is NOT called when nothing live (no modal to show)', () => {
+    const state = freshState()
+    const { deps, raiseSpy } = fakeDeps(emptyResult())
+    handleBeforeQuit(state, deps)
+    expect(raiseSpy).not.toHaveBeenCalled()
+  })
+
+  it('raiseWindow runs BEFORE pushGuard (the window is up when the modal mounts)', () => {
+    const state = freshState()
+    const { deps, calls } = fakeDeps(liveResult(2, 1))
+    handleBeforeQuit(state, deps)
+    expect(calls).toEqual(['raise', 'push'])
   })
 })
 

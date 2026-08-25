@@ -1441,6 +1441,9 @@ function registerQuitIpc(): void {
       pushGuard: () => {
         /* no-op: pushGuard is unused in the quitConfirm path */
       },
+      raiseWindow: () => {
+        /* no-op: the window is already up — the operator just clicked the modal's button */
+      },
       proceedQuit: () => app.quit()
     })
   })
@@ -1741,6 +1744,27 @@ app.on('before-quit', (e) => {
     computeDeps: {
       reducers: reducers.values(),
       isLaunched: (id) => launchedSet.has(id)
+    },
+    // The guard modal is only useful if the operator can SEE it. A title-bar close MINIMIZES
+    // this app (the `close` handler above), so the usual route to the tray Quit leaves the
+    // window down — and the pushed modal was landing in a window nobody was looking at, making
+    // Quit look like a no-op. Restore + show + focus before the push.
+    //
+    // This is the ONE operator-initiated exception to no-self-raise (Epic-4 DECISION #2 /
+    // FROZEN #4): the rule bans raising on session ATTENTION, and nothing here reacts to a
+    // session. It answers the operator's own Quit click. Do NOT copy this to a delta path.
+    //
+    // never-crash: a raise failure must not cost the operator the guard, so the push proceeds
+    // regardless. Log a code ONLY (no window/session values).
+    raiseWindow: () => {
+      if (!mainWin || mainWin.isDestroyed()) return
+      try {
+        if (mainWin.isMinimized()) mainWin.restore()
+        mainWin.show()
+        mainWin.focus()
+      } catch {
+        console.warn('[c9watch][quit] code=quit_guard_raise_failed')
+      }
     },
     pushGuard: (payload: QuitGuardPayload) => {
       if (!wc || wc.isDestroyed()) return

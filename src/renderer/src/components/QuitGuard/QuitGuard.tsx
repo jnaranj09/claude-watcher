@@ -10,7 +10,8 @@
 //     in App.tsx keydown; see App.tsx integration note).
 //   - `Quit anyway` is the danger button (`--danger` red `#db4b4b`).
 //   - Gold emphasis (`--needs-you`) for the "N agents are still working." count.
-//   - Session list: each row shows `sessionName` + status in `font-mono` (c9watch-verbatim).
+//   - Session list: each row shows `sessionName` + the BOARD's status label in `font-mono`
+//     (`statusLabel(column)` — the same words the dot/rail use; never the raw status string).
 //   - `role="dialog"` + `aria-modal="true"` (mirrors Settings.tsx).
 //   - NEVER logs session values — sessionName/status data stays off logs.
 //
@@ -36,6 +37,7 @@
 import { useEffect, useRef, type JSX } from 'react'
 import type { QuitGuardPayload } from '../../../../shared/ipc/contract'
 import { boardStore } from '../../stores/boardStore'
+import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './QuitGuard.module.css'
 
 interface QuitGuardProps {
@@ -104,7 +106,14 @@ export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
             {sessions.map((s) => (
               <li key={s.id} className={styles.sessionRow} data-testid="quit-guard-session-row">
                 <span className={styles.sessionName}>{s.sessionName}</span>
-                <span className={styles.sessionStatus}>{s.status}</span>
+                {/* The BOARD's label (Working / Needs you / Idle), from the same
+                    `statusLabel(column)` the dot and the rail use — NOT the raw
+                    internal status. The raw string is main-internal vocabulary: a
+                    launched-but-idle session sits at `Connecting` (claude 2.1.246
+                    fires no SessionStart, so nothing moves it off until the first
+                    prompt), which read as "Connecting" for a card the board was
+                    already showing as Idle. */}
+                <span className={styles.sessionStatus}>{statusLabel(s.column)}</span>
               </li>
             ))}
           </ul>

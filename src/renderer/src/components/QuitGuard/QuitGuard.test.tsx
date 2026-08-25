@@ -117,6 +117,43 @@ describe('QuitGuard — content rendering', () => {
     expect(rows.length).toBe(2)
   })
 
+  // The row's status text is the BOARD's label (Working / Needs you / Idle), derived from
+  // `column` — NOT the raw internal status string. A launched-but-idle session sits at
+  // `Connecting` (claude 2.1.246 never fires SessionStart, so nothing moves it off), and
+  // printing that raw made the modal read "Connecting" for a session the board shows as Idle.
+  // NON-VACUOUS: reverting the row to `{s.status}` makes this fail on the `Connecting` case.
+  it('renders the board status LABEL per row, not the raw status string', () => {
+    stubQuit()
+    const { container, unmount } = renderComponent(
+      <QuitGuard
+        payload={makePayload({
+          total: 3,
+          workingCount: 1,
+          sessions: [
+            { id: 'sess-a', sessionName: 'deploy-prod', status: 'Working', column: 'working' },
+            {
+              id: 'sess-b',
+              sessionName: 'review-pr',
+              status: 'NeedsAttention',
+              column: 'needs-you'
+            },
+            { id: 'sess-c', sessionName: 'devops', status: 'Connecting', column: 'idle' }
+          ]
+        })}
+      />
+    )
+    cleanup = unmount
+    const rows = Array.from(
+      container.querySelectorAll('[data-testid="quit-guard-session-row"]')
+    ).map((r) => r.textContent ?? '')
+    expect(rows[0]).toContain('Working')
+    expect(rows[1]).toContain('Needs you')
+    expect(rows[2]).toContain('Idle')
+    // The raw internal strings must NOT reach the operator.
+    expect(rows[2]).not.toContain('Connecting')
+    expect(rows[1]).not.toContain('NeedsAttention')
+  })
+
   it('shows the total count', () => {
     stubQuit()
     const { container, unmount } = renderComponent(
