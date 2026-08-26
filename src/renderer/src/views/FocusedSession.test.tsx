@@ -358,3 +358,127 @@ describe('FocusedSession — the rail header and the Board bar end on the same l
     expect(railHeader).toBe(bar)
   })
 })
+
+// The active tab is a NOTCH cut through the rail, showing the ground the terminal floats on. Two
+// separate declarations in two different modules make that work, and each looks individually
+// tidy-uppable — which is how a notch quietly gets a wall built back across it.
+describe('FocusedSession — the wall stops at the active tab', () => {
+  const readCss = (rel: string): string =>
+    readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
+
+  const block = (css: string, selector: RegExp): string => selector.exec(css)?.[1] ?? ''
+
+  it('the rail draws a wall, and the tab is wide enough to break it', () => {
+    const rail = readCss('../components/attention/AttentionRail.module.css')
+    const railBlock = block(rail, /^\.rail\s*\{([^}]*)/m)
+    const active = block(rail, /^\.active\s*\{([^}]*)/m)
+
+    // The wall exists...
+    expect(railBlock).toMatch(/^\s*border-right:\s*1px solid var\(--border\)/m)
+    // ...and the rail must not clip, or the tab can never reach the pixel the wall occupies:
+    // `overflow: hidden` clips descendants to the PADDING box, which stops short of the border.
+    expect(railBlock).toMatch(/^\s*overflow:\s*visible/m)
+    // The tab carries no right border of its own — it stays open toward the terminal...
+    expect(active).toMatch(/border-right-width:\s*0/)
+    // ...and is widened by the list padding PLUS the wall's 1px, which is what breaks the line.
+    expect(active).toMatch(/width:\s*calc\(100% \+ var\(--space-2\) \+ 1px\)/)
+    // Right corners SQUARE — the curve there flares OUTWARD and is painted by the flares below.
+    expect(active).toMatch(/border-radius:\s*var\(--rounded-md\) 0 0 var\(--rounded-md\)/)
+    // ...which need this row to be their containing block.
+    expect(active).toMatch(/position:\s*relative/)
+
+    // The tab's fill must be the SAME TOKEN the ground around the terminal paints, not a lookalike:
+    // they sit edge to edge through the break, so any drift shows up as a seam.
+    expect(active).toMatch(/background:\s*var\(--bg-base\)/)
+    expect(readCss('./FocusedSession.module.css')).toMatch(
+      /\.focused\s*\{[^}]*background:\s*var\(--bg-base\)/s
+    )
+  })
+
+  it('keeps the pinned slot OUT of the scroll container, or the tab cannot reach the wall', () => {
+    const rail = readCss('../components/attention/AttentionRail.module.css')
+    // `.scroll` is `overflow-y: auto`, and CSS forces `overflow-x: visible` to compute to `auto`
+    // when the other axis is not visible — so a tab inside it can never overflow sideways. This is
+    // the structural half of the notch, and it is invisible from the stylesheet alone.
+    expect(block(rail, /^\.scroll\s*\{([^}]*)/m)).toMatch(/overflow-y:\s*auto/)
+    expect(rail).toMatch(/^\.pinnedSlot\s*\{/m)
+    const tsx = readCss('../components/attention/AttentionRail.tsx')
+    const slotAt = tsx.indexOf('styles.pinnedSlot')
+    const scrollAt = tsx.indexOf('data-testid="rail-scroll"')
+    expect(slotAt).toBeGreaterThan(-1)
+    expect(slotAt).toBeLessThan(scrollAt)
+  })
+
+  it('draws the header/bar seam ONCE — the rail owns it, the bar must not double it', () => {
+    // The rail header and the Board bar are both `--bg-surface`, so the seam between them has to be
+    // drawn — but by exactly ONE side. The rail's `border-right` runs the full height and already
+    // covers this strip. A `border-left` on the bar does not overlap it: the rail's line is the last
+    // pixel INSIDE its `--rail-width` box, the bar's the first pixel outside, so the two stack into
+    // a 2px seam across the top strip that thins to 1px below the bar. The bar legitimately carried
+    // this border while the rail had no wall; the wall's return turned it into a duplicate, and the
+    // widening is most visible exactly where the eye crosses from the rail into the terminal.
+    const railBlock = block(
+      readCss('../components/attention/AttentionRail.module.css'),
+      /^\.rail\s*\{([^}]*)/m
+    )
+    expect(railBlock).toMatch(/^\s*border-right:\s*1px solid var\(--border\)/m)
+
+    // Declaration form, not a bare substring — the bar's own comment explains why it has no
+    // border-left, and a naive /border-left/ would match that prose and pass on a real regression.
+    const barBlock = block(readCss('./FocusedSession.module.css'), /^\.bar\s*\{([^}]*)/m)
+    expect(barBlock).not.toMatch(/^\s*border-left\s*:/m)
+  })
+})
+
+// The tab's SHOULDERS: where its top and bottom borders sweep away from the row and turn into the
+// rail's wall, the way a browser tab meets its toolbar. This is a CONCAVE corner — the tab's
+// surface bulging outward while the rail curves in to meet it — and `border-radius` cannot draw
+// one: a radius bites into a box, it does not bulge out of it. So each shoulder is painted, by a
+// radial gradient on a pseudo-element parked just outside the corner.
+//
+// Nothing about that is guessable from the declarations alone, which is exactly why it needs a
+// test: the obvious "simplification" is to delete the pseudo-elements and put a radius on the
+// right-hand corners, which silently turns the flare inward.
+describe('FocusedSession — the active tab flares outward into the wall', () => {
+  const readCss = (rel: string): string =>
+    readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
+
+  const rail = (): string => readCss('../components/attention/AttentionRail.module.css')
+
+  it('paints both shoulders as gradient arcs, not as corner radii', () => {
+    const css = rail()
+    const shared = /\.active::before,\s*\.active::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+
+    // Parked outside the tab's right edge, and decorative only — the row's hit area must not grow.
+    expect(shared).toMatch(/position:\s*absolute/)
+    expect(shared).toMatch(/right:\s*0/)
+    expect(shared).toMatch(/pointer-events:\s*none/)
+
+    // Selectors matched EXACTLY. A loose `/\.active::after\s*\{/` also matches the shared rule
+    // above, whose second selector line begins with the same text — and then reads the wrong body.
+    const ruleFor = (selector: string): string => {
+      for (const [, sel, body] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        if ((sel ?? '').trim() === selector) return body ?? ''
+      }
+      return ''
+    }
+    for (const selector of ['.active::before', '.active::after']) {
+      const block = ruleFor(selector)
+      expect(block, `${selector} must exist as its own rule`).not.toBe('')
+      expect(block).toMatch(/radial-gradient/)
+      // Three bands, in this order: the rail continuing over the flare, the 1px arc, then the
+      // tab's own surface flared out to the wall. Get the order wrong and the curve inverts.
+      const stops = block.indexOf('--bg-surface') < block.indexOf('--border')
+      expect(stops, 'rail band must precede the arc band').toBe(true)
+      expect(block.indexOf('--border')).toBeLessThan(block.indexOf('--bg-base'))
+    }
+  })
+
+  it('drops the shoulders when the rail is collapsed', () => {
+    // A collapsed row is a centred square with rail on BOTH sides — there is no wall beside it to
+    // flare into, and the gradients would paint two grey smudges against the gutter.
+    expect(rail()).toMatch(
+      /\.collapsed \.active::before,\s*\.collapsed \.active::after\s*\{[^}]*content:\s*none/s
+    )
+  })
+})

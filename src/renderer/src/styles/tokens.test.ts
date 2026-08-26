@@ -59,25 +59,25 @@ describe('design tokens — tokens.css is 1:1 with the TOKENS source of truth (A
     expect(extras, `tokens.css has untracked custom properties: ${extras.join(', ')}`).toEqual([])
   })
 
-  // The rail's selection scheme is INVERTED: the row you are viewing paints the TERMINAL surface
-  // and every resting row is raised above it. That direction is the whole point, and it is
-  // invisible to a name-only check — swapping the two hex values would leave every other test green
-  // while flipping the rail back. Pin it on the values.
-  it('the terminal surface is darker than a RESTING rail row (the inverted fill scheme)', () => {
+  // The rail's selection scheme is INVERTED: the row you are viewing drops to the GROUND the
+  // terminal sits on, and every resting row is raised above it. That direction is the whole point,
+  // and it is invisible to a name-only check — swapping the two hex values would leave every other
+  // test green while flipping the rail back. Pin it on the values.
+  it('the app ground is darker than a RESTING rail row (the inverted fill scheme)', () => {
     const lum = (hex: string): number => {
       const n = parseInt(hex.replace('#', ''), 16)
       // Rec. 601 luma is enough here — both tokens are the same warm neutral, so we are ordering
       // two greys, not comparing hues.
       return 0.299 * ((n >> 16) & 0xff) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff)
     }
-    expect(lum(TOKENS['bg-terminal'])).toBeLessThan(lum(TOKENS['bg-row-rest']))
+    expect(lum(TOKENS['bg-base'])).toBeLessThan(lum(TOKENS['bg-row-rest']))
   })
 
-  // The active rail row paints `--bg-terminal` DIRECTLY (see AttentionRail.module.css `.active`)
+  // The active rail row paints `--bg-base` DIRECTLY (see AttentionRail.module.css `.active`)
   // precisely so no second token can hold a stale copy of that value. Re-adding one would let the
-  // rail and the terminal drift apart silently, which is the one thing that treatment cannot
-  // survive — the row's whole claim is that it IS the terminal's surface.
-  it('defines no rail-active colour token that could drift from --bg-terminal', () => {
+  // tab and the ground around the terminal drift apart silently, which is the one thing that
+  // treatment cannot survive — the row's whole claim is that it opens onto that ground.
+  it('defines no rail-active colour token that could drift from --bg-base', () => {
     expect(TOKENS).not.toHaveProperty('bg-row-active')
     expect(cssProps).not.toHaveProperty('bg-row-active')
   })

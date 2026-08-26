@@ -37,8 +37,17 @@
   height: 100%;
   box-sizing: border-box;
   background: var(--bg-surface);
+  /* The rail's WALL. It runs the full height EXCEPT across the active tab, which paints over it
+   * (see `.active`). The tab is a notch cut THROUGH this wall, not a chip sitting against it, so
+   * the wall has to be interruptible.
+   *
+   * `overflow: visible` is what allows that. `overflow: hidden` clips descendants to the PADDING
+   * box — inside this border — so the tab could never reach the 1px the wall occupies and the line
+   * would run straight across it. `.scroll` still clips its own content; the only thing that
+   * escapes is the pinned slot, which is why that slot lives OUTSIDE `.scroll` (see
+   * `.pinnedSlot`). */
   border-right: 1px solid var(--border);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .rail.collapsed {
@@ -125,9 +134,29 @@
    * one below it. 20px is a 2.5x step over the .section gap — unambiguous without adding a second
    * separator on top of the rule the divider already draws. */
   gap: var(--space-5);
+  /* The pinned row lives OUTSIDE this container now (see `.pinnedSlot`), so this is plain
+   * breathing room above the first divider again. */
   padding: var(--space-2) 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* The pinned active row's own slot, a SIBLING of `.scroll` rather than a child of it.
+ *
+ * `.scroll` is `overflow-y: auto`, and CSS forces `overflow-x: visible` to compute to `auto` when
+ * the other axis is not visible — so nothing inside it can overflow sideways, and the tab must, to
+ * paint over the rail's wall. Moving the slot out is the only way it can.
+ *
+ * The side effect is a fix in its own right: the row is called PINNED, and now it is — it no longer
+ * scrolls away with the list below it.
+ *
+ * TOP PADDING is `--space-3`, the SAME token as the terminal frame's own top inset. The rail header
+ * and the Board bar are the same height (`--topbar-height`), so equal insets put the tab's top edge
+ * on exactly the same y as the terminal's. BOTTOM is `--space-3` too, which with `.scroll`'s own
+ * `--space-2` reproduces the `--space-5` group gap this slot used to get from `.scroll`'s `gap`. */
+.pinnedSlot {
+  flex: 0 0 auto;
+  padding: var(--space-3) 0;
 }
 
 .list {
@@ -275,7 +304,7 @@
 }
 
 /* HOVER = a PREVIEW of selection: the pointer drops the row to the exact fill it will keep once
- * it is the one on screen (`--bg-terminal`), so the hover state answers "what happens if I press
+ * it is the one on screen (`--bg-base`), so the hover state answers "what happens if I press
  * this" with the answer itself rather than with a third, unrelated tone. Only the FILL is
  * previewed — the tab SHAPE belongs to the active row alone, so hovering never reflows the list.
  *
@@ -286,7 +315,7 @@
  * kept because the RULE is "the active row is not a control", not "the colours happen to match".)
  * Hovering it still reveals the rename pencil — that hangs off `.rowWrap:hover`, not this rule. */
 .row:not(.active):hover {
-  background: var(--bg-terminal);
+  background: var(--bg-base);
 }
 
 /* KEYBOARD focus only — deliberately NOT the active/selected cue (see `.active`). Removing a
@@ -431,10 +460,17 @@
  * the resting rows are the raised ones. Hover moves a resting row to exactly this tone as a
  * preview.
  *
- * The fill is `--bg-terminal` — the SAME token `EmbeddedTerminal.module.css` paints on the frame,
- * referenced directly rather than copied into a rail-local token. The claim this row makes is "I am
- * that surface", so the two must be ONE value: a copy could drift and the claim would quietly
- * become false.
+ * The fill is `--bg-base` — the SAME token the area AROUND the terminal paints, referenced directly
+ * rather than copied into a rail-local token. Read the rail as a solid panel and this row is a
+ * NOTCH cut through it: what shows in the notch is the ground the terminal sits on, which continues
+ * unbroken through the rail's edge and out into the frame's gutter. The rail's `border-right` is the
+ * wall that ground breaks THROUGH: this row overruns it and paints over those pixels, so the line
+ * stops at the tab and resumes below it (see `.rail`, and the flares on `.active::before/::after`).
+ *
+ * It was `--bg-terminal` (the frame's INTERIOR) first. That made the row claim to be the terminal
+ * itself, which only reads once the two actually touch; with the frame floating in a gutter, the
+ * ground is the thing they genuinely share. Either way the token is referenced, never copied: a
+ * local copy could drift and the claim would quietly become false.
  *
  * SHAPE says it a second way. The row squares off its RIGHT corners and grows by the list's own
  * right padding (`--space-2`), so it ends at the rail's content edge instead of floating inside it.
@@ -445,9 +481,16 @@
  * growth exactly cancels the list padding, this works in ANY list — the pinned slot and the
  * Starting group alike — with no per-list class and no change to the markup. */
 .active {
-  background: var(--bg-terminal);
-  width: calc(100% + var(--space-2));
+  background: var(--bg-base);
+  /* `+ --space-2` cancels `.list`'s own right padding; the `+ 1px` is the rail's WALL, which this
+   * row paints over so the line is broken for exactly this tab's height. */
+  width: calc(100% + var(--space-2) + 1px);
+  /* Right corners SQUARE. The curve at that end is not a corner radius — it flares OUTWARD, and an
+   * outward (concave) corner is not something `border-radius` can draw. `::before` / `::after`
+   * below do it. */
   border-radius: var(--rounded-md) 0 0 var(--rounded-md);
+  /* Containing block for those two flares. */
+  position: relative;
   /* `.rowWrap` is `display: flex`, so this row is a FLEX ITEM and inherits `flex-shrink: 1` — which
    * shrank the width above straight back down to the wrapper's 100% and left the row 8px short of
    * the rail edge, floating exactly where it was supposed to stop floating. Overflowing a flex
@@ -461,10 +504,11 @@
    * session, never when a session they are not watching changes status. See TWO ROW SIZES at the
    * top of this file. */
   min-height: 44px;
-  /* The TERMINAL'S OWN OUTLINE, on the two sides that face the rail. `--border-card` is the token
-   * `EmbeddedTerminal.module.css` draws round the frame, referenced directly for the same reason
-   * the fill is: this row claims to BE that surface, so it must be drawn with that surface's line
-   * rather than a copy of it.
+  /* `--border`, the SAME token every other line in this rail is drawn with: the header's
+   * `border-bottom` and the group dividers' rules. The tab is a cut through the rail's own chrome,
+   * so it is drawn in the rail's own line colour — one family, not a second one. (It was
+   * `--border-card`, the terminal frame's heavier outline, from when the tab claimed to BE that
+   * frame's surface; the fill moved to `--bg-base` and this followed it.)
    *
    * TOP AND BOTTOM ONLY, and the RIGHT side loses its border entirely. An outline closed on four
    * sides is a box, and a box is a thing that ends; leaving the right open lets the two lines run
@@ -476,8 +520,8 @@
    * `border: 1px solid transparent`, so the fill stopped at 238 while the box ended at 239 and a
    * sliver of `--bg-surface` showed at the edge. `box-sizing: border-box` means removing that
    * border moves NO geometry — the 1px becomes content and the box stays 231px wide. */
-  border-top-color: var(--border-card);
-  border-bottom-color: var(--border-card);
+  border-top-color: var(--border);
+  border-bottom-color: var(--border);
   border-right-width: 0;
 }
 
@@ -486,7 +530,65 @@
  * matching the terminal it claims to be. No lavender inset ring either; that was the same
  * "selection paints an edge" mistake in a second place. */
 .emphasized.active {
-  background: var(--bg-terminal);
+  background: var(--bg-base);
+}
+
+/* The OUTWARD flares — the tab's shoulders, where its top and bottom borders sweep away from the
+ * row and turn into the rail's wall. This is the shape a browser tab makes against its toolbar.
+ *
+ * `border-radius` cannot do it. A radius rounds a corner INWARD, biting a curve out of the box;
+ * what is needed here is the opposite — the tab's surface BULGING outward into the rail as it nears
+ * the wall, with the rail curving in to meet it. That is a concave corner, and it has to be painted
+ * rather than bent.
+ *
+ * So each flare is a `--rounded-md` square sitting just outside the tab's corner, filled with a
+ * radial gradient centred on the corner FURTHEST from the tab:
+ *   inside the radius  → `--bg-surface`, the rail continuing over the top of the flare;
+ *   ON the radius      → 1px of `--border`, the arc itself;
+ *   outside the radius → `--bg-base`, the tab's own surface, flared out to the wall.
+ * The arc is tangent to the horizontal at its inner end and to the vertical at its outer end, so it
+ * leaves the tab's straight top border and arrives at the wall without a kink at either join.
+ *
+ * The extra `+ 1px` of height (and the matching offset) is what lets each flare paint OVER the last
+ * few pixels of the tab's own straight border, which CSS would otherwise draw all the way to the
+ * wall and leave as a stub crossing under the arc.
+ *
+ * `pointer-events: none` — these are paint, not surface. The row's hit area must not change. */
+.active::before,
+.active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: var(--rounded-md);
+  height: calc(var(--rounded-md) + 1px);
+  pointer-events: none;
+}
+
+.active::before {
+  top: calc(-1 * var(--rounded-md));
+  background: radial-gradient(
+    circle at 0 0,
+    var(--bg-surface) calc(var(--rounded-md) - 1px),
+    var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
+    var(--bg-base) var(--rounded-md)
+  );
+}
+
+.active::after {
+  bottom: calc(-1 * var(--rounded-md));
+  background: radial-gradient(
+    circle at 0 100%,
+    var(--bg-surface) calc(var(--rounded-md) - 1px),
+    var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
+    var(--bg-base) var(--rounded-md)
+  );
+}
+
+/* COLLAPSED: no flares. A collapsed row is a centred square with rail on BOTH sides — there is no
+ * wall beside it to flare into, and the gradients would paint two grey smudges against the gutter. */
+.collapsed .active::before,
+.collapsed .active::after {
+  content: none;
 }
 
 /* COLLAPSED (70px): the tab shape is EXPANDED-ONLY. A collapsed row is a 44px square centred in
@@ -551,7 +653,7 @@
 }
 
 .startingRow:hover {
-  background: var(--bg-terminal);
+  background: var(--bg-base);
 }
 
 /* The active treatment, when the focused terminal is this not-yet-correlated launch. TWO classes
@@ -561,9 +663,16 @@
  * `.row.active`, so "the one you are looking at" looks identical whether the terminal has a session
  * card yet or not. */
 .startingRow.active {
-  background: var(--bg-terminal);
-  width: calc(100% + var(--space-2));
+  background: var(--bg-base);
+  width: calc(100% + var(--space-2) + 1px);
   border-radius: var(--rounded-md) 0 0 var(--rounded-md);
+  /* NOTE: this row's shoulders (`.active::before` / `::after`) are CLIPPED. Unlike the pinned row,
+   * a Starting row lives inside a status group and therefore inside `.scroll`, which is
+   * `overflow-y: auto` and so clips horizontally too. Its tab is flattened against the wall instead
+   * of flaring through it. Deliberate, not overlooked: this state lasts only until the launch
+   * correlates and the row moves to the pinned slot, and lifting a scrolled group's row out of the
+   * scroll container to buy a shoulder for those few seconds is not worth the structure. */
+  position: relative;
 }
 
 .startingRow:focus-visible {

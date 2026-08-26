@@ -247,9 +247,15 @@ describe('AttentionRail — pinned active row + status sections', () => {
     })
     focusSession('open', 'tid-open')
     const r = render()
+    const slot = r.container.querySelector('[data-testid="rail-pinned-slot"]')
     const scroll = r.container.querySelector('[data-testid="rail-scroll"]')
-    // The pinned list is the FIRST child of the scroll container; nothing precedes it.
-    expect(scroll?.firstElementChild?.getAttribute('data-testid')).toBe('rail-pinned-list')
+    // The slot sits OUTSIDE the scroll container and immediately BEFORE it, so nothing — divider or
+    // row — precedes the pinned row. (It used to be the scroll's first child; it moved out so the
+    // tab can overflow sideways to break the rail's wall, and so it stops scrolling away.)
+    expect(slot).not.toBeNull()
+    expect(scroll?.contains(slot ?? null)).toBe(false)
+    expect(slot?.nextElementSibling).toBe(scroll)
+    expect(slot?.firstElementChild?.getAttribute('data-testid')).toBe('rail-pinned-list')
     expect(dividerLabels(r)).toEqual(['Needs you'])
   })
 
@@ -423,31 +429,34 @@ describe('AttentionRail — the active row is NOT a control', () => {
   })
 
   // The fill scheme is INVERTED: resting rows are the RAISED tone and the active row drops all the
-  // way to the TERMINAL surface, with hover previewing that fill. jsdom applies no :hover and
-  // computes no colour, so the wiring is pinned by reading the stylesheet; the DIRECTION (terminal
-  // darker than rest) is pinned on the token values in styles/tokens.test.ts.
-  it('resting rows take the rest fill; hover and active take the SAME terminal fill', () => {
+  // way to `--bg-base`, the GROUND the terminal sits on, with hover previewing that fill. jsdom
+  // applies no :hover and computes no colour, so the wiring is pinned by reading the stylesheet;
+  // the DIRECTION (ground darker than rest) is pinned on the values in styles/tokens.test.ts.
+  it('resting rows take the rest fill; hover and active take the SAME ground fill', () => {
     const css = readCss('./AttentionRail.module.css')
     expect(css).toMatch(/\.row\s*\{[^}]*background:\s*var\(--bg-row-rest\)/s)
-    expect(css).toMatch(/\.row:not\(\.active\):hover\s*\{[^}]*background:\s*var\(--bg-terminal\)/s)
-    expect(css).toMatch(/^\.active\s*\{[^}]*background:\s*var\(--bg-terminal\)/ms)
+    expect(css).toMatch(/\.row:not\(\.active\):hover\s*\{[^}]*background:\s*var\(--bg-base\)/s)
+    expect(css).toMatch(/^\.active\s*\{[^}]*background:\s*var\(--bg-base\)/ms)
     // A not-yet-correlated launch is still a row in the same rail: same rest fill, same hover.
     expect(css).toMatch(/\.startingRow\s*\{[^}]*background:\s*var\(--bg-row-rest\)/s)
-    expect(css).toMatch(/\.startingRow:hover\s*\{[^}]*background:\s*var\(--bg-terminal\)/s)
+    expect(css).toMatch(/\.startingRow:hover\s*\{[^}]*background:\s*var\(--bg-base\)/s)
   })
 
-  // The active row is a TAB cut into the rail's right edge, not a chip: right corners squared, and
-  // widened by exactly the list's own right padding so it ends flush at the rail's content edge.
-  // Both halves matter — a squared chip that still floats inside the padding points at nothing, and
-  // a flush chip with four round corners has no direction. Pinned on BOTH row kinds because
+  // The active row is a NOTCH cut THROUGH the rail's wall, not a chip sitting against it. It is
+  // widened by the list's own right padding PLUS the wall's 1px, so it paints over the wall and
+  // breaks the line for its own height; and every corner is rounded, so its top and bottom borders
+  // curve into the wall rather than stopping square against it. Pinned on BOTH row kinds because
   // `.startingRow` is defined after `.active` and would otherwise win on source order.
-  it('the active row is squared and widened to the rail edge — in BOTH row kinds', () => {
+  it('the active row reaches the wall with square right corners — in BOTH row kinds', () => {
     const css = readCss('./AttentionRail.module.css')
     // Both anchored to LINE START: unanchored, `.startingRow.active` also matches inside the
     // `.collapsed .startingRow.active` reset above it, and the test would read that block instead.
     for (const sel of [/^\.active\s*\{([^}]*)/m, /^\.startingRow\.active\s*\{([^}]*)/m]) {
       const block = sel.exec(css)?.[1] ?? ''
-      expect(block).toMatch(/width:\s*calc\(100% \+ var\(--space-2\)\)/)
+      expect(block).toMatch(/width:\s*calc\(100% \+ var\(--space-2\) \+ 1px\)/)
+      // RIGHT corners SQUARE. The curve at that end flares OUTWARD, which `border-radius` cannot
+      // draw — a radius bites INTO the box, and this bulges out of it. The `::before` / `::after`
+      // flares below own that shape; a right-hand radius here would fight them.
       expect(block).toMatch(/border-radius:\s*var\(--rounded-md\) 0 0 var\(--rounded-md\)/)
     }
     // `.rowWrap` is `display: flex`, so the row is a FLEX ITEM and the default `flex-shrink: 1`

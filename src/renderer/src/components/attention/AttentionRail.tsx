@@ -473,16 +473,21 @@ export function AttentionRail({
         </button>
       </div>
       <LiveAnnouncer message={announcement} />
-      <div className={styles.scroll} data-testid="rail-scroll">
-        {/* The PINNED row: the session currently on screen, ALWAYS first — above needs-you, above
-            everything. It carries NO divider on purpose: a label over a single row would be
-            explaining the obvious (it is the one you are looking at, and its own fill + "(active)"
-            in the accessible name already say so), and a rule above it would push it down into the
-            list it is deliberately standing outside of.
+      {/* The PINNED row: the session currently on screen, ALWAYS first — above needs-you, above
+          everything. It carries NO divider on purpose: a label over a single row would be
+          explaining the obvious (it is the one you are looking at, and its own fill + "(active)"
+          in the accessible name already say so), and a rule above it would push it down into the
+          list it is deliberately standing outside of.
 
-            It is also excluded from its own status section (selectRailSection filters it), so it
-            appears exactly once — a nav list that shows one session twice reads as two sessions. */}
-        {activeId !== null && (
+          It is also excluded from its own status section (selectRailSection filters it), so it
+          appears exactly once — a nav list that shows one session twice reads as two sessions.
+
+          It sits OUTSIDE `.scroll`, in its own slot. The active row is a TAB that paints over the
+          rail's right-edge wall to break it, and nothing inside `.scroll` can overflow sideways to
+          do that (`overflow-y: auto` forces `overflow-x` to `auto` too). A row called "pinned"
+          also should not scroll away with the list, which it used to. */}
+      {activeId !== null && (
+        <div className={styles.pinnedSlot} data-testid="rail-pinned-slot">
           <ul className={styles.list} data-testid="rail-pinned-list" aria-label="Open">
             <li className={styles.listItem}>
               <RailRow
@@ -493,7 +498,9 @@ export function AttentionRail({
               />
             </li>
           </ul>
-        )}
+        </div>
+      )}
+      <div className={styles.scroll} data-testid="rail-scroll">
         {/* One group per status, urgent-first. Each renders nothing when empty, so a rail with a
             single working session shows one divider — not three. */}
         {RAIL_SECTION_COLUMNS.map((column) => (
