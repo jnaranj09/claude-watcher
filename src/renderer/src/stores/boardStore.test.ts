@@ -25,6 +25,8 @@ import {
   selectTerminalIdForSession,
   selectKeptAliveTerminalIds,
   selectStartingTerminals,
+  selectRailActiveSessionId,
+  selectRailSection,
   HERO_SWAP_DEBOUNCE_MS,
   type BoardState
 } from './boardStore'
@@ -544,12 +546,57 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
   it('activateCard(presentId) DOES enter Focused when a terminal is already focused (no ghost state)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
-    // A terminal is already focused (e.g. a prior launch) → activating a card enters Focused.
+    // A terminal is already focused (e.g. a prior launch) AND it is THIS card's terminal
+    // → activating the card enters Focused.
+    store.getState().addCorrelation('a', 'launch-term-1')
     store.getState().openLaunchedTerminal('launch-term-1', 'term-1')
     store.getState().showBoard() // back to board, but focusedTerminalId persists
     store.getState().activateCard('a')
     expect(selectViewMode(store.getState())).toBe('focused')
     expect(selectSelectedId(store.getState())).toBe('a')
+  })
+
+  // ---- the wrong-terminal regression -------------------------------------------------
+  // Reported symptom: two cards on the board; open card A's terminal; Esc back to the board;
+  // click card B → card B is selected and the view flips to Focused, but the terminal on
+  // screen is still A's. activateCard changed `viewMode` WITHOUT changing which terminal is
+  // focused, so it re-showed whatever was last focused.
+  it("activateCard SWITCHES the visible terminal to THAT card's terminal (wrong-terminal regression)", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(updated(2, 'b', 'working', 200))
+    store.getState().addCorrelation('a', 'term-a')
+    store.getState().addCorrelation('b', 'term-b')
+    // The operator is looking at A's terminal, then goes back to the board.
+    store.getState().openLaunchedTerminal('term-a', 'a')
+    store.getState().showBoard()
+    expect(selectFocusedTerminalId(store.getState())).toBe('term-a')
+
+    store.getState().activateCard('b')
+
+    expect(selectViewMode(store.getState())).toBe('focused')
+    expect(selectSelectedId(store.getState())).toBe('b')
+    // THE ASSERTION THAT WAS MISSING: the terminal follows the card that was clicked.
+    expect(selectFocusedTerminalId(store.getState())).toBe('term-b')
+  })
+
+  it("activateCard on a card with NO binding stays on the board (never shows another session's terminal)", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(updated(2, 'b', 'working', 200))
+    store.getState().addCorrelation('a', 'term-a')
+    store.getState().openLaunchedTerminal('term-a', 'a')
+    store.getState().showBoard()
+
+    // `b`'s CH.launchCorrelated push has not landed → no terminal of its own to show.
+    store.getState().activateCard('b')
+
+    // It still SELECTS + acknowledges (the operator did click it), but entering Focused here
+    // would put A's terminal on screen under B's name — the exact bug, one card later.
+    expect(selectSelectedId(store.getState())).toBe('b')
+    expect(selectIsAcknowledged(store.getState(), 'b')).toBe(true)
+    expect(selectViewMode(store.getState())).toBe('board')
+    expect(selectFocusedTerminalId(store.getState())).toBe('term-a')
   })
 
   it('activateCard(absentId) is a NO-OP (no view change, no selection)', () => {
@@ -918,5 +965,92 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     const starting = selectStartingTerminals(store.getState())
     expect(starting[0]?.terminalId).toBe('t-z') // earlier launchedAt first
     expect(starting[1]?.terminalId).toBe('t-a')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Rail SECTIONS — the pinned active row + one group per status.
+// ---------------------------------------------------------------------------
+
+describe('boardStore — rail sections: pinned active row + per-status groups', () => {
+  /** A store with three sessions, one per column, and 'open' bound to the focused terminal. */
+  function withFocus(): ReturnType<typeof createBoardStore> {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().applyWatchEvent(updated(1, 'open', 'idle', 500))
+    store.getState().applyWatchEvent(updated(1, 'wants-you', 'needs-you', 100))
+    store.getState().applyWatchEvent(updated(1, 'busy', 'working', 200))
+    store.getState().addCorrelation('open', 'tid-open')
+    store.getState().switchTerminal('tid-open')
+    return store
+  }
+
+  it('selectRailActiveSessionId resolves the focused terminal back to its session', () => {
+    expect(selectRailActiveSessionId(withFocus().getState())).toBe('open')
+  })
+
+  it('selectRailActiveSessionId is null with no focused terminal', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().applyWatchEvent(updated(1, 'a', 'idle', 100))
+    expect(selectRailActiveSessionId(store.getState())).toBeNull()
+  })
+
+  // A just-launched terminal has no card yet. The rail must leave the pin EMPTY rather than guess
+  // — pinning a session that is not the one on screen is worse than pinning nothing.
+  it('selectRailActiveSessionId is null when the focused terminal has no correlated card', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().openLaunchedTerminal('tid-fresh', 'fresh')
+    expect(selectRailActiveSessionId(store.getState())).toBeNull()
+  })
+
+  // A binding can outlive its card (the session was removed before the binding was cleared).
+  // Resolving to a session that is no longer in `sessionsById` would pin a row that renders null.
+  it('selectRailActiveSessionId is null when the bound session has been removed', () => {
+    const store = withFocus()
+    store.getState().applyWatchEvent(removed(2, 'open'))
+    expect(selectRailActiveSessionId(store.getState())).toBeNull()
+  })
+
+  it('selectRailSection groups by column and EXCLUDES the pinned active session', () => {
+    const store = withFocus()
+    // 'open' is idle AND pinned → its own group comes back empty, not containing it.
+    expect(selectRailSection(store.getState(), 'idle')).toEqual([])
+    expect(selectRailSection(store.getState(), 'needs-you')).toEqual(['wants-you'])
+    expect(selectRailSection(store.getState(), 'working')).toEqual(['busy'])
+  })
+
+  it('selectRailSection includes every session in the column when nothing is pinned', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().applyWatchEvent(updated(1, 'a', 'idle', 100))
+    store.getState().applyWatchEvent(updated(1, 'b', 'idle', 200))
+    expect(selectRailSection(store.getState(), 'idle')).toEqual(['a', 'b'])
+  })
+
+  // ASCENDING in EVERY group — deliberately NOT `sortByEnteredColumn`, which sorts the BOARD's
+  // working column descending. The rail is a "who has been waiting longest" list throughout; if
+  // this flips, the same three sessions read in two different orders on two surfaces.
+  it('selectRailSection sorts oldest-entered FIRST, including the working group', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().applyWatchEvent(updated(1, 'newer', 'working', 300))
+    store.getState().applyWatchEvent(updated(1, 'older', 'working', 100))
+    expect(selectRailSection(store.getState(), 'working')).toEqual(['older', 'newer'])
+  })
+
+  it('selectRailSection breaks an enteredColumnAt tie on id, deterministically', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().applyWatchEvent(updated(1, 'zz', 'needs-you', 100))
+    store.getState().applyWatchEvent(updated(1, 'aa', 'needs-you', 100))
+    expect(selectRailSection(store.getState(), 'needs-you')).toEqual(['aa', 'zz'])
+  })
+
+  // NON-VACUITY: the pin and the exclusion are ONE behaviour. Moving focus to another session must
+  // move BOTH — the newly-pinned one leaves its group and the previously-pinned one rejoins its
+  // own. Dropping the `s.id !== activeId` filter makes this red on the first expectation.
+  it('NON-VACUITY: switching the focused terminal moves the exclusion with it', () => {
+    const store = withFocus()
+    store.getState().addCorrelation('busy', 'tid-busy')
+    store.getState().switchTerminal('tid-busy')
+    expect(selectRailActiveSessionId(store.getState())).toBe('busy')
+    expect(selectRailSection(store.getState(), 'working')).toEqual([]) // 'busy' is pinned now
+    expect(selectRailSection(store.getState(), 'idle')).toEqual(['open']) // 'open' rejoined
   })
 })

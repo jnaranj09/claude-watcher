@@ -22,6 +22,11 @@
   --terminal-tools-h: 40px; /* reserved bottom strip; tunable */
 }
 
+/* `--topbar-height` is SHARED with the rail's own header (AttentionRail.module.css `.header`).
+ * The two bars sit side by side and each draws a 1px bottom border; unequal heights put a visible
+ * STEP in that line exactly at the rail's edge, which is where the eye crosses into the terminal.
+ * The token's value IS this bar's natural content height, so nothing here moves — the rail header
+ * grows to meet it. Changing one without the other reintroduces the step; a test pins them. */
 .bar {
   display: flex;
   align-items: center;
@@ -30,6 +35,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
   flex: 0 0 auto;
+  height: var(--topbar-height);
 }
 
 .backButton {

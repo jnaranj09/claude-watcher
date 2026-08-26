@@ -21,6 +21,17 @@
   --bg-col-calm: #151513;
   --bg-card-hero: #2a2925;
   --bg-card-calm: #1e1e1b;
+  /* The DEFAULT rail row fill — every row you are NOT viewing. Raised (same family as
+   * --bg-surface-raised / --border-strong), NOT a hue: a cool blue-tinted fill was tried
+   * once and read as a foreign colour dropped into a warm UI. Text keeps 7.82:1 on it.
+   *
+   * There is deliberately NO matching `--bg-row-active` token: the ACTIVE row paints
+   * `--bg-terminal` — the SAME token the terminal frame paints — because the whole point of
+   * that row is that it IS the surface you are looking at. A second token holding a copy of
+   * that value could drift from it; a direct reference cannot.
+   *
+   * Rail only — board cards have no selected fill (nothing is "selected" on the board). */
+  --bg-row-rest: #3a3833;
   --bg-terminal: #141312;
   --scrim: rgba(10, 10, 8, 0.62);
 
@@ -82,8 +93,23 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  /* The height of BOTH top bars — the rail's "Sessions" header and the focused view's Board bar.
+   * They sit side by side and each draws its own 1px bottom border, so any difference shows up as a
+   * visible STEP in that line right at the rail's edge. One token, both bars, no step.
+   *
+   * 45px is the Board bar's natural content height (a 28px button inside 2x8px padding, plus the
+   * border) — measured, not guessed. The rail header's content is only 41px, so it grows to match
+   * rather than the bar shrinking: growing the shorter one leaves the bar's controls untouched.
+   * Both boxes are `box-sizing: border-box` (assets/main.css `*`), so this value INCLUDES the
+   * bottom border and the two bottom edges land on the same y. */
+  --topbar-height: 45px;
   --rail-width: 240px;
-  --rail-width-collapsed: 56px;
+  /* The collapsed rail holds a column of 40px squares, with the ACTIVE one at 44px (see TWO ROW
+   * SIZES in AttentionRail.module.css). It is deliberately WIDER than its widest square: the rail
+   * carries a 1px right border, and sizing the rail to exactly fit left the square's own edge
+   * shaved off by the list's overflow clip. 70px - 1px border = 69px of content, seating the 44px
+   * square with ~12.5px of air each side. The slack IS the fix — do not trim it to the row size. */
+  --rail-width-collapsed: 70px;
   --card-min-height: 92px;
   --gutter: 16px;
   --card-gap: 12px;

@@ -11,6 +11,9 @@
   min-height: var(--card-min-height);
   padding: var(--space-3);
   border: 1px solid var(--border-card);
+  /* The status spine. Width lives here so BOTH variants get it; only the COLOUR varies, via
+   * the `[data-status]` rules below. */
+  border-left-width: 3px;
   border-radius: var(--rounded-md);
   font-family: var(--font-ui);
   color: var(--text-primary);
@@ -18,33 +21,57 @@
   outline: none;
 }
 
-/* Lavender AA focus ring — cool, never warm (so it can't imitate the gold alert). */
+/* Lavender AA focus ring — cool, never warm (so it can't imitate the gold alert).
+ * KEPT DELIBERATELY, and it is NOT the selection cue (see `.selected`). This is the
+ * KEYBOARD affordance: removing a focus outline without a replacement is the one
+ * accessibility line this component must not cross, so selection changing appearance
+ * must never take the focus ring with it. */
 .root:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-/* Story 2.2 (FR-9) — the SELECTED (locate-and-highlight) affordance: reuse the shipped
- * lavender focus-ring + raised surface tokens (NOT a new highlight color, and cool so it never
- * imitates the gold needs-you alert). Purely a visual locate cue — no window raise. */
-.selected {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-  background: var(--bg-surface-raised);
+/* The LEFT EDGE carries STATUS — the same three states the StatusDot shows. Driven off
+ * `data-status` (always on the root, both variants) rather than a class, so the bar and the
+ * dot can never drift apart: they read the same prop.
+ *
+ * LEFT EDGE ONLY, deliberately. Colouring the whole border turned every card into a saturated
+ * outlined box and made the board loud — the status bar competed with the card's own content
+ * instead of labelling it. A single 3px edge reads as a spine: enough colour to sort the board
+ * by state at a glance, quiet enough to stay out of the way. The other three sides keep the
+ * neutral --border-card from `.root`.
+ *
+ * This also replaced a hard-coded `accent` colour on that edge, which had only two values
+ * (needs-you / working) against status's three — an idle card painted a gold or blue bar. */
+.root[data-status='needs-you'] {
+  border-left-color: var(--needs-you);
 }
+
+.root[data-status='working'] {
+  border-left-color: var(--working);
+}
+
+.root[data-status='idle'] {
+  border-left-color: var(--idle);
+}
+
+/* Story 2.2 (FR-9) — the SELECTED state has NO fill and NO edge of its own, deliberately.
+ *
+ * `data-selected` is still set (the store's locate-and-highlight and its tests depend on it),
+ * but nothing paints from it: on the BOARD, "selected" is not a state the operator is choosing
+ * — every card is equally in view, so highlighting one implies a mode that does not exist. It
+ * previously drew a lavender outline, which read as the card's own edge and overwrote the one
+ * signal the edge should carry (status).
+ *
+ * The active-session fill belongs to the RAIL, where "the one you're viewing" IS meaningful —
+ * see `.active` in AttentionRail.module.css. Keyboard focus is still shown, by `:focus-visible`
+ * above; that is a different question from selection and must not be dropped with it. */
 
 /* ── hero — large, full-contrast, near ─────────────────────────────────────── */
+/* No border rules here on purpose: the status spine is defined once on `.root` (width) plus the
+ * `[data-status]` colour rules, so hero and calm cannot drift apart on what the edge means. */
 .hero {
   background: var(--bg-card-hero);
-}
-
-/* 3px left accent bar in the hero column's accent (gold = needs-you / blue = working). */
-.hero.accentNeedsYou {
-  border-left: 3px solid var(--needs-you);
-}
-
-.hero.accentWorking {
-  border-left: 3px solid var(--working);
 }
 
 /* ── calm — compact, dimmed, far ───────────────────────────────────────────── */
@@ -62,11 +89,28 @@
 }
 
 /* ── Anatomy ───────────────────────────────────────────────────────────────── */
+/* Three children in a row: the name, the rename pencil, the status dot.
+ *
+ * This used to be `justify-content: space-between`, which spread all three across the full card
+ * width and parked the pencil an inch away from the name it renames. A control that far from its
+ * subject reads as belonging to the card in general, not to the title — you have to look twice to
+ * work out what it edits.
+ *
+ * Now the name shrink-wraps (see `.sessionName` below), the pencil follows it immediately, and
+ * only the LAST child — the status dot — is pushed to the right edge, where it belongs: it is a
+ * property of the whole card, not of the title. */
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-2);
+}
+
+/* The status dot is always the last child. `:last-child` rather than a class because the dot is
+ * rendered by StatusDot, whose own class names live in its module and cannot be reached from
+ * here. This also keeps working when the pencil is absent (a presentational caller with no
+ * `onRename`): the children are then name + dot, and the dot still lands on the right. */
+.header > :last-child {
+  margin-left: auto;
 }
 
 /* ── A2 rename pencil ───────────────────────────────────────────────────────────
@@ -124,6 +168,12 @@
  * the path is reference detail underneath it. Both the colour and the weight are set EXPLICITLY
  * here rather than inherited, so no variant-level rule can quietly demote the title again. */
 .sessionName {
+  /* Shrink-wrap, do NOT fill. `flex: 0 1 auto` makes the title only as wide as its text, so the
+   * pencil sits against the end of the name instead of being pushed to the far edge; `min-width:
+   * 0` is what still lets it shrink below its content width, which is the precondition for the
+   * `text-overflow: ellipsis` below to ever fire on a long name. */
+  flex: 0 1 auto;
+  min-width: 0;
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-heading);

@@ -1,42 +1,62 @@
 /* Story 1.3 — shared Needs-you emphasis primitives (AC-7, AC-8).
  * Defined ONCE here and exported so Epic 2 (attention rail) and Epic 3 do not
- * re-author them. NOT consumed into a live rail here.
+ * re-author them.
  *
- * The pulse is COMPOSITOR-ONLY — opacity + transform (scale), never layout — so it
- * stays cheap and never reflows. `prefers-reduced-motion: reduce` removes the pulse
- * (static gold fill + size only — the accessibility floor for the cue,
- * UX-DR27/UX-DR29). */
+ * The cue is COMPOSITOR-ONLY — transform only, never layout — so it stays cheap and
+ * never reflows. `prefers-reduced-motion: reduce` removes it entirely (the status-
+ * coloured border carries the state statically — the accessibility floor for the cue,
+ * UX-DR27/UX-DR29).
+ *
+ * WHY TRANSLATE AND NOT SCALE (load-bearing — do not "restore" the scale):
+ * this used to pulse `transform: scale(1.015)` on the CARD ROOT, which contains text.
+ * A non-integer scale forces every glyph to be rasterised off the pixel grid, so the
+ * whole card — session name, path, pid — went visibly soft for the entire animation,
+ * and the reduced-motion branch made that blur PERMANENT by leaving a static
+ * `scale(1.015)` applied. Translation by WHOLE pixels moves the composited layer
+ * without resampling it, so the text stays sharp at every frame. Any transform that
+ * resamples (scale, rotate, non-integer translate) brings the blur straight back. */
 
-/* The subtle Needs-you pulse: opacity 1.0↔0.78 + scale 1.0↔1.015 on ~1.5s ease. */
-@keyframes needsYouPulse {
+/* The Needs-you bounce: a short hop, a smaller second hop, then a long rest. Most of the
+ * 2.4s cycle is at rest on purpose — a relentless loop reads as a broken UI and is exactly
+ * the "excessive motion" this is meant to avoid. Every offset is a whole pixel. */
+@keyframes needsYouBounce {
   0%,
+  22%,
   100% {
-    opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
   }
 
-  50% {
-    opacity: 0.78;
-    transform: scale(1.015);
+  5% {
+    transform: translateY(-4px);
+  }
+
+  11% {
+    transform: translateY(0);
+  }
+
+  16% {
+    transform: translateY(-2px);
   }
 }
 
-/* The emphasis hook: a gold-anchored element that pulses subtly. The gold itself
+/* The emphasis hook: a gold-anchored element that bounces to draw the eye. The gold itself
  * is referenced via the token (the single reserved alert hue). */
 .needsYouEmphasis {
   /* The gold token reference — the one reserved alert hue. */
   color: var(--needs-you);
-  animation: needsYouPulse 1.5s ease-in-out infinite;
-  /* Hint the compositor that opacity/transform animate (no layout). */
-  will-change: opacity, transform;
+  animation: needsYouBounce 2.4s ease-in-out infinite;
+  /* Hint the compositor that transform animates (no layout, no repaint). */
+  will-change: transform;
 }
 
-/* Accessibility floor: honor reduced-motion → NO pulse; static gold fill + size. */
+/* Accessibility floor: honor reduced-motion → NO motion, and NO residual transform.
+ * The static affordance is the gold status border + the gold text token, neither of
+ * which resamples the text. (The old fallback pinned a static scale(1.015) here, which
+ * left the card permanently blurred for exactly the users who opted out of motion.) */
 @media (prefers-reduced-motion: reduce) {
   .needsYouEmphasis {
     animation: none;
-    /* Static "enlarged" affordance instead of motion (size, not pulse). */
-    transform: scale(1.015);
+    transform: none;
     will-change: auto;
   }
 }

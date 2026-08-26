@@ -8,19 +8,41 @@
 // filter), live-updating from the board store projection.
 //
 // CONSUMES the shipped Epic-1 emphasis primitives (SM-C1) — it does NOT re-author them:
-//   - `needsYouEmphasisClass` (the @keyframes needsYouPulse + the prefers-reduced-motion fallback
-//     live in emphasis.module.css — opacity 1.0↔0.78 + scale 1.0↔1.015 ~1.5s, compositor-only;
-//     reduced-motion → static gold + size, no pulse — UX-DR27/29). The rail ADDS the 44→56px
-//     enlarge + 14%-gold fill + needs-you border as its OWN row styling, but keeps the enlarge in
-//     the reduced-motion path too (only the pulse drops — see AttentionRail.module.css).
-//   - the `--needs-you` gold token (NEEDS_YOU_TOKEN) for the fill/border.
+//   - `needsYouEmphasisClass` (the @keyframes needsYouBounce + the prefers-reduced-motion fallback
+//     live in emphasis.module.css — a whole-pixel translateY bounce on a 2.4s cycle with a long
+//     rest, compositor-only. It must NOT scale: the class lands on an element containing text, and
+//     a fractional scale rasterises every glyph off the pixel grid. Reduced-motion → no motion and
+//     no residual transform; the static gold carries it — UX-DR27/29). The rail ADDS the 44→56px
+//     enlarge + 14%-gold fill as its OWN row styling, but keeps the enlarge in the reduced-motion
+//     path too (only the bounce drops — see AttentionRail.module.css).
+//   - the `--needs-you` gold token (NEEDS_YOU_TOKEN) for the fill; the row's BORDER colour comes
+//     from `data-status` instead, so the edge and the dot always agree.
 //   - the shipped `StatusDot` (never color-only — paired with a text label, UX-DR29).
 //   - a `LiveAnnouncer` (aria-live=polite) for a session NEWLY entering needs-you.
 //
+// LAYOUT — a PINNED active row, then one section per status:
+//
+//     <the session whose terminal is on screen>     ← always first, no divider above it
+//     ──── Needs you ────
+//     ──── Working ────
+//     ──── Idle ────
+//     ──── Starting ────
+//
+// The rail used to be ONE flat list sorted needs-you-first, which meant the session the operator
+// was actively typing in slid down the rail the moment any OTHER session went needs-you. Pinning
+// it removes that: "where am I" is answered at a fixed position, and "who wants me" is answered by
+// the group right below. The pinned row carries NO divider — a header over one row would explain
+// something the fill and the "(active)" in its accessible name already say — and it is filtered
+// OUT of its own status group, so no session is ever listed twice.
+//
+// Empty sections render nothing. Three empty rules stacked over a rail holding one session would
+// be more furniture than content.
+//
 // STATE (state.md): the rail + ack state are RENDERER VIEW-STATE in the board store. NARROW
-// selectors — the rail subscribes to the sorted id LIST (`selectRailOrder`); each ROW subscribes
-// to its OWN `selectRailEmphasis(id)` (so one row's emphasis flip does not re-render the whole
-// rail — Task 3.6). Session truth stays main-owned; the rail renders the projection main ships.
+// selectors — the rail subscribes to the pinned id (`selectRailActiveSessionId`, a primitive),
+// each SECTION to its own ids (`selectRailSection`), and each ROW to its OWN
+// `selectRailEmphasis(id)` (so one row's emphasis flip does not re-render the whole rail —
+// Task 3.6). Session truth stays main-owned; the rail renders the projection main ships.
 //
 // CLICK (AC-3): a rail row whose session has a known terminalId SWITCHES the visible terminal
 // (pure renderer show/hide of the kept-alive terminals — terminal.md; NO per-switch IPC, NO input
@@ -41,6 +63,8 @@ import {
   selectFocusedTerminalId,
   selectTerminalIdForSession,
   selectStartingTerminals,
+  selectRailSection,
+  selectRailActiveSessionId,
   type BoardState,
   type LaunchedTerminal
 } from '../../stores/boardStore'
@@ -56,6 +80,15 @@ const DOT_STATUS_FOR_COLUMN: Record<Column, DotStatus> = {
   'needs-you': 'needs-you',
   idle: 'idle'
 }
+
+/** The rail's section order, most-urgent first. NEEDS YOU leads because a session that wants the
+ *  operator is the whole reason this rail exists; IDLE trails because nothing is happening there.
+ *  The pinned active row sits ABOVE all of these and belongs to none of them.
+ *
+ *  Typed `readonly Column[]` so dropping a column here is a deliberate edit, not a typo — and so a
+ *  fourth column added to the contract shows up as an unhandled value in review rather than
+ *  silently vanishing from the rail. */
+const RAIL_SECTION_COLUMNS: readonly Column[] = ['needs-you', 'working', 'idle']
 
 /** The per-row projection — the SMALLEST slice a row needs. Subscribed via `useShallow` so a row
  *  re-renders only when ITS own fields change (state.md narrow selectors, Task 3.6). */
@@ -105,17 +138,63 @@ function RailRow(props: {
   const statusText = statusLabel(status)
   const label = active ? `${name}, ${statusText} (active)` : `${name}, ${statusText}`
 
+  const className = `${styles.row} ${emphasized ? `${styles.emphasized} ${needsYouEmphasisClass}` : ''} ${active ? styles.active : ''}`
+
+  // The ACTIVE row is NOT a control — it is a `<div>`, with no click, no hover change, and out of
+  // the tab order. Its only job would have been "switch to this session", and you are already in
+  // it. A button that does nothing when pressed is a lie told twice: the pointer changes shape and
+  // the background lights up, both promising something will happen. The rename pencil beside it
+  // stays a real button, so the row is still not a dead end.
+  //
+  // NOTE the accessible name is built DIFFERENTLY here than on the button below, and the
+  // difference is not cosmetic. A `<button aria-label=…>` REPLACES its contents for assistive
+  // tech, which is why the button path folds the status into `label`. A generic `<div>` has no
+  // such guarantee — `aria-label` on an element with no role is not reliably exposed — so this
+  // path lets the real content be read instead: the StatusDot's screen-reader-only status text
+  // plus the name. Collapsed hides the name visually, so it is rendered `sr-only` rather than
+  // dropped, or the row would announce a status with no session attached to it.
+  //
+  // `aria-current="true"` carries the "(active)" the button path spells out in its label, and
+  // `title` gives a sighted operator the same on hover (the expanded name ellipsizes).
+  if (active) {
+    return (
+      <div className={styles.rowWrap}>
+        <div
+          className={className}
+          data-testid="rail-row"
+          data-session-id={id}
+          data-status={status}
+          {...(emphasized ? { 'data-emphasized': true } : {})}
+          data-active
+          aria-current="true"
+          title={label}
+        >
+          <StatusDot status={status} labelHidden />
+          {collapsed ? (
+            <span className="sr-only">{name}</span>
+          ) : (
+            <span className={styles.name} data-testid="rail-row-name">
+              {name}
+            </span>
+          )}
+        </div>
+        {!collapsed && onRename !== undefined && (
+          <RenameButton name={name} onClick={() => onRename(id)} />
+        )}
+      </div>
+    )
+  }
+
   const row = (
     <button
       type="button"
-      className={`${styles.row} ${emphasized ? `${styles.emphasized} ${needsYouEmphasisClass}` : ''} ${active ? styles.active : ''}`}
+      className={className}
       data-testid="rail-row"
       data-session-id={id}
+      data-status={status}
       {...(emphasized ? { 'data-emphasized': true } : {})}
-      {...(active ? { 'data-active': true } : {})}
       aria-label={label}
       title={label}
-      aria-current={active ? 'true' : undefined}
       onClick={() => onActivate(id)}
     >
       {/* `labelHidden` UNCONDITIONALLY, and NO `label` override. Both halves matter:
@@ -155,28 +234,94 @@ function RailRow(props: {
   return (
     <div className={styles.rowWrap}>
       {row}
-      <button
-        type="button"
-        className={styles.rowRenameButton}
-        data-testid="rail-rename"
-        aria-label={`Rename ${name}`}
-        title={`Rename ${name}`}
-        onClick={() => onRename(id)}
+      <RenameButton name={name} onClick={() => onRename(id)} />
+    </div>
+  )
+}
+
+/** The rename pencil. Extracted because BOTH row shapes need it — the interactive `<button>` row
+ *  and the non-interactive active `<div>` row — and on the active row it is the ONLY control left,
+ *  so a copy that drifted would quietly leave that row with no way to rename at all. */
+function RenameButton(props: { name: string; onClick: () => void }): JSX.Element {
+  const { name, onClick } = props
+  return (
+    <button
+      type="button"
+      className={styles.rowRenameButton}
+      data-testid="rail-rename"
+      aria-label={`Rename ${name}`}
+      title={`Rename ${name}`}
+      onClick={onClick}
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
       >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
-        </svg>
-      </button>
+        <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
+      </svg>
+    </button>
+  )
+}
+
+/**
+ * A section divider — the `──── Label ────` rule between rail groups.
+ *
+ * The rules are `::before`/`::after` pseudo-elements on a flex row, NOT dash characters: a literal
+ * run of dashes cannot know how wide the rail is, so it would over-run a 240px rail and wrap on a
+ * long label, while a flex rule fills exactly the space left beside the text at any width.
+ *
+ * `aria-hidden` — this is decoration. The GROUPING it draws is carried to assistive tech by the
+ * `aria-label` on the sibling `<ul>` (see RailSection), so a screen reader announces "Needs you,
+ * list, 2 items" instead of reading a stray word floating between two lists.
+ *
+ * Collapsed rail: the LABEL hides (there is no room for text at 70px) but the rule stays, so the
+ * groups remain visibly separated as one column of circles. Same trick the shipped
+ * `.startingLabel` already used — this just makes it the shared, uniform treatment.
+ */
+function RailDivider(props: { label: string }): JSX.Element {
+  return (
+    <div className={styles.divider} data-testid="rail-divider" data-label={props.label} aria-hidden>
+      <span className={styles.dividerLabel}>{props.label}</span>
+    </div>
+  )
+}
+
+/**
+ * One status group: a divider plus the rows in that column.
+ *
+ * Renders NOTHING when the group is empty — an empty `──── IDLE ────` rule is a promise of content
+ * that is not there, and three of them stacked would fill a rail that has one session in it.
+ *
+ * Subscribes to its OWN ids only (`selectRailSection` + `useShallow`, state.md narrow selectors),
+ * so a session moving between groups re-renders the two groups involved, not the whole rail.
+ */
+function RailSection(props: {
+  column: Column
+  collapsed: boolean
+  onActivate: (sessionId: string) => void
+  onRename?: ((sessionId: string) => void) | undefined
+}): JSX.Element | null {
+  const { column, collapsed, onActivate, onRename } = props
+  const ids = useBoard(useShallow((s: BoardState) => selectRailSection(s, column)))
+  if (ids.length === 0) return null
+  const label = statusLabel(DOT_STATUS_FOR_COLUMN[column])
+  return (
+    <div className={styles.section} data-testid="rail-section" data-column={column}>
+      <RailDivider label={label} />
+      <ul className={styles.list} data-testid="rail-list" aria-label={label}>
+        {ids.map((id) => (
+          <li key={id} className={styles.listItem}>
+            <RailRow id={id} collapsed={collapsed} onActivate={onActivate} onRename={onRename} />
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -191,6 +336,12 @@ function RailRow(props: {
 function StartingRailRow(props: { terminal: LaunchedTerminal; collapsed: boolean }): JSX.Element {
   const { terminal, collapsed } = props
   const { terminalId, label } = terminal
+  // The pinned slot at the top of the rail holds the active SESSION, and a starting terminal has
+  // no session card yet — so during the launch→correlate window the pin is empty and this row is
+  // the only thing that can say "this is the terminal you are looking at". Without it, launching a
+  // session leaves the whole rail with no active marker anywhere. A primitive boolean → safe
+  // without useShallow, and it re-renders only THIS row when focus moves.
+  const active = useBoard((s: BoardState) => selectFocusedTerminalId(s) === terminalId)
 
   function handleClick(): void {
     boardStore.getState().switchTerminal(terminalId)
@@ -199,15 +350,17 @@ function StartingRailRow(props: { terminal: LaunchedTerminal; collapsed: boolean
   // Always "<name> — starting", collapsed or not. The aria-label used to drop the " — starting"
   // suffix in collapsed mode — exactly the mode where no visible text explains the row at all.
   // Doubles as the `title`, so the collapsed ring is identifiable on hover too.
-  const rowLabel = `${label} — starting`
+  const rowLabel = active ? `${label} — starting (active)` : `${label} — starting`
 
   return (
     <button
       type="button"
-      className={styles.startingRow}
+      className={`${styles.startingRow} ${active ? styles.active : ''}`}
       data-testid="starting-rail-row"
       data-terminal-id={terminalId}
+      {...(active ? { 'data-active': true } : {})}
       aria-label={rowLabel}
+      aria-current={active ? 'true' : undefined}
       title={rowLabel}
       onClick={handleClick}
     >
@@ -244,10 +397,12 @@ export function AttentionRail({
   onActivateSession,
   onRenameSession
 }: AttentionRailProps): JSX.Element {
-  // The SORTED session-id list — the small, stable projection (state.md narrow selector, via
-  // useShallow so a sort that returns an equal list does not re-render). An emphasis flip does NOT
-  // change this list (per-row emphasis is a separate subscription).
-  const order = useBoard(useShallow(selectRailOrder))
+  // The PINNED session — the one whose terminal is on screen. A primitive `string | null`, so no
+  // useShallow, and it re-renders the rail only when the operator actually switches terminals.
+  // Each SECTION subscribes to its own ids separately (RailSection), which is why there is no
+  // whole-list subscription here any more: a session flipping to needs-you now re-renders the two
+  // sections involved instead of every row in the rail.
+  const activeId = useBoard(selectRailActiveSessionId)
   // Story 5.6 (rail gap) — launched-but-not-yet-correlated terminals: the "Starting" group.
   // useShallow because selectStartingTerminals returns an array. Supersede is automatic:
   // once a terminal correlates AND has a card in sessionsById, selectStartingTerminals drops it.
@@ -318,37 +473,56 @@ export function AttentionRail({
         </button>
       </div>
       <LiveAnnouncer message={announcement} />
-      <ul className={styles.list} data-testid="rail-list">
-        {order.map((id) => (
-          <li key={id} className={styles.listItem}>
-            <RailRow
-              id={id}
-              collapsed={collapsed}
-              onActivate={onActivateSession}
-              onRename={onRenameSession}
-            />
-          </li>
-        ))}
-      </ul>
-      {/* Story 5.6 (rail gap) — "Starting" group: calm, BELOW the session rows so it never
-          competes with needs-you emphasis. Rendered only when ≥1 starting terminal exists.
-          Supersede is automatic via selectStartingTerminals (drops once correlated + card present). */}
-      {startingTerminals.length > 0 && (
-        <div className={styles.startingSection} data-testid="starting-rail-section">
-          {!collapsed && (
-            <span className={styles.startingLabel} aria-hidden="true">
-              Starting
-            </span>
-          )}
-          <ul className={styles.list} data-testid="starting-rail-list">
-            {startingTerminals.map((lt) => (
-              <li key={lt.terminalId} className={styles.listItem}>
-                <StartingRailRow terminal={lt} collapsed={collapsed} />
-              </li>
-            ))}
+      <div className={styles.scroll} data-testid="rail-scroll">
+        {/* The PINNED row: the session currently on screen, ALWAYS first — above needs-you, above
+            everything. It carries NO divider on purpose: a label over a single row would be
+            explaining the obvious (it is the one you are looking at, and its own fill + "(active)"
+            in the accessible name already say so), and a rule above it would push it down into the
+            list it is deliberately standing outside of.
+
+            It is also excluded from its own status section (selectRailSection filters it), so it
+            appears exactly once — a nav list that shows one session twice reads as two sessions. */}
+        {activeId !== null && (
+          <ul className={styles.list} data-testid="rail-pinned-list" aria-label="Open">
+            <li className={styles.listItem}>
+              <RailRow
+                id={activeId}
+                collapsed={collapsed}
+                onActivate={onActivateSession}
+                onRename={onRenameSession}
+              />
+            </li>
           </ul>
-        </div>
-      )}
+        )}
+        {/* One group per status, urgent-first. Each renders nothing when empty, so a rail with a
+            single working session shows one divider — not three. */}
+        {RAIL_SECTION_COLUMNS.map((column) => (
+          <RailSection
+            key={column}
+            column={column}
+            collapsed={collapsed}
+            onActivate={onActivateSession}
+            onRename={onRenameSession}
+          />
+        ))}
+        {/* Story 5.6 (rail gap) — "Starting" group: calm, BELOW the session rows so it never
+            competes with needs-you emphasis. Rendered only when ≥1 starting terminal exists.
+            Supersede is automatic via selectStartingTerminals (drops once correlated + card
+            present). It now uses the SHARED RailDivider instead of its own bespoke border+label,
+            so all four groups are separated the same way. */}
+        {startingTerminals.length > 0 && (
+          <div className={styles.section} data-testid="starting-rail-section">
+            <RailDivider label="Starting" />
+            <ul className={styles.list} data-testid="starting-rail-list" aria-label="Starting">
+              {startingTerminals.map((lt) => (
+                <li key={lt.terminalId} className={styles.listItem}>
+                  <StartingRailRow terminal={lt} collapsed={collapsed} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </nav>
   )
 }

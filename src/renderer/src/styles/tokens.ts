@@ -31,6 +31,12 @@ export const TOKENS = {
   'bg-col-calm': '#151513',
   'bg-card-hero': '#2a2925',
   'bg-card-calm': '#1e1e1b',
+  /* The DEFAULT rail row fill — every row you are NOT viewing (text keeps 7.82:1 on it). A
+   * lift along the app's warm-neutral ramp, not a hue. There is deliberately no
+   * `bg-row-active` counterpart: the active row paints `bg-terminal`, the same token the
+   * terminal frame paints, so the two cannot drift. Rail only; board cards have no
+   * selected fill. */
+  'bg-row-rest': '#3a3833',
   'bg-terminal': '#141312',
   scrim: 'rgba(10,10,8,0.62)',
 
@@ -92,8 +98,14 @@ export const TOKENS = {
   'space-5': '20px',
   'space-6': '24px',
   'space-8': '32px',
+  /* Shared by the rail's "Sessions" header AND the focused view's Board bar. They sit side by side
+   * and each draws a 1px bottom border, so a difference reads as a STEP in that line at the rail's
+   * edge. 45px is the Board bar's measured content height; the rail header grows to meet it. */
+  'topbar-height': '45px',
   'rail-width': '240px',
-  'rail-width-collapsed': '56px',
+  /* 70px, not 56px: the rail's 1px right border would otherwise leave a 55px content box and
+   * clip the 56px needs-you square's own edge. The ICON stays 56px; this is the gutter. */
+  'rail-width-collapsed': '70px',
   'card-min-height': '92px',
   gutter: '16px',
   'card-gap': '12px',

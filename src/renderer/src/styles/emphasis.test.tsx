@@ -47,15 +47,52 @@ describe('emphasis primitives — gold/pulse/reduced-motion/announcer (AC-7, AC-
     expect(region?.textContent).toBe('')
   })
 
-  it('the CSS module defines the pulse keyframe AND the reduced-motion fallback', () => {
+  it('the CSS module defines the bounce keyframe AND the reduced-motion fallback', () => {
     const css = readFileSync(resolve(dirname(__filename), 'emphasis.module.css'), 'utf8')
-    // Compositor-only pulse: opacity + transform, ~1.5s.
-    expect(css).toContain('@keyframes needsYouPulse')
-    expect(css).toMatch(/animation:\s*needsYouPulse\s+1\.5s/)
-    expect(css).toMatch(/opacity:\s*0\.78/)
-    expect(css).toMatch(/scale\(1\.015\)/)
-    // The accessibility floor: reduced-motion removes the pulse.
+    // Compositor-only cue: transform, on a slow cycle with a long rest.
+    expect(css).toContain('@keyframes needsYouBounce')
+    expect(css).toMatch(/animation:\s*needsYouBounce\s+2\.4s/)
+    expect(css).toMatch(/translateY\(-4px\)/)
+    // The accessibility floor: reduced-motion removes the cue.
     expect(css).toContain('@media (prefers-reduced-motion: reduce)')
     expect(css).toMatch(/animation:\s*none/)
+  })
+
+  // THE BLUR REGRESSION (observed 2026-08-25). The cue is applied to the CARD ROOT, which
+  // contains the session name, path and pid. The old cue pulsed `transform: scale(1.015)`,
+  // and a non-integer scale rasterises every glyph off the pixel grid — the whole card went
+  // soft for the entire animation. Worse, the reduced-motion branch left a STATIC
+  // scale(1.015) applied, so users who opted out of motion got the blur permanently, forever.
+  //
+  // Any resampling transform brings it back, so this asserts the absence of the whole class,
+  // not just the one value that was there before.
+  it('never applies a resampling transform — that is what blurred the card text', () => {
+    const css = readFileSync(resolve(dirname(__filename), 'emphasis.module.css'), 'utf8')
+    const declarations = css
+      .split('\n')
+      .filter((l) => l.trimStart().startsWith('transform:') || l.includes('animation:'))
+      .join('\n')
+
+    expect(declarations).not.toMatch(/scale\(/)
+    expect(declarations).not.toMatch(/rotate\(/)
+    expect(declarations).not.toMatch(/skew\(/)
+  })
+
+  it('translates by WHOLE pixels only — a fractional offset blurs exactly like a scale', () => {
+    const css = readFileSync(resolve(dirname(__filename), 'emphasis.module.css'), 'utf8')
+    const offsets = [...css.matchAll(/translateY\((-?[\d.]+)px\)/g)].map((m) => Number(m[1]))
+
+    expect(offsets.length).toBeGreaterThan(0)
+    for (const px of offsets) {
+      expect(Number.isInteger(px)).toBe(true)
+    }
+  })
+
+  it('reduced-motion leaves NO residual transform (the old fallback pinned a static scale)', () => {
+    const css = readFileSync(resolve(dirname(__filename), 'emphasis.module.css'), 'utf8')
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+
+    expect(reduced).toMatch(/transform:\s*none/)
+    expect(reduced).not.toMatch(/scale\(/)
   })
 })

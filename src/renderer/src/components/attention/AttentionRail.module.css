@@ -1,12 +1,33 @@
 /* Story 3.4 (FR-16) — the attention rail (UX-DR9/27/29).
  *
- * Always-present nav region; collapsible to 56px icons, NEVER hidden. Rows = status dot + short
- * name; needs-you rows enlarge 44→56px + 14%-gold fill + needs-you border + pulse (the pulse +
- * reduced-motion fallback come from the SHIPPED emphasis.module.css via needsYouEmphasisClass on
- * the card; here the rail composes its OWN row styling and keeps the enlarge in reduced-motion,
- * dropping only the pulse). Idle rows stay calm; the active row (the session being viewed) is
- * highlighted. The pulse is compositor-only (transform/opacity), never layout — it must not
- * contend with the terminal echo budget (UX-DR27). */
+ * Always-present nav region; collapsible to a column of 44px icons, NEVER hidden. Rows = status
+ * dot + short name; needs-you rows get a 14%-gold fill + a gold spine + a bounce (the bounce +
+ * its reduced-motion fallback come from the SHIPPED emphasis.module.css via needsYouEmphasisClass;
+ * here the rail composes its OWN row styling and keeps the static parts in reduced-motion, dropping
+ * only the bounce). Idle rows stay calm.
+ *
+ * TWO ROW SIZES, ONE SMALL STEP. Rows are 40px; the ACTIVE row alone is 44px. That 4px is one
+ * `--space-1` — enough to read as "this one sits forward", small enough that nothing jumps when the
+ * active session changes. Nothing ELSE may use the larger size.
+ *
+ * In particular NEEDS-YOU DOES NOT GROW. It used to enlarge 44→56px, and a big enlarge driven by
+ * SESSION STATE is the bad kind: rows reflow under the operator mid-read, as sessions they are not
+ * looking at change status. The active row is different in kind — it changes only when the operator
+ * themselves switches session, so its step is never a surprise. Emphasis stays COLOUR and MOTION.
+ *
+ * Under `prefers-reduced-motion` a needs-you row therefore signals with three STATIC channels — the
+ * gold fill, the gold spine, the gold dot — so the signal is still never motion-only, which is the
+ * floor that matters.
+ *
+ * TWO INDEPENDENT CHANNELS, the same model the SessionCard uses:
+ *   BORDER = status  — left edge only when expanded, the full square when collapsed.
+ *   FILL   = active  — the one session currently open in the focused terminal.
+ * Neither can hide the other, so "which one am I looking at" and "what state is it in" stay
+ * separately readable. (The active row used to paint a lavender BORDER, which overwrote status.)
+ *
+ * The bounce is compositor-only (whole-pixel translate), never layout and never a scale — it
+ * must not contend with the terminal echo budget (UX-DR27), and a scale would blur the row's
+ * text. */
 
 .rail {
   display: flex;
@@ -25,6 +46,12 @@
   flex-basis: var(--rail-width-collapsed);
 }
 
+/* `--topbar-height`, NOT a local `min-height`. This header and the focused view's Board bar are
+ * side by side and each draws its own 1px bottom border, so the two lines must end on the same y or
+ * the seam at the rail's edge shows a visible STEP. `min-height: 40px` used to leave this header at
+ * 41px against the bar's content-driven 45px — a 4px step, right where the eye crosses from the
+ * rail into the terminal. An explicit shared height is what makes them provably equal instead of
+ * coincidentally close; a test pins both to the same token. */
 .header {
   display: flex;
   align-items: center;
@@ -32,7 +59,7 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
-  min-height: 40px;
+  height: var(--topbar-height);
 }
 
 .collapsed .header {
@@ -73,20 +100,115 @@
   outline-offset: 1px;
 }
 
-.list {
-  list-style: none;
-  margin: 0;
-  padding: var(--space-2);
+/* The ONE scroll container for every group.
+ *
+ * Scrolling used to live on `.list`, which worked while the rail was a single list. With one list
+ * per status section, per-list scrolling would give the rail three independent scrollbars and let a
+ * long NEEDS YOU group scroll while WORKING stayed pinned in place. The scroll moves up here so the
+ * whole stack — pinned row, dividers, every group — moves as one.
+ *
+ * `min-height: 0` is load-bearing: this is a flex child of a column flex parent, where the default
+ * `min-height: auto` lets the box grow to its content instead of overflowing, so `overflow-y: auto`
+ * would never produce a scrollbar and the bottom groups would be cut off by `.rail`'s
+ * `overflow: hidden`. */
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  /* The GROUPING is carried by proximity, so the three gaps must be clearly stepped:
+   *   row → row       4px  (.list gap)
+   *   divider → rows  8px  (.section gap)
+   *   group → group  20px  (here)
+   * At the 12px this started on, the between-group gap was only 4px bigger than the
+   * divider-to-rows gap and the label read as floating between two groups instead of heading the
+   * one below it. 20px is a 2.5x step over the .section gap — unambiguous without adding a second
+   * separator on top of the rule the divider already draws. */
+  gap: var(--space-5);
+  padding: var(--space-2) 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
+.list {
+  list-style: none;
+  margin: 0;
+  /* Horizontal inset only — the vertical rhythm between groups is `.scroll`'s gap. Keeping the
+   * old all-round padding here would stack list padding on top of that gap at every seam. */
+  padding: 0 var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .collapsed .list {
-  padding: var(--space-2) 0;
+  padding: 0;
   align-items: center;
+}
+
+/* A status group: its divider and its rows, held closer to each other than to the next group, so
+ * the label reads as belonging to the rows BELOW it and not floating between two groups. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The `──── Label ────` rule.
+ *
+ * The two rules are pseudo-elements, NOT dash characters: a fixed run of dashes cannot know the
+ * rail's width, so it would over-run at 240px and wrap on a long label. `flex: 1 1 auto` on each
+ * side fills exactly the space the label leaves, at any width.
+ *
+ * The label is sentence case, regular weight, and MUTED for every group, needs-you included. Gold is reserved for the rows that
+ * actually need the operator (the dot, the border spine, the 14% fill, the bounce); a gold section
+ * header would be a fourth gold surface in the same view, and the loudest one would then be a
+ * static piece of furniture rather than a live session. */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Sentence case, NOT uppercase, and NOT bold. The text comes from `statusLabel()` already written
+ * that way ("Needs you" / "Working" / "Idle"), so there is no `text-transform` here — the label is
+ * printed exactly as the one shared status-name definition spells it, which is also what the rows'
+ * accessible names say.
+ *
+ * `--font-weight-label` (500) rather than `--font-weight-heading` (600): these dividers are
+ * furniture between the rows, not the rows themselves. A bold uppercase run competed with the
+ * session names it sits above — the label only has to be findable while scanning, and at 12px
+ * muted it already is. `--letter-spacing-heading` went with the uppercase; tracking exists to open
+ * up all-caps and does nothing for sentence case. */
+.dividerLabel {
+  flex: 0 0 auto;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  line-height: 1;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* COLLAPSED (70px): no room for text, so the label goes and the rule stays — the groups must still
+ * be visibly separated when the rail is one column of circles. `gap: 0` is what makes that work:
+ * with the label gone the two pseudo-element rules sit flush and read as ONE continuous line
+ * instead of two short dashes with a hole between them. */
+.collapsed .divider {
+  gap: 0;
+  padding: 0 var(--space-2);
+}
+
+.collapsed .dividerLabel {
+  display: none;
 }
 
 .listItem {
@@ -98,18 +220,20 @@
  * actually centre it.
  *
  * MEASURED (real layout engine, not jsdom — troubleshooting.md Step-0 for a paint/layout symptom):
- * the collapsed rail is 56px with a 1px right border, so the list's content box is 55px. With
- * `width: 100%` the item was also 55px — already filling the cross axis, so `align-items: center`
- * had nothing to centre, and the 44px row sat flush left with 12px of dead space on its right
- * (0px left / 12px right to the rail edges). The 56px needs-you row was flush left too and spilled
- * 1px past the content box.
+ * with `width: 100%` the item filled the whole cross axis, so `align-items: center` had nothing
+ * to centre and the row sat flush left with all the dead space on its right.
  *
  * `.list` is `display: flex`, so these are FLEX ITEMS: `width: auto` resolves to the content size
  * (a shrink-to-fit that a `display: block` box would NOT give on its own), and the cross-axis
- * `align-items: center` then centres it. Re-measured after this rule: 5.5px / 5.5px for the 44px
- * row. The 56px needs-you row is symmetric at -0.5px each side — it is 1px wider than the content
- * box by design (its enlarge target equals the rail width); centred is the best available, and
- * `.list` already clips with `overflow-x: hidden`. */
+ * `align-items: center` then centres it.
+ *
+ * The remaining half of that fix was the rail's own WIDTH. While the collapsed rail was 56px, its
+ * 1px right border left a 55px content box — narrower than the 56px needs-you square of the time,
+ * which therefore hung 0.5px past each side and had its border shaved off by `overflow-x: hidden`.
+ * Visible as a square missing its right edge. `--rail-width-collapsed` is now 70px, so squares are
+ * seated with real gutters instead of clipped to fit. (Every square is 44px now — see ONE ROW SIZE
+ * at the top — so 70px is roomier than it strictly needs to be. It is left alone deliberately: the
+ * clipping bug came from sizing the rail to exactly fit its widest row, and slack is the fix.) */
 .collapsed .listItem {
   width: auto;
 }
@@ -120,12 +244,19 @@
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: 44px;
+  /* The RESTING height. The active row steps up to 44px (see `.active`); everything else — needs-you
+   * included — stays here. */
+  min-height: 40px;
   box-sizing: border-box;
   padding: var(--space-2) var(--space-3);
   border: 1px solid transparent;
+  /* The status spine (expanded). `.collapsed .row` resets this to 1px for the full square. */
+  border-left-width: 3px;
   border-radius: var(--rounded-md);
-  background: var(--bg-card-calm);
+  /* RESTING fill — the RAISED tone. Every row you are not viewing is a chip standing off the
+   * rail's --bg-surface; the one you ARE viewing recesses instead (see `.active`). This is the
+   * INVERSION of the original scheme, where the resting row was the recessed one. */
+  background: var(--bg-row-rest);
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
@@ -134,20 +265,69 @@
 }
 
 .collapsed .row {
-  width: 44px;
-  min-width: 44px;
+  width: 40px;
+  min-width: 40px;
   justify-content: center;
   padding: var(--space-2) 0;
   gap: 0;
+  /* Square the border off: the left width drops back to 1px so the status ring below is even. */
+  border-left-width: 1px;
 }
 
-.row:hover {
-  background: var(--bg-surface-raised);
+/* HOVER = a PREVIEW of selection: the pointer drops the row to the exact fill it will keep once
+ * it is the one on screen (`--bg-terminal`), so the hover state answers "what happens if I press
+ * this" with the answer itself rather than with a third, unrelated tone. Only the FILL is
+ * previewed — the tab SHAPE belongs to the active row alone, so hovering never reflows the list.
+ *
+ * `:not(.active)` stays for the same reason it was written: the active row must not react to the
+ * pointer at all. Pressing it does nothing — it is the session already on screen, and it is not
+ * even a button any more (see RailRow) — so it must not offer the feedback that promises an
+ * action. (With the inverted palette the fill would land on the same colour anyway; the guard is
+ * kept because the RULE is "the active row is not a control", not "the colours happen to match".)
+ * Hovering it still reveals the rename pencil — that hangs off `.rowWrap:hover`, not this rule. */
+.row:not(.active):hover {
+  background: var(--bg-terminal);
 }
 
+/* KEYBOARD focus only — deliberately NOT the active/selected cue (see `.active`). Removing a
+ * focus outline without a replacement is the one accessibility line this must not cross. */
 .row:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
+}
+
+/* The row border carries STATUS — the same value the row's own StatusDot renders, so the two
+ * cannot drift apart. Matches the SessionCard: border = state, fill = selection.
+ *
+ * EXPANDED = left edge only, exactly like a board card: the row is wide and mostly text, so a
+ * full outline would box in every line of the list. The 3px spine sorts the list by state
+ * without turning it into a stack of coloured rectangles.
+ * COLLAPSED = the full square (below): at 44px there is no text to sit beside, the row IS the
+ * dot, so the whole edge becomes the status surface instead of a bar next to nothing. */
+.row[data-status='needs-you'] {
+  border-left-color: var(--needs-you);
+}
+
+.row[data-status='working'] {
+  border-left-color: var(--working);
+}
+
+.row[data-status='idle'] {
+  border-left-color: var(--idle);
+}
+
+/* COLLAPSED — colour all four sides (the width reset lives in `.collapsed .row` above). The
+ * `.collapsed` descendant selector outranks the left-edge rules above. */
+.collapsed .row[data-status='needs-you'] {
+  border-color: var(--needs-you);
+}
+
+.collapsed .row[data-status='working'] {
+  border-color: var(--working);
+}
+
+.collapsed .row[data-status='idle'] {
+  border-color: var(--idle);
 }
 
 .name {
@@ -217,37 +397,122 @@
   }
 }
 
-/* Needs-you emphasis (AC-2): enlarge 44→56px + 14%-gold fill + needs-you border. The PULSE +
+/* Needs-you emphasis (AC-2): a 14%-gold fill. NO enlarge — see the ONE ROW SIZE note at the top of
+ * this file; emphasis here is colour + motion, never geometry. The PULSE +
  * its reduced-motion fallback are NOT defined here — they come from the SHIPPED
  * emphasis.module.css `needsYouEmphasisClass`, which the rail row ALSO applies (CONSUMED, not
  * re-authored — SM-C1). This rule only owns the rail's OWN layout (enlarge/fill/border); the
- * shipped class owns the @keyframes needsYouPulse + the @media (prefers-reduced-motion) drop. So
+ * shipped class owns the @keyframes needsYouBounce + the @media (prefers-reduced-motion) drop. So
  * reduced-motion keeps THIS enlarge/fill/border (static) and only the pulse stops — exactly the
  * UX-DR27/29 floor. We deliberately do NOT set `animation`/`color`/`transform` here (the shipped
  * class owns motion + the gold token color). */
+/* NOTE: no `border-color` here any more. It used to paint all four sides gold, which would now
+ * fight the left-edge-only spine (this rule is less specific than `.row[data-status]`, so the
+ * left side would take the spine and the other three would stay gold — a full outline by
+ * accident, in expanded mode only). An emphasized row is by definition `data-status="needs-you"`,
+ * so the spine is already gold and the collapsed square already gold. One source, no conflict. */
 .emphasized {
-  min-height: 56px;
-  /* 14% gold fill over the gold token (alpha is on the fill, NOT a new hue). */
-  background: color-mix(in srgb, var(--needs-you) 14%, var(--bg-card-calm));
-  border-color: var(--needs-you);
+  /* 14% gold fill over the gold token (alpha is on the fill, NOT a new hue). Mixed over the
+   * RESTING row tone, so an emphasized row reads as "a resting row, tinted" — not as a fourth
+   * background tone of its own. */
+  background: color-mix(in srgb, var(--needs-you) 14%, var(--bg-row-rest));
 }
 
-.collapsed .emphasized {
-  width: 56px;
-  min-width: 56px;
-}
-
-/* The ACTIVE row (the session currently being viewed in the focused terminal) — highlighted via
- * the shipped lavender focus-ring token + a raised surface (NOT a new color). */
+/* The ACTIVE row (the session currently being viewed in the focused terminal) — a tone-shifted
+ * FILL, never a border.
+ *
+ * It used to paint `border-color: var(--focus-ring)`, which made the active row's edge lavender
+ * and so overwrote the one thing the border should say: the session's status. Fill and border
+ * are independent channels now — background = "this is the one you're viewing", border colour =
+ * "this is its state" — so a working row being viewed no longer looks the same as an idle one
+ * being viewed.
+ *
+ * The DIRECTION of that shift is DOWN, not up: the active row is the DARKEST row in the rail and
+ * the resting rows are the raised ones. Hover moves a resting row to exactly this tone as a
+ * preview.
+ *
+ * The fill is `--bg-terminal` — the SAME token `EmbeddedTerminal.module.css` paints on the frame,
+ * referenced directly rather than copied into a rail-local token. The claim this row makes is "I am
+ * that surface", so the two must be ONE value: a copy could drift and the claim would quietly
+ * become false.
+ *
+ * SHAPE says it a second way. The row squares off its RIGHT corners and grows by the list's own
+ * right padding (`--space-2`), so it ends at the rail's content edge instead of floating inside it.
+ * A rounded chip has no direction; a chip flattened against one edge points at whatever is past
+ * that edge — the terminal. Growing the WIDTH is deliberate rather than a negative margin: `.row`
+ * sets `width: 100%`, and on an explicitly-sized box a negative margin moves the NEXT sibling
+ * instead of widening this one, so `margin-right` would silently do nothing here. Because the
+ * growth exactly cancels the list padding, this works in ANY list — the pinned slot and the
+ * Starting group alike — with no per-list class and no change to the markup. */
 .active {
-  border-color: var(--focus-ring);
-  background: var(--bg-surface-raised);
+  background: var(--bg-terminal);
+  width: calc(100% + var(--space-2));
+  border-radius: var(--rounded-md) 0 0 var(--rounded-md);
+  /* `.rowWrap` is `display: flex`, so this row is a FLEX ITEM and inherits `flex-shrink: 1` — which
+   * shrank the width above straight back down to the wrapper's 100% and left the row 8px short of
+   * the rail edge, floating exactly where it was supposed to stop floating. Overflowing a flex
+   * container is opt-in; this is the opt-in. (`flex-shrink`, not `flex: none`: the row must keep
+   * `flex-basis: auto` so the width above is what it grows from.) */
+  flex-shrink: 0;
+  /* One `--space-1` taller than a resting row (40→44px) — the ONLY size step in the rail, and a
+   * deliberately small one. It is a fourth signal on top of the terminal fill, the squared right
+   * corners and the flush edge, so it does not have to shout; it only has to make this row sit
+   * forward. Safe to spend HERE and nowhere else: this height changes when the OPERATOR switches
+   * session, never when a session they are not watching changes status. See TWO ROW SIZES at the
+   * top of this file. */
+  min-height: 44px;
+  /* The TERMINAL'S OWN OUTLINE, on the two sides that face the rail. `--border-card` is the token
+   * `EmbeddedTerminal.module.css` draws round the frame, referenced directly for the same reason
+   * the fill is: this row claims to BE that surface, so it must be drawn with that surface's line
+   * rather than a copy of it.
+   *
+   * TOP AND BOTTOM ONLY, and the RIGHT side loses its border entirely. An outline closed on four
+   * sides is a box, and a box is a thing that ends; leaving the right open lets the two lines run
+   * OFF the rail's edge toward the terminal, which is the whole claim. The LEFT side is untouched —
+   * that 3px is the status spine (see the `[data-status]` rules), a different channel, and painting
+   * over it would trade "what state is this session in" for decoration.
+   *
+   * Dropping the right border also closes a 1px hairline that was there before: `.row` sets
+   * `border: 1px solid transparent`, so the fill stopped at 238 while the box ended at 239 and a
+   * sliver of `--bg-surface` showed at the edge. `box-sizing: border-box` means removing that
+   * border moves NO geometry — the 1px becomes content and the box stays 231px wide. */
+  border-top-color: var(--border-card);
+  border-bottom-color: var(--border-card);
+  border-right-width: 0;
 }
 
-/* When a row is BOTH active and emphasized, keep the gold needs-you signal dominant (it still
- * needs you) but mark the active state with the lavender ring via an inner box-shadow. */
+/* Active AND needs-you: the gold border + the gold dot + the bounce still carry needs-you, so the
+ * active fill can win the background outright — no gold tint over it, or the row would stop
+ * matching the terminal it claims to be. No lavender inset ring either; that was the same
+ * "selection paints an edge" mistake in a second place. */
 .emphasized.active {
-  box-shadow: inset 0 0 0 1px var(--focus-ring);
+  background: var(--bg-terminal);
+}
+
+/* COLLAPSED (70px): the tab shape is EXPANDED-ONLY. A collapsed row is a 44px square centred in
+ * the rail, with no text and nothing to its right but rail — squaring one side of it would point at
+ * the gutter, and the width growth would push it off the centring `.collapsed .list`'s
+ * `align-items: center` sets up. The WIDTH is already handled: `.collapsed .row` and
+ * `.collapsed .startingRow` are two-class selectors that outrank `.active`'s one. Only the radius
+ * needs an explicit reset, because `.active` and `.row` TIE on specificity and `.active` wins on
+ * source order. */
+.collapsed .row.active,
+.collapsed .startingRow.active {
+  border-radius: var(--rounded-md);
+  /* The step has to land on BOTH axes here or the square stops being one. `.active`'s min-height
+   * does reach a collapsed row, but the WIDTH is pinned to 40px by `.collapsed .row` /
+   * `.collapsed .startingRow` — two-class selectors that outrank it — which would leave a 40x44
+   * upright rectangle standing in a column of circles. `min-height` is repeated for the starting
+   * row's sake: `.collapsed .startingRow` sets its own and would otherwise win. */
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* The active row is not clickable, so it must not claim to be. The pointer stays an arrow over the
+ * row and only turns into a hand over the pencil (which sets its own `cursor: pointer`). */
+.row.active {
+  cursor: default;
 }
 
 /* ---------------------------------------------------------------------------
@@ -257,27 +522,11 @@
  * Mirrors the StartingBanner token choices for visual consistency.
  * --------------------------------------------------------------------------- */
 
-/* Section wrapper — a thin separator before the group when it is present. */
-.startingSection {
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
-  margin-top: var(--space-1);
-}
-
-/* Sub-label ("Starting") — matches the rail's .title style but smaller/muted. */
-.startingLabel {
-  display: block;
-  padding: 0 var(--space-3) var(--space-1);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-heading);
-  color: var(--text-muted);
-  letter-spacing: var(--letter-spacing-heading);
-  text-transform: uppercase;
-}
-
-.collapsed .startingLabel {
-  display: none;
-}
+/* NOTE: `.startingSection` + `.startingLabel` are GONE. The group used to draw its own
+ * separator — a full-width `border-top` plus a left-aligned label — because it was the only
+ * grouped thing in the rail. Now that every status is a group, it uses the shared `.section` +
+ * `RailDivider` like the others; keeping its bespoke chrome would have made the last group the
+ * one that looks different. */
 
 /* Calm starting row — the same geometry as .row but no status dot slot; inherits
  * .row:hover + .row:focus-visible from the shared rule. */
@@ -289,7 +538,10 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid transparent;
   border-radius: var(--rounded-md);
-  background: transparent;
+  /* Same resting fill as `.row` — "unselected" must look the same everywhere in the rail,
+   * whether the launch has a session card yet or not. (This was `transparent` while the resting
+   * row was the recessed tone and a bare row was near enough to it.) */
+  background: var(--bg-row-rest);
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
@@ -299,7 +551,19 @@
 }
 
 .startingRow:hover {
-  background: var(--bg-surface-raised);
+  background: var(--bg-terminal);
+}
+
+/* The active treatment, when the focused terminal is this not-yet-correlated launch. TWO classes
+ * on purpose, and ALL THREE properties repeated: `.active` is a single-class selector defined
+ * EARLIER in this file, so each of `.startingRow`'s own `background` / `width` / `border-radius`
+ * would win on source order and the row would render as an ordinary chip. Same values as
+ * `.row.active`, so "the one you are looking at" looks identical whether the terminal has a session
+ * card yet or not. */
+.startingRow.active {
+  background: var(--bg-terminal);
+  width: calc(100% + var(--space-2));
+  border-radius: var(--rounded-md) 0 0 var(--rounded-md);
 }
 
 .startingRow:focus-visible {
@@ -309,9 +573,9 @@
 
 /* Collapsed icon mode: show just the initial (same geometry as collapsed .row). */
 .collapsed .startingRow {
-  width: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
   flex-direction: row;
   align-items: center;
   justify-content: center;

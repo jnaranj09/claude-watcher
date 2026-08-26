@@ -295,16 +295,17 @@ export interface BoardState {
    *  `selectKeptAliveTerminalIds` so it is no longer kept mounted. */
   forgetLaunchedTerminal: (terminalId: string) => void
   /** Story 3.2 (FR-11 / F6) — activate a card by its session `id` (the Board `onActivateCard`
-   *  seam): SELECT it (the ONE selection, reconciled with the Story-2.2 `selectedId`) and drop
-   *  into its Focused-session IF a terminal is known for it. A no-op if the card is not present.
+   *  seam): SELECT it (the ONE selection, reconciled with the Story-2.2 `selectedId`), ACKNOWLEDGE
+   *  it, and open ITS OWN terminal. A no-op if the card is not present.
    *
-   *  SCOPE (3.2): the `sessionId → terminalId` reverse map (so a card click can open the
-   *  app-launched session's terminal) is NOT built here — that pairing arrives when Story 3.3/3.4
-   *  wire the launched-set FILTER + the focused-session rail. So in 3.2 `activateCard` ONLY
-   *  selects (highlights the card); it switches to the Focused view ONLY when a `focusedTerminalId`
-   *  is already set (it does NOT claim `viewMode='focused'` with no terminal to show — that would
-   *  be a ghost state the UI silently ignores). The launch path (`openLaunchedTerminal`) is the
-   *  one that actually enters the Focused view in 3.2. In-app view-state only — NO window raise. */
+   *  The terminal it opens is resolved from `terminalIdBySessionId[id]` — the SAME binding the
+   *  rail's `switchTerminal` uses, so a board click and a rail click land on the same terminal.
+   *  Story 3.2 shipped this before that map existed and could only flip `viewMode`, which meant a
+   *  card click re-showed whatever terminal was focused LAST (click card B, see card A's terminal).
+   *
+   *  No binding yet (pre-correlation) ⇒ select + acknowledge but STAY on the board: there is no
+   *  terminal of this card's own to show, and showing another session's terminal under this card's
+   *  name is worse than not navigating. In-app view-state only — NO window raise. */
   activateCard: (id: string) => void
   /** Story 3.2 (FR-11 / UX-DR21 / F6) — return to the Board (Esc-to-Board). Sets
    *  `viewMode='board'`. Leaves `selectedId` intact so the card stays highlighted on the board
@@ -587,18 +588,30 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 
     activateCard: (id) => {
       // Activate a present card (the Board onActivateCard seam): SELECT it (ONE selection,
-      // reconciled with the Story-2.2 selectedId). A no-op for an absent card. Enter the Focused
-      // view ONLY when a terminal is already focused (the sessionId→terminalId reverse map is a
-      // Story-3.3/3.4 concern) — never claim viewMode='focused' with no terminal to show (a ghost
-      // state the UI silently ignores). The launch path is the one that enters Focused in 3.2.
+      // reconciled with the Story-2.2 selectedId). A no-op for an absent card.
+      //
+      // WHICH terminal it opens is the whole point, and it was missing. This action originally
+      // shipped in Story 3.2, BEFORE the sessionId→terminalId reverse map existed, so it could
+      // only flip `viewMode` and left `focusedTerminalId` on whatever was focused last. Story 3.4
+      // built that map (`terminalIdBySessionId`, from the CH.launchCorrelated push) and wired it
+      // into the RAIL only — the board card click was never updated. Result: open card A, Esc to
+      // the board, click card B → B is selected, the view flips to Focused, and A's terminal is
+      // still on screen. So resolve the binding HERE and switch to it, exactly like the rail's
+      // switchTerminal does.
       const state = get()
       if (state.sessionsById[id] === undefined) return
+      const terminalId = state.terminalIdBySessionId[id]
       // Story 3.4 (AC-4 / UX-DR28) — opening a session ACKNOWLEDGES it (clears its in-app emphasis).
       // The known sessionId stamps the ONE ack state (rail + card read the same selectRailEmphasis).
       set({
         selectedId: id,
         acknowledgedById: { ...state.acknowledgedById, [id]: now() },
-        ...(state.focusedTerminalId !== null ? { viewMode: 'focused' as const } : {})
+        // No binding yet (the correlation push has not landed) ⇒ STAY on the board. There is no
+        // terminal of this card's own to show, and entering Focused would put a DIFFERENT
+        // session's terminal on screen under this card's name — the same defect, one card later.
+        ...(terminalId !== undefined
+          ? { viewMode: 'focused' as const, focusedTerminalId: terminalId }
+          : {})
       })
     },
 
@@ -868,4 +881,60 @@ export function useColumnSessions(column: Column): BoardSession[] {
     boardStore,
     useShallow((state: BoardState) => selectColumn(state, column))
   )
+}
+
+// ---------------------------------------------------------------------------
+// Rail SECTIONS — the pinned-active row + one group per column.
+//
+// The rail used to be ONE flat list sorted needs-you-first. That put the session the operator is
+// literally looking at somewhere in the middle whenever another session went needs-you, so "which
+// terminal am I in" moved under them while they were typing in it. The list is now:
+//
+//     <pinned active row>          ← no divider above it; it needs no label to explain itself
+//     ──── Needs you ────
+//     ──── Working ────
+//     ──── Idle ────
+//     ──── Starting ────           (selectStartingTerminals, unchanged)
+//
+// The pinned row is REMOVED from its own section (`selectRailSection` filters it out) — a nav list
+// that shows the same session twice makes the operator check whether they are two sessions.
+//
+// WHY TWO SELECTORS AND NOT ONE SHAPE: `useShallow` compares one level deep, so a selector
+// returning nested arrays/objects would allocate fresh identities on every store change and
+// re-render the whole rail — the exact churn state.md's narrow-selector rule exists to prevent.
+// A `string | null` (the pinned id) and a `string[]` per section both compare correctly.
+// ---------------------------------------------------------------------------
+
+/** The PINNED session: the one whose terminal is currently focused. `null` when no terminal is
+ *  focused, or when the focused terminal has no correlated card yet (a just-launched terminal
+ *  still in the Starting group — the pin stays empty rather than guessing). A primitive — safe
+ *  without `useShallow`. */
+export function selectRailActiveSessionId(state: BoardState): string | null {
+  const focused = state.focusedTerminalId
+  if (focused === null) return null
+  for (const [sessionId, terminalId] of Object.entries(state.terminalIdBySessionId)) {
+    if (terminalId === focused && state.sessionsById[sessionId] !== undefined) return sessionId
+  }
+  return null
+}
+
+/** One rail section's session ids: everything in `column` EXCEPT the pinned active session,
+ *  oldest-entered first (the same ascending order the flat rail used, so the longest-waiting
+ *  session stays at the top of its group), id as the final deterministic tiebreak.
+ *
+ *  NOTE this deliberately does NOT use `sortByEnteredColumn` (which the BOARD columns use, and
+ *  which sorts `working` DESCENDING). The rail is a "who has been waiting longest" list in every
+ *  group; flipping one group's direction would make the same three sessions read in two different
+ *  orders depending on which surface you look at.
+ *
+ *  Returns an array → REQUIRES `useShallow` at the call site. Derived; never persisted. */
+export function selectRailSection(state: BoardState, column: Column): string[] {
+  const activeId = selectRailActiveSessionId(state)
+  return Object.values(state.sessionsById)
+    .filter((s) => s.column === column && s.id !== activeId)
+    .sort((a, b) => {
+      if (a.enteredColumnAt !== b.enteredColumnAt) return a.enteredColumnAt - b.enteredColumnAt
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+    })
+    .map((s) => s.id)
 }

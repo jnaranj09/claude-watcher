@@ -110,9 +110,11 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
 
   // The accent bar only renders on the hero variant (calm is recessed).
   const accentClass = variant === 'hero' ? ACCENT_CLASS[accent] : ''
-  // Story 2.2 (FR-9) — the selected (locate-and-highlight) affordance reuses the shipped
-  // lavender focus-ring + raised-surface tokens (no new highlight color). Never a window raise.
-  const selectedClass = selected ? (styles.selected ?? '') : ''
+  // Story 2.2 (FR-9) — `selected` still drives `data-selected` below (the store's
+  // locate-and-highlight and its tests read it), but it no longer carries any STYLING: on the
+  // board nothing is "selected" in a way the operator chose, so painting one card implied a mode
+  // that does not exist. The active-session fill lives in the RAIL, where it means something.
+  // See the `.selected` note in SessionCard.module.css. Never a window raise.
   // Story 3.4 (FR-16 / AC-4) — the needs-you-unacknowledged emphasis: the SHIPPED Epic-1 pulse
   // class (gold token + pulse + reduced-motion fallback, all in emphasis.module.css). CONSUMED,
   // not re-authored. Driven by the SHARED ack state (selectRailEmphasis) — the rail reads the same.
@@ -149,9 +151,10 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
 
   return (
     <div
-      className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${selectedClass} ${emphasisClass}`}
+      className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${emphasisClass}`}
       data-variant={variant}
       data-accent={accent}
+      data-status={status}
       {...(sessionId !== undefined ? { 'data-session-id': sessionId } : {})}
       {...(selected ? { 'data-selected': true } : {})}
       {...(emphasized ? { 'data-emphasized': true } : {})}

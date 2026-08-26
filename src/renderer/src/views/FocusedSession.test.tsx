@@ -5,6 +5,9 @@
 // the kept-alive set from the store (no `terminalId` prop). Asserts: the rail IS present (FR-16);
 // the focused terminal renders; "← Board" → onBack; a rail click switches the visible terminal +
 // acknowledges (no input sent).
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
@@ -324,5 +327,34 @@ describe('FocusedSession — reserved bottom tool strip (breathing room spec)', 
         ? [...terminalWrap.querySelectorAll('*')].find((el) => el.className.includes('toolStrip'))
         : undefined
     expect(stripInsideWrap).toBeUndefined()
+  })
+})
+
+// The rail's "Sessions" header and this view's Board bar sit SIDE BY SIDE, each drawing its own 1px
+// bottom border. Unequal heights put a visible STEP in that line exactly at the rail's edge, where
+// the eye crosses from the rail into the terminal. They were 41px and 45px, and the step was
+// reported from a screenshot — nothing in the suite noticed, because each module looked fine alone.
+//
+// So the guard has to span BOTH modules: assert each sets its height from the SAME token. jsdom
+// does no layout, so a computed-height comparison is not available here; the shared token is the
+// thing that makes them provably equal rather than coincidentally close.
+describe('FocusedSession — the rail header and the Board bar end on the same line', () => {
+  const readCss = (rel: string): string =>
+    readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
+
+  const heightOf = (css: string, selector: RegExp): string | undefined =>
+    /(?:^|[^-])height:\s*([^;]+);/.exec(selector.exec(css)?.[1] ?? '')?.[1]?.trim()
+
+  it('both bars take their height from --topbar-height, and neither hardcodes one', () => {
+    const bar = heightOf(readCss('./FocusedSession.module.css'), /^\.bar\s*\{([^}]*)/m)
+    const railHeader = heightOf(
+      readCss('../components/attention/AttentionRail.module.css'),
+      /^\.header\s*\{([^}]*)/m
+    )
+    expect(bar).toBe('var(--topbar-height)')
+    expect(railHeader).toBe('var(--topbar-height)')
+    // Same token on both sides is the whole point — pin the equality itself, not just the values,
+    // so swapping one for a literal that happens to match today still fails here.
+    expect(railHeader).toBe(bar)
   })
 })

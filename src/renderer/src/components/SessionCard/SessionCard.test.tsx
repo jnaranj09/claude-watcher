@@ -164,6 +164,42 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(container.querySelector('[data-testid="cost"]')?.textContent).toBe('$0.12')
   })
 
+  // The card BORDER carries status, and SELECTION is a fill. Before this, every card had a
+  // neutral border and selection painted a lavender outline directly outside it — so the
+  // selected card's edge read as blue-purple regardless of whether it was working or
+  // needs-you, and status had no always-visible per-card colour at all.
+  describe('status border + selection fill are independent channels', () => {
+    it('exposes data-status on the root for EVERY status, so CSS can colour the border', () => {
+      for (const status of ['working', 'needs-you', 'idle'] as const) {
+        const { container, unmount } = renderComponent(<SessionCard {...baseProps({ status })} />)
+        const root = container.querySelector('[data-variant]')
+        expect(root?.getAttribute('data-status')).toBe(status)
+        unmount()
+      }
+    })
+
+    it('carries data-status on the CALM variant too, not just hero', () => {
+      // The old accent bar was hero-only. A border that only coloured half the board would be
+      // worse than a neutral one — the calm column would read as status-less.
+      const { container, unmount } = renderComponent(
+        <SessionCard {...baseProps({ variant: 'calm', status: 'idle' })} />
+      )
+      cleanup = unmount
+      expect(container.querySelector('[data-variant]')?.getAttribute('data-status')).toBe('idle')
+    })
+
+    it('a SELECTED card still reports its own status — selection must not overwrite it', () => {
+      // The regression in one assertion: selection and status have to survive together.
+      const { container, unmount } = renderComponent(
+        <SessionCard {...baseProps({ selected: true, status: 'needs-you' })} />
+      )
+      cleanup = unmount
+      const root = container.querySelector('[data-variant]')
+      expect(root?.getAttribute('data-selected')).toBe('true')
+      expect(root?.getAttribute('data-status')).toBe('needs-you')
+    })
+  })
+
   // Story 3.4 (FR-16 / AC-4) — the needs-you-unacknowledged emphasis prop. Driven by the SHARED
   // selectRailEmphasis (same state the rail reads); consumes the shipped Epic-1 emphasis class.
   it('applies the shipped needsYouEmphasisClass + data-emphasized when emphasized=true', () => {
@@ -281,6 +317,47 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     const block = /^\.sessionName\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
     expect(block).toContain('color: var(--text-primary)')
     expect(block).toContain('font-weight: var(--font-weight-heading)')
+  })
+
+  // ── The rename pencil sits NEXT TO the name, not at the card's far edge ──────
+  //
+  // The header shipped as `justify-content: space-between`, which spread name / pencil / dot
+  // across the whole card width. The pencil ended up roughly an inch from the title it renames,
+  // reading as a card-level control rather than a title-level one.
+  //
+  // jsdom does no layout, so what is pinned here is the MECHANISM, the same way the colour tests
+  // above do: the spreading declaration is gone, the title shrink-wraps instead of filling, and
+  // only the last child (the status dot) is pushed right.
+  it('the header does NOT spread its children apart', async () => {
+    const css = await readCss()
+    const block = (/^\.header\s*\{([^}]*)\}/m.exec(css)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(block).not.toBe('')
+    // `space-between` / `space-around` / `space-evenly` all push the pencil off the name.
+    expect(/justify-content:\s*space-/.test(block)).toBe(false)
+  })
+
+  it('.sessionName shrink-wraps so the pencil lands against the end of the name', async () => {
+    const css = await readCss()
+    // Comments STRIPPED before asserting. These rules are heavily commented, and the comments
+    // quote the very declarations under test — so a `toContain` against the raw block passes on
+    // the prose alone. Verified: flipping the real declaration to `flex: 1 1 auto` left this test
+    // green until the strip was added.
+    const block = (/^\.sessionName\s*\{([^}]*)\}/m.exec(css)?.[1] ?? '').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ''
+    )
+    expect(block).not.toBe('')
+    // `flex: 0 1 auto` = size to the text. A growing title (`flex: 1`) would push the pencil away
+    // again, which is the exact bug — so the grow factor must be 0.
+    expect(block).toContain('flex: 0 1 auto')
+    // ...and it must still be allowed to shrink, or `text-overflow: ellipsis` never fires.
+    expect(block).toContain('min-width: 0')
+    expect(block).toContain('text-overflow: ellipsis')
+  })
+
+  it('only the LAST header child (the status dot) is pushed to the right edge', async () => {
+    const css = await readCss()
+    expect(/^\.header\s*>\s*:last-child\s*\{[^}]*margin-left:\s*auto/m.test(css)).toBe(true)
   })
 
   it('.projectPath is muted — a rung below the title in BOTH variants', async () => {
