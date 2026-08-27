@@ -615,6 +615,13 @@ export type TerminalExitEvent = {
 // [Source: story 5.1 Task 2; story 5.4; Electron "MessagePort in the main world" docs; ipc.md]
 export const TERMINAL_PORT_TAG = 'c9watch:terminal-port' as const
 
+// Deterministic-attention feature — the "claude finished a turn; it is the operator's
+// turn" status. NOT an enum-lock (status remains z.string() everywhere): a shared
+// spelling for its producer (hookStatus Stop), its demoter (reducer.markSeen), and its
+// renderer comparison (the seen effect), so the three cannot drift. It classifies to
+// `needs-you` (columns.ts fail-toward-attention + an explicit pin test).
+export const STATUS_YOUR_TURN = 'YourTurn' as const
+
 /** main → renderer over the port: a chunk of PTY output bytes to write to xterm. */
 export type TerminalPortOutput = {
   type: 'output'

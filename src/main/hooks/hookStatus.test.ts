@@ -80,17 +80,28 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     ).toEqual({ kind: 'status', status: 'NeedsAttention' })
   })
 
-  it('Stop with a plain (non-question) message → WaitingForInput', () => {
+  it('Stop without a question ends the turn as YourTurn (deterministic your-turn floor)', () => {
+    expect(hookStatus({ session_id: 's1', hook_event_name: 'Stop' })).toEqual({
+      kind: 'status',
+      status: 'YourTurn'
+    })
     expect(
-      hookStatus(evt({ hook_event_name: 'Stop', last_assistant_message: 'All done.' }))
-    ).toEqual({ kind: 'status', status: 'WaitingForInput' })
+      hookStatus({
+        session_id: 's1',
+        hook_event_name: 'Stop',
+        last_assistant_message: 'Done. All tests pass.'
+      })
+    ).toEqual({ kind: 'status', status: 'YourTurn' })
   })
 
-  it('Stop with no last_assistant_message → WaitingForInput (safe idle default)', () => {
-    expect(hookStatus(evt({ hook_event_name: 'Stop' }))).toEqual({
-      kind: 'status',
-      status: 'WaitingForInput'
-    })
+  it('Stop ending in a question still maps to NeedsAttention (urgency upgrade)', () => {
+    expect(
+      hookStatus({
+        session_id: 's1',
+        hook_event_name: 'Stop',
+        last_assistant_message: 'Should I proceed?'
+      })
+    ).toEqual({ kind: 'status', status: 'NeedsAttention' })
   })
 
   // --- SessionEnd → removed ---

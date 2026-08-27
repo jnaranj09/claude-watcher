@@ -6,10 +6,12 @@
 //   - Notification(permission_prompt) → NeedsPermission  (→ needs-you column)
 //   - PreToolUse(AskUserQuestion)     → NeedsAttention   (→ needs-you column)
 //   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
-// Returns `null` for any event we choose to ignore (idle_prompt — Stop owns idle)
-// or any unrecognized event name (future events pass the HTTP boundary but are
-// quietly ignored — never fail-closed on an unknown name). This is the ONLY place
-// the mapping lives.
+//   - Stop, otherwise                 → YourTurn         (→ needs-you column; the
+//     deterministic your-turn floor — a turn NEVER ends idle straight from Stop)
+// Returns `null` for any event we choose to ignore (idle_prompt — SessionStart +
+// the session:seen demotion own idle) or any unrecognized event name (future
+// events pass the HTTP boundary but are quietly ignored — never fail-closed on an
+// unknown name). This is the ONLY place the mapping lives.
 //
 // Using type-only imports (consistent-type-imports enforced by ESLint). The reducer
 // does NOT import this module — the hooks layer owns the consumer-side mapping; the
@@ -19,6 +21,7 @@
 import type { HookStatusChange } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
+import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 
 /**
  * Map a validated Claude Code lifecycle hook event to a `HookStatusChange`, or
@@ -30,7 +33,10 @@ import { endsWithQuestion } from './endsWithQuestion'
  * - `PreToolUse` & `tool_name === 'AskUserQuestion'`            → `NeedsAttention`
  * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` | `SessionStart` → `Working`
  * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question,
- *            else `WaitingForInput` (idle; absent message → idle, safe default)
+ *            else `YourTurn` (deterministic your-turn floor — ANY other Stop,
+ *            including an absent message, is the operator's turn; a turn never
+ *            ends idle straight from Stop — idle comes only from `SessionStart`
+ *            or the `session:seen` demotion)
  * - `SessionEnd` → `{ kind: 'removed' }`
  * - anything else → `null` (future events ignored, never fail-closed on an unknown name)
  *
@@ -63,10 +69,12 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
       return { kind: 'status', status: 'WaitingForInput' }
 
     case 'Stop':
-      // A turn that ends by asking the user something flips to needs-you; otherwise idle.
+      // A turn that ends by asking flips to needs-you; ANY other Stop is deterministically
+      // the operator's turn (spec DA-1: the your-turn floor — never idle straight from Stop;
+      // idle is reached only via SessionStart or the session:seen demotion).
       return endsWithQuestion(evt.last_assistant_message)
         ? { kind: 'status', status: 'NeedsAttention' }
-        : { kind: 'status', status: 'WaitingForInput' }
+        : { kind: 'status', status: STATUS_YOUR_TURN }
 
     case 'SessionEnd':
       return { kind: 'removed' }
