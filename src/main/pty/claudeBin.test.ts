@@ -263,6 +263,24 @@ describe('composeClaudeCommand', () => {
         '/tmp/a b/hooks.json'
       ])
     })
+
+    it('delivers QUESTION_FORMAT_PROMPT to claude as ONE argument with the exact text', () => {
+      // The question-format nudge (DA-4) is shell-quoted, not app-quoted — this proves a REAL
+      // shell hands it to claude intact as a single argv entry, not split on its spaces/quotes.
+      const cmd = composeClaudeCommand(stub, SID, 'x', null, QUESTION_FORMAT_PROMPT)
+      const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+        .split('\n')
+        .filter((l) => l !== '')
+
+      expect(argv).toEqual([
+        '--session-id',
+        SID,
+        '-n',
+        'x',
+        '--append-system-prompt',
+        QUESTION_FORMAT_PROMPT
+      ])
+    })
   })
 
   it('quotes a name with spaces, semicolons and substitutions as a single argument', () => {

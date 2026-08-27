@@ -9,6 +9,7 @@ screen scraping, no guessing.
 
 | Card state | It means | Enters on | Leaves on |
 | --- | --- | --- | --- |
+| Connecting | the app spawned claude, not yet reporting | app-launch | `SessionStart` (→ Idle) |
 | Working | Claude's turn | you submit a prompt / a tool runs | next event |
 | Needs permission | Claude is blocked on an approval | the permission prompt | you approve or deny |
 | Asking you | Claude asked you a question | the AskUserQuestion tool, or a turn ending in a question | you reply — viewing is not answering |

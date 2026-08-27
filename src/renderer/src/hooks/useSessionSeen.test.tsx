@@ -157,7 +157,7 @@ describe('useSessionSeen — the deterministic-attention seen effect', () => {
   })
 
   it('does NOT fire for a NeedsAttention/NeedsPermission/Working/idle active session', async () => {
-    for (const status of ['NeedsAttention', 'NeedsPermission', 'Working', 'idle']) {
+    for (const status of ['NeedsAttention', 'NeedsPermission', 'Working', 'WaitingForInput']) {
       markSeenSpy.mockClear()
       seedFocused('sess-1', status)
       const r = await renderProbe()
@@ -193,6 +193,54 @@ describe('useSessionSeen — the deterministic-attention seen effect', () => {
 
     expect(markSeenSpy).toHaveBeenCalledTimes(2)
     expect(markSeenSpy).toHaveBeenNthCalledWith(2, 'sess-1')
+  })
+
+  it('fires when the rail tab is activated ONTO an already-YourTurn session (activeId change)', async () => {
+    // A DIFFERENT terminal is focused first — sess-1 is YourTurn but is NOT the active rail
+    // tab, so activeId resolves away from it and markSeen must stay silent. This pins the
+    // `activeId` dependency itself: dropping it from the effect's dep array would not turn
+    // any OTHER test in this file red (the existing matrix only varies status/viewMode/focus).
+    const terminalId = 'term-sess-1'
+    boardStore.setState({
+      viewMode: 'focused',
+      focusedTerminalId: 'term-other',
+      sessionsById: { 'sess-1': makeSession('sess-1', STATUS_YOUR_TURN) },
+      terminalIdBySessionId: { 'sess-1': terminalId }
+    })
+    await renderProbe()
+    dispatchWindowFocus()
+
+    expect(markSeenSpy).not.toHaveBeenCalled()
+
+    // The operator switches the rail tab onto sess-1 — activeId now resolves to it while
+    // status stays YourTurn and the window stays focused.
+    act(() => {
+      boardStore.setState({ focusedTerminalId: terminalId })
+    })
+
+    expect(markSeenSpy).toHaveBeenCalledTimes(1)
+    expect(markSeenSpy).toHaveBeenCalledWith('sess-1')
+  })
+
+  it('fires when the rail tab is activated onto a YourTurn session with NO prior active terminal', async () => {
+    const terminalId = 'term-sess-1'
+    boardStore.setState({
+      viewMode: 'focused',
+      focusedTerminalId: null,
+      sessionsById: { 'sess-1': makeSession('sess-1', STATUS_YOUR_TURN) },
+      terminalIdBySessionId: { 'sess-1': terminalId }
+    })
+    await renderProbe()
+    dispatchWindowFocus()
+
+    expect(markSeenSpy).not.toHaveBeenCalled()
+
+    act(() => {
+      boardStore.setState({ focusedTerminalId: terminalId })
+    })
+
+    expect(markSeenSpy).toHaveBeenCalledTimes(1)
+    expect(markSeenSpy).toHaveBeenCalledWith('sess-1')
   })
 
   it('logs a code only (never the id/value) and does not crash when markSeen rejects', async () => {

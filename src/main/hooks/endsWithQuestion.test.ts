@@ -156,4 +156,18 @@ describe('phrase list (prose asks without a question mark)', () => {
     expect(endsWithQuestion('Done. I updated the config and all tests pass.')).toBe(false)
     expect(endsWithQuestion('The build finished.\nEverything is green.')).toBe(false)
   })
+
+  // Word-boundary regression: a raw substring scan wrongly matched 'should i' inside
+  // "should install" and 'which of' inside "which offers" — neither is an ask-phrase
+  // occurrence, both are false positives from an unanchored scan.
+  it('does not false-positive on a phrase that only appears mid-word', () => {
+    expect(endsWithQuestion('You should install the package first.')).toBe(false)
+    expect(endsWithQuestion('…which offers better latency.')).toBe(false)
+  })
+
+  // 'let me know' IS a real phrase occurrence here (not a mid-word substring) — this
+  // legitimately stays true; the fix must not be contorted to flip it.
+  it('a real ask-phrase occurrence stays true even inside a longer sentence', () => {
+    expect(endsWithQuestion('Do not let me know about failures automatically.')).toBe(true)
+  })
 })

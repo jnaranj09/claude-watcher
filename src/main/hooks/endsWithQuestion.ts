@@ -36,9 +36,11 @@ const LINE_SCAN_WINDOW = 3
 const FENCED_CODE_BLOCK = /```[\s\S]*?```/g
 
 /** Ask-phrases that mark a prose question without a `?`. Lower-case; matched as
- *  substrings of the LAST 2 non-empty lines only (a phrase early in a long reply is
- *  narration, not an ask). False positives are cheap: they upgrade YourTurn →
- *  NeedsAttention, both needs-you. */
+ *  WORD-BOUNDARY-ANCHORED substrings of the LAST 2 non-empty lines only (a phrase
+ *  early in a long reply is narration, not an ask). False positives are cheap:
+ *  they upgrade YourTurn → NeedsAttention, both needs-you. Anchored with `\b` so a
+ *  phrase must stand as its own words — a raw substring scan wrongly matched
+ *  'should i' inside "should install" and 'which of' inside "which offers". */
 const ASK_PHRASES = [
   'let me know',
   'should i',
@@ -48,6 +50,12 @@ const ASK_PHRASES = [
   'which of',
   'tell me if'
 ] as const
+
+/** `\b`-anchored regexes built once from ASK_PHRASES — a phrase must appear as its
+ *  own words, not as a substring run across word boundaries. */
+const ASK_PHRASE_PATTERNS: readonly RegExp[] = ASK_PHRASES.map(
+  (phrase) => new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`)
+)
 
 /** Does this single line end in a `?` (after stripping trailing wrappers)? */
 function lineEndsWithQuestionMark(line: string): boolean {
@@ -92,5 +100,5 @@ export function endsWithQuestion(message: string | undefined): boolean {
 
   // Layer 2 — an ask-phrase in the last 2 non-empty lines (prose asks with no `?`).
   const tailText = lines.slice(-2).join('\n').toLowerCase()
-  return ASK_PHRASES.some((p) => tailText.includes(p))
+  return ASK_PHRASE_PATTERNS.some((re) => re.test(tailText))
 }
