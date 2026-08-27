@@ -13,6 +13,7 @@
 //                                               coming up — group with working)
 //   `NeedsAttention`             → `needs-you`
 //   `NeedsPermission`            → `needs-you`
+//   `YourTurn`                   → `needs-you` (deliberate — rides the fail-toward-attention branch; pinned by test)
 //   `WaitingForInput`            → `idle`      (a LIVE, calm column — an alive session
 //                                               awaiting the operator's NEXT prompt;
 //                                               this is the IDLE bucket, NOT needs-you)
@@ -55,10 +56,10 @@ const IDLE_STATUSES: ReadonlySet<string> = new Set(['WaitingForInput', 'Connecti
  * Classify a PRESENT session's c9watch `status` into one of the THREE live columns.
  *
  * `Working` → `working`; `WaitingForInput`/`Connecting` → `idle`;
- * `NeedsAttention`/`NeedsPermission`/anything-else (incl. unknown/new statuses and
- * `''`) → `needs-you` (fail-toward-attention). Pure + side-effect-free (no `now()`,
- * no map, no logging) so it is trivially testable and cannot crash the board on a
- * weird status — it NEVER throws (status is `z.string()`, not enum-locked).
+ * `NeedsAttention`/`NeedsPermission`/`YourTurn` (deterministic-attention floor; pinned by test)/
+ * anything-else (incl. unknown/new statuses and `''`) → `needs-you` (fail-toward-attention).
+ * Pure + side-effect-free (no `now()`, no map, no logging) so it is trivially testable and
+ * cannot crash the board on a weird status — it NEVER throws (status is `z.string()`, not enum-locked).
  *
  * [Source: D1; contract §4.3; FR-2; .claude/rules/zod-boundaries.md (status not enum-locked)]
  */

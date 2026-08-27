@@ -13,6 +13,7 @@
 // LIVE column. [Source: story 1.2 Task 1/Task 5; D1; contract §4.3]
 import { describe, it, expect } from 'vitest'
 import { columnForStatus, type Column } from './columns'
+import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 
 describe('columnForStatus — pure status→live-column classifier (D1, corrected mapping)', () => {
   it('maps Working → working', () => {
@@ -32,6 +33,10 @@ describe('columnForStatus — pure status→live-column classifier (D1, correcte
     // CORRECTED semantic: WaitingForInput is the calm IDLE bucket ("waiting for your
     // next prompt"), an alive session awaiting the operator — NOT a needs-you signal.
     expect(columnForStatus('WaitingForInput')).toBe('idle')
+  })
+
+  it('YourTurn classifies to needs-you (deterministic-attention floor — do not add it to IDLE_STATUSES)', () => {
+    expect(columnForStatus(STATUS_YOUR_TURN)).toBe('needs-you')
   })
 
   it('maps an UNKNOWN/brand-new status → needs-you (fail-toward-attention, never throws)', () => {
