@@ -91,6 +91,7 @@ import { readStatusFromProc } from './pty/pidCorrelation'
 import {
   SessionLaunchSchema,
   SessionRenameSchema,
+  SessionSeenSchema,
   LaunchCorrelatedSchema
 } from '../shared/schemas/launch'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
@@ -248,6 +249,9 @@ interface LaunchBoardSeam {
   /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
    *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
   renameLaunched(sessionId: string, name: string): void
+  /** Deterministic-attention — the operator viewed this session (markSeen → handleDelta).
+   *  Only a YourTurn session demotes; everything else is a quiet reducer no-op. */
+  seenLaunched(sessionId: string): void
 }
 const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 
@@ -431,6 +435,9 @@ function registerWatchFeed(window: BrowserWindow): void {
       // other way). Recorded here, pushed once by the hook server, then cleared. Until the
       // operator submits their next prompt the two names disagree — an accepted limit.
       pendingTitles.set(sessionId, name)
+    },
+    seenLaunched: (sessionId) => {
+      reducer.markSeen(sessionId).forEach(handleDelta)
     }
   })
 
@@ -1384,6 +1391,15 @@ function registerLaunchIpc(): void {
   ipcMain.handle(CH.sessionRename, (event, raw: unknown) => {
     const { id, name } = SessionRenameSchema.parse(raw)
     launchBoardSeams.get(event.sender)?.renameLaunched(id, name)
+  })
+
+  // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by
+  // event.sender to the owning window's seam (session truth is per-window). The reducer's
+  // markSeen guard makes a stale seen harmless — only YourTurn demotes. Returns void; the
+  // demoted card arrives as a normal `session.updated` delta.
+  ipcMain.handle(CH.sessionSeen, (event, raw: unknown) => {
+    const { id } = SessionSeenSchema.parse(raw)
+    launchBoardSeams.get(event.sender)?.seenLaunched(id)
   })
 }
 

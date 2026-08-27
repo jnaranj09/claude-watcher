@@ -10,7 +10,8 @@ import {
   SessionNameSchema,
   SessionRenameSchema,
   SESSION_NAME_MAX_LENGTH,
-  LaunchCorrelatedSchema
+  LaunchCorrelatedSchema,
+  SessionSeenSchema
 } from './launch'
 import { CH } from '../ipc/contract'
 import type { LaunchCorrelatedEvent } from '../ipc/contract'
@@ -248,5 +249,19 @@ describe('SessionRenameSchema — the rename-arg fail-closed boundary', () => {
 
   it('CH.sessionRename is the registered channel const (never a literal at a call site)', () => {
     expect(CH.sessionRename).toBe('session:rename')
+  })
+})
+
+// Deterministic-attention — the `session:seen` arg boundary. Same our-shape fail-closed
+// posture as the rename arg: a blank/missing id fails closed; an unknown-but-shaped id must
+// reach the reducer's markSeen no-op, not throw here.
+describe('SessionSeenSchema', () => {
+  it('accepts a non-empty id', () => {
+    expect(SessionSeenSchema.parse({ id: 'abc' })).toEqual({ id: 'abc' })
+  })
+  it('fails closed on blank / missing / extra-shaped input', () => {
+    expect(() => SessionSeenSchema.parse({ id: '' })).toThrow()
+    expect(() => SessionSeenSchema.parse({})).toThrow()
+    expect(() => SessionSeenSchema.parse('abc')).toThrow()
   })
 })

@@ -125,3 +125,16 @@ export const LaunchCorrelatedSchema = z.object({
 })
 
 export type LaunchCorrelatedArg = z.infer<typeof LaunchCorrelatedSchema>
+
+/**
+ * Deterministic-attention — `session:seen` arg: `{ id }`. Shape-check only (non-empty
+ * string; not `.uuid()` for the same reason as SessionRenameSchema: an unknown id must
+ * reach the reducer's no-op path, not throw at the boundary). NO `.passthrough()` — our
+ * shape, fail-closed. Nothing here is loggable-sensitive, but the parse-miss rule stays
+ * path+code only.
+ */
+export const SessionSeenSchema = z.object({
+  id: z.string().min(1)
+})
+
+export type SessionSeenArg = z.infer<typeof SessionSeenSchema>

@@ -15,6 +15,7 @@ import type {
   SessionLaunchRequest,
   SessionLaunchResult,
   SessionRenameRequest,
+  SessionSeenRequest,
   LaunchCorrelatedEvent,
   TelemetryAcknowledgeRequest,
   QuitGuardPayload
@@ -227,6 +228,14 @@ const launchApi = {
   rename(id: string, name: string): Promise<void> {
     const req: SessionRenameRequest = { id, name }
     return ipcRenderer.invoke(CH.sessionRename, req)
+  },
+  /** Deterministic-attention — report "the operator is viewing this session" (active rail tab,
+   *  focused window). Main demotes ONLY a YourTurn session to idle; questions/permissions are
+   *  untouched (they clear on reply). Resolves void; the calmed card arrives as a normal
+   *  `session.updated` delta. Rejects on a blank id (parse-and-throw at the main boundary). */
+  markSeen(id: string): Promise<void> {
+    const req: SessionSeenRequest = { id }
+    return ipcRenderer.invoke(CH.sessionSeen, req)
   },
   /** Story 3.4 (FR-16) — subscribe to the launch CORRELATION push (the `{ terminalId, sessionId }`
    *  binding, fired once when a launch's Tgid join lands in main). The renderer builds a

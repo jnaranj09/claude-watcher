@@ -54,6 +54,15 @@ export const CH = {
   // by session id). Renderer → main invoke returning void; the retitled card comes back the normal
   // way, as a `session.updated` delta over CH.watchEvents. See SessionRenameRequest below.
   sessionRename: 'session:rename',
+  // Deterministic-attention — `session:seen`: renderer → main VIEW INTENT ("the operator is
+  // looking at this session": active rail tab + focused window). Main demotes ONLY a
+  // `YourTurn` session to idle (`reducer.markSeen` guard) — a seen can never clear a
+  // question/permission (those clear on reply only — spec DA-3). Invoke returning void; the
+  // demoted card returns as a normal `session.updated` delta over CH.watchEvents. This is
+  // NOT the Story-3.4 acknowledge view-state (`acknowledgedById`, renderer-only emphasis):
+  // seen is a session-TRUTH transition, ack is a highlight. The rename seam is the precedent
+  // for user intent driving a truth change through a typed invoke.
+  sessionSeen: 'session:seen',
   // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
   // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
   // that binds an app-spawned `claude` to its c9watch session `id`). It carries the
@@ -509,6 +518,16 @@ export type SessionRenameRequest = {
   /** The new operator-typed name. Validated by the SHARED `SessionNameSchema` — the same
    *  definition the create-time prompt uses, so both paths agree on what a legal name is. */
   name: string
+}
+
+/**
+ * `session:seen` request — the viewed session's stable id (the launch-minted uuid; NEVER a
+ * pid/terminalId). UNTRUSTED cross-process input → parse-and-throw at the main boundary. An
+ * UNKNOWN or non-YourTurn id is a quiet no-op in the reducer (viewing is not an error).
+ */
+export type SessionSeenRequest = {
+  /** The stable session id of the session the operator is viewing. */
+  id: string
 }
 
 /**
