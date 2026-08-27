@@ -123,6 +123,19 @@ export function shellQuote(s: string): string {
 }
 
 /**
+ * Deterministic-attention (spec DA-4) — the question-format nudge injected into every
+ * APP-LAUNCHED claude (probe-verified on claude ≥2.1.245: --append-system-prompt is
+ * accepted interactively and MERGES with the default prompt). Scoped exactly like the
+ * --settings hooks file: zero footprint, app-launched sessions only. It raises how often
+ * the DETERMINISTIC signals fire (AskUserQuestion PreToolUse / a `?` tail on Stop); the
+ * board is already correct without it (YourTurn floor). Re-verify this flag whenever the
+ * claude version floor is bumped (alongside --session-id / -n / --settings).
+ */
+export const QUESTION_FORMAT_PROMPT =
+  'When you need information or a decision from the user, prefer the AskUserQuestion tool. ' +
+  'When you instead ask in prose, end the question paragraph with a question mark as the last character.'
+
+/**
  * Compose the `$SHELL -l -c "<this>"` command string that launches claude for ONE spawn.
  *
  * Lives HERE, not inlined at the `rawClaudeSpawn` call site, because no test can import
@@ -152,19 +165,31 @@ export function shellQuote(s: string): string {
  * path when the settings file could not be written (the session still spawns — it just
  * reports no status). Shell-quoted like the rest: the app's data dir is not guaranteed to be
  * free of spaces.
+ *
+ * `appendSystemPrompt` becomes `--append-system-prompt <text>` — the deterministic-attention
+ * question-format nudge (`QUESTION_FORMAT_PROMPT`), probe-verified GO on claude ≥2.1.245
+ * (accepted interactively, MERGES with the default system prompt rather than replacing it).
+ * REQUIRED and nullable for the same reason as `hookSettingsPath`: every call site must
+ * decide, and `null` omits the flag entirely (fail-soft — the session still spawns without
+ * the nudge). Shell-quoted: the prompt text is not guaranteed free of shell metacharacters.
  */
 export function composeClaudeCommand(
   claudeCommand: string,
   sessionId: string,
   displayName: string,
-  hookSettingsPath: string | null
+  hookSettingsPath: string | null,
+  appendSystemPrompt: string | null
 ): string {
   const nameArg = displayName.length > 0 ? ` -n ${shellQuote(displayName)}` : ''
   const settingsArg =
     hookSettingsPath !== null && hookSettingsPath.length > 0
       ? ` --settings ${shellQuote(hookSettingsPath)}`
       : ''
-  return `${shellQuote(claudeCommand)} --session-id '${sessionId}'${nameArg}${settingsArg}`
+  const appendSystemPromptArg =
+    appendSystemPrompt !== null && appendSystemPrompt.length > 0
+      ? ` --append-system-prompt ${shellQuote(appendSystemPrompt)}`
+      : ''
+  return `${shellQuote(claudeCommand)} --session-id '${sessionId}'${nameArg}${settingsArg}${appendSystemPromptArg}`
 }
 
 /**

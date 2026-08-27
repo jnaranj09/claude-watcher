@@ -9,7 +9,13 @@
 // drop the wellKnown block from resolveClaudeBin and that test goes red.
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { resolveClaudeBin, shellQuote, prependToPath, composeClaudeCommand } from './claudeBin'
+import {
+  resolveClaudeBin,
+  shellQuote,
+  prependToPath,
+  composeClaudeCommand,
+  QUESTION_FORMAT_PROMPT
+} from './claudeBin'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -190,7 +196,7 @@ describe('composeClaudeCommand', () => {
   const SID = 'aaaaaaaa-0000-4000-8000-000000000001'
 
   it('carries the minted session id AND the operator name as claude -n', () => {
-    expect(composeClaudeCommand(BIN, SID, 'billing api', null)).toBe(
+    expect(composeClaudeCommand(BIN, SID, 'billing api', null, null)).toBe(
       `'${BIN}' --session-id '${SID}' -n 'billing api'`
     )
   })
@@ -198,7 +204,7 @@ describe('composeClaudeCommand', () => {
   it('QUOTES a name containing an apostrophe — the injection this guard exists for', () => {
     // SessionNameSchema bans control characters but ALLOWS an apostrophe. Un-quoted, `it's`
     // would close the shell quoting and split the command into pieces the shell then runs.
-    const cmd = composeClaudeCommand(BIN, SID, "it's mine", null)
+    const cmd = composeClaudeCommand(BIN, SID, "it's mine", null, null)
 
     expect(cmd).toBe(`'${BIN}' --session-id '${SID}' -n 'it'\\''s mine'`)
   })
@@ -217,9 +223,13 @@ describe('composeClaudeCommand', () => {
     })
 
     const argvFor = (name: string, settingsPath: string | null = null): string[] =>
-      execFileSync('/bin/sh', ['-l', '-c', composeClaudeCommand(stub, SID, name, settingsPath)], {
-        encoding: 'utf8'
-      })
+      execFileSync(
+        '/bin/sh',
+        ['-l', '-c', composeClaudeCommand(stub, SID, name, settingsPath, null)],
+        {
+          encoding: 'utf8'
+        }
+      )
         .split('\n')
         .filter((l) => l !== '')
 
@@ -256,17 +266,17 @@ describe('composeClaudeCommand', () => {
   })
 
   it('quotes a name with spaces, semicolons and substitutions as a single argument', () => {
-    const cmd = composeClaudeCommand(BIN, SID, 'a b; rm -rf /tmp/x $(whoami) `id`', null)
+    const cmd = composeClaudeCommand(BIN, SID, 'a b; rm -rf /tmp/x $(whoami) `id`', null, null)
 
     expect(cmd).toContain(`-n 'a b; rm -rf /tmp/x $(whoami) \`id\`'`)
   })
 
   it('omits -n entirely for an empty name — never emit a bare flag that eats the next arg', () => {
-    expect(composeClaudeCommand(BIN, SID, '', null)).toBe(`'${BIN}' --session-id '${SID}'`)
+    expect(composeClaudeCommand(BIN, SID, '', null, null)).toBe(`'${BIN}' --session-id '${SID}'`)
   })
 
   it('still quotes a claude path containing a space', () => {
-    expect(composeClaudeCommand('/home/dev user/bin/claude', SID, 'x', null)).toContain(
+    expect(composeClaudeCommand('/home/dev user/bin/claude', SID, 'x', null, null)).toContain(
       `'/home/dev user/bin/claude'`
     )
   })
@@ -278,7 +288,7 @@ describe('composeClaudeCommand', () => {
     const SETTINGS = '/home/dev/.config/c9watch/claude-hooks.settings.json'
 
     it('appends --settings with the hook file path', () => {
-      expect(composeClaudeCommand(BIN, SID, 'billing api', SETTINGS)).toBe(
+      expect(composeClaudeCommand(BIN, SID, 'billing api', SETTINGS, null)).toBe(
         `'${BIN}' --session-id '${SID}' -n 'billing api' --settings '${SETTINGS}'`
       )
     })
@@ -286,21 +296,57 @@ describe('composeClaudeCommand', () => {
     it('omits the flag on null — the fail-soft path when the file could not be written', () => {
       // A bare `--settings` would swallow the next argument, and there is no next argument
       // here, so claude would take the flag with a missing value. Omit it entirely instead.
-      const cmd = composeClaudeCommand(BIN, SID, 'x', null)
+      const cmd = composeClaudeCommand(BIN, SID, 'x', null, null)
 
       expect(cmd).not.toContain('--settings')
     })
 
     it('omits the flag on an empty path too', () => {
-      expect(composeClaudeCommand(BIN, SID, 'x', '')).not.toContain('--settings')
+      expect(composeClaudeCommand(BIN, SID, 'x', '', null)).not.toContain('--settings')
     })
 
     it('QUOTES a settings path containing a space', () => {
       // Electron's userData dir sits under the operator's home; a space there would split the
       // path into two arguments and claude would read a file that does not exist.
-      const cmd = composeClaudeCommand(BIN, SID, 'x', '/home/dev user/.config/c9/hooks.json')
+      const cmd = composeClaudeCommand(BIN, SID, 'x', '/home/dev user/.config/c9/hooks.json', null)
 
       expect(cmd).toContain(`--settings '/home/dev user/.config/c9/hooks.json'`)
+    })
+  })
+
+  // Deterministic-attention (DA-4) — the question-format nudge given to every app-launched
+  // claude via --append-system-prompt (probe-verified GO on claude ≥2.1.245).
+  describe('--append-system-prompt (question-format nudge)', () => {
+    it('appends --append-system-prompt shell-quoted when a prompt is given', () => {
+      const cmd = composeClaudeCommand(
+        BIN,
+        SID,
+        'x',
+        null,
+        "ask with AskUserQuestion; end questions with '?'"
+      )
+
+      expect(cmd).toContain(
+        ` --append-system-prompt ${shellQuote("ask with AskUserQuestion; end questions with '?'")}`
+      )
+    })
+
+    it('omits the flag entirely for null (fail-soft — the spawn works without the nudge)', () => {
+      const cmd = composeClaudeCommand(BIN, SID, 'n', null, null)
+
+      expect(cmd).not.toContain('--append-system-prompt')
+    })
+
+    it('omits the flag for an empty prompt too', () => {
+      expect(composeClaudeCommand(BIN, SID, 'x', null, '')).not.toContain('--append-system-prompt')
+    })
+
+    it('composes QUESTION_FORMAT_PROMPT with the exact real spawn call, shell-quoted', () => {
+      const cmd = composeClaudeCommand(BIN, SID, 'x', null, QUESTION_FORMAT_PROMPT)
+
+      expect(cmd).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --append-system-prompt ${shellQuote(QUESTION_FORMAT_PROMPT)}`
+      )
     })
   })
 })

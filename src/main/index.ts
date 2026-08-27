@@ -22,7 +22,13 @@ import type {
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
 // MessagePort byte path) + its cross-process IPC-arg schemas (parse-and-throw at the boundary).
 import { createTerminalManager, type PortLike, type TerminalManager } from './pty/terminalManager'
-import { resolveClaudeBin, composeClaudeCommand, prependToPath, shellQuote } from './pty/claudeBin'
+import {
+  resolveClaudeBin,
+  composeClaudeCommand,
+  prependToPath,
+  shellQuote,
+  QUESTION_FORMAT_PROMPT
+} from './pty/claudeBin'
 // Version gate — the spawn depends on `--session-id`, `-n` and `--settings`; a claude that
 // does not know one of them dies instantly instead of degrading. Fails OPEN on an unreadable
 // version (see claudeVersion.ts for why that inversion is deliberate).
@@ -1151,12 +1157,20 @@ function rawClaudeSpawn(
     file: SHELL,
     // Composed in claudeBin.ts, NOT inlined here: nothing can import index.ts, so the quoting
     // of the operator-typed name would otherwise be untestable. Name-sync adds `-n <name>` so
-    // claude runs under the operator's name instead of generating its own title, and
-    // `--settings <file>` carries the hook block WITHOUT touching the operator's project.
+    // claude runs under the operator's name instead of generating its own title,
+    // `--settings <file>` carries the hook block WITHOUT touching the operator's project, and
+    // `--append-system-prompt` injects the deterministic-attention question-format nudge
+    // (DA-4; probe-verified GO).
     args: [
       '-l',
       '-c',
-      composeClaudeCommand(claude.command, sessionId, displayName, hookSettingsPathForSpawn())
+      composeClaudeCommand(
+        claude.command,
+        sessionId,
+        displayName,
+        hookSettingsPathForSpawn(),
+        QUESTION_FORMAT_PROMPT
+      )
     ],
     env
   }
