@@ -106,7 +106,8 @@ beforeEach(() => {
       launchCallCount.n++
       return Promise.resolve({ terminalId: id })
     }),
-    onCorrelated: vi.fn(() => () => {})
+    onCorrelated: vi.fn(() => () => {}),
+    markSeen: vi.fn(() => Promise.resolve(undefined))
   }
   window.location.hash = ''
 })

@@ -135,7 +135,8 @@ beforeEach(() => {
     pickDirectory: pickSpy,
     launch: launchSpy,
     // Story 3.4 — App subscribes to the launch-correlation push; the fake returns an unsubscribe.
-    onCorrelated: vi.fn(() => () => {})
+    onCorrelated: vi.fn(() => () => {}),
+    markSeen: vi.fn(() => Promise.resolve(undefined))
   }
   // Ensure no leftover hash from a prior test steers the terminal-host view.
   window.location.hash = ''

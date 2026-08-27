@@ -54,9 +54,16 @@ import { SESSION_NAME_MAX_LENGTH } from '../../shared/schemas/launch'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal,
 // FROZEN-5). Used at the activateCard call site to also emit the telemetry signal.
 import { acknowledgeSession } from './utils/acknowledgeSession'
+// Deterministic-attention (Task 6) — the seen effect: while the operator is looking at the
+// focused view's active YourTurn session with the window focused, marks it seen via main
+// (window.launch.markSeen). Mounted once here — see useSessionSeen.ts for the full rule.
+import { useSessionSeen } from './hooks/useSessionSeen'
 import styles from './App.module.css'
 
 function App(): React.JSX.Element {
+  // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
+  useSessionSeen()
+
   // null = smoke-config not resolved yet; true/false once known.
   const [smoke, setSmoke] = useState<boolean | null>(null)
 

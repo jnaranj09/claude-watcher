@@ -101,7 +101,8 @@ beforeEach(() => {
     pickDirectory: vi.fn(() => Promise.resolve('/home/op/project')),
     launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz' })),
     rename: renameSpy,
-    onCorrelated: vi.fn(() => () => {})
+    onCorrelated: vi.fn(() => () => {}),
+    markSeen: vi.fn(() => Promise.resolve(undefined))
   }
   window.location.hash = ''
 })

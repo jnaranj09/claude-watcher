@@ -133,7 +133,8 @@ beforeEach(() => {
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: vi.fn(() => Promise.resolve(null)),
     launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1' })),
-    onCorrelated: vi.fn(() => () => {})
+    onCorrelated: vi.fn(() => () => {}),
+    markSeen: vi.fn(() => Promise.resolve(undefined))
   }
   stubQuit()
 
