@@ -282,6 +282,57 @@ describe('reducer — renameSession (session-naming A2)', () => {
   })
 })
 
+describe('reducer — markSeen (deterministic attention: the guarded YourTurn-to-idle demotion)', () => {
+  it('demotes a YourTurn session to WaitingForInput and emits session.updated', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession('a', { status: 'YourTurn' }))
+
+    const deltas = r.markSeen('a')
+
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]?.event).toMatchObject({
+      type: 'session.updated',
+      id: 'a',
+      status: 'WaitingForInput'
+    })
+    expect(r.snapshotMap().get('a')?.status).toBe('WaitingForInput')
+  })
+
+  it('is a silent no-op for any non-YourTurn status (the race guard: seen can never hide a question/permission/work)', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    for (const status of [
+      'Working',
+      'NeedsAttention',
+      'NeedsPermission',
+      'WaitingForInput',
+      'Connecting'
+    ]) {
+      const id = 's-' + status
+      r.upsertLaunched(launchedSession(id, { status }))
+      expect(r.markSeen(id)).toEqual([])
+      expect(r.snapshotMap().get(id)?.status).toBe(status)
+    }
+  })
+
+  it('is a silent no-op for an unknown id (never synthesizes a card)', () => {
+    const log = vi.fn()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+
+    expect(r.markSeen('ghost')).toEqual([])
+    expect(log).not.toHaveBeenCalled()
+  })
+
+  it('a Stop AFTER a seen wins — the new turn re-raises YourTurn', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession('a', { status: 'YourTurn' }))
+    r.markSeen('a')
+
+    const deltas = r.applyHookStatus('a', { kind: 'status', status: 'YourTurn' })
+
+    expect(deltas[0]?.event).toMatchObject({ status: 'YourTurn' })
+  })
+})
+
 describe('reducer — determinism + map hygiene', () => {
   it('the apply stamp is the injected now(), not the wall clock', () => {
     const r = createReducer({ now: () => FIXED_NOW })

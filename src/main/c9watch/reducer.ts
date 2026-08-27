@@ -15,6 +15,7 @@
 // the wall clock. [Source: spec-native-session-engine.md Story 6.4;
 // .claude/rules/{zod-boundaries,state,ipc}.md]
 import type { Session } from '../../shared/schemas/session'
+import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import type {
   ReducerSessionUpdatedEvent,
   SessionRemovedEvent,
@@ -107,6 +108,15 @@ export interface Reducer {
    * OPERATOR CONTENT — never logged (the unknown-id log above carries a marker path, no value).
    */
   renameSession(id: string, name: string): SessionDelta[]
+  /**
+   * Deterministic-attention — the operator VIEWED this session (active rail tab in a
+   * focused window). Demotes ONLY `YourTurn` → `WaitingForInput` (idle); ANY other
+   * status — a question, a permission wait, active work, already idle, or an unknown
+   * id — is a SILENT no-op. That guard is the race safety: a `seen` that arrives after
+   * a newer Stop/question/permission can never hide it. Unknown-id logs nothing
+   * (viewing is not an error, and a seen racing a removal is normal).
+   */
+  markSeen(id: string): SessionDelta[]
   /** A defensive COPY of the current authoritative map. */
   snapshotMap(): Map<string, Session>
   /** Current session count. */
@@ -223,10 +233,25 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     return [frame(toUpdated(renamed))]
   }
 
+  /**
+   * Deterministic-attention — see the interface doc. Guarded demotion: only a stored
+   * `YourTurn` session moves to `WaitingForInput`; every other case (unknown id, or a
+   * known id in ANY other status) is a silent no-op — no delta, no log.
+   */
+  function markSeen(id: string): SessionDelta[] {
+    const stored = map.get(id)
+    if (stored === undefined || stored.status !== STATUS_YOUR_TURN) return []
+    const updated: Session = { ...stored, status: 'WaitingForInput' }
+    map.set(id, updated)
+    lastApplied = now()
+    return [frame(toUpdated(updated))]
+  }
+
   return {
     applyHookStatus,
     upsertLaunched,
     renameSession,
+    markSeen,
     // A defensive copy so callers can never mutate the authoritative map.
     snapshotMap: (): Map<string, Session> => new Map(map),
     size: () => map.size,
