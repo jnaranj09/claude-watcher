@@ -23,6 +23,8 @@
 // Pure over its seams (an injected `isExecutable` reader) so `main-unit` tests never touch
 // the real filesystem — mirrors the ptyFactory/readStatusFromProc DI precedent (AR-11).
 
+import type { PermissionMode } from '../../shared/schemas/template'
+
 /** Where a resolution came from — a CODE for logging (never the path value). */
 export type ClaudeBinSource = 'override' | 'path' | 'wellKnown' | 'unresolved'
 
@@ -135,6 +137,25 @@ export const QUESTION_FORMAT_PROMPT =
   'When you need information or a decision from the user, prefer the AskUserQuestion tool. ' +
   'When you instead ask in prose, end the question paragraph with a question mark as the last character.'
 
+/** Everything that becomes a claude CLI flag. Every optional flag is REQUIRED-and-nullable so
+ *  each call site decides explicitly; `null` (or '') omits the flag — never a bare flag that
+ *  would eat the next argument. */
+export interface ClaudeCommandSpec {
+  claudeCommand: string
+  sessionId: string
+  displayName: string
+  hookSettingsPath: string | null
+  appendSystemPrompt: string | null
+  /** Session templates: `--model <alias|full name>`. */
+  model: string | null
+  /** Session templates: `--permission-mode <mode>`. */
+  permissionMode: PermissionMode | null
+}
+
+function flagArg(flag: string, value: string | null): string {
+  return value !== null && value.length > 0 ? ` ${flag} ${shellQuote(value)}` : ''
+}
+
 /**
  * Compose the `$SHELL -l -c "<this>"` command string that launches claude for ONE spawn.
  *
@@ -172,24 +193,20 @@ export const QUESTION_FORMAT_PROMPT =
  * REQUIRED and nullable for the same reason as `hookSettingsPath`: every call site must
  * decide, and `null` omits the flag entirely (fail-soft — the session still spawns without
  * the nudge). Shell-quoted: the prompt text is not guaranteed free of shell metacharacters.
+ *
+ * `model` / `permissionMode` become `--model <alias|full name>` / `--permission-mode <mode>` —
+ * session templates (folder + model + permission mode). Same REQUIRED-and-nullable contract:
+ * `null` (or an empty `model` string) omits the flag entirely rather than emitting a bare one.
  */
-export function composeClaudeCommand(
-  claudeCommand: string,
-  sessionId: string,
-  displayName: string,
-  hookSettingsPath: string | null,
-  appendSystemPrompt: string | null
-): string {
-  const nameArg = displayName.length > 0 ? ` -n ${shellQuote(displayName)}` : ''
-  const settingsArg =
-    hookSettingsPath !== null && hookSettingsPath.length > 0
-      ? ` --settings ${shellQuote(hookSettingsPath)}`
-      : ''
-  const appendSystemPromptArg =
-    appendSystemPrompt !== null && appendSystemPrompt.length > 0
-      ? ` --append-system-prompt ${shellQuote(appendSystemPrompt)}`
-      : ''
-  return `${shellQuote(claudeCommand)} --session-id '${sessionId}'${nameArg}${settingsArg}${appendSystemPromptArg}`
+export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
+  return (
+    `${shellQuote(spec.claudeCommand)} --session-id '${spec.sessionId}'` +
+    flagArg('-n', spec.displayName) +
+    flagArg('--settings', spec.hookSettingsPath) +
+    flagArg('--append-system-prompt', spec.appendSystemPrompt) +
+    flagArg('--model', spec.model) +
+    flagArg('--permission-mode', spec.permissionMode)
+  )
 }
 
 /**

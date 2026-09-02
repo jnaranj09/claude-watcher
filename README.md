@@ -50,6 +50,16 @@ says which of those states you landed in — `webapp · your turn`,
 `webapp asked a question`, `webapp wants permission` — never the column name. The
 body is the project path plus the pending tool, verbatim.
 
+## Session templates
+
+A template is a saved trio of **folder + model + permission mode** under a name.
+`+ New session` (the header button and the empty board's) opens a menu: `Pick a folder…`
+(the plain flow), a searchable list of your templates, and `Manage templates…`. Picking a template asks only for the session
+name, then launches `claude` in that folder with `--model` / `--permission-mode` from
+the template (each is omitted when set to _Default_). Templates live in
+`claude-watcher-templates.json` under the app's data dir; a corrupt file is backed up
+as `*.corrupt-<timestamp>.json` and the list starts empty.
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)

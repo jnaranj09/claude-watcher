@@ -14,6 +14,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Board } from './components/board/Board'
 import { SmokeCockpit } from './SmokeCockpit'
+// Session templates — the header `+ New session` popover (folder / templates / Manage) and the
+// Manage-templates modal. See NewSessionButton.tsx / TemplatesDialog.tsx for their own docs.
+import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
+import { TemplatesDialog } from './components/TemplatesDialog/TemplatesDialog'
+import { loadTemplates } from './stores/templatesStore'
+import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
 import { Settings } from './components/Settings/Settings'
 import { loadSettings } from './stores/settingsStore'
@@ -35,7 +41,8 @@ import {
   selectKeptAliveTerminalIds,
   selectQuitGuard,
   selectStopConfirm,
-  selectSessionNamePrompt
+  selectSessionNamePrompt,
+  selectTemplatesDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -59,6 +66,14 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 // (window.launch.markSeen). Mounted once here — see useSessionSeen.ts for the full rule.
 import { useSessionSeen } from './hooks/useSessionSeen'
 import styles from './App.module.css'
+
+/** UX-DR14 single-modal rule: the name prompt and the Templates dialog never co-exist. A MODULE-
+ *  LEVEL function (not a component-body const) so the `[]`-deps useCallbacks that call it stay
+ *  free of exhaustive-deps warnings. */
+function isModalOpen(): boolean {
+  const s = boardStore.getState()
+  return s.sessionNamePrompt !== null || s.templatesDialogOpen
+}
 
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
@@ -88,8 +103,13 @@ function App(): React.JSX.Element {
   // Story 2.4 — load persisted settings ONCE at startup and hydrate the renderer settings
   // store (the live projection the sound module + Settings UI read). loadSettings never throws;
   // on failure it leaves the defaults (sound ON) so the app is usable. Skip in smoke mode.
+  // Session templates — load the templates list ONCE at startup, alongside settings. Never
+  // throws (loadTemplates logs a code and leaves the store empty on failure).
   useEffect(() => {
-    if (smoke === false) void loadSettings()
+    if (smoke === false) {
+      void loadSettings()
+      void loadTemplates()
+    }
   }, [smoke])
 
   // Story 3.2 (FR-11) — the Board ↔ Focused-session VIEW-STATE (renderer view-state, F6).
@@ -101,6 +121,8 @@ function App(): React.JSX.Element {
   const stopConfirm = useBoard(selectStopConfirm)
   // Session-naming — the create-time name prompt payload (null = no prompt shown).
   const sessionNamePrompt = useBoard(selectSessionNamePrompt)
+  // Session templates — whether the Manage-templates dialog is open.
+  const templatesDialogOpen = useBoard(selectTemplatesDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -149,7 +171,11 @@ function App(): React.JSX.Element {
       // while the name prompt is open. Drop the pending launch first (nothing has spawned, so it
       // costs nothing) — otherwise two modals stack, and submitting the name would spawn a NEW
       // session AFTER main already snapshotted the live set for the guard's list.
+      // Session templates: the Manage-templates dialog is a modal too — drop it for the same
+      // reason (UX-DR14 single-modal rule; a stray dialog must never be left stacked under the
+      // quit guard).
       boardStore.getState().clearSessionNamePrompt()
+      boardStore.getState().closeTemplatesDialog()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -167,7 +193,7 @@ function App(): React.JSX.Element {
     // Re-entry guard: if a prompt is already open, the operator is mid-naming. Opening the picker
     // again would overwrite the stored cwd underneath a dialog whose input still holds the OLD
     // typed name — submitting would then launch the NEW directory under the OLD name. Ignore.
-    if (boardStore.getState().sessionNamePrompt !== null) return
+    if (isModalOpen()) return
     let cwd: string | null
     try {
       cwd = await window.launch.pickDirectory()
@@ -186,6 +212,28 @@ function App(): React.JSX.Element {
     boardStore.getState().showSessionNamePrompt({ mode: 'create', cwd, initialName: basename })
   }, [])
 
+  // Session templates — a template row was picked from the header popover. Skips the directory
+  // picker entirely: the template already carries its cwd, so this opens the SAME name prompt
+  // directly, prefilled with the template's name (clamped to the schema's cap, matching
+  // handleNewSession's basename clamp) and carrying `templateId` so `handleNameSubmit` knows to
+  // launch FROM the template rather than the plain folder flow.
+  const handleTemplateSession = useCallback((template: Template): void => {
+    if (isModalOpen()) return
+    boardStore.getState().showSessionNamePrompt({
+      mode: 'create',
+      cwd: template.cwd,
+      initialName: template.name.slice(0, SESSION_NAME_MAX_LENGTH),
+      templateId: template.id
+    })
+  }, [])
+
+  // Session templates — "Manage templates…" from the header popover. Opens the Manage-templates
+  // modal (TemplatesDialog); guarded by the same single-modal rule as every other entry point.
+  const handleManageTemplates = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openTemplatesDialog()
+  }, [])
+
   // Session-naming A2 — open the RENAME prompt for an EXISTING session. Reuses the same prompt
   // state and the same dialog as create; only the mode differs. Nothing is renamed here — the IPC
   // fires from `handleRenameSubmit` on submit, so cancelling is a complete no-op.
@@ -195,7 +243,7 @@ function App(): React.JSX.Element {
   // under a dialog whose input already holds a typed value.
   const handleRenameSession = useCallback((sessionId: string): void => {
     const state = boardStore.getState()
-    if (state.sessionNamePrompt !== null) return
+    if (isModalOpen()) return
     const current = state.sessionsById[sessionId]
     if (current === undefined) return // gone (stopped/exited) ⇒ nothing to rename
     state.showSessionNamePrompt({
@@ -222,22 +270,31 @@ function App(): React.JSX.Element {
   // Session-naming: the name prompt submitted — NOW launch. The dialog hands back an already-
   // trimmed, non-empty name; main re-validates it at the IPC boundary (untrusted cross-process
   // input) and rejects the invoke rather than spawning if it is malformed.
-  const handleNameSubmit = useCallback(async (cwd: string, name: string): Promise<void> => {
-    // Close the prompt first so a slow spawn cannot leave a dead modal over the board.
-    boardStore.getState().clearSessionNamePrompt()
-    try {
-      const { terminalId } = await window.launch.launch(cwd, name)
-      // Optimistic drop-into-Focused-session: render the terminal the moment the launch returns
-      // its id (the terminal is typeable immediately; the Tgid join reconciles asynchronously).
-      // Story 5.6 (AC-1) + session-naming: the `label` for the Starting banner is now the
-      // OPERATOR's name, so the banner and the eventual card agree from the first frame.
-      boardStore.getState().openLaunchedTerminal(terminalId, name)
-    } catch {
-      // never-log-the-value: a code only. The rejected invoke carries BOTH the cwd (leaks the
-      // filesystem layout) and the operator-typed name (content) — keep both off the logs.
-      console.warn('[c9watch][launch] code=launch_failed')
-    }
-  }, [])
+  // Session templates: a prompt opened from a template carries `templateId` — branch the launch
+  // on it so a template-originated session ALWAYS launches via launchFromTemplate (never the
+  // plain folder `launch`), while the folder flow (no templateId) is completely unchanged.
+  const handleNameSubmit = useCallback(
+    async (prompt: { cwd: string; templateId?: string }, name: string): Promise<void> => {
+      // Close the prompt first so a slow spawn cannot leave a dead modal over the board.
+      boardStore.getState().clearSessionNamePrompt()
+      try {
+        const { terminalId } =
+          prompt.templateId !== undefined
+            ? await window.launch.launchFromTemplate(prompt.templateId, name)
+            : await window.launch.launch(prompt.cwd, name)
+        // Optimistic drop-into-Focused-session: render the terminal the moment the launch returns
+        // its id (the terminal is typeable immediately; the Tgid join reconciles asynchronously).
+        // Story 5.6 (AC-1) + session-naming: the `label` for the Starting banner is now the
+        // OPERATOR's name, so the banner and the eventual card agree from the first frame.
+        boardStore.getState().openLaunchedTerminal(terminalId, name)
+      } catch {
+        // never-log-the-value: a code only. The rejected invoke carries BOTH the cwd (leaks the
+        // filesystem layout) and the operator-typed name (content) — keep both off the logs.
+        console.warn('[c9watch][launch] code=launch_failed')
+      }
+    },
+    []
+  )
 
   // Story 3.2 (FR-11 / F6) — focus a card (the Board onActivateCard seam). ONE selection
   // (reconciled with the Story-2.2 selectedId). View-state only — no window raise.
@@ -314,7 +371,7 @@ function App(): React.JSX.Element {
           state.focusedTerminalId !== null &&
           state.quitGuard === null &&
           state.stopConfirm === null &&
-          state.sessionNamePrompt === null
+          !isModalOpen()
         ) {
           // Resolve the session name for the dialog (degrade gracefully if not yet correlated).
           const terminalId = state.focusedTerminalId
@@ -334,8 +391,13 @@ function App(): React.JSX.Element {
         // construction — the Ctrl+N/Ctrl+W guards and the quit-guard handler are what keep it the
         // only modal on screen. Esc = cancel the pending launch entirely; no PTY was ever spawned,
         // so there is nothing to tear down.
-        if (boardStore.getState().sessionNamePrompt !== null) {
+        // Both modals under isModalOpen() close here: the name prompt and the Templates
+        // dialog never co-exist (every open call site guards on isModalOpen()), so calling
+        // both closers is safe and covers the case where focus sits on the page BODY —
+        // the dialog's own onKeyDown never sees that keydown.
+        if (isModalOpen()) {
           boardStore.getState().clearSessionNamePrompt()
+          boardStore.getState().closeTemplatesDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -405,25 +467,24 @@ function App(): React.JSX.Element {
   // (an explicit close) rather than rely on an incidental unmount.
   const hasFocusableTerminal = focusedTerminalId !== null || keptAliveTerminalIds.length > 0
   const showFocused = viewMode === 'focused' && focusedTerminalId !== null
-  // Session-naming: while the name prompt is open, everything behind it is INERT. Without this,
-  // Tab walks out of the dialog into the header "+ New session" button and on into the live xterm
-  // textarea — so keystrokes reach a running claude session while a modal is on screen. The
-  // dialog renders no focus trap of its own; this is the trap.
-  const namePromptOpen = sessionNamePrompt !== null
+  // Session-naming / session templates: while the name prompt OR the Manage-templates dialog is
+  // open, everything behind it is INERT (UX-DR14 — "a modal is open", not just the name prompt).
+  // Without this, Tab walks out of the dialog into the header "+ New session" button and on into
+  // the live xterm textarea — so keystrokes reach a running claude session while a modal is on
+  // screen. Neither dialog renders a focus trap of its own; this is the trap. The name stays —
+  // it now means "a modal is open," not just "the name prompt is open."
+  const namePromptOpen = sessionNamePrompt !== null || templatesDialogOpen
 
   return (
     <div className={styles.app}>
       <header className={styles.header} data-testid="app-header" inert={namePromptOpen}>
         <span className={styles.brand}>Claude Watcher</span>
         <div className={styles.headerActions}>
-          <button
-            type="button"
-            className={styles.newSessionHeaderButton}
-            data-testid="header-new-session"
-            onClick={() => void handleNewSession()}
-          >
-            + New session
-          </button>
+          <NewSessionButton
+            onPickFolder={() => void handleNewSession()}
+            onPickTemplate={handleTemplateSession}
+            onManage={handleManageTemplates}
+          />
           <Settings />
         </div>
       </header>
@@ -442,6 +503,8 @@ function App(): React.JSX.Element {
           >
             <Board
               onNewSession={() => void handleNewSession()}
+              onPickTemplate={handleTemplateSession}
+              onManageTemplates={handleManageTemplates}
               onActivateCard={handleActivateCard}
               onRenameCard={handleRenameSession}
             />
@@ -478,6 +541,11 @@ function App(): React.JSX.Element {
           Cancel → clearStopConfirm(). Stop → window.terminal.stop THEN clearStopConfirm + showBoard.
           Esc = Cancel (guarded in keydown above). */}
       {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
+      {/* Session templates — the Manage-templates modal (renderer view-state; UX-DR14 single-modal
+          rule enforced by isModalOpen() at every open call site + the quit-guard listener above). */}
+      {templatesDialogOpen && (
+        <TemplatesDialog onClose={() => boardStore.getState().closeTemplatesDialog()} />
+      )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and the operator submitting or cancelling). NOTHING is
           spawned while it is open, so Cancel/Esc is a complete no-op: no PTY, no card, no view
@@ -486,14 +554,16 @@ function App(): React.JSX.Element {
       {sessionNamePrompt !== null &&
         (sessionNamePrompt.mode === 'create' ? (
           <SessionNameDialog
-            // The dialog seeds its input from `initialName` on MOUNT only. Keying on the cwd forces
-            // a REMOUNT if the payload is ever replaced under it, so the input can never show one
-            // directory's name while `onSubmit` closes over another's path. `handleNewSession`
-            // already refuses to re-enter while a prompt is open — this is the second line.
-            key={`create:${sessionNamePrompt.cwd}`}
+            // The dialog seeds its input from `initialName` on MOUNT only. Keying on the
+            // templateId (falling back to the cwd for the plain folder flow) forces a REMOUNT if
+            // the payload is ever replaced under it, so the input can never show one directory's
+            // name while `onSubmit` closes over another's path/template. `handleNewSession` /
+            // `handleTemplateSession` already refuse to re-enter while a prompt is open — this is
+            // the second line.
+            key={`create:${sessionNamePrompt.templateId ?? sessionNamePrompt.cwd}`}
             initialName={sessionNamePrompt.initialName}
             hint={sessionNamePrompt.cwd}
-            onSubmit={(name) => void handleNameSubmit(sessionNamePrompt.cwd, name)}
+            onSubmit={(name) => void handleNameSubmit(sessionNamePrompt, name)}
             onCancel={() => boardStore.getState().clearSessionNamePrompt()}
           />
         ) : (

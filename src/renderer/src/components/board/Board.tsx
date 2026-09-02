@@ -20,6 +20,7 @@ import { ColumnHeader } from '../ColumnHeader/ColumnHeader'
 import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
 // Story 5.6 (AC-3, AC-6) — the compact starting-terminals banner (status-line region).
 import { StartingBanner } from './StartingBanner'
+import { NewSessionButton } from '../NewSessionMenu/NewSessionButton'
 import {
   boardStore,
   useBoard,
@@ -31,7 +32,7 @@ import {
   HERO_COLUMN
 } from '../../stores/boardStore'
 import { useShallow } from 'zustand/react/shallow'
-import type { Column as BoardColumn } from '../../../../shared/ipc/contract'
+import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
 import styles from './Board.module.css'
 
@@ -71,13 +72,23 @@ function SkeletonColumn({
 export interface BoardProps {
   /** Card activation seam (Epic-3 focused-session open). Defaults to a no-op. */
   onActivateCard?: (id: string) => void
-  /** New-session launch seam (Epic-3 / FR-11). Defaults to a no-op. */
+  /** New-session launch seam (Epic-3 / FR-11) — the popover's `Pick a folder…`. Defaults to a no-op. */
   onNewSession?: () => void
+  /** Session templates — the popover's template rows. Defaults to a no-op. */
+  onPickTemplate?: (template: Template) => void
+  /** Session templates — the popover's `Manage templates…`. Defaults to a no-op. */
+  onManageTemplates?: () => void
   /** Session-naming A2 — card rename seam (the pencil). Omitted ⇒ no pencil is rendered. */
   onRenameCard?: (id: string) => void
 }
 
-export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps): JSX.Element {
+export function Board({
+  onActivateCard,
+  onNewSession,
+  onPickTemplate,
+  onManageTemplates,
+  onRenameCard
+}: BoardProps): JSX.Element {
   const coldLoaded = useBoard(selectColdLoaded)
   const total = useBoard(selectTotalCount)
   const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you'))
@@ -162,6 +173,8 @@ export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps
         // sessions are intentionally never shown (the launched-set is the single gate, AC-4/F5).
         // Story 5.6 (AC-6 optional) — when starting terminals exist, soften the "No sessions
         // yet." copy (a launch is in flight) while keeping `+ New session` reachable.
+        // Session templates — the primary is the SAME popover button as the header (folder /
+        // templates / Manage), centered; the three seams are threaded from App.
         <div className={styles.emptyBoard} data-testid="empty-board">
           <p className={styles.emptyBoardHeadline}>
             {startingCount > 0 ? 'Starting…' : 'No sessions yet.'}
@@ -171,14 +184,13 @@ export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps
               ? 'Waiting for c9watch to register the session.'
               : 'Launch one with + New session to get started.'}
           </p>
-          <button
-            type="button"
-            className={styles.newSessionButton}
-            data-testid="new-session"
-            onClick={() => onNewSession?.()}
-          >
-            + New session
-          </button>
+          <NewSessionButton
+            variant="primary"
+            testId="new-session"
+            onPickFolder={() => onNewSession?.()}
+            onPickTemplate={(template) => onPickTemplate?.(template)}
+            onManage={() => onManageTemplates?.()}
+          />
         </div>
       ) : (
         // The live three-column grid: slots are left flank (working) · center hero

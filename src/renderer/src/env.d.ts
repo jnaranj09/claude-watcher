@@ -20,7 +20,10 @@ import type {
   PtyExitEvent,
   SmokeConfig,
   SmokeReport,
-  QuitGuardPayload
+  QuitGuardPayload,
+  Template,
+  TemplateSaveRequest,
+  TemplatesSaveResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -91,6 +94,16 @@ declare global {
       // Story 3.4 (FR-16) — the launch CORRELATION push subscription ({ terminalId, sessionId },
       // fired once when a launch's Tgid join lands). Builds the renderer's terminalIdBySessionId.
       onCorrelated(cb: (event: LaunchCorrelatedEvent) => void): () => void
+      // Session templates — launch `claude` from a saved template by its stable id. Main
+      // resolves the template's flags from its own validated store; the renderer sends only
+      // the templateId + operator-typed name.
+      launchFromTemplate(templateId: string, name: string): Promise<SessionLaunchResult>
+    }
+    // Session templates — mirrors src/preload/index.ts `templatesApi`.
+    templates: {
+      list(): Promise<Template[]>
+      save(req: TemplateSaveRequest): Promise<TemplatesSaveResult>
+      remove(id: string): Promise<Template[]>
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

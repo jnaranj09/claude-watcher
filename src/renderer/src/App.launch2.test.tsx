@@ -106,8 +106,16 @@ beforeEach(() => {
       launchCallCount.n++
       return Promise.resolve({ terminalId: id })
     }),
+    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-tpl' })),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))
+  }
+  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
+  // console.warns a code (App.templates.test.tsx amendment #2).
+  ;(window as unknown as { templates: unknown }).templates = {
+    list: vi.fn(() => Promise.resolve([])),
+    save: vi.fn(),
+    remove: vi.fn()
   }
   window.location.hash = ''
 })
@@ -125,19 +133,27 @@ async function renderApp(): Promise<RenderResult> {
   return r
 }
 
+// Session templates: `+ New session` is now a popover (folder / templates / Manage), not a
+// direct-action button — open it, then click its "Pick a folder…" row.
+function clickPickFolder(r: RenderResult): void {
+  act(() =>
+    (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
+  )
+  act(() =>
+    (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+  )
+}
+
 /**
- * Drive a full launch: header button → picker → the session-naming NAME PROMPT → launch.
+ * Drive a full launch: header button → "Pick a folder…" → picker → the session-naming NAME
+ * PROMPT → launch.
  *
  * Session-naming inserted the prompt between the picker and the launch. These Story-5.6 registry
  * tests care about the REGISTRY, not the naming, so the helper ACCEPTS the prefill — which is the
  * cwd basename, exactly the label these tests already assert. Their expectations are unchanged.
  */
 async function clickNewSession(r: RenderResult): Promise<void> {
-  const button = r.container.querySelector<HTMLButtonElement>('[data-testid="header-new-session"]')
-  await act(async () => {
-    button?.click()
-    await Promise.resolve()
-  })
+  clickPickFolder(r)
   await flush()
   const confirm = r.container.querySelector<HTMLButtonElement>(
     '[data-testid="session-name-confirm"]'

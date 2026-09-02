@@ -6,7 +6,7 @@
 // flips on first delta; selectors return the correctly SORTED list per column
 // (working desc, needs-you/idle asc); attention.raised is ignored by the board; the
 // store does NOT re-parse with any Zod schema; no terminal/xterm reference.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
@@ -25,6 +25,7 @@ import {
   selectStartingTerminals,
   selectRailActiveSessionId,
   selectRailSection,
+  selectTemplatesDialogOpen,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -924,5 +925,31 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
     expect(selectRailActiveSessionId(store.getState())).toBe('busy')
     expect(selectRailSection(store.getState(), 'working')).toEqual([]) // 'busy' is pinned now
     expect(selectRailSection(store.getState(), 'idle')).toEqual(['open']) // 'open' rejoined
+  })
+})
+
+describe('session templates — view-state', () => {
+  it('the create prompt may carry a templateId (absent for the folder flow)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store
+      .getState()
+      .showSessionNamePrompt({ mode: 'create', cwd: '/p', initialName: 'p', templateId: 'tpl-1' })
+    const prompt = store.getState().sessionNamePrompt
+    expect(prompt !== null && prompt.mode === 'create' ? prompt.templateId : null).toBe('tpl-1')
+    store.getState().showSessionNamePrompt({ mode: 'create', cwd: '/p', initialName: 'p' })
+    const folder = store.getState().sessionNamePrompt
+    expect(folder !== null && folder.mode === 'create' ? folder.templateId : 'x').toBeUndefined()
+  })
+  it('templatesDialogOpen starts false; open/close toggle it; close when closed is a no-op', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectTemplatesDialogOpen(store.getState())).toBe(false)
+    const unsub = vi.fn()
+    store.subscribe(unsub)
+    store.getState().closeTemplatesDialog()
+    expect(unsub).not.toHaveBeenCalled()
+    store.getState().openTemplatesDialog()
+    expect(selectTemplatesDialogOpen(store.getState())).toBe(true)
+    store.getState().closeTemplatesDialog()
+    expect(selectTemplatesDialogOpen(store.getState())).toBe(false)
   })
 })

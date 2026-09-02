@@ -59,6 +59,7 @@ import { randomUUID } from 'node:crypto'
 import { correlate, type ReadStatus } from './pidCorrelation'
 import type { LaunchedSet } from './launchedSet'
 import type { Session } from '../../shared/schemas/session'
+import type { PermissionMode } from '../../shared/schemas/template'
 
 /** The minimal terminal-manager surface the launch service needs (REUSE — Story 3.1). The
  *  launch SPAWN itself rides the EXISTING `terminal:open` handler in main (the renderer opens the
@@ -71,6 +72,14 @@ export interface LaunchTerminalManager {
   pidOf(terminalId: string): number | null
 }
 
+/** Session templates — the two claude flags a launch may carry. Nullable, never undefined. */
+export interface ClaudeLaunchFlags {
+  model: string | null
+  permissionMode: PermissionMode | null
+}
+/** The folder-flow value — no template, no flags. */
+export const NO_LAUNCH_FLAGS: ClaudeLaunchFlags = { model: null, permissionMode: null }
+
 /** The launch invocation — raw `claude` in `cwd`, under the operator's chosen name. */
 export interface LaunchRequest {
   /** The picked working directory (validated upstream at the IPC boundary). */
@@ -79,6 +88,16 @@ export interface LaunchRequest {
    *  `SessionNameSchema` — already trimmed and length-bounded when it reaches here). Becomes the
    *  synthesized card's `sessionName` instead of the cwd basename. */
   name: string
+  /** Session templates — the model/permission-mode flags to spawn claude with. Omitted ⇒
+   *  `NO_LAUNCH_FLAGS` (the folder flow). */
+  flags?: ClaudeLaunchFlags
+}
+
+/** The per-terminal launch recipe, set once at launch and read on EVERY spawn of that terminal. */
+export interface LaunchOverride {
+  cwd: string
+  name: string
+  flags: ClaudeLaunchFlags
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -126,10 +145,15 @@ export interface LaunchServiceOptions {
    *  Name-sync: `displayName` is the operator-typed name from the launch override, passed so
    *  the composed command can carry claude's `-n <name>` flag — claude is then BORN with the
    *  operator's name (verified on 2.1.243), instead of generating its own title. Quoting it
-   *  for the shell is the factory's job, not this service's. */
+   *  for the shell is the factory's job, not this service's.
+   *
+   *  Session templates: `flags` is the launch's `ClaudeLaunchFlags` (`NO_LAUNCH_FLAGS` for a
+   *  plain folder launch), read back off the same override as `displayName` so a re-spawn of
+   *  the same terminal (Reopen) keeps the flags it was launched with. */
   spawn: (
     sessionId: string,
-    displayName: string
+    displayName: string,
+    flags: ClaudeLaunchFlags
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
    *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
@@ -186,8 +210,9 @@ export interface LaunchService {
    *  query; `mintSpawn` is the consume-time read the terminal:open handler uses.
    *
    *  Session-naming: the operator-typed `name` rides the SAME entry (same key, same lifetime as
-   *  the cwd), so it is returned here too. */
-  peekSpawnOverride(terminalId: string): { cwd: string; name: string } | null
+   *  the cwd), so it is returned here too. Session templates: `flags` rides the same entry too
+   *  (`NO_LAUNCH_FLAGS` for a plain folder launch). */
+  peekSpawnOverride(terminalId: string): LaunchOverride | null
   /** Story 6.2 — the consume-time mint, called by the terminal:open handler ONLY when an
    *  ACTUAL pty spawn is about to happen (never on a Story-5.6 re-attach of a live terminal).
    *  For a launch terminalId it synchronously:
@@ -269,8 +294,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
    *  deleted, reclaimed at process exit — so the surviving half of a dev StrictMode double-mount
    *  still finds the recipe and re-spawns `claude` rather than the default `$SHELL`. The name
    *  lives here because it is the same KIND of value as the cwd (per-terminal, set once at
-   *  launch), not because a name is expected to outlive its session. */
-  const overrides = new Map<string, { cwd: string; name: string }>()
+   *  launch), not because a name is expected to outlive its session. Session templates: `flags`
+   *  rides the same entry, same reasoning — set once at launch, read on every spawn. */
+  const overrides = new Map<string, LaunchOverride>()
   /** Story 6.2 — the EXACT terminalId → sessionId binding, written at each actual spawn
    *  (mintSpawn) and OVERWRITTEN by a Reopen's fresh id. Story 6.3 consumes it (sessionIdFor)
    *  for immediate stop/exit removal and CLEARS it (unbind) once that removal lands — so a
@@ -285,13 +311,14 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // mintSpawn to mint the session identity + spawn `claude` in the picked cwd instead of the
     // default shell). Story 6.2: only the cwd is durable — the identity is minted per spawn.
     // Session-naming: the operator-typed name sits beside the cwd — both are per-terminal
-    // launch-recipe values with the same key and lifetime.
-    overrides.set(terminalId, { cwd: req.cwd, name: req.name })
+    // launch-recipe values with the same key and lifetime. Session templates: `flags` too —
+    // omitted (folder flow) collapses to NO_LAUNCH_FLAGS.
+    overrides.set(terminalId, { cwd: req.cwd, name: req.name, flags: req.flags ?? NO_LAUNCH_FLAGS })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
   }
 
-  function peekSpawnOverride(terminalId: string): { cwd: string; name: string } | null {
+  function peekSpawnOverride(terminalId: string): LaunchOverride | null {
     // NON-CONSUMING (Story 5.4): do NOT delete on read. The recipe is durable for this launch
     // terminalId — it must survive EVERY terminal:open so a StrictMode dev double-mount's
     // surviving open AND a Reopen both re-spawn `claude` (not the default `$SHELL`).
@@ -307,8 +334,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error.
     const sessionId = newSessionId()
     // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
-    // generating its own title that would then disagree with the board card.
-    const base = options.spawn(sessionId, override.name)
+    // generating its own title that would then disagree with the board card. Session templates:
+    // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them.
+    const base = options.spawn(sessionId, override.name, override.flags)
     const spawn: LaunchSpawnConfig = {
       file: base.file,
       ...(base.args !== undefined ? { args: base.args } : {}),

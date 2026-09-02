@@ -11,7 +11,8 @@ import {
   SessionRenameSchema,
   SESSION_NAME_MAX_LENGTH,
   LaunchCorrelatedSchema,
-  SessionSeenSchema
+  SessionSeenSchema,
+  SessionLaunchFromTemplateSchema
 } from './launch'
 import { CH } from '../ipc/contract'
 import type { LaunchCorrelatedEvent } from '../ipc/contract'
@@ -263,5 +264,27 @@ describe('SessionSeenSchema', () => {
     expect(() => SessionSeenSchema.parse({ id: '' })).toThrow()
     expect(() => SessionSeenSchema.parse({})).toThrow()
     expect(() => SessionSeenSchema.parse('abc')).toThrow()
+  })
+})
+
+describe('SessionLaunchFromTemplateSchema — the launch-from-template IPC arg', () => {
+  it('accepts an id + a valid name and trims the name', () => {
+    expect(SessionLaunchFromTemplateSchema.parse({ templateId: 'tpl-1', name: ' api ' })).toEqual({
+      templateId: 'tpl-1',
+      name: 'api'
+    })
+  })
+  it.each([
+    ['blank id', { templateId: '', name: 'api' }],
+    ['blank name', { templateId: 'tpl-1', name: '  ' }],
+    ['missing name', { templateId: 'tpl-1' }]
+  ])('rejects %s', (_l, input) => {
+    expect(SessionLaunchFromTemplateSchema.safeParse(input).success).toBe(false)
+  })
+
+  it('strips an unknown key (fail-closed = our shape, no passthrough)', () => {
+    expect(
+      SessionLaunchFromTemplateSchema.parse({ templateId: 'tpl-1', name: 'api', cwd: '/x' })
+    ).toEqual({ templateId: 'tpl-1', name: 'api' })
   })
 })

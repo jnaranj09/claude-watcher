@@ -303,6 +303,8 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
     const newSessionBtn = page.locator('[data-testid="header-new-session"]')
     await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
     await newSessionBtn.click()
+    // session templates: the header button opens a popover; "Pick a folder…" is the old flow
+    await page.locator('[data-testid="menu-pick-folder"]').click()
     await confirmSessionName(page)
     await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
 
@@ -425,6 +427,8 @@ test('dead pane: killed claude shows exactly one New-session button; clicking re
     const newSessionBtn = page.locator('[data-testid="header-new-session"]')
     await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
     await newSessionBtn.click()
+    // session templates: the header button opens a popover; "Pick a folder…" is the old flow
+    await page.locator('[data-testid="menu-pick-folder"]').click()
     await confirmSessionName(page)
     const firstTerminal = page.locator('[data-testid="embedded-terminal"]')
     await firstTerminal.waitFor({ state: 'visible', timeout: 20000 })
@@ -535,6 +539,8 @@ test('esc interrupt: demotes to idle, but NEVER while background work is running
     const newSessionBtn = page.locator('[data-testid="header-new-session"]')
     await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
     await newSessionBtn.click()
+    // session templates: the header button opens a popover; "Pick a folder…" is the old flow
+    await page.locator('[data-testid="menu-pick-folder"]').click()
     await confirmSessionName(page)
     await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
 

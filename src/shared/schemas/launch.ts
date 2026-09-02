@@ -138,3 +138,11 @@ export const SessionSeenSchema = z.object({
 })
 
 export type SessionSeenArg = z.infer<typeof SessionSeenSchema>
+
+/** Session templates — the `session:launch-from-template` IPC arg. The renderer sends an
+ *  ID, never the flags; main resolves cwd/model/permissionMode from its own validated store. */
+export const SessionLaunchFromTemplateSchema = z.object({
+  templateId: z.string().min(1),
+  name: SessionNameSchema
+})
+export type SessionLaunchFromTemplateArg = z.infer<typeof SessionLaunchFromTemplateSchema>

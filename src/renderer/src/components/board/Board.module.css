@@ -108,23 +108,8 @@
   max-width: 42ch;
 }
 
-.newSessionButton {
-  margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-body);
-  cursor: pointer;
-}
-
-.newSessionButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
+/* The empty board's `+ New session` is NewSessionButton `variant="primary"` — its rules live in
+   NewSessionMenu.module.css (.anchorPrimary / .buttonPrimary). */
 
 /* ── Cold-load skeleton (UX-DR16: ghost cards, never a spinner-on-empty) ───────── */
 .skeletonCard {

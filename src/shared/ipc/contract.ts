@@ -10,6 +10,7 @@
 //   - Payload types are PascalCase, NO `I` prefix, camelCase fields.
 //   - `invoke` returns the value directly — NO `{ data, error }` wrapper.
 //   - Events are discriminated unions on a `type` field.
+import type { Template } from '../schemas/template'
 
 /**
  * The canonical channel registry. A single `as const` object so every channel
@@ -77,6 +78,17 @@ export const CH = {
   // path, or `null` on cancel. The dialog runs in MAIN (it is an OS dialog); the renderer
   // NEVER opens a dialog itself (UX-DR23). See SessionPickDirectoryResult below.
   sessionPickDirectory: 'session:pick-directory',
+  // Session templates — a named { cwd, model, permissionMode } bundle the operator can launch
+  // from without re-picking a directory each time. `session:launch-from-template` mirrors
+  // `session:launch` (renderer → main invoke, returns SessionLaunchResult) but the renderer
+  // sends only a `templateId`; main resolves the flags from its own validated store — the
+  // renderer never carries them itself. `templates:list/save/delete` are the CRUD invokes for
+  // the store; main owns the persisted file, the renderer holds a projection
+  // (templatesStore.ts). See TemplatesSaveResult / SessionLaunchFromTemplateRequest below.
+  sessionLaunchFromTemplate: 'session:launch-from-template',
+  templatesList: 'templates:list',
+  templatesSave: 'templates:save',
+  templatesDelete: 'templates:delete',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
@@ -443,6 +455,18 @@ export type AttentionActivatePayload = {
  * [Source: story 2.4 Task 3; AC-5/7; src/shared/schemas/settings.ts; .claude/rules/ipc.md]
  */
 export type { Settings, SettingsPatch } from '../schemas/settings'
+
+// Session templates — main-owned; the renderer holds a projection (templatesStore.ts).
+export type {
+  Template,
+  TemplateSaveRequest,
+  TemplateDeleteRequest,
+  PermissionMode
+} from '../schemas/template'
+/** `templates:save` result — the saved row (so the dialog can select it) + the full sorted list. */
+export type TemplatesSaveResult = { saved: Template; templates: Template[] }
+/** `session:launch-from-template` arg. Returns `SessionLaunchResult` like `session:launch`. */
+export type SessionLaunchFromTemplateRequest = { templateId: string; name: string }
 
 // ---------------------------------------------------------------------------
 // Story 3.2 (FR-11) — the in-app LAUNCH seam payload types (native picker + raw

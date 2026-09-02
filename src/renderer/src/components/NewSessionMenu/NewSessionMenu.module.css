@@ -1,0 +1,154 @@
+/* Session templates — the + New session popover. Every value is a DESIGN.md token; no gold. */
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+/* The empty board's centered primary (was Board.module.css .newSessionButton): same anchor
+   plus the top margin the empty-board copy expects; its menu is centered under the button. */
+.anchorPrimary {
+  margin-top: var(--space-2);
+}
+.anchorPrimary .menu {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+/* The header button — mirrors App.module.css .newSessionHeaderButton, plus a `gap` for the
+   caret (this component has no caret yet, but the gap is harmless and keeps future icon spacing
+   free). */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  cursor: pointer;
+}
+.buttonPrimary {
+  padding: var(--space-2) var(--space-4);
+}
+.button:hover,
+.buttonPrimary:hover {
+  background: var(--bg-surface);
+}
+.button:focus-visible,
+.buttonPrimary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 50;
+  min-width: 320px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-primary);
+  /* Own alignment — the empty board centers its copy and the menu must not inherit that. */
+  text-align: left;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
+}
+
+.item,
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+/* Plain actions (folder / manage) lay out in a row: [icon] label. Template rows stay stacked. */
+.item {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+.itemIcon {
+  flex: none;
+  color: var(--text-secondary);
+}
+.item:hover,
+.row:hover {
+  background: var(--bg-surface);
+}
+.item:focus-visible,
+.row:focus-visible,
+.search:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.rowName {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+}
+.rowPath {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowMeta {
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-meta);
+  color: var(--text-muted);
+}

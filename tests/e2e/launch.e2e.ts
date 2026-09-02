@@ -175,6 +175,8 @@ test('in-app launch spawns `claude` in the picked dir (override applied) + no po
     //    EmbeddedTerminal → terminal:open → main spawns `$SHELL -l -c claude` in launchDir.
     //    NOTE: nothing spawns until the prompt is confirmed — skipping it hangs at step 4.
     await newSessionBtn.click()
+    // session templates: the header button opens a popover; "Pick a folder…" is the old flow
+    await page.locator('[data-testid="menu-pick-folder"]').click()
     await confirmSessionName(page)
 
     // 4. The Focused-session's embedded terminal should mount.

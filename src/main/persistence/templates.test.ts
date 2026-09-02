@@ -1,0 +1,126 @@
+import { describe, it, expect, vi } from 'vitest'
+import { createTemplatesStore, TEMPLATE_ERROR, type TemplatesBlobStore } from './templates'
+import type { TemplatesFile } from '../../shared/schemas/template'
+
+const ROW = {
+  name: 'work api',
+  cwd: '/home/op/work/api',
+  model: 'opus',
+  permissionMode: 'acceptEdits' as const
+}
+
+function fakeBlob(
+  seed: unknown,
+  opts: { writeThrows?: boolean } = {}
+): {
+  blobStore: TemplatesBlobStore
+  writes: TemplatesFile[]
+  backups: () => number
+  current: () => unknown
+} {
+  let blob: unknown = seed
+  const writes: TemplatesFile[] = []
+  let backups = 0
+  const blobStore: TemplatesBlobStore = {
+    read: () => blob,
+    write: (value) => {
+      if (opts.writeThrows) throw new Error('io')
+      writes.push(value)
+      blob = value
+    },
+    backup: () => {
+      backups++
+    }
+  }
+  return { blobStore, writes, backups: () => backups, current: () => blob }
+}
+function make(
+  seed: unknown = undefined,
+  opts: { writeThrows?: boolean } = {}
+): {
+  store: ReturnType<typeof createTemplatesStore>
+  fake: ReturnType<typeof fakeBlob>
+  log: ReturnType<typeof vi.fn>
+} {
+  const fake = fakeBlob(seed, opts)
+  const log = vi.fn()
+  let n = 0
+  const store = createTemplatesStore({ blobStore: fake.blobStore, log, newId: () => `id-${++n}` })
+  return { store, fake, log }
+}
+
+describe('createTemplatesStore — load', () => {
+  it('fresh install: empty list, writes the empty v1 file, logs nothing', () => {
+    const { store, fake, log } = make()
+    expect(store.list()).toEqual([])
+    expect(fake.writes).toEqual([{ version: 1, templates: [] }])
+    expect(log).not.toHaveBeenCalled()
+  })
+  it('healthy file: loads rows and lists them sorted by name, case-insensitive', () => {
+    const { store } = make({
+      version: 1,
+      templates: [
+        { id: 'b', ...ROW, name: 'zeta' },
+        { id: 'a', ...ROW, name: 'Alpha' },
+        { id: 'c', ...ROW, name: 'beta' }
+      ]
+    })
+    expect(store.list().map((t) => t.name)).toEqual(['Alpha', 'beta', 'zeta'])
+  })
+  it('corrupt file: backup + empty + code, and the log never carries a value', () => {
+    const { store, fake, log } = make({ version: 1, templates: [{ id: 'x', ...ROW, cwd: '' }] })
+    expect(store.list()).toEqual([])
+    expect(fake.backups()).toBe(1)
+    const lines = log.mock.calls.map((c) => String(c[0]))
+    expect(lines).toContain('[claude-watcher][templates] code=templates_corrupt_reset_to_defaults')
+    for (const line of lines) {
+      expect(line).not.toContain('/home/op')
+      expect(line).not.toContain('work api')
+    }
+  })
+})
+
+describe('createTemplatesStore — save / get / remove', () => {
+  it('create mints an id, returns the saved row + the sorted list, persists', () => {
+    const { store, fake } = make()
+    const out = store.save(ROW)
+    expect(out.saved).toEqual({ id: 'id-1', ...ROW })
+    expect(out.templates).toEqual([out.saved])
+    expect(store.get('id-1')).toEqual(out.saved)
+    expect(fake.current()).toEqual({ version: 1, templates: [out.saved] })
+  })
+  it('update keeps the id and replaces the fields', () => {
+    const { store } = make()
+    store.save(ROW)
+    const out = store.save({ id: 'id-1', ...ROW, name: 'renamed', model: null })
+    expect(out.saved).toEqual({ id: 'id-1', ...ROW, name: 'renamed', model: null })
+    expect(store.list()).toHaveLength(1)
+  })
+  it('update with an unknown id throws template_not_found and changes nothing', () => {
+    const { store } = make()
+    expect(() => store.save({ id: 'ghost', ...ROW })).toThrow(TEMPLATE_ERROR.notFound)
+    expect(store.list()).toEqual([])
+  })
+  it('a duplicate name (trimmed, case-insensitive) throws template_name_taken — except for the row itself', () => {
+    const { store } = make()
+    store.save(ROW)
+    expect(() => store.save({ ...ROW, name: '  WORK API ' })).toThrow(TEMPLATE_ERROR.nameTaken)
+    expect(() => store.save({ id: 'id-1', ...ROW, name: 'Work API' })).not.toThrow()
+    expect(store.list()).toHaveLength(1)
+  })
+  it('remove drops the row and returns the list; an unknown id is a no-op that does not write', () => {
+    const { store, fake } = make()
+    store.save(ROW)
+    const before = fake.writes.length
+    expect(store.remove('id-1')).toEqual([])
+    expect(store.get('id-1')).toBeNull()
+    expect(store.remove('id-1')).toEqual([])
+    expect(fake.writes.length).toBe(before + 1)
+  })
+  it('a failed write logs templates_write_failed and keeps the in-memory row', () => {
+    const { store, log } = make(undefined, { writeThrows: true })
+    store.save(ROW)
+    expect(store.list()).toHaveLength(1)
+    expect(log).toHaveBeenCalledWith('[claude-watcher][templates] code=templates_write_failed')
+  })
+})

@@ -16,8 +16,10 @@ import { resolve } from 'node:path'
 import type {
   Column,
   WatchEventsPayload,
-  AttentionActivatePayload
+  AttentionActivatePayload,
+  Template
 } from '../../../../shared/ipc/contract'
+import { templatesStore } from '../../stores/templatesStore'
 
 /** The shape the Board needs off `window.watch` (mirrors the preload WatchApi). */
 interface WatchBridge {
@@ -186,13 +188,44 @@ describe('Board — empty states never collapse (AC-4)', () => {
     expect(btn?.textContent).toContain('+ New session')
   })
 
-  it('+ New session is a SEAM — clicking fires the injected onNewSession (no launch built)', () => {
-    boardStore.setState({ coldLoaded: true })
-    const onNewSession = vi.fn()
-    const { container, unmount } = renderComponent(<Board onNewSession={onNewSession} />)
-    cleanup = unmount
-    container.querySelector<HTMLButtonElement>('[data-testid="new-session"]')?.click()
-    expect(onNewSession).toHaveBeenCalledTimes(1)
+  // Session templates — the empty-board `+ New session` opens the SAME popover as the header
+  // button (folder / templates / Manage); the three seams stay injected, nothing is launched here.
+  describe('+ New session opens the templates popover (seams injected, no launch built)', () => {
+    const T1: Template = { id: 'a', name: 'api', cwd: '/api', model: null, permissionMode: null }
+    const click = (container: Element, sel: string): void => {
+      act(() => container.querySelector<HTMLButtonElement>(sel)?.click())
+    }
+    afterEach(() => act(() => templatesStore.getState().hydrate([])))
+
+    it('click opens the popover; Pick a folder… fires onNewSession and closes it', () => {
+      boardStore.setState({ coldLoaded: true })
+      const onNewSession = vi.fn()
+      const { container, unmount } = renderComponent(<Board onNewSession={onNewSession} />)
+      cleanup = unmount
+      expect(container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
+      click(container, '[data-testid="new-session"]')
+      expect(container.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+      click(container, '[data-testid="menu-pick-folder"]')
+      expect(onNewSession).toHaveBeenCalledTimes(1)
+      expect(container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
+    })
+
+    it('a template row fires onPickTemplate with the template; Manage… fires onManageTemplates', () => {
+      boardStore.setState({ coldLoaded: true })
+      act(() => templatesStore.getState().hydrate([T1]))
+      const onPickTemplate = vi.fn()
+      const onManageTemplates = vi.fn()
+      const { container, unmount } = renderComponent(
+        <Board onPickTemplate={onPickTemplate} onManageTemplates={onManageTemplates} />
+      )
+      cleanup = unmount
+      click(container, '[data-testid="new-session"]')
+      click(container, '[data-template-id="a"]')
+      expect(onPickTemplate).toHaveBeenCalledWith(T1)
+      click(container, '[data-testid="new-session"]')
+      click(container, '[data-testid="menu-manage"]')
+      expect(onManageTemplates).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('empty needs-you column renders the CALM hint "Nothing waiting. All quiet."', () => {

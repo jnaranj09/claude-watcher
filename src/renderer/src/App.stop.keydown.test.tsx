@@ -133,8 +133,16 @@ beforeEach(() => {
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: vi.fn(() => Promise.resolve(null)),
     launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1' })),
+    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'term-1' })),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))
+  }
+  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
+  // console.warns a code (App.templates.test.tsx amendment #2).
+  ;(window as unknown as { templates: unknown }).templates = {
+    list: vi.fn(() => Promise.resolve([])),
+    save: vi.fn(),
+    remove: vi.fn()
   }
   stubQuit()
 

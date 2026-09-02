@@ -73,6 +73,9 @@ export type SessionNamePromptPayload =
       cwd: string
       /** The value the dialog's input starts at (the cwd basename). The operator may replace it. */
       initialName: string
+      /** Session templates: set when the prompt was opened from a template; App branches the
+       *  submit on it (launchFromTemplate vs launch). Absent for the folder flow. */
+      templateId?: string
     }
   | {
       /** RENAME: retitling a session that ALREADY EXISTS on the board. */
@@ -241,6 +244,11 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state; session truth = main]
    */
   sessionNamePrompt: SessionNamePromptPayload | null
+  /**
+   * Session templates — whether the templates picker dialog is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  templatesDialogOpen: boolean
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -346,6 +354,14 @@ export interface BoardState {
    * open, so cancelling leaves no PTY, no card, and no view change.
    */
   clearSessionNamePrompt: () => void
+  /**
+   * Session templates — open the templates picker dialog. No-op if already open.
+   */
+  openTemplatesDialog: () => void
+  /**
+   * Session templates — close the templates picker dialog. No-op if already closed.
+   */
+  closeTemplatesDialog: () => void
 }
 
 export interface BoardStoreOptions {
@@ -382,6 +398,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     stopConfirm: null,
     // Session-naming — no name prompt shown until the directory picker returns a path.
     sessionNamePrompt: null,
+    // Session templates — the templates picker dialog starts closed.
+    templatesDialogOpen: false,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -614,6 +632,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // there is nothing to tear down on the cancel path.
       const state = get()
       if (state.sessionNamePrompt !== null) set({ sessionNamePrompt: null })
+    },
+
+    openTemplatesDialog: () => {
+      if (!get().templatesDialogOpen) set({ templatesDialogOpen: true })
+    },
+    closeTemplatesDialog: () => {
+      if (get().templatesDialogOpen) set({ templatesDialogOpen: false })
     }
   }))
 }
@@ -710,6 +735,12 @@ export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null 
  */
 export const selectSessionNamePrompt = (state: BoardState): SessionNamePromptPayload | null =>
   state.sessionNamePrompt
+
+/**
+ * Session templates — whether the templates picker dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectTemplatesDialogOpen = (state: BoardState): boolean => state.templatesDialogOpen
 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the

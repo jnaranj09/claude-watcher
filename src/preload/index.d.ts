@@ -5,6 +5,7 @@ import type {
   SettingsApi,
   TerminalApi,
   LaunchApi,
+  TemplatesApi,
   TelemetryApi,
   QuitApi,
   ClipboardApi
@@ -23,6 +24,8 @@ declare global {
     terminal: TerminalApi
     // Story 3.2 (FR-11) — the in-app launch bridge (native picker + raw claude launch invokes).
     launch: LaunchApi
+    // Session templates — the templates CRUD bridge (list/save/remove via CH.templates*).
+    templates: TemplatesApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi
     // Story 4.2 (FR-14) — the quit-guard bridge (requestQuit / confirm / cancel / onGuardShow).

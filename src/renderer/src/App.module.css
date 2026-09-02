@@ -32,29 +32,6 @@
   gap: var(--space-2);
 }
 
-.newSessionHeaderButton {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-body);
-  cursor: pointer;
-}
-
-.newSessionHeaderButton:hover {
-  background: var(--bg-surface);
-}
-
-.newSessionHeaderButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
 .main {
   flex: 1;
   min-height: 0;

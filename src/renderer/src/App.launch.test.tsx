@@ -134,9 +134,17 @@ beforeEach(() => {
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: pickSpy,
     launch: launchSpy,
+    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz' })),
     // Story 3.4 — App subscribes to the launch-correlation push; the fake returns an unsubscribe.
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))
+  }
+  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
+  // console.warns a code (App.templates.test.tsx amendment #2). This suite spies on console.warn.
+  ;(window as unknown as { templates: unknown }).templates = {
+    list: vi.fn(() => Promise.resolve([])),
+    save: vi.fn(),
+    remove: vi.fn()
   }
   // Ensure no leftover hash from a prior test steers the terminal-host view.
   window.location.hash = ''
@@ -155,18 +163,22 @@ async function renderApp(): Promise<RenderResult> {
   return r
 }
 
+// Session templates: `+ New session` is now a popover (folder / templates / Manage), not a
+// direct-action button. Every site here that used to click the header button straight into the
+// folder flow now opens the popover first, then clicks its "Pick a folder…" row.
+function clickPickFolder(r: RenderResult): void {
+  act(() =>
+    (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
+  )
+  act(() =>
+    (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+  )
+}
+
 describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
   it('+ New session → picker → launch in the picked cwd → drops into the Focused-session', async () => {
     const r = await renderApp()
-    const button = r.container.querySelector<HTMLButtonElement>(
-      '[data-testid="header-new-session"]'
-    )
-    expect(button).not.toBeNull()
-
-    await act(async () => {
-      button?.click()
-      await Promise.resolve()
-    })
+    clickPickFolder(r)
     await flush()
 
     // Session-naming: the picker no longer launches directly — it opens the name prompt, and
@@ -187,14 +199,7 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
   it('CANCEL (picker returns null) is a NO-OP — no launch, no view change', async () => {
     pickResult.current = null
     const r = await renderApp()
-    const button = r.container.querySelector<HTMLButtonElement>(
-      '[data-testid="header-new-session"]'
-    )
-
-    await act(async () => {
-      button?.click()
-      await Promise.resolve()
-    })
+    clickPickFolder(r)
     await flush()
 
     expect(pickSpy).toHaveBeenCalledTimes(1)
@@ -220,13 +225,7 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
   it('Esc returns Focused → Board (UX-DR21)', async () => {
     const r = await renderApp()
     // Enter the focused view via a launch first.
-    const button = r.container.querySelector<HTMLButtonElement>(
-      '[data-testid="header-new-session"]'
-    )
-    await act(async () => {
-      button?.click()
-      await Promise.resolve()
-    })
+    clickPickFolder(r)
     await flush()
     await submitNamePrompt(r)
     expect(boardStore.getState().viewMode).toBe('focused')
@@ -242,13 +241,7 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
   it('a launch failure (rejected invoke) does NOT crash — stays on the board', async () => {
     launchSpy.mockImplementation(() => Promise.reject(new Error('spawn failed')))
     const r = await renderApp()
-    const button = r.container.querySelector<HTMLButtonElement>(
-      '[data-testid="header-new-session"]'
-    )
-    await act(async () => {
-      button?.click()
-      await Promise.resolve()
-    })
+    clickPickFolder(r)
     await flush()
     await submitNamePrompt(r)
     // Picker + launch were attempted; the rejection is swallowed (code-only log) → board stays.
@@ -263,16 +256,10 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
 // renderer: the prompt is prefilled with the cwd basename, a replaced name is what reaches the
 // launch AND the Starting-banner label, cancelling spawns nothing, and a blank name cannot submit.
 describe('App — session-naming: the create-time name prompt', () => {
-  /** Open the prompt via the header button. */
+  /** Open the prompt via the header button's "Pick a folder…" row. */
   async function openPrompt(): Promise<RenderResult> {
     const r = await renderApp()
-    const button = r.container.querySelector<HTMLButtonElement>(
-      '[data-testid="header-new-session"]'
-    )
-    await act(async () => {
-      button?.click()
-      await Promise.resolve()
-    })
+    clickPickFolder(r)
     await flush()
     return r
   }
@@ -454,13 +441,7 @@ describe('App — Story 3.4 B-1: Board↔Focused switch is kept-alive (PTY survi
     const r = await renderApp()
 
     // 1) Launch → drop into the focused view (the EmbeddedTerminal mounts + opens its PTY).
-    const button = r.container.querySelector<HTMLButtonElement>(
-      '[data-testid="header-new-session"]'
-    )
-    await act(async () => {
-      button?.click()
-      await Promise.resolve()
-    })
+    clickPickFolder(r)
     await flush()
     await submitNamePrompt(r)
     expect(boardStore.getState().viewMode).toBe('focused')

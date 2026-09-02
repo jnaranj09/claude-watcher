@@ -16,6 +16,7 @@ import {
   composeClaudeCommand,
   QUESTION_FORMAT_PROMPT
 } from './claudeBin'
+import type { ClaudeCommandSpec } from './claudeBin'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -195,8 +196,42 @@ describe('composeClaudeCommand', () => {
   const BIN = '/home/dev/.local/bin/claude'
   const SID = 'aaaaaaaa-0000-4000-8000-000000000001'
 
+  function spec(overrides: Partial<ClaudeCommandSpec> = {}): ClaudeCommandSpec {
+    return {
+      claudeCommand: BIN,
+      sessionId: SID,
+      displayName: 'x',
+      hookSettingsPath: null,
+      appendSystemPrompt: null,
+      model: null,
+      permissionMode: null,
+      ...overrides
+    }
+  }
+
+  describe('composeClaudeCommand — template flags (--model / --permission-mode)', () => {
+    it('both null ⇒ the pre-template command, byte for byte', () => {
+      expect(composeClaudeCommand(spec({ displayName: 'billing api' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'billing api'`
+      )
+    })
+    it('appends --model and --permission-mode after every other flag, shell-quoted', () => {
+      expect(composeClaudeCommand(spec({ model: 'opus', permissionMode: 'acceptEdits' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --model 'opus' --permission-mode 'acceptEdits'`
+      )
+    })
+    it('a full model name with brackets is one quoted argument', () => {
+      expect(composeClaudeCommand(spec({ model: 'claude-fable-5[1m]' }))).toContain(
+        `--model 'claude-fable-5[1m]'`
+      )
+    })
+    it('an empty model string is treated like null (never a bare --model)', () => {
+      expect(composeClaudeCommand(spec({ model: '' }))).not.toContain('--model')
+    })
+  })
+
   it('carries the minted session id AND the operator name as claude -n', () => {
-    expect(composeClaudeCommand(BIN, SID, 'billing api', null, null)).toBe(
+    expect(composeClaudeCommand(spec({ displayName: 'billing api' }))).toBe(
       `'${BIN}' --session-id '${SID}' -n 'billing api'`
     )
   })
@@ -204,7 +239,7 @@ describe('composeClaudeCommand', () => {
   it('QUOTES a name containing an apostrophe — the injection this guard exists for', () => {
     // SessionNameSchema bans control characters but ALLOWS an apostrophe. Un-quoted, `it's`
     // would close the shell quoting and split the command into pieces the shell then runs.
-    const cmd = composeClaudeCommand(BIN, SID, "it's mine", null, null)
+    const cmd = composeClaudeCommand(spec({ displayName: "it's mine" }))
 
     expect(cmd).toBe(`'${BIN}' --session-id '${SID}' -n 'it'\\''s mine'`)
   })
@@ -225,7 +260,13 @@ describe('composeClaudeCommand', () => {
     const argvFor = (name: string, settingsPath: string | null = null): string[] =>
       execFileSync(
         '/bin/sh',
-        ['-l', '-c', composeClaudeCommand(stub, SID, name, settingsPath, null)],
+        [
+          '-l',
+          '-c',
+          composeClaudeCommand(
+            spec({ claudeCommand: stub, displayName: name, hookSettingsPath: settingsPath })
+          )
+        ],
         {
           encoding: 'utf8'
         }
@@ -267,7 +308,9 @@ describe('composeClaudeCommand', () => {
     it('delivers QUESTION_FORMAT_PROMPT to claude as ONE argument with the exact text', () => {
       // The question-format nudge (DA-4) is shell-quoted, not app-quoted — this proves a REAL
       // shell hands it to claude intact as a single argv entry, not split on its spaces/quotes.
-      const cmd = composeClaudeCommand(stub, SID, 'x', null, QUESTION_FORMAT_PROMPT)
+      const cmd = composeClaudeCommand(
+        spec({ claudeCommand: stub, appendSystemPrompt: QUESTION_FORMAT_PROMPT })
+      )
       const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
         .split('\n')
         .filter((l) => l !== '')
@@ -284,17 +327,17 @@ describe('composeClaudeCommand', () => {
   })
 
   it('quotes a name with spaces, semicolons and substitutions as a single argument', () => {
-    const cmd = composeClaudeCommand(BIN, SID, 'a b; rm -rf /tmp/x $(whoami) `id`', null, null)
+    const cmd = composeClaudeCommand(spec({ displayName: 'a b; rm -rf /tmp/x $(whoami) `id`' }))
 
     expect(cmd).toContain(`-n 'a b; rm -rf /tmp/x $(whoami) \`id\`'`)
   })
 
   it('omits -n entirely for an empty name — never emit a bare flag that eats the next arg', () => {
-    expect(composeClaudeCommand(BIN, SID, '', null, null)).toBe(`'${BIN}' --session-id '${SID}'`)
+    expect(composeClaudeCommand(spec({ displayName: '' }))).toBe(`'${BIN}' --session-id '${SID}'`)
   })
 
   it('still quotes a claude path containing a space', () => {
-    expect(composeClaudeCommand('/home/dev user/bin/claude', SID, 'x', null, null)).toContain(
+    expect(composeClaudeCommand(spec({ claudeCommand: '/home/dev user/bin/claude' }))).toContain(
       `'/home/dev user/bin/claude'`
     )
   })
@@ -306,27 +349,29 @@ describe('composeClaudeCommand', () => {
     const SETTINGS = '/home/dev/.config/c9watch/claude-hooks.settings.json'
 
     it('appends --settings with the hook file path', () => {
-      expect(composeClaudeCommand(BIN, SID, 'billing api', SETTINGS, null)).toBe(
-        `'${BIN}' --session-id '${SID}' -n 'billing api' --settings '${SETTINGS}'`
-      )
+      expect(
+        composeClaudeCommand(spec({ displayName: 'billing api', hookSettingsPath: SETTINGS }))
+      ).toBe(`'${BIN}' --session-id '${SID}' -n 'billing api' --settings '${SETTINGS}'`)
     })
 
     it('omits the flag on null — the fail-soft path when the file could not be written', () => {
       // A bare `--settings` would swallow the next argument, and there is no next argument
       // here, so claude would take the flag with a missing value. Omit it entirely instead.
-      const cmd = composeClaudeCommand(BIN, SID, 'x', null, null)
+      const cmd = composeClaudeCommand(spec())
 
       expect(cmd).not.toContain('--settings')
     })
 
     it('omits the flag on an empty path too', () => {
-      expect(composeClaudeCommand(BIN, SID, 'x', '', null)).not.toContain('--settings')
+      expect(composeClaudeCommand(spec({ hookSettingsPath: '' }))).not.toContain('--settings')
     })
 
     it('QUOTES a settings path containing a space', () => {
       // Electron's userData dir sits under the operator's home; a space there would split the
       // path into two arguments and claude would read a file that does not exist.
-      const cmd = composeClaudeCommand(BIN, SID, 'x', '/home/dev user/.config/c9/hooks.json', null)
+      const cmd = composeClaudeCommand(
+        spec({ hookSettingsPath: '/home/dev user/.config/c9/hooks.json' })
+      )
 
       expect(cmd).toContain(`--settings '/home/dev user/.config/c9/hooks.json'`)
     })
@@ -337,11 +382,7 @@ describe('composeClaudeCommand', () => {
   describe('--append-system-prompt (question-format nudge)', () => {
     it('appends --append-system-prompt shell-quoted when a prompt is given', () => {
       const cmd = composeClaudeCommand(
-        BIN,
-        SID,
-        'x',
-        null,
-        "ask with AskUserQuestion; end questions with '?'"
+        spec({ appendSystemPrompt: "ask with AskUserQuestion; end questions with '?'" })
       )
 
       expect(cmd).toContain(
@@ -350,17 +391,19 @@ describe('composeClaudeCommand', () => {
     })
 
     it('omits the flag entirely for null (fail-soft — the spawn works without the nudge)', () => {
-      const cmd = composeClaudeCommand(BIN, SID, 'n', null, null)
+      const cmd = composeClaudeCommand(spec({ displayName: 'n' }))
 
       expect(cmd).not.toContain('--append-system-prompt')
     })
 
     it('omits the flag for an empty prompt too', () => {
-      expect(composeClaudeCommand(BIN, SID, 'x', null, '')).not.toContain('--append-system-prompt')
+      expect(composeClaudeCommand(spec({ appendSystemPrompt: '' }))).not.toContain(
+        '--append-system-prompt'
+      )
     })
 
     it('composes QUESTION_FORMAT_PROMPT with the exact real spawn call, shell-quoted', () => {
-      const cmd = composeClaudeCommand(BIN, SID, 'x', null, QUESTION_FORMAT_PROMPT)
+      const cmd = composeClaudeCommand(spec({ appendSystemPrompt: QUESTION_FORMAT_PROMPT }))
 
       expect(cmd).toBe(
         `'${BIN}' --session-id '${SID}' -n 'x' --append-system-prompt ${shellQuote(QUESTION_FORMAT_PROMPT)}`

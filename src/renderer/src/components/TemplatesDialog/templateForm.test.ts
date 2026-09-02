@@ -1,0 +1,122 @@
+import { describe, it, expect } from 'vitest'
+import {
+  emptyDraft,
+  toDraft,
+  modelChoiceOf,
+  validateDraft,
+  isDraftDirty,
+  templateErrorMessage,
+  describeTemplateFlags,
+  PERMISSION_MODE_LABELS
+} from './templateForm'
+import { PERMISSION_MODES, type Template } from '../../../../shared/schemas/template'
+
+const T: Template = { id: 'a', name: 'api', cwd: '/api', model: 'opus', permissionMode: 'plan' }
+
+describe('draft ⇄ template', () => {
+  it('emptyDraft is a new, default-flag draft', () => {
+    expect(emptyDraft()).toEqual({
+      id: null,
+      name: '',
+      cwd: '',
+      modelChoice: 'default',
+      customModel: '',
+      permissionChoice: 'default'
+    })
+  })
+  it('modelChoiceOf: null → default, alias → alias, anything else → custom with the text', () => {
+    expect(modelChoiceOf(null)).toEqual({ choice: 'default', custom: '' })
+    expect(modelChoiceOf('sonnet')).toEqual({ choice: 'sonnet', custom: '' })
+    expect(modelChoiceOf('claude-fable-5')).toEqual({ choice: 'custom', custom: 'claude-fable-5' })
+  })
+  it('toDraft maps a template; null permission → default', () => {
+    expect(toDraft({ ...T, model: 'claude-x', permissionMode: null })).toEqual({
+      id: 'a',
+      name: 'api',
+      cwd: '/api',
+      modelChoice: 'custom',
+      customModel: 'claude-x',
+      permissionChoice: 'default'
+    })
+  })
+})
+
+describe('validateDraft', () => {
+  it('a full draft becomes a save request (id kept when editing)', () => {
+    expect(validateDraft(toDraft(T))).toEqual({
+      ok: true,
+      request: { id: 'a', name: 'api', cwd: '/api', model: 'opus', permissionMode: 'plan' }
+    })
+  })
+  it('a new draft has NO id key at all (exactOptionalPropertyTypes)', () => {
+    const v = validateDraft({ ...emptyDraft(), name: 'x', cwd: '/x' })
+    expect(v).toEqual({
+      ok: true,
+      request: { name: 'x', cwd: '/x', model: null, permissionMode: null }
+    })
+    expect(v.ok && 'id' in v.request).toBe(false)
+  })
+  it('custom model uses the trimmed text; default flags become null', () => {
+    const v = validateDraft({
+      ...emptyDraft(),
+      name: 'x',
+      cwd: '/x',
+      modelChoice: 'custom',
+      customModel: ' claude-x '
+    })
+    expect(v.ok && v.request.model).toBe('claude-x')
+  })
+  it.each([
+    ['blank name', { ...emptyDraft(), cwd: '/x' }, 'Name is required.'],
+    ['blank folder', { ...emptyDraft(), name: 'x' }, 'Pick a folder.'],
+    [
+      'custom with empty text',
+      { ...emptyDraft(), name: 'x', cwd: '/x', modelChoice: 'custom' as const },
+      'Type a model name, or pick one from the list.'
+    ],
+    [
+      'custom with a space',
+      { ...emptyDraft(), name: 'x', cwd: '/x', modelChoice: 'custom' as const, customModel: 'a b' },
+      'Model name must not contain spaces.'
+    ],
+    [
+      'name too long',
+      { ...emptyDraft(), name: 'n'.repeat(61), cwd: '/x' },
+      'Name must be 1–60 characters without control characters.'
+    ]
+  ])('%s → error', (_l, draft, message) => {
+    expect(validateDraft(draft)).toEqual({ ok: false, error: message })
+  })
+})
+
+describe('isDraftDirty', () => {
+  it('a fresh empty draft is clean; typing makes it dirty', () => {
+    expect(isDraftDirty(emptyDraft(), null)).toBe(false)
+    expect(isDraftDirty({ ...emptyDraft(), name: 'x' }, null)).toBe(true)
+  })
+  it('an unchanged template draft is clean; a changed flag is dirty', () => {
+    expect(isDraftDirty(toDraft(T), T)).toBe(false)
+    expect(isDraftDirty({ ...toDraft(T), permissionChoice: 'auto' }, T)).toBe(true)
+  })
+})
+
+describe('copy', () => {
+  it('templateErrorMessage maps the two known codes and falls back', () => {
+    expect(
+      templateErrorMessage(
+        new Error("Error invoking remote method 'templates:save': Error: template_name_taken")
+      )
+    ).toBe('A template with this name already exists.')
+    expect(templateErrorMessage(new Error('template_not_found'))).toBe(
+      'This template no longer exists.'
+    )
+    expect(templateErrorMessage('boom')).toBe('Could not save the template.')
+  })
+  it('every permission mode has a label; describeTemplateFlags reads "model · mode"', () => {
+    for (const mode of PERMISSION_MODES) expect(PERMISSION_MODE_LABELS[mode]).toBeTruthy()
+    expect(describeTemplateFlags(T)).toBe('opus · Plan')
+    expect(describeTemplateFlags({ ...T, model: null, permissionMode: null })).toBe(
+      'default model · default permissions'
+    )
+  })
+})

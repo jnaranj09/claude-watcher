@@ -32,25 +32,14 @@ import {
   type Settings,
   type SettingsPatch
 } from '../../shared/schemas/settings'
+import {
+  createInMemoryBlobStore,
+  loadPersistedOrReset,
+  type PersistedBlobStore as GenericPersistedBlobStore
+} from './persistedBlob'
 
-/**
- * The minimal persisted-blob seam this module needs. Kept tiny so the test fake
- * implements exactly this — and so NO electron-store / fs import sits on this module's
- * (or the unit-test's) path. The blob is the FULL settings object (one JSON document),
- * read/written wholesale so the corrupt-read recovery can validate + back up the whole
- * thing.
- */
-export interface PersistedBlobStore {
-  /** Read the raw persisted blob (unknown — it may be corrupt/missing). `undefined`
-   *  means "nothing persisted yet" (first install) → start from defaults (NOT a backup). */
-  read(): unknown
-  /** Persist the validated settings blob (wholesale). */
-  write(value: Settings): void
-  /** Back up the current bad blob (e.g. rename to a `.corrupt-<epoch>` sidecar) so a
-   *  corrupt file is preserved for inspection, never silently destroyed (AC-6). Best-effort:
-   *  it must NEVER throw out of the recovery path (the recovery proceeds regardless). */
-  backup(): void
-}
+/** Kept under its historical name: settings.test.ts and electronSettingsBlobStore.ts import it. */
+export type PersistedBlobStore = GenericPersistedBlobStore<Settings>
 
 export interface SettingsStoreOptions {
   /** The persisted-blob seam (DI). Tests inject a fake; main injects the real
@@ -72,24 +61,18 @@ export interface SettingsStore {
   set(patch: SettingsPatch): Settings
 }
 
-/** A no-op in-memory blob store — the default when no `blobStore` is injected. Nothing is
- *  persisted (read() → undefined → defaults), but the store still works in-session. This is
- *  a safe degrade (never-crash); production injects the real electron-store-backed store. */
-const inMemoryBlobStore: PersistedBlobStore = {
-  read: () => undefined,
-  write: () => {},
-  backup: () => {}
-}
-
 /**
  * Build the settings store (AC-5/6). On construction it reads the persisted blob and
  * recovers fail-closed on corruption (back up + start fresh — NEVER throws/crashes).
  * `set` re-validates + persists and THROWS on bad input. The blob store + log are
  * injectable DI seams (tests use a fake in-memory store + spy log — no electron-store,
- * no disk).
+ * no disk). The read → parse → backup-on-corrupt → fallback pattern itself lives in the
+ * generic, pure `loadPersistedOrReset` (`./persistedBlob.ts`) — this module supplies the
+ * settings-specific `parse`/`fallback`/`onProblem` (the log-line prefix stays byte-identical
+ * to the pre-extraction strings so `settings.test.ts` keeps asserting the same `code=`).
  */
 export function createSettingsStore(options: SettingsStoreOptions = {}): SettingsStore {
-  const blobStore = options.blobStore ?? inMemoryBlobStore
+  const blobStore = options.blobStore ?? createInMemoryBlobStore<Settings>()
   // never-log-the-value: a `code=` ONLY, never a settings/file value (Guardrail #6).
   const log = options.log ?? ((message: string): void => console.warn(message))
 
@@ -98,37 +81,12 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
   // (first install) → start from defaults, NO backup. A present-but-INVALID blob is
   // CORRUPT → back up the bad file + start fresh; NEVER throw/crash. The log carries a
   // `code=` ONLY — never the file contents.
-  let current: Settings
-  let raw: unknown
-  try {
-    raw = blobStore.read()
-  } catch {
-    // Even READING the blob failed (e.g. fs error) — treat as corrupt-but-unbackable:
-    // recover to defaults. Do not attempt a backup of an unreadable blob (best-effort).
-    log('[c9watch][settings] code=settings_read_failed')
-    raw = undefined
-  }
-
-  if (raw === undefined) {
-    // First install (or unreadable, handled above): fresh defaults.
-    current = { ...DEFAULT_SETTINGS }
-  } else {
-    const parsed = safeParseSettings(raw)
-    if (parsed === null) {
-      // CORRUPT persisted blob — back up the bad file + start fresh (AC-6). Never crash.
-      // Log a code ONLY (never the blob). The backup is best-effort (never throws out).
-      try {
-        blobStore.backup()
-      } catch {
-        // a failed backup must not block recovery — still start fresh.
-        log('[c9watch][settings] code=settings_backup_failed')
-      }
-      log('[c9watch][settings] code=settings_corrupt_reset_to_defaults')
-      current = { ...DEFAULT_SETTINGS }
-    } else {
-      current = parsed
-    }
-  }
+  let current: Settings = loadPersistedOrReset<Settings>({
+    blobStore,
+    parse: parseSettings,
+    fallback: () => ({ ...DEFAULT_SETTINGS }),
+    onProblem: (code) => log(`[c9watch][settings] code=settings_${code}`)
+  })
 
   // Persist the recovered/seeded value so the on-disk file always reflects a valid shape.
   // A write failure here must not crash construction (degrade to in-memory only).
@@ -162,15 +120,4 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
   }
 
   return { get, set }
-}
-
-/** Parse a blob into Settings, returning `null` (not throwing) on invalid input — used by
- *  the corrupt-read recovery so it can branch to backup+defaults. Logs nothing (the caller
- *  logs a code on the null branch); never echoes the value. */
-function safeParseSettings(raw: unknown): Settings | null {
-  try {
-    return parseSettings(raw)
-  } catch {
-    return null
-  }
 }

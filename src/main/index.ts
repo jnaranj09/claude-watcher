@@ -74,6 +74,11 @@ import { createAttentionTracker, type AttentionTracker } from './c9watch/attenti
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema } from '../shared/schemas/settings'
+import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
+import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
+import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
+import { resolveTemplateLaunch } from './pty/launchFromTemplate'
+import type { ClaudeLaunchFlags } from './pty/launchSession'
 // Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
 // `claude` launch service (reuses the terminal manager + ptyFactory; reuses pidCorrelation.ts
 // for the Tgid join) + the per-run launched-set it POPULATES. The picked dir + launch request
@@ -870,6 +875,13 @@ function registerPtyIpc(): void {
 // app-ready (electron-store needs userData). A null until then; registerSettingsIpc reads it.
 let settingsStore: SettingsStore | null = null
 
+// Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
+let templatesStore: TemplatesStore | null = null
+function requireTemplatesStore(): TemplatesStore {
+  if (templatesStore === null) throw new Error('templates store not initialized')
+  return templatesStore
+}
+
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
 // (AR-9: no database; Zod-validated + versioned; corrupt read → back up + start fresh).
 // Null until AFTER app-ready (app.getPath('userData') needs ready). The per-window tracker
@@ -901,6 +913,17 @@ function registerSettingsIpc(): void {
     const patch = SettingsPatchSchema.parse(raw)
     return settingsStore.set(patch)
   })
+}
+
+// Session templates — register ONCE (mirrors registerSettingsIpc). Handler bodies live in
+// persistence/templatesIpc.ts (unit-tested); this only binds them to CH.* channels.
+function registerTemplatesIpc(): void {
+  // Called AFTER the store is built, so the handlers can be bound once instead of rebuilt on
+  // every invoke. requireTemplatesStore() stays — it throws a clear error if ever mis-ordered.
+  const handlers = createTemplatesIpcHandlers(requireTemplatesStore())
+  ipcMain.handle(CH.templatesList, () => handlers.list())
+  ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
 }
 
 // Story 3.5 (SM-2) — register the telemetry-acknowledge IPC ONCE (mirrors registerSettingsIpc:
@@ -1264,7 +1287,8 @@ function registerTerminalIpc(): void {
 // it is load-bearing for pid correlation (claude must be a CHILD of the pty leader, F3).
 function rawClaudeSpawn(
   sessionId: string,
-  displayName: string
+  displayName: string,
+  flags: ClaudeLaunchFlags
 ): {
   file: string
   args: string[]
@@ -1304,13 +1328,15 @@ function rawClaudeSpawn(
     args: [
       '-l',
       '-c',
-      composeClaudeCommand(
-        claude.command,
+      composeClaudeCommand({
+        claudeCommand: claude.command,
         sessionId,
         displayName,
-        hookSettingsPathForSpawn(),
-        QUESTION_FORMAT_PROMPT
-      )
+        hookSettingsPath: hookSettingsPathForSpawn(),
+        appendSystemPrompt: QUESTION_FORMAT_PROMPT,
+        model: flags.model,
+        permissionMode: flags.permissionMode
+      })
     ],
     env
   }
@@ -1527,6 +1553,19 @@ function registerLaunchIpc(): void {
     // to merge a hook block into this project's `.claude/settings.local.json` — it no longer
     // touches the operator's project at all.
     const { terminalId } = launchService.launch({ cwd, name })
+    return { terminalId }
+  })
+
+  // session:launch-from-template — resolve the template FIRST (untrusted arg → main-owned
+  // cwd/model/permissionMode via resolveTemplateLaunch; throws template_not_found on an unknown
+  // id), then run the SAME version gate as session:launch before anything spawns.
+  ipcMain.handle(CH.sessionLaunchFromTemplate, (_event, raw: unknown) => {
+    if (launchService === null) throw new Error('launch service not initialized')
+    const req = resolveTemplateLaunch(requireTemplatesStore(), raw)
+    if (!claudeVersionAllowsLaunch()) {
+      throw new Error('claude version below the supported minimum')
+    }
+    const { terminalId } = launchService.launch(req)
     return { terminalId }
   })
 
@@ -1795,14 +1834,25 @@ app
       settingsStore = SMOKE
         ? createSettingsStore()
         : createSettingsStore({ blobStore: createElectronSettingsBlobStore() })
-    } catch (err) {
-      console.error(
-        '[c9watch][settings] code=settings_store_init_failed (using in-memory defaults):',
-        err instanceof Error ? err.message : 'unknown'
-      )
+    } catch {
+      // Code ONLY — never the error. A JSON SyntaxError message QUOTES the offending file
+      // content, which can carry an operator path (zod-boundaries.md never-log-the-value).
+      console.error('[c9watch][settings] code=settings_store_init_failed (using in-memory)')
       settingsStore = createSettingsStore()
     }
     registerSettingsIpc()
+
+    try {
+      templatesStore = SMOKE
+        ? createTemplatesStore()
+        : createTemplatesStore({ blobStore: createElectronTemplatesBlobStore() })
+    } catch {
+      // Code ONLY — never the error (see the settings catch above: a SyntaxError message
+      // quotes file content, and a template blob carries operator cwds and names).
+      console.error('[claude-watcher][templates] code=templates_store_init_failed (in-memory)')
+      templatesStore = createTemplatesStore()
+    }
+    registerTemplatesIpc()
 
     // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
     // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.

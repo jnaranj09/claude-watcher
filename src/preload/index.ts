@@ -18,7 +18,12 @@ import type {
   SessionSeenRequest,
   LaunchCorrelatedEvent,
   TelemetryAcknowledgeRequest,
-  QuitGuardPayload
+  QuitGuardPayload,
+  Template,
+  TemplateSaveRequest,
+  TemplateDeleteRequest,
+  TemplatesSaveResult,
+  SessionLaunchFromTemplateRequest
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -229,6 +234,14 @@ const launchApi = {
     const req: SessionRenameRequest = { id, name }
     return ipcRenderer.invoke(CH.sessionRename, req)
   },
+  /** Session templates — launch `claude` from a saved template by its stable id. Main
+   *  resolves the template's flags (cwd/model/permissionMode) from its own validated store
+   *  and returns `{ terminalId }` exactly like `launch(cwd, name)`. The renderer never carries
+   *  the template's flags itself — only the `templateId` + operator-typed `name`. */
+  launchFromTemplate(templateId: string, name: string): Promise<SessionLaunchResult> {
+    const req: SessionLaunchFromTemplateRequest = { templateId, name }
+    return ipcRenderer.invoke(CH.sessionLaunchFromTemplate, req)
+  },
   /** Deterministic-attention — report "the operator is viewing this session" (active rail tab,
    *  focused window). Main demotes ONLY a YourTurn session to idle; questions/permissions are
    *  untouched (they clear on reply). Resolves void; the calmed card arrives as a normal
@@ -250,6 +263,22 @@ const launchApi = {
 }
 
 export type LaunchApi = typeof launchApi
+
+// Session templates — typed invoke wrappers over CH.templates*. `remove`, not `delete`
+// (reserved word), so the store and the bridge share one verb.
+const templatesApi = {
+  list(): Promise<Template[]> {
+    return ipcRenderer.invoke(CH.templatesList)
+  },
+  save(req: TemplateSaveRequest): Promise<TemplatesSaveResult> {
+    return ipcRenderer.invoke(CH.templatesSave, req)
+  },
+  remove(id: string): Promise<Template[]> {
+    const req: TemplateDeleteRequest = { id }
+    return ipcRenderer.invoke(CH.templatesDelete, req)
+  }
+}
+export type TemplatesApi = typeof templatesApi
 
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
@@ -340,6 +369,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('settings', settingsApi)
     contextBridge.exposeInMainWorld('terminal', terminalApi)
     contextBridge.exposeInMainWorld('launch', launchApi)
+    // Session templates — the templates CRUD bridge (templates:list/save/delete).
+    contextBridge.exposeInMainWorld('templates', templatesApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -373,4 +404,6 @@ if (process.contextIsolated) {
   window.quit = quitApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.clipboard is in index.d.ts
   window.clipboard = clipboardApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.templates is in index.d.ts
+  window.templates = templatesApi
 }
