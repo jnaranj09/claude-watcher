@@ -57,7 +57,11 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
 }
 
 describe('SettingsPanel — exactly two controls, no hotkey (AC-4)', () => {
-  it('renders EXACTLY two interactive controls (sound + font-size) and no third', () => {
+  // Story 2.4 froze this panel at EXACTLY TWO controls (F3 / UX-DR30). A background-work
+  // release window was briefly added as a third and has been removed again — claude announces
+  // the end of background work itself, so there was never anything for the operator to tune.
+  // The count is asserted so a third control cannot arrive unnoticed.
+  it('renders EXACTLY two interactive controls (sound + font-size)', () => {
     stubSettings()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
@@ -83,7 +87,7 @@ describe('SettingsPanel — exactly two controls, no hotkey (AC-4)', () => {
     expect(text).not.toContain('shortcut')
   })
 
-  it('both controls are labeled (accessibility floor — label + control)', () => {
+  it('every control is labeled (accessibility floor — label + control)', () => {
     stubSettings()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
@@ -138,5 +142,21 @@ describe('SettingsPanel — controls persist via window.settings.set (AC-4/5)', 
     const range = container.querySelector('[data-testid="settings-font-size"]') as HTMLInputElement
     setReactRange(range, '20')
     expect(stub.setCalls).toContainEqual({ terminalFontSize: 20 })
+  })
+})
+
+// The panel is back to the TWO controls Story 2.4 froze it at. A third "background work
+// gives up after" window shipped with the background-work latch and was removed once the
+// probe showed claude announces the end of background work itself (a finished task wakes
+// the session → a fresh `Stop` with an empty `background_tasks` → the card corrects itself
+// in ~4s). This asserts the control is really GONE from the rendered panel, so it cannot
+// come back by accident and leave operators a knob wired to nothing.
+describe('SettingsPanel — the retired background-work window is not rendered', () => {
+  it('renders no background-timeout control', () => {
+    stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+
+    expect(container.querySelector('[data-testid="settings-background-timeout"]')).toBeNull()
   })
 })

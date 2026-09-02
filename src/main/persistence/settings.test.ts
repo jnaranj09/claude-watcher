@@ -82,7 +82,11 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
   })
 
   it('loads a VALID persisted blob as-is (no defaults, no backup)', () => {
-    const persisted: Settings = { version: 1, soundEnabled: false, terminalFontSize: 22 }
+    const persisted: Settings = {
+      version: 1,
+      soundEnabled: false,
+      terminalFontSize: 22
+    }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
     const store = createSettingsStore({ blobStore: fake.blobStore, log })

@@ -20,5 +20,9 @@ _bmad/
 # (One hand-checked exception is already tracked: the UX DESIGN.md, which is clean.)
 _bmad-output/
 
+# Superpowers planning/spec documents — local working records, never tracked/pushed
+# (same reasoning as _bmad-output: operator-environment detail, not project code).
+docs/superpowers/
+
 # Personal per-project Claude overrides (the shared .claude/settings.json IS tracked).
 .claude/settings.local.json

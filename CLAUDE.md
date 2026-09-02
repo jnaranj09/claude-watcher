@@ -9,18 +9,18 @@ name and several dir/channel names keep the historical "c9watch" prefix).
 
 ## Commands
 
-| Task | Command |
-| --- | --- |
-| Dev (HMR) | `npm run dev` |
-| Build (typecheck + bundle) | `npm run build` |
-| Packaged build (`--dir`) | `npm run build:dir` |
-| Typecheck (node + web + test projects) | `npm run typecheck` |
-| Lint (flat config, type-checked rules) | `npm run lint` |
-| Format | `npm run format` |
-| Unit/integration tests (Vitest) | `npm run test` |
-| Watch tests | `npm run test:watch` |
-| E2E (Playwright-Electron) | `npm run test:e2e` |
-| Packaged node-pty smoke gate | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
+| Task                                   | Command                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| Dev (HMR)                              | `npm run dev`                                                    |
+| Build (typecheck + bundle)             | `npm run build`                                                  |
+| Packaged build (`--dir`)               | `npm run build:dir`                                              |
+| Typecheck (node + web + test projects) | `npm run typecheck`                                              |
+| Lint (flat config, type-checked rules) | `npm run lint`                                                   |
+| Format                                 | `npm run format`                                                 |
+| Unit/integration tests (Vitest)        | `npm run test`                                                   |
+| Watch tests                            | `npm run test:watch`                                             |
+| E2E (Playwright-Electron)              | `npm run test:e2e`                                               |
+| Packaged node-pty smoke gate           | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
 
 **Running a single test** — Vitest has two projects (see `vitest.config.ts`): `unit`
 (jsdom) and `main-unit` (node). Target one file or test:
@@ -49,8 +49,7 @@ Code lives in four trees; the boundaries between them are the whole design:
   functions, never `ipcRenderer`/Node directly. `index.d.ts` augments `Window`.
 - **`src/renderer/`** — React UI (sandboxed). Reaches IPC only through `window.*` bridges.
   View-state lives in a Zustand store (`src/renderer/src/stores/boardStore.ts`).
-- **`src/shared/`** — imported by BOTH sides: `ipc/contract.ts` (the `CH` channel registry
-  + payload types), `schemas/hookEvent.ts` (the Zod hook-POST adapter — the ONE external
+- **`src/shared/`** — imported by BOTH sides: `ipc/contract.ts` (the `CH` channel registry and payload types), `schemas/hookEvent.ts` (the Zod hook-POST adapter — the ONE external
   boundary), and `schemas/session.ts` (the Session storage/renderer shape).
 - `src/__fixtures__/` — the fake hook feed + launched-session fixtures (test doubles;
   never shipped).
@@ -130,12 +129,29 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   (idempotent — removing an already-gone id emits nothing, logs nothing).
 - **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
   card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate).
+- **Claude changes its own session id mid-run (`/clear`) and the card must follow**
+  (`src/main/hooks/sessionRebind.ts`). The same process and pty continue under a NEW id, so
+  every later hook would be `hook_unknown_id` and the card would freeze on its last status.
+  Adoption is tried with an EXACT proof first: claude 2.1.257 records each live process's
+  current id in `~/.claude/sessions/<pid>.json` (`src/main/pty/claudeSessionFile.ts`, the
+  THIRD fail-closed Zod boundary — never log it, it carries cwd + name), and a launched
+  terminal whose process tree records the unknown id adopts it — no cwd, no window. The
+  older cwd + single-match + alive + 5-minute-window heuristic remains as the fallback; it
+  froze a monitor session for hours on 2026-09-01 when the first accepted hook came 24 min
+  after `/clear`, which is why the exact proof exists. Log codes: `hook_sessionend_pty_alive`,
+  `hook_session_id_rebound proof=pid|cwd`, `hook_rebind_window_expired`.
 - **Identity = the stable `id` (UUID), never `pid`** — pid is a wandering claude thread id.
 - **`status` is NOT enum-locked** (a new status string must not fail the session closed).
 - **`pendingToolInput` is polymorphic** (object for `Agent`, string for others) — do not narrow it.
 - **Historical naming:** the `src/main/c9watch/` dir, the `CH.watch*` channel names, and
   the `[c9watch]` log prefixes predate the retirement — they are names, not a CLI
   dependency. `rg -w c9watch src/` must never show a spawn/exec of the CLI.
+- **Naming — `claude-watcher` for NEW code, rename of the rest is PENDING.** Decided
+  2026-09-02: every NEW file, store name, log prefix and identifier uses `claude-watcher`
+  (e.g. `[claude-watcher][templates]`, `claude-watcher-templates.json`), never `c9watch`.
+  The EXISTING `c9watch`-prefixed dirs, `CH.watch*` channels, `[c9watch]` log prefixes and
+  the `c9watch-settings.json` store file are a PENDING rename (the store file needs a
+  migration so settings survive). Do not rename them in passing — one dedicated change.
 
 ### node-pty + packaging (a day-costing gotcha)
 

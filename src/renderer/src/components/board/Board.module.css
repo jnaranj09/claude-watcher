@@ -1,14 +1,14 @@
-/* Story 1.5 — the ADAPTIVE center-hero board (UX-DR7). Replaces Story 1.4's static
- * repeat(3, 1fr) with an unequal 3-slot grid: center hero ~50%, two flanks ~25% each.
- * Three columns ALWAYS render and never collapse (UX-DR15). Tokens from styles/tokens.css.
+/* Story 1.5 — the center-hero board (UX-DR7). An unequal 3-slot grid: center hero ~44%,
+ * two flanks ~28% each. Three columns ALWAYS render and never collapse (UX-DR15). Tokens
+ * from styles/tokens.css.
  *
- * MOTION CONTRACT (UX-DR27 / FROZEN-3): the hero swap animates COMPOSITOR-ONLY — only
- * transform + opacity, NEVER layout-thrashing props (no top/left/margin/height, and NOT a
- * transition on the grid-track `fr` widths, which forces synchronous layout each frame).
- * The board JUMP is the grid re-order itself; the columns ease in/out via a transform/opacity
- * settle keyed by their slot. `prefers-reduced-motion: reduce` drops the settle entirely
- * (instant reposition) — the size + color signal still carries urgency (UX-DR29 floor).
- * Mirrors the property discipline of styles/emphasis.module.css. */
+ * The hero is PINNED to Needs-you (see boardStore `HERO_COLUMN`) — the slot order never
+ * changes, so there is no swap to animate and no motion contract to honor here. The center
+ * still reads as the hero through SIZE + the hero background/accent (UX-DR29's floor is
+ * satisfied without motion). The retired adaptive-swap settle (a compositor-only
+ * transform/opacity transition + its `prefers-reduced-motion` opt-out) went with it; if the
+ * swap is ever restored, restore that settle too — see styles/emphasis.module.css for the
+ * property discipline it followed. */
 
 .board {
   display: flex;
@@ -26,24 +26,23 @@
   min-height: 0;
 }
 
-/* The adaptive 3-slot grid (UX-DR7): center hero ~50%, two flanks ~25% each. The slot
- * ORDER is left-flank · center-hero · right-flank; placement is decided in Board.tsx
- * (right = idle, center = hero, left = the non-hero hero-eligible column). */
+/* The 3-slot grid (UX-DR7): center hero ~44%, two flanks ~28% each. The center still leads
+ * the eye, but by a smaller margin than the original ~50/25/25 — the flanks stay readable
+ * instead of looking squeezed. The slot ORDER is FIXED in Board.tsx: working · needs-you
+ * (the pinned hero) · idle. */
 .grid {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 0.66fr 1.25fr 0.66fr;
+  grid-template-columns: 0.75fr 1.2fr 0.75fr;
   gap: var(--gutter);
   padding: var(--gutter);
   overflow: auto;
 }
 
 /* One column — header (always) + a card stack (or an empty hint). Never collapses.
- * The COMPOSITOR-ONLY settle on a hero swap rides here: only transform + opacity ease,
- * ~280ms (in the 250–300ms band). The grid track-width change itself is instant (no `fr`
- * transition → no per-frame synchronous layout); the column visually settles via transform.
- * `will-change` is hinted only while a column is in the hero slot (see `.hero`). */
+ * No transition: with the hero pinned, a column never moves between slots, so a
+ * transform/opacity settle would only ever fire on the initial mount. */
 .column {
   display: flex;
   flex-direction: column;
@@ -52,40 +51,21 @@
   background: var(--bg-col-calm);
   border-radius: var(--rounded-lg);
   padding: var(--space-3);
-  transition:
-    transform 280ms ease,
-    opacity 280ms ease;
 }
 
-/* The hero column (center slot): full hero background + a faint accent edge. The edge hue
- * is keyed by `data-hero-accent` so gold stays the loudest thing and the Working blue is
- * LOW-opacity (so "all quiet" reads calm, never an alert — UX-DR3). */
+/* The hero column (center slot): full hero background + a faint accent edge. No
+ * `will-change`: the hero is pinned, so this column never animates and must not hold a
+ * compositor layer for an animation that cannot happen. */
 .hero {
   background: var(--bg-col-hero);
-  /* Compositor-only hint: this column is the animating one. Flanks keep will-change:auto. */
-  will-change: transform, opacity;
 }
 
+/* The accent edge stays keyed by `data-hero-accent` (Column.tsx sets it from the column) —
+ * gold is the loudest thing on the board (UX-DR3). Only needs-you can be the hero now, so
+ * needs-you is the only rule here; the Working-blue variant was unreachable and is gone.
+ * Restoring a hero swap means restoring that rule alongside it. */
 .hero[data-hero-accent='needs-you'] {
   box-shadow: inset 0 0 0 1px rgba(255, 207, 41, 0.12);
-}
-
-.hero[data-hero-accent='working'] {
-  box-shadow: inset 0 0 0 1px rgba(137, 180, 250, 0.1);
-}
-
-/* Accessibility floor (UX-DR27 / UX-DR29 / FROZEN-5): honor reduced-motion → NO animated
- * swap; the hero repositions INSTANTLY. The cascade SELECTION is unchanged — only the
- * settle is dropped; size/proximity + color still carry the urgency signal. Mirrors the
- * exact `@media (prefers-reduced-motion: reduce)` pattern shipped in emphasis.module.css. */
-@media (prefers-reduced-motion: reduce) {
-  .column {
-    transition: none;
-  }
-
-  .hero {
-    will-change: auto;
-  }
 }
 
 .cardStack {

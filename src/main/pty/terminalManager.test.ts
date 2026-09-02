@@ -602,3 +602,58 @@ describe('createTerminalManager — Story 3.2 pidOf + spawnOverride', () => {
     })
   })
 })
+
+// REGRESSION (2026-08-27). `onInput` was added to the SPAWN port's message handler only.
+// The second, hand-copied handler on the RE-ATTACH port — the one a renderer remount
+// actually uses — silently lacked it, so the Escape-interrupt detector never fired in the
+// running app while every unit test passed. Both ports now share one implementation
+// (`applyPortInput`); these tests pin BOTH so the copies cannot drift apart again.
+describe('terminalManager — onInput observes keystrokes on BOTH ports', () => {
+  it('fires for input on the SPAWN port', () => {
+    const fakePty = makeFakePty()
+    const seen: Array<[string, string]> = []
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn(),
+      onInput: (terminalId, data) => seen.push([terminalId, data])
+    })
+    const portA = makeFakePort([])
+    mgr.open('t1', portA.port, 80, 24, undefined, 'tokA')
+    portA.emitFromRenderer({ type: 'input', data: '\x1b' })
+    expect(seen).toEqual([['t1', '\x1b']])
+  })
+
+  it('fires for input on the RE-ATTACH port — the path a renderer remount uses', () => {
+    const fakePty = makeFakePty()
+    const seen: Array<[string, string]> = []
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn(),
+      onInput: (terminalId, data) => seen.push([terminalId, data])
+    })
+    mgr.open('t1', makeFakePort([]).port, 80, 24, undefined, 'tokA')
+    const portB = makeFakePort([])
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB') // re-attach, no re-spawn
+    portB.emitFromRenderer({ type: 'input', data: '\x1b' })
+    expect(seen).toEqual([['t1', '\x1b']])
+  })
+
+  it('still writes the keystroke through to the pty on the re-attach port', () => {
+    const fakePty = makeFakePty()
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn(),
+      onInput: () => {
+        throw new Error('an observer fault must never block typing')
+      }
+    })
+    mgr.open('t1', makeFakePort([]).port, 80, 24, undefined, 'tokA')
+    const portB = makeFakePort([])
+    mgr.open('t1', portB.port, 80, 24, undefined, 'tokB')
+    portB.emitFromRenderer({ type: 'input', data: 'hello' })
+    expect(fakePty.writes).toContain('hello')
+  })
+})

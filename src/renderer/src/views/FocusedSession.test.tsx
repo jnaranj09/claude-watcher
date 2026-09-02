@@ -474,11 +474,24 @@ describe('FocusedSession — the active tab flares outward into the wall', () =>
     }
   })
 
-  it('drops the shoulders when the rail is collapsed', () => {
-    // A collapsed row is a centred square with rail on BOTH sides — there is no wall beside it to
-    // flare into, and the gradients would paint two grey smudges against the gutter.
-    expect(rail()).toMatch(
+  it('keeps the shoulders when the rail is collapsed — the wall is there in both states', () => {
+    const css = rail()
+    // These were switched OFF collapsed while a collapsed active row was a centred square with rail
+    // on both sides: no wall beside it to flare into, and the gradients would have painted two grey
+    // smudges against the gutter. The collapsed row grows onto the wall now, so the reason is gone
+    // and the reset with it. This asserts the reset stays gone — re-adding it is a one-line change
+    // that silently drops half the shape in one of the two states.
+    expect(css).not.toMatch(
       /\.collapsed \.active::before,\s*\.collapsed \.active::after\s*\{[^}]*content:\s*none/s
     )
+    // The shoulders only mean anything if the collapsed tab actually reaches the wall: the flares
+    // sit at the tab's right edge (`right: 0`), so a tab that stopped in the gutter would park them
+    // in mid-rail. That last `+ 1px` is the wall's pixel.
+    const collapsedTab =
+      /\.collapsed \.row\.active,\s*\.collapsed \.startingRow\.active\s*\{([^}]*)\}/s.exec(
+        css
+      )?.[1] ?? ''
+    expect(collapsedTab).toMatch(/width:\s*calc\(100% - var\(--rail-tab-inset\) \+ 1px\)/)
+    expect(collapsedTab).toMatch(/margin-right:\s*-1px/)
   })
 })

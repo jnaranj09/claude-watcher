@@ -36,7 +36,11 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
     const { get, set } = makeHandlers(store)
 
     const result = set({ soundEnabled: false, terminalFontSize: 18 })
-    expect(result).toEqual({ version: 1, soundEnabled: false, terminalFontSize: 18 })
+    expect(result).toEqual({
+      version: 1,
+      soundEnabled: false,
+      terminalFontSize: 18
+    })
     expect(get()).toEqual(result)
   })
 

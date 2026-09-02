@@ -699,3 +699,47 @@ describe('Session-rebind — terminalIdFor / rebind (claude changes its own id m
     expect(svc.terminalIdFor('sess-new')).toBeNull()
   })
 })
+
+describe('Session-rebind — bindings() lists every live terminal → session binding', () => {
+  function service(): ReturnType<typeof createLaunchService> {
+    let s = 0
+    let t = 0
+    return createLaunchService({
+      terminalManager: fakeTerminalManager({ 't-1': LEADER_PID, 't-2': LEADER_PID + 1 }).manager,
+      launchedSet: createLaunchedSet(),
+      spawn: shellClaudeSpawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => `t-${++t}`,
+      newSessionId: () => `sess-${++s}`,
+      platform: 'linux'
+    })
+  }
+
+  it('is empty before any mint (launch() alone binds nothing)', () => {
+    const svc = service()
+    svc.launch({ cwd: '/p', name: 'p' })
+    expect(svc.bindings()).toEqual([])
+  })
+
+  it('lists each minted launch exactly once, as {terminalId, sessionId}', () => {
+    const svc = service()
+    svc.launch({ cwd: '/p', name: 'p' })
+    svc.launch({ cwd: '/q', name: 'q' })
+    svc.mintSpawn('t-1')
+    svc.mintSpawn('t-2')
+    expect(svc.bindings()).toEqual([
+      { terminalId: 't-1', sessionId: 'sess-1' },
+      { terminalId: 't-2', sessionId: 'sess-2' }
+    ])
+  })
+
+  it('follows rebind and drops unbind (it is a view of the same table sessionIdFor reads)', () => {
+    const svc = service()
+    svc.launch({ cwd: '/p', name: 'p' })
+    svc.mintSpawn('t-1')
+    svc.rebind('t-1', 'sess-new')
+    expect(svc.bindings()).toEqual([{ terminalId: 't-1', sessionId: 'sess-new' }])
+    svc.unbind('t-1')
+    expect(svc.bindings()).toEqual([])
+  })
+})

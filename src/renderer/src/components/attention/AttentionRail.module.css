@@ -20,7 +20,9 @@
  * floor that matters.
  *
  * TWO INDEPENDENT CHANNELS, the same model the SessionCard uses:
- *   BORDER = status  — left edge only when expanded, the full square when collapsed.
+ *   BORDER = status  — left edge only when expanded, the full square when collapsed (except the
+ *                      ACTIVE row, whose top and bottom are the rail's own line: they continue into
+ *                      the shoulders and the wall — see `.collapsed .row.active`).
  *   FILL   = active  — the one session currently open in the focused terminal.
  * Neither can hide the other, so "which one am I looking at" and "what state is it in" stay
  * separately readable. (The active row used to paint a lavender BORDER, which overwrote status.)
@@ -53,6 +55,11 @@
 .rail.collapsed {
   width: var(--rail-width-collapsed);
   flex-basis: var(--rail-width-collapsed);
+  /* The gutter a centred 44px square leaves between itself and the rail's CONTENT edge (the 1px
+   * wall sits just outside that edge). The whole collapsed tab is derived from this one value: it
+   * keeps the square's left edge and runs from there onto the wall, and its right padding gives
+   * back exactly what it swallowed. Retune `--rail-width-collapsed` and the tab follows. */
+  --rail-tab-inset: calc((var(--rail-width-collapsed) - 1px - 44px) / 2);
 }
 
 /* `--topbar-height`, NOT a local `min-height`. This header and the focused view's Board bar are
@@ -265,6 +272,19 @@
  * clipping bug came from sizing the rail to exactly fit its widest row, and slack is the fix.) */
 .collapsed .listItem {
   width: auto;
+}
+
+/* ...EXCEPT the item holding the ACTIVE row. That row is a tab, not a circle: it has to reach the
+ * rail's wall, and an item shrink-wrapped around it would carry it wherever `align-items: center`
+ * put it. Stretching just this one item spans the rail, and the tab inside takes the leftover
+ * space as a left margin (`margin-left: auto` on the row) — so it lands on the square's left edge
+ * with no second copy of the centring arithmetic. Every other item still shrink-wraps and centres.
+ *
+ * `:has()` rather than a class from the TSX: which item is active is already expressed by the row
+ * inside it, and a second `active` class on the `<li>` would be a duplicate that can fall out of
+ * sync. Chromium 140 (Electron 39) — well past `:has()` support. */
+.collapsed .listItem:has(.active) {
+  align-self: stretch;
 }
 
 /* Idle/calm row: the baseline. 44px tall, no enlarge, no pulse, no gold. */
@@ -553,7 +573,12 @@
  * few pixels of the tab's own straight border, which CSS would otherwise draw all the way to the
  * wall and leave as a stub crossing under the arc.
  *
- * `pointer-events: none` — these are paint, not surface. The row's hit area must not change. */
+ * `pointer-events: none` — these are paint, not surface. The row's hit area must not change.
+ *
+ * BOTH STATES. These used to be switched off when the rail was collapsed, back when a collapsed
+ * active row was a centred square with rail on both sides and no wall to flare into. The collapsed
+ * row is a tab against the wall now (see `.collapsed .row.active`), so the shoulders belong there
+ * too — and `right: 0` already puts them on the tab's right edge whichever width it has. */
 .active::before,
 .active::after {
   content: '';
@@ -584,31 +609,51 @@
   );
 }
 
-/* COLLAPSED: no flares. A collapsed row is a centred square with rail on BOTH sides — there is no
- * wall beside it to flare into, and the gradients would paint two grey smudges against the gutter. */
-.collapsed .active::before,
-.collapsed .active::after {
-  content: none;
-}
-
-/* COLLAPSED (70px): the tab shape is EXPANDED-ONLY. A collapsed row is a 44px square centred in
- * the rail, with no text and nothing to its right but rail — squaring one side of it would point at
- * the gutter, and the width growth would push it off the centring `.collapsed .list`'s
- * `align-items: center` sets up. The WIDTH is already handled: `.collapsed .row` and
- * `.collapsed .startingRow` are two-class selectors that outrank `.active`'s one. Only the radius
- * needs an explicit reset, because `.active` and `.row` TIE on specificity and `.active` wins on
- * source order. */
+/* COLLAPSED: the SAME tab, at square scale.
+ *
+ * This used to be a centred 44px square with the tab shape explicitly reset — written when the tab
+ * was a chip that ended at the rail's edge, where squaring one side would only have pointed at a
+ * gutter. The tab is a notch cut THROUGH the wall now, and the wall is there in both states, so
+ * there is nothing left for the collapsed rail to opt out of: it gets the same break in the line
+ * and the same two shoulders (the `content: none` reset that killed the flares here is gone).
+ *
+ * The square keeps its LEFT edge and grows RIGHT until it is 1px past the rail's content edge —
+ * onto the wall. It does NOT slide over: sliding a 44px square to the wall would move the dot 12px
+ * out of the column every other row's dot sits in, and a column of circles with one displaced
+ * circle reads as broken rather than as selected. Growing keeps the dot where it was (see
+ * `padding-right`) and spends only the shape.
+ *
+ * `margin-left: auto` is what places it: the item above is stretched to the full rail, so the row
+ * takes the leftover space as a left margin and lands exactly on the square's left edge. The `-1px`
+ * right margin is the wall itself. */
 .collapsed .row.active,
 .collapsed .startingRow.active {
-  border-radius: var(--rounded-md);
-  /* The step has to land on BOTH axes here or the square stops being one. `.active`'s min-height
-   * does reach a collapsed row, but the WIDTH is pinned to 40px by `.collapsed .row` /
-   * `.collapsed .startingRow` — two-class selectors that outrank it — which would leave a 40x44
-   * upright rectangle standing in a column of circles. `min-height` is repeated for the starting
-   * row's sake: `.collapsed .startingRow` sets its own and would otherwise win. */
-  width: 44px;
-  min-width: 44px;
+  /* Right corners SQUARE, same as expanded — the shoulders below draw the curve there. */
+  border-radius: var(--rounded-md) 0 0 var(--rounded-md);
+  /* From the square's left edge to 1px PAST the rail's content edge. `100%` is the stretched item,
+   * i.e. the rail's content box, so this is "everything except the gutter, plus the wall". */
+  width: calc(100% - var(--rail-tab-inset) + 1px);
+  margin-left: auto;
+  margin-right: -1px;
+  /* Keeps the DOT in the column. The tab's content box is wider than the square's by exactly what
+   * it swallowed — the gutter (`--rail-tab-inset`), the wall (1px), and its own right border (1px,
+   * dropped by `.active`) — so handing all of that back as right padding leaves the dot centred
+   * over the 44px the square occupied. `.collapsed .row`'s `justify-content: center` does the rest.
+   * Without it the dot drifts right and the column bends around the active row. */
+  padding-right: calc(var(--rail-tab-inset) + 2px);
+  /* `min-height` is repeated from `.active` for the starting row's sake: `.collapsed .startingRow`
+   * is a two-class selector and would otherwise win with its 40px. */
   min-height: 44px;
+  /* ...and so are the two line colours, for the STATUS rules' sake. A collapsed row normally paints
+   * all four sides in its status colour (`.collapsed .row[data-status=…]`, specificity 0-3-0), which
+   * outranks `.active`'s own 0-1-0 top/bottom and would leave this tab's top and bottom edges
+   * coloured while the shoulders that continue them — and the wall they run into — are `--border`.
+   * The arc would then change colour mid-curve. These two land at 0-3-0 as well and win on source
+   * order, so top and bottom, shoulders and wall are one line in one colour, exactly as expanded.
+   * The LEFT edge keeps its status colour: that edge is the spine, the same channel the expanded
+   * row spends 3px on, and it never touches a shoulder. */
+  border-top-color: var(--border);
+  border-bottom-color: var(--border);
 }
 
 /* The active row is not clickable, so it must not claim to be. The pointer stays an arrow over the
@@ -666,10 +711,18 @@
   background: var(--bg-base);
   width: calc(100% + var(--space-2) + 1px);
   border-radius: var(--rounded-md) 0 0 var(--rounded-md);
+  /* A FOURTH property, and the same source-order trap: `.active` opens the tab's right edge, but
+   * `.startingRow`'s `border: 1px solid transparent` shorthand is defined LATER and wins at equal
+   * specificity, so this row kept a 1px right border the session row does not have. It is
+   * transparent, so nothing shows at the edge (the fill paints under it) — but it narrows the
+   * content box by 1px, which pushed the collapsed tab's glyph half a pixel out of the column of
+   * circles. Restated here, where the two-class selector wins, so both states measure the same. */
+  border-right-width: 0;
   /* NOTE: this row's shoulders (`.active::before` / `::after`) are CLIPPED. Unlike the pinned row,
    * a Starting row lives inside a status group and therefore inside `.scroll`, which is
    * `overflow-y: auto` and so clips horizontally too. Its tab is flattened against the wall instead
-   * of flaring through it. Deliberate, not overlooked: this state lasts only until the launch
+   * of flaring through it — collapsed as well as expanded, where the same clip takes the tab's last
+   * pixel. Deliberate, not overlooked: this state lasts only until the launch
    * correlates and the row moves to the pinned slot, and lifting a scrolled group's row out of the
    * scroll container to buy a shoulder for those few seconds is not worth the structure. */
   position: relative;

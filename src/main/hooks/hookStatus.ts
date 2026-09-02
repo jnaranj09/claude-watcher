@@ -6,6 +6,9 @@
 //   - Notification(permission_prompt) → NeedsPermission  (→ needs-you column)
 //   - PreToolUse(AskUserQuestion)     → NeedsAttention   (→ needs-you column)
 //   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
+//   - Stop w/ background_tasks running → Working          (→ working column; claude
+//     backgrounded a shell / armed a monitor and will wake ITSELF, so this turn end is
+//     not the operator's — claude reports this on the Stop payload; see backgroundTasks.ts)
 //   - Stop, otherwise                 → YourTurn         (→ needs-you column; the
 //     deterministic your-turn floor — a turn NEVER ends idle straight from Stop)
 // Returns `null` for any event we choose to ignore (idle_prompt — SessionStart +
@@ -22,6 +25,7 @@ import type { HookStatusChange } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
+import { hasRunningBackgroundWork } from './backgroundTasks'
 
 /**
  * Map a validated Claude Code lifecycle hook event to a `HookStatusChange`, or
@@ -32,7 +36,9 @@ import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
  * - `Notification` & `idle_prompt` (or any other type)          → `null` (ignore — Stop owns idle)
  * - `PreToolUse` & `tool_name === 'AskUserQuestion'`            → `NeedsAttention`
  * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` | `SessionStart` → `Working`
- * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question,
+ * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question;
+ *            else `Working` if the payload's `background_tasks` still lists running work
+ *            (claude will wake itself, so this is NOT the operator's turn);
  *            else `YourTurn` (deterministic your-turn floor — ANY other Stop,
  *            including an absent message, is the operator's turn; a turn never
  *            ends idle straight from Stop — idle comes only from `SessionStart`
@@ -72,9 +78,19 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
       // A turn that ends by asking flips to needs-you; ANY other Stop is deterministically
       // the operator's turn (spec DA-1: the your-turn floor — never idle straight from Stop;
       // idle is reached only via SessionStart or the session:seen demotion).
-      return endsWithQuestion(evt.last_assistant_message)
-        ? { kind: 'status', status: 'NeedsAttention' }
-        : { kind: 'status', status: STATUS_YOUR_TURN }
+      // A QUESTION always wins: claude asked the operator something, and a background
+      // task running alongside it does not make that question wait.
+      if (endsWithQuestion(evt.last_assistant_message)) {
+        return { kind: 'status', status: 'NeedsAttention' }
+      }
+      // Claude's own `background_tasks` list says whether a shell or monitor is still
+      // running. If it is, claude will wake ITSELF, so this turn end is not the
+      // operator's — surfacing "your turn" here would be a false alarm (and, on a
+      // monitor loop, a notification storm).
+      if (hasRunningBackgroundWork(evt)) {
+        return { kind: 'status', status: 'Working' }
+      }
+      return { kind: 'status', status: STATUS_YOUR_TURN }
 
     case 'SessionEnd':
       return { kind: 'removed' }

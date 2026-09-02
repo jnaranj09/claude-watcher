@@ -11,12 +11,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   createBoardStore,
-  cascadeHero,
   selectColumn,
   selectColumnCount,
   selectTotalCount,
   selectColdLoaded,
-  selectHeroColumn,
   selectSelectedId,
   selectViewMode,
   selectFocusedTerminalId,
@@ -27,7 +25,7 @@ import {
   selectStartingTerminals,
   selectRailActiveSessionId,
   selectRailSection,
-  HERO_SWAP_DEBOUNCE_MS,
+  HERO_COLUMN,
   type BoardState
 } from './boardStore'
 import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
@@ -300,155 +298,29 @@ describe('boardStore — the engine-started cold-load contract (Story 5.3 / 6.4:
   })
 })
 
-describe('boardStore — cascadeHero (the pure cascade Needs-you → Working → Idle; AC-1, AC-2)', () => {
-  it('needs-you present (>0) → the hero is needs-you', () => {
-    expect(cascadeHero(1)).toBe('needs-you')
-    expect(cascadeHero(3)).toBe('needs-you')
+describe('boardStore — the PINNED hero column (Needs-you always holds the center)', () => {
+  it('HERO_COLUMN is needs-you', () => {
+    expect(HERO_COLUMN).toBe('needs-you')
   })
 
-  it('needs-you absent (0) → the hero is working (the calm fall-through)', () => {
-    expect(cascadeHero(0)).toBe('working')
-  })
-
-  it('working is the hero even when working is ALSO empty (degenerate empty board is its own 1.4 state)', () => {
-    // The degenerate empty board: needs-you = 0 → working takes the (empty) center; idle
-    // (even if it has sessions) never competes.
-    expect(cascadeHero(0)).toBe('working')
-  })
-
-  it('idle is NEVER returned — even when idle would be the only non-empty column (AC-2)', () => {
-    // cascadeHero is keyed on the needs-you membership ONLY (idle is not even an input).
-    // Whatever the needs-you count, the result is one of {needs-you, working} — idle can
-    // never occupy the hero center.
-    for (const ny of [0, 1, 2]) {
-      expect(['needs-you', 'working']).toContain(cascadeHero(ny))
-    }
-  })
-})
-
-describe('boardStore — HERO-SWAP debounce on the 0↔1 Needs-you boundary (AC-5, AC-8)', () => {
-  it('the committed hero defaults to working; selectHeroColumn returns the committed hero', () => {
-    const store = createBoardStore({ now: () => FIXED_NOW })
-    expect(selectHeroColumn(store.getState())).toBe('working')
-  })
-
-  it('a 0→1 needs-you transition does NOT commit the hero until now() advances past the window (+ tickHero)', () => {
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    // Seed a working session → hero stays working.
-    st().applyWatchEvent(updated(1, 'w', 'working', 100))
-    expect(selectHeroColumn(st())).toBe('working')
-
-    // The first needs-you session appears (0→1). The RAW cascade is now needs-you, but the
-    // hero must NOT swap immediately — the swap is anchored, pending the debounce.
-    st().applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
-    expect(st().heroPendingTarget).toBe('needs-you')
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('working') // not yet committed
-
-    // Within the window — still working.
-    clock.advance(HERO_SWAP_DEBOUNCE_MS - 1)
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('working')
-
-    // Past the window — the hero commits to needs-you.
-    clock.advance(2)
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('needs-you')
-    expect(st().heroPendingSince).toBeNull()
-  })
-
-  it('a 0→1→0 FLAP within the window NEVER swaps the hero (proven non-vacuous)', () => {
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    st().applyWatchEvent(updated(1, 'w', 'working', 100))
-    // Needs-you blinks IN (0→1) …
-    st().applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
-    expect(st().heroPendingTarget).toBe('needs-you')
-    clock.advance(HERO_SWAP_DEBOUNCE_MS - 1) // still inside the window
-    // … then OUT (1→0) before the window elapses (the card vanished).
-    st().applyWatchEvent(removed(2, 'n'))
-    // The raw cascade is back to working (the committed hero) → the anchor is cleared, so
-    // a subsequent tick past the original window must NOT swap the hero.
-    expect(st().heroPendingSince).toBeNull()
-    clock.advance(HERO_SWAP_DEBOUNCE_MS * 5)
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('working') // the flap was swallowed
-  })
-
-  it('NON-VACUOUS control: with the debounce zeroed, the SAME flap DOES commit (then reverts)', () => {
-    // Prove the suppression above is real: temporarily set heroSwapDebounceMs = 0 so the
-    // FIRST tick after the 0→1 commits needs-you BEFORE the 1→0 arrives. This is the
-    // counter-example — it demonstrates the window is what swallows the flap.
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now, heroSwapDebounceMs: 0 })
-    const st = (): BoardState => store.getState()
-
-    st().applyWatchEvent(updated(1, 'w', 'working', 100))
-    st().applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
-    clock.advance(1) // any advance > 0 crosses a zero window
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('needs-you') // committed (vacuity check fails here
-    // with a real window) — so the suppression test above is non-vacuous.
-  })
-
-  it('RECOVERY: ≥1→0 yields the hero back to Working, but only after the window', () => {
-    const clock = makeClock()
-    const store = createBoardStore({ now: clock.now })
-    const st = (): BoardState => store.getState()
-
-    // Get the hero committed to needs-you first.
-    st().applyWatchEvent(updated(1, 'w', 'working', 100))
-    st().applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
-    clock.advance(HERO_SWAP_DEBOUNCE_MS + 1)
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('needs-you')
-
-    // The last needs-you session leaves (≥1→0). The raw cascade is working again, but the
-    // hero must stay needs-you until the window elapses (recovery is also debounced).
-    st().applyWatchEvent(removed(2, 'n'))
-    expect(st().heroPendingTarget).toBe('working')
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('needs-you') // not yet
-    clock.advance(HERO_SWAP_DEBOUNCE_MS - 1)
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('needs-you')
-    clock.advance(2)
-    st().tickHero()
-    expect(selectHeroColumn(st())).toBe('working') // committed back to working
-  })
-
-  it('the store keeps NO denormalized hero card list — only the debounce bookkeeping (AC-8)', () => {
-    const store = createBoardStore({ now: () => FIXED_NOW })
-    const keys = Object.keys(store.getState())
-    // The only NEW hero state is the debounce trio; no "heroSessions"/"heroCards" copy.
-    expect(keys).toContain('heroColumn')
-    expect(keys).toContain('heroPendingSince')
-    expect(keys).toContain('heroPendingTarget')
-    expect(keys.filter((k) => /hero/i.test(k)).sort()).toEqual(
-      ['heroColumn', 'heroPendingSince', 'heroPendingTarget', 'tickHero'].sort()
-    )
-    // No selector or state denormalizes a hero card array.
-    expect(keys.some((k) => /heroSessions|heroCards|heroList/i.test(k))).toBe(false)
-  })
-
-  it('NO-PIN (AC-7): there is no store action to set the hero directly', () => {
+  it('the hero is a module CONSTANT — no hero state, no swap bookkeeping, no mutator (AC-7, AC-8)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     const state = store.getState()
-    // The hero is cascade-derived truth: no setHero/pinHero/selectHero mutator exists.
-    const actionNames = Object.keys(state).filter(
+    const keys = Object.keys(state)
+    // The retired Story-1.5 adaptive swap kept a committed `heroColumn` plus a
+    // heroPendingSince/heroPendingTarget debounce pair and a `tickHero` action. ALL of it is
+    // gone — the center cannot move, so there is nothing to debounce. If a swap is ever
+    // reintroduced by accident, this is the assertion that turns red first.
+    expect(keys.filter((k) => /hero/i.test(k))).toEqual([])
+    // AC-8 still holds in the stronger form: no hero card list was ever denormalized.
+    expect(keys.some((k) => /heroSessions|heroCards|heroList/i.test(k))).toBe(false)
+    // NO-PIN (AC-7) also survives in the stronger form — there is no hero mutator at all.
+    const actionNames = keys.filter(
       (k) => typeof (state as unknown as Record<string, unknown>)[k] === 'function'
     )
-    expect(
-      actionNames.some((k) => /setHero|pinHero|selectHeroColumnState|moveColumn/i.test(k))
-    ).toBe(false)
-    // Only feed-driven inputs (applyWatchEvent) + the tick can move the hero.
+    expect(actionNames.some((k) => /hero/i.test(k))).toBe(false)
+    // The feed-driven input is still there (this test is not passing on an empty store).
     expect(actionNames).toContain('applyWatchEvent')
-    expect(actionNames).toContain('tickHero')
   })
 })
 

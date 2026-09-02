@@ -30,6 +30,17 @@
 //   heuristic admits; the single-match rule plus the window keep it narrow. Widening any of
 //   the four conditions re-opens the ship gate — don't.
 //
+//   PART 2b — `claimByProcess`, the EXACT proof, tried BEFORE the heuristic (2026-09-01).
+//   Claude 2.1.257 records each live process's CURRENT session id in
+//   `~/.claude/sessions/<pid>.json` (pty/claudeSessionFile.ts). So when an unknown id posts,
+//   ask each live launched terminal's process tree what id it now runs: a match IS the same
+//   pty under its new id — no cwd, no window, no orphan record needed. That last point is
+//   the fix for the freeze the heuristic could not survive: after a `/clear` the new id's
+//   first accepted hook can come long after `REBIND_WINDOW_MS` (observed: 24 quiet minutes),
+//   and the card then sat on its old id and status for hours. The heuristic stays as the
+//   fallback for a claude that keeps no such record; when only its window refuses, it says
+//   so (`onWindowRefusal`) so the freeze is at least diagnosable from the log.
+//
 // NEVER LOG cwd (it leaks the filesystem layout) or any hook field — codes only.
 // [.claude/rules/zod-boundaries.md; .claude/rules/state.md; CLAUDE.md "Removal is stop/exit-driven"]
 
@@ -104,8 +115,18 @@ export interface OrphanRegistry {
  * fake clock; the caller passes `now` into `claim` (same inject-now() discipline as the
  * reducer and the board store).
  */
-export function createOrphanRegistry(options: { windowMs?: number } = {}): OrphanRegistry {
+export interface OrphanRegistryOptions {
+  /** Adoption window override (tests). Default `REBIND_WINDOW_MS`. */
+  windowMs?: number
+  /** Called when a live, cwd-matching orphan was refused by the WINDOW ALONE — the one
+   *  refusal that leaves a healthy terminal with a frozen card. Diagnostics only; the caller
+   *  logs a code (never the cwd). */
+  onWindowRefusal?: (terminalId: string) => void
+}
+
+export function createOrphanRegistry(options: OrphanRegistryOptions = {}): OrphanRegistry {
   const windowMs = options.windowMs ?? REBIND_WINDOW_MS
+  const onWindowRefusal = options.onWindowRefusal
   const orphans = new Map<string, OrphanedLaunch>()
 
   return {
@@ -120,9 +141,12 @@ export function createOrphanRegistry(options: { windowMs?: number } = {}): Orpha
       const matches: OrphanedLaunch[] = []
       for (const orphan of orphans.values()) {
         if (orphan.cwd.length === 0 || orphan.cwd !== cwd) continue
-        if (now - orphan.orphanedAt > windowMs) continue
         // A dead pty's card was already removed by the stop/exit path — never adopt it.
         if (!live.has(orphan.terminalId)) continue
+        if (now - orphan.orphanedAt > windowMs) {
+          onWindowRefusal?.(orphan.terminalId) // everything else matched — only time said no
+          continue
+        }
         matches.push(orphan)
         // Two candidates are already ambiguous; stop early and adopt nothing.
         if (matches.length > 1) return null
@@ -138,4 +162,52 @@ export function createOrphanRegistry(options: { windowMs?: number } = {}): Orpha
       return orphans.size
     }
   }
+}
+
+/** One live launched terminal and the session id its card is CURRENTLY keyed by
+ *  (`LaunchService.bindings()`). */
+export interface LaunchBinding {
+  terminalId: string
+  sessionId: string
+}
+
+/** The minimal terminal-manager surface Part 2b needs (satisfied by `TerminalManager.pidOf`):
+ *  the PTY leader pid of a live terminal, or null once it is gone. */
+export interface LaunchPids {
+  pidOf(terminalId: string): number | null
+}
+
+/** Claude's own per-process records (satisfied by `ProcessSessionSource`,
+ *  pty/claudeSessionFile.ts): the session ids recorded for the processes under a PTY leader. */
+export interface ProcessSessionRecords {
+  currentSessionIdsUnder(leaderPid: number): readonly string[]
+}
+
+/**
+ * PART 2b — the EXACT adoption proof. Returns the live launched terminal whose process tree
+ * claude now records as running `newSessionId` (with the id its card is currently keyed by,
+ * so the caller can re-key it), or `null` when no launched process claims that id — which is
+ * what an external session looks like, so the Story-3.3 ship gate holds.
+ *
+ * A terminal ALREADY bound to `newSessionId` is never a match: re-keying a card onto its own
+ * id would create it and then delete it. A dead pty is skipped without consulting the records
+ * (its card is removed by the stop/exit path).
+ *
+ * Pure: no I/O, no logging, no clock — the records source does the reading.
+ */
+export function claimByProcess(
+  newSessionId: string,
+  launches: Iterable<LaunchBinding>,
+  pids: LaunchPids,
+  records: ProcessSessionRecords
+): LaunchBinding | null {
+  for (const launch of launches) {
+    if (launch.sessionId === newSessionId) continue
+    const leaderPid = pids.pidOf(launch.terminalId)
+    if (leaderPid === null) continue
+    if (records.currentSessionIdsUnder(leaderPid).includes(newSessionId)) {
+      return { terminalId: launch.terminalId, sessionId: launch.sessionId }
+    }
+  }
+  return null
 }

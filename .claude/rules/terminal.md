@@ -11,22 +11,30 @@ const fitRef = useRef<FitAddon | null>(null)
 
 useEffect(() => {
   const container = containerRef.current
-  if (!container || termRef.current) return       // create exactly once
+  if (!container || termRef.current) return // create exactly once
   const term = new Terminal({ convertEol: false })
   const fit = new FitAddon()
   term.loadAddon(fit)
   term.open(container)
-  try { term.loadAddon(new WebglAddon()) } catch { /* canvas/dom fallback */ }
-  termRef.current = term; fitRef.current = fit
+  try {
+    term.loadAddon(new WebglAddon())
+  } catch {
+    /* canvas/dom fallback */
+  }
+  termRef.current = term
+  fitRef.current = fit
 
   const doFit = () => {
     const c = containerRef.current
-    if (!c || c.clientWidth === 0 || c.clientHeight === 0) return  // non-zero before fit()
+    if (!c || c.clientWidth === 0 || c.clientHeight === 0) return // non-zero before fit()
     fit.fit()
-    window.pty.resize(term.cols, term.rows)   // renderer computes cols/rows, THEN resize PTY
+    window.pty.resize(term.cols, term.rows) // renderer computes cols/rows, THEN resize PTY
   }
   // ...
-  return () => { term.dispose(); termRef.current = null }
+  return () => {
+    term.dispose()
+    termRef.current = null
+  }
 }, [])
 ```
 
@@ -57,7 +65,7 @@ useEffect(() => {
   existing try/catch lands on canvas/dom. Do NOT "restore" WebGL as an optimization —
   the packaged smoke gate now FAILS if `webglActive` is true (`SmokeCockpit.tsx`).
   Why: an `amdgpu` **shader page fault inside our own GPU process** (`[gfxhub] page
-  fault ... Process claude-watcher ... Faulty UTCL2 client ID: SQC (data)`) hung the
+fault ... Process claude-watcher ... Faulty UTCL2 client ID: SQC (data)`) hung the
   graphics ring, the driver reset it, and every live WebGL context died at once —
   blanking every open terminal while its PTY was healthy. Twice: 2026-07-31 and
   2026-08-03. `coredumpctl` shows no coredump — the app never crashed, only the GPU

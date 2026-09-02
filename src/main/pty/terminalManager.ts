@@ -60,6 +60,17 @@ export interface TerminalManagerOptions {
   /** Push a dead-terminal signal toward the renderer (validated-at-source IPC send lives
    *  in the caller). One dying pty → this fires ONCE per terminal; never throws out. */
   onExit: (terminalId: string, exitCode: number) => void
+  /**
+   * Observe terminal INPUT on its way to the pty, before it is written.
+   *
+   * The one consumer is the Escape-interrupt detector: interrupting a claude turn fires
+   * no hook and (when interrupted early) leaves no transcript trace, so the keypress the
+   * app is already forwarding is the only evidence the session went idle. Purely an
+   * observer — it cannot alter or block the write, and a throw from it is swallowed so a
+   * consumer fault can never break typing. NEVER log `data` (it is what the operator is
+   * typing). [pty/interruptKey.ts]
+   */
+  onInput?: (terminalId: string, data: string) => void
   /** Log sink — a `code=` ONLY, NEVER a pty/session value (Guardrail #6). Defaults to
    *  console.warn. */
   log?: (message: string) => void
@@ -130,6 +141,39 @@ export interface TerminalManager {
  * escapes (never-crash). The flow-control accounting is the pure `createFlowController`.
  */
 export function createTerminalManager(options: TerminalManagerOptions): TerminalManager {
+  /**
+   * Apply one validated renderer→pty port message.
+   *
+   * ONE implementation for BOTH ports — the spawn port and the re-attach port. These were
+   * two hand-copied blocks, and they drifted: the input observer was added to the spawn
+   * copy only, so it never fired for a session whose renderer had re-mounted (which is the
+   * ordinary case). Extracting it makes that class of drift impossible.
+   *
+   * The observer runs BEFORE the write and can neither alter nor block it; a throw from it
+   * is swallowed so a consumer fault can never break typing. NEVER log `data`.
+   */
+  function applyPortInput(
+    terminalId: string,
+    term: IPtyLike,
+    flow: { onAck: () => void },
+    valid: { type: 'input'; data: string } | { type: 'ack' }
+  ): void {
+    if (valid.type !== 'input') {
+      flow.onAck() // the renderer rendered one output chunk; drain the backlog
+      return
+    }
+    try {
+      options.onInput?.(terminalId, valid.data)
+    } catch {
+      /* an observer must never break typing */
+    }
+    try {
+      term.write(valid.data)
+    } catch {
+      log('[c9watch][term] code=pty_write_failed')
+    }
+  }
+
   const ptyFactory = options.ptyFactory ?? defaultCreatePty
   const log = options.log ?? ((message: string): void => console.warn(message))
   const terminals = new Map<string, LiveTerminal>()
@@ -237,16 +281,7 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
         )
         return
       }
-      const valid = r.data
-      if (valid.type === 'input') {
-        try {
-          term.write(valid.data)
-        } catch {
-          log('[c9watch][term] code=pty_write_failed')
-        }
-      } else {
-        flow.onAck()
-      }
+      applyPortInput(terminalId, term, flow, r.data)
     })
 
     // Update the live terminal record in-place: new port, new ptyDataDisposable, new openToken.
@@ -375,17 +410,7 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
         )
         return
       }
-      const valid = r.data
-      if (valid.type === 'input') {
-        try {
-          term.write(valid.data)
-        } catch {
-          log('[c9watch][term] code=pty_write_failed')
-        }
-      } else {
-        // type === 'ack' — the renderer rendered one output chunk; drain the backlog.
-        flow.onAck()
-      }
+      applyPortInput(terminalId, term, flow, r.data)
     })
 
     terminals.set(terminalId, {

@@ -119,18 +119,30 @@ export interface BoardSession {
   enteredColumnAt: number
 }
 
-/** Story 1.5 — the HERO-SWAP debounce window (AC-5 / FROZEN-4). The hero only commits
- *  to a new occupant after the RAW cascade result has stayed put past this threshold,
- *  so a single Needs-you session blinking in/out on the 0↔1 boundary does NOT thrash the
- *  center hero. DISTINCT from Story 1.2's attention-emission debounce (main). 400ms is a
- *  sensible default (not docs-specified): long enough to swallow a sub-second flap, short
- *  enough that a genuine promotion still reads as immediate (well under the ~1s
- *  attention-latency NFR). Override via `BoardStoreOptions.heroSwapDebounceMs`. */
-export const HERO_SWAP_DEBOUNCE_MS = 400
-
-/** The two HERO-ELIGIBLE columns. Idle is NEVER the hero (FROZEN-1 / AC-2) — it is always
- *  a flank — so the cascade chooses only between these two. */
+/** The two columns that were ever HERO-ELIGIBLE. Idle is NEVER the hero (FROZEN-1 / AC-2) —
+ *  it is always a flank. The type is kept (the slot plumbing is typed on it) even though the
+ *  occupant no longer varies, so restoring a swap is a one-line change here. */
 export type HeroColumn = Extract<Column, 'needs-you' | 'working'>
+
+/**
+ * THE hero column — PINNED to Needs-you.
+ *
+ * This SUPERSEDES the Story-1.5 adaptive cascade (Needs-you when anything needed you,
+ * Working otherwise) and its 400ms hero-swap debounce, both REMOVED with this change. The
+ * swap moved columns under the operator's cursor every time the last needs-you session
+ * cleared, and the debounce existed only to make that movement tolerable; a fixed slot
+ * order removes the cause instead of damping the symptom.
+ *
+ * Consequences that are load-bearing, not incidental:
+ * - the slot order is CONSTANT — working · needs-you · idle (Board.tsx `SLOT_ORDER`);
+ * - the center is the hero even while EMPTY (an empty gold column is a true statement —
+ *   nothing needs you — and it keeps the board's shape stable);
+ * - Idle is still never the hero (AC-2 holds, now by construction).
+ *
+ * It is a module constant, NOT store state: nothing can move it, so storing it would be a
+ * denormalized copy of a literal (AC-8's spirit).
+ */
+export const HERO_COLUMN: HeroColumn = 'needs-you'
 
 /** Story 3.4 — return a shallow copy of `record` without `key` (immutable delete). Pure; no
  *  mutation of the input. Used to clear an ack/binding entry on a c9watch column-leave/removal. */
@@ -138,25 +150,6 @@ function omitKey<V>(record: Record<string, V>, key: string): Record<string, V> {
   const next = { ...record }
   delete next[key]
   return next
-}
-
-/**
- * Story 1.5 — the PURE, undebounced cascade (AC-1, AC-2, AC-8). Returns the RAW hero by
- * the corrected cascade Needs-you → Working → Idle, restricted to the two hero-eligible
- * columns: Needs-you when anything needs you, else Working. Idle is NEVER returned (AC-2)
- * — even in the degenerate "only Idle has sessions" case Working takes the (empty/calm)
- * center, Idle stays a flank. Keyed on column MEMBERSHIP only (no prod-vs-develop weighting
- * — FR-2). A primitive in / primitive out — trivially testable, no store, no now().
- *
- * NOTE: the cascade reasons over the two hero-eligible columns, but Working is the
- * DETERMINISTIC fall-through whenever no one needs you — even when Working is itself empty
- * (the degenerate empty board is its own 1.4 state, AC-4 of 1.4). So only the needs-you
- * count is load-bearing; the working count never changes the outcome and is intentionally
- * NOT a parameter (it would be dead). Idle is absent from the return type, enforcing AC-2
- * at the type level.
- */
-export function cascadeHero(needsYouCount: number): HeroColumn {
-  return needsYouCount > 0 ? 'needs-you' : 'working'
 }
 
 export interface BoardState {
@@ -167,18 +160,6 @@ export interface BoardState {
   /** False until the first delta arrives OR the engine-started `watch:status` push lands
    *  (the cold-load skeleton, AC-5 / Story 5.3 — see `setReconnecting`). */
   coldLoaded: boolean
-  /** Story 1.5 — the COMMITTED hero column (the center-slot occupant). Derived truth
-   *  from the cascade, NOT user-selectable (AC-7 / FROZEN-6). Default `'working'` (the
-   *  calm fall-through when nothing needs you). Only the debounce commit moves it; the
-   *  store keeps NO denormalized copy of the hero column's card list (AC-8). */
-  heroColumn: HeroColumn
-  /** Story 1.5 — debounce anchor: epoch-millis (via injected now()) stamped when the RAW
-   *  cascade result first DIFFERS from the committed `heroColumn`; null when committed and
-   *  raw agree (no pending swap). */
-  heroPendingSince: number | null
-  /** Story 1.5 — the pending swap TARGET (the raw cascade result awaiting the debounce);
-   *  null when no swap is pending. */
-  heroPendingTarget: HeroColumn | null
   /** Story 2.2 (FR-9) — the SELECTED card's session id (RENDERER VIEW-STATE, not session
    *  truth). Set from a `CH.attentionActivate` push when the operator activates a notification
    *  AND the card is present; null when nothing is selected. Cleared when the selected session
@@ -269,11 +250,6 @@ export interface BoardState {
    *  two-shot emit can never flap the UI). The `reconnecting` flag itself is vestigial —
    *  the native engine has no watch child to lose and only ever sends `false`. */
   setReconnecting: (reconnecting: boolean) => void
-  /** Story 1.5 — COMMIT a pending hero swap once it has stayed past the debounce window
-   *  (AC-5): no anchor → no-op; past `HERO_SWAP_DEBOUNCE_MS` since the anchor → commit
-   *  `heroColumn = heroPendingTarget` and clear the anchor. The Board runs this on its
-   *  tick interval. Uses the injected now(). */
-  tickHero: () => void
   /** Story 2.2 (FR-9) — set the selected card (locate-and-highlight). Passing an `id` that is
    *  NOT present in `sessionsById` is a NO-OP (the card may have already left the board);
    *  passing `null` clears the selection. View-state only — no window raise, no navigation. */
@@ -375,8 +351,6 @@ export interface BoardState {
 export interface BoardStoreOptions {
   /** Epoch-millis clock — inject for determinism; defaults to Date.now. */
   now?: () => number
-  /** Story 1.5 — HERO-SWAP debounce window in ms. Defaults to `HERO_SWAP_DEBOUNCE_MS`. */
-  heroSwapDebounceMs?: number
 }
 
 /** A Zustand vanilla store instance (the store API over `BoardState`). */
@@ -388,45 +362,11 @@ export type BoardStore = StoreApi<BoardState>
  */
 export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
   const now = options.now ?? Date.now
-  const heroSwapDebounceMs = options.heroSwapDebounceMs ?? HERO_SWAP_DEBOUNCE_MS
-
-  /** Story 1.5 — recompute the hero DEBOUNCE bookkeeping after a count change (Task 1.3).
-   *  Pure over the (prev) state + the NEW sessions map; returns ONLY the pending fields to
-   *  merge (never the committed `heroColumn` — that moves on `tickHero`). A flap that
-   *  returns to the committed hero clears the anchor (never swaps); a new divergence stamps
-   *  the anchor via the injected now(). No denormalized hero card list (AC-8). */
-  function reevaluateHero(
-    prev: BoardState,
-    sessionsById: Record<string, BoardSession>
-  ): Pick<BoardState, 'heroPendingSince' | 'heroPendingTarget'> {
-    let needsYouCount = 0
-    for (const id in sessionsById) {
-      if (sessionsById[id]?.column === 'needs-you') needsYouCount++
-    }
-    const raw = cascadeHero(needsYouCount)
-    if (raw === prev.heroColumn) {
-      // The raw cascade agrees with the committed hero — clear any pending swap (a flap
-      // that returned to the committed state must NEVER swap — AC-5).
-      return { heroPendingSince: null, heroPendingTarget: null }
-    }
-    // Diverged from the committed hero. Stamp a fresh anchor only when there is no pending
-    // swap yet, or the pending target changed; otherwise keep the original anchor so the
-    // debounce window is measured from the FIRST divergence.
-    if (prev.heroPendingSince === null || prev.heroPendingTarget !== raw) {
-      return { heroPendingSince: now(), heroPendingTarget: raw }
-    }
-    return { heroPendingSince: prev.heroPendingSince, heroPendingTarget: prev.heroPendingTarget }
-  }
 
   return createStore<BoardState>((set, get) => ({
     sessionsById: {},
     epoch: 0,
     coldLoaded: false,
-    // Story 1.5 — the hero defaults to Working (the calm fall-through); a needs-you
-    // promotion swaps it past the debounce window. No denormalized hero card list (AC-8).
-    heroColumn: 'working',
-    heroPendingSince: null,
-    heroPendingTarget: null,
     // Story 2.2 (FR-9) — nothing selected until a notification is activated for a present card.
     selectedId: null,
     // Story 3.2 (FR-11) — the board view + no focused terminal until the first launch/activate.
@@ -479,9 +419,9 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           sessionsById,
           epoch: payload.epoch,
           coldLoaded: true, // first delta of epoch ≥ 1 flips the cold-load skeleton off
-          ...(ackCleared ? { acknowledgedById: omitKey(state.acknowledgedById, event.id) } : {}),
-          // Story 1.5 — re-evaluate the pending hero AFTER the count change (Task 1.3).
-          ...reevaluateHero(state, sessionsById)
+          ...(ackCleared ? { acknowledgedById: omitKey(state.acknowledgedById, event.id) } : {})
+          // No hero re-evaluation: the hero is PINNED (HERO_COLUMN) — a count change can
+          // never move the center slot.
         })
         return
       }
@@ -505,9 +445,9 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           ...(ackCleared ? { acknowledgedById: omitKey(state.acknowledgedById, event.id) } : {}),
           ...(bindingCleared
             ? { terminalIdBySessionId: omitKey(state.terminalIdBySessionId, event.id) }
-            : {}),
-          // Story 1.5 — a removal can empty Needs-you → re-evaluate the pending hero.
-          ...reevaluateHero(state, nextById)
+            : {})
+          // No hero re-evaluation: the hero is PINNED (HERO_COLUMN) — emptying Needs-you
+          // leaves the center where it is, now showing an empty column.
         })
         return
       }
@@ -527,21 +467,6 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // never flap the UI. The pushed `reconnecting` flag is vestigial (the native engine
       // only ever sends false — the reconnect banner died with the c9watch feed).
       if (!get().coldLoaded) set({ coldLoaded: true })
-    },
-
-    tickHero: () => {
-      const state = get()
-      // Story 1.5 (AC-5) — no pending swap → nothing to commit. Once the divergence has
-      // persisted past the debounce window, COMMIT the pending target as the hero and clear
-      // the anchor. Uses the injected now() for determinism (no real timers in tests).
-      if (state.heroPendingSince === null || state.heroPendingTarget === null) return
-      if (now() - state.heroPendingSince > heroSwapDebounceMs) {
-        set({
-          heroColumn: state.heroPendingTarget,
-          heroPendingSince: null,
-          heroPendingTarget: null
-        })
-      }
     },
 
     setSelected: (id) => {
@@ -723,11 +648,6 @@ export function selectTotalCount(state: BoardState): number {
 
 /** Cold-load flag (primitive). */
 export const selectColdLoaded = (state: BoardState): boolean => state.coldLoaded
-
-/** Story 1.5 — the COMMITTED hero column (AC-8). A NARROW, PRIMITIVE selector (returns a
- *  `HeroColumn` string — safe without `useShallow`). Derives nothing more than the already
- *  debounced commit; the hero column's card list is NEVER denormalized into the store. */
-export const selectHeroColumn = (state: BoardState): HeroColumn => state.heroColumn
 
 /** Story 2.2 (FR-9) — the SELECTED card's id (a primitive — safe without useShallow). The
  *  card with this id renders the selected affordance; null when nothing is selected. */

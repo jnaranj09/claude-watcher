@@ -4,14 +4,14 @@ Este bundle contiene el set de íconos de la aplicación: una estrella de Claude
 
 ## Manifiesto de archivos
 
-| Archivo | Uso | Notas |
-|---|---|---|
-| `icons/claude-obrero.svg` | Ícono principal de la app (launcher, taskbar, ventana) | Versión detallada, escala bien de 48px hacia arriba |
-| `icons/claude-obrero-512.png` | Fallback raster del ícono principal | Para manifests que exigen PNG (Flatpak, AppImage, packaging) |
-| `icons/claude-obrero-tray.svg` | System tray, versión a color | Diseño simplificado: 8 rayos gruesos, casco sin detalles finos. Legible a 22px |
-| `icons/claude-obrero-tray-22.png` | Tray a color, raster 22px | Tamaño estándar del system tray de Plasma |
-| `icons/claude-obrero-tray-16.png` | Tray a color, raster 16px | Para paneles pequeños |
-| `icons/claude-obrero-tray-symbolic.svg` | System tray, versión monocromática (recomendada) | Sigue la convención de recoloreo de KDE — ver sección abajo |
+| Archivo                                 | Uso                                                    | Notas                                                                          |
+| --------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `icons/claude-obrero.svg`               | Ícono principal de la app (launcher, taskbar, ventana) | Versión detallada, escala bien de 48px hacia arriba                            |
+| `icons/claude-obrero-512.png`           | Fallback raster del ícono principal                    | Para manifests que exigen PNG (Flatpak, AppImage, packaging)                   |
+| `icons/claude-obrero-tray.svg`          | System tray, versión a color                           | Diseño simplificado: 8 rayos gruesos, casco sin detalles finos. Legible a 22px |
+| `icons/claude-obrero-tray-22.png`       | Tray a color, raster 22px                              | Tamaño estándar del system tray de Plasma                                      |
+| `icons/claude-obrero-tray-16.png`       | Tray a color, raster 16px                              | Para paneles pequeños                                                          |
+| `icons/claude-obrero-tray-symbolic.svg` | System tray, versión monocromática (recomendada)       | Sigue la convención de recoloreo de KDE — ver sección abajo                    |
 
 ## Paso 1 — Renombrar según el nombre de la app
 

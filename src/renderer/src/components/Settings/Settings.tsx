@@ -1,7 +1,12 @@
 // Story 2.4 — the minimal Settings surface (AC-4).
 //
-// EXACTLY TWO controls (F3 / UX-DR30): a SOUND on/off toggle and a TERMINAL FONT-SIZE control.
-// NO third control — the global-hotkey-binding row is CUT (FR-8 dropped 2026-06-19). Reachable
+// TWO controls: a SOUND on/off toggle and a TERMINAL FONT-SIZE control. Story 2.4 froze this
+// panel at exactly two (F3 / UX-DR30) and it is back at two: a third "background work gives up
+// after" window was added with the background-work latch and then removed, because claude
+// ANNOUNCES the end of background work itself — a finished task wakes the session, which fires a
+// fresh `Stop` carrying an empty `background_tasks`, and the card corrects itself ~4s later
+// (probe-verified, claude 2.1.250). There is nothing left to time out. The
+// global-hotkey-binding row stays CUT (FR-8 dropped 2026-06-19). Reachable
 // from the header via a `⚙` gear button (EXPERIENCE.md:33). Reads the live projection off the
 // renderer settings store and writes back via window.settings.set(...) through
 // `persistSettingsPatch` (optimistic + persist). Changes take effect IMMEDIATELY (AC-5): the
@@ -22,8 +27,8 @@ import {
 import { TERMINAL_FONT_SIZE_MIN, TERMINAL_FONT_SIZE_MAX } from '../../../../shared/schemas/settings'
 import styles from './Settings.module.css'
 
-/** The two-control settings PANEL (the surface body). Split out from the gear button so it can
- *  be rendered/tested in isolation. Binds both controls to the settings store + persists on
+/** The settings PANEL (the surface body). Split out from the gear button so it can be
+ *  rendered/tested in isolation. Binds every control to the settings store + persists on
  *  change. */
 export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Element {
   const soundEnabled = useSettings(selectSoundEnabled)

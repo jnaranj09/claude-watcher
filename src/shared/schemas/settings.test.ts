@@ -23,7 +23,11 @@ import {
 
 describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () => {
   it('round-trips a valid v1 shape and the version field is present', () => {
-    const valid: Settings = { version: 1, soundEnabled: false, terminalFontSize: 16 }
+    const valid: Settings = {
+      version: 1,
+      soundEnabled: false,
+      terminalFontSize: 16
+    }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
     expect(parsed.version).toBe(SETTINGS_VERSION)
@@ -124,5 +128,38 @@ describe('SettingsPatchSchema — partial, untrusted IPC arg (AC-6/7)', () => {
     const r = SettingsPatchSchema.safeParse({ version: 99, soundEnabled: true })
     expect(r.success).toBe(true)
     expect(r.success && 'version' in r.data).toBe(false)
+  })
+})
+
+// --- background-work timeout (the latch safety net; operator-configurable) ---
+//
+// The RETIRED `backgroundWorkTimeoutMinutes` field. It existed to bound how long a card
+// could sit on `Working` after a turn ended with background work still running — a wait we
+// had no way to end, because there is no "background task finished" hook. That guess is
+// gone: a finishing background task WAKES the session by itself (probe-verified, claude
+// 2.1.250 — the completion arrives as a `UserPromptSubmit`), and the turn it triggers ends
+// with a fresh `Stop` carrying an empty `background_tasks`, so the card corrects itself in
+// ~4s. Nothing times out any more, so the knob was removed.
+//
+// This test guards the REMOVAL, not the field: operators who ran the version that shipped
+// it have the key sitting in their persisted settings file right now. Zod's default object
+// stripping must drop it silently — if this ever fails closed instead, every one of those
+// operators gets their sound and font-size reset on upgrade.
+describe('backgroundWorkTimeoutMinutes — retired; a persisted blob carrying it still parses', () => {
+  it('drops the stale key instead of failing closed, keeping the other settings', () => {
+    const parsed = parseSettings({
+      version: 1,
+      soundEnabled: false,
+      terminalFontSize: 16,
+      backgroundWorkTimeoutMinutes: 45
+    })
+    expect(parsed.soundEnabled).toBe(false)
+    expect(parsed.terminalFontSize).toBe(16)
+    expect(parsed).not.toHaveProperty('backgroundWorkTimeoutMinutes')
+  })
+
+  it('the patch schema no longer accepts it as a settable field', () => {
+    const parsed = SettingsPatchSchema.parse({ backgroundWorkTimeoutMinutes: 30 })
+    expect(parsed).not.toHaveProperty('backgroundWorkTimeoutMinutes')
   })
 })

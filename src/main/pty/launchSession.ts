@@ -224,6 +224,10 @@ export interface LaunchService {
    *  coherent: a second stop/exit trigger for the same terminal resolves `sessionIdFor` to
    *  null and no-ops (removal is idempotent by construction). */
   unbind(terminalId: string): void
+  /** Session-rebind — a snapshot of every live `terminalId → sessionId` binding, for the exact
+   *  per-process adoption proof (hooks/sessionRebind.ts `claimByProcess`): when an unknown id
+   *  posts a hook, each launched terminal's process tree is asked whether it now runs that id. */
+  bindings(): ReadonlyArray<{ terminalId: string; sessionId: string }>
   /** Attempt the Tgid join for every not-yet-correlated launch against the current c9watch
    *  snapshot (AC-2/3/4). Called per feed delta (same synchronous tick as the reducer map). A
    *  landed join records the session id in the launched-set. Re-resolves Tgid each call (the
@@ -358,6 +362,11 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     bindings.delete(terminalId)
   }
 
+  function listBindings(): ReadonlyArray<{ terminalId: string; sessionId: string }> {
+    // A copy, not the live Map: the caller iterates while adoption may rebind mid-walk.
+    return [...bindings].map(([terminalId, sessionId]) => ({ terminalId, sessionId }))
+  }
+
   function correlateAgainst(sessions: Iterable<Session>): void {
     // Linux-only: /proc is Linux. On a non-Linux host the launch still works (the terminal is
     // typeable); only the Tgid join is skipped (the launched-set stays empty — accepted).
@@ -443,6 +452,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     terminalIdFor,
     rebind,
     unbind,
+    bindings: listBindings,
     correlateAgainst,
     isPending,
     forget

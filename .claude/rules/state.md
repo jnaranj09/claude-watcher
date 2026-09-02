@@ -6,12 +6,12 @@
 
 ## Ownership taxonomy (who owns what)
 
-| Kind | Owner | Where |
-| --- | --- | --- |
-| **Session truth** | the MAIN process | derived from the c9watch feed; main parses + reduces, then ships validated deltas to the renderer over `CH.watchSnapshot` / `CH.watchEvents` |
-| **View state** | the RENDERER | a Zustand store (selected card, filters, hover, column layout, attention badge count) |
-| **Derived state** | nobody — it's COMPUTED | narrow selectors over the store; never stored separately (no denormalized copies to keep in sync) |
-| **Terminals** | imperative refs | NOT in the store (see `.claude/rules/terminal.md`; SM-C2) |
+| Kind              | Owner                  | Where                                                                                                                                        |
+| ----------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Session truth** | the MAIN process       | derived from the c9watch feed; main parses + reduces, then ships validated deltas to the renderer over `CH.watchSnapshot` / `CH.watchEvents` |
+| **View state**    | the RENDERER           | a Zustand store (selected card, filters, hover, column layout, attention badge count)                                                        |
+| **Derived state** | nobody — it's COMPUTED | narrow selectors over the store; never stored separately (no denormalized copies to keep in sync)                                            |
+| **Terminals**     | imperative refs        | NOT in the store (see `.claude/rules/terminal.md`; SM-C2)                                                                                    |
 
 ## The rules
 

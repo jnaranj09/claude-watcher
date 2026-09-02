@@ -2,8 +2,9 @@
 //
 // Mounts the watch subscription (`window.watch.onEvents`) and feeds each validated,
 // epoch-framed delta into the board store's `applyWatchEvent`. Renders the THREE
-// columns in a STATIC grid (fixed reading order working · needs-you · idle — the
-// adaptive center-hero cascade is Story 1.5), plus the two board states:
+// columns in a FIXED grid — working · needs-you · idle, with needs-you PINNED as the
+// center hero (`HERO_COLUMN`; the Story-1.5 adaptive cascade + its swap debounce are
+// retired) — plus the two board states:
 //   - cold-load skeleton (AC-5) — ghost columns until the first delta OR the
 //     engine-started `watch:status` push (Story 5.3 / 6.4);
 //   - empty board (AC-4) — headline + line + the single `+ New session` primary.
@@ -25,30 +26,27 @@ import {
   selectColdLoaded,
   selectTotalCount,
   selectColumnCount,
-  selectHeroColumn,
   selectSelectedId,
   selectStartingTerminals,
-  type HeroColumn
+  HERO_COLUMN
 } from '../../stores/boardStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
 import styles from './Board.module.css'
 
-/** How often the hero-swap debounce commits (Story 1.5 `tickHero`). A named interval
- *  (no magic number); well under the debounce threshold so a commit lands promptly
- *  once its anchor has persisted past the window. */
-const HERO_TICK_MS = 1_000
-
-/** Story 1.5 — the adaptive SLOT order: left flank · center hero · right flank. Idle is
- *  ALWAYS the right flank and NEVER the hero (AC-2 / FROZEN-1); the center is the committed
- *  hero; the left flank is the OTHER hero-eligible column (Working when Needs-you is hero;
- *  Needs-you when Working is hero). Derived from the narrow `selectHeroColumn` — no
- *  denormalized slot list is stored (AC-8). */
-function slotOrder(hero: HeroColumn): readonly [BoardColumn, BoardColumn, BoardColumn] {
-  const leftFlank: BoardColumn = hero === 'needs-you' ? 'working' : 'needs-you'
-  return [leftFlank, hero, 'idle']
-}
+/** The FIXED slot order: left flank · center hero · right flank. The hero is PINNED to
+ *  Needs-you (`HERO_COLUMN`), so this no longer varies — Working is always the left flank and
+ *  Idle is always the right flank (Idle is never the hero — AC-2 / FROZEN-1, now by
+ *  construction). A module constant, not store state: nothing can reorder it.
+ *
+ *  This REPLACES the Story-1.5 adaptive `slotOrder(hero)` + its 400ms swap debounce; see
+ *  `HERO_COLUMN` in boardStore.ts for why the swap was retired. */
+const SLOT_ORDER: readonly [BoardColumn, BoardColumn, BoardColumn] = [
+  'working',
+  HERO_COLUMN,
+  'idle'
+]
 
 /** Cold-load skeleton: a column header + 2–3 ghost cards. No spinner (UX-DR16). */
 function SkeletonColumn({
@@ -85,9 +83,6 @@ export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps
   const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you'))
   const workingCount = useBoard((s) => selectColumnCount(s, 'working'))
   const idleCount = useBoard((s) => selectColumnCount(s, 'idle'))
-  // Story 1.5 — the COMMITTED (debounced) hero, a primitive narrow selector (no useShallow).
-  // The Board re-renders only when the hero column actually commits to a new value.
-  const hero = useBoard(selectHeroColumn)
   // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
   const selectedId = useBoard(selectSelectedId)
   // Story 5.6 (AC-6 optional) — starting terminals count (for the empty-board copy softening).
@@ -126,21 +121,13 @@ export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps
   // COLD-LOAD-COMPLETE (Story 5.3, kept by the Story-6.4 native engine): main pushes
   // `CH.watchStatus { reconnecting: false }` at engine start (twice, belt-and-suspenders)
   // and `setReconnecting` flips `coldLoaded` — the ONLY skeleton-clear path when no delta
-  // ever arrives (the normal empty cold start). The hero-swap debounce (Story 1.5, AC-5)
-  // commits on the tick interval: tickHero commits a pending hero swap once it has
-  // persisted past HERO_SWAP_DEBOUNCE_MS (the cadence is << the window so the commit
-  // lands promptly).
+  // ever arrives (the normal empty cold start). (The Story-1.5 hero-swap tick interval that
+  // used to share this effect is GONE with the swap — the hero is pinned; see HERO_COLUMN.)
   useEffect(() => {
     const off = window.watch.onStatus((status) =>
       boardStore.getState().setReconnecting(status.reconnecting)
     )
-    const id = setInterval(() => {
-      boardStore.getState().tickHero()
-    }, HERO_TICK_MS)
-    return () => {
-      off()
-      clearInterval(id)
-    }
+    return off
   }, [])
 
   // The aria-live announcement of live column counts (AC-9). Re-announced when any
@@ -194,17 +181,16 @@ export function Board({ onActivateCard, onNewSession, onRenameCard }: BoardProps
           </button>
         </div>
       ) : (
-        // The live ADAPTIVE three-column grid (Story 1.5): slots are left flank · center
-        // hero · right flank (idle). The hero occupant lands in the CENTER track; Idle is
-        // always the right flank, never the hero (AC-2). `data-hero-column` reflects the
-        // committed hero column VALUE (distinct from the per-column boolean `data-hero`
-        // flag) for tests/styling, without storing a denormalized slot list (AC-8).
-        <div className={styles.grid} data-testid="column-grid" data-hero-column={hero}>
-          {slotOrder(hero).map((column) => (
+        // The live three-column grid: slots are left flank (working) · center hero
+        // (needs-you) · right flank (idle), FIXED. `data-hero-column` still reflects the hero
+        // column VALUE (distinct from the per-column boolean `data-hero` flag) for
+        // tests/styling.
+        <div className={styles.grid} data-testid="column-grid" data-hero-column={HERO_COLUMN}>
+          {SLOT_ORDER.map((column) => (
             <Column
               key={column}
               column={column}
-              isHero={column === hero}
+              isHero={column === HERO_COLUMN}
               selectedId={selectedId}
               {...(onActivateCard ? { onActivateCard } : {})}
               {...(onRenameCard ? { onRenameCard } : {})}

@@ -94,6 +94,7 @@ import { mintForOpen } from './pty/launchMint'
 import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 import { readStatusFromProc } from './pty/pidCorrelation'
+import { createProcessSessionSourceFromFs } from './pty/claudeSessionFile'
 import {
   SessionLaunchSchema,
   SessionRenameSchema,
@@ -144,12 +145,16 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 // `.claude/settings.local.json`, no `~/.claude/settings.json` — and the hooks scope to
 // exactly the sessions it spawns. (This replaced the retired registerHooks merger.)
 import { createHookServer, type HookServer } from './hooks/hookServer'
+import { buildPtyEnv } from './pty/ptyEnv'
+import { isInterruptKey } from './pty/interruptKey'
 import { hookStatus } from './hooks/hookStatus'
+import { createTranscriptWatcher, type TranscriptWatcher } from './hooks/transcriptWatcher'
+import { createBackgroundWorkState } from './hooks/backgroundWorkState'
 import { ensureHookSettingsFile } from './hooks/hookSettingsFile'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
 // one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
-import { createOrphanRegistry, sessionEndKeepsCard } from './hooks/sessionRebind'
+import { claimByProcess, createOrphanRegistry, sessionEndKeepsCard } from './hooks/sessionRebind'
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
 // UserPromptSubmit hook POST (the only way to rename an already-running session).
 import { createPendingTitles } from './hooks/pendingTitles'
@@ -210,7 +215,19 @@ let launchService: LaunchService | null = null
 // Session-rebind — live launched ptys whose bound session id went quiet (claude changed its own
 // id mid-run). APP-GLOBAL, keyed by terminalId, exactly like the terminal manager + launch
 // service it reasons about (a terminal is window-independent). Per-run only, never persisted.
-const orphanRegistry = createOrphanRegistry()
+const orphanRegistry = createOrphanRegistry({
+  // A live, cwd-matching orphan refused by the window ALONE is the one refusal that leaves a
+  // healthy terminal with a frozen card (the exact proof below normally prevents it). CODE only.
+  onWindowRefusal: () =>
+    console.warn('[c9watch][hooks] path=(hook) code=hook_rebind_window_expired')
+})
+// Session-rebind PART 2b — claude's own per-process records (`~/.claude/sessions/<pid>.json`),
+// the exact "this pty now runs id B" proof. Read only when an unknown id posts a status hook.
+const processSessions = createProcessSessionSourceFromFs()
+
+// Transcript watchers — per-window handles, disposed in teardownWatchFeed so no fs watch
+// outlives its window. Same lifetime contract as hookServers below.
+const transcriptWatchers = new Map<Electron.WebContents, TranscriptWatcher>()
 
 // Hook-status feature — per-window hook HTTP listener handle, closed in teardownWatchFeed
 // (mirrors `trackers`/`reducers`). Prevents an EADDRINUSE leak when a window
@@ -252,6 +269,10 @@ interface LaunchBoardSeam {
   upsertLaunched(session: Session): void
   /** Story 6.3 — immediate stop/exit removal (applyHookStatus removed → handleDelta). */
   removeLaunched(sessionId: string): void
+  /** ESCAPE-INTERRUPT — demote a session to idle because the operator pressed Escape.
+   *  Interrupting fires no hook and (when interrupted early) leaves no transcript trace,
+   *  so the keystroke is the only evidence. A session already idle is a quiet no-op. */
+  interruptLaunched(sessionId: string): void
   /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
    *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
   renameLaunched(sessionId: string, name: string): void
@@ -337,7 +358,15 @@ function registerWatchFeed(window: BrowserWindow): void {
   // hook deltas can route through the SAME chokepoint (same enrich/column/tray/attention
   // treatment). The spec requires this extraction: hook events call
   // reducer.applyHookStatus(...).forEach(handleDelta) — same path, no new channel.
+  // Claude's last STATED background-work verdict, per session. `background_tasks` rides
+  // `Stop` only and Esc fires no hook, so without this memory an interrupt has nothing to
+  // consult. Fed from every hook event below; read by demoteOnInterrupt.
+  const backgroundWork = createBackgroundWorkState()
+
   function handleDelta(delta: ReducerWatchEventsPayload): void {
+    // A removed session's background verdict is dead weight — drop it here, the one
+    // chokepoint EVERY removal passes through (hook SessionEnd, in-app Stop, pty exit).
+    if (delta.event.type === 'session.removed') backgroundWork.forget(delta.event.id)
     if (wc.isDestroyed()) return
     // Story 1.4 ORDERING (re-ordered from 1.2): the tracker MUST process THIS delta
     // BEFORE we enrich+send a `session.updated`, so `tracker.columnOf(id)` /
@@ -429,6 +458,14 @@ function registerWatchFeed(window: BrowserWindow): void {
     removeLaunched: (sessionId) => {
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
     },
+    // ESCAPE-INTERRUPT — the operator pressed Escape, so claude stopped and is sitting at
+    // its prompt. Rides the SAME applyHookStatus → handleDelta chokepoint as every other
+    // status change. Guarded on an ACTUAL change so a stray Escape (dismissing an
+    // autocomplete menu in an already-idle session) emits nothing.
+    interruptLaunched: (sessionId) => {
+      if (reducer.snapshotMap().get(sessionId)?.status === 'WaitingForInput') return
+      demoteOnInterrupt(sessionId, 'interrupt_key')
+    },
     // Session-naming A2 — the rename takes the SAME handleDelta chokepoint as every other delta
     // (tracker → tray → enrich → ship gate), so the retitled card reaches the renderer as an
     // ordinary `session.updated`. The tracker does NOT re-stamp `enteredColumnAt` here because the
@@ -463,25 +500,90 @@ function registerWatchFeed(window: BrowserWindow): void {
   // per-run board-eligibility gate, and the old card is gone anyway (a stale member gates nothing).
   function adoptOrphanedCard(cwd: string, newSessionId: string): boolean {
     if (launchService === null || terminalManager === null) return false
+    // PART 2b first — the EXACT proof: claude's own record says which launched pty now runs
+    // this id. Needs no orphan record, so it also rescues a card whose SessionEnd came late,
+    // never came, or came longer than the heuristic's window ago.
+    const byProcess = claimByProcess(
+      newSessionId,
+      launchService.bindings(),
+      terminalManager,
+      processSessions
+    )
+    if (byProcess !== null) {
+      return adoptCard(byProcess.terminalId, byProcess.sessionId, newSessionId, 'pid')
+    }
+    // Fallback — the cwd + single-match + alive + window heuristic (a claude without records).
     const orphan = orphanRegistry.claim(cwd, Date.now(), terminalManager)
     if (orphan === null) return false
-    const stored = reducer.snapshotMap().get(orphan.sessionId)
+    return adoptCard(orphan.terminalId, orphan.sessionId, newSessionId, 'cwd')
+  }
+
+  /** Re-key a live launched terminal's card from `oldSessionId` to `newSessionId`. Shared by
+   *  both proofs; `proof` only labels the log line. */
+  function adoptCard(
+    terminalId: string,
+    oldSessionId: string,
+    newSessionId: string,
+    proof: 'pid' | 'cwd'
+  ): boolean {
+    if (launchService === null) return false
+    const stored = reducer.snapshotMap().get(oldSessionId)
     if (stored === undefined) {
-      // The card left by another path (stop/exit) — the orphan record is stale, drop it.
-      orphanRegistry.clear(orphan.terminalId)
+      // The card left by another path (stop/exit) — any orphan record is stale, drop it.
+      orphanRegistry.clear(terminalId)
       return false
     }
     // Main-owned data reshaped by main (parse-once boundary: never re-run through SessionSchema).
     launchedSet.add(newSessionId)
     reducer.upsertLaunched({ ...stored, id: newSessionId }).forEach(handleDelta)
-    launchService.rebind(orphan.terminalId, newSessionId)
-    sendLaunchCorrelated(wc, orphan.terminalId, newSessionId)
-    reducer.applyHookStatus(orphan.sessionId, { kind: 'removed' }).forEach(handleDelta)
-    orphanRegistry.clear(orphan.terminalId)
+    launchService.rebind(terminalId, newSessionId)
+    sendLaunchCorrelated(wc, terminalId, newSessionId)
+    reducer.applyHookStatus(oldSessionId, { kind: 'removed' }).forEach(handleDelta)
+    orphanRegistry.clear(terminalId)
     // PATH + CODE only — never the cwd (leaks the filesystem layout) or any hook field.
-    console.warn('[c9watch][hooks] path=(hook) code=hook_session_id_rebound')
+    console.warn(`[c9watch][hooks] path=(hook) code=hook_session_id_rebound proof=${proof}`)
     return true
   }
+
+  // The transcript tail — the ONE fact no Claude Code hook reports: an Esc interrupt.
+  //
+  // Probe-verified twice (claude 2.1.250, both `command` and `http` hooks): pressing Esc
+  // fires no hook of any kind, and no idle notification follows even after 90 seconds.
+  // Claude does record it in its own session transcript the instant it happens, so the
+  // app tails that file.
+  //
+  // (Background work needs nothing here — the `Stop` payload reports it directly in
+  // `background_tasks`; see hooks/backgroundTasks.ts.)
+  /**
+   * The ONE way an interrupt demotes a card. Both interrupt detectors land here — the Esc
+   * KEYSTROKE seen on the pty, and the `[Request interrupted by user]` marker the transcript
+   * tail finds — so the rule below cannot drift between them.
+   *
+   * The rule: an interrupt ends the FOREGROUND turn, not the background work. Claude
+   * detaches a backgrounded shell deliberately and it keeps running past the interrupt, so
+   * demoting to idle here would be a false idle for the whole life of that task. When the
+   * last `Stop` said work was running the card STAYS on `Working`, which is true, and it
+   * corrects itself when that work finishes: claude wakes on the completion and the turn it
+   * runs ends with a `Stop` carrying an empty `background_tasks` (probe-verified, ~4s).
+   */
+  function demoteOnInterrupt(sessionId: string, code: string): void {
+    if (backgroundWork.isRunning(sessionId)) {
+      console.log(`[c9watch][hooks] code=${code}_background_kept session=${sessionId}`)
+      return
+    }
+    // Claude is now sitting at its prompt waiting, and the operator is the one who
+    // pressed the key — so this is idle-by-truth: the calm column, no notification.
+    console.log(`[c9watch][hooks] code=${code} session=${sessionId}`)
+    reducer
+      .applyHookStatus(sessionId, { kind: 'status', status: 'WaitingForInput' })
+      .forEach(handleDelta)
+  }
+
+  const transcriptWatcher = createTranscriptWatcher({
+    onSignal: (sessionId) => {
+      demoteOnInterrupt(sessionId, 'transcript_interrupt')
+    }
+  })
 
   const hookServer = createHookServer({
     onHookEvent: (evt) => {
@@ -505,6 +607,24 @@ function registerWatchFeed(window: BrowserWindow): void {
       if (readBack !== null) {
         reducer.renameSession(evt.session_id, readBack).forEach(handleDelta)
       }
+
+      // Tail this session's transcript. Every hook event carries `transcript_path`, and
+      // the watcher is idempotent for a path it already follows, so this is the cheapest
+      // place to (re)establish the tail — including after a session-id rebind.
+      if (evt.transcript_path !== undefined && evt.transcript_path.length > 0) {
+        // Log the ATTACH once per session (never the path — it embeds the project
+        // directory). Without this the tail is invisible when it silently fails to start.
+        if (transcriptWatcher.watch(evt.session_id, evt.transcript_path)) {
+          console.log(`[c9watch][hooks] code=transcript_watch session=${evt.session_id}`)
+        }
+      } else {
+        console.warn(`[c9watch][hooks] code=transcript_path_absent session=${evt.session_id}`)
+      }
+
+      // Remember what this event states about background work (a no-op unless it carries
+      // `background_tasks`). Runs BEFORE the status mapping and before its unknown-event
+      // early return, so the verdict is recorded even for an event we do not map.
+      backgroundWork.observe(evt.session_id, evt)
 
       const change = hookStatus(evt)
       if (change === null) return // unrecognized event — ignore
@@ -618,6 +738,12 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
     hookServers.delete(wc)
     hookServer.close()
   }
+  // Stop every transcript tail so no fs watch outlives the window. Idempotent, never throws.
+  const watcher = transcriptWatchers.get(wc)
+  if (watcher) {
+    transcriptWatchers.delete(wc)
+    watcher.dispose()
+  }
 }
 
 // Story 4.1 (FR-13) — stop every terminal this window owned (explicit-MAIN teardown).
@@ -642,16 +768,6 @@ function teardownWindowTerminals(wc: Electron.WebContents): void {
 // process.env type lies about this) and strip the test/harness vars (C9_SMOKE* and the
 // Story-5.4 C9_TEST_PICK_DIR picker seam) so they do not leak into the spawned shell or
 // anything it launches (e.g. claude).
-function buildPtyEnv(): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(process.env)) {
-    if (v === undefined) continue
-    if (k === 'C9_SMOKE' || k === 'C9_SMOKE_OUT' || k === 'C9_TEST_PICK_DIR') continue
-    env[k] = v
-  }
-  return env
-}
-
 function registerPtyIpc(): void {
   // Renderer asks for the PTY once the terminal element is mounted & sized.
   ipcMain.on(CH.ptyStart, (evt) => {
@@ -897,6 +1013,30 @@ function registerTerminalIpc(): void {
   // mirror the Story-0.1 spike (buildPtyEnv strips the smoke vars).
   terminalManager = createTerminalManager({
     spawnDefaults: { file: SHELL, cwd: os.homedir(), env: buildPtyEnv() },
+    // ESCAPE = INTERRUPT. Probe-verified on claude 2.1.250: interrupting a turn fires NO
+    // hook of any kind, and when interrupted early it leaves no transcript trace either —
+    // claude just cancels and restores the prompt. So the keystroke the app is already
+    // forwarding is the ONLY evidence the session went idle, and without it the card keeps
+    // saying `Working` until the operator next uses the session.
+    //
+    // After an interrupt claude sits at its prompt waiting, and the operator is the one who
+    // pressed the key — so this is idle-by-truth: the calm column, no notification. Guarded
+    // on an ACTUAL status change so a stray Escape (dismissing an autocomplete menu) cannot
+    // emit a pointless delta. Never logs `data` — that is what the operator is typing.
+    onInput: (terminalId, data) => {
+      if (!isInterruptKey(data)) return
+      // Only an app-LAUNCHED terminal has a bound session; a plain shell has none, and an
+      // Escape there is just an Escape.
+      const sessionId = launchService?.sessionIdFor(terminalId) ?? null
+      if (sessionId === null) return
+      const wc = terminalOwners.get(terminalId)
+      if (wc === undefined) return
+      // The key was SEEN on the pty. What the board then does about it is logged by
+      // demoteOnInterrupt (`interrupt_key` when it demotes, `interrupt_key_background_kept`
+      // when background work holds the card on Working) — two facts, two lines.
+      console.log(`[c9watch][pty] code=interrupt_key_seen session=${sessionId}`)
+      launchBoardSeams.get(wc)?.interruptLaunched(sessionId)
+    },
     onExit: (terminalId, exitCode) => {
       const wc = terminalOwners.get(terminalId)
       terminalOwners.delete(terminalId)

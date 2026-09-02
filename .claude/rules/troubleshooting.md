@@ -34,16 +34,16 @@ StrictMode/WebGL" theory until you have all three answers.
 
 ## Symptom → suspect layer → cheapest kill-test
 
-| Symptom | First suspect (after Step 0) | Cheapest kill-test |
-| --- | --- | --- |
-| Terminal blank, **content preserved**, depends on a 2nd terminal being alive | renderer **layout/stacking** (z-index, opaque bg, `visibility`) | stop the other terminal; inspect the live DOM (computed `visibility`, `clientWidth/Height`, paint order) |
-| Terminal blank, **content never arrived**, console has `code=` | transport: port pairing / `openToken` / spawn | read the `code=` line; check `terminalManager` spawn-vs-reAttach |
-| Terminal wrong size / clipped, content there | `fit()` on a 0×0 box, resize ordering | log `clientWidth/Height` in `doFit`; → `terminal.md` |
-| Garbled / wrong-session bytes | port cross-wire / `openToken` mismatch | compare minted vs echoed `openToken` (renderer ↔ main) |
-| Blank only in dev, fine in packaged build | StrictMode double-mount race | disable StrictMode in the renderer entry and re-run |
-| Launched session has no board card | launch synthesis / hook ingest (upsertLaunched never ran, or hooks not registered) | replay the fixture bodies (`src/__fixtures__/fakeHookFeed`) or POST one by hand to `127.0.0.1:9279`; → `state.md`, story-5.x/6.x memory |
-| One bad session blanks the whole board | never-crash / Zod boundary violation | → `zod-boundaries.md` (drop+log-by-path, don't poison) |
-| **"App won't start"** — process alive, NO window, no error (only the harmless `Failed to load module "appmenu-gtk-module"`) | the window WAS created but never shown/mapped, or is minimized. NOT a startup crash | ask KWin, don't eyeball the screen: run the `workspace.windowList()` script (below). If the window is listed → it started fine |
+| Symptom                                                                                                                     | First suspect (after Step 0)                                                        | Cheapest kill-test                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Terminal blank, **content preserved**, depends on a 2nd terminal being alive                                                | renderer **layout/stacking** (z-index, opaque bg, `visibility`)                     | stop the other terminal; inspect the live DOM (computed `visibility`, `clientWidth/Height`, paint order)                                |
+| Terminal blank, **content never arrived**, console has `code=`                                                              | transport: port pairing / `openToken` / spawn                                       | read the `code=` line; check `terminalManager` spawn-vs-reAttach                                                                        |
+| Terminal wrong size / clipped, content there                                                                                | `fit()` on a 0×0 box, resize ordering                                               | log `clientWidth/Height` in `doFit`; → `terminal.md`                                                                                    |
+| Garbled / wrong-session bytes                                                                                               | port cross-wire / `openToken` mismatch                                              | compare minted vs echoed `openToken` (renderer ↔ main)                                                                                  |
+| Blank only in dev, fine in packaged build                                                                                   | StrictMode double-mount race                                                        | disable StrictMode in the renderer entry and re-run                                                                                     |
+| Launched session has no board card                                                                                          | launch synthesis / hook ingest (upsertLaunched never ran, or hooks not registered)  | replay the fixture bodies (`src/__fixtures__/fakeHookFeed`) or POST one by hand to `127.0.0.1:9279`; → `state.md`, story-5.x/6.x memory |
+| One bad session blanks the whole board                                                                                      | never-crash / Zod boundary violation                                                | → `zod-boundaries.md` (drop+log-by-path, don't poison)                                                                                  |
+| **"App won't start"** — process alive, NO window, no error (only the harmless `Failed to load module "appmenu-gtk-module"`) | the window WAS created but never shown/mapped, or is minimized. NOT a startup crash | ask KWin, don't eyeball the screen: run the `workspace.windowList()` script (below). If the window is listed → it started fine          |
 
 ## Cheap kill-tests (run BEFORE a deep code read)
 

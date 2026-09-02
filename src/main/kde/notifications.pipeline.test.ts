@@ -99,7 +99,7 @@ describe('notifier pipeline — fires 1:1 on a needs-you ENTRY (AC-1)', () => {
     p.hook(id, 'NeedsPermission')
     expect(p.shownCount()).toBe(1)
     const opts = p.shown()[0]
-    expect(opts?.title).toContain('needs you')
+    expect(opts?.title).toBe('proj wants permission')
     expect(opts?.body).toContain('Bash')
   })
 })

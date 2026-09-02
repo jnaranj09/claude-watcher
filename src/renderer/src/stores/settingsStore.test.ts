@@ -24,7 +24,11 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
 
   it('hydrate replaces the projection from a main-sourced Settings and marks loaded', () => {
     const store = createSettingsStore()
-    store.getState().hydrate({ version: 1, soundEnabled: false, terminalFontSize: 22 })
+    store.getState().hydrate({
+      version: 1,
+      soundEnabled: false,
+      terminalFontSize: 22
+    })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
     expect(selectTerminalFontSize(s)).toBe(22)

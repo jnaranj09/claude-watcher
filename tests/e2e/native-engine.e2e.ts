@@ -343,7 +343,11 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
       cwd: launchDir
     }
 
-    // Stop with plain prose (NO trailing '?') → WaitingForInput → the IDLE column.
+    // Stop with plain prose (NO trailing '?') → `YourTurn` → the NEEDS-YOU column.
+    // NOT idle: the deterministic-attention floor (spec DA-1) says a turn end is never idle —
+    // claude stopped, so it is the operator's move. Idle is reached only from SessionStart or
+    // the session:seen demotion. (This assertion read `idle` until now, which had been stale
+    // since the your-turn floor landed in hookStatus.ts.)
     const stopStatus = await postHook({
       ...common,
       hook_event_name: 'Stop',
@@ -352,8 +356,8 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
     })
     expect(stopStatus, 'the Stop hook POST must pass the Zod boundary').toBe(200)
     await expect(
-      page.locator(`[data-column="idle"] [data-session-id="${sessionId}"]`),
-      'a Stop hook must move the card to the idle column'
+      page.locator(`[data-column="needs-you"] [data-session-id="${sessionId}"]`),
+      'a plain Stop hook must move the card to the needs-you column (the your-turn floor)'
     ).toBeVisible({ timeout: 5000 })
 
     // Notification(permission_prompt) → NeedsPermission → the NEEDS-YOU column.
@@ -472,6 +476,192 @@ test('dead pane: killed claude shows exactly one New-session button; clicking re
     await expect(newTerminal.locator('[data-testid="dead-terminal"]')).toHaveCount(0)
 
     await screenshot(page, 'native-engine-e2e-relaunched.png')
+  } finally {
+    await teardownApp(app)
+  }
+})
+
+// =========================================================================================
+// Test 3 — the ESC INTERRUPT, and the background work that must survive it.
+//
+// WHY THIS IS AN E2E AND NOT A UNIT TEST. The interrupt is the one path in this app with no
+// hook behind it: pressing Esc fires NO Claude Code hook of any kind (probe-verified twice
+// on claude 2.1.250 — 12 events before the keypress, 12 after, and no idle notification
+// even 90s later). So the app detects it by watching the pty's own input stream, and that
+// detection lives in the composition root (`src/main/index.ts`), wired across the renderer's
+// xterm → the preload MessagePort → terminalManager → the reducer. Every one of those seams
+// is invisible to a unit test, and this session has already been bitten TWICE by exactly
+// that gap: the keystroke observer was first added to only ONE of terminalManager's two
+// hand-copied port handlers (the spawn port, while the app actually re-attaches), and the
+// hook probes that designed this feature first used `command`-type hooks while the app
+// registers `http` ones. Both times the unit tests were green and the app was broken.
+//
+// So this test drives the REAL keystroke through the REAL renderer into the REAL pty, and
+// asserts on BOTH the board column AND the main-process log line, which is the only place
+// the decision itself is observable.
+//
+// THE BEHAVIOUR UNDER TEST. An interrupt ends the FOREGROUND turn, not background work —
+// claude detaches a backgrounded shell deliberately and it keeps running past the Esc. So:
+//
+//   Esc while `background_tasks` reported RUNNING  → card STAYS `working` (`..._background_kept`)
+//   Esc with no background work reported           → card demotes to `idle` (`interrupt_key`)
+//
+// The first is the regression that matters: demoting there is a FALSE IDLE for the whole
+// life of the background task, which is the exact lie the board exists to not tell.
+// =========================================================================================
+test('esc interrupt: demotes to idle, but NEVER while background work is running', async () => {
+  test.skip(await portInUse(HOOK_PORT, HOOK_HOST), PORT_GUARD_SKIP_MESSAGE)
+
+  const launchDir = mkdtempSync(path.join(tmpdir(), 'c9-interrupt-e2e-'))
+  const app = await electron.launch({
+    args: [BUILT_MAIN],
+    env: { ...process.env, C9_TEST_PICK_DIR: launchDir }
+  })
+  const electronPid = app.process().pid
+  expect(electronPid, 'Electron main pid must be known to walk /proc').toBeTruthy()
+
+  // The interrupt DECISION is only observable in main's log — the board shows the outcome,
+  // but "kept because background work is running" and "never saw the key at all" look
+  // identical on the board. Capture stdout so the two can be told apart.
+  const mainLog: string[] = []
+  app.process().stdout?.on('data', (chunk: Buffer) => mainLog.push(chunk.toString('utf8')))
+  const logged = (needle: string): boolean => mainLog.join('').includes(needle)
+
+  const page = await app.firstWindow()
+
+  try {
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 })
+
+    const newSessionBtn = page.locator('[data-testid="header-new-session"]')
+    await newSessionBtn.waitFor({ state: 'visible', timeout: 20000 })
+    await newSessionBtn.click()
+    await confirmSessionName(page)
+    await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
+
+    const boardCard = page.locator('[data-column] [data-session-id]')
+    await boardCard.waitFor({ state: 'attached', timeout: 5000 })
+    const sessionId = await boardCard.getAttribute('data-session-id')
+    expect(sessionId, 'the board card must expose the launch-minted session id').toBeTruthy()
+
+    // Let the REAL session's own startup hooks land before any synthetic POST, so they can
+    // never interleave mid-assertion (same settle as test 1).
+    await waitForClaudeDescendant(electronPid!, 20000)
+    await page.waitForTimeout(3000)
+
+    const common = {
+      session_id: sessionId!,
+      transcript_path: path.join(launchDir, `${sessionId}.jsonl`),
+      cwd: launchDir
+    }
+
+    // ── (1) ARM: a Stop whose `background_tasks` reports a RUNNING shell ──────────────
+    // This is the real claude 2.1.250 shape (probe-captured keys: id/type/status/
+    // description/command). A turn that ends with work still running is `Working`, not the
+    // operator's turn — claude will wake ITSELF when the task finishes.
+    const armStatus = await postHook({
+      ...common,
+      hook_event_name: 'Stop',
+      stop_hook_active: false,
+      last_assistant_message: 'Started the build in the background.',
+      background_tasks: [
+        {
+          id: 'bg_e2e_1',
+          type: 'shell',
+          status: 'running',
+          description: 'long build',
+          command: 'sleep 300'
+        }
+      ]
+    })
+    expect(armStatus, 'the arming Stop POST must pass the Zod boundary').toBe(200)
+    await expect(
+      page.locator(`[data-column="working"] [data-session-id="${sessionId}"]`),
+      'a Stop reporting running background work must hold the card in the working column'
+    ).toBeAttached({ timeout: 5000 })
+
+    // ── (2) THE REGRESSION: Esc must NOT demote while that work is running ────────────
+    // A real keystroke into the real xterm: renderer → preload MessagePort → terminalManager
+    // → main's onInput → isInterruptKey → the board seam.
+    //
+    // The view STAYS on the focused session: Esc is consumed by the focused xterm and does
+    // NOT trigger the focused→board return (measured here — the board layer stays mounted at
+    // `visibility:hidden` under the focused view, App.tsx B-1). That is the correct product
+    // behaviour: Esc belongs to claude while a terminal has focus. So every card assertion
+    // below is `toBeAttached`, not `toBeVisible` — the column is what is under test, and a
+    // column-scoped locator only resolves at all when the card is in that column.
+    await page.locator('[data-testid="embedded-terminal"]').click()
+    await page.keyboard.press('Escape')
+
+    // The key must have been SEEN on the pty at all — this is the assertion that would have
+    // caught the spawn-port-only observer bug.
+    await expect
+      .poll(() => logged(`code=interrupt_key_seen session=${sessionId}`), {
+        timeout: 5000,
+        message: 'the Escape keystroke must reach main through the pty input path'
+      })
+      .toBe(true)
+    // …and the decision must have been to KEEP the card, because work is running.
+    await expect
+      .poll(() => logged(`code=interrupt_key_background_kept session=${sessionId}`), {
+        timeout: 5000,
+        message: 'Esc during running background work must be logged as kept, not demoted'
+      })
+      .toBe(true)
+    expect(
+      logged(`code=interrupt_key session=${sessionId}`),
+      'the demote path must NOT have run while background work was running'
+    ).toBe(false)
+    await expect(
+      page.locator(`[data-column="working"] [data-session-id="${sessionId}"]`),
+      'the card must STILL be in the working column — the background shell is still running'
+    ).toBeAttached({ timeout: 5000 })
+
+    await screenshot(page, 'native-engine-e2e-interrupt-kept.png')
+
+    // ── (3) DISARM: a later Stop reporting an EMPTY list clears the verdict ───────────
+    // This is what really happens when the task finishes: claude wakes itself and the turn
+    // it runs ends with `background_tasks: []` (probe-verified, ~4s after completion).
+    const disarmStatus = await postHook({
+      ...common,
+      hook_event_name: 'Stop',
+      stop_hook_active: false,
+      last_assistant_message: 'Background task done.',
+      background_tasks: []
+    })
+    expect(disarmStatus, 'the disarming Stop POST must pass the Zod boundary').toBe(200)
+    await expect(
+      page.locator(`[data-column="needs-you"] [data-session-id="${sessionId}"]`),
+      'a Stop with no running work is the operator turn → the needs-you column'
+    ).toBeAttached({ timeout: 5000 })
+
+    // ── (4) Esc with nothing running MUST demote — the plain "hi then Esc" case ───────
+    // Re-enter the focused view (this marks the YourTurn card seen → idle), then put it back
+    // on `Working` with a prompt-submit, which is exactly the state a real session is in the
+    // instant the operator hits Esc.
+    await page.locator(`[data-column] [data-session-id="${sessionId}"]`).click({ force: true })
+    await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 10000 })
+    const promptStatus = await postHook({ ...common, hook_event_name: 'UserPromptSubmit' })
+    expect(promptStatus, 'the UserPromptSubmit POST must pass the Zod boundary').toBe(200)
+    await expect(
+      page.locator(`[data-column="working"] [data-session-id="${sessionId}"]`),
+      'a prompt submit puts the card back on working'
+    ).toBeAttached({ timeout: 5000 })
+
+    await page.locator('[data-testid="embedded-terminal"]').click()
+    await page.keyboard.press('Escape')
+
+    await expect
+      .poll(() => logged(`code=interrupt_key session=${sessionId}`), {
+        timeout: 5000,
+        message: 'Esc with no background work must take the demote path'
+      })
+      .toBe(true)
+    await expect(
+      page.locator(`[data-column="idle"] [data-session-id="${sessionId}"]`),
+      'Esc with nothing running must drop the card to the idle column'
+    ).toBeAttached({ timeout: 5000 })
+
+    await screenshot(page, 'native-engine-e2e-interrupt-demoted.png')
   } finally {
     await teardownApp(app)
   }

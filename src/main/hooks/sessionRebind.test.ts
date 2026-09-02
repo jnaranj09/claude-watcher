@@ -7,10 +7,12 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  claimByProcess,
   createOrphanRegistry,
   sessionEndKeepsCard,
   REBIND_WINDOW_MS,
   type LiveTerminals,
+  type ProcessSessionRecords,
   type RebindBindingSource
 } from './sessionRebind'
 
@@ -134,5 +136,97 @@ describe('OrphanRegistry bookkeeping', () => {
     reg.mark({ terminalId: 'term-1', sessionId: 'sess-old', cwd: '/repo/a', orphanedAt: T0 })
     expect(reg.claim('/repo/a', T0 + 10, alive('term-1'))).not.toBeNull()
     expect(reg.claim('/repo/a', T0 + 11, alive('term-1'))).toBeNull()
+  })
+})
+
+describe("claimByProcess (Part 2b — the EXACT proof from claude's own per-process record)", () => {
+  const launches = [
+    { terminalId: 'term-1', sessionId: 'sess-old' },
+    { terminalId: 'term-2', sessionId: 'sess-other' }
+  ]
+  /** A terminal manager: terminalId → PTY leader pid (absent = dead). */
+  function pids(table: Readonly<Record<string, number>>): { pidOf: (t: string) => number | null } {
+    return { pidOf: (terminalId) => table[terminalId] ?? null }
+  }
+  /** Claude's records: leader pid → the session ids recorded under it. */
+  function recorded(table: Readonly<Record<number, readonly string[]>>): ProcessSessionRecords {
+    return { currentSessionIdsUnder: (leaderPid) => table[leaderPid] ?? [] }
+  }
+
+  it('adopts the launch whose process now records the incoming id — no cwd, no window', () => {
+    const claim = claimByProcess(
+      'sess-new',
+      launches,
+      pids({ 'term-1': 111, 'term-2': 222 }),
+      recorded({ 111: ['sess-new'] })
+    )
+    expect(claim).toEqual({ terminalId: 'term-1', sessionId: 'sess-old' })
+  })
+
+  it('refuses when no launched process records the id (an external claude never reaches the board)', () => {
+    const claim = claimByProcess(
+      'sess-new',
+      launches,
+      pids({ 'term-1': 111, 'term-2': 222 }),
+      recorded({ 111: ['sess-old'], 222: ['sess-other'] })
+    )
+    expect(claim).toBeNull()
+  })
+
+  it('picks the RIGHT terminal among several — the proof is per process', () => {
+    const claim = claimByProcess(
+      'sess-new',
+      launches,
+      pids({ 'term-1': 111, 'term-2': 222 }),
+      recorded({ 111: ['sess-old'], 222: ['sess-new'] })
+    )
+    expect(claim).toEqual({ terminalId: 'term-2', sessionId: 'sess-other' })
+  })
+
+  it('skips a launch whose pty is gone without consulting the records', () => {
+    const consulted: number[] = []
+    const records: ProcessSessionRecords = {
+      currentSessionIdsUnder: (leaderPid) => {
+        consulted.push(leaderPid)
+        return ['sess-new']
+      }
+    }
+    expect(claimByProcess('sess-new', launches, pids({ 'term-2': 222 }), records)).toEqual({
+      terminalId: 'term-2',
+      sessionId: 'sess-other'
+    })
+    expect(consulted).toEqual([222])
+  })
+
+  it('never "adopts" a terminal onto the id it is already bound to (that would delete its card)', () => {
+    const claim = claimByProcess(
+      'sess-old',
+      launches,
+      pids({ 'term-1': 111 }),
+      recorded({ 111: ['sess-old'] })
+    )
+    expect(claim).toBeNull()
+  })
+})
+
+describe('OrphanRegistry.claim — a refusal caused by the window ALONE is reported', () => {
+  const orphan = { terminalId: 'term-1', sessionId: 'sess-old', cwd: '/repo/a', orphanedAt: T0 }
+
+  it('calls onWindowRefusal with the terminal when cwd matched, the pty is alive, and only the window refused', () => {
+    const refused: string[] = []
+    const reg = createOrphanRegistry({ onWindowRefusal: (terminalId) => refused.push(terminalId) })
+    reg.mark(orphan)
+    expect(reg.claim('/repo/a', T0 + REBIND_WINDOW_MS + 1, alive('term-1'))).toBeNull()
+    expect(refused).toEqual(['term-1'])
+  })
+
+  it('stays silent for a cwd mismatch, a dead pty, or a claim inside the window', () => {
+    const refused: string[] = []
+    const reg = createOrphanRegistry({ onWindowRefusal: (terminalId) => refused.push(terminalId) })
+    reg.mark(orphan)
+    expect(reg.claim('/repo/b', T0 + REBIND_WINDOW_MS + 1, alive('term-1'))).toBeNull()
+    expect(reg.claim('/repo/a', T0 + REBIND_WINDOW_MS + 1, alive())).toBeNull()
+    expect(reg.claim('/repo/a', T0 + 1, alive('term-1'))).toEqual(orphan)
+    expect(refused).toEqual([])
   })
 })

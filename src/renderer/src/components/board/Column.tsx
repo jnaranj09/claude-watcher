@@ -14,9 +14,9 @@
 //     cards map DELIBERATELY to 'working' (the calm/non-alert accent — never the gold
 //     'needs-you' signal). On the STATIC board `variant='calm'`, so the accent BAR does
 //     not render anyway (it is hero-only); the mapping is documented for 1.5.
-//   - `variant` = 'calm' for a FLANK column; 'hero' when this column is the cascade-
-//     selected center hero (Story 1.5, AC-3) — driven by the `isHero` prop the Board
-//     passes down from the narrow `selectHeroColumn` selector. The accent (via the
+//   - `variant` = 'calm' for a FLANK column; 'hero' when this column is the center hero
+//     (Story 1.5, AC-3 — now the PINNED needs-you) — driven by the `isHero` prop the Board
+//     passes down from the pinned `HERO_COLUMN` constant. The accent (via the
 //     existing `cardAccentFor`) is gold for the needs-you hero, blue for the working hero.
 import type { JSX } from 'react'
 import { ColumnHeader, type ColumnAccent } from '../ColumnHeader/ColumnHeader'
@@ -104,8 +104,8 @@ function EmphasizedSessionCard(props: {
 
 export interface ColumnProps {
   column: BoardColumn
-  /** Story 1.5 — true when this column is the cascade-selected CENTER hero (AC-3). The
-   *  Board derives it from the narrow `selectHeroColumn` selector and passes it down, so
+  /** Story 1.5 — true when this column is the CENTER hero (AC-3; pinned to needs-you). The
+   *  Board compares this column against the pinned `HERO_COLUMN` and passes it down, so
    *  only the columns whose hero-ness changed re-render. Default false (flank). */
   isHero?: boolean
   /** Called when a card is activated (Epic-3 focused-session open — a no-op seam here). */

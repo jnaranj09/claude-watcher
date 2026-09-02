@@ -122,4 +122,65 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     expect(hookStatus(stopQ)).toEqual({ kind: 'status', status: 'NeedsAttention' })
     expect(hookStatus(evt({ hook_event_name: 'SessionEnd' }))).toEqual({ kind: 'removed' })
   })
+
+  // --- the background-work latch: a covered Stop is NOT the operator's turn ---
+  // Claude Code emits no "background task finished" hook, so a session that backgrounds
+  // a shell or arms a Monitor ends its turn normally and today lands in `needs-you`,
+  // firing a notification for work that is still running. The caller passes the latch
+  // verdict in; hookStatus stays PURE.
+  it('Stop with a pending background task → Working (not YourTurn)', () => {
+    expect(
+      hookStatus(
+        evt({ hook_event_name: 'Stop', background_tasks: [{ id: 'b1', status: 'running' }] })
+      )
+    ).toEqual({
+      kind: 'status',
+      status: 'Working'
+    })
+  })
+
+  it('Stop with NO pending background task keeps the YourTurn floor', () => {
+    expect(hookStatus(evt({ hook_event_name: 'Stop', background_tasks: [] }))).toEqual({
+      kind: 'status',
+      status: 'YourTurn'
+    })
+  })
+
+  it('an omitted context behaves exactly like no pending background task', () => {
+    expect(hookStatus(evt({ hook_event_name: 'Stop' }))).toEqual(
+      hookStatus(evt({ hook_event_name: 'Stop', background_tasks: [] }))
+    )
+  })
+
+  it('a QUESTION still wins over a pending background task — claude asked you something', () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'Stop',
+          last_assistant_message: 'Which option do you prefer?',
+          background_tasks: [{ id: 'b1', status: 'running' }]
+        })
+      )
+    ).toEqual({ kind: 'status', status: 'NeedsAttention' })
+  })
+
+  it('background_tasks does NOT change any non-Stop event', () => {
+    const bg = [{ id: 'b1', status: 'running' }]
+    expect(hookStatus(evt({ hook_event_name: 'SessionStart', background_tasks: bg }))).toEqual({
+      kind: 'status',
+      status: 'WaitingForInput'
+    })
+    expect(hookStatus(evt({ hook_event_name: 'SessionEnd', background_tasks: bg }))).toEqual({
+      kind: 'removed'
+    })
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'Notification',
+          notification_type: 'permission_prompt',
+          background_tasks: bg
+        })
+      )
+    ).toEqual({ kind: 'status', status: 'NeedsPermission' })
+  })
 })

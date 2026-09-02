@@ -45,7 +45,21 @@ export const HookEventSchema = z
     notification_type: z.string().optional(), // Notification kind (e.g. permission_prompt); NOT enum-locked
     tool_name: z.string().optional(), // PreToolUse tool name (e.g. AskUserQuestion); NOT enum-locked
     last_assistant_message: z.string().optional(), // Stop prose (SENSITIVE — never log the value)
-    session_title: z.string().optional() // claude's CURRENT name for the session (SENSITIVE — never log)
+    session_title: z.string().optional(), // claude's CURRENT name for the session (SENSITIVE — never log)
+    // The session's JSONL transcript. Promoted from passthrough because the app TAILS it
+    // for the two facts no hook reports: the turn was interrupted (Esc fires no hook at
+    // all) and a background task finished (there is no "task done" hook). Verified present
+    // on every event type, claude 2.1.248/2.1.250. SENSITIVE — the path embeds the project
+    // directory, so it is never logged; the file's CONTENTS are the operator's whole
+    // conversation and are never logged either. [transcriptWatcher.ts]
+    transcript_path: z.string().optional(),
+    // The `Stop` payload's list of background work claude still has running — the direct
+    // answer to "is this turn end really the operator's turn?", verified live on claude
+    // 2.1.250 through an `http` hook. Left as `unknown` rather than a shape: it is
+    // claude's structure to change, and a shape drift must never fail the event closed
+    // (the reader narrows it defensively instead). SENSITIVE — the entries carry the
+    // operator's COMMAND LINES; never log this value. [backgroundTasks.ts]
+    background_tasks: z.unknown().optional()
   })
   .passthrough() // absorbs remaining prompt/tool_input fields without validating
 

@@ -194,9 +194,9 @@ describe('App — rename an existing session (session-naming A2)', () => {
       input?.dispatchEvent(new Event('input', { bubbles: true }))
     })
     act(() => {
-      r.container.querySelector('form')?.dispatchEvent(
-        new Event('submit', { bubbles: true, cancelable: true })
-      )
+      r.container
+        .querySelector('form')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
     await flush()
 
@@ -247,9 +247,9 @@ describe('App — rename an existing session (session-naming A2)', () => {
       input?.dispatchEvent(new Event('input', { bubbles: true }))
     })
     act(() => {
-      r.container.querySelector('form')?.dispatchEvent(
-        new Event('submit', { bubbles: true, cancelable: true })
-      )
+      r.container
+        .querySelector('form')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
     await flush()
 

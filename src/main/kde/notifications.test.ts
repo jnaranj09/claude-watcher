@@ -3,8 +3,9 @@
 // Inject a FAKE notificationFactory (the DI seam, AC-6) so NO real OS notification fires and
 // NO Electron import is loaded on the test path. Asserts:
 //   - AC-1: exactly ONE notification per `attention.raised` call (1:1, no extra debounce).
-//   - AC-3: title = "{sessionName} needs you"; body has projectPath (+ pendingToolName verbatim
-//     when present, absent when not) — UX-DR22 verbatim status word.
+//   - AC-3: the title names WHAT HAPPENED, per status (YourTurn / NeedsAttention /
+//     NeedsPermission / unknown) — never the board CATEGORY word "needs you"; body has
+//     projectPath (+ pendingToolName verbatim when present, absent when not) — UX-DR22.
 //   - AC-3/AC-7 PRIVACY: the constructed title/body contain NO pendingToolInput/firstPrompt/
 //     latestMessage content (the underlying session would carry those; they must not appear).
 //   - AC-4: activating the notification emits ONLY the FR-9 jump-to-card signal (the id) and
@@ -19,6 +20,7 @@ import {
   type NotificationLike,
   type NotificationOptions
 } from './notifications'
+import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import type { AttentionRaisedEvent } from '../../shared/ipc/contract'
 
 const FIXED_NOW = 1_750_000_000_000
@@ -91,7 +93,7 @@ describe('attention notifier — fires exactly once per attention.raised (AC-1)'
 })
 
 describe('attention notifier — content shape, verbatim status words (AC-3)', () => {
-  it('title = "{sessionName} needs you"; body has projectPath + pendingToolName VERBATIM', () => {
+  it('title names the status; body has projectPath + pendingToolName VERBATIM', () => {
     const fake = makeFakeFactory()
     const notifier = createAttentionNotifier({ notificationFactory: fake.factory })
     notifier.notify(
@@ -102,7 +104,7 @@ describe('attention notifier — content shape, verbatim status words (AC-3)', (
       })
     )
     const opts = fake.last()
-    expect(opts?.title).toBe('webapp needs you')
+    expect(opts?.title).toBe('webapp wants permission')
     expect(opts?.body).toContain('/p/webapp')
     // VERBATIM (UX-DR22): the status/tool word is shown as-is, never re-labeled.
     expect(opts?.body).toContain('NeedsPermission')
@@ -132,9 +134,48 @@ describe('attention notifier — content shape, verbatim status words (AC-3)', (
     const c = buildNotificationContent(
       raised({ sessionName: 's', projectPath: '/p', pendingToolName: 'Bash' })
     )
-    expect(c.title).toBe('s needs you')
+    expect(c.title).toBe('s wants permission')
     expect(c.body).toContain('/p')
     expect(c.body).toContain('Bash')
+  })
+})
+
+describe('attention notifier — the title names the STATUS, never the board category (AC-3)', () => {
+  // The `needs-you` COLUMN is an internal category name. A desktop notification is read by a
+  // human with no board in front of them, so the title must say what actually happened. The
+  // raise already carries the triggering `status` — this is the ONLY thing that varies.
+  const CASES: ReadonlyArray<{ status: string; title: string }> = [
+    { status: STATUS_YOUR_TURN, title: 'webapp · your turn' },
+    { status: 'NeedsAttention', title: 'webapp asked a question' },
+    { status: 'NeedsPermission', title: 'webapp wants permission' }
+  ]
+
+  for (const { status, title } of CASES) {
+    it(`status ${status} → title "${title}"`, () => {
+      expect(buildNotificationContent(raised({ sessionName: 'webapp', status })).title).toBe(title)
+    })
+  }
+
+  it('an UNKNOWN/new status still notifies, with the neutral title (status is NOT enum-locked)', () => {
+    // zod-boundaries.md: a brand-new claude status must classify, never fail closed. It reaches
+    // needs-you via fail-toward-attention, so it must still produce a sane human title.
+    const c = buildNotificationContent(raised({ sessionName: 'webapp', status: 'BrandNewStatus' }))
+    expect(c.title).toBe('webapp is waiting for you')
+  })
+
+  it('NO title ever carries the board category word or the raw status token', () => {
+    const fake = makeFakeFactory()
+    const notifier = createAttentionNotifier({ notificationFactory: fake.factory })
+    for (const status of [STATUS_YOUR_TURN, 'NeedsAttention', 'NeedsPermission', 'Whatever']) {
+      notifier.notify(raised({ sessionName: 'webapp', status }))
+      const title = fake.last()?.title ?? ''
+      expect(title.toLowerCase()).not.toContain('needs you')
+      expect(title.toLowerCase()).not.toContain('needs-you')
+      // The raw CamelCase status token belongs in the body (verbatim), never in the prose title.
+      expect(title).not.toContain(status)
+      // It still names the session.
+      expect(title).toContain('webapp')
+    }
   })
 })
 
@@ -158,7 +199,7 @@ describe('attention notifier — PRIVACY: never leaks pendingToolInput/firstProm
     expect(content).not.toContain(SECRET_FIRST_PROMPT)
     expect(content).not.toContain(SECRET_LATEST_MESSAGE)
     // And it still produced the legitimate, by-design content.
-    expect(opts?.title).toContain('needs you')
+    expect(opts?.title).toBe('webapp wants permission')
     expect(opts?.body).toContain('NeedsPermission')
   })
 })

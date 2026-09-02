@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act } from 'react'
 import { Board } from './Board'
-import { boardStore, HERO_SWAP_DEBOUNCE_MS } from '../../stores/boardStore'
+import { boardStore } from '../../stores/boardStore'
 import { renderComponent } from '../../test/renderComponent'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -37,16 +37,13 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-/** Reset the singleton store to a pristine pre-cold-load state (incl. the Story-1.5
- *  hero-debounce bookkeeping: committed hero back to the default 'working', no pending). */
+/** Reset the singleton store to a pristine pre-cold-load state. (No hero bookkeeping to
+ *  reset — the hero is a module constant, `HERO_COLUMN`, not store state.) */
 function resetStore(): void {
   boardStore.setState({
     sessionsById: {},
     epoch: 0,
     coldLoaded: false,
-    heroColumn: 'working',
-    heroPendingSince: null,
-    heroPendingTarget: null,
     selectedId: null
   })
 }
@@ -119,19 +116,6 @@ function updated(
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }
-}
-
-/** Commit a hero swap deterministically: the singleton store uses the real clock, so
- *  backdate the pending anchor past the debounce window and tick. After this the
- *  committed hero == target. */
-function commitHero(): void {
-  act(() => {
-    const since = boardStore.getState().heroPendingSince
-    if (since !== null) {
-      boardStore.setState({ heroPendingSince: since - (HERO_SWAP_DEBOUNCE_MS + 1) })
-    }
-    boardStore.getState().tickHero()
-  })
 }
 
 beforeEach(() => {
@@ -278,35 +262,40 @@ describe('Board — live three columns, one card per session, verbatim fields (A
   })
 })
 
-describe('Board — adaptive center-hero cascade (Story 1.5: AC-1, AC-2, AC-3)', () => {
-  it('default (only Working) → Working is the hero (prominent header + variant=hero cards + data-hero-accent=working)', () => {
+describe('Board — the PINNED center hero (Needs-you always holds the center slot)', () => {
+  it('ONLY Working sessions → Needs-you STILL holds the center (empty), Working is a flank', () => {
+    // The retired Story-1.5 cascade promoted Working to the center whenever nothing needed
+    // you. Now the center never moves: an empty gold column is the calm state.
     boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
 
     const grid = container.querySelector('[data-testid="column-grid"]')
-    expect(grid?.getAttribute('data-hero-column')).toBe('working')
+    expect(grid?.getAttribute('data-hero-column')).toBe('needs-you')
 
-    const heroCol = container.querySelector('[data-column="working"]')
+    const heroCol = container.querySelector('[data-column="needs-you"]')
     expect(heroCol?.getAttribute('data-hero')).toBe('true')
-    expect(heroCol?.getAttribute('data-hero-accent')).toBe('working')
-    // Hero header is prominent; hero card variant is 'hero' with the working accent.
+    expect(heroCol?.getAttribute('data-hero-accent')).toBe('needs-you')
     expect(heroCol?.querySelector('[data-prominent="true"]')).not.toBeNull()
-    const heroCard = heroCol?.querySelector('[data-variant="hero"]')
-    expect(heroCard).not.toBeNull()
-    expect(heroCard?.getAttribute('data-accent')).toBe('working')
+    // Empty, so it shows its calm hint rather than any card.
+    expect(heroCol?.querySelector('[data-testid="empty-hint"]')).not.toBeNull()
+
+    // Working did NOT take the center — it is a flank with calm, non-prominent chrome.
+    const workingCol = container.querySelector('[data-column="working"]')
+    expect(workingCol?.getAttribute('data-hero')).toBeNull()
+    expect(workingCol?.querySelector('[data-variant="calm"]')).not.toBeNull()
+    expect(workingCol?.querySelector('[data-prominent="false"]')).not.toBeNull()
 
     // Idle is a flank (right slot), never the hero.
     const idleCol = container.querySelector('[data-column="idle"]')
     expect(idleCol?.getAttribute('data-hero')).toBeNull()
   })
 
-  it('a committed Needs-you (≥1 past the debounce) → Needs-you is the hero (gold accent), Working recedes to a flank', () => {
+  it('a Needs-you session appears → the center is unchanged and now carries the gold hero card', () => {
     const st = boardStore.getState()
     st.applyWatchEvent(updated(1, 'w', 'working', 100))
     st.applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
-    // The swap is debounced — commit it deterministically.
-    commitHero()
+    // No debounce to wait out any more — the center was already Needs-you.
 
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
@@ -329,8 +318,8 @@ describe('Board — adaptive center-hero cascade (Story 1.5: AC-1, AC-2, AC-3)',
   })
 
   it('IDLE IS NEVER THE HERO — even when idle is the ONLY non-empty column (AC-2)', () => {
-    // Degenerate case: only idle sessions exist. The hero must NOT promote idle; Working
-    // takes the (empty/calm) center; idle stays the right flank.
+    // Degenerate case: only idle sessions exist. Idle stays the right flank; the pinned
+    // Needs-you center holds (empty).
     boardStore
       .getState()
       .applyWatchEvent(updated(1, 'i', 'idle', 300, { status: 'WaitingForInput' }))
@@ -338,13 +327,58 @@ describe('Board — adaptive center-hero cascade (Story 1.5: AC-1, AC-2, AC-3)',
     cleanup = unmount
 
     const grid = container.querySelector('[data-testid="column-grid"]')
-    expect(grid?.getAttribute('data-hero-column')).toBe('working') // NOT 'idle'
+    expect(grid?.getAttribute('data-hero-column')).toBe('needs-you') // NOT 'idle'
 
     const idleCol = container.querySelector('[data-column="idle"]')
     expect(idleCol?.getAttribute('data-hero')).toBeNull() // idle never carries the hero flag
-    // The hero center is Working (empty here → its empty hint), prominent.
+    // The hero center is Needs-you (empty here → its empty hint), prominent.
+    const needsYouCol = container.querySelector('[data-column="needs-you"]')
+    expect(needsYouCol?.getAttribute('data-hero')).toBe('true')
     const workingCol = container.querySelector('[data-column="working"]')
-    expect(workingCol?.getAttribute('data-hero')).toBe('true')
+    expect(workingCol?.getAttribute('data-hero')).toBeNull()
+  })
+
+  it('NO session population moves the center — every mix the old cascade flipped on', () => {
+    // The retired cascade put Working in the center whenever the needs-you count hit 0.
+    // Drive the board through each of those populations and assert the center never moves.
+    // (This is the non-vacuous half of the pin: it renders real state, not the constant.)
+    const populations: ReadonlyArray<{ label: string; apply: () => void }> = [
+      { label: 'working only', apply: () => applyDelta(updated(1, 'w', 'working', 100)) },
+      {
+        label: '+ idle',
+        apply: () => applyDelta(updated(2, 'i', 'idle', 300, { status: 'WaitingForInput' }))
+      },
+      {
+        label: '+ needs-you',
+        apply: () => applyDelta(updated(3, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+      },
+      {
+        label: 'needs-you emptied again',
+        apply: () =>
+          applyDelta({
+            epoch: 4,
+            event: {
+              type: 'session.removed',
+              id: 'n',
+              sessionName: 's-n',
+              projectPath: '/p/n'
+            }
+          })
+      }
+    ]
+
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    for (const { label, apply } of populations) {
+      apply()
+      const grid = container.querySelector('[data-testid="column-grid"]')
+      expect(grid?.getAttribute('data-hero-column'), label).toBe('needs-you')
+      // …and the slot ORDER itself never re-orders: working · needs-you · idle.
+      const order = [...container.querySelectorAll('[data-column]')].map((el) =>
+        el.getAttribute('data-column')
+      )
+      expect(order, label).toEqual(['working', 'needs-you', 'idle'])
+    }
   })
 
   it('all three columns ALWAYS render (with their 1.4 empty-state) regardless of the hero', () => {
@@ -375,25 +409,33 @@ describe('Board — adaptive center-hero cascade (Story 1.5: AC-1, AC-2, AC-3)',
   })
 })
 
-describe('Board — reduced-motion fallback (Story 1.5: AC-6, source-assert)', () => {
-  it('the Board CSS module defines the compositor-only swap transition AND the reduced-motion fallback', () => {
-    // jsdom does not run real CSS animation → assert against the module SOURCE (mirrors
-    // emphasis.test.tsx). The swap eases ONLY compositor props (transform/opacity) and the
-    // reduced-motion media query drops the transition (instant reposition).
+describe('Board — the grid track sizes + NO motion (source-assert)', () => {
+  it('the center hero is wider than a flank, but by a modest margin — and nothing animates', () => {
+    // jsdom applies no CSS module styles → assert against the module SOURCE (mirrors
+    // emphasis.test.tsx). Two things are pinned here:
+    //   1. the hero/flank RATIO — the center leads without dwarfing the flanks;
+    //   2. the absence of the retired swap motion — with the hero pinned, a column never
+    //      changes slot, so a transition (and its reduced-motion opt-out) would be dead CSS.
+    // Strip /* … */ comments first: the file EXPLAINS the removed motion in prose, and a
+    // naive substring match would hit the explanation instead of a real declaration.
     const css = readFileSync(
       resolve(process.cwd(), 'src/renderer/src/components/board/Board.module.css'),
       'utf8'
-    )
-    // Compositor-only settle: transition on transform + opacity (NOT layout props / fr widths).
-    expect(css).toMatch(/transition:\s*[\s\S]*transform/)
-    expect(css).toMatch(/transition:\s*[\s\S]*opacity/)
-    // The adaptive hero grid template (UX-DR7).
-    expect(css).toContain('0.66fr 1.25fr 0.66fr')
-    // The accessibility floor: reduced-motion drops the swap transition.
-    expect(css).toContain('@media (prefers-reduced-motion: reduce)')
-    expect(css).toMatch(/transition:\s*none/)
-    // Property discipline: the swap must NOT animate layout-thrashing props.
-    expect(css).not.toMatch(/transition:[^;]*\b(top|left|margin|height|width)\b/)
+    ).replace(/\/\*[\s\S]*?\*\//g, '')
+    const tracks = /grid-template-columns:\s*([\d.]+)fr\s+([\d.]+)fr\s+([\d.]+)fr/.exec(css)
+    expect(tracks).not.toBeNull()
+    const [left, center, right] = [Number(tracks?.[1]), Number(tracks?.[2]), Number(tracks?.[3])]
+    // Symmetric flanks; the hero is the widest track (it is still the hero).
+    expect(left).toBe(right)
+    expect(center).toBeGreaterThan(left)
+    // …but no longer ~2x a flank (it was 1.25 vs 0.66 = 1.89x). Keep it under 1.7x so the
+    // flanks stay comfortably readable — this is the assertion the size request pinned.
+    expect(center / left).toBeLessThan(1.7)
+    // No motion left: the pinned hero never moves, so no transition and no reduced-motion
+    // opt-out for one. (Restore BOTH together if the swap ever comes back.)
+    expect(css).not.toMatch(/transition:/)
+    expect(css).not.toContain('@media (prefers-reduced-motion: reduce)')
+    expect(css).not.toContain('will-change')
   })
 })
 

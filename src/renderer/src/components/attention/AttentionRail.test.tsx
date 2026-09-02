@@ -458,15 +458,74 @@ describe('AttentionRail — the active row is NOT a control', () => {
       // draw — a radius bites INTO the box, and this bulges out of it. The `::before` / `::after`
       // flares below own that shape; a right-hand radius here would fight them.
       expect(block).toMatch(/border-radius:\s*var\(--rounded-md\) 0 0 var\(--rounded-md\)/)
+      // ...and the right edge stays OPEN on both, so the tab runs off toward the terminal instead
+      // of closing into a box. `.startingRow`'s own `border: 1px solid transparent` shorthand is
+      // defined after `.active` and wins at equal specificity, so that row has to restate this —
+      // the 1px it costs is invisible (transparent, with the fill painting under it) but it
+      // narrows the content box, which knocks the collapsed glyph out of the column of circles.
+      expect(block).toMatch(/border-right-width:\s*0/)
     }
     // `.rowWrap` is `display: flex`, so the row is a FLEX ITEM and the default `flex-shrink: 1`
     // silently undoes the width above — the row rendered 8px short of the rail edge, still
     // floating. The width and the shrink guard are ONE fix; neither is meaningful alone.
     expect(/^\.active\s*\{([^}]*)/m.exec(css)?.[1] ?? '').toMatch(/flex-shrink:\s*0/)
-    // ...and the tab is EXPANDED-only: a collapsed row is a centred square, so the squared corners
-    // are reset there. Without this the collapsed rail shows a square pointing at a gutter.
-    expect(css).toMatch(
-      /\.collapsed \.row\.active,\s*\.collapsed \.startingRow\.active\s*\{[^}]*border-radius:\s*var\(--rounded-md\)\s*;/s
+    // ...and the COLLAPSED rail cuts the same tab, at square scale. It used to opt out — a centred
+    // square with the squared corners reset — which was right while the tab merely ended at the
+    // rail's edge, and wrong once it became a break in the wall: the wall is drawn in both states.
+    // A plain `border-radius: var(--rounded-md)` here is the old reset coming back.
+    const collapsedTab =
+      /\.collapsed \.row\.active,\s*\.collapsed \.startingRow\.active\s*\{([^}]*)\}/s.exec(
+        css
+      )?.[1] ?? ''
+    expect(collapsedTab, 'the collapsed active rule must exist').not.toBe('')
+    expect(collapsedTab).toMatch(/border-radius:\s*var\(--rounded-md\) 0 0 var\(--rounded-md\)/)
+  })
+
+  // COLLAPSED TAB GEOMETRY — three declarations that only work as a set, in two different rules.
+  // Each is individually deletable-looking, and dropping any one of them leaves the tab visibly
+  // wrong rather than broken: no stretch and the tab centres itself mid-rail; no negative margin
+  // and the wall runs unbroken across it; no right padding and the dot slides out of the column.
+  it('grows the collapsed square rightward ONTO the wall, and keeps the dot in the column', () => {
+    const css = readCss('./AttentionRail.module.css')
+
+    const rule = (selector: RegExp): string => selector.exec(css)?.[1] ?? ''
+    const tab = rule(
+      /\.collapsed \.row\.active,\s*\.collapsed \.startingRow\.active\s*\{([^}]*)\}/s
+    )
+
+    // The tab spans from the square's left edge to 1px past the rail's content edge — that last
+    // pixel IS the wall, which is how the line breaks. Both halves are needed: the width alone
+    // stops at the content edge, and `margin-right` alone would just shift the box.
+    expect(tab).toMatch(/width:\s*calc\(100% - var\(--rail-tab-inset\) \+ 1px\)/)
+    expect(tab).toMatch(/margin-right:\s*-1px/)
+    // ...placed by the leftover space rather than by a second copy of the centring arithmetic.
+    expect(tab).toMatch(/margin-left:\s*auto/)
+    // ...which only exists because the ITEM stops shrink-wrapping the row (a shrink-wrapped item
+    // would centre the tab in the rail, wall or no wall).
+    expect(rule(/\.collapsed \.listItem:has\(\.active\)\s*\{([^}]*)\}/s)).toMatch(
+      /align-self:\s*stretch/
+    )
+
+    // The dot stays in the column: the tab hands back everything it swallowed — the gutter, the
+    // wall's 1px, and the 1px right border `.active` drops — as right padding, so `justify-content:
+    // center` still centres over the 44px the square occupied.
+    expect(tab).toMatch(/padding-right:\s*calc\(var\(--rail-tab-inset\) \+ 2px\)/)
+    expect(rule(/^\.collapsed \.row\s*\{([^}]*)\}/ms)).toMatch(/justify-content:\s*center/)
+
+    // The inset is DERIVED from the rail's own width, never typed in twice.
+    expect(rule(/^\.rail\.collapsed\s*\{([^}]*)\}/ms)).toMatch(
+      /--rail-tab-inset:\s*calc\(\(var\(--rail-width-collapsed\) - 1px - 44px\) \/ 2\)/
+    )
+
+    // ONE LINE, ONE COLOUR across the join. The tab's top and bottom borders are continued by the
+    // shoulders and run into the wall, and both of those are `--border` — but a collapsed row
+    // normally paints all four sides in its STATUS colour, so without these the arc would change
+    // colour halfway round the curve. The status rule and this one tie at 0-3-0, which makes the
+    // fix a source-order one: moving this rule above them puts the mismatch straight back.
+    expect(tab).toMatch(/border-top-color:\s*var\(--border\)/)
+    expect(tab).toMatch(/border-bottom-color:\s*var\(--border\)/)
+    expect(css.indexOf(".collapsed .row[data-status='needs-you']")).toBeLessThan(
+      css.indexOf('.collapsed .row.active,')
     )
   })
 
@@ -825,13 +884,20 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
   /** The rail's own right border, which eats into the content box. */
   const RAIL_BORDER_PX = 1
 
-  /** Widest square any `.collapsed` row rule declares — the one that gets clipped if the rail is
-   *  sized to exactly fit. Swept rather than named so a new widest state cannot slip past. */
+  /** Widest CENTRED square any `.collapsed` row rule declares — the one that gets clipped if the
+   *  rail is sized to exactly fit. Swept rather than named so a new widest state cannot slip past.
+   *
+   *  `.active` rules are skipped on purpose, and it is the one exception: that row is not a centred
+   *  square any more but a tab that grows rightward ONTO the wall, so it is SUPPOSED to end past the
+   *  content edge. Seating it would mean shrinking it back inside the rail. Its own geometry is
+   *  pinned by "grows the collapsed square rightward ONTO the wall" above. */
   const widestCollapsedSquare = (rail: string): number =>
     Math.max(
-      ...[...rail.matchAll(/\.collapsed [^{}]*\{([^}]*)\}/g)].flatMap((m) =>
-        [...(m[1] ?? '').matchAll(/^\s*width:\s*(\d+)px/gm)].map((w) => Number(w[1]))
-      )
+      ...[...rail.matchAll(/(\.collapsed [^{}]*)\{([^}]*)\}/g)]
+        .filter((m) => !(m[1] ?? '').includes('.active'))
+        .flatMap((m) =>
+          [...(m[2] ?? '').matchAll(/^\s*width:\s*(\d+)px/gm)].map((w) => Number(w[1]))
+        )
     )
 
   it('seats the row square with room to spare on both sides', () => {
@@ -839,9 +905,8 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
     const rail = readCss('./AttentionRail.module.css')
 
     const collapsedWidth = px(/--rail-width-collapsed:\s*([\d.]+px)/.exec(tokens)?.[1])
-    // The WIDEST collapsed square, whichever rule declares it — not a named selector. The active
-    // row is currently the widest; hardcoding `.collapsed .row` here would stop watching the one
-    // that actually risks being clipped the moment those two swap.
+    // The WIDEST collapsed square, whichever rule declares it — not a named selector, so a new
+    // widest state cannot slip past by being written in a rule nobody thought to add here.
     const squareWidth = widestCollapsedSquare(rail)
 
     expect(collapsedWidth).toBeGreaterThan(0)
@@ -858,10 +923,9 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
     const rail = readCss('./AttentionRail.module.css')
 
     const collapsedWidth = px(/--rail-width-collapsed:\s*([\d.]+px)/.exec(tokens)?.[1])
-    // The WIDEST collapsed square, whichever rule declares it — not a named selector. The active
-    // row is currently the widest; hardcoding `.collapsed .row` here would stop watching the one
-    // that actually risks being clipped the moment those two swap.
     const squareWidth = widestCollapsedSquare(rail)
+    // The gutter is not just breathing room now — it is where the active tab grows FROM, so the
+    // `--rail-tab-inset` above is this same number for the 44px square.
     const gutter = (collapsedWidth - RAIL_BORDER_PX - squareWidth) / 2
 
     expect(gutter).toBeGreaterThanOrEqual(4)

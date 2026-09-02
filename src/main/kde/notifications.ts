@@ -27,6 +27,7 @@
 // notification, no Electron import on the test path.
 // [Source: story 2.2 Tasks 2/3; AC-1/3/4/6/7; FROZEN F1/F2; .claude/rules/{zod-boundaries,ipc}.md]
 import { Notification } from 'electron'
+import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import type { AttentionRaisedEvent } from '../../shared/ipc/contract'
 
 /**
@@ -99,9 +100,41 @@ export const electronNotificationFactory: NotificationFactory = (opts) => {
 }
 
 /**
+ * The TITLE line per triggering status.
+ *
+ * `needs-you` is the board COLUMN name — an internal category, not a sentence to say to a
+ * human. The notification is read away from the board (often on a phone-sized popup with no
+ * card in sight), so it must name WHAT HAPPENED, and every needs-you status has a different
+ * answer. The raise already carries the triggering `status`, so nothing extra is plumbed.
+ *
+ * `status` is NOT enum-locked (`.claude/rules/zod-boundaries.md`) — a brand-new claude status
+ * reaches needs-you through the classifier's fail-toward-attention branch, so the `default`
+ * arm is a REAL path, not dead code: it must still produce a sane human line.
+ *
+ * The prose lives here, in the title only. The BODY keeps showing `pendingToolName` VERBATIM
+ * (UX-DR22) — this re-labels nothing the operator reads as a status word.
+ */
+function titleForStatus(sessionName: string, status: string): string {
+  switch (status) {
+    case STATUS_YOUR_TURN:
+      // Claude finished its turn without a question — the operator simply has the floor.
+      return `${sessionName} · your turn`
+    case 'NeedsAttention':
+      // A Stop ending in a prose question, or a blocking AskUserQuestion tool call.
+      return `${sessionName} asked a question`
+    case 'NeedsPermission':
+      // A Notification(permission_prompt) — claude is blocked on an allow/deny.
+      return `${sessionName} wants permission`
+    default:
+      return `${sessionName} is waiting for you`
+  }
+}
+
+/**
  * Build the notification CONTENT from the frozen `AttentionRaisedEvent` (AC-3). Read ONLY
- * the union's fields — title names the session, body is `projectPath` + (when present)
- * `pendingToolName` VERBATIM (UX-DR22: never re-label a status word). NEVER reach for
+ * the union's fields — title names the session + what happened (per `status`, see
+ * `titleForStatus`), body is `projectPath` + (when present) `pendingToolName` VERBATIM
+ * (UX-DR22: never re-label a status word). NEVER reach for
  * `pendingToolInput`/`firstPrompt`/`latestMessage` — they are not on the shape (privacy).
  * Exported for the content/privacy unit test.
  */
@@ -109,7 +142,7 @@ export function buildNotificationContent(raised: AttentionRaisedEvent): {
   title: string
   body: string
 } {
-  const title = `${raised.sessionName} needs you`
+  const title = titleForStatus(raised.sessionName, raised.status)
   // Body = projectPath, plus the pending tool name verbatim when c9watch reported one.
   // (Status words are shown verbatim, never re-labeled — UX-DR22.) Guard on a NON-EMPTY
   // value, not just `!== undefined`: c9watch's `pendingToolName` is `z.string().optional()`

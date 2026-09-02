@@ -3,13 +3,32 @@ productName: Claude Watcher
 executableName: claude-watcher
 directories:
   buildResources: build
+# ALLOWLIST — only what the app needs at RUNTIME goes into app.asar.
+#
+# This REPLACES the electron-vite scaffold's denylist, which shipped the WHOLE repo inside
+# the package: `!src/*` excludes only src's DIRECT children (not `src/main/**`), and nothing
+# excluded `docs/`, `.claude/` (rules + the full BMAD skill set), `tests/`, `_bmad/`,
+# `_bmad-output/`, `test-results/` or `eslint-rules/`. The result was 491 non-node_modules
+# entries of internal notes riding in a shipped artifact.
+#
+# An allowlist is the right shape here: a NEW repo directory is excluded by DEFAULT and
+# cannot silently start shipping. Anything the app loads at runtime must be listed below.
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # The electron-vite build output — main, preload, renderer. `main` in package.json points
+  # at ./out/main/index.js, so this is the app.
+  - out/**
+  # Runtime assets read from disk at startup (the tray icons + app icon).
+  - resources/**
+  # Electron reads `main`, `name`, `version` out of this at boot.
+  - package.json
+  # Production dependencies. electron-builder resolves WHICH modules from the dependency
+  # tree; the negations below only trim dead weight INSIDE the ones it picked.
+  - node_modules/**
+  # Each dependency's OWN tests/examples/docs + TypeScript sources and sourcemaps. None are
+  # loaded at runtime (node-pty and zod alone shipped dozens of *.test.ts files).
+  - '!node_modules/**/{test,tests,__tests__,example,examples,doc,docs}/**'
+  - '!node_modules/**/*.{test,spec}.{js,ts,mjs,cjs}'
+  - '!node_modules/**/*.{ts,map}'
 asarUnpack:
   - resources/**
   # AC-5 / Guardrail #4: native binaries (node-pty's pty.node) must be reachable
