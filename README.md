@@ -60,6 +60,26 @@ the template (each is omitted when set to _Default_). Templates live in
 `claude-watcher-templates.json` under the app's data dir; a corrupt file is backed up
 as `*.corrupt-<timestamp>.json` and the list starts empty.
 
+## Phrase shortcuts
+
+Map a chord to a phrase and type it into the focused session with one keypress — handy for the
+lines you repeat all day ("I explicitly approve", "continue", "run the tests and report back").
+
+Open the `⌨` button in the header to manage them: **Name**, **Keybinding**, **Phrase**.
+
+- **Chords are `Ctrl+Shift+<letter>`.** That range is safe to take: a terminal cannot send
+  `Ctrl+Shift+A` distinctly from `Ctrl+A`, so `claude` never binds it and the shortcut costs the
+  agent nothing.
+- **`N`, `Q`, `W`, `I`, `J`, `C` and `R` are reserved** — the app (new session / quit / stop) and
+  the Electron and Chromium defaults (DevTools, reload) already answer to them.
+- **The phrase is typed, not sent.** You press `Enter` yourself, so a shortcut can never confirm
+  a permission prompt you did not read. Phrases cannot contain newlines or escape sequences.
+- Shortcuts fire **only while a session terminal is focused** — never on the board, and never
+  system-wide.
+
+They live in `claude-watcher-shortcuts.json` in the app's data directory. If that file is ever
+corrupt it is backed up beside itself and the list starts empty; nothing else is affected.
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
