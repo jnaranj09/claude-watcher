@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   EMPTY_SHORTCUTS_FILE,
+  shortcutKeysId,
   SHORTCUTS_FILE_VERSION,
   ShortcutsFileSchema,
   type Shortcut,
@@ -32,7 +33,8 @@ export interface ShortcutsStoreOptions {
 }
 
 export interface ShortcutsStore {
-  /** Sorted by chord — the table's scan column (uniqueness is on the chord, not the name). */
+  /** Sorted by the canonical sequence id — the table's scan column (uniqueness is on the full
+   *  chord sequence, not the name). */
   list(): Shortcut[]
   get(id: string): Shortcut | null
   /** No id ⇒ create; id ⇒ update. Throws SHORTCUT_ERROR.notFound / keysTaken. Trusts its typed
@@ -91,9 +93,12 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     return list()
   }
 
-  function isKeysTaken(keys: string, ownId: string): boolean {
+  /** Uniqueness is on the FULL sequence. A PREFIX has a different canonical id, so a prefix and
+   *  the sequence it prefixes coexist by construction — the operator's explicit requirement. */
+  function isKeysTaken(keys: readonly string[], ownId: string): boolean {
+    const id = shortcutKeysId(keys)
     for (const other of byId.values()) {
-      if (other.id !== ownId && other.keys === keys) return true
+      if (other.id !== ownId && shortcutKeysId(other.keys) === id) return true
     }
     return false
   }
@@ -101,6 +106,10 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
   return { list, get, save, remove }
 }
 
+/** Sorted by the canonical sequence id — the table's scan column. A prefix sorts immediately
+ *  before its extensions, which is the right reading order. */
 function byKeys(a: Shortcut, b: Shortcut): number {
-  return a.keys.localeCompare(b.keys, undefined, { sensitivity: 'base' })
+  return shortcutKeysId(a.keys).localeCompare(shortcutKeysId(b.keys), undefined, {
+    sensitivity: 'base'
+  })
 }

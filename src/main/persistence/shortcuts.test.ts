@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createShortcutsStore, SHORTCUT_ERROR, type ShortcutsBlobStore } from './shortcuts'
-import { type ShortcutsFile } from '../../shared/schemas/shortcut'
+import { shortcutKeysId, type ShortcutsFile } from '../../shared/schemas/shortcut'
 
 function fakeBlobStore(initial?: unknown): ShortcutsBlobStore & {
   written: ShortcutsFile[]
@@ -19,8 +19,8 @@ function fakeBlobStore(initial?: unknown): ShortcutsBlobStore & {
   }
 }
 
-const A = { name: 'approve', keys: 'Ctrl+Shift+A', text: 'I explicitly approve' }
-const B = { name: 'go on', keys: 'Ctrl+Shift+G', text: 'continue' }
+const A = { name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve' }
+const B = { name: 'go on', keys: ['Ctrl+Alt+G'], text: 'continue' }
 
 function idSeq(): () => string {
   let n = 0
@@ -58,7 +58,7 @@ describe('createShortcutsStore', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     store.save(A)
     expect(() => store.save(B)).not.toThrow()
-    expect(() => store.save({ ...B, name: 'dup', keys: 'Ctrl+Shift+A' })).toThrow(
+    expect(() => store.save({ ...B, name: 'dup', keys: ['Ctrl+Alt+A'] })).toThrow(
       SHORTCUT_ERROR.keysTaken
     )
   })
@@ -77,9 +77,40 @@ describe('createShortcutsStore', () => {
 
   it('lists sorted by chord', () => {
     const store = createShortcutsStore({ newId: idSeq() })
-    store.save(B) // Ctrl+Shift+G
-    store.save(A) // Ctrl+Shift+A
-    expect(store.list().map((s) => s.keys)).toEqual(['Ctrl+Shift+A', 'Ctrl+Shift+G'])
+    store.save(B) // Ctrl+Alt+G
+    store.save(A) // Ctrl+Alt+A
+    expect(store.list().map((s) => shortcutKeysId(s.keys))).toEqual(['Ctrl+Alt+A', 'Ctrl+Alt+G'])
+  })
+
+  it('throws keys_taken for a duplicate FULL sequence', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    store.save({ name: 'one', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'first' })
+    expect(() =>
+      store.save({ name: 'two', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'second' })
+    ).toThrow(SHORTCUT_ERROR.keysTaken)
+  })
+
+  // The operator's explicit requirement: a prefix and its extension are DIFFERENT bindings and
+  // must coexist. Making isKeysTaken compare prefixes must turn this red.
+  it('lets a PREFIX coexist with the sequence it prefixes', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    store.save({ name: 'long', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'long phrase' })
+    expect(() =>
+      store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short phrase' })
+    ).not.toThrow()
+    expect(store.list()).toHaveLength(2)
+  })
+
+  it('sorts by the canonical sequence id, so a prefix sorts before its extensions', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    store.save({ name: 'long', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'long' })
+    store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short' })
+    store.save({ name: 'other', keys: ['Ctrl+Alt+B'], text: 'other' })
+    expect(store.list().map((s) => shortcutKeysId(s.keys))).toEqual([
+      'Ctrl+Alt+B',
+      'Ctrl+Alt+O',
+      'Ctrl+Alt+O Ctrl+Alt+A'
+    ])
   })
 
   it('remove is idempotent for an unknown id', () => {
@@ -90,14 +121,14 @@ describe('createShortcutsStore', () => {
   })
 
   it('hydrates from a healthy file', () => {
-    const file = { version: 1, shortcuts: [{ id: 'sc-9', ...A }] }
+    const file = { version: 2, shortcuts: [{ id: 'sc-9', ...A }] }
     const store = createShortcutsStore({ blobStore: fakeBlobStore(file), newId: idSeq() })
     expect(store.get('sc-9')).toEqual({ id: 'sc-9', ...A })
   })
 
   it('backs up + resets to empty on a corrupt file, logging a CODE only', () => {
     const log = vi.fn()
-    const blob = fakeBlobStore({ version: 1, shortcuts: [{ id: 'x', keys: 'nope' }] })
+    const blob = fakeBlobStore({ version: 2, shortcuts: [{ id: 'x', keys: ['nope'] }] })
     const store = createShortcutsStore({ blobStore: blob, log, newId: idSeq() })
     expect(store.list()).toEqual([])
     expect(blob.backups).toBe(1)
@@ -124,7 +155,7 @@ describe('createShortcutsStore', () => {
   it('NEVER logs a shortcut value (name or text) on any path', () => {
     const log = vi.fn()
     const blob = fakeBlobStore({
-      version: 1,
+      version: 2,
       shortcuts: [{ id: 'x', name: 'SECRETNAME', text: 'SECRETTEXT' }]
     })
     createShortcutsStore({ blobStore: blob, log, newId: idSeq() })

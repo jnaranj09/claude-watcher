@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createShortcutsIpcHandlers } from './shortcutsIpc'
 import { createShortcutsStore } from './shortcuts'
 
-const A = { name: 'approve', keys: 'Ctrl+Shift+A', text: 'I explicitly approve' }
+const A = { name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve' }
 
 function handlers(): ReturnType<typeof createShortcutsIpcHandlers> {
   let n = 0
@@ -23,9 +23,12 @@ describe('shortcuts IPC handlers — parse-and-throw on untrusted args', () => {
 
   it.each([
     ['a non-object', 'nope'],
-    ['a missing field', { name: 'x', keys: 'Ctrl+Shift+A' }],
-    ['an illegal chord', { ...A, keys: 'Ctrl+A' }],
-    ['a reserved chord', { ...A, keys: 'Ctrl+Shift+N' }],
+    ['a missing field', { name: 'x', keys: ['Ctrl+Alt+A'] }],
+    ['an illegal chord', { ...A, keys: ['Ctrl+A'] }],
+    ['the old Ctrl+Shift namespace', { ...A, keys: ['Ctrl+Shift+N'] }],
+    ['keys as a bare string', { ...A, keys: 'Ctrl+Alt+A' }],
+    ['an empty sequence', { ...A, keys: [] }],
+    ['four chords', { ...A, keys: ['Ctrl+Alt+A', 'Ctrl+Alt+B', 'Ctrl+Alt+C', 'Ctrl+Alt+D'] }],
     ['a submitting phrase', { ...A, text: 'yes\r' }]
   ])('save throws on %s and does not mutate', (_label, raw) => {
     const h = handlers()
