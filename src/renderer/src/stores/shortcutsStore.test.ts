@@ -8,7 +8,7 @@ import {
   selectShortcutsLoaded
 } from './shortcutsStore'
 
-const A = { id: 'sc-1', name: 'approve', keys: 'Ctrl+Shift+A', text: 'I explicitly approve' }
+const A = { id: 'sc-1', name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve' }
 
 beforeEach(() => {
   shortcutsStore.setState({ shortcuts: [], loaded: false })
@@ -51,7 +51,7 @@ describe('shortcutsStore', () => {
 
   it('RETHROWS a save failure so the form can render the error code', async () => {
     fakeBridge({ save: vi.fn(() => Promise.reject(new Error('shortcut_keys_taken'))) })
-    await expect(saveShortcut({ name: 'x', keys: 'Ctrl+Shift+A', text: 'y' })).rejects.toThrow(
+    await expect(saveShortcut({ name: 'x', keys: ['Ctrl+Alt+A'], text: 'y' })).rejects.toThrow(
       'shortcut_keys_taken'
     )
   })

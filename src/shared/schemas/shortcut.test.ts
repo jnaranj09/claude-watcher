@@ -72,7 +72,9 @@ describe('ShortcutKeysSchema — a 1..3 chord sequence in the Ctrl+Alt namespace
   it.each([['N'], ['Q'], ['W'], ['I'], ['J'], ['C'], ['R']])(
     'accepts the formerly reserved letter %s',
     (letter) => {
-      expect(ShortcutSchema.safeParse({ ...VALID, keys: [`Ctrl+Alt+${letter}`] }).success).toBe(true)
+      expect(ShortcutSchema.safeParse({ ...VALID, keys: [`Ctrl+Alt+${letter}`] }).success).toBe(
+        true
+      )
     }
   )
 
