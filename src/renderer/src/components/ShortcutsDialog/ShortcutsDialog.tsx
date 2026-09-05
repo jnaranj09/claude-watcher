@@ -140,7 +140,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
           ))}
           {shortcuts.length === 0 && editingId !== NEW_ROW && (
             <span className={styles.empty} data-testid="shortcuts-empty">
-              No shortcuts yet. Add one to type a phrase with Ctrl+Shift+&lt;letter&gt;.
+              No shortcuts yet. Add one to type a phrase with Ctrl+Alt+&lt;letter&gt;.
             </span>
           )}
         </div>

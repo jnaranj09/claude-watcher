@@ -2,95 +2,108 @@ import { describe, it, expect } from 'vitest'
 import {
   emptyDraft,
   toDraft,
-  chordFromEvent,
-  chordProblem,
   draftToSaveRequest,
   isDraftDirty,
   shortcutErrorCode
 } from './shortcutForm'
 
-const SC = { id: 'sc-1', name: 'approve', keys: 'Ctrl+Shift+A', text: 'I explicitly approve' }
-
-function ev(init: Partial<KeyboardEvent> & { key: string }): KeyboardEvent {
-  return {
-    ctrlKey: false,
-    shiftKey: false,
-    altKey: false,
-    metaKey: false,
-    isComposing: false,
-    ...init
-  } as unknown as KeyboardEvent
+const SC = {
+  id: 'sc-1',
+  name: 'approve',
+  keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+  text: 'I explicitly approve'
 }
 
-describe('chordFromEvent', () => {
-  it('canonicalizes a Ctrl+Shift letter regardless of reported case', () => {
-    expect(chordFromEvent(ev({ key: 'A', ctrlKey: true, shiftKey: true }))).toBe('Ctrl+Shift+A')
-    expect(chordFromEvent(ev({ key: 'a', ctrlKey: true, shiftKey: true }))).toBe('Ctrl+Shift+A')
+// NOTE: the chordFromEvent / chordProblem tables that used to live here moved to
+// src/renderer/src/shortcuts/chord.test.ts — chord parsing is now ONE shared function used by
+// both the recorder and the terminal matcher, and there is no reserved-letter problem any more.
+
+describe('emptyDraft / toDraft', () => {
+  it('starts with an empty sequence and no id', () => {
+    expect(emptyDraft().keys).toEqual([])
+    expect(emptyDraft().id).toBeNull()
   })
 
-  it.each([
-    ['no modifiers', { key: 'A' }],
-    ['ctrl only', { key: 'A', ctrlKey: true }],
-    ['shift only', { key: 'A', shiftKey: true }],
-    ['with alt', { key: 'A', ctrlKey: true, shiftKey: true, altKey: true }],
-    ['with meta', { key: 'A', ctrlKey: true, shiftKey: true, metaKey: true }],
-    ['a digit', { key: '!', ctrlKey: true, shiftKey: true }],
-    ['a named key', { key: 'Enter', ctrlKey: true, shiftKey: true }],
-    ['a lone modifier', { key: 'Shift', ctrlKey: true, shiftKey: true }],
-    ['a composing key', { key: 'A', ctrlKey: true, shiftKey: true, isComposing: true }]
-  ])('returns null for %s', (_label, init) => {
-    expect(chordFromEvent(ev(init as Partial<KeyboardEvent> & { key: string }))).toBeNull()
+  it('round-trips a shortcut', () => {
+    expect(toDraft(SC)).toEqual({ id: 'sc-1', name: SC.name, keys: SC.keys, text: SC.text })
   })
-})
 
-describe('chordProblem', () => {
-  it('accepts a legal chord', () => {
-    expect(chordProblem('Ctrl+Shift+A')).toBeNull()
-  })
-  it('flags a reserved letter by name', () => {
-    expect(chordProblem('Ctrl+Shift+N')).toBe('reserved')
-  })
-  it('flags a malformed chord', () => {
-    expect(chordProblem('Ctrl+A')).toBe('shape')
-    expect(chordProblem('')).toBe('shape')
+  it('copies the sequence rather than aliasing it', () => {
+    const draft = toDraft(SC)
+    expect(draft.keys).toEqual(['Ctrl+Alt+O', 'Ctrl+Alt+A'])
+    expect(draft.keys).not.toBe(SC.keys)
   })
 })
 
 describe('draftToSaveRequest', () => {
   it('builds a create request when the draft has no id', () => {
-    const r = draftToSaveRequest({ id: null, name: 'approve', keys: 'Ctrl+Shift+A', text: 'yes' })
+    const r = draftToSaveRequest({ id: null, name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
     expect(r.ok).toBe(true)
-    if (r.ok) expect(r.req).toEqual({ name: 'approve', keys: 'Ctrl+Shift+A', text: 'yes' })
+    if (r.ok) expect(r.req).toEqual({ name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
   })
 
   it('includes the id when updating', () => {
-    const r = draftToSaveRequest({ id: 'sc-1', name: 'approve', keys: 'Ctrl+Shift+A', text: 'yes' })
+    const r = draftToSaveRequest({ id: 'sc-1', name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.req.id).toBe('sc-1')
   })
 
+  it('accepts a 2-chord sequence', () => {
+    const r = draftToSaveRequest({
+      id: null,
+      name: 'n',
+      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+      text: 't'
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.req.keys).toEqual(['Ctrl+Alt+O', 'Ctrl+Alt+A'])
+  })
+
+  it('accepts a formerly reserved letter', () => {
+    expect(draftToSaveRequest({ id: null, name: 'n', keys: ['Ctrl+Alt+N'], text: 't' }).ok).toBe(
+      true
+    )
+  })
+
   it.each([
-    ['a blank name', { id: null, name: '  ', keys: 'Ctrl+Shift+A', text: 'yes' }],
-    ['a blank phrase', { id: null, name: 'x', keys: 'Ctrl+Shift+A', text: '' }],
-    ['a reserved chord', { id: null, name: 'x', keys: 'Ctrl+Shift+N', text: 'yes' }],
-    ['a malformed chord', { id: null, name: 'x', keys: 'Ctrl+A', text: 'yes' }],
-    ['a submitting phrase', { id: null, name: 'x', keys: 'Ctrl+Shift+A', text: 'yes\r' }]
+    ['a blank name', { id: null, name: '  ', keys: ['Ctrl+Alt+A'], text: 'yes' }],
+    ['a blank phrase', { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: '' }],
+    ['an empty sequence', { id: null, name: 'x', keys: [], text: 'yes' }],
+    [
+      'four chords',
+      {
+        id: null,
+        name: 'x',
+        keys: ['Ctrl+Alt+A', 'Ctrl+Alt+B', 'Ctrl+Alt+C', 'Ctrl+Alt+D'],
+        text: 'yes'
+      }
+    ],
+    ['the old Ctrl+Shift namespace', { id: null, name: 'x', keys: ['Ctrl+Shift+A'], text: 'yes' }],
+    ['a malformed chord', { id: null, name: 'x', keys: ['Ctrl+A'], text: 'yes' }],
+    ['a submitting phrase', { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: 'yes\r' }]
   ])('rejects %s', (_label, draft) => {
     expect(draftToSaveRequest(draft).ok).toBe(false)
   })
 })
 
-describe('toDraft / emptyDraft / isDraftDirty', () => {
-  it('round-trips a shortcut', () => {
-    expect(toDraft(SC)).toEqual({ id: 'sc-1', name: SC.name, keys: SC.keys, text: SC.text })
-  })
-  it('emptyDraft has no id', () => {
-    expect(emptyDraft().id).toBeNull()
-  })
-  it('detects a changed field and no change', () => {
+describe('isDraftDirty', () => {
+  it('is false for an unchanged sequence (compared by VALUE, not reference)', () => {
     expect(isDraftDirty(toDraft(SC), SC)).toBe(false)
-    expect(isDraftDirty({ ...toDraft(SC), text: 'other' }, SC)).toBe(true)
     expect(isDraftDirty(emptyDraft(), null)).toBe(false)
+  })
+
+  it('detects a changed phrase', () => {
+    expect(isDraftDirty({ ...toDraft(SC), text: 'other' }, SC)).toBe(true)
+  })
+
+  it('is true when a chord is appended', () => {
+    const draft = { ...toDraft(SC), keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A', 'Ctrl+Alt+Z'] }
+    expect(isDraftDirty(draft, SC)).toBe(true)
+  })
+
+  it('is true when the sequence ORDER changes', () => {
+    const draft = { ...toDraft(SC), keys: ['Ctrl+Alt+A', 'Ctrl+Alt+O'] }
+    expect(isDraftDirty(draft, SC)).toBe(true)
   })
 })
 

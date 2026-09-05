@@ -1,8 +1,8 @@
-// Phrase shortcuts — PURE form helpers, unit-tested without React (the widest test table lives
-// on this file). No store access, no window access.
+// Phrase shortcuts — PURE form helpers, unit-tested without React. No store access, no window
+// access. Chord PARSING is deliberately not here: it lives in src/renderer/src/shortcuts/chord.ts
+// so the dialog recorder and the terminal matcher share ONE definition of a chord.
 import {
-  isReservedShortcutLetter,
-  SHORTCUT_KEYS_PATTERN,
+  shortcutKeysId,
   ShortcutSaveSchema,
   type Shortcut,
   type ShortcutSaveRequest
@@ -12,41 +12,19 @@ export interface ShortcutDraft {
   /** null ⇒ a NEW shortcut (create); a string ⇒ an update. */
   id: string | null
   name: string
-  keys: string
+  /** 1..3 chords; [] while the operator has not recorded one yet. */
+  keys: string[]
   text: string
 }
 
 export function emptyDraft(): ShortcutDraft {
-  return { id: null, name: '', keys: '', text: '' }
+  return { id: null, name: '', keys: [], text: '' }
 }
 
 export function toDraft(shortcut: Shortcut): ShortcutDraft {
-  return { id: shortcut.id, name: shortcut.name, keys: shortcut.keys, text: shortcut.text }
-}
-
-/**
- * The canonical chord for a keydown, or null when the combination is not a legal shortcut.
- *
- * Uses `event.key` (NOT `event.code`) so recording and matching agree on any keyboard layout:
- * `event.code` is physical-position based, so on AZERTY it reports `KeyQ` for the key that
- * prints "A". `event.key` is the character the operator actually sees. The terminal-side
- * matcher in EmbeddedTerminal.tsx canonicalizes the same way.
- */
-export function chordFromEvent(event: KeyboardEvent): string | null {
-  if (event.isComposing) return null
-  if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return null
-  const letter = event.key.toUpperCase()
-  if (!/^[A-Z]$/.test(letter)) return null
-  return `Ctrl+Shift+${letter}`
-}
-
-export type ChordProblem = 'shape' | 'reserved'
-
-/** null ⇒ the chord is legal. */
-export function chordProblem(keys: string): ChordProblem | null {
-  if (!SHORTCUT_KEYS_PATTERN.test(keys)) return 'shape'
-  if (isReservedShortcutLetter(keys.slice(-1))) return 'reserved'
-  return null
+  // Copy the array: the draft is replaced wholesale by the recorder and must not alias store
+  // state, which is a projection of main's truth.
+  return { id: shortcut.id, name: shortcut.name, keys: [...shortcut.keys], text: shortcut.text }
 }
 
 export type DraftResult = { ok: true; req: ShortcutSaveRequest } | { ok: false; error: 'invalid' }
@@ -65,7 +43,12 @@ export function draftToSaveRequest(draft: ShortcutDraft): DraftResult {
 
 export function isDraftDirty(draft: ShortcutDraft, shortcut: Shortcut | null): boolean {
   const base = shortcut === null ? emptyDraft() : toDraft(shortcut)
-  return draft.name !== base.name || draft.keys !== base.keys || draft.text !== base.text
+  return (
+    draft.name !== base.name ||
+    // By VALUE — two equal sequences are different array objects.
+    shortcutKeysId(draft.keys) !== shortcutKeysId(base.keys) ||
+    draft.text !== base.text
+  )
 }
 
 export type ShortcutErrorCode = 'shortcut_keys_taken' | 'shortcut_not_found' | 'unknown'

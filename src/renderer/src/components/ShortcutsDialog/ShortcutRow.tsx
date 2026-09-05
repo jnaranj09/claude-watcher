@@ -5,6 +5,7 @@ import { useState, type JSX } from 'react'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import { KeyChordRecorder } from './KeyChordRecorder'
 import { draftToSaveRequest, isDraftDirty, type ShortcutDraft } from './shortcutForm'
+import { shortcutKeysId } from '../../../../shared/schemas/shortcut'
 import styles from './ShortcutsDialog.module.css'
 
 export interface ShortcutRowProps {
@@ -35,7 +36,7 @@ export function ShortcutRow({
     return (
       <div className={styles.row} role="row" data-testid={`shortcut-row-${shortcut.id}`}>
         <span className={styles.cellName}>{shortcut.name}</span>
-        <span className={styles.cellKeys}>{shortcut.keys}</span>
+        <span className={styles.cellKeys}>{shortcutKeysId(shortcut.keys)}</span>
         <span className={styles.cellText}>{shortcut.text}</span>
         <button
           type="button"
