@@ -37,10 +37,12 @@ import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import type {
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
-  TerminalExitEvent
+  TerminalExitEvent,
+  Shortcut
 } from '../../../shared/ipc/contract'
 import { xtermTheme } from '../styles/xtermTheme'
 import { useSettings, selectTerminalFontSize } from '../stores/settingsStore'
+import { useShortcuts, selectShortcuts } from '../stores/shortcutsStore'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import styles from './EmbeddedTerminal.module.css'
 
@@ -114,6 +116,13 @@ export function EmbeddedTerminal({
   // useRef(fontSize) captures the INITIAL value at mount (what the create effect reads); the
   // live font-size effect below keeps it current on every change. Never written during render.
   const fontSizeRef = useRef(fontSize)
+
+  // Phrase shortcuts — the operator's chord→phrase list, subscribed via a NARROW selector.
+  // It is read through a REF inside the key handler so the shortcut list is NOT a dependency of
+  // the create-effect: editing a shortcut must never tear down + recreate the terminal (which
+  // would dispose the pty). Same pattern as fontSizeRef. [.claude/rules/terminal.md]
+  const shortcuts = useShortcuts(selectShortcuts)
+  const shortcutsRef = useRef<Shortcut[]>(shortcuts)
 
   // --- Create the terminal EXACTLY ONCE per (terminalId, openNonce) + wire the port. --------
   // openNonce in the deps re-runs this on a re-open (the cleanup disposes the old terminal first).
@@ -297,6 +306,43 @@ export function EmbeddedTerminal({
         }
         return false // suppress xterm: no key-sequence write, no built-in paste
       }
+
+      // ── Phrase shortcuts ──────────────────────────────────────────────────
+      //
+      // Ctrl+Shift+<A-Z> ONLY (spec S-2). Safe because a PTY cannot encode Ctrl+Shift+<letter>
+      // distinctly from Ctrl+<letter>, so claude/readline never bind it — the chord costs the
+      // agent nothing, which is what UX-DR21 demands. On a match we post the phrase over the
+      // SAME `{type:'input'}` port frame the Ctrl+V takeover and every keystroke use — no new
+      // byte path. The phrase is TYPED, never submitted: no `\r` is appended here, and
+      // ShortcutTextSchema rejects control characters so one cannot be stored either (S-1).
+      if (
+        event.type === 'keydown' &&
+        !event.isComposing &&
+        event.ctrlKey &&
+        event.shiftKey &&
+        !event.altKey &&
+        !event.metaKey
+      ) {
+        // event.key (not event.code) so recording and matching agree on any keyboard layout.
+        const letter = event.key.toUpperCase()
+        if (/^[A-Z]$/.test(letter)) {
+          const chord = `Ctrl+Shift+${letter}`
+          const match = shortcutsRef.current.find((s) => s.keys === chord)
+          if (match) {
+            event.preventDefault()
+            // Stop the event reaching App.tsx's window keydown listener. Belt-and-braces with
+            // the reserved-letter list (N/Q/W are rejected by the schema because that handler
+            // has no shiftKey guard) — correctness must not depend on listener ordering.
+            event.stopPropagation()
+            const port = portRef.current
+            if (port) {
+              const msg: TerminalPortRendererMessage = { type: 'input', data: match.text }
+              port.postMessage(msg)
+            }
+            return false // suppress xterm entirely
+          }
+        }
+      }
       return true // all other keys pass through to xterm unchanged
     })
 
@@ -393,6 +439,14 @@ export function EmbeddedTerminal({
       .resize(terminalId, term.cols, term.rows)
       .catch(() => console.warn('[c9watch][term] code=resize_failed'))
   }, [fontSize, terminalId])
+
+  // --- Keep the shortcut list current for the key handler WITHOUT touching the terminal. -----
+  // Two lines on purpose: the key handler reads shortcutsRef, so a shortcut edit re-runs only
+  // this effect. Putting `shortcuts` in the create-effect's deps would dispose the live pty on
+  // every edit (terminal.md; guarded by EmbeddedTerminal.shortcuts.test.tsx).
+  useEffect(() => {
+    shortcutsRef.current = shortcuts
+  }, [shortcuts])
 
   // Re-open fallback: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty +
   // port). Only reachable from the dead pane's button when NO onNewSession prop was provided.

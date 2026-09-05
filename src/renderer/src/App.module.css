@@ -65,3 +65,27 @@
 .viewLayer[data-active='false'] {
   pointer-events: none;
 }
+
+/* Phrase shortcuts — the header ⌨ button that opens the Manage-shortcuts modal. Same rule as
+   the Settings gear (Settings.module.css .openButton) so the two header icons match exactly;
+   copied rather than shared because App and Settings own separate CSS modules. */
+.headerIconButton {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.headerIconButton:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.headerIconButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
