@@ -466,6 +466,9 @@ test('dead pane: killed claude shows exactly one New-session button; clicking re
     // was removed, dropping it from the kept-alive set) or kept hidden — we assert on the
     // NEW terminal only.
     await deadBtn.click()
+    // session templates parity: the dead-pane button now opens the SAME popover as the header;
+    // "Pick a folder…" is the old flow (mirrors the header path at the top of this test).
+    await page.locator('[data-testid="menu-pick-folder"]').click()
     await confirmSessionName(page)
     const newTerminal = page.locator(
       `[data-testid="embedded-terminal"]:not([data-terminal-id="${firstTerminalId}"])`

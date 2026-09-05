@@ -18,6 +18,7 @@
 // is the visible equivalent (the Esc keybinding lives in App.tsx). [Source: story 3.4 Task 4;
 // UX-DR9/21/24; terminal.md; src/renderer/src/terminal/EmbeddedTerminal.tsx (reused, `active` prop)]
 import { useCallback, type JSX } from 'react'
+import type { Template } from '../../../shared/ipc/contract'
 import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
 import { AttentionRail } from '../components/attention/AttentionRail'
@@ -59,6 +60,11 @@ export interface FocusedSessionProps {
    *  Threaded to every EmbeddedTerminal so the dead pane's one "New session" button uses the
    *  SAME flow as the header button / Ctrl+N. */
   onNewSession: () => void
+  /** Session-templates parity — the dead pane's popover seams (App's `handleTemplateSession`
+   *  / `handleManageTemplates`, the SAME handlers the header button uses). Threaded to every
+   *  EmbeddedTerminal alongside `onNewSession`; omitted ⇒ those rows are no-ops. */
+  onPickTemplate?: (template: Template) => void
+  onManageTemplates?: () => void
   /** Session-naming A2 — rename a rail row's session (opens the rename prompt). Threaded to the
    *  AttentionRail; omitted ⇒ the rail renders no pencil. */
   onRenameSession?: (sessionId: string) => void
@@ -67,6 +73,8 @@ export interface FocusedSessionProps {
 export function FocusedSession({
   onBack,
   onNewSession,
+  onPickTemplate,
+  onManageTemplates,
   onRenameSession
 }: FocusedSessionProps): JSX.Element {
   // The currently-visible terminal (the others are kept alive but hidden). A primitive selector.
@@ -134,6 +142,8 @@ export function FocusedSession({
               terminalId={terminalId}
               active={terminalId === focusedTerminalId}
               onNewSession={onNewSession}
+              {...(onPickTemplate ? { onPickTemplate } : {})}
+              {...(onManageTemplates ? { onManageTemplates } : {})}
             />
           ))}
         </div>

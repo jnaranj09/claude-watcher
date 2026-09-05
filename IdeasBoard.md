@@ -1,7 +1,7 @@
 ---
 title: "Ideas board"
 description: "This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list"
-last_modified: 2026-09-04 - 2:18pm
+last_modified: 2026-09-05
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort]
 ---
@@ -17,7 +17,6 @@ allowed_efforts: [low_effort, medium_effort, high_effort]
 - **Add thinking effort dropdown to the session templates**: When creating a session Template, we are allowed to choose a folder, the model and the permissions mode. Add a new field to choose the thinking effort keeping the option to let claude decide. `pending_review` `medium_effort`
 ***
 ## Bugs
-- **New session button on excited terminal doesnt show the templates pop over**: Upper right corner New session button works as expected by revealing a dropdown to choose between picking a folder, choosing/searching a template or managing templates. The same new session button that appears in the center of the terminal window when I click ctrl+c 2 times and claude exits, that button doesnt have that same behaviour. Since +New button is a standard option no matter where it appears, we should centralize/modularize the button into one component and just show that component in the different screens instead of duplicating the behaviour on each part where the button appears. `pending_review` `medium_effort`
 ***
 
 

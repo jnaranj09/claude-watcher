@@ -317,9 +317,11 @@ function App(): React.JSX.Element {
   }, [])
 
   // Story 6.1 — a STABLE void-returning wrapper of handleNewSession for the always-mounted
-  // FocusedSession (same stability rule as handleBack). Threaded down to each EmbeddedTerminal
-  // so the dead pane's one "New session" button runs the SAME launch flow as the header button
-  // / Ctrl+N (picker → launch → focused view).
+  // FocusedSession (same stability rule as handleBack). Threaded down to each EmbeddedTerminal.
+  // Session-templates parity (2026-09-05): the dead pane's button now opens the SAME popover as
+  // the header, and this is the flow behind its `Pick a folder…` row (picker → launch → focused
+  // view). Its two sibling rows reach handleTemplateSession / handleManageTemplates — the very
+  // same handlers the header button uses. Ctrl+N still calls this directly (the fast path).
   const handleNewSessionSync = useCallback((): void => {
     void handleNewSession()
   }, [handleNewSession])
@@ -521,6 +523,8 @@ function App(): React.JSX.Element {
               <FocusedSession
                 onBack={handleBack}
                 onNewSession={handleNewSessionSync}
+                onPickTemplate={handleTemplateSession}
+                onManageTemplates={handleManageTemplates}
                 onRenameSession={handleRenameSession}
               />
             </div>

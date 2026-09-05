@@ -36,7 +36,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
-import type { TerminalExitEvent } from '../../../shared/ipc/contract'
+import type { Template, TerminalExitEvent } from '../../../shared/ipc/contract'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 
 // Module-level registry of every Terminal instance created by EmbeddedTerminal.
@@ -132,6 +132,8 @@ function render(props: {
   terminalId: string
   active?: boolean
   onNewSession?: () => void
+  onPickTemplate?: (template: Template) => void
+  onManageTemplates?: () => void
 }): RenderResult {
   const r = renderComponent(<EmbeddedTerminal {...props} />)
   cleanup = r.unmount
@@ -374,7 +376,7 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4 / Story 6.1 one-button o
     expect(r.container.querySelector('[data-testid="dead-terminal"]')).toBeNull()
   })
 
-  it('click WITH onNewSession calls the prop (App launch flow) and does NOT re-open this pane', () => {
+  it('click WITH onNewSession opens the popover; its folder row calls the prop and does NOT re-open this pane', () => {
     const onNewSession = vi.fn()
     const r = render({ terminalId: 't-1', onNewSession })
     act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
@@ -384,6 +386,12 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4 / Story 6.1 one-button o
     act(() => {
       btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
+    // Session-templates parity (2026-09-05): the button now opens the SAME popover as the
+    // header instead of firing the folder flow directly, so `Pick a folder…` is one row down.
+    // The menu is portaled to document.body (this frame is `overflow: clip`).
+    act(() =>
+      (document.body.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    )
 
     // The prop fired (the focused surface routes to App's handleNewSession)…
     expect(onNewSession).toHaveBeenCalledTimes(1)
@@ -436,5 +444,73 @@ describe('EmbeddedTerminal — font-size live-apply (story 5.1 coverage parity)'
     render({ terminalId: 't-1' })
     // Only one open call immediately after render (font-size has not changed).
     expect(fakes.open).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── Session-templates parity: the dead pane's button is the SHARED NewSessionButton ────────
+// The header and the empty board have opened the folder/templates/Manage popover since
+// 2026-09-02; the dead pane was left on the folder-only fast path. These pin the parity.
+// The popover is PORTALED to document.body (the frame is `overflow: clip`), so the menu is
+// queried on document.body — never on the render container.
+describe('EmbeddedTerminal — dead pane opens the New-session popover (templates parity)', () => {
+  const bodyMenu = (): Element | null =>
+    document.body.querySelector('[data-testid="new-session-menu"]')
+
+  it('with the seams threaded, clicking the dead button opens the popover and each row fires its seam', () => {
+    const onNewSession = vi.fn()
+    const onPickTemplate = vi.fn()
+    const onManageTemplates = vi.fn()
+    const r = render({ terminalId: 't-1', onNewSession, onPickTemplate, onManageTemplates })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 0 }))
+
+    const btn = r.container.querySelector('[data-testid="dead-new-session"]') as HTMLButtonElement
+    expect(btn).not.toBeNull()
+    // BEFORE the fix this click ran the folder flow directly — no menu ever appeared.
+    act(() => btn.click())
+    expect(bodyMenu()).not.toBeNull()
+    // The popover escaped the `overflow: clip` frame — it is NOT inside this terminal's DOM.
+    expect(r.container.contains(bodyMenu())).toBe(false)
+
+    // "Pick a folder…" is the OLD behaviour, now one row down.
+    act(() =>
+      (document.body.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    )
+    expect(onNewSession).toHaveBeenCalledTimes(1)
+    // …and this pane did NOT re-open (the new terminal takes focus; this one stays dead).
+    expect(fakes.open).toHaveBeenCalledTimes(1)
+    expect(r.container.querySelector('[data-testid="dead-terminal"]')).not.toBeNull()
+
+    act(() => btn.click())
+    act(() =>
+      (document.body.querySelector('[data-testid="menu-manage"]') as HTMLButtonElement).click()
+    )
+    expect(onManageTemplates).toHaveBeenCalledTimes(1)
+  })
+
+  it('the "exactly ONE button" dead-pane rule survives an OPEN menu (the menu is portaled out)', () => {
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn() })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 0 }))
+    const dead = r.container.querySelector('[data-testid="dead-terminal"]')
+    act(() => (dead?.querySelector('button') as HTMLButtonElement).click())
+    expect(bodyMenu()).not.toBeNull()
+    expect([...(dead?.querySelectorAll('button') ?? [])]).toHaveLength(1)
+  })
+
+  it('the menu closes when the frame goes kept-alive-hidden (the portal must not outlive it)', () => {
+    const onNewSession = vi.fn()
+    const r = render({ terminalId: 't-1', active: true, onNewSession })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 0 }))
+    act(() =>
+      (r.container.querySelector('[data-testid="dead-new-session"]') as HTMLButtonElement).click()
+    )
+    expect(bodyMenu()).not.toBeNull()
+    // A terminal switch flips this frame to visibility:hidden — but the portal lives on
+    // document.body, OUTSIDE the frame, so it would keep painting over the new terminal.
+    act(() => {
+      r.root.render(
+        <EmbeddedTerminal terminalId="t-1" active={false} onNewSession={onNewSession} />
+      )
+    })
+    expect(bodyMenu()).toBeNull()
   })
 })
