@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createTemplatesStore, TEMPLATE_ERROR, type TemplatesBlobStore } from './templates'
-import type { TemplatesFile } from '../../shared/schemas/template'
+import { EFFORT_LEVELS, type TemplatesFile } from '../../shared/schemas/template'
 
 const ROW = {
   name: 'work api',
   cwd: '/home/op/work/api',
   model: 'opus',
-  permissionMode: 'acceptEdits' as const
+  permissionMode: 'acceptEdits' as const,
+  effort: null
 }
 
 function fakeBlob(
@@ -78,6 +79,22 @@ describe('createTemplatesStore — load', () => {
       expect(line).not.toContain('work api')
     }
   })
+  // A file written BEFORE the effort field existed has no `effort` key. It MUST load, not be
+  // backed up and reset — a reset here deletes every template the operator ever saved. The
+  // guard is `.default(null)` on TemplateSchema.effort; reverting it turns this red.
+  it('loads a PRE-CHANGE file (rows with no effort key) without backing it up', () => {
+    const preChange = {
+      id: 'x',
+      name: 'work api',
+      cwd: '/home/op/work/api',
+      model: 'opus',
+      permissionMode: 'acceptEdits'
+    }
+    const { store, fake, log } = make({ version: 1, templates: [preChange] })
+    expect(store.list()).toEqual([{ ...preChange, effort: null }])
+    expect(fake.backups()).toBe(0)
+    expect(log).not.toHaveBeenCalled()
+  })
 })
 
 describe('createTemplatesStore — save / get / remove', () => {
@@ -116,6 +133,14 @@ describe('createTemplatesStore — save / get / remove', () => {
     expect(store.get('id-1')).toBeNull()
     expect(store.remove('id-1')).toEqual([])
     expect(fake.writes.length).toBe(before + 1)
+  })
+  it('round-trips every effort level', () => {
+    for (const level of EFFORT_LEVELS) {
+      const { store } = make()
+      const out = store.save({ ...ROW, effort: level })
+      expect(out.saved.effort).toBe(level)
+      expect(store.get(out.saved.id)?.effort).toBe(level)
+    }
   })
   it('a failed write logs templates_write_failed and keeps the in-memory row', () => {
     const { store, log } = make(undefined, { writeThrows: true })

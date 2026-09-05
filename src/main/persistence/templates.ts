@@ -84,7 +84,8 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
       name: input.name,
       cwd: input.cwd,
       model: input.model,
-      permissionMode: input.permissionMode
+      permissionMode: input.permissionMode,
+      effort: input.effort
     }
     byId.set(id, saved)
     persist()

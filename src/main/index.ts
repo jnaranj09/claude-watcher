@@ -1335,7 +1335,8 @@ function rawClaudeSpawn(
         hookSettingsPath: hookSettingsPathForSpawn(),
         appendSystemPrompt: QUESTION_FORMAT_PROMPT,
         model: flags.model,
-        permissionMode: flags.permissionMode
+        permissionMode: flags.permissionMode,
+        effort: flags.effort
       })
     ],
     env

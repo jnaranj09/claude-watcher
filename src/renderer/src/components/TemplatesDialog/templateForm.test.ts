@@ -7,11 +7,20 @@ import {
   isDraftDirty,
   templateErrorMessage,
   describeTemplateFlags,
-  PERMISSION_MODE_LABELS
+  PERMISSION_MODE_LABELS,
+  EFFORT_CHOICES,
+  EFFORT_LABELS
 } from './templateForm'
-import { PERMISSION_MODES, type Template } from '../../../../shared/schemas/template'
+import { PERMISSION_MODES, EFFORT_LEVELS, type Template } from '../../../../shared/schemas/template'
 
-const T: Template = { id: 'a', name: 'api', cwd: '/api', model: 'opus', permissionMode: 'plan' }
+const T: Template = {
+  id: 'a',
+  name: 'api',
+  cwd: '/api',
+  model: 'opus',
+  permissionMode: 'plan',
+  effort: 'high'
+}
 
 describe('draft ⇄ template', () => {
   it('emptyDraft is a new, default-flag draft', () => {
@@ -21,7 +30,8 @@ describe('draft ⇄ template', () => {
       cwd: '',
       modelChoice: 'default',
       customModel: '',
-      permissionChoice: 'default'
+      permissionChoice: 'default',
+      effortChoice: 'default'
     })
   })
   it('modelChoiceOf: null → default, alias → alias, anything else → custom with the text', () => {
@@ -29,14 +39,15 @@ describe('draft ⇄ template', () => {
     expect(modelChoiceOf('sonnet')).toEqual({ choice: 'sonnet', custom: '' })
     expect(modelChoiceOf('claude-fable-5')).toEqual({ choice: 'custom', custom: 'claude-fable-5' })
   })
-  it('toDraft maps a template; null permission → default', () => {
-    expect(toDraft({ ...T, model: 'claude-x', permissionMode: null })).toEqual({
+  it('toDraft maps a template; null permission and null effort → default', () => {
+    expect(toDraft({ ...T, model: 'claude-x', permissionMode: null, effort: null })).toEqual({
       id: 'a',
       name: 'api',
       cwd: '/api',
       modelChoice: 'custom',
       customModel: 'claude-x',
-      permissionChoice: 'default'
+      permissionChoice: 'default',
+      effortChoice: 'default'
     })
   })
 })
@@ -45,14 +56,21 @@ describe('validateDraft', () => {
   it('a full draft becomes a save request (id kept when editing)', () => {
     expect(validateDraft(toDraft(T))).toEqual({
       ok: true,
-      request: { id: 'a', name: 'api', cwd: '/api', model: 'opus', permissionMode: 'plan' }
+      request: {
+        id: 'a',
+        name: 'api',
+        cwd: '/api',
+        model: 'opus',
+        permissionMode: 'plan',
+        effort: 'high'
+      }
     })
   })
   it('a new draft has NO id key at all (exactOptionalPropertyTypes)', () => {
     const v = validateDraft({ ...emptyDraft(), name: 'x', cwd: '/x' })
     expect(v).toEqual({
       ok: true,
-      request: { name: 'x', cwd: '/x', model: null, permissionMode: null }
+      request: { name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null }
     })
     expect(v.ok && 'id' in v.request).toBe(false)
   })
@@ -100,6 +118,47 @@ describe('isDraftDirty', () => {
   })
 })
 
+describe('effort choice', () => {
+  it('toDraft round-trips every level; validateDraft emits it', () => {
+    for (const level of EFFORT_LEVELS) {
+      const draft = toDraft({ ...T, effort: level })
+      expect(draft.effortChoice).toBe(level)
+      const v = validateDraft(draft)
+      expect(v.ok && v.request.effort).toBe(level)
+    }
+  })
+
+  it("'default' means null — nothing is passed to the spawn", () => {
+    const v = validateDraft({ ...emptyDraft(), name: 'x', cwd: '/x', effortChoice: 'default' })
+    expect(v.ok && v.request.effort).toBeNull()
+  })
+
+  // Without effortChoice in normalize(), changing ONLY the effort leaves Save disabled —
+  // a silently broken feature. Reverting that line must turn this red.
+  it('changing only the effort makes the draft dirty', () => {
+    expect(isDraftDirty(toDraft(T), T)).toBe(false)
+    expect(isDraftDirty({ ...toDraft(T), effortChoice: 'low' }, T)).toBe(true)
+  })
+
+  it('an untouched PRE-CHANGE template (effort null) is not dirty', () => {
+    const legacy: Template = { ...T, effort: null }
+    expect(isDraftDirty(toDraft(legacy), legacy)).toBe(false)
+  })
+
+  it('EFFORT_CHOICES opens with the default row, then the five levels in --help order', () => {
+    expect(EFFORT_CHOICES.map((c) => c.value)).toEqual([
+      'default',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max'
+    ])
+    expect(EFFORT_CHOICES[0]?.label).toBe('Default (claude decides)')
+    for (const level of EFFORT_LEVELS) expect(EFFORT_LABELS[level]).toBeTruthy()
+  })
+})
+
 describe('copy', () => {
   it('templateErrorMessage maps the two known codes and falls back', () => {
     expect(
@@ -112,11 +171,11 @@ describe('copy', () => {
     )
     expect(templateErrorMessage('boom')).toBe('Could not save the template.')
   })
-  it('every permission mode has a label; describeTemplateFlags reads "model · mode"', () => {
+  it('every permission mode has a label; describeTemplateFlags reads "model · mode · effort"', () => {
     for (const mode of PERMISSION_MODES) expect(PERMISSION_MODE_LABELS[mode]).toBeTruthy()
-    expect(describeTemplateFlags(T)).toBe('opus · Plan')
-    expect(describeTemplateFlags({ ...T, model: null, permissionMode: null })).toBe(
-      'default model · default permissions'
+    expect(describeTemplateFlags(T)).toBe('opus · Plan · High effort')
+    expect(describeTemplateFlags({ ...T, model: null, permissionMode: null, effort: null })).toBe(
+      'default model · default permissions · default effort'
     )
   })
 })

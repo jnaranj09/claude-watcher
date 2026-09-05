@@ -770,20 +770,20 @@ describe('session templates — launch flags reach spawn()', () => {
     return { svc, seen }
   }
 
-  it('a folder launch spawns with NO_LAUNCH_FLAGS (both null)', () => {
+  it('a folder launch spawns with NO_LAUNCH_FLAGS (all three null)', () => {
     const { svc, seen } = flagService()
     svc.launch({ cwd: '/p', name: 'p' })
     svc.mintSpawn('t-1')
-    expect(seen).toEqual([{ model: null, permissionMode: null }])
+    expect(seen).toEqual([{ model: null, permissionMode: null, effort: null }])
     expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p', flags: NO_LAUNCH_FLAGS })
   })
 
   it('a template launch hands its flags to spawn(), and a re-spawn of the same terminal keeps them', () => {
     const { svc, seen } = flagService()
-    const flags: ClaudeLaunchFlags = { model: 'opus', permissionMode: 'plan' }
+    const flags: ClaudeLaunchFlags = { model: 'opus', permissionMode: 'plan', effort: 'high' }
     svc.launch({ cwd: '/p', name: 'p', flags })
     svc.mintSpawn('t-1')
-    svc.mintSpawn('t-1')
+    svc.mintSpawn('t-1') // Reopen — the effort must survive a re-spawn of the same terminal
     expect(seen).toEqual([flags, flags])
   })
 })

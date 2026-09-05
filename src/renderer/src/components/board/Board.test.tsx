@@ -191,7 +191,14 @@ describe('Board — empty states never collapse (AC-4)', () => {
   // Session templates — the empty-board `+ New session` opens the SAME popover as the header
   // button (folder / templates / Manage); the three seams stay injected, nothing is launched here.
   describe('+ New session opens the templates popover (seams injected, no launch built)', () => {
-    const T1: Template = { id: 'a', name: 'api', cwd: '/api', model: null, permissionMode: null }
+    const T1: Template = {
+      id: 'a',
+      name: 'api',
+      cwd: '/api',
+      model: null,
+      permissionMode: null,
+      effort: null
+    }
     const click = (container: Element, sel: string): void => {
       act(() => container.querySelector<HTMLButtonElement>(sel)?.click())
     }

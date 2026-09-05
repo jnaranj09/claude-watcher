@@ -5,6 +5,7 @@ import {
   TemplateDeleteSchema,
   TemplatesFileSchema,
   PERMISSION_MODES,
+  EFFORT_LEVELS,
   TEMPLATE_NAME_MAX_LENGTH,
   MODEL_NAME_MAX_LENGTH
 } from './template'
@@ -14,7 +15,8 @@ const VALID = {
   name: 'work api',
   cwd: '/home/op/work/api',
   model: 'opus',
-  permissionMode: 'acceptEdits'
+  permissionMode: 'acceptEdits',
+  effort: 'high'
 }
 
 describe('TemplateSchema — fail-closed (our shape, no passthrough)', () => {
@@ -87,5 +89,55 @@ describe('TemplateSaveSchema / TemplateDeleteSchema / TemplatesFileSchema', () =
       TemplatesFileSchema.safeParse({ version: 1, templates: [VALID, { ...VALID, name: '' }] })
         .success
     ).toBe(false)
+  })
+})
+
+describe('effort — the --effort level (additive, backward compatible)', () => {
+  it('pins the level list to `claude --help` (low, medium, high, xhigh, max)', () => {
+    expect([...EFFORT_LEVELS]).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+  })
+
+  it('accepts every level and an explicit null', () => {
+    for (const level of EFFORT_LEVELS) {
+      expect(TemplateSchema.parse({ ...VALID, effort: level }).effort).toBe(level)
+    }
+    expect(TemplateSchema.parse({ ...VALID, effort: null }).effort).toBeNull()
+  })
+
+  // THE load-bearing case: a templates file written BEFORE this change has no `effort` key.
+  // Without `.default(null)` the row fails, the FILE fails, and the store backs it up and
+  // starts EMPTY — the operator loses every template. Reverting the `.default(null)` must
+  // turn this test red.
+  it('a row with no effort key parses as null (a pre-change file must still load)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { effort: _effort, ...preChangeRow } = VALID
+    expect('effort' in preChangeRow).toBe(false)
+    expect(TemplateSchema.parse(preChangeRow).effort).toBeNull()
+    expect(
+      TemplatesFileSchema.parse({ version: 1, templates: [preChangeRow, preChangeRow] })
+    ).toEqual({
+      version: 1,
+      templates: [
+        { ...preChangeRow, effort: null },
+        { ...preChangeRow, effort: null }
+      ]
+    })
+  })
+
+  it('TemplateSaveSchema inherits the field and the default', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, effort: _effort, ...saveRow } = VALID
+    expect(TemplateSaveSchema.parse(saveRow).effort).toBeNull()
+    expect(TemplateSaveSchema.parse({ ...saveRow, effort: 'xhigh' }).effort).toBe('xhigh')
+  })
+
+  it.each([
+    ['an unknown level', 'ultracode'],
+    ['a wrong-case level', 'LOW'],
+    ['a blank string', ''],
+    ['a number', 0],
+    ['an object', {}]
+  ])('rejects %s', (_label, effort) => {
+    expect(TemplateSchema.safeParse({ ...VALID, effort }).success).toBe(false)
   })
 })

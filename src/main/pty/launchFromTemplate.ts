@@ -1,5 +1,5 @@
 // `session:launch-from-template` — the renderer sends an id + the operator's session name;
-// MAIN resolves cwd / model / permissionMode from its own validated store, so flag values never
+// MAIN resolves cwd / model / permissionMode / effort from its own validated store, so flag values never
 // cross the seam. Parse first (untrusted arg), then look up (existence is the store's call).
 import { SessionLaunchFromTemplateSchema } from '../../shared/schemas/launch'
 import { TEMPLATE_ERROR, type TemplatesStore } from '../persistence/templates'
@@ -12,6 +12,10 @@ export function resolveTemplateLaunch(store: TemplatesStore, raw: unknown): Laun
   return {
     cwd: template.cwd,
     name,
-    flags: { model: template.model, permissionMode: template.permissionMode }
+    flags: {
+      model: template.model,
+      permissionMode: template.permissionMode,
+      effort: template.effort
+    }
   }
 }

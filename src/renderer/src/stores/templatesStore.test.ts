@@ -10,8 +10,22 @@ import {
 } from './templatesStore'
 import type { Template } from '../../../shared/ipc/contract'
 
-const T1: Template = { id: 'a', name: 'api', cwd: '/api', model: 'opus', permissionMode: null }
-const T2: Template = { id: 'b', name: 'blog', cwd: '/blog', model: null, permissionMode: 'plan' }
+const T1: Template = {
+  id: 'a',
+  name: 'api',
+  cwd: '/api',
+  model: 'opus',
+  permissionMode: null,
+  effort: null
+}
+const T2: Template = {
+  id: 'b',
+  name: 'blog',
+  cwd: '/blog',
+  model: null,
+  permissionMode: 'plan',
+  effort: null
+}
 
 interface Bridge {
   list: ReturnType<typeof vi.fn>
@@ -65,13 +79,15 @@ describe('templatesStore — bridge helpers', () => {
       name: 'api',
       cwd: '/api',
       model: 'opus',
-      permissionMode: null
+      permissionMode: null,
+      effort: null
     })
     expect(bridge.save).toHaveBeenCalledWith({
       name: 'api',
       cwd: '/api',
       model: 'opus',
-      permissionMode: null
+      permissionMode: null,
+      effort: null
     })
     expect(saved).toEqual(T1)
     expect(selectTemplates(templatesStore.getState())).toEqual([T1])
@@ -79,7 +95,7 @@ describe('templatesStore — bridge helpers', () => {
   it('saveTemplate RETHROWS so the form can show the reason', async () => {
     stubBridge({ save: vi.fn(() => Promise.reject(new Error('template_name_taken'))) })
     await expect(
-      saveTemplate({ name: 'x', cwd: '/x', model: null, permissionMode: null })
+      saveTemplate({ name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null })
     ).rejects.toThrow('template_name_taken')
   })
   it('removeTemplate hydrates with the returned list; a failure logs a code', async () => {
