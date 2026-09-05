@@ -187,6 +187,19 @@ describe('App keydown — Ctrl+Q (Task 6.4a)', () => {
     expect(requestQuitSpy).toHaveBeenCalledTimes(1)
   })
 
+  // See the design's hazard 1: the guard gained an `!e.altKey` term so the Ctrl+Alt shortcut
+  // namespace cannot double-fire the app. Removing that term must turn this red.
+  it('Ctrl+Alt+Q does NOT request quit', async () => {
+    await renderApp()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', ctrlKey: true, altKey: true }))
+      await Promise.resolve()
+    })
+
+    expect(requestQuitSpy).not.toHaveBeenCalled()
+  })
+
   it('Ctrl+Q (uppercase Q) also calls window.quit.requestQuit()', async () => {
     await renderApp()
 

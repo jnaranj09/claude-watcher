@@ -15,7 +15,7 @@ import type { Shortcut } from '../../shared/ipc/contract'
 const SC: Shortcut = {
   id: 'sc-1',
   name: 'approve',
-  keys: 'Ctrl+Shift+A',
+  keys: ['Ctrl+Alt+A'],
   text: 'I explicitly approve'
 }
 

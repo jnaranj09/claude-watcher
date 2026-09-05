@@ -346,10 +346,17 @@ function App(): React.JSX.Element {
   //
   // Gated on NON-smoke + NON-terminal-host below via the early returns, so this effect only runs
   // for the real app view. Ctrl+N opens the picker from anywhere. The handlers above never throw.
+  //
+  // All three Ctrl bindings carry `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut
+  // namespace, and an unmatched chord there deliberately reaches this listener.
   useEffect(() => {
     if (smoke !== false) return
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
+      // `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut namespace. Without this term a
+      // Ctrl+Alt+N chord fired BOTH the shortcut and the app. Fixed here rather than by
+      // stopPropagation in the terminal, because an UNMATCHED Ctrl+Alt chord is deliberately not
+      // swallowed — it must reach the pty — so it does reach this listener.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
         void handleNewSession()
         return
@@ -358,7 +365,7 @@ function App(): React.JSX.Element {
       // The renderer NEVER calls app.quit() directly (sandboxed); it routes through
       // app:request-quit → main app.quit() → the one before-quit guard decision (FROZEN #3).
       // Guard: window.quit may be absent in pre-4.2 test environments (App.launch.test.tsx).
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'q' || e.key === 'Q')) {
         e.preventDefault()
         if (window.quit) void window.quit.requestQuit()
         return
@@ -372,7 +379,7 @@ function App(): React.JSX.Element {
       // while an existing one runs). Without that term, Ctrl+W stacked StopConfirm at the same
       // z-index under the name prompt: StopConfirm's mount effect steals focus out of the name
       // input, so the visible dialog and the keyboard focus disagree.
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W')) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault()
         const state = boardStore.getState()
         if (
