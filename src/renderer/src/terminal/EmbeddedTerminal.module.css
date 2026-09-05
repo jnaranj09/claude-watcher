@@ -90,3 +90,22 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
+
+/* Phrase shortcuts — the pending chord-sequence indicator. z-index 12 matches .dead so it clears
+   xterm's own render layers (xterm.css goes up to 11); pointer-events:none so it can never
+   intercept a click on the terminal. Existing tokens only — no new colors, no new tokens. */
+.chordHint {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 12;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rounded-sm);
+  background: var(--bg-surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  pointer-events: none;
+}

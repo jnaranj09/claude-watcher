@@ -1,12 +1,20 @@
-// Phrase shortcuts — unit tests for the Ctrl+Shift+<A-Z> chord handler in EmbeddedTerminal.
+// Phrase shortcuts — unit tests for the Ctrl+Alt+<A-Z> 1..3 chord SEQUENCE handler in
+// EmbeddedTerminal.
 //
 // Gate: `unit` (jsdom) project.
 // Covers:
 //   - a matching chord posts { type:'input', data:<phrase> } on the terminal's EXISTING port
 //     and suppresses xterm (returns false, preventDefault + stopPropagation called);
 //   - NO carriage return is ever appended (spec S-1: the phrase is TYPED, never submitted);
-//   - bare letters, plain Ctrl, extra modifiers, keyup, IME composition and unmapped chords
-//     all pass through untouched (UX-DR21: keystrokes belong to the agent);
+//   - bare letters, plain Ctrl, extra modifiers, keyup, IME composition and AltGr all pass
+//     through untouched (UX-DR21: keystrokes belong to the agent);
+//   - an UNMATCHED Ctrl+Alt chord is left COMPLETELY untouched — neither preventDefault nor
+//     stopPropagation — so xterm still emits its ESC + control byte to the pty (design §5
+//     hazard 3). This is the guarantee that keeps the namespace cheap for claude;
+//   - the sequence machine: a bound prefix pends and is swallowed, the 2-chord completion posts
+//     exactly one phrase, the 750 ms timeout resolves a bound prefix, Escape cancels without
+//     firing, and deactivating the terminal cancels a half-typed sequence;
+//   - the pending indicator tracks pending imperatively;
 //   - the shipped Ctrl+V takeover still wins and still posts \x16;
 //   - a dead pane (null port) does not throw;
 //   - EDITING the shortcut list does NOT dispose or re-open the terminal — the terminal.md
@@ -21,6 +29,7 @@ import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import { shortcutsStore } from '../stores/shortcutsStore'
+import { SEQUENCE_TIMEOUT_MS } from '../shortcuts/sequence'
 
 // ── xterm mock — captures instances + attachCustomKeyEventHandler ─────────────
 
@@ -64,9 +73,15 @@ let cleanupFn: (() => void) | undefined
 const APPROVE = {
   id: 'sc-1',
   name: 'approve',
-  keys: 'Ctrl+Shift+A',
+  keys: ['Ctrl+Alt+A'],
   text: 'I explicitly approve'
 }
+
+/** The two-shortcut set that exercises the prefix case: O alone AND O+A. */
+const SEQ = [
+  { id: 'sc-o', name: 'o', keys: ['Ctrl+Alt+O'], text: 'phrase-O' },
+  { id: 'sc-oa', name: 'oa', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'phrase-OA' }
+]
 
 beforeEach(() => {
   capturedTerminals.length = 0
@@ -163,6 +178,7 @@ function chordEvent(init: Partial<KeyboardEvent> & { key: string }): SpiedKeyboa
     altKey: false,
     metaKey: false,
     isComposing: false,
+    getModifierState: () => false,
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
     ...init
@@ -170,15 +186,20 @@ function chordEvent(init: Partial<KeyboardEvent> & { key: string }): SpiedKeyboa
   return e as unknown as SpiedKeyboardEvent
 }
 
+/** A Ctrl+Alt chord event. */
+function ctrlAlt(key: string): SpiedKeyboardEvent {
+  return chordEvent({ key, ctrlKey: true, altKey: true })
+}
+
 describe('EmbeddedTerminal phrase shortcuts', () => {
-  it('types the phrase on a matching chord and suppresses xterm', () => {
+  it('types the phrase on a matching single chord and suppresses xterm', () => {
     render({ terminalId: 't-sc-1' })
     const { port1 } = deliverPort('t-sc-1', lastOpenToken())
     const postSpy = vi.spyOn(port1, 'postMessage')
     const handler = capturedKeyHandlers[0]
     expect(handler).not.toBeNull()
 
-    const e = chordEvent({ key: 'A', ctrlKey: true, shiftKey: true })
+    const e = ctrlAlt('a')
     const result = handler!(e)
 
     expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'I explicitly approve' })
@@ -191,7 +212,7 @@ describe('EmbeddedTerminal phrase shortcuts', () => {
     render({ terminalId: 't-sc-2' })
     const { port1 } = deliverPort('t-sc-2', lastOpenToken())
     const postSpy = vi.spyOn(port1, 'postMessage')
-    capturedKeyHandlers[0]!(chordEvent({ key: 'A', ctrlKey: true, shiftKey: true }))
+    capturedKeyHandlers[0]!(ctrlAlt('a'))
 
     for (const [msg] of postSpy.mock.calls) {
       expect((msg as { data: string }).data).not.toContain('\r')
@@ -202,12 +223,17 @@ describe('EmbeddedTerminal phrase shortcuts', () => {
 
   it.each([
     ['a bare letter', { key: 'a' }],
-    ['plain Ctrl (no Shift)', { key: 'a', ctrlKey: true }],
-    ['Ctrl+Shift with Alt', { key: 'A', ctrlKey: true, shiftKey: true, altKey: true }],
-    ['Ctrl+Shift with Meta', { key: 'A', ctrlKey: true, shiftKey: true, metaKey: true }],
-    ['an unmapped chord', { key: 'Z', ctrlKey: true, shiftKey: true }],
-    ['a keyup', { key: 'A', ctrlKey: true, shiftKey: true, type: 'keyup' }],
-    ['a composing key', { key: 'A', ctrlKey: true, shiftKey: true, isComposing: true }]
+    ['plain Ctrl', { key: 'a', ctrlKey: true }],
+    ['plain Alt', { key: 'a', altKey: true }],
+    ['the old Ctrl+Shift namespace', { key: 'A', ctrlKey: true, shiftKey: true }],
+    ['Ctrl+Alt+Shift', { key: 'A', ctrlKey: true, altKey: true, shiftKey: true }],
+    ['Ctrl+Alt+Meta', { key: 'a', ctrlKey: true, altKey: true, metaKey: true }],
+    ['a keyup', { key: 'a', ctrlKey: true, altKey: true, type: 'keyup' }],
+    ['a composing key', { key: 'a', ctrlKey: true, altKey: true, isComposing: true }],
+    [
+      'an AltGr composition',
+      { key: 'a', ctrlKey: true, altKey: true, getModifierState: () => true }
+    ]
   ])('posts nothing and lets xterm handle %s', (_label, init) => {
     render({ terminalId: 't-sc-3' })
     const { port1 } = deliverPort('t-sc-3', lastOpenToken())
@@ -221,9 +247,26 @@ describe('EmbeddedTerminal phrase shortcuts', () => {
     expect(result).toBe(true)
   })
 
-  it('leaves the Ctrl+V takeover intact and first', () => {
+  // Design §5 hazard 3: Ctrl+Alt IS encodable by a pty, so an UNMATCHED chord must reach it
+  // completely untouched — xterm then emits ESC + the control byte exactly as today. Calling
+  // preventDefault here would silently steal the whole namespace from claude.
+  it('leaves an UNMATCHED Ctrl+Alt chord completely untouched', () => {
     render({ terminalId: 't-sc-4' })
     const { port1 } = deliverPort('t-sc-4', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    const e = ctrlAlt('q')
+    const result = capturedKeyHandlers[0]!(e)
+
+    expect(result).toBe(true)
+    expect(e.preventDefault).not.toHaveBeenCalled()
+    expect(e.stopPropagation).not.toHaveBeenCalled()
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
+  it('leaves the Ctrl+V takeover intact and first', () => {
+    render({ terminalId: 't-sc-5' })
+    const { port1 } = deliverPort('t-sc-5', lastOpenToken())
     const postSpy = vi.spyOn(port1, 'postMessage')
 
     const result = capturedKeyHandlers[0]!(chordEvent({ key: 'v', ctrlKey: true }))
@@ -233,16 +276,14 @@ describe('EmbeddedTerminal phrase shortcuts', () => {
   })
 
   it('does not throw when the port is gone (dead pane)', () => {
-    render({ terminalId: 't-sc-5' })
+    render({ terminalId: 't-sc-6' })
     // No deliverPort() — portRef stays null.
-    expect(() =>
-      capturedKeyHandlers[0]!(chordEvent({ key: 'A', ctrlKey: true, shiftKey: true }))
-    ).not.toThrow()
+    expect(() => capturedKeyHandlers[0]!(ctrlAlt('a'))).not.toThrow()
   })
 
   it('picks up an EDITED shortcut list WITHOUT recreating the terminal', () => {
-    render({ terminalId: 't-sc-6' })
-    const { port1 } = deliverPort('t-sc-6', lastOpenToken())
+    render({ terminalId: 't-sc-7' })
+    const { port1 } = deliverPort('t-sc-7', lastOpenToken())
     const postSpy = vi.spyOn(port1, 'postMessage')
     const disposeSpy = vi.spyOn(capturedTerminals[0]!, 'dispose')
     const openCallsBefore = termFakes.open.mock.calls.length
@@ -260,8 +301,169 @@ describe('EmbeddedTerminal phrase shortcuts', () => {
     expect(termFakes.open.mock.calls.length).toBe(openCallsBefore)
     expect(capturedTerminals).toHaveLength(1)
 
-    capturedKeyHandlers[0]!(chordEvent({ key: 'A', ctrlKey: true, shiftKey: true }))
+    capturedKeyHandlers[0]!(ctrlAlt('a'))
 
     expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'approved, proceed' })
+  })
+})
+
+describe('EmbeddedTerminal chord sequences', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    shortcutsStore.setState({ shortcuts: SEQ, loaded: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('swallows a bound PREFIX without typing anything yet', () => {
+    render({ terminalId: 't-seq-1' })
+    const { port1 } = deliverPort('t-seq-1', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    const e = ctrlAlt('o')
+    expect(capturedKeyHandlers[0]!(e)).toBe(false)
+    expect(postSpy).not.toHaveBeenCalled()
+    expect(e.preventDefault).toHaveBeenCalled()
+  })
+
+  it('types the two-chord phrase when the sequence completes', () => {
+    render({ terminalId: 't-seq-2' })
+    const { port1 } = deliverPort('t-seq-2', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    capturedKeyHandlers[0]!(ctrlAlt('a'))
+
+    expect(postSpy).toHaveBeenCalledTimes(1)
+    expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'phrase-OA' })
+  })
+
+  it('types the PREFIX phrase when the timeout expires', () => {
+    render({ terminalId: 't-seq-3' })
+    const { port1 } = deliverPort('t-seq-3', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    expect(postSpy).not.toHaveBeenCalled()
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS)
+    })
+    expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'phrase-O' })
+  })
+
+  it('does not fire the prefix before the timeout elapses', () => {
+    render({ terminalId: 't-seq-4' })
+    const { port1 } = deliverPort('t-seq-4', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS - 1)
+    })
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
+  it('cancels a pending sequence on Escape WITHOUT typing the prefix', () => {
+    render({ terminalId: 't-seq-5' })
+    const { port1 } = deliverPort('t-seq-5', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    expect(capturedKeyHandlers[0]!(chordEvent({ key: 'Escape' }))).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS * 2)
+    })
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
+  it('resolves the prefix and lets an ordinary key through', () => {
+    render({ terminalId: 't-seq-6' })
+    const { port1 } = deliverPort('t-seq-6', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    expect(capturedKeyHandlers[0]!(chordEvent({ key: 'x' }))).toBe(true)
+    expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'phrase-O' })
+  })
+
+  it('cancels a pending sequence when the terminal is deactivated', () => {
+    const r = render({ terminalId: 't-seq-7', active: true })
+    const { port1 } = deliverPort('t-seq-7', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    act(() => {
+      r.root.render(<EmbeddedTerminal terminalId="t-seq-7" active={false} />)
+    })
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS * 2)
+    })
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
+  it('cancels a pending sequence when focus leaves the terminal', () => {
+    render({ terminalId: 't-seq-8' })
+    const { port1 } = deliverPort('t-seq-8', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    act(() => {
+      // The listener is on the xterm HOST (the container div), not the frame: focus lives on
+      // xterm's inner textarea and `focusout` bubbles UP to the host.
+      const host = document.querySelector('[data-testid="embedded-terminal"]')?.firstElementChild
+      expect(host).not.toBeNull()
+      host?.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS * 2)
+    })
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
+  it('cancels a pending sequence when the shortcut list changes underneath it', () => {
+    render({ terminalId: 't-seq-9' })
+    const { port1 } = deliverPort('t-seq-9', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    act(() => {
+      shortcutsStore.setState({ shortcuts: [...SEQ], loaded: true })
+    })
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS * 2)
+    })
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
+  // Task 9 — the pending indicator, written imperatively (textContent + hidden), never React
+  // state: a re-render per chord must not go anywhere near the terminal (terminal.md).
+  it('shows the pending chords while a sequence is open and hides them when it resolves', () => {
+    render({ terminalId: 't-seq-hint' })
+    deliverPort('t-seq-hint', lastOpenToken())
+    const hint = document.querySelector('[data-testid="chord-pending"]') as HTMLElement
+    expect(hint).not.toBeNull()
+    expect(hint.hidden).toBe(true)
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    expect(hint.hidden).toBe(false)
+    expect(hint.textContent).toContain('Ctrl+Alt+O')
+
+    capturedKeyHandlers[0]!(ctrlAlt('a'))
+    expect(hint.hidden).toBe(true)
+    expect(hint.textContent).toBe('')
+  })
+
+  it('hides the indicator when the timeout resolves the prefix', () => {
+    render({ terminalId: 't-seq-hint2' })
+    deliverPort('t-seq-hint2', lastOpenToken())
+    const hint = document.querySelector('[data-testid="chord-pending"]') as HTMLElement
+
+    capturedKeyHandlers[0]!(ctrlAlt('o'))
+    expect(hint.hidden).toBe(false)
+    act(() => {
+      vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS)
+    })
+    expect(hint.hidden).toBe(true)
   })
 })
