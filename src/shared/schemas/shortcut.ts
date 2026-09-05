@@ -1,6 +1,7 @@
-// Phrase shortcuts — the shortcut shape and its IPC/file boundaries. OUR shape (fail-closed,
-// NO passthrough, mirrors template.ts). NEVER log a shortcut value: `text` is operator prose
-// bound for an LLM prompt and `name` is operator text — log path + code only.
+// Phrase shortcuts — the shortcut shape and its IPC/file boundaries. A binding is a SEQUENCE of
+// 1..3 `Ctrl+Alt+<A-Z>` chords. OUR shape (fail-closed, NO passthrough, mirrors template.ts).
+// NEVER log a shortcut value: `text` is operator prose bound for an LLM prompt and `name` is
+// operator text — log path + code only.
 import { z } from 'zod'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from './launch'
 
@@ -8,37 +9,23 @@ export const SHORTCUT_NAME_MAX_LENGTH = SESSION_NAME_MAX_LENGTH
 export const SHORTCUT_TEXT_MAX_LENGTH = 500
 
 /**
- * The ONLY legal chord shape (spec S-2): exactly `Ctrl+Shift+<A-Z>`.
+ * The ONLY legal CHORD shape: exactly `Ctrl+Alt+<A-Z>`.
  *
- * Why Ctrl+Shift and nothing else: a PTY cannot encode Ctrl+Shift+<letter> distinctly from
- * Ctrl+<letter> (both send the same control byte), so terminal applications — claude and
- * readline included — never bind it; by convention it belongs to the terminal EMULATOR. Taking
- * it steals nothing from the agent, which UX-DR21 requires ("within the terminal, all keystrokes
- * belong to the agent; only modifier-chords apply").
+ * Why Ctrl+Alt and not Ctrl+Shift (which the first version used): the operator asked for the
+ * freedom of all 26 letters plus multi-chord sequences. Ctrl+Alt IS encodable by a PTY — xterm
+ * sends `ESC` + the control byte — so this namespace CAN shadow a terminal binding (bash
+ * readline's default emacs keymap binds twelve `\e\C-<letter>` sequences). That cost is bounded
+ * and chosen: only the letters the operator actually binds are shadowed, and an UNMATCHED
+ * Ctrl+Alt chord falls through to the pty completely untouched. [design §5 hazard 3]
+ *
+ * There are NO reserved letters. `App.tsx`'s three global guards carry an `!e.altKey` term so
+ * Ctrl+Alt+N/Q/W cannot double-fire the app, and neither the Electron default menu
+ * (Ctrl+Shift+I/R) nor the Chromium DevTools conventions (Ctrl+Shift+J/C) live in this namespace.
  */
-export const SHORTCUT_KEYS_PATTERN = /^Ctrl\+Shift\+[A-Z]$/
+export const SHORTCUT_CHORD_PATTERN = /^Ctrl\+Alt\+[A-Z]$/
 
-/**
- * Letters this app or the Electron/Chromium default menu already answers to.
- *
- * N/Q/W: `src/renderer/src/App.tsx`'s global keydown handler has NO `shiftKey` guard and matches
- * BOTH cases of the letter (`e.key === 'n' || e.key === 'N'`), so Ctrl+Shift+N/Q/W already fire
- * New-session / Quit / Stop-confirm today.
- * I/R: Electron's default application menu (never replaced — main only builds a Tray menu) binds
- * Ctrl+Shift+I (toggle DevTools) and Ctrl+Shift+R (force reload).
- * J/C: the Chromium DevTools conventions.
- */
-export const RESERVED_SHORTCUT_LETTERS = ['N', 'Q', 'W', 'I', 'J', 'C', 'R'] as const
-
-/**
- * True when `letter` is one the app or the Electron/Chromium defaults already own.
- *
- * Exported so the schema and the renderer's chord recorder ask ONE question rather than each
- * re-deriving the membership test (and its cast) over the readonly tuple.
- */
-export function isReservedShortcutLetter(letter: string): boolean {
-  return (RESERVED_SHORTCUT_LETTERS as readonly string[]).includes(letter)
-}
+/** A binding is 1..3 chords. Depth 3 is the operator's stated limit. */
+export const SHORTCUT_SEQUENCE_MAX_CHORDS = 3
 
 /** Same rules as a session name: trimmed, 1..60, no control characters. */
 export const ShortcutNameSchema = SessionNameSchema
@@ -47,13 +34,31 @@ export const ShortcutNameSchema = SessionNameSchema
  *  recorded for SessionRenameSchema in launch.ts. */
 export const ShortcutIdSchema = z.string().min(1)
 
-export const ShortcutKeysSchema = z
+export const ShortcutChordSchema = z
   .string()
-  .regex(SHORTCUT_KEYS_PATTERN, { error: 'must be Ctrl+Shift+<A-Z>' })
-  // The pattern guarantees the last character IS the letter.
-  .refine((k) => !isReservedShortcutLetter(k.slice(-1)), {
-    error: 'that chord is reserved by the app'
-  })
+  .regex(SHORTCUT_CHORD_PATTERN, { error: 'must be Ctrl+Alt+<A-Z>' })
+
+/**
+ * An ARRAY, not a delimited string: the matcher compares sequences, and a per-element schema
+ * reports `path = ['keys', 1]` so the fail-closed log (PATH + CODE only, never the value) still
+ * says something useful. A delimited string collapses every malformation into one opaque issue.
+ */
+export const ShortcutKeysSchema = z
+  .array(ShortcutChordSchema)
+  .min(1, { error: 'needs at least one chord' })
+  .max(SHORTCUT_SEQUENCE_MAX_CHORDS, { error: 'at most 3 chords' })
+
+/**
+ * The canonical identity AND display form of a sequence — `"Ctrl+Alt+O Ctrl+Alt+A"`.
+ *
+ * ONE question asked in ONE place: main's uniqueness test, main's list ordering, the matcher's
+ * index keys, the dialog's Keybinding column and the terminal's pending indicator all call this,
+ * so they cannot drift. (Replaces the `isReservedShortcutLetter` helper, which followed the same
+ * "one shared membership question" convention.) VSCode renders chorded bindings the same way.
+ */
+export function shortcutKeysId(keys: readonly string[]): string {
+  return keys.join(' ')
+}
 
 /**
  * The phrase. NOT trimmed — a trailing space is meaningful for a phrase the operator will
@@ -89,7 +94,13 @@ export type ShortcutSaveRequest = z.infer<typeof ShortcutSaveSchema>
 export const ShortcutDeleteSchema = z.object({ id: ShortcutIdSchema })
 export type ShortcutDeleteRequest = z.infer<typeof ShortcutDeleteSchema>
 
-export const SHORTCUTS_FILE_VERSION = 1 as const
+/**
+ * 2: `keys` became a 1..3 chord ARRAY in the Ctrl+Alt namespace. There is deliberately NO
+ * migration — the feature never shipped and no such file exists on any machine, so a stale v1
+ * file takes the store's EXISTING corrupt path (backed up beside itself, list starts empty,
+ * code-only log). [design §7]
+ */
+export const SHORTCUTS_FILE_VERSION = 2 as const
 export const ShortcutsFileSchema = z.object({
   version: z.literal(SHORTCUTS_FILE_VERSION),
   shortcuts: z.array(ShortcutSchema)
