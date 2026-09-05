@@ -6,6 +6,7 @@ import type {
   TerminalApi,
   LaunchApi,
   TemplatesApi,
+  ShortcutsApi,
   TelemetryApi,
   QuitApi,
   ClipboardApi
@@ -26,6 +27,8 @@ declare global {
     launch: LaunchApi
     // Session templates — the templates CRUD bridge (list/save/remove via CH.templates*).
     templates: TemplatesApi
+    // Phrase shortcuts — the shortcuts CRUD bridge (list/save/remove via CH.shortcuts*).
+    shortcuts: ShortcutsApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi
     // Story 4.2 (FR-14) — the quit-guard bridge (requestQuit / confirm / cancel / onGuardShow).

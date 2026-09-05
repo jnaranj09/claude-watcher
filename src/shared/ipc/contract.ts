@@ -11,6 +11,7 @@
 //   - `invoke` returns the value directly — NO `{ data, error }` wrapper.
 //   - Events are discriminated unions on a `type` field.
 import type { Template } from '../schemas/template'
+import type { Shortcut } from '../schemas/shortcut'
 
 /**
  * The canonical channel registry. A single `as const` object so every channel
@@ -89,6 +90,12 @@ export const CH = {
   templatesList: 'templates:list',
   templatesSave: 'templates:save',
   templatesDelete: 'templates:delete',
+  // Phrase shortcuts — the shortcuts CRUD channels. There is deliberately NO channel for
+  // DELIVERING a phrase: it rides the existing terminal MessagePort `{type:'input'}` frame,
+  // the same one every keystroke and the Ctrl+V takeover already use.
+  shortcutsList: 'shortcuts:list',
+  shortcutsSave: 'shortcuts:save',
+  shortcutsDelete: 'shortcuts:delete',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
@@ -467,6 +474,14 @@ export type {
 export type TemplatesSaveResult = { saved: Template; templates: Template[] }
 /** `session:launch-from-template` arg. Returns `SessionLaunchResult` like `session:launch`. */
 export type SessionLaunchFromTemplateRequest = { templateId: string; name: string }
+
+// Phrase shortcuts — main-owned; the renderer holds a projection (shortcutsStore.ts). The phrase
+// itself never travels on an IPC channel: a matched chord posts it on the terminal's EXISTING
+// MessagePort `{type:'input'}` frame, so these three channels are CRUD only.
+export type { Shortcut, ShortcutSaveRequest, ShortcutDeleteRequest } from '../schemas/shortcut'
+/** `shortcuts:save` result — the saved row PLUS the full sorted list, so the dialog can select
+ *  the row it just created without guessing, and the renderer replaces its projection wholesale. */
+export type ShortcutsSaveResult = { saved: Shortcut; shortcuts: Shortcut[] }
 
 // ---------------------------------------------------------------------------
 // Story 3.2 (FR-11) — the in-app LAUNCH seam payload types (native picker + raw
