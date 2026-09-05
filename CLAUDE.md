@@ -2,10 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-c9watch cockpit is a KDE-first Electron desktop app that watches local `claude`
+claude-watcher is a KDE-first Electron desktop app that watches local `claude`
 sessions and embeds live terminals for them. v1 (Epics 0–5) is feature-complete;
 Epic 6 replaced the external `c9watch` CLI with a native session engine (the app
 name and several dir/channel names keep the historical "c9watch" prefix).
+
+The following file: IdeasBoard.md
+Is used to keep track of new work on the app. When something is discarded or completed it must be removed from the file to keep it updated.
+Items in that board should never be implemented right away. They should always be validated using a systematic approach like bmad or superpowers plugin. Once approved
+implementation should also follow a systematic approach.
 
 ## Commands
 
