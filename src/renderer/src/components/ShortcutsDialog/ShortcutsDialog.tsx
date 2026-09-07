@@ -1,5 +1,7 @@
-// Phrase shortcuts — the Manage dialog (modal, z 60 like TemplatesDialog). A single full-width
-// table (Name · Keybinding · Phrase) rather than list+form: a shortcut has only three fields.
+// Phrase shortcuts — the Manage dialog (modal, z 60 like TemplatesDialog).
+//
+// Layout: a header that states what a shortcut DOES, then the editor card (only while adding or
+// editing), then the list. The editor is deliberately NOT a row in the list — see ShortcutRow.tsx.
 // UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
 import { useState, type JSX, type KeyboardEvent } from 'react'
 import type { Shortcut } from '../../../../shared/ipc/contract'
@@ -9,7 +11,8 @@ import {
   saveShortcut,
   removeShortcut
 } from '../../stores/shortcutsStore'
-import { ShortcutRow } from './ShortcutRow'
+import { ShortcutRow, ShortcutEditor } from './ShortcutRow'
+import { ChordKeys } from './ChordKeys'
 import {
   emptyDraft,
   toDraft,
@@ -25,12 +28,12 @@ export interface ShortcutsDialogProps {
   onClose: () => void
 }
 
-/** The sentinel `editingId` for the add-a-shortcut draft row (no real id exists yet). */
+/** The sentinel `editingId` for the add-a-shortcut draft (no real id exists yet). */
 const NEW_ROW = 'new'
 
 export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element {
   const shortcuts = useShortcuts(selectShortcuts)
-  // NEW_ROW = the add-a-shortcut draft row; a string id = editing that row; null = nothing open.
+  // NEW_ROW = the add-a-shortcut draft; a string id = editing that shortcut; null = nothing open.
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ShortcutDraft>(emptyDraft)
   const [error, setError] = useState<ShortcutErrorCode | null>(null)
@@ -74,6 +77,11 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
     void removeShortcut(id).then(cancel)
   }
 
+  // The shortcut under edit, if any. The editor card renders it, so the list hides that row —
+  // one thing on screen per shortcut.
+  const editingShortcut = shortcuts.find((s) => s.id === editingId) ?? null
+  const listed = shortcuts.filter((s) => s.id !== editingId)
+
   return (
     <div
       className={styles.overlay}
@@ -85,68 +93,73 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
     >
       <div className={styles.panel} data-testid="shortcuts-panel">
         <div className={styles.header}>
-          <span className={styles.title}>Shortcuts</span>
-          <button
-            type="button"
-            className={styles.closeButton}
-            data-testid="shortcuts-close"
-            aria-label="Close shortcuts"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className={styles.addRow}>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            data-testid="shortcuts-add"
-            onClick={startAdd}
-          >
-            + Add shortcut
-          </button>
-        </div>
-        <div className={styles.table} role="table" aria-label="Shortcuts">
-          <div className={styles.headRow} role="row">
-            <span>Name</span>
-            <span>Keybinding</span>
-            <span>Phrase</span>
-            <span />
+          <div className={styles.headerText}>
+            <h2 className={styles.title}>Shortcuts</h2>
+            <p className={styles.subtitle}>
+              Press a chord in a session to type its phrase. You press Enter to send.
+            </p>
           </div>
-          {editingId === NEW_ROW && (
-            <ShortcutRow
-              shortcut={null}
-              editing
-              draft={draft}
-              onDraftChange={setDraft}
-              onEdit={cancel}
-              onCancel={cancel}
-              onSave={handleSave}
-              onDelete={cancel}
-            />
-          )}
-          {shortcuts.map((shortcut) => (
-            <ShortcutRow
-              key={shortcut.id}
-              shortcut={shortcut}
-              editing={editingId === shortcut.id}
-              draft={editingId === shortcut.id ? draft : toDraft(shortcut)}
-              onDraftChange={setDraft}
-              onEdit={() => startEdit(shortcut)}
-              onCancel={cancel}
-              onSave={handleSave}
-              onDelete={() => handleDelete(shortcut.id)}
-            />
-          ))}
-          {shortcuts.length === 0 && editingId !== NEW_ROW && (
-            <span className={styles.empty} data-testid="shortcuts-empty">
-              No shortcuts yet. Add one to type a phrase with Ctrl+Alt+&lt;letter&gt;.
-            </span>
-          )}
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.ghostButton}
+              data-testid="shortcuts-add"
+              onClick={startAdd}
+              disabled={editingId === NEW_ROW}
+            >
+              Add shortcut
+            </button>
+            <button
+              type="button"
+              className={styles.closeButton}
+              data-testid="shortcuts-close"
+              aria-label="Close shortcuts"
+              onClick={onClose}
+            >
+              ✕
+            </button>
+          </div>
         </div>
-        <span className={styles.hint}>
-          Shortcuts type the phrase into the focused session — press Enter yourself to send it.
-        </span>
+
+        {editingId !== null && (
+          <ShortcutEditor
+            shortcut={editingShortcut}
+            draft={draft}
+            onDraftChange={setDraft}
+            onCancel={cancel}
+            onSave={handleSave}
+            onDelete={() => {
+              if (editingShortcut !== null) handleDelete(editingShortcut.id)
+            }}
+          />
+        )}
+
+        {shortcuts.length === 0 ? (
+          <div className={styles.empty} data-testid="shortcuts-empty">
+            <span className={styles.emptyTitle}>No shortcuts yet</span>
+            <span className={styles.emptyBody}>
+              Add one and give it a chord like <ChordKeys keys={['Ctrl+Alt+A']} /> to type its
+              phrase in any session.
+            </span>
+          </div>
+        ) : (
+          <div className={styles.list} role="table" aria-label="Shortcuts">
+            <div className={styles.headRow} role="row">
+              <span>Name</span>
+              <span>Keybinding</span>
+              <span>Phrase</span>
+              <span />
+            </div>
+            {listed.map((shortcut) => (
+              <ShortcutRow
+                key={shortcut.id}
+                shortcut={shortcut}
+                onEdit={() => startEdit(shortcut)}
+              />
+            ))}
+          </div>
+        )}
+
         {error !== null && (
           <span className={styles.error} data-testid="shortcuts-error" role="alert">
             {SHORTCUT_ERROR_COPY[error]}

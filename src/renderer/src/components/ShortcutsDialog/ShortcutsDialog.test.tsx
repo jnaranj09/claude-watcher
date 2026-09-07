@@ -1,9 +1,10 @@
-// Phrase shortcuts — the Manage dialog (the VSCode-style table).
+// Phrase shortcuts — the Manage dialog (a list, plus a separate editor card).
 //
-// Covers: the table lists name/chord-sequence/phrase; the empty state; add → record a 1..3 chord
+// Covers: the list shows name/chord-sequence/phrase; the empty state; add → record a 1..3 chord
 // sequence → Save calls window.shortcuts.save with the right payload; Enter finishes, a third
 // chord auto-finishes, Backspace drops one, Escape discards; an AltGr keystroke is refused; the
-// two-step delete; and the store-error copy.
+// two-step delete; the store-error copy; and the layout/onboarding contract — the edited row
+// leaves the list, and the "how" text sits next to the control it explains.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -244,5 +245,60 @@ describe('ShortcutsDialog', () => {
     })
 
     expect(byTestId('shortcuts-error')?.textContent).toContain('already used')
+  })
+
+  // --- layout / onboarding -------------------------------------------------------------------
+  // The editor is a card of its own, not a row in the list: the edited shortcut leaves the list
+  // while it is open, so it is never on screen twice.
+  it('moves the edited shortcut into the editor and out of the list', () => {
+    render()
+    expect(byTestId('shortcut-row-sc-1')).not.toBeNull()
+
+    click(byTestId('shortcut-edit-sc-1'))
+    expect(byTestId('shortcut-row-editing')).not.toBeNull()
+    expect(byTestId('shortcut-row-sc-1')).toBeNull()
+
+    click(byTestId('shortcut-cancel'))
+    expect(byTestId('shortcut-row-sc-1')).not.toBeNull()
+  })
+
+  it('disables Add while the new-shortcut editor is open', () => {
+    render()
+    click(byTestId('shortcuts-add'))
+    expect((byTestId('shortcuts-add') as HTMLButtonElement | null)?.disabled).toBe(true)
+
+    click(byTestId('shortcut-cancel'))
+    expect((byTestId('shortcuts-add') as HTMLButtonElement | null)?.disabled).toBe(false)
+  })
+
+  // Onboarding: the "how" sits next to the control it explains, and it is there BEFORE the
+  // recorder is armed — a new operator should not have to guess what to press first.
+  it('explains how to record a chord before the recorder is armed', () => {
+    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+    render()
+    click(byTestId('shortcuts-add'))
+
+    // Not the armed hint — that element exists only while recording.
+    expect(byTestId('chord-hint')).toBeNull()
+    expect(document.body.textContent).toContain('hold Ctrl+Alt and press a letter')
+    expect(document.body.textContent).toContain('Chain up to 3 for a sequence')
+  })
+
+  it('coaches through the sequence while the recorder is armed', () => {
+    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+    render()
+    click(byTestId('shortcuts-add'))
+
+    arm()
+    expect(byTestId('chord-hint')?.textContent).toContain('Escape cancels')
+    chord('o')
+    expect(byTestId('chord-hint')?.textContent).toContain('Enter to finish')
+  })
+
+  it('says what a shortcut does, and that nothing is sent for you', () => {
+    render()
+    expect(document.body.textContent).toContain('You press Enter to send.')
+    click(byTestId('shortcuts-add'))
+    expect(document.body.textContent).toContain('Nothing is sent until you press Enter.')
   })
 })
