@@ -52,13 +52,15 @@ body is the project path plus the pending tool, verbatim.
 
 ## Session templates
 
-A template is a saved trio of **folder + model + permission mode** under a name.
-`+ New session` (the header button and the empty board's) opens a menu: `Pick a folder…`
-(the plain flow), a searchable list of your templates, and `Manage templates…`. Picking a template asks only for the session
-name, then launches `claude` in that folder with `--model` / `--permission-mode` from
-the template (each is omitted when set to _Default_). Templates live in
+A template is a saved bundle of **folder + model + permission mode + thinking effort** under
+a name. `+ New session` (the header button and the empty board's) opens a menu:
+`Pick a folder…` (the plain flow), a searchable list of your templates, and
+`Manage templates…`. Picking a template asks only for the session name, then launches
+`claude` in that folder with `--model` / `--permission-mode` / `--effort` from the template
+(each is omitted when set to _Default_, which leaves the choice to claude). Templates live in
 `claude-watcher-templates.json` under the app's data dir; a corrupt file is backed up
-as `*.corrupt-<timestamp>.json` and the list starts empty.
+as `*.corrupt-<timestamp>.json` and the list starts empty. Templates saved before the effort
+field existed load unchanged, with effort left on _Default_.
 
 ## Recommended IDE Setup
 

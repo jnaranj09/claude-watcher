@@ -10,6 +10,7 @@ import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
 import {
   MODEL_CHOICES,
   PERMISSION_CHOICES,
+  EFFORT_CHOICES,
   emptyDraft,
   isDraftDirty,
   templateErrorMessage,
@@ -17,6 +18,7 @@ import {
   validateDraft,
   type ModelChoice,
   type PermissionChoice,
+  type EffortChoice,
   type TemplateDraft
 } from './templateForm'
 import styles from './TemplatesDialog.module.css'
@@ -160,6 +162,23 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         onChange={(e) => patch({ permissionChoice: e.target.value as PermissionChoice })}
       >
         {PERMISSION_CHOICES.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+
+      <label className={styles.label} htmlFor="template-effort">
+        Thinking effort
+      </label>
+      <select
+        id="template-effort"
+        className={styles.select}
+        data-testid="template-effort"
+        value={draft.effortChoice}
+        onChange={(e) => patch({ effortChoice: e.target.value as EffortChoice })}
+      >
+        {EFFORT_CHOICES.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}
           </option>

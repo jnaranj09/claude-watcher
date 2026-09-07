@@ -22,7 +22,8 @@ const T1: Template = {
   name: 'work api',
   cwd: '/home/op/api',
   model: 'opus',
-  permissionMode: 'plan'
+  permissionMode: 'plan',
+  effort: null
 }
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */

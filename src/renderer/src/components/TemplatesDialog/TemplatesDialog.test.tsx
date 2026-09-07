@@ -10,7 +10,8 @@ const T1: Template = {
   name: 'api',
   cwd: '/home/op/api',
   model: 'opus',
-  permissionMode: 'plan'
+  permissionMode: 'plan',
+  effort: 'high'
 }
 
 let cleanup: (() => void) | undefined
@@ -101,7 +102,8 @@ describe('TemplatesDialog', () => {
       name: 'blog',
       cwd: '/home/op/blog',
       model: 'claude-x',
-      permissionMode: 'acceptEdits'
+      permissionMode: 'acceptEdits',
+      effort: null
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
   })
@@ -122,8 +124,34 @@ describe('TemplatesDialog', () => {
       name: 'api2',
       cwd: '/home/op/api',
       model: 'opus',
-      permissionMode: 'plan'
+      permissionMode: 'plan',
+      effort: 'high'
     })
+  })
+  it('a chosen effort reaches window.templates.save; Default sends null', async () => {
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'blog')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    select(q(r, '[data-testid="template-effort"]'), 'xhigh')
+    click(q(r, '[data-testid="template-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith({
+      name: 'blog',
+      cwd: '/home/op/blog',
+      model: null,
+      permissionMode: null,
+      effort: 'xhigh'
+    })
+  })
+  it('selecting a row preselects its effort, and changing only the effort enables Save', () => {
+    const { r } = render()
+    click(q(r, '[data-template-id="a"]'))
+    const effort = q<HTMLSelectElement>(r, '[data-testid="template-effort"]')
+    expect(effort.value).toBe('high')
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
+    select(effort, 'low')
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(false)
   })
   it('Delete is two-step: first click arms "Confirm delete", second removes and returns to a new draft', async () => {
     const { r } = render()

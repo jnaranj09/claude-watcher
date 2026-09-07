@@ -3,15 +3,19 @@
 import {
   MODEL_ALIASES,
   PERMISSION_MODES,
+  EFFORT_LEVELS,
   TemplateSaveSchema,
   type ModelAlias,
   type PermissionMode,
+  type EffortLevel,
   type Template,
   type TemplateSaveRequest
 } from '../../../../shared/schemas/template'
 
 export type ModelChoice = 'default' | ModelAlias | 'custom'
 export type PermissionChoice = 'default' | PermissionMode
+/** `'default'` ⇒ no `--effort` flag at all — claude keeps its own default. */
+export type EffortChoice = 'default' | EffortLevel
 
 export interface TemplateDraft {
   id: string | null
@@ -20,6 +24,7 @@ export interface TemplateDraft {
   modelChoice: ModelChoice
   customModel: string
   permissionChoice: PermissionChoice
+  effortChoice: EffortChoice
 }
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -29,6 +34,14 @@ export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
   manual: 'Manual',
   dontAsk: "Don't ask",
   plan: 'Plan'
+}
+
+export const EFFORT_LABELS: Record<EffortLevel, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max'
 }
 
 const ERROR_COPY: Record<string, string> = {
@@ -53,7 +66,8 @@ export function emptyDraft(): TemplateDraft {
     cwd: '',
     modelChoice: 'default',
     customModel: '',
-    permissionChoice: 'default'
+    permissionChoice: 'default',
+    effortChoice: 'default'
   }
 }
 
@@ -71,7 +85,8 @@ export function toDraft(template: Template): TemplateDraft {
     cwd: template.cwd,
     modelChoice: choice,
     customModel: custom,
-    permissionChoice: template.permissionMode ?? 'default'
+    permissionChoice: template.permissionMode ?? 'default',
+    effortChoice: template.effort ?? 'default'
   }
 }
 
@@ -96,7 +111,8 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     name: draft.name,
     cwd: draft.cwd,
     model,
-    permissionMode: draft.permissionChoice === 'default' ? null : draft.permissionChoice
+    permissionMode: draft.permissionChoice === 'default' ? null : draft.permissionChoice,
+    effort: draft.effortChoice === 'default' ? null : draft.effortChoice
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)
   if (parsed.success) return { ok: true, request: parsed.data }
@@ -115,7 +131,8 @@ function normalize(d: TemplateDraft): string {
     d.cwd,
     d.modelChoice,
     d.customModel.trim(),
-    d.permissionChoice
+    d.permissionChoice,
+    d.effortChoice
   ])
 }
 
@@ -127,17 +144,24 @@ export function templateErrorMessage(err: unknown): string {
   return FALLBACK_ERROR
 }
 
-export function describeTemplateFlags(t: Pick<Template, 'model' | 'permissionMode'>): string {
+export function describeTemplateFlags(
+  t: Pick<Template, 'model' | 'permissionMode' | 'effort'>
+): string {
   const model = t.model ?? 'default model'
   const mode =
     t.permissionMode === null ? 'default permissions' : PERMISSION_MODE_LABELS[t.permissionMode]
-  return `${model} · ${mode}`
+  const effort = t.effort === null ? 'default effort' : `${EFFORT_LABELS[t.effort]} effort`
+  return `${model} · ${mode} · ${effort}`
 }
 
 /** Select options, in claude --help order. */
 export const PERMISSION_CHOICES: ReadonlyArray<{ value: PermissionChoice; label: string }> = [
   { value: 'default', label: 'Default (claude decides)' },
   ...PERMISSION_MODES.map((mode) => ({ value: mode, label: PERMISSION_MODE_LABELS[mode] }))
+]
+export const EFFORT_CHOICES: ReadonlyArray<{ value: EffortChoice; label: string }> = [
+  { value: 'default', label: 'Default (claude decides)' },
+  ...EFFORT_LEVELS.map((level) => ({ value: level, label: EFFORT_LABELS[level] }))
 ]
 export const MODEL_CHOICES: ReadonlyArray<{ value: ModelChoice; label: string }> = [
   { value: 'default', label: 'Default (claude decides)' },

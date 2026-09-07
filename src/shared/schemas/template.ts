@@ -20,6 +20,14 @@ export type PermissionMode = (typeof PERMISSION_MODES)[number]
 export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const
 export type ModelAlias = (typeof MODEL_ALIASES)[number]
 
+/** The `--effort` levels as printed by `claude --help` on 2.1.261. Enum-locked for the same
+ *  reason as PERMISSION_MODES: this is a CLI arg WE generate, not claude output. All five
+ *  predate MIN_CLAUDE_VERSION 2.1.245 (`--effort` itself ≲2.1.72, `max` ≤2.1.98, `xhigh`
+ *  2.1.111), so no version gate change is needed. Re-verify against `claude --help` if the
+ *  floor is ever bumped, alongside --model / --permission-mode. */
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+export type EffortLevel = (typeof EFFORT_LEVELS)[number]
+
 export const TEMPLATE_NAME_MAX_LENGTH = SESSION_NAME_MAX_LENGTH
 export const MODEL_NAME_MAX_LENGTH = 100
 
@@ -43,7 +51,13 @@ export const TemplateSchema = z.object({
   name: TemplateNameSchema,
   cwd: z.string().min(1),
   model: ModelNameSchema.nullable(), // null ⇒ no --model flag
-  permissionMode: z.enum(PERMISSION_MODES).nullable() // null ⇒ no --permission-mode flag
+  permissionMode: z.enum(PERMISSION_MODES).nullable(), // null ⇒ no --permission-mode flag
+  // `.default(null)` is BACKWARD COMPATIBILITY, not sugar: a templates file written before
+  // this field existed has no `effort` key, and without the default that row — and therefore
+  // the whole file — fails closed, so loadPersistedOrReset backs it up and starts EMPTY.
+  // Every saved template would be lost. Do not remove the default; do not bump the file
+  // version instead (a `z.literal(2)` has exactly that failure mode).
+  effort: z.enum(EFFORT_LEVELS).nullable().default(null) // null ⇒ no --effort flag
 })
 export type Template = z.infer<typeof TemplateSchema>
 

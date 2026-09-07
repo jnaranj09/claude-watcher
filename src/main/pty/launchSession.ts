@@ -59,7 +59,7 @@ import { randomUUID } from 'node:crypto'
 import { correlate, type ReadStatus } from './pidCorrelation'
 import type { LaunchedSet } from './launchedSet'
 import type { Session } from '../../shared/schemas/session'
-import type { PermissionMode } from '../../shared/schemas/template'
+import type { EffortLevel, PermissionMode } from '../../shared/schemas/template'
 
 /** The minimal terminal-manager surface the launch service needs (REUSE — Story 3.1). The
  *  launch SPAWN itself rides the EXISTING `terminal:open` handler in main (the renderer opens the
@@ -72,13 +72,18 @@ export interface LaunchTerminalManager {
   pidOf(terminalId: string): number | null
 }
 
-/** Session templates — the two claude flags a launch may carry. Nullable, never undefined. */
+/** Session templates — the three claude flags a launch may carry. Nullable, never undefined. */
 export interface ClaudeLaunchFlags {
   model: string | null
   permissionMode: PermissionMode | null
+  effort: EffortLevel | null
 }
 /** The folder-flow value — no template, no flags. */
-export const NO_LAUNCH_FLAGS: ClaudeLaunchFlags = { model: null, permissionMode: null }
+export const NO_LAUNCH_FLAGS: ClaudeLaunchFlags = {
+  model: null,
+  permissionMode: null,
+  effort: null
+}
 
 /** The launch invocation — raw `claude` in `cwd`, under the operator's chosen name. */
 export interface LaunchRequest {
@@ -88,7 +93,7 @@ export interface LaunchRequest {
    *  `SessionNameSchema` — already trimmed and length-bounded when it reaches here). Becomes the
    *  synthesized card's `sessionName` instead of the cwd basename. */
   name: string
-  /** Session templates — the model/permission-mode flags to spawn claude with. Omitted ⇒
+  /** Session templates — the model/permission-mode/effort flags to spawn claude with. Omitted ⇒
    *  `NO_LAUNCH_FLAGS` (the folder flow). */
   flags?: ClaudeLaunchFlags
 }

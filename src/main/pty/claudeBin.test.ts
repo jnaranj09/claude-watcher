@@ -17,6 +17,7 @@ import {
   QUESTION_FORMAT_PROMPT
 } from './claudeBin'
 import type { ClaudeCommandSpec } from './claudeBin'
+import { EFFORT_LEVELS } from '../../shared/schemas/template'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -205,6 +206,7 @@ describe('composeClaudeCommand', () => {
       appendSystemPrompt: null,
       model: null,
       permissionMode: null,
+      effort: null,
       ...overrides
     }
   }
@@ -227,6 +229,25 @@ describe('composeClaudeCommand', () => {
     })
     it('an empty model string is treated like null (never a bare --model)', () => {
       expect(composeClaudeCommand(spec({ model: '' }))).not.toContain('--model')
+    })
+    it('effort null ⇒ no --effort anywhere (the folder flow must not change)', () => {
+      expect(composeClaudeCommand(spec({ model: 'opus', permissionMode: 'plan' }))).not.toContain(
+        '--effort'
+      )
+    })
+    it('appends --effort LAST, shell-quoted, for every level', () => {
+      expect(
+        composeClaudeCommand(
+          spec({ model: 'opus', permissionMode: 'acceptEdits', effort: 'xhigh' })
+        )
+      ).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --model 'opus' --permission-mode 'acceptEdits' --effort 'xhigh'`
+      )
+      for (const level of EFFORT_LEVELS) {
+        const cmd = composeClaudeCommand(spec({ effort: level }))
+        expect(cmd).toBe(`'${BIN}' --session-id '${SID}' -n 'x' --effort '${level}'`)
+        expect(cmd.split('--effort').length - 1).toBe(1)
+      }
     })
   })
 

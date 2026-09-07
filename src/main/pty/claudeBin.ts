@@ -23,7 +23,7 @@
 // Pure over its seams (an injected `isExecutable` reader) so `main-unit` tests never touch
 // the real filesystem — mirrors the ptyFactory/readStatusFromProc DI precedent (AR-11).
 
-import type { PermissionMode } from '../../shared/schemas/template'
+import type { EffortLevel, PermissionMode } from '../../shared/schemas/template'
 
 /** Where a resolution came from — a CODE for logging (never the path value). */
 export type ClaudeBinSource = 'override' | 'path' | 'wellKnown' | 'unresolved'
@@ -150,6 +150,11 @@ export interface ClaudeCommandSpec {
   model: string | null
   /** Session templates: `--permission-mode <mode>`. */
   permissionMode: PermissionMode | null
+  /** Session templates: `--effort <low|medium|high|xhigh|max>`. Verified on claude 2.1.261
+   *  (`claude --help`); present since ≲2.1.72, so below the 2.1.245 floor. An UNKNOWN VALUE is
+   *  soft — claude warns on stderr and uses its default — but an unknown FLAG is fatal, which
+   *  is what the version gate is for. */
+  effort: EffortLevel | null
 }
 
 function flagArg(flag: string, value: string | null): string {
@@ -194,9 +199,12 @@ function flagArg(flag: string, value: string | null): string {
  * decide, and `null` omits the flag entirely (fail-soft — the session still spawns without
  * the nudge). Shell-quoted: the prompt text is not guaranteed free of shell metacharacters.
  *
- * `model` / `permissionMode` become `--model <alias|full name>` / `--permission-mode <mode>` —
- * session templates (folder + model + permission mode). Same REQUIRED-and-nullable contract:
- * `null` (or an empty `model` string) omits the flag entirely rather than emitting a bare one.
+ * `model` / `permissionMode` / `effort` become `--model <alias|full name>` /
+ * `--permission-mode <mode>` / `--effort <level>` — session templates (folder + model +
+ * permission mode + thinking effort). Same REQUIRED-and-nullable contract: `null` (or an empty
+ * `model` string) omits the flag entirely rather than emitting a bare one. `--effort` is
+ * appended LAST so a template with no effort composes a byte-identical command to the
+ * pre-effort one — that is what the folder-flow no-regression test asserts.
  */
 export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
   return (
@@ -205,7 +213,8 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
     flagArg('--settings', spec.hookSettingsPath) +
     flagArg('--append-system-prompt', spec.appendSystemPrompt) +
     flagArg('--model', spec.model) +
-    flagArg('--permission-mode', spec.permissionMode)
+    flagArg('--permission-mode', spec.permissionMode) +
+    flagArg('--effort', spec.effort)
   )
 }
 

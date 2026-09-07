@@ -10,14 +10,16 @@ const T1: Template = {
   name: 'work api',
   cwd: '/home/op/api',
   model: 'opus',
-  permissionMode: 'plan'
+  permissionMode: 'plan',
+  effort: 'xhigh'
 }
 const T2: Template = {
   id: 'b',
   name: 'blog',
   cwd: '/home/op/blog',
   model: null,
-  permissionMode: null
+  permissionMode: null,
+  effort: null
 }
 
 let cleanup: (() => void) | undefined
@@ -76,7 +78,7 @@ describe('NewSessionMenu', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]?.textContent).toContain('work api')
     expect(rows[0]?.textContent).toContain('/home/op/api')
-    expect(rows[0]?.textContent).toContain('opus · Plan')
+    expect(rows[0]?.textContent).toContain('opus · Plan · Extra high effort')
     expect(q(r, '[data-testid="menu-manage"]')).toBeTruthy()
   })
   it('search filters rows; Enter in the search picks the first match', () => {

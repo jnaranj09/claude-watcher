@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createTemplatesStore } from './templates'
 import { createTemplatesIpcHandlers } from './templatesIpc'
 
-const ROW = { name: 'blog', cwd: '/home/op/blog', model: null, permissionMode: null }
+const ROW = { name: 'blog', cwd: '/home/op/blog', model: null, permissionMode: null, effort: null }
 
 describe('templates IPC handler logic — parse-and-throw on the arg (untrusted cross-process input)', () => {
   it('list returns the store list directly (no envelope)', () => {
@@ -22,6 +22,9 @@ describe('templates IPC handler logic — parse-and-throw on the arg (untrusted 
   it('save with a MALFORMED arg throws and does NOT mutate', () => {
     const h = createTemplatesIpcHandlers(createTemplatesStore())
     expect(() => h.save({ ...ROW, permissionMode: 'yolo' })).toThrow()
+    // `ultracode` is a real claude alias but deliberately NOT in EFFORT_LEVELS (design §3):
+    // an enum-locked CLI arg we generate fails closed at the seam.
+    expect(() => h.save({ ...ROW, effort: 'ultracode' })).toThrow()
     // An unknown key is NOT a throw case: TemplateSaveSchema (Task 1) has no `.strict()`,
     // matching the codebase-wide convention (settings.ts's SettingsSchema doc comment;
     // template.test.ts's "strips an unknown key" case) — unknown keys are silently

@@ -5,7 +5,14 @@ import { NewSessionButton } from './NewSessionButton'
 import { templatesStore } from '../../stores/templatesStore'
 import type { Template } from '../../../../shared/ipc/contract'
 
-const T1: Template = { id: 'a', name: 'api', cwd: '/api', model: null, permissionMode: null }
+const T1: Template = {
+  id: 'a',
+  name: 'api',
+  cwd: '/api',
+  model: null,
+  permissionMode: null,
+  effort: null
+}
 let cleanup: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
