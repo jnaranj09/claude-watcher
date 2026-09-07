@@ -1,0 +1,339 @@
+/* Phrase shortcuts — the Manage dialog. Token spine 1:1 with TemplatesDialog.module.css
+   (zero new colors, zero new tokens — spec S-7).
+
+   Layout note: the EDITOR is a card of its own, above the list — it is NOT a row squeezed into
+   the list grid. Four controls (name, chord recorder, phrase, three buttons) never fit one
+   860px row: the phrase input collapsed and a 3-chord sequence overflowed its column. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.panel {
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-6);
+  /* Wider than TemplatesDialog's 640px — the list carries three columns AND key chips. */
+  min-width: 760px;
+  max-width: 940px;
+  width: 100%;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-dialog);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-display);
+  line-height: var(--line-height-display);
+}
+.subtitle {
+  margin: 0;
+  /* Under 80 characters, and wide enough that this one sentence does not wrap mid-clause. */
+  max-width: 72ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+.closeButton {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-2);
+  line-height: 1;
+}
+.closeButton:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+.input::placeholder {
+  color: var(--text-dim);
+}
+.error {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--danger);
+}
+.ghostButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ghostButton:hover:not(:disabled) {
+  background: var(--bg-surface);
+}
+.ghostButton:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+.primaryButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--working);
+  border-radius: var(--rounded-md);
+  background: var(--working);
+  color: #11111b;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.primaryButton:disabled {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.dangerButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: var(--danger);
+  color: #ffffff;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* --- Key chips: one chord = one chip, so a 3-chord sequence stays scannable --------------- */
+.chordKeys {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.chord {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  line-height: 1.2;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-sm);
+  padding: 3px var(--space-2);
+  white-space: nowrap;
+}
+
+/* --- The list: Name · Keybinding · Phrase · Edit ------------------------------------------ */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.headRow,
+.row {
+  display: grid;
+  grid-template-columns: 160px minmax(180px, 240px) minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+.headRow {
+  color: var(--text-muted);
+  font-size: var(--font-size-label);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-3) var(--space-2);
+  margin-bottom: var(--space-1);
+}
+.row {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+}
+.row:hover {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+.cellName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cellText {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Empty state: say what is missing, then what to do about it --------------------------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--rounded-md);
+  text-align: center;
+}
+.emptyTitle {
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-heading);
+}
+.emptyBody {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}
+
+/* --- The editor card --------------------------------------------------------------------- */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+}
+.editorTitle {
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-heading);
+  letter-spacing: var(--letter-spacing-heading);
+}
+.editorTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.fieldLabel {
+  color: var(--text-secondary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+}
+.fieldHelp {
+  color: var(--text-muted);
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+}
+.editorActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.editorActionsRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* --- The chord recorder ------------------------------------------------------------------ */
+.recorder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.recorderButton {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  /* Matches the .input height so the two editor columns line up. */
+  min-height: 36px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  /* Deliberately NOT the input treatment: transparent + dashed reads as an empty slot to click,
+     where a filled box with a solid border reads as a text field you can type into. */
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+.recorderButton:hover {
+  border-color: var(--focus-ring);
+}
+/* Once a chord is set the slot is filled — solid edge, no longer an invitation. */
+.recorderSet {
+  border-style: solid;
+}
+.recorderArmed {
+  border-style: solid;
+  border-color: var(--working);
+  color: var(--text-primary);
+}
+.recorderHint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+}
+
+.input:focus-visible,
+.ghostButton:focus-visible,
+.primaryButton:focus-visible,
+.dangerButton:focus-visible,
+.recorderButton:focus-visible,
+.closeButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

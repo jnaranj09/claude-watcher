@@ -62,6 +62,37 @@ a name. `+ New session` (the header button and the empty board's) opens a menu:
 as `*.corrupt-<timestamp>.json` and the list starts empty. Templates saved before the effort
 field existed load unchanged, with effort left on _Default_.
 
+## Phrase shortcuts
+
+Map a chord to a phrase and type it into the focused session with one keypress — handy for the
+lines you repeat all day ("I explicitly approve", "continue", "run the tests and report back").
+
+Open the `⌨` button in the header to manage them: **Name**, **Keybinding**, **Phrase**.
+
+- **Chords are `Ctrl+Alt+<letter>`, and a binding can be up to three of them** — press
+  `Ctrl+Alt+O` then `Ctrl+Alt+A` for one phrase, `Ctrl+Alt+O` on its own for another.
+- **All 26 letters are available.** Nothing is reserved: the app's own `Ctrl+N` / `Ctrl+Q` /
+  `Ctrl+W` ignore Alt, and the Electron and Chromium defaults (DevTools, reload) live on
+  `Ctrl+Shift`, not `Ctrl+Alt`.
+- **A chord that starts a longer sequence waits 750 ms** for its continuation, then types its own
+  phrase if it has one. While it waits, the pending chords show in the terminal's bottom-right
+  corner. A shortcut that is not the start of a longer one fires instantly, with no delay. `Esc`
+  cancels a half-typed sequence without typing anything.
+- **A chord you have not bound is passed straight through to the session**, so `claude` still
+  receives it as `Esc` + the control byte. The trade-off: a bound letter takes that key away from
+  whatever runs in that terminal — in a plain shell, bash's readline uses `Ctrl+Alt+` `B D E F G
+H I L R T Y`.
+- Your desktop wins first: if KDE has already grabbed a chord (`Ctrl+Alt+Del` and friends), the
+  app never sees it and the recorder cannot record it.
+- **The phrase is typed, not sent.** You press `Enter` yourself, so a shortcut can never confirm
+  a permission prompt you did not read. Phrases cannot contain newlines or escape sequences.
+- Shortcuts fire **only while a session terminal is focused** — never on the board, and never
+  system-wide.
+
+They live in `claude-watcher-shortcuts.json` in the app's data directory. If that file is ever
+corrupt — or was written by an older build — it is backed up beside itself and the list starts
+empty; nothing else is affected.
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)

@@ -195,6 +195,22 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
     expect(boardStore.getState().stopConfirm?.terminalId).toBe('term-ctrl-w')
   })
 
+  // Hazard 1 again: Ctrl+Alt+W must not open the Stop-confirm now that Ctrl+Alt is the
+  // phrase-shortcut namespace.
+  it('(a) Ctrl+Alt+W does NOT open the Stop-confirm', async () => {
+    await renderApp()
+    act(() => {
+      boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-ctrl-alt-w' })
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true, altKey: true }))
+      await Promise.resolve()
+    })
+
+    expect(boardStore.getState().stopConfirm).toBeNull()
+  })
+
   it('(a) Ctrl+W (uppercase W) also opens the Stop-confirm', async () => {
     await renderApp()
     act(() => {

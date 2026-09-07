@@ -26,6 +26,7 @@ import {
   selectRailActiveSessionId,
   selectRailSection,
   selectTemplatesDialogOpen,
+  selectShortcutsDialogOpen,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -951,5 +952,19 @@ describe('session templates — view-state', () => {
     expect(selectTemplatesDialogOpen(store.getState())).toBe(true)
     store.getState().closeTemplatesDialog()
     expect(selectTemplatesDialogOpen(store.getState())).toBe(false)
+  })
+  it('shortcutsDialogOpen starts false; open/close toggle it; both are idempotent', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectShortcutsDialogOpen(store.getState())).toBe(false)
+    const unsub = vi.fn()
+    store.subscribe(unsub)
+    store.getState().closeShortcutsDialog()
+    expect(unsub).not.toHaveBeenCalled()
+    store.getState().openShortcutsDialog()
+    store.getState().openShortcutsDialog()
+    expect(selectShortcutsDialogOpen(store.getState())).toBe(true)
+    store.getState().closeShortcutsDialog()
+    store.getState().closeShortcutsDialog()
+    expect(selectShortcutsDialogOpen(store.getState())).toBe(false)
   })
 })

@@ -23,7 +23,11 @@ import type {
   TemplateSaveRequest,
   TemplateDeleteRequest,
   TemplatesSaveResult,
-  SessionLaunchFromTemplateRequest
+  SessionLaunchFromTemplateRequest,
+  Shortcut,
+  ShortcutSaveRequest,
+  ShortcutDeleteRequest,
+  ShortcutsSaveResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -280,6 +284,22 @@ const templatesApi = {
 }
 export type TemplatesApi = typeof templatesApi
 
+// Phrase shortcuts — typed invoke wrappers over CH.shortcuts*. `remove`, not `delete`
+// (reserved word), so the store and the bridge share one verb — same as templatesApi.
+const shortcutsApi = {
+  list(): Promise<Shortcut[]> {
+    return ipcRenderer.invoke(CH.shortcutsList)
+  },
+  save(req: ShortcutSaveRequest): Promise<ShortcutsSaveResult> {
+    return ipcRenderer.invoke(CH.shortcutsSave, req)
+  },
+  remove(id: string): Promise<Shortcut[]> {
+    const req: ShortcutDeleteRequest = { id }
+    return ipcRenderer.invoke(CH.shortcutsDelete, req)
+  }
+}
+export type ShortcutsApi = typeof shortcutsApi
+
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
 // touches ipcRenderer directly (contextIsolation stays ON). MAIN computes the wait duration.
@@ -371,6 +391,9 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('launch', launchApi)
     // Session templates — the templates CRUD bridge (templates:list/save/delete).
     contextBridge.exposeInMainWorld('templates', templatesApi)
+    // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete). The phrase
+    // itself never crosses here: a matched chord posts it on the terminal's existing port.
+    contextBridge.exposeInMainWorld('shortcuts', shortcutsApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -406,4 +429,6 @@ if (process.contextIsolated) {
   window.clipboard = clipboardApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.templates is in index.d.ts
   window.templates = templatesApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.shortcuts is in index.d.ts
+  window.shortcuts = shortcutsApi
 }

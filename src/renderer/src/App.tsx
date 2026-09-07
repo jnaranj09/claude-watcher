@@ -19,6 +19,9 @@ import { SmokeCockpit } from './SmokeCockpit'
 import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
 import { TemplatesDialog } from './components/TemplatesDialog/TemplatesDialog'
 import { loadTemplates } from './stores/templatesStore'
+// Phrase shortcuts — the header ⌨ button's Manage-shortcuts modal + the startup shortcuts load.
+import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
+import { loadShortcuts } from './stores/shortcutsStore'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
 import { Settings } from './components/Settings/Settings'
@@ -42,7 +45,8 @@ import {
   selectQuitGuard,
   selectStopConfirm,
   selectSessionNamePrompt,
-  selectTemplatesDialogOpen
+  selectTemplatesDialogOpen,
+  selectShortcutsDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -72,7 +76,7 @@ import styles from './App.module.css'
  *  free of exhaustive-deps warnings. */
 function isModalOpen(): boolean {
   const s = boardStore.getState()
-  return s.sessionNamePrompt !== null || s.templatesDialogOpen
+  return s.sessionNamePrompt !== null || s.templatesDialogOpen || s.shortcutsDialogOpen
 }
 
 function App(): React.JSX.Element {
@@ -109,6 +113,8 @@ function App(): React.JSX.Element {
     if (smoke === false) {
       void loadSettings()
       void loadTemplates()
+      // Phrase shortcuts — never throws (logs a code and leaves the projection empty on failure).
+      void loadShortcuts()
     }
   }, [smoke])
 
@@ -123,6 +129,8 @@ function App(): React.JSX.Element {
   const sessionNamePrompt = useBoard(selectSessionNamePrompt)
   // Session templates — whether the Manage-templates dialog is open.
   const templatesDialogOpen = useBoard(selectTemplatesDialogOpen)
+  // Phrase shortcuts — whether the Manage-shortcuts dialog is open.
+  const shortcutsDialogOpen = useBoard(selectShortcutsDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -176,6 +184,7 @@ function App(): React.JSX.Element {
       // quit guard).
       boardStore.getState().clearSessionNamePrompt()
       boardStore.getState().closeTemplatesDialog()
+      boardStore.getState().closeShortcutsDialog()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -339,10 +348,17 @@ function App(): React.JSX.Element {
   //
   // Gated on NON-smoke + NON-terminal-host below via the early returns, so this effect only runs
   // for the real app view. Ctrl+N opens the picker from anywhere. The handlers above never throw.
+  //
+  // All three Ctrl bindings carry `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut
+  // namespace, and an unmatched chord there deliberately reaches this listener.
   useEffect(() => {
     if (smoke !== false) return
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
+      // `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut namespace. Without this term a
+      // Ctrl+Alt+N chord fired BOTH the shortcut and the app. Fixed here rather than by
+      // stopPropagation in the terminal, because an UNMATCHED Ctrl+Alt chord is deliberately not
+      // swallowed — it must reach the pty — so it does reach this listener.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
         void handleNewSession()
         return
@@ -351,7 +367,7 @@ function App(): React.JSX.Element {
       // The renderer NEVER calls app.quit() directly (sandboxed); it routes through
       // app:request-quit → main app.quit() → the one before-quit guard decision (FROZEN #3).
       // Guard: window.quit may be absent in pre-4.2 test environments (App.launch.test.tsx).
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'q' || e.key === 'Q')) {
         e.preventDefault()
         if (window.quit) void window.quit.requestQuit()
         return
@@ -365,7 +381,7 @@ function App(): React.JSX.Element {
       // while an existing one runs). Without that term, Ctrl+W stacked StopConfirm at the same
       // z-index under the name prompt: StopConfirm's mount effect steals focus out of the name
       // input, so the visible dialog and the keyboard focus disagree.
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W')) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault()
         const state = boardStore.getState()
         if (
@@ -400,6 +416,7 @@ function App(): React.JSX.Element {
         if (isModalOpen()) {
           boardStore.getState().clearSessionNamePrompt()
           boardStore.getState().closeTemplatesDialog()
+          boardStore.getState().closeShortcutsDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -475,7 +492,7 @@ function App(): React.JSX.Element {
   // the live xterm textarea — so keystrokes reach a running claude session while a modal is on
   // screen. Neither dialog renders a focus trap of its own; this is the trap. The name stays —
   // it now means "a modal is open," not just "the name prompt is open."
-  const namePromptOpen = sessionNamePrompt !== null || templatesDialogOpen
+  const namePromptOpen = sessionNamePrompt !== null || templatesDialogOpen || shortcutsDialogOpen
 
   return (
     <div className={styles.app}>
@@ -488,6 +505,17 @@ function App(): React.JSX.Element {
             onManage={handleManageTemplates}
           />
           <Settings />
+          {/* Phrase shortcuts — the Manage-shortcuts entry point, beside the ⚙ gear. */}
+          <button
+            type="button"
+            className={styles.headerIconButton}
+            data-testid="open-shortcuts"
+            aria-label="Open shortcuts"
+            aria-haspopup="dialog"
+            onClick={() => boardStore.getState().openShortcutsDialog()}
+          >
+            ⌨
+          </button>
         </div>
       </header>
       <main className={styles.main}>
@@ -549,6 +577,11 @@ function App(): React.JSX.Element {
           rule enforced by isModalOpen() at every open call site + the quit-guard listener above). */}
       {templatesDialogOpen && (
         <TemplatesDialog onClose={() => boardStore.getState().closeTemplatesDialog()} />
+      )}
+      {/* Phrase shortcuts — the Manage-shortcuts modal (renderer view-state; same z-60 layer and
+          the same UX-DR14 single-modal rule as the Templates dialog). */}
+      {shortcutsDialogOpen && (
+        <ShortcutsDialog onClose={() => boardStore.getState().closeShortcutsDialog()} />
       )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and the operator submitting or cancelling). NOTHING is

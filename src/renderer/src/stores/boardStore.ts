@@ -249,6 +249,11 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   templatesDialogOpen: boolean
+  /**
+   * Phrase shortcuts — whether the Manage-shortcuts dialog is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  shortcutsDialogOpen: boolean
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -362,6 +367,14 @@ export interface BoardState {
    * Session templates — close the templates picker dialog. No-op if already closed.
    */
   closeTemplatesDialog: () => void
+  /**
+   * Phrase shortcuts — open the Manage-shortcuts dialog. No-op if already open.
+   */
+  openShortcutsDialog: () => void
+  /**
+   * Phrase shortcuts — close the Manage-shortcuts dialog. No-op if already closed.
+   */
+  closeShortcutsDialog: () => void
 }
 
 export interface BoardStoreOptions {
@@ -400,6 +413,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     sessionNamePrompt: null,
     // Session templates — the templates picker dialog starts closed.
     templatesDialogOpen: false,
+    // Phrase shortcuts — the Manage-shortcuts dialog starts closed.
+    shortcutsDialogOpen: false,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -639,6 +654,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeTemplatesDialog: () => {
       if (get().templatesDialogOpen) set({ templatesDialogOpen: false })
+    },
+
+    openShortcutsDialog: () => {
+      if (!get().shortcutsDialogOpen) set({ shortcutsDialogOpen: true })
+    },
+    closeShortcutsDialog: () => {
+      if (get().shortcutsDialogOpen) set({ shortcutsDialogOpen: false })
     }
   }))
 }
@@ -741,6 +763,12 @@ export const selectSessionNamePrompt = (state: BoardState): SessionNamePromptPay
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectTemplatesDialogOpen = (state: BoardState): boolean => state.templatesDialogOpen
+
+/**
+ * Phrase shortcuts — whether the Manage-shortcuts dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.shortcutsDialogOpen
 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the

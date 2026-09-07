@@ -222,6 +222,20 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
     expect(boardStore.getState().viewMode).toBe('focused')
   })
 
+  // Ctrl+Alt is the phrase-shortcut namespace, and this guard had NO altKey term, so a
+  // Ctrl+Alt+N chord fired the app as well as the shortcut. Fixed at the SOURCE, not with
+  // stopPropagation: an UNMATCHED Ctrl+Alt chord is deliberately not swallowed (it must reach
+  // the pty), so it DOES reach this window listener. [design §5 hazard 1]
+  it('Ctrl+Alt+N does NOT trigger the launch flow', async () => {
+    await renderApp()
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, altKey: true }))
+      await Promise.resolve()
+    })
+    await flush()
+    expect(pickSpy).not.toHaveBeenCalled()
+  })
+
   it('Esc returns Focused → Board (UX-DR21)', async () => {
     const r = await renderApp()
     // Enter the focused view via a launch first.

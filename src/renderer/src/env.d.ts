@@ -23,7 +23,10 @@ import type {
   QuitGuardPayload,
   Template,
   TemplateSaveRequest,
-  TemplatesSaveResult
+  TemplatesSaveResult,
+  Shortcut,
+  ShortcutSaveRequest,
+  ShortcutsSaveResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -104,6 +107,13 @@ declare global {
       list(): Promise<Template[]>
       save(req: TemplateSaveRequest): Promise<TemplatesSaveResult>
       remove(id: string): Promise<Template[]>
+    }
+    // Phrase shortcuts — mirrors src/preload/index.ts `shortcutsApi`. The renderer reaches the
+    // shortcuts store ONLY through this typed bridge (never electron-store, never ipcRenderer).
+    shortcuts: {
+      list(): Promise<Shortcut[]>
+      save(req: ShortcutSaveRequest): Promise<ShortcutsSaveResult>
+      remove(id: string): Promise<Shortcut[]>
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

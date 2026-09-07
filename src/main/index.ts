@@ -77,6 +77,9 @@ import { SettingsPatchSchema } from '../shared/schemas/settings'
 import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
 import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
 import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
+import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcuts'
+import { createElectronShortcutsBlobStore } from './persistence/electronShortcutsBlobStore'
+import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
 import { resolveTemplateLaunch } from './pty/launchFromTemplate'
 import type { ClaudeLaunchFlags } from './pty/launchSession'
 // Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
@@ -882,6 +885,13 @@ function requireTemplatesStore(): TemplatesStore {
   return templatesStore
 }
 
+// Phrase shortcuts — same lifecycle as templatesStore (needs app-ready for electron-store).
+let shortcutsStore: ShortcutsStore | null = null
+function requireShortcutsStore(): ShortcutsStore {
+  if (shortcutsStore === null) throw new Error('shortcuts store not initialized')
+  return shortcutsStore
+}
+
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
 // (AR-9: no database; Zod-validated + versioned; corrupt read → back up + start fresh).
 // Null until AFTER app-ready (app.getPath('userData') needs ready). The per-window tracker
@@ -924,6 +934,19 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Phrase shortcuts — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/shortcutsIpc.ts (unit-tested); this only binds them to CH.* channels. There is
+// deliberately no channel for DELIVERING a phrase — a matched chord posts it on the terminal's
+// existing MessagePort `{type:'input'}` frame.
+function registerShortcutsIpc(): void {
+  // Called AFTER the store is built, so the handlers are bound once instead of rebuilt on every
+  // invoke. requireShortcutsStore() stays — it throws a clear error if ever mis-ordered.
+  const handlers = createShortcutsIpcHandlers(requireShortcutsStore())
+  ipcMain.handle(CH.shortcutsList, () => handlers.list())
+  ipcMain.handle(CH.shortcutsSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipcMain.handle(CH.shortcutsDelete, (_evt, raw: unknown) => handlers.remove(raw))
 }
 
 // Story 3.5 (SM-2) — register the telemetry-acknowledge IPC ONCE (mirrors registerSettingsIpc:
@@ -1854,6 +1877,18 @@ app
       templatesStore = createTemplatesStore()
     }
     registerTemplatesIpc()
+
+    try {
+      shortcutsStore = SMOKE
+        ? createShortcutsStore()
+        : createShortcutsStore({ blobStore: createElectronShortcutsBlobStore() })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a shortcuts
+      // blob carries operator phrases.
+      console.error('[claude-watcher][shortcuts] code=shortcuts_store_init_failed (in-memory)')
+      shortcutsStore = createShortcutsStore()
+    }
+    registerShortcutsIpc()
 
     // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
     // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.
