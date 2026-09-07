@@ -208,4 +208,41 @@ describe('App — session templates', () => {
     expect(r.container.querySelector('[data-testid="templates-overlay"]')).toBeNull()
     expect(boardStore.getState().templatesDialogOpen).toBe(false)
   })
+
+  // THE BUG THIS CHANGE FIXES. The dead pane's `New session` used to run the folder picker
+  // directly; it must now open the SAME popover the header opens and reach the SAME handlers.
+  // The popover is portaled to document.body, so it is queried there, not on the container.
+  it('the dead pane opens the popover and a template row reaches the SAME template flow', async () => {
+    // A capturing onExit so the test can flip the launched terminal into its dead pane.
+    const exitCbs: Array<(info: { terminalId: string; exitCode: number }) => void> = []
+    ;(window as unknown as { terminal: unknown }).terminal = {
+      open: vi.fn(() => () => {}),
+      resize: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+      onExit: vi.fn((cb: (info: { terminalId: string; exitCode: number }) => void) => {
+        exitCbs.push(cb)
+        return () => {}
+      })
+    }
+    boardStore.getState().openLaunchedTerminal('launch-dead', 'dead')
+    const r = await renderApp()
+
+    act(() => exitCbs.forEach((cb) => cb({ terminalId: 'launch-dead', exitCode: 0 })))
+    click(q(r, '[data-testid="dead-new-session"]'))
+
+    const menu = document.body.querySelector('[data-testid="new-session-menu"]')
+    expect(menu, 'the dead pane must open the templates popover').not.toBeNull()
+
+    click(document.body.querySelector('[data-template-id="tpl-a"]') as Element)
+    await flush()
+    // Same destination as the header path: the name prompt, carrying the templateId.
+    expect(boardStore.getState().sessionNamePrompt).toEqual({
+      mode: 'create',
+      cwd: '/home/op/api',
+      initialName: 'work api',
+      templateId: 'tpl-a'
+    })
+    // …and it did NOT fall back to the folder picker (the old dead-pane behaviour).
+    expect(pickDirectory).not.toHaveBeenCalled()
+  })
 })

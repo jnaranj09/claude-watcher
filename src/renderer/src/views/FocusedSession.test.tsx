@@ -186,8 +186,49 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     act(() => {
       btn?.click()
     })
+    // Session-templates parity (2026-09-05): the dead button now opens the SAME popover as the
+    // header, so the folder flow is its `Pick a folder…` row. The menu is portaled to
+    // document.body (the terminal frame is `overflow: clip`).
+    act(() =>
+      (document.body.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    )
     // The threaded prop fired (App's handleNewSession flow), NOT the re-open fallback.
     expect(onNewSession).toHaveBeenCalledTimes(1)
+  })
+
+  // Session-templates parity — the focused surface threads the OTHER TWO seams too, so the
+  // dead pane's popover reaches the same template / Manage handlers as the header button.
+  it('threads onPickTemplate and onManageTemplates to the terminal (dead-pane popover)', () => {
+    const exitCbs: Array<(info: { terminalId: string; exitCode: number }) => void> = []
+    ;(window as unknown as { terminal: unknown }).terminal = {
+      open: vi.fn(() => () => {}),
+      resize: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+      onExit: vi.fn((cb: (info: { terminalId: string; exitCode: number }) => void) => {
+        exitCbs.push(cb)
+        return () => {}
+      })
+    }
+    boardStore.getState().openLaunchedTerminal('launch-dead-tpl', 'dead-tpl')
+    const onManageTemplates = vi.fn()
+    const r = renderComponent(
+      <FocusedSession
+        onBack={() => {}}
+        onNewSession={() => {}}
+        onPickTemplate={vi.fn()}
+        onManageTemplates={onManageTemplates}
+      />
+    )
+    cleanup = r.unmount
+
+    act(() => exitCbs.forEach((cb) => cb({ terminalId: 'launch-dead-tpl', exitCode: 0 })))
+    act(() =>
+      (r.container.querySelector('[data-testid="dead-new-session"]') as HTMLButtonElement).click()
+    )
+    act(() =>
+      (document.body.querySelector('[data-testid="menu-manage"]') as HTMLButtonElement).click()
+    )
+    expect(onManageTemplates).toHaveBeenCalledTimes(1)
   })
 
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {

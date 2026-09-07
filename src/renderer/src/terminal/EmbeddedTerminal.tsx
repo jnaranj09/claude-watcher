@@ -35,6 +35,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import type {
+  Template,
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
   TerminalExitEvent
@@ -42,6 +43,7 @@ import type {
 import { xtermTheme } from '../styles/xtermTheme'
 import { useSettings, selectTerminalFontSize } from '../stores/settingsStore'
 import { TerminalContextMenu } from './TerminalContextMenu'
+import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
 import styles from './EmbeddedTerminal.module.css'
 
 export interface EmbeddedTerminalProps {
@@ -55,6 +57,12 @@ export interface EmbeddedTerminalProps {
    *  the header button / Ctrl+N). When ABSENT (the plain-shell terminals view), the dead pane's
    *  button falls back to re-opening a fresh pty into the SAME pane (the openNonce bump). */
   onNewSession?: () => void
+  /** Session templates — the dead pane's other two popover seams, threaded alongside
+   *  `onNewSession` (App's `handleTemplateSession` / `handleManageTemplates` — the SAME
+   *  handlers the header button uses). Mirrors `BoardProps`. Consulted only on the popover
+   *  branch; the plain-shell fallback below has no App seams and ignores them. */
+  onPickTemplate?: (template: Template) => void
+  onManageTemplates?: () => void
 }
 
 /** The local dead-terminal state — the ONLY React state here before the clipboard feature
@@ -90,7 +98,9 @@ let openTokenSeq = 0
 export function EmbeddedTerminal({
   terminalId,
   active = true,
-  onNewSession
+  onNewSession,
+  onPickTemplate,
+  onManageTemplates
 }: EmbeddedTerminalProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -395,18 +405,11 @@ export function EmbeddedTerminal({
   }, [fontSize, terminalId])
 
   // Re-open fallback: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty +
-  // port). Only reachable from the dead pane's button when NO onNewSession prop was provided.
+  // port). Only reachable from the dead pane's button when NO onNewSession prop was provided
+  // (the plain-shell terminals view — it has no App-level template/Manage seams to offer).
   const reopen = (): void => {
     setDead(null)
     setOpenNonce((n) => n + 1)
-  }
-  // Story 6.1 — the ONE dead-pane action. On the focused-session surface the prop is App's
-  // handleNewSession (picker → launch → focused view); this pane stays dead + kept-alive-hidden
-  // while the NEW terminal takes focus. Without the prop (plain-shell terminals view), fall back
-  // to re-opening a fresh pty into this same pane so the surface keeps a working action.
-  const handleDeadNewSession = (): void => {
-    if (onNewSession !== undefined) onNewSession()
-    else reopen()
   }
 
   // ── Terminal clipboard feature — context menu action handlers ─────────────
@@ -468,14 +471,37 @@ export function EmbeddedTerminal({
         <div className={styles.dead} role="alert" data-testid="dead-terminal">
           <span className={styles.deadMessage}>Terminal exited.</span>
           <div className={styles.deadActions}>
-            <button
-              type="button"
-              className={styles.deadButton}
-              data-testid="dead-new-session"
-              onClick={handleDeadNewSession}
-            >
-              New session
-            </button>
+            {onNewSession !== undefined ? (
+              // Session-templates parity — the dead pane shows the SAME `+ New session` popover
+              // button as the header and the empty board (ONE component, ONE behaviour; the
+              // variant differs only in placement). Its menu is PORTALED to document.body
+              // because this frame is `overflow: clip` and `.dead` opens a stacking context at
+              // z-index 12 — an in-frame popover would be cut at the frame edge with no
+              // scrollbar to recover it (the TerminalContextMenu precedent).
+              //
+              // `key` on `active`: that portal lives OUTSIDE this frame, so it would survive the
+              // frame going `visibility:hidden` on a terminal switch and float over the newly
+              // focused terminal. Re-keying on `active` remounts the button, resetting `open`.
+              <NewSessionButton
+                key={active ? 'ns-active' : 'ns-inactive'}
+                variant="dead"
+                testId="dead-new-session"
+                onPickFolder={onNewSession}
+                onPickTemplate={(t) => onPickTemplate?.(t)}
+                onManage={() => onManageTemplates?.()}
+              />
+            ) : (
+              // Plain-shell terminals view (`#terminals`): no App seams exist, so the ONE action
+              // stays a re-open of a fresh pty into this same pane.
+              <button
+                type="button"
+                className={styles.deadButton}
+                data-testid="dead-new-session"
+                onClick={reopen}
+              >
+                New session
+              </button>
+            )}
           </div>
         </div>
       )}
