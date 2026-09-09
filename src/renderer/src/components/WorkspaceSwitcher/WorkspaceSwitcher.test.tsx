@@ -43,9 +43,23 @@ function seedNeedsYou(workspaceId: string, id: string): void {
 
 let cleanup: (() => void) | undefined
 
+// Captured ONCE, before any `vi.spyOn(boardStore.getState(), 'focusWorkspace')` runs — the
+// pristine, never-mocked action. Needed because `vi.restoreAllMocks()` restores a spy on the
+// OBJECT it was installed on, but `focusWorkspace`'s own real implementation calls `set(...)`,
+// and zustand's `set` shallow-merges the CURRENT state (`{ ...get(), ...partial }`) into a NEW
+// object — which copies the (still-mocked) `focusWorkspace` property FORWARD onto that new
+// object too. `restoreAllMocks` never touches that new object, so the mock silently survives
+// as the CURRENT `boardStore.getState().focusWorkspace` after the test that spied on it ends,
+// and a LATER test's fresh `vi.spyOn` on the same (already-a-mock) property returns that same
+// leftover instance instead of a clean one — its stale call history reads as a false positive
+// in the next test. (Found empirically: "does not reconcile…" below failed only when run after
+// "reconciles the focused view after a switch", never alone — a debug log confirmed this
+// component's own guard was correctly NOT calling `focusWorkspace` in the failing run.)
+const pristineFocusWorkspace = boardStore.getState().focusWorkspace
+
 beforeEach(() => {
   workspacesStore.setState({ workspaces: rows, activeId: 'default', loaded: true })
-  boardStore.setState({ sessionsById: {} })
+  boardStore.setState({ sessionsById: {}, focusWorkspace: pristineFocusWorkspace })
   window.workspaces = {
     setActive: vi.fn().mockResolvedValue({ activeId: 'w1', workspaces: rows })
   } as never
@@ -55,16 +69,9 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   vi.restoreAllMocks()
+  // Belt-and-suspenders beyond restoreAllMocks — see the comment above `pristineFocusWorkspace`.
+  boardStore.setState({ focusWorkspace: pristineFocusWorkspace })
 })
-
-/** Substitute for RTL's `waitFor` — settle the `setActiveWorkspace(...).then(...)` chain. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 function renderSwitcher(onManage: () => void = () => {}): RenderResult {
   const r = renderComponent(<WorkspaceSwitcher onManage={onManage} />)
@@ -102,6 +109,14 @@ describe('WorkspaceSwitcher', () => {
     expect(r.container.querySelector('[data-testid="workspace-elsewhere-badge"]')).toBeNull()
   })
 
+  // Review finding 3 — the aria-label is screen-reader text; "1 sessions" reads wrong.
+  it('pluralizes the badge aria-label correctly for exactly one', () => {
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    const badge = q(r, '[data-testid="workspace-elsewhere-badge"]')
+    expect(badge.getAttribute('aria-label')).toBe('1 session needs you in other workspaces')
+  })
+
   it('lists every workspace with its own count and switches on click', async () => {
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
@@ -110,8 +125,11 @@ describe('WorkspaceSwitcher', () => {
     expect(row.textContent).toContain('Ops')
     expect(row.textContent).toContain('1')
     click(row)
-    await flush()
-    expect(window.workspaces.setActive).toHaveBeenCalledWith('w1')
+    // `vi.waitFor` (Vitest's own, not RTL's) polls on a REAL timer, so — unlike a fixed
+    // microtask-tick count — it cannot under-wait: a timer callback only fires after the
+    // ENTIRE current microtask queue (including every `.then()` hop in the chain below) has
+    // drained. See the "does not reconcile…" test below for why that matters here.
+    await vi.waitFor(() => expect(window.workspaces.setActive).toHaveBeenCalledWith('w1'))
   })
 
   it('reconciles the focused view after a switch', async () => {
@@ -119,8 +137,55 @@ describe('WorkspaceSwitcher', () => {
     const r = renderSwitcher()
     click(q(r, '[data-testid="workspace-switcher"]'))
     click(q(r, '[data-testid="workspace-row-w1"]'))
-    await flush()
-    expect(spy).toHaveBeenCalledWith('w1')
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledWith('w1'))
+  })
+
+  // Review finding 1 — `setActiveWorkspace` SWALLOWS an IPC rejection (workspacesStore.ts
+  // catches + console.warn's; it never rethrows), so a resolved `.then()` is not proof main
+  // confirmed the switch. Reconciling unconditionally would point the focused view at a
+  // workspace the board/rail are not showing. Assert the NEGATIVE: on a refused switch,
+  // `activeId` stays put and `focusWorkspace` is never called.
+  //
+  // Waiting for a NEGATIVE can't use `vi.waitFor` directly (there's nothing to poll for that
+  // becomes true). Instead: spy `console.warn` (the catch branch's only observable effect —
+  // also mocked away so the expected failure doesn't spam test output) and `vi.waitFor` on
+  // THAT. Because `console.warn` and the risky `.then()` are both reached inside one
+  // continuous microtask chain (no macrotask boundary between them), and `vi.waitFor` only
+  // re-checks on a REAL timer, the entire chain — including the `.then()` — is guaranteed to
+  // have finished by the time the wait resolves. (This is not a hypothetical: the very first
+  // draft of this test used a fixed-tick `flush()` helper instead, and it went red — not
+  // from this component, but from a PRIOR test's own under-drained click leaking a real
+  // `focusWorkspace('w1')` call into this test's spy. Switching every wait in this file to
+  // `vi.waitFor` fixed both the leaker and this test in one move.)
+  it('does not reconcile the focused view when main refuses the switch', async () => {
+    window.workspaces = {
+      setActive: vi.fn().mockRejectedValue(new Error('refused'))
+    } as never
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const focusSpy = vi.spyOn(boardStore.getState(), 'focusWorkspace')
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    click(q(r, '[data-testid="workspace-row-w1"]'))
+    await vi.waitFor(() =>
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[claude-watcher][workspaces] code=workspaces_set_active_failed'
+      )
+    )
+    expect(window.workspaces.setActive).toHaveBeenCalledWith('w1')
+    expect(workspacesStore.getState().activeId).toBe('default')
+    expect(focusSpy).not.toHaveBeenCalled()
+  })
+
+  // Review finding 2 — mirrors NewSessionButton.test.tsx's "Escape closes and returns focus to
+  // the button" case for its sibling menu.
+  it('closes on Escape and returns focus to the trigger', () => {
+    const r = renderSwitcher()
+    const trigger = q(r, '[data-testid="workspace-switcher"]')
+    click(trigger)
+    expect(r.container.querySelector('[role="menu"]')).not.toBeNull()
+    fireEvent(q(r, '[role="menu"]'), new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(r.container.querySelector('[role="menu"]')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 
   it('opens the manage dialog from the popover', () => {

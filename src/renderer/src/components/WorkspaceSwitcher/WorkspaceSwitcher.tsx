@@ -1,14 +1,15 @@
 // Workspaces — the header switcher. Shows the active workspace and, when another workspace has
 // sessions needing attention, a badge summing them (alerts are global; only the CARDS are
 // scoped — spec W-3). The popover's open state is LOCAL and transient, like NewSessionButton's.
-import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { boardStore, selectNeedsYouCountByWorkspace, useBoard } from '../../stores/boardStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
   setActiveWorkspace,
-  useWorkspaces
+  useWorkspaces,
+  workspacesStore
 } from '../../stores/workspacesStore'
 import type { WorkspaceColor } from '../../../../shared/schemas/workspace'
 import styles from './WorkspaceSwitcher.module.css'
@@ -51,13 +52,38 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [open])
 
-  const pick = useCallback((id: string): void => {
+  const closeAndRefocus = useCallback((): void => {
     setOpen(false)
     buttonRef.current?.focus()
-    // Persist first (main owns the pointer), THEN reconcile the focused view. Reconciling
-    // optimistically would leave the view pointing at a workspace main refused to activate.
-    void setActiveWorkspace(id).then(() => boardStore.getState().focusWorkspace(id))
   }, [])
+
+  // Mirrors NewSessionMenu.tsx's handleKeyDown: Escape closes and returns focus to the trigger.
+  // No roving arrow-key focus — the sibling doesn't have it either; native Tab order through the
+  // menu buttons is the bar this component matches, not exceeds.
+  const handleMenuKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>): void => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        closeAndRefocus()
+      }
+    },
+    [closeAndRefocus]
+  )
+
+  const pick = useCallback(
+    (id: string): void => {
+      closeAndRefocus()
+      // Persist first (main owns the pointer), THEN reconcile the focused view — but only if
+      // main actually confirmed the switch. `setActiveWorkspace` SWALLOWS an IPC failure (it
+      // only `console.warn`s — workspacesStore.ts) so a RESOLVED promise is not proof the switch
+      // happened. Reconciling unconditionally would point the focused view at a workspace the
+      // board/rail are not showing (`selectRailActiveSessionId` is unfiltered by workspace).
+      void setActiveWorkspace(id).then(() => {
+        if (workspacesStore.getState().activeId === id) boardStore.getState().focusWorkspace(id)
+      })
+    },
+    [closeAndRefocus]
+  )
 
   return (
     <div className={styles.anchor} ref={anchorRef}>
@@ -79,14 +105,14 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           <span
             className={styles.badge}
             data-testid="workspace-elsewhere-badge"
-            aria-label={`${elsewhere} sessions need you in other workspaces`}
+            aria-label={`${elsewhere} ${elsewhere === 1 ? 'session needs' : 'sessions need'} you in other workspaces`}
           >
             {elsewhere}
           </span>
         )}
       </button>
       {open && (
-        <div className={styles.menu} role="menu">
+        <div className={styles.menu} role="menu" onKeyDown={handleMenuKeyDown}>
           {workspaces.map((w) => (
             <button
               key={w.id}
