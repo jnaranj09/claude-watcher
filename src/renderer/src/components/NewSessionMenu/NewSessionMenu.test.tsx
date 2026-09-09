@@ -11,7 +11,8 @@ const T1: Template = {
   cwd: '/home/op/api',
   model: 'opus',
   permissionMode: 'plan',
-  effort: 'xhigh'
+  effort: 'xhigh',
+  workspaceId: null
 }
 const T2: Template = {
   id: 'b',
@@ -19,7 +20,8 @@ const T2: Template = {
   cwd: '/home/op/blog',
   model: null,
   permissionMode: null,
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 
 let cleanup: (() => void) | undefined

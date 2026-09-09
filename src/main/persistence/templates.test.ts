@@ -7,7 +7,8 @@ const ROW = {
   cwd: '/home/op/work/api',
   model: 'opus',
   permissionMode: 'acceptEdits' as const,
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 
 function fakeBlob(
@@ -91,7 +92,7 @@ describe('createTemplatesStore — load', () => {
       permissionMode: 'acceptEdits'
     }
     const { store, fake, log } = make({ version: 1, templates: [preChange] })
-    expect(store.list()).toEqual([{ ...preChange, effort: null }])
+    expect(store.list()).toEqual([{ ...preChange, effort: null, workspaceId: null }])
     expect(fake.backups()).toBe(0)
     expect(log).not.toHaveBeenCalled()
   })
@@ -147,5 +148,16 @@ describe('createTemplatesStore — save / get / remove', () => {
     store.save(ROW)
     expect(store.list()).toHaveLength(1)
     expect(log).toHaveBeenCalledWith('[claude-watcher][templates] code=templates_write_failed')
+  })
+
+  // Workspaces (Task 6) — the cascade calls this AFTER a delete is already committed. Global
+  // rows (workspaceId: null) must survive untouched.
+  it('removeByWorkspace deletes only that workspace rows and returns the count', () => {
+    const { store } = make()
+    store.save({ ...ROW, name: 'G', workspaceId: null })
+    store.save({ ...ROW, name: 'A', workspaceId: 'w1' })
+    store.save({ ...ROW, name: 'B', workspaceId: 'w2' })
+    expect(store.removeByWorkspace('w1')).toBe(1)
+    expect(store.list().map((t) => t.name)).toEqual(['B', 'G'])
   })
 })

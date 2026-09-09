@@ -283,6 +283,9 @@ const reducers = new Map<Electron.WebContents, ReducerLike>()
 interface LaunchBoardSeam {
   /** Story 6.2 — synthesize/refresh the instant card at spawn (upsertLaunched → handleDelta). */
   upsertLaunched(session: Session): void
+  /** Workspaces — the live-session guard (spec W-6): true when THIS window's board has any
+   *  card in `workspaceId`. Read-only scan of the reducer snapshot; no handleDelta involved. */
+  hasSessionsInWorkspace(workspaceId: string): boolean
   /** Story 6.3 — immediate stop/exit removal (applyHookStatus removed → handleDelta). */
   removeLaunched(sessionId: string): void
   /** ESCAPE-INTERRUPT — demote a session to idle because the operator pressed Escape.
@@ -466,6 +469,12 @@ function registerWatchFeed(window: BrowserWindow): void {
   launchBoardSeams.set(wc, {
     upsertLaunched: (session) => {
       reducer.upsertLaunched(session).forEach(handleDelta)
+    },
+    hasSessionsInWorkspace: (workspaceId) => {
+      for (const session of reducer.snapshotMap().values()) {
+        if (session.workspaceId === workspaceId) return true
+      }
+      return false
     },
     // Story 6.3 — the fast stop/exit removal rides the HOOK-REMOVAL reducer path (REUSE,
     // not a new reducer API): applyHookStatus(id, removed) deletes the session + emits
@@ -906,6 +915,22 @@ let workspacesStore: WorkspacesStore | null = null
 function requireWorkspacesStore(): WorkspacesStore {
   if (workspacesStore === null) throw new Error('workspaces_store_not_initialized')
   return workspacesStore
+}
+
+/** Workspaces — the live-session guard (spec W-6). A workspace with ANY card in ANY window
+ *  cannot be deleted. Reads every window's reducer snapshot; keyed on the stable session id. */
+function hasLiveSessions(workspaceId: string): boolean {
+  for (const seam of launchBoardSeams.values()) {
+    if (seam.hasSessionsInWorkspace(workspaceId)) return true
+  }
+  return false
+}
+
+/** Workspaces — the scoped-config cascade. Runs ONLY after a delete was allowed and committed.
+ *  Late-bound on purpose: the workspaces store is constructed before these two exist. */
+function cascade(workspaceId: string): void {
+  templatesStore?.removeByWorkspace(workspaceId)
+  shortcutsStore?.removeByWorkspace(workspaceId)
 }
 
 // Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
@@ -1939,13 +1964,17 @@ app
 
     try {
       workspacesStore = SMOKE
-        ? createWorkspacesStore()
-        : createWorkspacesStore({ blobStore: createElectronWorkspacesBlobStore() })
+        ? createWorkspacesStore({ hasLiveSessions, cascade })
+        : createWorkspacesStore({
+            blobStore: createElectronWorkspacesBlobStore(),
+            hasLiveSessions,
+            cascade
+          })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a
       // workspaces blob carries operator names and a default cwd.
       console.error('[claude-watcher][workspaces] code=workspaces_store_init_failed (in-memory)')
-      workspacesStore = createWorkspacesStore()
+      workspacesStore = createWorkspacesStore({ hasLiveSessions, cascade })
     }
     registerWorkspacesIpc()
 

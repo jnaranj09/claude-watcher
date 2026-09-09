@@ -11,7 +11,8 @@ const T1: Template = {
   cwd: '/home/op/api',
   model: 'opus',
   permissionMode: 'plan',
-  effort: 'high'
+  effort: 'high',
+  workspaceId: null
 }
 
 let cleanup: (() => void) | undefined
@@ -103,7 +104,8 @@ describe('TemplatesDialog', () => {
       cwd: '/home/op/blog',
       model: 'claude-x',
       permissionMode: 'acceptEdits',
-      effort: null
+      effort: null,
+      workspaceId: null
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
   })
@@ -125,7 +127,8 @@ describe('TemplatesDialog', () => {
       cwd: '/home/op/api',
       model: 'opus',
       permissionMode: 'plan',
-      effort: 'high'
+      effort: 'high',
+      workspaceId: null
     })
   })
   it('a chosen effort reaches window.templates.save; Default sends null', async () => {
@@ -141,7 +144,8 @@ describe('TemplatesDialog', () => {
       cwd: '/home/op/blog',
       model: null,
       permissionMode: null,
-      effort: 'xhigh'
+      effort: 'xhigh',
+      workspaceId: null
     })
   })
   it('selecting a row preselects its effort, and changing only the effort enables Save', () => {

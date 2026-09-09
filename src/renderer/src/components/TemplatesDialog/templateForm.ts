@@ -112,7 +112,13 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     cwd: draft.cwd,
     model,
     permissionMode: draft.permissionChoice === 'default' ? null : draft.permissionChoice,
-    effort: draft.effortChoice === 'default' ? null : draft.effortChoice
+    effort: draft.effortChoice === 'default' ? null : draft.effortChoice,
+    // Workspaces — this dialog has no scope picker yet (Task 11 wires one up). main's save()
+    // has no partial-update path, so saving through this dialog ALWAYS (re)sets the template to
+    // GLOBAL, even when editing one that was previously scoped. Acceptable only because nothing
+    // in the shipped UI can scope a template yet; Task 11 must fix this alongside adding the
+    // picker (thread the template's own scope, or the active workspace, through the draft).
+    workspaceId: null
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)
   if (parsed.success) return { ok: true, request: parsed.data }

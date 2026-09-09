@@ -19,8 +19,8 @@ function fakeBlobStore(initial?: unknown): ShortcutsBlobStore & {
   }
 }
 
-const A = { name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve' }
-const B = { name: 'go on', keys: ['Ctrl+Alt+G'], text: 'continue' }
+const A = { name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve', workspaceId: null }
+const B = { name: 'go on', keys: ['Ctrl+Alt+G'], text: 'continue', workspaceId: null }
 
 function idSeq(): () => string {
   let n = 0
@@ -84,9 +84,19 @@ describe('createShortcutsStore', () => {
 
   it('throws keys_taken for a duplicate FULL sequence', () => {
     const store = createShortcutsStore({ newId: idSeq() })
-    store.save({ name: 'one', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'first' })
+    store.save({
+      name: 'one',
+      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+      text: 'first',
+      workspaceId: null
+    })
     expect(() =>
-      store.save({ name: 'two', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'second' })
+      store.save({
+        name: 'two',
+        keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+        text: 'second',
+        workspaceId: null
+      })
     ).toThrow(SHORTCUT_ERROR.keysTaken)
   })
 
@@ -94,18 +104,28 @@ describe('createShortcutsStore', () => {
   // must coexist. Making isKeysTaken compare prefixes must turn this red.
   it('lets a PREFIX coexist with the sequence it prefixes', () => {
     const store = createShortcutsStore({ newId: idSeq() })
-    store.save({ name: 'long', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'long phrase' })
+    store.save({
+      name: 'long',
+      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+      text: 'long phrase',
+      workspaceId: null
+    })
     expect(() =>
-      store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short phrase' })
+      store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short phrase', workspaceId: null })
     ).not.toThrow()
     expect(store.list()).toHaveLength(2)
   })
 
   it('sorts by the canonical sequence id, so a prefix sorts before its extensions', () => {
     const store = createShortcutsStore({ newId: idSeq() })
-    store.save({ name: 'long', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'long' })
-    store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short' })
-    store.save({ name: 'other', keys: ['Ctrl+Alt+B'], text: 'other' })
+    store.save({
+      name: 'long',
+      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+      text: 'long',
+      workspaceId: null
+    })
+    store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short', workspaceId: null })
+    store.save({ name: 'other', keys: ['Ctrl+Alt+B'], text: 'other', workspaceId: null })
     expect(store.list().map((s) => shortcutKeysId(s.keys))).toEqual([
       'Ctrl+Alt+B',
       'Ctrl+Alt+O',
@@ -150,6 +170,17 @@ describe('createShortcutsStore', () => {
     store.save(A)
     expect(store.list()).toHaveLength(1)
     expect(log).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_write_failed')
+  })
+
+  // Workspaces (Task 6) — the cascade calls this AFTER a delete is already committed. Global
+  // rows (workspaceId: null) must survive untouched.
+  it('removeByWorkspace deletes only that workspace rows and returns the count', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    store.save({ name: 'glob', keys: ['Ctrl+Alt+A'], text: 'global', workspaceId: null })
+    store.save({ name: 'one', keys: ['Ctrl+Alt+B'], text: 'one', workspaceId: 'w1' })
+    store.save({ name: 'two', keys: ['Ctrl+Alt+C'], text: 'two', workspaceId: 'w2' })
+    expect(store.removeByWorkspace('w1')).toBe(1)
+    expect(store.list().map((s) => s.name)).toEqual(['glob', 'two'])
   })
 
   it('NEVER logs a shortcut value (name or text) on any path', () => {

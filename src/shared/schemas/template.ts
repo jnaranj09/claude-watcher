@@ -4,6 +4,7 @@
 // layout, name = operator text) — log path + code only.
 import { z } from 'zod'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from './launch'
+import { WorkspaceIdSchema } from './workspace'
 
 /** The `--permission-mode` choices as printed by `claude --help` on 2.1.258. */
 export const PERMISSION_MODES = [
@@ -57,7 +58,18 @@ export const TemplateSchema = z.object({
   // the whole file — fails closed, so loadPersistedOrReset backs it up and starts EMPTY.
   // Every saved template would be lost. Do not remove the default; do not bump the file
   // version instead (a `z.literal(2)` has exactly that failure mode).
-  effort: z.enum(EFFORT_LEVELS).nullable().default(null) // null ⇒ no --effort flag
+  effort: z.enum(EFFORT_LEVELS).nullable().default(null), // null ⇒ no --effort flag
+  // Workspaces — the item-level scope. null ⇒ GLOBAL (visible in every workspace); a workspace
+  // id ⇒ visible only there. `.default(null)` is BACKWARD COMPATIBILITY for exactly the reason
+  // spelled out on `effort` above: a file written before this field existed has no key, and
+  // without the default that row — and therefore the WHOLE FILE — fails closed, so
+  // loadPersistedOrReset backs it up and starts EMPTY. Every saved template would be lost.
+  // Do not remove the default; do NOT bump TEMPLATES_FILE_VERSION instead.
+  //
+  // A workspaceId naming a workspace that no longer exists does NOT fail the file: the resolver
+  // treats it as "belongs to a gone workspace" — invisible in every workspace's list, still
+  // listed under `(no workspace)` in the Manage dialog so it can be re-scoped or deleted.
+  workspaceId: WorkspaceIdSchema.nullable().default(null)
 })
 export type Template = z.infer<typeof TemplateSchema>
 

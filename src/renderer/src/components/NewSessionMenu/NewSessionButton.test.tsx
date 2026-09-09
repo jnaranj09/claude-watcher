@@ -11,7 +11,8 @@ const T1: Template = {
   cwd: '/api',
   model: null,
   permissionMode: null,
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 let cleanup: (() => void) | undefined
 afterEach(() => {

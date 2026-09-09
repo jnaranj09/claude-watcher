@@ -11,7 +11,8 @@ const SC = {
   id: 'sc-1',
   name: 'approve',
   keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-  text: 'I explicitly approve'
+  text: 'I explicitly approve',
+  workspaceId: null
 }
 
 // NOTE: the chordFromEvent / chordProblem tables that used to live here moved to
@@ -39,7 +40,14 @@ describe('draftToSaveRequest', () => {
   it('builds a create request when the draft has no id', () => {
     const r = draftToSaveRequest({ id: null, name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
     expect(r.ok).toBe(true)
-    if (r.ok) expect(r.req).toEqual({ name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
+    if (r.ok) {
+      expect(r.req).toEqual({
+        name: 'approve',
+        keys: ['Ctrl+Alt+A'],
+        text: 'yes',
+        workspaceId: null
+      })
+    }
   })
 
   it('includes the id when updating', () => {

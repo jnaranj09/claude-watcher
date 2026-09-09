@@ -16,7 +16,8 @@ const SC: Shortcut = {
   id: 'sc-1',
   name: 'approve',
   keys: ['Ctrl+Alt+A'],
-  text: 'I explicitly approve'
+  text: 'I explicitly approve',
+  workspaceId: null
 }
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */

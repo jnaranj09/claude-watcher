@@ -16,7 +16,8 @@ const T1: Template = {
   cwd: '/api',
   model: 'opus',
   permissionMode: null,
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 const T2: Template = {
   id: 'b',
@@ -24,7 +25,8 @@ const T2: Template = {
   cwd: '/blog',
   model: null,
   permissionMode: 'plan',
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 
 interface Bridge {
@@ -80,14 +82,16 @@ describe('templatesStore — bridge helpers', () => {
       cwd: '/api',
       model: 'opus',
       permissionMode: null,
-      effort: null
+      effort: null,
+      workspaceId: null
     })
     expect(bridge.save).toHaveBeenCalledWith({
       name: 'api',
       cwd: '/api',
       model: 'opus',
       permissionMode: null,
-      effort: null
+      effort: null,
+      workspaceId: null
     })
     expect(saved).toEqual(T1)
     expect(selectTemplates(templatesStore.getState())).toEqual([T1])
@@ -95,7 +99,14 @@ describe('templatesStore — bridge helpers', () => {
   it('saveTemplate RETHROWS so the form can show the reason', async () => {
     stubBridge({ save: vi.fn(() => Promise.reject(new Error('template_name_taken'))) })
     await expect(
-      saveTemplate({ name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null })
+      saveTemplate({
+        name: 'x',
+        cwd: '/x',
+        model: null,
+        permissionMode: null,
+        effort: null,
+        workspaceId: null
+      })
     ).rejects.toThrow('template_name_taken')
   })
   it('removeTemplate hydrates with the returned list; a failure logs a code', async () => {

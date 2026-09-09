@@ -10,7 +10,8 @@ describe('resolveTemplateLaunch — template id + name → LaunchRequest', () =>
       cwd: '/home/op/api',
       model: 'opus',
       permissionMode: 'acceptEdits',
-      effort: 'max'
+      effort: 'max',
+      workspaceId: null
     })
     return store
   }
@@ -23,7 +24,14 @@ describe('resolveTemplateLaunch — template id + name → LaunchRequest', () =>
   })
   it('null template flags become null launch flags', () => {
     const store = createTemplatesStore({ newId: () => 'tpl-2' })
-    store.save({ name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null })
+    store.save({
+      name: 'x',
+      cwd: '/x',
+      model: null,
+      permissionMode: null,
+      effort: null,
+      workspaceId: null
+    })
     expect(resolveTemplateLaunch(store, { templateId: 'tpl-2', name: 'x' }).flags).toEqual({
       model: null,
       permissionMode: null,

@@ -11,7 +11,13 @@ import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
 
-const A = { id: 'sc-1', name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve' }
+const A = {
+  id: 'sc-1',
+  name: 'approve',
+  keys: ['Ctrl+Alt+A'],
+  text: 'I explicitly approve',
+  workspaceId: null
+}
 
 let saveMock: ReturnType<typeof vi.fn>
 let removeMock: ReturnType<typeof vi.fn>
@@ -100,7 +106,15 @@ describe('ShortcutsDialog', () => {
   it('renders a multi-chord binding as a space-joined sequence', () => {
     act(() =>
       shortcutsStore.setState({
-        shortcuts: [{ id: 'sc-2', name: 'long', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'go' }],
+        shortcuts: [
+          {
+            id: 'sc-2',
+            name: 'long',
+            keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+            text: 'go',
+            workspaceId: null
+          }
+        ],
         loaded: true
       })
     )
@@ -127,7 +141,8 @@ describe('ShortcutsDialog', () => {
     expect(saveMock).toHaveBeenCalledWith({
       name: 'approve',
       keys: ['Ctrl+Alt+A'],
-      text: 'I explicitly approve'
+      text: 'I explicitly approve',
+      workspaceId: null
     })
   })
 
@@ -149,7 +164,8 @@ describe('ShortcutsDialog', () => {
     expect(saveMock).toHaveBeenCalledWith({
       name: 'approve',
       keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 'go ahead'
+      text: 'go ahead',
+      workspaceId: null
     })
   })
 

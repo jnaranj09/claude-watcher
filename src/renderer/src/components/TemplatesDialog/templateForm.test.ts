@@ -19,7 +19,8 @@ const T: Template = {
   cwd: '/api',
   model: 'opus',
   permissionMode: 'plan',
-  effort: 'high'
+  effort: 'high',
+  workspaceId: null
 }
 
 describe('draft ⇄ template', () => {
@@ -62,7 +63,8 @@ describe('validateDraft', () => {
         cwd: '/api',
         model: 'opus',
         permissionMode: 'plan',
-        effort: 'high'
+        effort: 'high',
+        workspaceId: null
       }
     })
   })
@@ -70,7 +72,14 @@ describe('validateDraft', () => {
     const v = validateDraft({ ...emptyDraft(), name: 'x', cwd: '/x' })
     expect(v).toEqual({
       ok: true,
-      request: { name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null }
+      request: {
+        name: 'x',
+        cwd: '/x',
+        model: null,
+        permissionMode: null,
+        effort: null,
+        workspaceId: null
+      }
     })
     expect(v.ok && 'id' in v.request).toBe(false)
   })

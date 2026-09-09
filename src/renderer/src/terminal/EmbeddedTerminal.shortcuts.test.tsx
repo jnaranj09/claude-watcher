@@ -74,13 +74,20 @@ const APPROVE = {
   id: 'sc-1',
   name: 'approve',
   keys: ['Ctrl+Alt+A'],
-  text: 'I explicitly approve'
+  text: 'I explicitly approve',
+  workspaceId: null
 }
 
 /** The two-shortcut set that exercises the prefix case: O alone AND O+A. */
 const SEQ = [
-  { id: 'sc-o', name: 'o', keys: ['Ctrl+Alt+O'], text: 'phrase-O' },
-  { id: 'sc-oa', name: 'oa', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'phrase-OA' }
+  { id: 'sc-o', name: 'o', keys: ['Ctrl+Alt+O'], text: 'phrase-O', workspaceId: null },
+  {
+    id: 'sc-oa',
+    name: 'oa',
+    keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+    text: 'phrase-OA',
+    workspaceId: null
+  }
 ]
 
 beforeEach(() => {
