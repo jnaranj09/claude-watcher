@@ -67,6 +67,17 @@ describe('workspacesStore', () => {
   })
 
   it('setActive updates activeId from the result, not optimistically', async () => {
+    // Main's answer DIFFERS from the request — e.g. it declined to switch, or the id raced
+    // with a delete. An optimistic `set({ activeId: id })` from the argument would land on
+    // 'w1' here; only reading the awaited result lands on the value main actually persisted.
+    window.workspaces.setActive = vi
+      .fn()
+      .mockResolvedValue({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [defaultRow, ops] }) as never
+    await setActiveWorkspace('w1')
+    expect(workspacesStore.getState().activeId).toBe(DEFAULT_WORKSPACE_ID)
+  })
+
+  it('setActive confirms the requested id when main agrees', async () => {
     await setActiveWorkspace('w1')
     expect(workspacesStore.getState().activeId).toBe('w1')
   })
