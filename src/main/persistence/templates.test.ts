@@ -153,11 +153,20 @@ describe('createTemplatesStore — save / get / remove', () => {
   // Workspaces (Task 6) — the cascade calls this AFTER a delete is already committed. Global
   // rows (workspaceId: null) must survive untouched.
   it('removeByWorkspace deletes only that workspace rows and returns the count', () => {
-    const { store } = make()
+    const { store, fake } = make()
     store.save({ ...ROW, name: 'G', workspaceId: null })
     store.save({ ...ROW, name: 'A', workspaceId: 'w1' })
     store.save({ ...ROW, name: 'B', workspaceId: 'w2' })
+    const before = fake.writes.length
     expect(store.removeByWorkspace('w1')).toBe(1)
     expect(store.list().map((t) => t.name)).toEqual(['B', 'G'])
+    // Fix round 1, Finding 2 — a removal that is never PERSISTED comes back on the next boot,
+    // resurrected under a workspace that no longer exists. Deleting the persist() call inside
+    // removeByWorkspace must turn this red.
+    expect(fake.writes.length).toBe(before + 1)
+    expect(fake.current()).toEqual({
+      version: 1,
+      templates: store.list()
+    })
   })
 })

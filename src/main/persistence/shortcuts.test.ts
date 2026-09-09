@@ -175,12 +175,19 @@ describe('createShortcutsStore', () => {
   // Workspaces (Task 6) — the cascade calls this AFTER a delete is already committed. Global
   // rows (workspaceId: null) must survive untouched.
   it('removeByWorkspace deletes only that workspace rows and returns the count', () => {
-    const store = createShortcutsStore({ newId: idSeq() })
+    const blob = fakeBlobStore()
+    const store = createShortcutsStore({ blobStore: blob, newId: idSeq() })
     store.save({ name: 'glob', keys: ['Ctrl+Alt+A'], text: 'global', workspaceId: null })
     store.save({ name: 'one', keys: ['Ctrl+Alt+B'], text: 'one', workspaceId: 'w1' })
     store.save({ name: 'two', keys: ['Ctrl+Alt+C'], text: 'two', workspaceId: 'w2' })
+    const before = blob.written.length
     expect(store.removeByWorkspace('w1')).toBe(1)
     expect(store.list().map((s) => s.name)).toEqual(['glob', 'two'])
+    // Fix round 1, Finding 2 — a removal that is never PERSISTED comes back on the next boot,
+    // resurrected under a workspace that no longer exists. Deleting the persist() call inside
+    // removeByWorkspace must turn this red.
+    expect(blob.written.length).toBe(before + 1)
+    expect(blob.written.at(-1)).toEqual({ version: 2, shortcuts: store.list() })
   })
 
   it('NEVER logs a shortcut value (name or text) on any path', () => {

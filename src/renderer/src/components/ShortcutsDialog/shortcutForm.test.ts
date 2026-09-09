@@ -26,7 +26,21 @@ describe('emptyDraft / toDraft', () => {
   })
 
   it('round-trips a shortcut', () => {
-    expect(toDraft(SC)).toEqual({ id: 'sc-1', name: SC.name, keys: SC.keys, text: SC.text })
+    expect(toDraft(SC)).toEqual({
+      id: 'sc-1',
+      name: SC.name,
+      keys: SC.keys,
+      text: SC.text,
+      workspaceId: null
+    })
+  })
+
+  // Fix round 1, Finding 1 — the clobber this guards against: main's save() has no
+  // partial-update path, so an edit that does not carry the existing scope resets it to
+  // GLOBAL. toDraft must carry a NON-null scope through unchanged (a null-only assertion
+  // would pass even if toDraft hardcoded null).
+  it('carries a SCOPED shortcut workspaceId through unchanged', () => {
+    expect(toDraft({ ...SC, workspaceId: 'w1' }).workspaceId).toBe('w1')
   })
 
   it('copies the sequence rather than aliasing it', () => {
@@ -38,7 +52,13 @@ describe('emptyDraft / toDraft', () => {
 
 describe('draftToSaveRequest', () => {
   it('builds a create request when the draft has no id', () => {
-    const r = draftToSaveRequest({ id: null, name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
+    const r = draftToSaveRequest({
+      id: null,
+      name: 'approve',
+      keys: ['Ctrl+Alt+A'],
+      text: 'yes',
+      workspaceId: null
+    })
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.req).toEqual({
@@ -51,9 +71,30 @@ describe('draftToSaveRequest', () => {
   })
 
   it('includes the id when updating', () => {
-    const r = draftToSaveRequest({ id: 'sc-1', name: 'approve', keys: ['Ctrl+Alt+A'], text: 'yes' })
+    const r = draftToSaveRequest({
+      id: 'sc-1',
+      name: 'approve',
+      keys: ['Ctrl+Alt+A'],
+      text: 'yes',
+      workspaceId: null
+    })
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.req.id).toBe('sc-1')
+  })
+
+  // Fix round 1, Finding 1 — THE test that pins the fix: editing a SCOPED shortcut must
+  // preserve its scope, not reset it to GLOBAL. Hardcoding `workspaceId: null` in
+  // draftToSaveRequest's candidate (the reverted defect) would turn this red.
+  it('editing a SCOPED shortcut preserves the scope (does not clobber it to GLOBAL)', () => {
+    const r = draftToSaveRequest({
+      id: 'sc-1',
+      name: 'approve',
+      keys: ['Ctrl+Alt+A'],
+      text: 'yes',
+      workspaceId: 'w1'
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.req.workspaceId).toBe('w1')
   })
 
   it('accepts a 2-chord sequence', () => {
@@ -61,34 +102,54 @@ describe('draftToSaveRequest', () => {
       id: null,
       name: 'n',
       keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 't'
+      text: 't',
+      workspaceId: null
     })
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.req.keys).toEqual(['Ctrl+Alt+O', 'Ctrl+Alt+A'])
   })
 
   it('accepts a formerly reserved letter', () => {
-    expect(draftToSaveRequest({ id: null, name: 'n', keys: ['Ctrl+Alt+N'], text: 't' }).ok).toBe(
-      true
-    )
+    expect(
+      draftToSaveRequest({
+        id: null,
+        name: 'n',
+        keys: ['Ctrl+Alt+N'],
+        text: 't',
+        workspaceId: null
+      }).ok
+    ).toBe(true)
   })
 
   it.each([
-    ['a blank name', { id: null, name: '  ', keys: ['Ctrl+Alt+A'], text: 'yes' }],
-    ['a blank phrase', { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: '' }],
-    ['an empty sequence', { id: null, name: 'x', keys: [], text: 'yes' }],
+    [
+      'a blank name',
+      { id: null, name: '  ', keys: ['Ctrl+Alt+A'], text: 'yes', workspaceId: null }
+    ],
+    ['a blank phrase', { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: '', workspaceId: null }],
+    ['an empty sequence', { id: null, name: 'x', keys: [], text: 'yes', workspaceId: null }],
     [
       'four chords',
       {
         id: null,
         name: 'x',
         keys: ['Ctrl+Alt+A', 'Ctrl+Alt+B', 'Ctrl+Alt+C', 'Ctrl+Alt+D'],
-        text: 'yes'
+        text: 'yes',
+        workspaceId: null
       }
     ],
-    ['the old Ctrl+Shift namespace', { id: null, name: 'x', keys: ['Ctrl+Shift+A'], text: 'yes' }],
-    ['a malformed chord', { id: null, name: 'x', keys: ['Ctrl+A'], text: 'yes' }],
-    ['a submitting phrase', { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: 'yes\r' }]
+    [
+      'the old Ctrl+Shift namespace',
+      { id: null, name: 'x', keys: ['Ctrl+Shift+A'], text: 'yes', workspaceId: null }
+    ],
+    [
+      'a malformed chord',
+      { id: null, name: 'x', keys: ['Ctrl+A'], text: 'yes', workspaceId: null }
+    ],
+    [
+      'a submitting phrase',
+      { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: 'yes\r', workspaceId: null }
+    ]
   ])('rejects %s', (_label, draft) => {
     expect(draftToSaveRequest(draft).ok).toBe(false)
   })
@@ -112,6 +173,13 @@ describe('isDraftDirty', () => {
   it('is true when the sequence ORDER changes', () => {
     const draft = { ...toDraft(SC), keys: ['Ctrl+Alt+A', 'Ctrl+Alt+O'] }
     expect(isDraftDirty(draft, SC)).toBe(true)
+  })
+
+  // workspaceId round-trips through the draft (Finding 1) but has no picker yet, so it must
+  // NOT affect dirtiness.
+  it('an unchanged SCOPED shortcut draft stays clean', () => {
+    const scoped = { ...SC, workspaceId: 'w1' }
+    expect(isDraftDirty(toDraft(scoped), scoped)).toBe(false)
   })
 })
 

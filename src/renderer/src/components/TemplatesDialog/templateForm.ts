@@ -25,6 +25,10 @@ export interface TemplateDraft {
   customModel: string
   permissionChoice: PermissionChoice
   effortChoice: EffortChoice
+  /** Workspaces — round-trips the template's scope through the draft UNCHANGED. There is no
+   *  picker for it yet (Task 11 adds one); this field exists purely so `toDraft` → `validateDraft`
+   *  does not silently reset an existing scope to GLOBAL on every edit. */
+  workspaceId: string | null
 }
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -67,7 +71,8 @@ export function emptyDraft(): TemplateDraft {
     modelChoice: 'default',
     customModel: '',
     permissionChoice: 'default',
-    effortChoice: 'default'
+    effortChoice: 'default',
+    workspaceId: null
   }
 }
 
@@ -86,7 +91,8 @@ export function toDraft(template: Template): TemplateDraft {
     modelChoice: choice,
     customModel: custom,
     permissionChoice: template.permissionMode ?? 'default',
-    effortChoice: template.effort ?? 'default'
+    effortChoice: template.effort ?? 'default',
+    workspaceId: template.workspaceId
   }
 }
 
@@ -113,12 +119,12 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     model,
     permissionMode: draft.permissionChoice === 'default' ? null : draft.permissionChoice,
     effort: draft.effortChoice === 'default' ? null : draft.effortChoice,
-    // Workspaces — this dialog has no scope picker yet (Task 11 wires one up). main's save()
-    // has no partial-update path, so saving through this dialog ALWAYS (re)sets the template to
-    // GLOBAL, even when editing one that was previously scoped. Acceptable only because nothing
-    // in the shipped UI can scope a template yet; Task 11 must fix this alongside adding the
-    // picker (thread the template's own scope, or the active workspace, through the draft).
-    workspaceId: null
+    // Workspaces — round-tripped from the draft (toDraft copied it from the base template; a
+    // NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no partial-update
+    // path, so this dialog must re-send the existing scope on every edit or lose it. There is
+    // still no PICKER here (Task 11 adds one) — this only stops an edit from silently resetting
+    // an already-scoped template to GLOBAL.
+    workspaceId: draft.workspaceId
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)
   if (parsed.success) return { ok: true, request: parsed.data }
@@ -130,6 +136,9 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
 export function isDraftDirty(draft: TemplateDraft, base: Template | null): boolean {
   return normalize(draft) !== normalize(base === null ? emptyDraft() : toDraft(base))
 }
+// workspaceId is deliberately OUT of this comparison: there is no control that can change it
+// (Task 11 adds one), so `toDraft(base).workspaceId` always equals `draft.workspaceId` for any
+// draft actually produced by this file, and including it here would be a no-op either way.
 function normalize(d: TemplateDraft): string {
   return JSON.stringify([
     d.id,
