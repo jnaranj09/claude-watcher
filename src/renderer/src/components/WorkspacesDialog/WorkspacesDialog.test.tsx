@@ -1,0 +1,136 @@
+// Workspaces — the Manage-workspaces dialog. Harness: this repo does NOT have
+// @testing-library/react (declined, Story 1.3) — render via `renderComponent`
+// (react-dom/client + React's `act`) and query with `container.querySelector`, mirroring
+// TemplatesDialog.test.tsx (the closest sibling: q<T>(r, sel) helper, afterEach unmount
+// discipline, the act()-wrapped async-settling `flush()` idiom in place of `waitFor`).
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { act } from 'react'
+import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { WorkspacesDialog } from './WorkspacesDialog'
+import { workspacesStore } from '../../stores/workspacesStore'
+import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
+
+const ROWS: Workspace[] = [
+  { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
+  { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: '/home/j/ops' }
+]
+
+let cleanup: (() => void) | undefined
+let save: ReturnType<typeof vi.fn>
+let remove: ReturnType<typeof vi.fn>
+
+beforeEach(() => {
+  save = vi.fn((req: WorkspaceSaveRequest) => {
+    const saved: Workspace = {
+      id: req.id ?? 'new',
+      name: req.name,
+      color: req.color,
+      defaultCwd: req.defaultCwd
+    }
+    return Promise.resolve({ saved, activeId: 'default', workspaces: [...ROWS, saved] })
+  })
+  remove = vi.fn(() => Promise.resolve({ activeId: 'default', workspaces: [ROWS[0]] }))
+  ;(window as unknown as { workspaces: unknown }).workspaces = { save, remove }
+  act(() => workspacesStore.setState({ workspaces: ROWS, activeId: 'default', loaded: true }))
+})
+
+afterEach(() => {
+  cleanup?.()
+  cleanup = undefined
+  act(() => workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false }))
+  vi.restoreAllMocks()
+})
+
+async function flush(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
+
+function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
+  const onClose = vi.fn()
+  const r = renderComponent(<WorkspacesDialog onClose={onClose} />)
+  cleanup = r.unmount
+  return { r, onClose }
+}
+
+function q<T extends Element>(r: RenderResult, sel: string): T {
+  const el = r.container.querySelector<T>(sel)
+  if (el === null) throw new Error(`missing ${sel}`)
+  return el
+}
+
+function type(el: HTMLInputElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+  act(() => {
+    setter?.call(el, value)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+const click = (el: Element): void => act(() => (el as HTMLElement).click())
+
+describe('WorkspacesDialog', () => {
+  // Real assertion: the two seeded rows each render their own testid'd item AND carry their
+  // own name text — a stub that rendered one shared list node, or swapped the names, would
+  // fail this just as surely as rendering nothing.
+  it('lists every workspace', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="workspace-item-default"]').textContent).toContain('Default')
+    expect(q(r, '[data-testid="workspace-item-w1"]').textContent).toContain('Ops')
+  })
+
+  it('creates a workspace from the form', async () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-new"]'))
+    type(q(r, '[data-testid="workspace-name-input"]'), 'Side')
+    click(q(r, '[data-testid="workspace-submit"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Side' }))
+  })
+
+  it('shows the operator-facing copy when a delete is blocked by live sessions', async () => {
+    remove.mockRejectedValueOnce(new Error('workspace_has_sessions'))
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-delete-w1"]'))
+    click(q(r, '[data-testid="workspace-delete-confirm"]'))
+    await flush()
+    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(
+      /still has running sessions/i
+    )
+  })
+
+  it('shows the name-taken copy on a duplicate', async () => {
+    save.mockRejectedValueOnce(new Error('workspace_name_taken'))
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-new"]'))
+    type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
+    click(q(r, '[data-testid="workspace-submit"]'))
+    await flush()
+    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/already/i)
+  })
+
+  it('offers no delete for the Default workspace', () => {
+    const { r } = render()
+    expect(r.container.querySelector('[data-testid="workspace-delete-default"]')).toBeNull()
+  })
+
+  it('warns that scoped templates and shortcuts go with the workspace', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-delete-w1"]'))
+    expect(q(r, '[data-testid="workspace-delete-confirm-text"]').textContent).toMatch(
+      /templates and shortcuts scoped to it/i
+    )
+  })
+
+  it('closes on Escape', () => {
+    const { r, onClose } = render()
+    act(() => {
+      q(r, '[data-testid="workspaces-overlay"]').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+      )
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+})

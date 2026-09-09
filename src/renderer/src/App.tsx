@@ -22,9 +22,10 @@ import { loadTemplates } from './stores/templatesStore'
 // Phrase shortcuts — the header ⌨ button's Manage-shortcuts modal + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 import { loadShortcuts } from './stores/shortcutsStore'
-// Workspaces (Task 9b) — the header switcher + the startup workspaces load. `onManage` is a
-// no-op for now; Task 10 wires it to the (not-yet-built) Manage-workspaces dialog.
+// Workspaces (Task 9b) — the header switcher + the startup workspaces load. Task 10 wires
+// `onManage` to the Manage-workspaces modal below.
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
+import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
 import { loadWorkspaces } from './stores/workspacesStore'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
@@ -50,7 +51,8 @@ import {
   selectStopConfirm,
   selectSessionNamePrompt,
   selectTemplatesDialogOpen,
-  selectShortcutsDialogOpen
+  selectShortcutsDialogOpen,
+  selectWorkspacesDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -75,12 +77,17 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 import { useSessionSeen } from './hooks/useSessionSeen'
 import styles from './App.module.css'
 
-/** UX-DR14 single-modal rule: the name prompt and the Templates dialog never co-exist. A MODULE-
- *  LEVEL function (not a component-body const) so the `[]`-deps useCallbacks that call it stay
- *  free of exhaustive-deps warnings. */
+/** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces dialogs
+ *  never co-exist. A MODULE-LEVEL function (not a component-body const) so the `[]`-deps
+ *  useCallbacks that call it stay free of exhaustive-deps warnings. */
 function isModalOpen(): boolean {
   const s = boardStore.getState()
-  return s.sessionNamePrompt !== null || s.templatesDialogOpen || s.shortcutsDialogOpen
+  return (
+    s.sessionNamePrompt !== null ||
+    s.templatesDialogOpen ||
+    s.shortcutsDialogOpen ||
+    s.workspacesDialogOpen
+  )
 }
 
 function App(): React.JSX.Element {
@@ -138,6 +145,8 @@ function App(): React.JSX.Element {
   const templatesDialogOpen = useBoard(selectTemplatesDialogOpen)
   // Phrase shortcuts — whether the Manage-shortcuts dialog is open.
   const shortcutsDialogOpen = useBoard(selectShortcutsDialogOpen)
+  // Workspaces — whether the Manage-workspaces dialog is open.
+  const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -188,10 +197,11 @@ function App(): React.JSX.Element {
       // session AFTER main already snapshotted the live set for the guard's list.
       // Session templates: the Manage-templates dialog is a modal too — drop it for the same
       // reason (UX-DR14 single-modal rule; a stray dialog must never be left stacked under the
-      // quit guard).
+      // quit guard). Workspaces: the Manage-workspaces dialog is a modal too, same reasoning.
       boardStore.getState().clearSessionNamePrompt()
       boardStore.getState().closeTemplatesDialog()
       boardStore.getState().closeShortcutsDialog()
+      boardStore.getState().closeWorkspacesDialog()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -248,6 +258,13 @@ function App(): React.JSX.Element {
   const handleManageTemplates = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openTemplatesDialog()
+  }, [])
+
+  // Workspaces — "Manage workspaces…" from the header switcher. Opens the Manage-workspaces
+  // modal (WorkspacesDialog); guarded by the same single-modal rule as every other entry point.
+  const handleManageWorkspaces = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openWorkspacesDialog()
   }, [])
 
   // Session-naming A2 — open the RENAME prompt for an EXISTING session. Reuses the same prompt
@@ -418,14 +435,15 @@ function App(): React.JSX.Element {
         // construction — the Ctrl+N/Ctrl+W guards and the quit-guard handler are what keep it the
         // only modal on screen. Esc = cancel the pending launch entirely; no PTY was ever spawned,
         // so there is nothing to tear down.
-        // Both modals under isModalOpen() close here: the name prompt and the Templates
-        // dialog never co-exist (every open call site guards on isModalOpen()), so calling
-        // both closers is safe and covers the case where focus sits on the page BODY —
-        // the dialog's own onKeyDown never sees that keydown.
+        // All modals under isModalOpen() close here: the name prompt and the Templates/
+        // Shortcuts/Workspaces dialogs never co-exist (every open call site guards on
+        // isModalOpen()), so calling every closer is safe and covers the case where focus sits
+        // on the page BODY — the dialog's own onKeyDown never sees that keydown.
         if (isModalOpen()) {
           boardStore.getState().clearSessionNamePrompt()
           boardStore.getState().closeTemplatesDialog()
           boardStore.getState().closeShortcutsDialog()
+          boardStore.getState().closeWorkspacesDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -495,20 +513,22 @@ function App(): React.JSX.Element {
   // (an explicit close) rather than rely on an incidental unmount.
   const hasFocusableTerminal = focusedTerminalId !== null || keptAliveTerminalIds.length > 0
   const showFocused = viewMode === 'focused' && focusedTerminalId !== null
-  // Session-naming / session templates: while the name prompt OR the Manage-templates dialog is
-  // open, everything behind it is INERT (UX-DR14 — "a modal is open", not just the name prompt).
-  // Without this, Tab walks out of the dialog into the header "+ New session" button and on into
-  // the live xterm textarea — so keystrokes reach a running claude session while a modal is on
-  // screen. Neither dialog renders a focus trap of its own; this is the trap. The name stays —
-  // it now means "a modal is open," not just "the name prompt is open."
-  const namePromptOpen = sessionNamePrompt !== null || templatesDialogOpen || shortcutsDialogOpen
+  // Session-naming / session templates / workspaces: while the name prompt OR the Manage-
+  // templates/Manage-shortcuts/Manage-workspaces dialog is open, everything behind it is INERT
+  // (UX-DR14 — "a modal is open", not just the name prompt). Without this, Tab walks out of the
+  // dialog into the header "+ New session" button and on into the live xterm textarea — so
+  // keystrokes reach a running claude session while a modal is on screen. None of these dialogs
+  // render a focus trap of their own; this is the trap. The name stays — it now means "a modal
+  // is open," not just "the name prompt is open."
+  const namePromptOpen =
+    sessionNamePrompt !== null || templatesDialogOpen || shortcutsDialogOpen || workspacesDialogOpen
 
   return (
     <div className={styles.app}>
       <header className={styles.header} data-testid="app-header" inert={namePromptOpen}>
         <span className={styles.brand}>Claude Watcher</span>
         <div className={styles.headerActions}>
-          <WorkspaceSwitcher onManage={() => {}} />
+          <WorkspaceSwitcher onManage={handleManageWorkspaces} />
           <NewSessionButton
             onPickFolder={() => void handleNewSession()}
             onPickTemplate={handleTemplateSession}
@@ -592,6 +612,11 @@ function App(): React.JSX.Element {
           the same UX-DR14 single-modal rule as the Templates dialog). */}
       {shortcutsDialogOpen && (
         <ShortcutsDialog onClose={() => boardStore.getState().closeShortcutsDialog()} />
+      )}
+      {/* Workspaces — the Manage-workspaces modal (renderer view-state; same z-60 layer and the
+          same UX-DR14 single-modal rule as the Templates/Shortcuts dialogs). */}
+      {workspacesDialogOpen && (
+        <WorkspacesDialog onClose={() => boardStore.getState().closeWorkspacesDialog()} />
       )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and the operator submitting or cancelling). NOTHING is

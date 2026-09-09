@@ -44,7 +44,8 @@ beforeEach(() => {
     launchedTerminals: {},
     sessionNamePrompt: null,
     templatesDialogOpen: false,
-    shortcutsDialogOpen: false
+    shortcutsDialogOpen: false,
+    workspacesDialogOpen: false
   })
 
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -151,6 +152,21 @@ describe('App — shortcuts entry point', () => {
     const r = await renderApp()
     click(q(r, '[data-testid="open-shortcuts"]'))
     act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
+    })
+    await flush()
+    expect(pickDirectory).not.toHaveBeenCalled()
+  })
+
+  // Workspaces (Task 10, UX-DR14 fault injection) — the Manage-workspaces dialog is renderer
+  // view-state (boardStore.workspacesDialogOpen), so it is opened directly rather than via a UI
+  // click (this file does not stub window.workspaces). Adapted from the brief's suggested
+  // `fireEvent.keyDown(window, ...)` (from @testing-library/react, not installed — Story 1.3) to
+  // this file's own native-dispatch-inside-act idiom, matching the sibling test above exactly.
+  it('does not fire an app shortcut while the workspaces dialog is open', async () => {
+    await renderApp()
+    act(() => {
+      boardStore.getState().openWorkspacesDialog()
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
     })
     await flush()

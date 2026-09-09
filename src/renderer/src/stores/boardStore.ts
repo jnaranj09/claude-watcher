@@ -264,6 +264,11 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   shortcutsDialogOpen: boolean
+  /**
+   * Workspaces — whether the Manage-workspaces dialog is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  workspacesDialogOpen: boolean
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -396,6 +401,14 @@ export interface BoardState {
    * Phrase shortcuts — close the Manage-shortcuts dialog. No-op if already closed.
    */
   closeShortcutsDialog: () => void
+  /**
+   * Workspaces — open the Manage-workspaces dialog. No-op if already open.
+   */
+  openWorkspacesDialog: () => void
+  /**
+   * Workspaces — close the Manage-workspaces dialog. No-op if already closed.
+   */
+  closeWorkspacesDialog: () => void
 }
 
 export interface BoardStoreOptions {
@@ -436,6 +449,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     templatesDialogOpen: false,
     // Phrase shortcuts — the Manage-shortcuts dialog starts closed.
     shortcutsDialogOpen: false,
+    // Workspaces — the Manage-workspaces dialog starts closed.
+    workspacesDialogOpen: false,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -696,6 +711,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeShortcutsDialog: () => {
       if (get().shortcutsDialogOpen) set({ shortcutsDialogOpen: false })
+    },
+
+    openWorkspacesDialog: () => {
+      if (!get().workspacesDialogOpen) set({ workspacesDialogOpen: true })
+    },
+    closeWorkspacesDialog: () => {
+      if (get().workspacesDialogOpen) set({ workspacesDialogOpen: false })
     }
   }))
 }
@@ -821,6 +843,12 @@ export const selectTemplatesDialogOpen = (state: BoardState): boolean => state.t
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.shortcutsDialogOpen
+
+/**
+ * Workspaces — whether the Manage-workspaces dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.workspacesDialogOpen
 
 /**
  * Workspaces — the board's card list, filtered to one workspace. A FACTORY (not a bare
