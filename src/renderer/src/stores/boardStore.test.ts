@@ -1002,10 +1002,21 @@ describe('workspace filtering', () => {
 
   it('focusWorkspace falls back to the board when the workspace has no terminal', () => {
     const store = createBoardStore({ now: () => 1 })
+    // Seed TWO terminals, BOTH in workspaces other than the one we switch to ('w9' has none of
+    // its own) — so the registry assertion below is about the WHOLE registry surviving the
+    // fallback, not just one entry.
     store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    store.getState().openLaunchedTerminal('t2', 'b', 'w2')
     store.getState().focusWorkspace('w9')
     expect(store.getState().focusedTerminalId).toBeNull()
     expect(store.getState().viewMode).toBe('board')
+    // The board-fallback branch must NEVER unmount a terminal either — every kept-alive frame
+    // stays in the registry (terminal.md: hide via visibility, never remove). Without this
+    // assertion the fallback branch was UNGUARDED: adding `launchedTerminals: {}` to the
+    // board-fallback set(...) left the whole suite green while silently killing every kept-alive
+    // terminal on a switch to an empty workspace. FAULT-INJECTION EVIDENCE recorded in
+    // task-8-report.md: that injection turns THIS line red; restoring it turns it back green.
+    expect(Object.keys(store.getState().launchedTerminals).sort()).toEqual(['t1', 't2'])
   })
 
   it('focusWorkspace keeps every terminal in the registry — nothing is unmounted', () => {
