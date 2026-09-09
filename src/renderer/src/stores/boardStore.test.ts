@@ -29,6 +29,7 @@ import {
   selectShortcutsDialogOpen,
   makeSelectVisibleSessions,
   selectNeedsYouCountByWorkspace,
+  makeSelectVisibleLaunchedTerminalIds,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -991,12 +992,32 @@ describe('workspace filtering', () => {
     expect(store.getState().launchedTerminals['t1']?.workspaceId).toBe('w1')
   })
 
-  it('focusWorkspace moves focus to the newest terminal of the new workspace', () => {
-    const store = createBoardStore({ now: () => 1 })
+  it('makeSelectVisibleLaunchedTerminalIds returns only the active workspace, newest first', () => {
+    // Seed terminals across TWO workspaces with DIFFERENT launchedAt values, so this one
+    // assertion covers both the filter (only w1's ids) and the ordering (newest first).
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
     store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    clock = 2
+    store.getState().openLaunchedTerminal('t2', 'b', 'w2') // different workspace — must be excluded
+    clock = 3
+    store.getState().openLaunchedTerminal('t3', 'c', 'w1') // newer than t1, same workspace
+    const visible = makeSelectVisibleLaunchedTerminalIds('w1')(store.getState())
+    expect(visible).toEqual(['t3', 't1'])
+  })
+
+  it('focusWorkspace moves focus to the newest terminal of the new workspace', () => {
+    // A mutable clock — w1 gets TWO terminals with DIFFERENT launchedAt values, so "newest wins"
+    // is actually distinguishable from "the only one wins" (a constant now() would stamp both
+    // t1 and t3 with the same launchedAt, making the assertion ambiguous).
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    clock = 2
+    store.getState().openLaunchedTerminal('t3', 'c', 'w1') // newer, SAME workspace — must win
     store.getState().openLaunchedTerminal('t2', 'b', 'w2')
     store.getState().focusWorkspace('w1')
-    expect(store.getState().focusedTerminalId).toBe('t1')
+    expect(store.getState().focusedTerminalId).toBe('t3')
     expect(store.getState().viewMode).toBe('focused')
   })
 
