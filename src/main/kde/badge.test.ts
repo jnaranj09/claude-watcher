@@ -36,7 +36,8 @@ function session(id: string, status: string): Session {
     status,
     projectPath: `/p/${id}`,
     pid: 1,
-    sessionName: id
+    sessionName: id,
+    workspaceId: 'default'
   }
 }
 

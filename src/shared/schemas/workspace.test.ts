@@ -66,9 +66,9 @@ describe('WorkspacesFileSchema', () => {
   })
 
   it('rejects a different version', () => {
-    expect(
-      WorkspacesFileSchema.safeParse({ ...DEFAULT_WORKSPACES_FILE, version: 2 }).success
-    ).toBe(false)
+    expect(WorkspacesFileSchema.safeParse({ ...DEFAULT_WORKSPACES_FILE, version: 2 }).success).toBe(
+      false
+    )
   })
 
   it('seeds a Default workspace that owns the fixed id', () => {

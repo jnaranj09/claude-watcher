@@ -19,6 +19,9 @@ export function launchedSession(id: string, over: Partial<Session> = {}): Sessio
     projectPath: '/home/u/projects/proj',
     sessionName: 'proj',
     pid: 51234,
+    // Workspaces — 'default' unless a test overrides it; not the subject of most of these
+    // fixtures, so a fixed constant keeps every existing call site mechanical.
+    workspaceId: 'default',
     ...over
   }
 }

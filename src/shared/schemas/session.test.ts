@@ -19,7 +19,8 @@ const base = Object.freeze({
   status: 'Working',
   projectPath: '/home/u/proj',
   pid: 1234,
-  sessionName: 'my-session'
+  sessionName: 'my-session',
+  workspaceId: 'default'
 })
 
 const ok = (input: unknown): boolean => SessionSchema.safeParse(input).success
@@ -86,6 +87,24 @@ describe('Decision 4 — pid int >= 0 (required)', () => {
   })
   it('rejects a missing pid (still required)', () => {
     expect(ok({ ...base, pid: undefined })).toBe(false)
+  })
+})
+
+describe('Workspaces — workspaceId is REQUIRED and fails closed on a blank one', () => {
+  it('requires workspaceId and fails closed on a blank one', () => {
+    const base = {
+      id: 'abc',
+      status: 'Working',
+      projectPath: '/home/j/p',
+      pid: 1,
+      sessionName: 'p',
+      workspaceId: 'default'
+    }
+    expect(SessionSchema.parse(base).workspaceId).toBe('default')
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { workspaceId: _drop, ...missing } = base
+    expect(SessionSchema.safeParse(missing).success).toBe(false)
+    expect(SessionSchema.safeParse({ ...base, workspaceId: '' }).success).toBe(false)
   })
 })
 

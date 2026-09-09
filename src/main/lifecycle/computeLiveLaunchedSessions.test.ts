@@ -23,7 +23,14 @@ import type { Session } from '../../shared/schemas/session'
 
 /** Minimal valid Session (only the fields the compute reads). */
 function session(id: string, status: string): Session {
-  return { id, status, sessionName: `sess-${id}`, projectPath: `/p/${id}`, pid: 1 }
+  return {
+    id,
+    status,
+    sessionName: `sess-${id}`,
+    projectPath: `/p/${id}`,
+    pid: 1,
+    workspaceId: 'default'
+  }
 }
 
 /** Build a fake reducer with a given map of [id, status] pairs. */

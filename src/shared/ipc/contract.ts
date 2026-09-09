@@ -304,6 +304,9 @@ export type SessionUpdatedEvent = {
   /** Process id — a native c9watch field shown verbatim on the card (AC-1).
    *  A wandering thread id; NEVER used as identity (key on `id`). */
   pid: number
+  /** Workspaces — which workspace this card belongs to. The renderer filters on it; it never
+   *  mutates it (session truth is main's). */
+  workspaceId: string
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
 }
@@ -557,6 +560,10 @@ export type SessionLaunchRequest = {
 export type SessionLaunchResult = {
   /** The opaque per-terminal id (NOT a session id, NOT a pid — F6). */
   terminalId: string
+  /** Workspaces — the workspace MAIN stamped on this launch. Returned so the renderer can
+   *  register the launched terminal's workspace before any session delta arrives (it must be
+   *  able to hide the frame if the operator switches away in between). */
+  workspaceId: string
 }
 
 /**

@@ -71,6 +71,21 @@ describe('reducer — upsertLaunched (Story 6.2: spawn-time launch synthesis)', 
     r.upsertLaunched(launchedSession(id))
     expect(r.snapshotMap().get(id)?.status).toBe('Connecting')
   })
+
+  it('a re-upsert under a new id keeps the workspaceId (the /clear rebind)', () => {
+    const reducer = createReducer({ now: () => 1 })
+    const stored = {
+      id: 'old',
+      status: 'Working',
+      projectPath: '/p',
+      pid: 3,
+      sessionName: 'n',
+      workspaceId: 'w5'
+    }
+    reducer.upsertLaunched(stored)
+    reducer.upsertLaunched({ ...stored, id: 'new' })
+    expect(reducer.snapshotMap().get('new')?.workspaceId).toBe('w5')
+  })
 })
 
 describe('reducer — applyHookStatus (hooks own every status transition)', () => {

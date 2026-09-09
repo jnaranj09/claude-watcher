@@ -545,6 +545,8 @@ function registerWatchFeed(window: BrowserWindow): void {
       return false
     }
     // Main-owned data reshaped by main (parse-once boundary: never re-run through SessionSchema).
+    // Workspaces — `{ ...stored, id: newSessionId }` already carries `workspaceId` (it is on
+    // `stored`, a full `Session`), so the rebound card keeps its workspace with no extra code.
     launchedSet.add(newSessionId)
     reducer.upsertLaunched({ ...stored, id: newSessionId }).forEach(handleDelta)
     launchService.rebind(terminalId, newSessionId)
@@ -1230,7 +1232,13 @@ function registerTerminalIpc(): void {
         // `buildLaunchedSession` (launchSynthesis.ts) — index.ts is not importable by any test,
         // so inlining it left the operator's name reaching the board through an uncovered
         // expression. Keep this a one-line call; put any synthesis logic in that module.
-        launchBoardSeams.get(wc)?.upsertLaunched(buildLaunchedSession(minted, ptyPid))
+        // Workspaces — stamp main's OWN active-workspace pointer at synthesis time (never
+        // derived in the extracted module, which must stay importable without Electron).
+        launchBoardSeams
+          .get(wc)
+          ?.upsertLaunched(
+            buildLaunchedSession(minted, ptyPid, requireWorkspacesStore().activeId())
+          )
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
         // the Starting-banner join is instant (no ancestry walk, no c9watch discovery wait).
         // Validate AT SOURCE before send (main→renderer delta; zod-boundaries.md), exactly as
@@ -1566,10 +1574,19 @@ function registerLaunchIpc(): void {
     const testPickDir = process.env.C9_TEST_PICK_DIR
     if (testPickDir !== undefined && testPickDir !== '') return testPickDir
     const owner = BrowserWindow.fromWebContents(event.sender)
+    // Workspaces — open the picker at the active workspace's default folder when it has one.
+    // Read from MAIN's own store (the renderer never sends it) and NEVER logged.
+    const defaultPath = requireWorkspacesStore().get(
+      requireWorkspacesStore().activeId()
+    )?.defaultCwd
+    const dialogOptions: Electron.OpenDialogOptions = {
+      properties: ['openDirectory'],
+      ...(defaultPath !== null && defaultPath !== undefined ? { defaultPath } : {})
+    }
     // showOpenDialog accepts an optional parent window; pass it so the dialog is modal-to-window.
     const result = owner
-      ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'] })
-      : await dialog.showOpenDialog({ properties: ['openDirectory'] })
+      ? await dialog.showOpenDialog(owner, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions)
     // Cancel ⇒ canceled:true (or empty filePaths) ⇒ null ⇒ the renderer no-ops (no launch).
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0] ?? null
@@ -1599,7 +1616,9 @@ function registerLaunchIpc(): void {
     // to merge a hook block into this project's `.claude/settings.local.json` — it no longer
     // touches the operator's project at all.
     const { terminalId } = launchService.launch({ cwd, name })
-    return { terminalId }
+    // Workspaces — report the workspace MAIN stamped on this launch's card so the renderer can
+    // register the terminal's workspace before any session delta arrives.
+    return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
   })
 
   // session:launch-from-template — resolve the template FIRST (untrusted arg → main-owned
@@ -1612,7 +1631,8 @@ function registerLaunchIpc(): void {
       throw new Error('claude version below the supported minimum')
     }
     const { terminalId } = launchService.launch(req)
-    return { terminalId }
+    // Workspaces — same reasoning as session:launch above.
+    return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
   })
 
   // session:rename — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS boundary: a

@@ -58,7 +58,8 @@ function updated(epoch: number, id: string): WatchEventsPayload {
       status: 'Working',
       column: 'working',
       enteredColumnAt: 100,
-      pid: 1000
+      pid: 1000,
+      workspaceId: 'default'
     }
   }
 }

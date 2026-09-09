@@ -34,7 +34,8 @@ function updated(
       status: column === 'needs-you' ? 'NeedsAttention' : 'Working',
       column,
       enteredColumnAt,
-      pid: 1000
+      pid: 1000,
+      workspaceId: 'default'
     }
   }
 }

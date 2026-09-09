@@ -115,6 +115,7 @@ function updated(
       column,
       enteredColumnAt,
       pid: over.pid ?? 1000,
+      workspaceId: 'default',
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }

@@ -37,7 +37,8 @@ function updated(id: string, sessionName: string): WatchEventsPayload {
       status: 'Working',
       column: 'working',
       enteredColumnAt: 100,
-      pid: 4242
+      pid: 4242,
+      workspaceId: 'default'
     }
   }
 }

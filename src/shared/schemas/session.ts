@@ -65,6 +65,12 @@ export const SessionSchema = z
     pid: z.number().int().nonnegative(), // wandering thread id, NOT identity; int>=0 (Decision 4)
     pendingToolName: z.string().optional(), // may be absent/empty
     sessionName: z.string(),
+    /** Workspaces — the workspace this card belongs to. Session TRUTH, main-owned: stamped at
+     *  launch synthesis from main's own active workspace and changed only by
+     *  `session:set-workspace`. REQUIRED, not optional: an optional slot would let a launch path
+     *  forget it and put a card in no workspace, which the no-"All"-view decision has no way to
+     *  render. The compiler forcing `buildLaunchedSession` to supply it IS the guard. */
+    workspaceId: z.string().min(1),
     // --- full shape (safe to mark optional) ---
     firstPrompt: z.string().optional(),
     latestMessage: z.string().optional(),
