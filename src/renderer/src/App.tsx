@@ -22,6 +22,10 @@ import { loadTemplates } from './stores/templatesStore'
 // Phrase shortcuts — the header ⌨ button's Manage-shortcuts modal + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 import { loadShortcuts } from './stores/shortcutsStore'
+// Workspaces (Task 9b) — the header switcher + the startup workspaces load. `onManage` is a
+// no-op for now; Task 10 wires it to the (not-yet-built) Manage-workspaces dialog.
+import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
+import { loadWorkspaces } from './stores/workspacesStore'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
 import { Settings } from './components/Settings/Settings'
@@ -115,6 +119,9 @@ function App(): React.JSX.Element {
       void loadTemplates()
       // Phrase shortcuts — never throws (logs a code and leaves the projection empty on failure).
       void loadShortcuts()
+      // Workspaces (Task 9b) — never throws (logs a code and leaves the projection empty on
+      // failure, same as the three above).
+      void loadWorkspaces()
     }
   }, [smoke])
 
@@ -501,6 +508,7 @@ function App(): React.JSX.Element {
       <header className={styles.header} data-testid="app-header" inert={namePromptOpen}>
         <span className={styles.brand}>Claude Watcher</span>
         <div className={styles.headerActions}>
+          <WorkspaceSwitcher onManage={() => {}} />
           <NewSessionButton
             onPickFolder={() => void handleNewSession()}
             onPickTemplate={handleTemplateSession}
