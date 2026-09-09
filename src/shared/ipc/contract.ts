@@ -12,6 +12,12 @@
 //   - Events are discriminated unions on a `type` field.
 import type { Template } from '../schemas/template'
 import type { Shortcut } from '../schemas/shortcut'
+import type {
+  Workspace,
+  WorkspaceSaveRequest,
+  WorkspaceDeleteRequest,
+  WorkspaceSetActiveRequest
+} from '../schemas/workspace'
 
 /**
  * The canonical channel registry. A single `as const` object so every channel
@@ -474,6 +480,14 @@ export type {
 export type TemplatesSaveResult = { saved: Template; templates: Template[] }
 /** `session:launch-from-template` arg. Returns `SessionLaunchResult` like `session:launch`. */
 export type SessionLaunchFromTemplateRequest = { templateId: string; name: string }
+
+// Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
+// is the file's VIEW, not a bare array: `activeId` and the list change together and must never be
+// read from two different round-trips.
+export type { Workspace, WorkspaceSaveRequest, WorkspaceDeleteRequest, WorkspaceSetActiveRequest }
+export type WorkspacesListResult = { activeId: string; workspaces: Workspace[] }
+/** `workspaces:save` result — the saved row (so the dialog can select it) PLUS the full view. */
+export type WorkspacesSaveResult = { saved: Workspace } & WorkspacesListResult
 
 // Phrase shortcuts — main-owned; the renderer holds a projection (shortcutsStore.ts). The phrase
 // itself never travels on an IPC channel: a matched chord posts it on the terminal's EXISTING
