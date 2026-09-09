@@ -1,0 +1,70 @@
+// Workspaces — the renderer PROJECTION of main's workspaces store (state.md: main is truth;
+// this is a hydrated copy, replaced wholesale from every IPC result — no client merge).
+// `activeId` lives HERE, not in boardStore, so a workspace switch does not invalidate every
+// board subscriber.
+import { createStore, type StoreApi } from 'zustand/vanilla'
+import { useStore } from 'zustand'
+import { DEFAULT_WORKSPACE_ID } from '../../../shared/schemas/workspace'
+import type { Workspace, WorkspaceSaveRequest } from '../../../shared/ipc/contract'
+
+export interface WorkspacesState {
+  workspaces: Workspace[]
+  activeId: string
+  loaded: boolean
+  hydrate: (view: { activeId: string; workspaces: Workspace[] }) => void
+}
+export type WorkspacesStoreApi = StoreApi<WorkspacesState>
+
+export function createWorkspacesViewStore(): WorkspacesStoreApi {
+  return createStore<WorkspacesState>((set) => ({
+    workspaces: [],
+    activeId: DEFAULT_WORKSPACE_ID,
+    loaded: false,
+    hydrate: (view) => set({ ...view, loaded: true })
+  }))
+}
+
+export const workspacesStore = createWorkspacesViewStore()
+
+export function useWorkspaces<T>(selector: (state: WorkspacesState) => T): T {
+  return useStore(workspacesStore, selector)
+}
+
+export const selectWorkspaces = (s: WorkspacesState): Workspace[] => s.workspaces
+export const selectActiveWorkspaceId = (s: WorkspacesState): string => s.activeId
+export const selectWorkspacesLoaded = (s: WorkspacesState): boolean => s.loaded
+/** null when the persisted activeId names a workspace the list no longer has — the callers
+ *  render the plain label rather than crash (never-crash past the boundary). */
+export const selectActiveWorkspace = (s: WorkspacesState): Workspace | null =>
+  s.workspaces.find((w) => w.id === s.activeId) ?? null
+
+const LOG_PREFIX = '[claude-watcher][workspaces]'
+
+export async function loadWorkspaces(): Promise<void> {
+  try {
+    workspacesStore.getState().hydrate(await window.workspaces.list())
+  } catch {
+    console.warn(`${LOG_PREFIX} code=workspaces_load_failed`)
+  }
+}
+
+/** Rethrows: the Workspaces dialog maps `workspace_name_taken` etc. to copy. */
+export async function saveWorkspace(req: WorkspaceSaveRequest): Promise<Workspace> {
+  const result = await window.workspaces.save(req)
+  workspacesStore.getState().hydrate(result)
+  return result.saved
+}
+
+/** Rethrows: `workspace_has_sessions` / `workspace_default_undeletable` are operator-facing. */
+export async function removeWorkspace(id: string): Promise<void> {
+  workspacesStore.getState().hydrate(await window.workspaces.remove(id))
+}
+
+/** Not optimistic: main persists the pointer, so the store takes the value main confirmed. */
+export async function setActiveWorkspace(id: string): Promise<void> {
+  try {
+    workspacesStore.getState().hydrate(await window.workspaces.setActive(id))
+  } catch {
+    console.warn(`${LOG_PREFIX} code=workspaces_set_active_failed`)
+  }
+}

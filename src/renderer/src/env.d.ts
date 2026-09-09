@@ -26,7 +26,10 @@ import type {
   TemplatesSaveResult,
   Shortcut,
   ShortcutSaveRequest,
-  ShortcutsSaveResult
+  ShortcutsSaveResult,
+  WorkspaceSaveRequest,
+  WorkspacesListResult,
+  WorkspacesSaveResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -114,6 +117,14 @@ declare global {
       list(): Promise<Shortcut[]>
       save(req: ShortcutSaveRequest): Promise<ShortcutsSaveResult>
       remove(id: string): Promise<Shortcut[]>
+    }
+    // Workspaces — mirrors src/preload/index.ts `workspacesApi`. `remove`, not `delete`
+    // (reserved word), so the store and the bridge share one verb — same as templatesApi.
+    workspaces: {
+      list(): Promise<WorkspacesListResult>
+      save(req: WorkspaceSaveRequest): Promise<WorkspacesSaveResult>
+      remove(id: string): Promise<WorkspacesListResult>
+      setActive(id: string): Promise<WorkspacesListResult>
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).
