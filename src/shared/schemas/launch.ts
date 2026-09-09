@@ -107,6 +107,15 @@ export const SessionRenameSchema = z.object({
 
 export type SessionRenameArg = z.infer<typeof SessionRenameSchema>
 
+/** `session:set-workspace` arg — move an existing card to another workspace. Both ids are
+ *  UNTRUSTED cross-process input; blanks fail closed. Neither is logged (the session id is
+ *  identity, the workspace id is opaque, and the throw IS the boundary signal). */
+export const SessionSetWorkspaceSchema = z.object({
+  sessionId: z.string().min(1),
+  workspaceId: z.string().min(1)
+})
+export type SessionSetWorkspaceRequest = z.infer<typeof SessionSetWorkspaceSchema>
+
 /**
  * Story 3.4 (FR-16) — validate-AT-SOURCE for the `launch:correlated` push (main → renderer).
  *

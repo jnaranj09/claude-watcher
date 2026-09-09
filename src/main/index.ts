@@ -74,7 +74,11 @@ import { createAttentionTracker, type AttentionTracker } from './c9watch/attenti
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema } from '../shared/schemas/settings'
-import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
+import {
+  createWorkspacesStore,
+  WORKSPACE_ERROR,
+  type WorkspacesStore
+} from './persistence/workspaces'
 import { createWorkspacesIpcHandlers } from './persistence/workspacesIpc'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
 import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
@@ -110,6 +114,7 @@ import {
   SessionLaunchSchema,
   SessionRenameSchema,
   SessionSeenSchema,
+  SessionSetWorkspaceSchema,
   LaunchCorrelatedSchema
 } from '../shared/schemas/launch'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
@@ -287,6 +292,10 @@ interface LaunchBoardSeam {
   /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
    *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
   renameLaunched(sessionId: string, name: string): void
+  /** Workspaces — move an existing card to another workspace (setWorkspace → handleDelta).
+   *  Unknown session id is a quiet reducer no-op; the target workspace's EXISTENCE is checked by
+   *  the caller (the IPC handler), not here — mirrors renameLaunched's no-existence-check shape. */
+  setWorkspaceLaunched(sessionId: string, workspaceId: string): void
   /** Deterministic-attention — the operator viewed this session (markSeen → handleDelta).
    *  Only a YourTurn session demotes; everything else is a quiet reducer no-op. */
   seenLaunched(sessionId: string): void
@@ -489,6 +498,13 @@ function registerWatchFeed(window: BrowserWindow): void {
       // other way). Recorded here, pushed once by the hook server, then cleared. Until the
       // operator submits their next prompt the two names disagree — an accepted limit.
       pendingTitles.set(sessionId, name)
+    },
+    // Workspaces — same handleDelta chokepoint as every other seam action; the moved card
+    // reaches the renderer as an ordinary `session.updated`. The target workspace's existence is
+    // the CALLER's job (the IPC handler below) — this seam trusts it was already checked, exactly
+    // like renameLaunched trusts the name was already validated.
+    setWorkspaceLaunched: (sessionId, workspaceId) => {
+      reducer.setWorkspace(sessionId, workspaceId).forEach(handleDelta)
     },
     seenLaunched: (sessionId) => {
       reducer.markSeen(sessionId).forEach(handleDelta)
@@ -1650,6 +1666,19 @@ function registerLaunchIpc(): void {
   ipcMain.handle(CH.sessionRename, (event, raw: unknown) => {
     const { id, name } = SessionRenameSchema.parse(raw)
     launchBoardSeams.get(event.sender)?.renameLaunched(id, name)
+  })
+
+  // session:set-workspace — UNTRUSTED cross-process input; parse-and-throw at THIS boundary.
+  // The WORKSPACE is validated against main's own store: moving a card into a workspace that
+  // does not exist would strand it where no view can show it, so that fails closed with a code
+  // instead of being applied. An unknown SESSION id is not an error (the reducer logs
+  // set_workspace_unknown_id and emits nothing — a move racing a stop that already removed it).
+  ipcMain.handle(CH.sessionSetWorkspace, (event, raw: unknown) => {
+    const { sessionId, workspaceId } = SessionSetWorkspaceSchema.parse(raw)
+    if (requireWorkspacesStore().get(workspaceId) === null) {
+      throw new Error(WORKSPACE_ERROR.notFound)
+    }
+    launchBoardSeams.get(event.sender)?.setWorkspaceLaunched(sessionId, workspaceId)
   })
 
   // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by

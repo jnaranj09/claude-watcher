@@ -15,6 +15,7 @@ import type {
   SessionLaunchRequest,
   SessionLaunchResult,
   SessionRenameRequest,
+  SessionSetWorkspaceRequest,
   SessionSeenRequest,
   LaunchCorrelatedEvent,
   TelemetryAcknowledgeRequest,
@@ -242,6 +243,12 @@ const launchApi = {
   rename(id: string, name: string): Promise<void> {
     const req: SessionRenameRequest = { id, name }
     return ipcRenderer.invoke(CH.sessionRename, req)
+  },
+  /** Workspaces — move an existing card to another workspace by its stable session id. Returns
+   *  void; the moved card arrives as a normal `session.updated` delta. */
+  setWorkspace(sessionId: string, workspaceId: string): Promise<void> {
+    const req: SessionSetWorkspaceRequest = { sessionId, workspaceId }
+    return ipcRenderer.invoke(CH.sessionSetWorkspace, req)
   },
   /** Session templates — launch `claude` from a saved template by its stable id. Main
    *  resolves the template's flags (cwd/model/permissionMode) from its own validated store

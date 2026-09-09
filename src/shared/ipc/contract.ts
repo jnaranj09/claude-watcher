@@ -71,6 +71,11 @@ export const CH = {
   // seen is a session-TRUTH transition, ack is a highlight. The rename seam is the precedent
   // for user intent driving a truth change through a typed invoke.
   sessionSeen: 'session:seen',
+  // Workspaces — `session:set-workspace`: renderer → main VIEW INTENT ("move this card"). A real
+  // new channel, like `session:rename`: it is not a terminal operation, and `terminal:*` is keyed
+  // by terminalId while the reducer's map is keyed by session id. Invoke returning void; the
+  // moved card comes back the normal way, as a `session.updated` delta over CH.watchEvents.
+  sessionSetWorkspace: 'session:set-workspace',
   // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
   // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
   // that binds an app-spawned `claude` to its c9watch session `id`). It carries the
@@ -586,6 +591,11 @@ export type SessionRenameRequest = {
    *  definition the create-time prompt uses, so both paths agree on what a legal name is. */
   name: string
 }
+
+// Workspaces — `session:set-workspace` request. Defined (via z.infer) at
+// `../schemas/launch.ts#SessionSetWorkspaceSchema`; re-exported here so preload/main import the
+// request type from the SAME place they import every other CH.* payload type.
+export type { SessionSetWorkspaceRequest } from '../schemas/launch'
 
 /**
  * `session:seen` request — the viewed session's stable id (the launch-minted uuid; NEVER a
