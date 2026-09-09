@@ -102,6 +102,13 @@ export const CH = {
   shortcutsList: 'shortcuts:list',
   shortcutsSave: 'shortcuts:save',
   shortcutsDelete: 'shortcuts:delete',
+  // Workspaces — the workspaces CRUD invokes plus the persisted active-workspace pointer.
+  // `workspaces:set-active` is its own channel rather than a field on save: switching the view
+  // is not editing a row, and it is the ONE call the switcher makes on every click.
+  workspacesList: 'workspaces:list',
+  workspacesSave: 'workspaces:save',
+  workspacesDelete: 'workspaces:delete',
+  workspacesSetActive: 'workspaces:set-active',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session

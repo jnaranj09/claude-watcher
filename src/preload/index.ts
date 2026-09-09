@@ -27,7 +27,12 @@ import type {
   Shortcut,
   ShortcutSaveRequest,
   ShortcutDeleteRequest,
-  ShortcutsSaveResult
+  ShortcutsSaveResult,
+  WorkspaceSaveRequest,
+  WorkspaceDeleteRequest,
+  WorkspaceSetActiveRequest,
+  WorkspacesListResult,
+  WorkspacesSaveResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -300,6 +305,26 @@ const shortcutsApi = {
 }
 export type ShortcutsApi = typeof shortcutsApi
 
+// Workspaces — typed invoke wrappers over CH.workspaces*. `remove`, not `delete` (reserved
+// word), so the store and the bridge share one verb — same as templatesApi.
+const workspacesApi = {
+  list(): Promise<WorkspacesListResult> {
+    return ipcRenderer.invoke(CH.workspacesList)
+  },
+  save(req: WorkspaceSaveRequest): Promise<WorkspacesSaveResult> {
+    return ipcRenderer.invoke(CH.workspacesSave, req)
+  },
+  remove(id: string): Promise<WorkspacesListResult> {
+    const req: WorkspaceDeleteRequest = { id }
+    return ipcRenderer.invoke(CH.workspacesDelete, req)
+  },
+  setActive(id: string): Promise<WorkspacesListResult> {
+    const req: WorkspaceSetActiveRequest = { id }
+    return ipcRenderer.invoke(CH.workspacesSetActive, req)
+  }
+}
+export type WorkspacesApi = typeof workspacesApi
+
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
 // touches ipcRenderer directly (contextIsolation stays ON). MAIN computes the wait duration.
@@ -394,6 +419,8 @@ if (process.contextIsolated) {
     // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete). The phrase
     // itself never crosses here: a matched chord posts it on the terminal's existing port.
     contextBridge.exposeInMainWorld('shortcuts', shortcutsApi)
+    // Workspaces — the workspaces CRUD bridge (workspaces:list/save/delete/set-active).
+    contextBridge.exposeInMainWorld('workspaces', workspacesApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -431,4 +458,6 @@ if (process.contextIsolated) {
   window.templates = templatesApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.shortcuts is in index.d.ts
   window.shortcuts = shortcutsApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.workspaces is in index.d.ts
+  window.workspaces = workspacesApi
 }

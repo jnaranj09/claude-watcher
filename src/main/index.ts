@@ -74,6 +74,9 @@ import { createAttentionTracker, type AttentionTracker } from './c9watch/attenti
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema } from '../shared/schemas/settings'
+import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
+import { createWorkspacesIpcHandlers } from './persistence/workspacesIpc'
+import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
 import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
 import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
 import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
@@ -878,6 +881,15 @@ function registerPtyIpc(): void {
 // app-ready (electron-store needs userData). A null until then; registerSettingsIpc reads it.
 let settingsStore: SettingsStore | null = null
 
+// Workspaces — same lifecycle as settingsStore (needs app-ready for electron-store). Built
+// BEFORE templatesStore (see the construction block below): the launch path reads the
+// workspaces store.
+let workspacesStore: WorkspacesStore | null = null
+function requireWorkspacesStore(): WorkspacesStore {
+  if (workspacesStore === null) throw new Error('workspaces_store_not_initialized')
+  return workspacesStore
+}
+
 // Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
 let templatesStore: TemplatesStore | null = null
 function requireTemplatesStore(): TemplatesStore {
@@ -934,6 +946,16 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/workspacesIpc.ts (unit-tested); this only binds them to CH.* channels.
+function registerWorkspacesIpc(): void {
+  const handlers = createWorkspacesIpcHandlers(requireWorkspacesStore())
+  ipcMain.handle(CH.workspacesList, () => handlers.list())
+  ipcMain.handle(CH.workspacesSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipcMain.handle(CH.workspacesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+  ipcMain.handle(CH.workspacesSetActive, (_evt, raw: unknown) => handlers.setActive(raw))
 }
 
 // Phrase shortcuts — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1865,6 +1887,18 @@ app
       settingsStore = createSettingsStore()
     }
     registerSettingsIpc()
+
+    try {
+      workspacesStore = SMOKE
+        ? createWorkspacesStore()
+        : createWorkspacesStore({ blobStore: createElectronWorkspacesBlobStore() })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a
+      // workspaces blob carries operator names and a default cwd.
+      console.error('[claude-watcher][workspaces] code=workspaces_store_init_failed (in-memory)')
+      workspacesStore = createWorkspacesStore()
+    }
+    registerWorkspacesIpc()
 
     try {
       templatesStore = SMOKE
