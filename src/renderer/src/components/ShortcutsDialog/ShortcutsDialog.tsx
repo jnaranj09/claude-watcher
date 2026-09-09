@@ -4,6 +4,7 @@
 // editing), then the list. The editor is deliberately NOT a row in the list — see ShortcutRow.tsx.
 // UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
 import { useState, type JSX, type KeyboardEvent } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import {
   selectShortcuts,
@@ -11,8 +12,14 @@ import {
   saveShortcut,
   removeShortcut
 } from '../../stores/shortcutsStore'
+import {
+  selectActiveWorkspaceId,
+  selectWorkspaces,
+  useWorkspaces
+} from '../../stores/workspacesStore'
 import { ShortcutRow, ShortcutEditor } from './ShortcutRow'
 import { ChordKeys } from './ChordKeys'
+import { groupShortcuts } from './groupShortcuts'
 import {
   emptyDraft,
   toDraft,
@@ -32,7 +39,11 @@ export interface ShortcutsDialogProps {
 const NEW_ROW = 'new'
 
 export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element {
+  // The Manage dialog shows EVERY shortcut regardless of scope (unlike the terminal matcher) —
+  // no makeSelectVisibleShortcuts here. activeWorkspaceId + workspaces feed the grouping below.
   const shortcuts = useShortcuts(selectShortcuts)
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   // NEW_ROW = the add-a-shortcut draft; a string id = editing that shortcut; null = nothing open.
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ShortcutDraft>(emptyDraft)
@@ -81,6 +92,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   // one thing on screen per shortcut.
   const editingShortcut = shortcuts.find((s) => s.id === editingId) ?? null
   const listed = shortcuts.filter((s) => s.id !== editingId)
+  const groups = groupShortcuts(listed, activeWorkspaceId, workspaces)
 
   return (
     <div
@@ -150,12 +162,21 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
               <span>Phrase</span>
               <span />
             </div>
-            {listed.map((shortcut) => (
-              <ShortcutRow
-                key={shortcut.id}
-                shortcut={shortcut}
-                onEdit={() => startEdit(shortcut)}
-              />
+            {groups.map((g) => (
+              <div
+                key={g.id}
+                className={styles.group}
+                data-testid={g.id === 'orphans' ? 'shortcut-group-orphans' : undefined}
+              >
+                <p className={styles.groupLabel}>{g.label}</p>
+                {g.shortcuts.map((shortcut) => (
+                  <ShortcutRow
+                    key={shortcut.id}
+                    shortcut={shortcut}
+                    onEdit={() => startEdit(shortcut)}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}

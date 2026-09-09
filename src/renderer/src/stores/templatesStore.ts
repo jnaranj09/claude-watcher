@@ -22,6 +22,19 @@ export function createTemplatesStore(): TemplatesStoreApi {
 export const selectTemplates = (state: TemplatesState): Template[] => state.templates
 export const selectTemplatesLoaded = (state: TemplatesState): boolean => state.loaded
 
+/**
+ * Workspaces — the templates VISIBLE in one workspace: the global rows (`workspaceId === null`)
+ * plus that workspace's own. A row naming a workspace that no longer exists is visible in NONE
+ * of them — it is reachable only through the Manage dialog's `(no workspace)` group, so a
+ * hand-edited file cannot silently put a stranger's template on the operator's menu. Consumed by
+ * the `+ New session` popover and the shortcut matcher's mirror — NOT by the Manage dialog,
+ * which shows every template regardless of scope.
+ */
+export const makeSelectVisibleTemplates =
+  (activeId: string) =>
+  (state: TemplatesState): Template[] =>
+    state.templates.filter((t) => t.workspaceId === null || t.workspaceId === activeId)
+
 export const templatesStore = createTemplatesStore()
 
 export function useTemplates<T>(selector: (state: TemplatesState) => T): T {

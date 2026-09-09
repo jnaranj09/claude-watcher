@@ -14,8 +14,10 @@ import {
   type JSX
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
-import { selectTemplates, useTemplates } from '../../stores/templatesStore'
+import { makeSelectVisibleTemplates, useTemplates } from '../../stores/templatesStore'
+import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { NewSessionMenu } from './NewSessionMenu'
 import styles from './NewSessionMenu.module.css'
 
@@ -49,7 +51,10 @@ export function NewSessionButton({
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const portalRef = useRef<HTMLDivElement | null>(null)
-  const templates = useTemplates(selectTemplates)
+  // Workspaces — the popover shows only what is usable NOW: global templates plus the active
+  // workspace's own (Task 11). useShallow: makeSelectVisibleTemplates returns a new array.
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const templates = useTemplates(useShallow(makeSelectVisibleTemplates(activeWorkspaceId)))
 
   // Modifier classes stack on the base (no `composes` — the repo's CSS modules don't use it).
   const primary = variant === 'primary'

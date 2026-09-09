@@ -4,6 +4,7 @@ import {
   templatesStore,
   selectTemplates,
   selectTemplatesLoaded,
+  makeSelectVisibleTemplates,
   loadTemplates,
   saveTemplate,
   removeTemplate
@@ -59,6 +60,27 @@ describe('templatesStore — projection', () => {
     s.getState().hydrate([T2])
     expect(selectTemplates(s.getState())).toEqual([T2])
     expect(selectTemplatesLoaded(s.getState())).toBe(true)
+  })
+})
+
+describe('makeSelectVisibleTemplates', () => {
+  const GLOBAL: Template = { ...T1, id: 'g', workspaceId: null }
+  const OWN: Template = { ...T1, id: 'own', workspaceId: 'w1' }
+  const OTHER: Template = { ...T1, id: 'other', workspaceId: 'w2' }
+  const ORPHAN: Template = { ...T1, id: 'orphan', workspaceId: 'gone' }
+
+  it('keeps global rows and the active workspace’s own rows; drops every other scope', () => {
+    const s = createTemplatesStore()
+    s.getState().hydrate([GLOBAL, OWN, OTHER, ORPHAN])
+    const visible = makeSelectVisibleTemplates('w1')(s.getState())
+    expect(visible.map((t) => t.id)).toEqual(['g', 'own'])
+  })
+
+  it('a row scoped to a workspace that no longer exists is visible in NO workspace', () => {
+    const s = createTemplatesStore()
+    s.getState().hydrate([ORPHAN])
+    expect(makeSelectVisibleTemplates('w1')(s.getState())).toEqual([])
+    expect(makeSelectVisibleTemplates('w9')(s.getState())).toEqual([])
   })
 })
 

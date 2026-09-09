@@ -2,7 +2,13 @@
 // selection; the list and the form are separate units. UX-DR14: App.tsx guards it against the
 // other modals and closes it on the quit guard.
 import { useState, type JSX, type KeyboardEvent } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { selectTemplates, useTemplates } from '../../stores/templatesStore'
+import {
+  selectActiveWorkspaceId,
+  selectWorkspaces,
+  useWorkspaces
+} from '../../stores/workspacesStore'
 import { TemplateForm } from './TemplateForm'
 import { TemplateList } from './TemplateList'
 import styles from './TemplatesDialog.module.css'
@@ -12,7 +18,11 @@ export interface TemplatesDialogProps {
 }
 
 export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element {
+  // The Manage dialog shows EVERY template regardless of scope (unlike the popover) — no
+  // makeSelectVisibleTemplates here. activeWorkspaceId + workspaces feed the grouping below.
   const templates = useTemplates(selectTemplates)
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = templates.find((t) => t.id === selectedId) ?? null
 
@@ -48,6 +58,8 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
         <div className={styles.columns}>
           <TemplateList
             templates={templates}
+            activeWorkspaceId={activeWorkspaceId}
+            workspaces={workspaces}
             selectedId={selected?.id ?? null}
             onSelect={setSelectedId}
             onNew={() => setSelectedId(null)}

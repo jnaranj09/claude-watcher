@@ -10,6 +10,8 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
+import { workspacesStore } from '../../stores/workspacesStore'
+import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 
 const A = {
   id: 'sc-1',
@@ -37,6 +39,9 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   act(() => shortcutsStore.getState().hydrate([]))
+  act(() =>
+    workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
+  )
   vi.restoreAllMocks()
 })
 
@@ -62,6 +67,14 @@ function type(el: Element | null, value: string): void {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     setter?.call(input, value)
     input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+function select(el: Element | null, value: string): void {
+  act(() => {
+    const sel = el as HTMLSelectElement
+    sel.value = value
+    sel.dispatchEvent(new Event('change', { bubbles: true }))
   })
 }
 
@@ -316,5 +329,46 @@ describe('ShortcutsDialog', () => {
     expect(document.body.textContent).toContain('You press Enter to send.')
     click(byTestId('shortcuts-add'))
     expect(document.body.textContent).toContain('Nothing is sent until you press Enter.')
+  })
+
+  // --- Task 11: scope control + orphan grouping (mirrors TemplatesDialog.test.tsx) -----------
+  it('saves the scope chosen in the form', () => {
+    act(() =>
+      workspacesStore.setState({
+        activeId: 'w1',
+        workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+        loaded: true
+      })
+    )
+    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+    render()
+    click(byTestId('shortcuts-add'))
+    type(byTestId('shortcut-name-input'), 'approve')
+    type(byTestId('shortcut-text-input'), 'I explicitly approve')
+    recordChord('a')
+    select(byTestId('shortcut-scope'), 'w1')
+
+    click(byTestId('shortcut-save'))
+
+    expect(saveMock).toHaveBeenCalledWith({
+      name: 'approve',
+      keys: ['Ctrl+Alt+A'],
+      text: 'I explicitly approve',
+      workspaceId: 'w1'
+    })
+  })
+
+  it('groups a row whose workspace is gone under (no workspace)', () => {
+    act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
+    act(() =>
+      shortcutsStore.setState({
+        shortcuts: [
+          { id: 'orphan', name: 'Orphan', keys: ['Ctrl+Alt+Z'], text: 'z', workspaceId: 'gone' }
+        ],
+        loaded: true
+      })
+    )
+    render()
+    expect(byTestId('shortcut-group-orphans')?.textContent).toContain('Orphan')
   })
 })

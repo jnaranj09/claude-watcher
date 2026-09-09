@@ -3,6 +3,8 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { TemplatesDialog } from './TemplatesDialog'
 import { templatesStore } from '../../stores/templatesStore'
+import { workspacesStore } from '../../stores/workspacesStore'
+import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Template } from '../../../../shared/ipc/contract'
 
 const T1: Template = {
@@ -37,6 +39,9 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   act(() => templatesStore.getState().hydrate([]))
+  act(() =>
+    workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
+  )
   vi.restoreAllMocks()
 })
 async function flush(): Promise<void> {
@@ -211,5 +216,53 @@ describe('TemplatesDialog', () => {
       )
     })
     expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  // --- Task 11: scope control + orphan grouping ---------------------------------------------
+  it('saves the scope chosen in the form', async () => {
+    act(() =>
+      workspacesStore.setState({
+        activeId: 'w1',
+        workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+        loaded: true
+      })
+    )
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'blog')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    select(q(r, '[data-testid="template-scope"]'), 'w1')
+    click(q(r, '[data-testid="template-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith({
+      name: 'blog',
+      cwd: '/home/op/blog',
+      model: null,
+      permissionMode: null,
+      effort: null,
+      workspaceId: 'w1'
+    })
+  })
+
+  it('groups a row whose workspace is gone under (no workspace)', () => {
+    act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
+    act(() =>
+      templatesStore.setState({
+        templates: [
+          {
+            id: 't1',
+            name: 'Orphan',
+            cwd: '/p',
+            model: null,
+            permissionMode: null,
+            effort: null,
+            workspaceId: 'gone'
+          }
+        ],
+        loaded: true
+      })
+    )
+    const { r } = render()
+    expect(q(r, '[data-testid="template-group-orphans"]').textContent).toContain('Orphan')
   })
 })

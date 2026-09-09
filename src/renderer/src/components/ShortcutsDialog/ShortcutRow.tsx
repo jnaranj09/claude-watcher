@@ -5,7 +5,9 @@
 // collapsed to a couple of words and a 3-chord sequence overflowed its column. The editor now owns
 // a card of its own with labelled fields, so each control gets the width it needs.
 import { useState, type JSX } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
+import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import { KeyChordRecorder } from './KeyChordRecorder'
 import { ChordKeys } from './ChordKeys'
 import { draftToSaveRequest, isDraftDirty, type ShortcutDraft } from './shortcutForm'
@@ -55,6 +57,8 @@ export function ShortcutEditor({
   // Two-step delete mirrors TemplateForm's affordance (first click arms, second confirms; blur
   // disarms).
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const valid = draftToSaveRequest(draft).ok
   const dirty = isDraftDirty(draft, shortcut)
 
@@ -103,6 +107,33 @@ export function ShortcutEditor({
         <span className={styles.fieldHelp}>
           Typed into the session as if you had typed it. Nothing is sent until you press Enter.
         </span>
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.fieldLabel} htmlFor="shortcut-scope">
+          Workspace
+        </label>
+        {/* '' ⇄ null — Global. A NEW row defaults to Global (emptyDraft), never the active
+            workspace: the non-surprising default, matching every shortcut that predates scoping. */}
+        <select
+          id="shortcut-scope"
+          className={styles.input}
+          data-testid="shortcut-scope"
+          value={draft.workspaceId ?? ''}
+          onChange={(e) =>
+            onDraftChange({
+              ...draft,
+              workspaceId: e.target.value === '' ? null : e.target.value
+            })
+          }
+        >
+          <option value="">Global</option>
+          {workspaces.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className={styles.editorActions}>

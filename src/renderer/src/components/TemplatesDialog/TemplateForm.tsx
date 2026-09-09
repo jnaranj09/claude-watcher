@@ -1,12 +1,14 @@
 // Session templates — the edit form. Keyed by the selected id in TemplatesDialog, so a
 // selection change remounts it with a fresh draft (no effect-based syncing).
 import { useState, type FormEvent, type JSX } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
 import {
   TEMPLATE_NAME_MAX_LENGTH,
   MODEL_NAME_MAX_LENGTH
 } from '../../../../shared/schemas/template'
 import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
+import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
   MODEL_CHOICES,
   PERMISSION_CHOICES,
@@ -36,6 +38,8 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
 
   const validation = validateDraft(draft)
   const dirty = isDraftDirty(draft, template)
@@ -181,6 +185,26 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         {EFFORT_CHOICES.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}
+          </option>
+        ))}
+      </select>
+
+      <label className={styles.label} htmlFor="template-scope">
+        Workspace
+      </label>
+      {/* '' ⇄ null — Global. A NEW row defaults to Global (emptyDraft), never the active
+          workspace: the non-surprising default, matching every template that predates scoping. */}
+      <select
+        id="template-scope"
+        className={styles.select}
+        data-testid="template-scope"
+        value={draft.workspaceId ?? ''}
+        onChange={(e) => patch({ workspaceId: e.target.value === '' ? null : e.target.value })}
+      >
+        <option value="">Global</option>
+        {workspaces.map((w) => (
+          <option key={w.id} value={w.id}>
+            {w.name}
           </option>
         ))}
       </select>

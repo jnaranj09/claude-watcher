@@ -147,6 +147,12 @@ describe('isDraftDirty', () => {
     const scoped: Template = { ...T, workspaceId: 'w1' }
     expect(isDraftDirty(toDraft(scoped), scoped)).toBe(false)
   })
+  // Task 11 — the scope select IS a real control now, so normalize() must include workspaceId.
+  // Reverting that inclusion (the pre-Task-11 state) must turn this red.
+  it('changing only the scope (workspaceId) makes the draft dirty', () => {
+    expect(isDraftDirty(toDraft(T), T)).toBe(false)
+    expect(isDraftDirty({ ...toDraft(T), workspaceId: 'w1' }, T)).toBe(true)
+  })
 })
 
 describe('effort choice', () => {

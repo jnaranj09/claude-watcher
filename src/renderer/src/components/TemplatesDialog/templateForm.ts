@@ -136,9 +136,9 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
 export function isDraftDirty(draft: TemplateDraft, base: Template | null): boolean {
   return normalize(draft) !== normalize(base === null ? emptyDraft() : toDraft(base))
 }
-// workspaceId is deliberately OUT of this comparison: there is no control that can change it
-// (Task 11 adds one), so `toDraft(base).workspaceId` always equals `draft.workspaceId` for any
-// draft actually produced by this file, and including it here would be a no-op either way.
+// Task 11 — workspaceId IS part of this comparison now: the scope select is a real control, so
+// changing ONLY the scope must mark the draft dirty or the operator has no way to save the
+// change they just made (Save stays disabled forever).
 function normalize(d: TemplateDraft): string {
   return JSON.stringify([
     d.id,
@@ -147,7 +147,8 @@ function normalize(d: TemplateDraft): string {
     d.modelChoice,
     d.customModel.trim(),
     d.permissionChoice,
-    d.effortChoice
+    d.effortChoice,
+    d.workspaceId
   ])
 }
 

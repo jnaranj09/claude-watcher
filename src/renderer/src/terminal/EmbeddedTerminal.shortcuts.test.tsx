@@ -19,6 +19,8 @@
 //   - a dead pane (null port) does not throw;
 //   - EDITING the shortcut list does NOT dispose or re-open the terminal — the terminal.md
 //     regression guard (the list is read through a ref, never a create-effect dependency).
+//   - Task 11: the matcher is scoped to Global + the active workspace — a chord bound to
+//     ANOTHER workspace is left completely untouched, exactly like an unbound chord.
 //
 // The xterm-capture harness is the one proven in EmbeddedTerminal.clipboard.test.tsx.
 
@@ -29,6 +31,8 @@ import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import { shortcutsStore } from '../stores/shortcutsStore'
+import { workspacesStore } from '../stores/workspacesStore'
+import { DEFAULT_WORKSPACE_ID } from '../../../shared/schemas/workspace'
 import { SEQUENCE_TIMEOUT_MS } from '../shortcuts/sequence'
 
 // ── xterm mock — captures instances + attachCustomKeyEventHandler ─────────────
@@ -141,6 +145,7 @@ afterEach(() => {
   cleanupFn?.()
   cleanupFn = undefined
   shortcutsStore.setState({ shortcuts: [], loaded: false })
+  workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
 })
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
@@ -435,7 +440,15 @@ describe('EmbeddedTerminal chord sequences', () => {
 
     capturedKeyHandlers[0]!(ctrlAlt('o'))
     act(() => {
-      shortcutsStore.setState({ shortcuts: [...SEQ], loaded: true })
+      // Task 11: `shortcuts` is now read through `useShallow`, so a re-hydrate with
+      // CONTENT-IDENTICAL rows (the old `[...SEQ]` spread) no longer produces a new
+      // reference — correctly so, since nothing visible to this terminal actually
+      // changed. Exercise a REAL edit instead (the o-prefix row's phrase changes)
+      // so the index is genuinely stale and the pending sequence must still drop.
+      shortcutsStore.setState({
+        shortcuts: SEQ.map((s) => (s.id === 'sc-o' ? { ...s, text: 'changed' } : s)),
+        loaded: true
+      })
     })
     act(() => {
       vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS * 2)
@@ -472,5 +485,34 @@ describe('EmbeddedTerminal chord sequences', () => {
       vi.advanceTimersByTime(SEQUENCE_TIMEOUT_MS)
     })
     expect(hint.hidden).toBe(true)
+  })
+})
+
+describe('EmbeddedTerminal shortcut scope (Task 11)', () => {
+  it('fires a global shortcut and ignores one scoped to another workspace', () => {
+    act(() => {
+      workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true })
+      shortcutsStore.setState({
+        shortcuts: [
+          { id: 's1', name: 'global', keys: ['Ctrl+Alt+G'], text: 'GLOBAL', workspaceId: null },
+          { id: 's2', name: 'other', keys: ['Ctrl+Alt+O'], text: 'OTHER', workspaceId: 'w2' }
+        ],
+        loaded: true
+      })
+    })
+    render({ terminalId: 't-scope-1' })
+    const { port1 } = deliverPort('t-scope-1', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+
+    // The global chord fires; the chord bound only in workspace w2 is left completely
+    // untouched (same as an unbound chord — design §5 hazard 3) because the active
+    // workspace is w1.
+    const global = capturedKeyHandlers[0]!(ctrlAlt('g'))
+    const other = capturedKeyHandlers[0]!(ctrlAlt('o'))
+
+    expect(postSpy).toHaveBeenCalledTimes(1)
+    expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'GLOBAL' })
+    expect(global).toBe(false)
+    expect(other).toBe(true)
   })
 })

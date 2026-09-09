@@ -181,6 +181,12 @@ describe('isDraftDirty', () => {
     const scoped = { ...SC, workspaceId: 'w1' }
     expect(isDraftDirty(toDraft(scoped), scoped)).toBe(false)
   })
+  // Task 11 — the scope select IS a real control now, so isDraftDirty must compare workspaceId.
+  // Reverting that comparison (the pre-Task-11 state) must turn this red.
+  it('changing only the scope (workspaceId) makes the draft dirty', () => {
+    expect(isDraftDirty(toDraft(SC), SC)).toBe(false)
+    expect(isDraftDirty({ ...toDraft(SC), workspaceId: 'w1' }, SC)).toBe(true)
+  })
 })
 
 describe('shortcutErrorCode', () => {

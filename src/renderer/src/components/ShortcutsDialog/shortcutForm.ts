@@ -62,16 +62,17 @@ export function draftToSaveRequest(draft: ShortcutDraft): DraftResult {
   return { ok: true, req: parsed.data }
 }
 
-// workspaceId is deliberately OUT of this comparison: there is no control that can change it
-// (Task 11 adds one), so `toDraft(shortcut).workspaceId` always equals `draft.workspaceId` for
-// any draft actually produced by this file, and comparing it here would be a no-op either way.
+// Task 11 — workspaceId IS part of this comparison now: the scope select is a real control, so
+// changing ONLY the scope must mark the draft dirty or the operator has no way to save the
+// change they just made (Save stays disabled forever).
 export function isDraftDirty(draft: ShortcutDraft, shortcut: Shortcut | null): boolean {
   const base = shortcut === null ? emptyDraft() : toDraft(shortcut)
   return (
     draft.name !== base.name ||
     // By VALUE — two equal sequences are different array objects.
     shortcutKeysId(draft.keys) !== shortcutKeysId(base.keys) ||
-    draft.text !== base.text
+    draft.text !== base.text ||
+    draft.workspaceId !== base.workspaceId
   )
 }
 

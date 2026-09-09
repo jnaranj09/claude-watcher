@@ -67,6 +67,18 @@
   overflow-y: auto;
   max-height: 360px;
 }
+/* Workspaces (Task 11) — one group per scope (Global / active workspace / another workspace /
+   orphans). A group label with zero rows is never rendered (groupTemplates omits it). */
+.group + .group {
+  margin-top: var(--space-2);
+}
+.groupLabel {
+  margin: 0;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  color: var(--text-muted);
+}
 .row {
   text-align: left;
   padding: var(--space-2) var(--space-3);

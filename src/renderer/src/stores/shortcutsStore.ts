@@ -22,6 +22,19 @@ export function createShortcutsStore(): ShortcutsStoreApi {
 export const selectShortcuts = (state: ShortcutsState): Shortcut[] => state.shortcuts
 export const selectShortcutsLoaded = (state: ShortcutsState): boolean => state.loaded
 
+/**
+ * Workspaces — the shortcuts VISIBLE in one workspace: the global rows (`workspaceId === null`)
+ * plus that workspace's own. A row naming a workspace that no longer exists is visible in NONE
+ * of them — it is reachable only through the Manage dialog's `(no workspace)` group, so a
+ * hand-edited file cannot silently put a stranger's shortcut on the operator's matcher. Consumed
+ * by EmbeddedTerminal's chord matcher — NOT by the Manage dialog, which shows every shortcut
+ * regardless of scope. Exact mirror of `makeSelectVisibleTemplates`.
+ */
+export const makeSelectVisibleShortcuts =
+  (activeId: string) =>
+  (state: ShortcutsState): Shortcut[] =>
+    state.shortcuts.filter((s) => s.workspaceId === null || s.workspaceId === activeId)
+
 export const shortcutsStore = createShortcutsStore()
 
 export function useShortcuts<T>(selector: (state: ShortcutsState) => T): T {
