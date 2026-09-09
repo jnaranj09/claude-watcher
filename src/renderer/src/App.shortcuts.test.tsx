@@ -89,8 +89,10 @@ beforeEach(() => {
   pickDirectory = vi.fn(() => Promise.resolve('/home/op/project'))
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory,
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term' })),
-    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-tpl' })),
+    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term', workspaceId: 'default' })),
+    launchFromTemplate: vi.fn(() =>
+      Promise.resolve({ terminalId: 'launch-term-tpl', workspaceId: 'default' })
+    ),
     rename: vi.fn(() => Promise.resolve()),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))

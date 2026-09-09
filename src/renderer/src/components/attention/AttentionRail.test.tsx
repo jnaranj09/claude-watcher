@@ -265,7 +265,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
       boardStore.getState().applyWatchEvent(updated(1, 'i', 'idle', 300))
       boardStore.getState().applyWatchEvent(updated(1, 'n', 'needs-you', 100))
       boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 200))
-      boardStore.getState().openLaunchedTerminal('tid-new', 'fresh')
+      boardStore.getState().openLaunchedTerminal('tid-new', 'fresh', 'default')
     })
     const r = render()
     expect(dividerLabels(r)).toEqual(['Needs you', 'Working', 'Idle', 'Starting'])
@@ -320,7 +320,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // A just-launched terminal has no session card yet, so nothing can be pinned. The rail must not
   // guess — it leaves the pin empty and the Starting row carries the active marker instead.
   it('a focused-but-uncorrelated launch pins nothing; the starting row is marked active', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-fresh', 'fresh'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-fresh', 'fresh', 'default'))
     const r = render()
     expect(r.container.querySelector('[data-testid="rail-pinned-list"]')).toBeNull()
     expect(
@@ -681,8 +681,8 @@ describe('railName.shortName', () => {
 describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   it('renders one calm starting row per selectStartingTerminals entry', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('tid-a', 'alpha')
-      boardStore.getState().openLaunchedTerminal('tid-b', 'beta')
+      boardStore.getState().openLaunchedTerminal('tid-a', 'alpha', 'default')
+      boardStore.getState().openLaunchedTerminal('tid-b', 'beta', 'default')
     })
     const r = render()
     const rows = r.container.querySelectorAll('[data-testid="starting-rail-row"]')
@@ -701,7 +701,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   })
 
   it('clicking a starting row calls switchTerminal(terminalId)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-x', 'xray'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-x', 'xray', 'default'))
     const r = render()
     // Reset to board so we can verify switchTerminal actually flips to focused.
     act(() => boardStore.getState().showBoard())
@@ -715,7 +715,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   })
 
   it('clicking a starting row does NOT call onActivateSession (no acknowledge; not a c9watch session)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-y', 'yankee'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-y', 'yankee', 'default'))
     const onActivate = vi.fn()
     const r = render(onActivate)
     const row = r.container.querySelector<HTMLButtonElement>('[data-terminal-id="tid-y"]')
@@ -726,7 +726,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   it('a correlated terminal (has card in sessionsById) does NOT appear as a starting row (supersede)', () => {
     // Launch + correlate + add a card — the terminal should disappear from the starting group.
     act(() => {
-      boardStore.getState().openLaunchedTerminal('tid-corr', 'correlated')
+      boardStore.getState().openLaunchedTerminal('tid-corr', 'correlated', 'default')
       boardStore.getState().addCorrelation('sess-1', 'tid-corr')
       boardStore.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
     })
@@ -746,7 +746,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   })
 
   it('starting row is a <button> activatable by keyboard (Enter = click)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-kbd', 'keyboard'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-kbd', 'keyboard', 'default'))
     const r = render()
     const row = r.container.querySelector('[data-terminal-id="tid-kbd"]')
     expect(row?.tagName).toBe('BUTTON')
@@ -757,7 +757,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   // renders a neutral hollow RING instead. It must render NO text: the letter is what Goal B
   // removed, and dropping it without a glyph would leave an empty button.
   it('in collapsed mode, starting row renders a neutral ring and NO text (no initial letter)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-coll', 'delta'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-coll', 'delta', 'default'))
     const r = render()
     const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
     act(() => toggle?.click())
@@ -782,8 +782,8 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
     // This test proves the starting rows render is load-bearing.
     // Without the startingTerminals rendering, querySelectorAll below returns 0.
     act(() => {
-      boardStore.getState().openLaunchedTerminal('tid-nv1', 'nv-alpha')
-      boardStore.getState().openLaunchedTerminal('tid-nv2', 'nv-beta')
+      boardStore.getState().openLaunchedTerminal('tid-nv1', 'nv-alpha', 'default')
+      boardStore.getState().openLaunchedTerminal('tid-nv2', 'nv-beta', 'default')
     })
     const r = render()
     // If StartingRailRow rendering were removed, this assertion would go RED.

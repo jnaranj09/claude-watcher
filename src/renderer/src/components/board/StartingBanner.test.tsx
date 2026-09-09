@@ -73,7 +73,7 @@ describe('StartingBanner — renders nothing when there are no starting terminal
 
   it('renders null after the only starting terminal is forgotten (exit)', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-1', 'project')
+      boardStore.getState().openLaunchedTerminal('t-1', 'project', 'default')
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
     cleanup = unmount
@@ -89,7 +89,7 @@ describe('StartingBanner — renders nothing when there are no starting terminal
 describe('StartingBanner — correct count in trigger text', () => {
   it('shows "1 starting · click to open" for exactly one starting terminal', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-1', 'myproject')
+      boardStore.getState().openLaunchedTerminal('t-1', 'myproject', 'default')
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
     cleanup = unmount
@@ -101,9 +101,9 @@ describe('StartingBanner — correct count in trigger text', () => {
 
   it('shows "2 starting · click to open" for two starting terminals', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-1', 'project-a')
+      boardStore.getState().openLaunchedTerminal('t-1', 'project-a', 'default')
       boardStore.getState().showBoard()
-      boardStore.getState().openLaunchedTerminal('t-2', 'project-b')
+      boardStore.getState().openLaunchedTerminal('t-2', 'project-b', 'default')
       boardStore.getState().showBoard()
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
@@ -116,7 +116,7 @@ describe('StartingBanner — correct count in trigger text', () => {
 describe('StartingBanner — single-entry optimisation: click opens the terminal directly', () => {
   it('clicking the trigger with ONE starting terminal calls switchTerminal directly (no popover)', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-single', 'singleproject')
+      boardStore.getState().openLaunchedTerminal('t-single', 'singleproject', 'default')
       boardStore.getState().showBoard() // go back to board to test banner click
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
@@ -141,9 +141,9 @@ describe('StartingBanner — single-entry optimisation: click opens the terminal
 describe('StartingBanner — multi-entry popover: click opens a list', () => {
   it('clicking the trigger with TWO starting terminals opens the popover with one entry per terminal', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-1', 'alpha')
+      boardStore.getState().openLaunchedTerminal('t-1', 'alpha', 'default')
       boardStore.getState().showBoard()
-      boardStore.getState().openLaunchedTerminal('t-2', 'beta')
+      boardStore.getState().openLaunchedTerminal('t-2', 'beta', 'default')
       boardStore.getState().showBoard()
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
@@ -168,9 +168,9 @@ describe('StartingBanner — multi-entry popover: click opens a list', () => {
 
   it('clicking an entry in the popover calls switchTerminal for that terminal and closes the popover', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-x', 'xproject')
+      boardStore.getState().openLaunchedTerminal('t-x', 'xproject', 'default')
       boardStore.getState().showBoard()
-      boardStore.getState().openLaunchedTerminal('t-y', 'yproject')
+      boardStore.getState().openLaunchedTerminal('t-y', 'yproject', 'default')
       boardStore.getState().showBoard()
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
@@ -201,9 +201,9 @@ describe('StartingBanner — multi-entry popover: click opens a list', () => {
 
   it('each entry shows the font-mono label and a "starting…" status line (calm-neutral, no gold)', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-a', 'my-app')
+      boardStore.getState().openLaunchedTerminal('t-a', 'my-app', 'default')
       boardStore.getState().showBoard()
-      boardStore.getState().openLaunchedTerminal('t-b', 'other-app')
+      boardStore.getState().openLaunchedTerminal('t-b', 'other-app', 'default')
       boardStore.getState().showBoard()
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
@@ -230,7 +230,7 @@ describe('StartingBanner — multi-entry popover: click opens a list', () => {
 describe('StartingBanner — supersede: leaves strip when card correlates (AC-4)', () => {
   it('disappears when the correlated card arrives in sessionsById', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('t-1', 'project')
+      boardStore.getState().openLaunchedTerminal('t-1', 'project', 'default')
     })
     const { container, unmount } = renderComponent(<StartingBanner />)
     cleanup = unmount

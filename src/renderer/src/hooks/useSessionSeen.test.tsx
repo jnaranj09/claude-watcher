@@ -37,7 +37,7 @@ function stubLaunch(): void {
   markSeenSpy = vi.fn().mockResolvedValue(undefined)
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1' })),
+    launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: markSeenSpy
   }
@@ -51,7 +51,8 @@ function makeSession(id: string, status: string): BoardSession {
     status,
     pid: 1000,
     column: status === STATUS_YOUR_TURN ? 'needs-you' : 'working',
-    enteredColumnAt: 1_000
+    enteredColumnAt: 1_000,
+    workspaceId: 'default'
   }
 }
 

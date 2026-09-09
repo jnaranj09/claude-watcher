@@ -104,9 +104,11 @@ beforeEach(() => {
     launch: vi.fn(() => {
       const id = launchTerminalIds[launchCallCount.n] ?? `launch-${launchCallCount.n}`
       launchCallCount.n++
-      return Promise.resolve({ terminalId: id })
+      return Promise.resolve({ terminalId: id, workspaceId: 'default' })
     }),
-    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-tpl' })),
+    launchFromTemplate: vi.fn(() =>
+      Promise.resolve({ terminalId: 'launch-tpl', workspaceId: 'default' })
+    ),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))
   }

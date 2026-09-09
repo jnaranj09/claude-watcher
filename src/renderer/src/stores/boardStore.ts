@@ -100,6 +100,9 @@ export interface LaunchedTerminal {
   launchedAt: number
   /** Display label — the basename of the picked cwd (e.g. "myproject"). */
   label: string
+  /** Workspaces — the workspace MAIN stamped on this launch (from SessionLaunchResult). Held
+   *  here so a frame can be hidden before its first session delta ever arrives. */
+  workspaceId: string
 }
 
 /**
@@ -120,6 +123,9 @@ export interface BoardSession {
   column: Column
   /** Epoch-millis the session entered its current column (the UX-DR10 sort key). */
   enteredColumnAt: number
+  /** Workspaces — which workspace this card belongs to (session truth, read off the delta).
+   *  The store never writes it; only main's `session.updated` changes it. */
+  workspaceId: string
 }
 
 /** The two columns that were ever HERO-ELIGIBLE. Idle is NEVER the hero (FROZEN-1 / AC-2) —
@@ -276,13 +282,24 @@ export interface BoardState {
    *  window focus/raise; the Story-2.2 view-state invariant treats `focus`/`raise` action names
    *  as window operations, which this is NOT.)
    *  Story 5.6 (AC-1): also records the `launchedTerminals` entry with `label` (cwd basename)
-   *  and `launchedAt` stamped from the store-factory closure `now`. */
-  openLaunchedTerminal: (terminalId: string, label: string) => void
+   *  and `launchedAt` stamped from the store-factory closure `now`.
+   *  Workspaces: also stamps the entry's `workspaceId` (from `SessionLaunchResult.workspaceId`)
+   *  so a kept-alive frame can be hidden/shown by workspace before any session delta arrives. */
+  openLaunchedTerminal: (terminalId: string, label: string, workspaceId: string) => void
   /** Story 5.6 (AC-5) — remove a launched terminal from the registry when its PTY exits
    *  naturally (the `window.terminal.onExit` push). Idempotent: a terminalId not in the
    *  registry (e.g. a plain #terminals shell) is a no-op. Also removes it from
    *  `selectKeptAliveTerminalIds` so it is no longer kept mounted. */
   forgetLaunchedTerminal: (terminalId: string) => void
+  /**
+   * Workspaces — reconcile the focused view with a newly-active workspace.
+   *
+   * Moves focus to that workspace's most recently launched terminal, or drops to the board when
+   * it has none. It NEVER unmounts a terminal: every kept-alive frame stays in
+   * `launchedTerminals` and simply renders inactive (`active={false}` → `visibility:hidden` on
+   * the whole frame — terminal.md). Switching back is a pure show/hide with the PTY untouched.
+   */
+  focusWorkspace: (activeId: string) => void
   /** Story 3.2 (FR-11 / F6) — activate a card by its session `id` (the Board `onActivateCard`
    *  seam): SELECT it (the ONE selection, reconciled with the Story-2.2 `selectedId`), ACKNOWLEDGE
    *  it, and open ITS OWN terminal. A no-op if the card is not present.
@@ -438,6 +455,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           pid: event.pid,
           column: event.column,
           enteredColumnAt: event.enteredColumnAt,
+          workspaceId: event.workspaceId,
           ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
         }
         const sessionsById = { ...state.sessionsById, [event.id]: next }
@@ -515,14 +533,15 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (state.selectedId !== id) set({ selectedId: id })
     },
 
-    openLaunchedTerminal: (terminalId, label) => {
+    openLaunchedTerminal: (terminalId, label, workspaceId) => {
       // Optimistic drop-into-Focused-session the moment the launch returns its terminalId (UX-DR19).
       // The terminal renders + is typeable immediately; the session `id` (selectedId) reconciles
       // later. Single-window in-app VIEW-STATE only — no routing, no window raise.
       // Story 5.6 (AC-1): record the registry entry with label + launchedAt stamped from closure now().
+      // Workspaces: also stamp workspaceId (from SessionLaunchResult) on the registry entry.
       const state = get()
       const existing = state.launchedTerminals[terminalId]
-      const entry: LaunchedTerminal = { terminalId, launchedAt: now(), label }
+      const entry: LaunchedTerminal = { terminalId, launchedAt: now(), label, workspaceId }
       set({
         viewMode: 'focused',
         focusedTerminalId: terminalId,
@@ -542,6 +561,18 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       const next = { ...state.launchedTerminals }
       delete next[terminalId]
       set({ launchedTerminals: next })
+    },
+
+    focusWorkspace: (activeId) => {
+      const state = get()
+      const next = Object.values(state.launchedTerminals)
+        .filter((t) => t.workspaceId === activeId)
+        .sort((a, b) => b.launchedAt - a.launchedAt)[0]
+      if (next === undefined) {
+        set({ viewMode: 'board', focusedTerminalId: null })
+        return
+      }
+      set({ viewMode: 'focused', focusedTerminalId: next.terminalId })
     },
 
     activateCard: (id) => {
@@ -769,6 +800,40 @@ export const selectTemplatesDialogOpen = (state: BoardState): boolean => state.t
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.shortcutsDialogOpen
+
+/**
+ * Workspaces — the board's card list, filtered to one workspace. A FACTORY (not a bare
+ * selector) because it closes over `activeId`; call it inside `useShallow` at the component so
+ * an unrelated workspace's delta does not re-render the board.
+ */
+export const makeSelectVisibleSessions =
+  (activeId: string) =>
+  (state: BoardState): BoardSession[] =>
+    Object.values(state.sessionsById).filter((s) => s.workspaceId === activeId)
+
+/**
+ * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.
+ * This is the switcher badge and it is the whole reason the renderer keeps every session: main
+ * ships every delta, so a hidden workspace's count is free here and needs no second IPC channel.
+ * Derived, never stored (state.md forbids a denormalized copy).
+ */
+export const selectNeedsYouCountByWorkspace = (state: BoardState): Record<string, number> => {
+  const counts: Record<string, number> = {}
+  for (const session of Object.values(state.sessionsById)) {
+    if (session.column !== 'needs-you') continue
+    counts[session.workspaceId] = (counts[session.workspaceId] ?? 0) + 1
+  }
+  return counts
+}
+
+/** Workspaces — the kept-alive terminals that belong to one workspace, newest first. */
+export const makeSelectVisibleLaunchedTerminalIds =
+  (activeId: string) =>
+  (state: BoardState): string[] =>
+    Object.values(state.launchedTerminals)
+      .filter((t) => t.workspaceId === activeId)
+      .sort((a, b) => b.launchedAt - a.launchedAt)
+      .map((t) => t.terminalId)
 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the

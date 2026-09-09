@@ -100,8 +100,10 @@ beforeEach(() => {
   renameSpy = vi.fn(() => Promise.resolve())
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: vi.fn(() => Promise.resolve('/home/op/project')),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz' })),
-    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-tpl' })),
+    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })),
+    launchFromTemplate: vi.fn(() =>
+      Promise.resolve({ terminalId: 'launch-term-tpl', workspaceId: 'default' })
+    ),
     rename: renameSpy,
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))

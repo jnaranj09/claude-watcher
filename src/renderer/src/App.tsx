@@ -287,7 +287,7 @@ function App(): React.JSX.Element {
       // Close the prompt first so a slow spawn cannot leave a dead modal over the board.
       boardStore.getState().clearSessionNamePrompt()
       try {
-        const { terminalId } =
+        const { terminalId, workspaceId } =
           prompt.templateId !== undefined
             ? await window.launch.launchFromTemplate(prompt.templateId, name)
             : await window.launch.launch(prompt.cwd, name)
@@ -295,7 +295,9 @@ function App(): React.JSX.Element {
         // its id (the terminal is typeable immediately; the Tgid join reconciles asynchronously).
         // Story 5.6 (AC-1) + session-naming: the `label` for the Starting banner is now the
         // OPERATOR's name, so the banner and the eventual card agree from the first frame.
-        boardStore.getState().openLaunchedTerminal(terminalId, name)
+        // Workspaces: thread the workspace main stamped on this launch (SessionLaunchResult)
+        // through to the registry entry (openLaunchedTerminal) — see Task 8 correction 1.
+        boardStore.getState().openLaunchedTerminal(terminalId, name, workspaceId)
       } catch {
         // never-log-the-value: a code only. The rejected invoke carries BOTH the cwd (leaks the
         // filesystem layout) and the operator-typed name (content) — keep both off the logs.

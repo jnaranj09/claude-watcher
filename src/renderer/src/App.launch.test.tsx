@@ -59,7 +59,7 @@ async function submitNamePrompt(r: RenderResult, name?: string): Promise<void> {
 
 let cleanup: (() => void) | undefined
 let pickResult: { current: string | null }
-let launchResult: { current: { terminalId: string } }
+let launchResult: { current: { terminalId: string; workspaceId: string } }
 let pickSpy: ReturnType<typeof vi.fn>
 let launchSpy: ReturnType<typeof vi.fn>
 let terminalStopSpy: ReturnType<typeof vi.fn>
@@ -107,7 +107,7 @@ beforeEach(() => {
   }
 
   pickResult = { current: '/home/op/project' }
-  launchResult = { current: { terminalId: 'launch-term-xyz' } }
+  launchResult = { current: { terminalId: 'launch-term-xyz', workspaceId: 'default' } }
   pickSpy = vi.fn(() => Promise.resolve(pickResult.current))
   launchSpy = vi.fn(() => Promise.resolve(launchResult.current))
 
@@ -134,7 +134,9 @@ beforeEach(() => {
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: pickSpy,
     launch: launchSpy,
-    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz' })),
+    launchFromTemplate: vi.fn(() =>
+      Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })
+    ),
     // Story 3.4 — App subscribes to the launch-correlation push; the fake returns an unsubscribe.
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))

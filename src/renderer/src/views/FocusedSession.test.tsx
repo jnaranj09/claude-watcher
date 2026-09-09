@@ -105,13 +105,13 @@ function render(onBack: () => void = () => {}, onNewSession: () => void = () => 
 
 describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, AC-5)', () => {
   it('renders the persistent attention RAIL alongside the terminal (FR-16)', () => {
-    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1')
+    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     const r = render()
     expect(r.container.querySelector('[data-testid="attention-rail"]')).not.toBeNull()
   })
 
   it('renders the focused terminal (the optimistic launched terminalId from the store)', () => {
-    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1')
+    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     const r = render()
     const term = r.container.querySelector('[data-testid="embedded-terminal"]')
     expect(term).not.toBeNull()
@@ -122,7 +122,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     // One correlated session + the currently-focused (just-launched, not-yet-correlated) terminal.
     boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
     boardStore.getState().addCorrelation('a', 'launch-a')
-    boardStore.getState().openLaunchedTerminal('launch-b', 'b')
+    boardStore.getState().openLaunchedTerminal('launch-b', 'b', 'default')
     const r = render()
     const terms = [...r.container.querySelectorAll('[data-testid="embedded-terminal"]')].map((el) =>
       el.getAttribute('data-terminal-id')
@@ -131,7 +131,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
   })
 
   it('the "← Board" affordance calls onBack (Esc-to-Board equivalent)', () => {
-    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1')
+    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     const onBack = vi.fn()
     const r = render(onBack)
     const back = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-back"]')
@@ -175,7 +175,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
         return () => {}
       })
     }
-    boardStore.getState().openLaunchedTerminal('launch-dead-thread', 'dead-thread')
+    boardStore.getState().openLaunchedTerminal('launch-dead-thread', 'dead-thread', 'default')
     const onNewSession = vi.fn()
     const r = render(() => {}, onNewSession)
 
@@ -210,7 +210,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
         return () => {}
       })
     }
-    boardStore.getState().openLaunchedTerminal('launch-dead-tpl', 'dead-tpl')
+    boardStore.getState().openLaunchedTerminal('launch-dead-tpl', 'dead-tpl', 'default')
     const onManageTemplates = vi.fn()
     const r = renderComponent(
       <FocusedSession
@@ -234,7 +234,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
 
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
     boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
-    boardStore.getState().openLaunchedTerminal('launch-other', 'other') // focused = some other terminal
+    boardStore.getState().openLaunchedTerminal('launch-other', 'other', 'default') // focused = some other terminal
     // session 'a' has NO terminalIdBySessionId binding yet.
     const r = render()
     const rowA = r.container.querySelector<HTMLButtonElement>('[data-session-id="a"]')
@@ -251,14 +251,14 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
 
 describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', () => {
   it('renders the ⏹ Stop session button in the focused header', () => {
-    boardStore.getState().openLaunchedTerminal('launch-stop-test', 'stop-test')
+    boardStore.getState().openLaunchedTerminal('launch-stop-test', 'stop-test', 'default')
     const r = render()
     const stopBtn = r.container.querySelector('[data-testid="focused-stop"]')
     expect(stopBtn).not.toBeNull()
   })
 
   it('clicking ⏹ Stop session opens the Stop-confirm with the focused terminalId', () => {
-    boardStore.getState().openLaunchedTerminal('launch-stop-click', 'stop-click')
+    boardStore.getState().openLaunchedTerminal('launch-stop-click', 'stop-click', 'default')
     const r = render()
     const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
     expect(stopBtn).not.toBeNull()
@@ -288,7 +288,7 @@ describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', 
 
   it('clicking ⏹ Stop session degrades gracefully to terminalId when no correlation exists', () => {
     // Pre-correlation: no session bound to this terminal yet → fall back to bare terminalId.
-    boardStore.getState().openLaunchedTerminal('launch-pre-corr', 'pre-corr')
+    boardStore.getState().openLaunchedTerminal('launch-pre-corr', 'pre-corr', 'default')
     const r = render()
     const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
     stopBtn?.click()
@@ -302,7 +302,7 @@ describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', 
   it('the ⏹ Stop session button is rendered and focusedTerminalId is wired to the payload', () => {
     // The null-guard in handleStopSession is internal; verify the button correctly passes
     // the focused terminalId from the store into the payload (not a hardcoded value).
-    boardStore.getState().openLaunchedTerminal('launch-id-wire-check', 'id-wire-check')
+    boardStore.getState().openLaunchedTerminal('launch-id-wire-check', 'id-wire-check', 'default')
     const r = render()
     const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
     expect(stopBtn).not.toBeNull()
@@ -320,7 +320,7 @@ describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', 
 
 describe('FocusedSession — reserved bottom tool strip (breathing room spec)', () => {
   it('renders a .toolStrip sibling AFTER .terminalWrap inside .main (aria-hidden)', () => {
-    boardStore.getState().openLaunchedTerminal('launch-strip-test', 'strip-test')
+    boardStore.getState().openLaunchedTerminal('launch-strip-test', 'strip-test', 'default')
     const r = render()
 
     // Locate .main by finding the focused-session root and then its second child
@@ -350,7 +350,9 @@ describe('FocusedSession — reserved bottom tool strip (breathing room spec)', 
   })
 
   it('the tool strip is NOT inside .terminalWrap (must stay out of the terminal stacking context)', () => {
-    boardStore.getState().openLaunchedTerminal('launch-strip-placement', 'strip-placement')
+    boardStore
+      .getState()
+      .openLaunchedTerminal('launch-strip-placement', 'strip-placement', 'default')
     const r = render()
 
     const focused = r.container.querySelector('[data-testid="focused-session"]')

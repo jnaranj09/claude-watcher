@@ -27,6 +27,8 @@ import {
   selectRailSection,
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
+  makeSelectVisibleSessions,
+  selectNeedsYouCountByWorkspace,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -98,6 +100,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
       pid: 42,
       column: 'working',
       enteredColumnAt: 100,
+      workspaceId: 'default',
       pendingToolName: 'Bash'
     })
     expect(selectTotalCount(store.getState())).toBe(1)
@@ -384,7 +387,16 @@ describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () 
     )
     // The ONLY new selection mutator is setSelected — no raise/focus/navigate action.
     expect(actionNames).toContain('setSelected')
-    expect(actionNames.some((k) => /raise|focus|navigate|summon|window/i.test(k))).toBe(false)
+    // Workspaces (Task 8) added `focusWorkspace` — an in-app VIEW-STATE reconcile (which
+    // terminal is shown after a workspace switch), NOT an OS window raise/focus, exactly like
+    // the pre-existing `focusedTerminalId`/`selectFocusedTerminalId` "focus" usage this guard
+    // already tolerates. Excluded here by name so the blanket regex still catches a REAL
+    // raise/navigate/summon/window action if one is ever added.
+    expect(
+      actionNames
+        .filter((k) => k !== 'focusWorkspace')
+        .some((k) => /raise|focus|navigate|summon|window/i.test(k))
+    ).toBe(false)
   })
 })
 
@@ -400,7 +412,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
 
   it('openLaunchedTerminal drops into the Focused view OPTIMISTICALLY (terminal id set, no session id needed)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('launch-term-1', 'term-1')
+    store.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     expect(selectViewMode(store.getState())).toBe('focused')
     expect(selectFocusedTerminalId(store.getState())).toBe('launch-term-1')
     // UX-DR19: the session id is NOT required to focus the launched terminal (it reconciles later).
@@ -424,7 +436,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
     // A terminal is already focused (e.g. a prior launch) AND it is THIS card's terminal
     // → activating the card enters Focused.
     store.getState().addCorrelation('a', 'launch-term-1')
-    store.getState().openLaunchedTerminal('launch-term-1', 'term-1')
+    store.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     store.getState().showBoard() // back to board, but focusedTerminalId persists
     store.getState().activateCard('a')
     expect(selectViewMode(store.getState())).toBe('focused')
@@ -443,7 +455,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
     store.getState().addCorrelation('a', 'term-a')
     store.getState().addCorrelation('b', 'term-b')
     // The operator is looking at A's terminal, then goes back to the board.
-    store.getState().openLaunchedTerminal('term-a', 'a')
+    store.getState().openLaunchedTerminal('term-a', 'a', 'default')
     store.getState().showBoard()
     expect(selectFocusedTerminalId(store.getState())).toBe('term-a')
 
@@ -460,7 +472,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
     store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
     store.getState().applyWatchEvent(updated(2, 'b', 'working', 200))
     store.getState().addCorrelation('a', 'term-a')
-    store.getState().openLaunchedTerminal('term-a', 'a')
+    store.getState().openLaunchedTerminal('term-a', 'a', 'default')
     store.getState().showBoard()
 
     // `b`'s CH.launchCorrelated push has not landed → no terminal of its own to show.
@@ -486,7 +498,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
     // Enter Focused via a launch (the path that actually focuses a terminal in 3.2), then select.
-    store.getState().openLaunchedTerminal('launch-term-1', 'term-1')
+    store.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     store.getState().setSelected('a')
     expect(selectViewMode(store.getState())).toBe('focused')
     store.getState().showBoard()
@@ -647,7 +659,7 @@ describe('boardStore — Story 3.4 terminalIdBySessionId + switchTerminal (AC-3,
 describe('boardStore — Story 5.6 launchedTerminals registry (AC-1)', () => {
   it('openLaunchedTerminal records the entry with terminalId + label + launchedAt from now()', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'myproject')
+    store.getState().openLaunchedTerminal('t-1', 'myproject', 'default')
     const entry = store.getState().launchedTerminals['t-1']
     expect(entry).toBeDefined()
     expect(entry?.terminalId).toBe('t-1')
@@ -658,7 +670,7 @@ describe('boardStore — Story 5.6 launchedTerminals registry (AC-1)', () => {
 
   it('openLaunchedTerminal ALSO sets viewMode=focused + focusedTerminalId (existing 3.2 behaviour preserved)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     expect(selectViewMode(store.getState())).toBe('focused')
     expect(selectFocusedTerminalId(store.getState())).toBe('t-1')
   })
@@ -673,7 +685,7 @@ describe('boardStore — Story 5.6 launchedTerminals registry (AC-1)', () => {
 
   it('launchedTerminals holds NO terminal/xterm instance (metadata-only — AC-1 HARD limit)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     const entry = store.getState().launchedTerminals['t-1']
     // The entry must be opaque strings + number only — never an xterm-like object.
     expect(typeof entry?.terminalId).toBe('string')
@@ -704,7 +716,7 @@ describe('boardStore — Story 5.6 launchedTerminals registry (AC-1)', () => {
 describe('boardStore — Story 5.6 forgetLaunchedTerminal (AC-5)', () => {
   it('forgetLaunchedTerminal removes the entry on PTY exit', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     expect(store.getState().launchedTerminals['t-1']).toBeDefined()
     store.getState().forgetLaunchedTerminal('t-1')
     expect(store.getState().launchedTerminals['t-1']).toBeUndefined()
@@ -734,10 +746,10 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
     //   (A would NOT appear in kept-alive after B takes focus). Restoring it → GREEN.
     const store = createBoardStore({ now: () => FIXED_NOW })
     // Launch A.
-    store.getState().openLaunchedTerminal('A', 'projectA')
+    store.getState().openLaunchedTerminal('A', 'projectA', 'default')
     expect(selectKeptAliveTerminalIds(store.getState())).toContain('A')
     // Launch B → focus moves to B; A is no longer focusedTerminalId.
-    store.getState().openLaunchedTerminal('B', 'projectB')
+    store.getState().openLaunchedTerminal('B', 'projectB', 'default')
     expect(selectFocusedTerminalId(store.getState())).toBe('B')
     // A is NOT correlated — terminalIdBySessionId has no entry for A.
     // Without the registry term, A would NOT be in kept-alive. With it, A stays alive.
@@ -748,7 +760,7 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
 
   it('a terminal that exits (forgetLaunchedTerminal) is removed from selectKeptAliveTerminalIds', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     expect(selectKeptAliveTerminalIds(store.getState())).toContain('t-1')
     store.getState().forgetLaunchedTerminal('t-1')
     // t-1 is no longer in launchedTerminals or focusedTerminalId (focusedTerminalId still set, but
@@ -762,7 +774,7 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(updated(1, 'sess-a', 'working', 100))
     store.getState().addCorrelation('sess-a', 'terminal-b')
-    store.getState().openLaunchedTerminal('terminal-a', 'projectA')
+    store.getState().openLaunchedTerminal('terminal-a', 'projectA', 'default')
     // Now: terminalIdBySessionId = { 'sess-a': 'terminal-b' }, launchedTerminals = { 'terminal-a': ... },
     // focusedTerminalId = 'terminal-a'. The union should be ['terminal-a', 'terminal-b'] sorted.
     const alive = selectKeptAliveTerminalIds(store.getState())
@@ -776,7 +788,7 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
 describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => {
   it('a launched terminal with no correlated card is "starting"', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'myproject')
+    store.getState().openLaunchedTerminal('t-1', 'myproject', 'default')
     const starting = selectStartingTerminals(store.getState())
     expect(starting).toHaveLength(1)
     expect(starting[0]?.terminalId).toBe('t-1')
@@ -793,7 +805,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     //   Breaking the predicate (e.g. always returning all registry entries) causes this test to
     //   FAIL (the correlated terminal would remain in the strip). Correct predicate → GREEN.
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     // No card yet → should appear in starting.
     expect(selectStartingTerminals(store.getState())).toHaveLength(1)
     // Add a card + correlation binding → should leave the strip.
@@ -807,7 +819,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     // Between launch:correlated landing and the next card-carrying delta, the terminal stays
     // in the strip (card not present yet → predicate keeps it showing to avoid a flicker gap).
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     // Correlation binding arrives but NO card in sessionsById yet.
     store.getState().addCorrelation('sess-1', 't-1')
     // Card not present → still starting (the predicate checks BOTH binding AND card).
@@ -818,7 +830,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     // If the card vanishes (session.removed) but the PTY is still in launchedTerminals, the
     // terminal should reappear in the strip (card gone + binding cleared → predicate true).
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().openLaunchedTerminal('t-1', 'project')
+    store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     store.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
     store.getState().addCorrelation('sess-1', 't-1')
     // Correlated + card present → NOT starting.
@@ -832,11 +844,11 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     const clock = makeClock()
     const store = createBoardStore({ now: clock.now })
     clock.advance(100)
-    store.getState().openLaunchedTerminal('t-z', 'z')
+    store.getState().openLaunchedTerminal('t-z', 'z', 'default')
     // Return to board to allow opening another terminal.
     store.getState().showBoard()
     clock.advance(200)
-    store.getState().openLaunchedTerminal('t-a', 'a')
+    store.getState().openLaunchedTerminal('t-a', 'a', 'default')
     const starting = selectStartingTerminals(store.getState())
     expect(starting[0]?.terminalId).toBe('t-z') // earlier launchedAt first
     expect(starting[1]?.terminalId).toBe('t-a')
@@ -873,7 +885,7 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
   // — pinning a session that is not the one on screen is worse than pinning nothing.
   it('selectRailActiveSessionId is null when the focused terminal has no correlated card', () => {
     const store = createBoardStore({ now: makeClock().now })
-    store.getState().openLaunchedTerminal('tid-fresh', 'fresh')
+    store.getState().openLaunchedTerminal('tid-fresh', 'fresh', 'default')
     expect(selectRailActiveSessionId(store.getState())).toBeNull()
   })
 
@@ -927,6 +939,81 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
     expect(selectRailActiveSessionId(store.getState())).toBe('busy')
     expect(selectRailSection(store.getState(), 'working')).toEqual([]) // 'busy' is pinned now
     expect(selectRailSection(store.getState(), 'idle')).toEqual(['open']) // 'open' rejoined
+  })
+})
+
+describe('workspace filtering', () => {
+  const updated = (
+    id: string,
+    workspaceId: string,
+    column: Column = 'working'
+  ): WatchEventsPayload => ({
+    epoch: 0,
+    event: {
+      type: 'session.updated' as const,
+      id,
+      sessionName: id,
+      projectPath: '/p',
+      status: 'Working',
+      column,
+      enteredColumnAt: 1,
+      pid: 1,
+      workspaceId
+    }
+  })
+
+  it('projects workspaceId onto the board session', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().applyWatchEvent(updated('a', 'w1'))
+    expect(store.getState().sessionsById['a']?.workspaceId).toBe('w1')
+  })
+
+  it('makeSelectVisibleSessions returns only the active workspace', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().applyWatchEvent(updated('a', 'w1'))
+    store.getState().applyWatchEvent(updated('b', 'w2'))
+    const visible = makeSelectVisibleSessions('w1')(store.getState())
+    expect(visible.map((s) => s.id)).toEqual(['a'])
+  })
+
+  it('counts needs-you per workspace INCLUDING hidden ones', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().applyWatchEvent(updated('a', 'w1', 'needs-you'))
+    store.getState().applyWatchEvent(updated('b', 'w2', 'needs-you'))
+    store.getState().applyWatchEvent(updated('c', 'w2', 'needs-you'))
+    store.getState().applyWatchEvent(updated('d', 'w2', 'working'))
+    expect(selectNeedsYouCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 2 })
+  })
+
+  it('records the launch workspace on the terminal registry entry', () => {
+    const store = createBoardStore({ now: () => 5 })
+    store.getState().openLaunchedTerminal('t1', 'proj', 'w1')
+    expect(store.getState().launchedTerminals['t1']?.workspaceId).toBe('w1')
+  })
+
+  it('focusWorkspace moves focus to the newest terminal of the new workspace', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    store.getState().openLaunchedTerminal('t2', 'b', 'w2')
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBe('t1')
+    expect(store.getState().viewMode).toBe('focused')
+  })
+
+  it('focusWorkspace falls back to the board when the workspace has no terminal', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    store.getState().focusWorkspace('w9')
+    expect(store.getState().focusedTerminalId).toBeNull()
+    expect(store.getState().viewMode).toBe('board')
+  })
+
+  it('focusWorkspace keeps every terminal in the registry — nothing is unmounted', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    store.getState().openLaunchedTerminal('t2', 'b', 'w2')
+    store.getState().focusWorkspace('w1')
+    expect(Object.keys(store.getState().launchedTerminals).sort()).toEqual(['t1', 't2'])
   })
 })
 
