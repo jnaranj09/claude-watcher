@@ -431,6 +431,12 @@ export function AttentionRail({
   // needs-you-UNacknowledged ids and announce the row(s) that just appeared in it.
   const prevNeedsRef = useRef<Set<string>>(new Set())
   const primedRef = useRef(false)
+  // Workspaces (Task 9a fix, review round 1) — which workspace `prevNeedsRef`'s baseline was
+  // computed for. A workspace SWITCH must re-prime (skip one announce pass), exactly like the
+  // mount-time priming below — otherwise every already-needs-you session already sitting in the
+  // NEWLY active workspace gets diffed against the PREVIOUS workspace's baseline and is wrongly
+  // announced as "new" on every switch (and again on every switch back).
+  const primedWorkspaceIdRef = useRef<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
   // Subscribe to the store imperatively for the announce diff (avoids re-render churn — we read the
   // emphasis per id off the current state). This runs after every store change.
@@ -445,9 +451,18 @@ export function AttentionRail({
       for (const id of selectRailOrder(state, workspaceId)) {
         if (selectRailEmphasis(state, id) === 'needs-you') nowNeeds.add(id)
       }
+      // Workspaces (Task 9a fix): if the workspace this call observes differs from the one the
+      // CURRENT baseline was computed for, this is a switch — treat it exactly like the
+      // mount-time priming (seed the baseline, announce NOTHING for this pass) rather than
+      // diffing B's needs-you set against A's baseline. Adding `workspaceId` to the effect's deps
+      // would NOT fix this: the effect would just re-run with `primedRef` still true and produce
+      // the same spurious announcement sooner. Checking it INSIDE the same current-value read
+      // this callback already does is what makes the re-prime immediate and correct.
+      const workspaceChanged = primedWorkspaceIdRef.current !== workspaceId
       // The FIRST call (priming, on mount) seeds the baseline ONLY — a session already in needs-you
-      // at mount is NOT announced as "new". Subsequent calls announce the rows that just appeared.
-      if (primedRef.current) {
+      // at mount is NOT announced as "new". Subsequent calls (same workspace) announce the rows
+      // that just appeared.
+      if (primedRef.current && !workspaceChanged) {
         const newlyNeeds: string[] = []
         for (const id of nowNeeds) {
           if (!prevNeedsRef.current.has(id)) {
@@ -465,6 +480,7 @@ export function AttentionRail({
       }
       prevNeedsRef.current = nowNeeds
       primedRef.current = true
+      primedWorkspaceIdRef.current = workspaceId
     }
     computeAndAnnounce()
     const unsub = boardStore.subscribe(computeAndAnnounce)

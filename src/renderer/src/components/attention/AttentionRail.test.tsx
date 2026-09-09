@@ -12,6 +12,7 @@ import { AttentionRail } from './AttentionRail'
 import { shortName } from './railName'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
 import { boardStore } from '../../stores/boardStore'
+import { workspacesStore } from '../../stores/workspacesStore'
 import type { Column, WatchEventsPayload } from '../../../../shared/ipc/contract'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -24,7 +25,7 @@ function updated(
   id: string,
   column: Column,
   enteredColumnAt: number,
-  over: Partial<{ sessionName: string; projectPath: string }> = {}
+  over: Partial<{ sessionName: string; projectPath: string; workspaceId: string }> = {}
 ): WatchEventsPayload {
   return {
     epoch,
@@ -37,7 +38,7 @@ function updated(
       column,
       enteredColumnAt,
       pid: 1000,
-      workspaceId: 'default'
+      workspaceId: over.workspaceId ?? 'default'
     }
   }
 }
@@ -55,6 +56,9 @@ function resetStore(): void {
     // tests do not bleed state into each other (prior tests left entries).
     launchedTerminals: {}
   })
+  // Workspaces (Task 9a fix, review round 1) — reset the active workspace so a test that
+  // switches it does not bleed into a later test in this file.
+  workspacesStore.setState({ activeId: 'default' })
 }
 
 beforeEach(() => {
@@ -656,6 +660,56 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
         .applyWatchEvent(updated(2, 'b', 'needs-you', 200, { sessionName: 'deploy-prod-rose' }))
     )
     expect(announcer?.textContent).toContain('deploy-prod-rose needs you')
+  })
+
+  // Task 9a fix (review round 1, Finding 1) — a workspace SWITCH must re-prime the announce
+  // baseline, exactly like the mount-time priming above. Without the fix, every already-needs-you
+  // session already sitting in the newly-active workspace gets diffed against the PREVIOUS
+  // workspace's baseline and is wrongly announced as "new" on every switch (and again on every
+  // switch back). The second assertion matters as much as the first: a fix that simply suppresses
+  // every announcement after a switch would be worse than the bug it replaces.
+  it("a workspace switch does NOT re-announce that workspace's pre-existing needs-you sessions, but a genuinely new one still IS announced", () => {
+    // Seed BEFORE mount: 'a' needs-you in w1 (the workspace we mount into — present at mount, not
+    // announced), 'b' needs-you in w2 (present at mount in a workspace we have not switched to
+    // yet — must never surface while w1 is active, and must not poison w2's own priming either).
+    workspacesStore.setState({ activeId: 'w1' })
+    act(() => {
+      boardStore
+        .getState()
+        .applyWatchEvent(
+          updated(1, 'a', 'needs-you', 100, { sessionName: 'w1-preexisting', workspaceId: 'w1' })
+        )
+      boardStore
+        .getState()
+        .applyWatchEvent(
+          updated(2, 'b', 'needs-you', 200, { sessionName: 'w2-preexisting', workspaceId: 'w2' })
+        )
+    })
+    const r = render()
+    const announcer = r.container.querySelector('[data-testid="live-announcer"]')
+    expect(announcer?.textContent).toBe('') // mount priming for w1 — nothing announced yet
+
+    // Switch the active workspace to w2. `focusWorkspace` is a boardStore action (it fires the
+    // rail's `boardStore.subscribe` callback), which is how a real workspace switch reaches the
+    // announce effect — mirrors how Task 9b's switcher will wire setActiveWorkspace + focusWorkspace.
+    act(() => {
+      workspacesStore.setState({ activeId: 'w2' })
+      boardStore.getState().focusWorkspace('w2')
+    })
+    // 'b' was ALREADY needs-you before the switch — it must be re-primed into the baseline, NOT
+    // announced as new. This is the exact defect: without the fix this assertion fails.
+    expect(announcer?.textContent).toBe('')
+
+    // A session that ENTERS needs-you in w2 AFTER the re-prime still IS announced — proving the
+    // fix does not just blanket-suppress every announcement after a switch.
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(
+          updated(3, 'c', 'needs-you', 300, { sessionName: 'w2-genuinely-new', workspaceId: 'w2' })
+        )
+    )
+    expect(announcer?.textContent).toContain('w2-genuinely-new needs you')
   })
 
   it('the rail itself has an aria-label nav region (keyboard-navigable landmark)', () => {

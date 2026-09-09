@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act } from 'react'
 import { Board } from './Board'
 import { boardStore } from '../../stores/boardStore'
+import { workspacesStore } from '../../stores/workspacesStore'
 import { renderComponent } from '../../test/renderComponent'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -48,6 +49,9 @@ function resetStore(): void {
     coldLoaded: false,
     selectedId: null
   })
+  // Workspaces (Task 9a fix, review round 1, Finding 2) — reset the active workspace so a test
+  // that switches it does not bleed into a later test in this file.
+  workspacesStore.setState({ activeId: 'default' })
 }
 
 /** Apply a delta INSIDE act() so the subscribed Board re-renders before we assert. */
@@ -102,6 +106,7 @@ function updated(
     status: string
     pid: number
     pendingToolName: string
+    workspaceId: string
   }> = {}
 ): WatchEventsPayload {
   return {
@@ -115,7 +120,7 @@ function updated(
       column,
       enteredColumnAt,
       pid: over.pid ?? 1000,
-      workspaceId: 'default',
+      workspaceId: over.workspaceId ?? 'default',
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }
@@ -521,5 +526,34 @@ describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
     expect(typeof (window as unknown as { attention: AttentionBridge }).attention.onActivate).toBe(
       'function'
     )
+  })
+})
+
+// Task 9a fix (review round 1, Finding 2) — a WIRING-level guard. Every store-level test in
+// boardStore.test.ts passes `workspaceId` explicitly, so none of them can catch a component that
+// silently passes a hardcoded value (e.g. `'default'`) instead of
+// `useWorkspaces(selectActiveWorkspaceId)` — the compiler forces *a* value, not the *right* one.
+// This test proves the wiring: hydrate the ACTIVE workspace to something other than 'default',
+// seed one card per workspace, and assert the board shows only the active workspace's card.
+describe('Board — Task 9a fix: reads the ACTIVE workspace, not a hardcoded one (wiring guard)', () => {
+  it("shows only the active workspace's card when TWO workspaces have cards", () => {
+    workspacesStore.setState({ activeId: 'w2' })
+    const st = boardStore.getState()
+    st.applyWatchEvent(
+      updated(1, 'in-w1', 'working', 100, { sessionName: 'w1-card', workspaceId: 'w1' })
+    )
+    st.applyWatchEvent(
+      updated(1, 'in-w2', 'working', 200, { sessionName: 'w2-card', workspaceId: 'w2' })
+    )
+
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+
+    // Non-vacuous both ways: w2's card renders, w1's card does not — a hardcoded 'default' (or
+    // any wrong constant) would fail this in one direction or the other (most likely: an empty
+    // board, since neither seeded session is in the 'default' workspace).
+    expect(container.querySelector('[data-session-id="in-w2"]')).not.toBeNull()
+    expect(container.querySelector('[data-session-id="in-w1"]')).toBeNull()
+    expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
   })
 })
