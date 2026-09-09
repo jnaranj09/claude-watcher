@@ -30,6 +30,10 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column, WatchEventsPayload, QuitGuardPayload } from '../../../shared/ipc/contract'
+// Workspaces (Task 9a) — `useColumnSessions` is a REACT HOOK (not a pure selector), so it is
+// allowed to read the active workspace itself; this keeps the workspace/board coupling in this
+// ONE commented place instead of threading an extra prop through every `Column.tsx` caller.
+import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
 
 /**
  * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
@@ -704,24 +708,41 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 // ---------------------------------------------------------------------------
 
 /** All sessions in a column, SORTED by entered-column time (working desc;
- *  needs-you/idle asc — `sortByEnteredColumn`). Derived; never persisted. */
-export function selectColumn(state: BoardState, column: Column): BoardSession[] {
-  const inColumn = Object.values(state.sessionsById).filter((s) => s.column === column)
+ *  needs-you/idle asc — `sortByEnteredColumn`). Derived; never persisted.
+ *  Workspaces (Task 9a): `workspaceId` is REQUIRED (not defaulted) so a caller can never
+ *  forget to scope it — the board must show only the active workspace's cards. */
+export function selectColumn(
+  state: BoardState,
+  column: Column,
+  workspaceId: string
+): BoardSession[] {
+  const inColumn = Object.values(state.sessionsById).filter(
+    (s) => s.column === column && s.workspaceId === workspaceId
+  )
   return sortByEnteredColumn(inColumn, (s) => s.enteredColumnAt, column)
 }
 
-/** Live count for a column (a primitive — safe without useShallow). */
-export function selectColumnCount(state: BoardState, column: Column): number {
+/** Live count for a column (a primitive — safe without useShallow). Workspaces (Task 9a):
+ *  `workspaceId` REQUIRED — the column header counts only the active workspace's cards. */
+export function selectColumnCount(state: BoardState, column: Column, workspaceId: string): number {
   let n = 0
   for (const id in state.sessionsById) {
-    if (state.sessionsById[id]?.column === column) n++
+    const s = state.sessionsById[id]
+    if (s?.column === column && s.workspaceId === workspaceId) n++
   }
   return n
 }
 
-/** Total session count (a primitive — used for the empty-board state). */
-export function selectTotalCount(state: BoardState): number {
-  return Object.keys(state.sessionsById).length
+/** Total session count (a primitive — used for the empty-board state). Workspaces (Task 9a):
+ *  `workspaceId` REQUIRED — "is the board empty" is asked per-workspace, not globally (a
+ *  hidden workspace with sessions must not suppress the active workspace's empty state, and
+ *  vice versa). */
+export function selectTotalCount(state: BoardState, workspaceId: string): number {
+  let n = 0
+  for (const s of Object.values(state.sessionsById)) {
+    if (s.workspaceId === workspaceId) n++
+  }
+  return n
 }
 
 /** Cold-load flag (primitive). */
@@ -868,8 +889,14 @@ export function selectKeptAliveTerminalIds(state: BoardState): string[] {
  * a flicker gap (the card isn't present yet, so this guards the "no card" case correctly).
  *
  * REQUIRES `useShallow` at the call site (returns an array). Derived; not stored.
+ *
+ * Workspaces (Task 9a): `workspaceId` REQUIRED — a launched-but-uncorrelated terminal from a
+ * hidden workspace must not show up in the active workspace's Starting strip/banner.
  */
-export function selectStartingTerminals(state: BoardState): LaunchedTerminal[] {
+export function selectStartingTerminals(
+  state: BoardState,
+  workspaceId: string
+): LaunchedTerminal[] {
   // Build a set of terminalIds that already have a card in sessionsById via the correlation map.
   const correlatedTerminalIds = new Set<string>()
   for (const [sessionId, terminalId] of Object.entries(state.terminalIdBySessionId)) {
@@ -878,7 +905,7 @@ export function selectStartingTerminals(state: BoardState): LaunchedTerminal[] {
     }
   }
   return Object.values(state.launchedTerminals)
-    .filter((lt) => !correlatedTerminalIds.has(lt.terminalId))
+    .filter((lt) => lt.workspaceId === workspaceId && !correlatedTerminalIds.has(lt.terminalId))
     .sort((a, b) => {
       if (a.launchedAt !== b.launchedAt) return a.launchedAt - b.launchedAt
       return a.terminalId < b.terminalId ? -1 : a.terminalId > b.terminalId ? 1 : 0
@@ -891,9 +918,11 @@ export function selectStartingTerminals(state: BoardState): LaunchedTerminal[] {
  *  first), calm rows below in the same entered-time order. Returns ONLY the ids (a string[]) so the
  *  rail subscribes to a small, stable projection (per-row emphasis is a separate narrow selector,
  *  so an emphasis flip does not re-sort/re-render the whole rail — Task 3.6). Derived; not stored. */
-export function selectRailOrder(state: BoardState): string[] {
+// Workspaces (Task 9a): `workspaceId` REQUIRED — the rail lists only the active workspace's
+// sessions (a hidden workspace's session must not appear, or be announced, in this rail).
+export function selectRailOrder(state: BoardState, workspaceId: string): string[] {
   return Object.values(state.sessionsById)
-    .slice()
+    .filter((s) => s.workspaceId === workspaceId)
     .sort((a, b) => {
       const aNeeds = a.column === 'needs-you' ? 0 : 1
       const bNeeds = b.column === 'needs-you' ? 0 : 1
@@ -919,11 +948,17 @@ export function useBoard<T>(selector: (state: BoardState) => T): T {
 }
 
 /** Subscribe to a column's SORTED card list (an array → requires useShallow so an
- *  unrelated change does not re-render the column). */
+ *  unrelated change does not re-render the column).
+ *
+ *  Workspaces (Task 9a): this bound hook reads the active workspace ITSELF (via
+ *  `useWorkspaces(selectActiveWorkspaceId)`) and passes it down to the pure `selectColumn` —
+ *  the one place `Column.tsx` couples to the workspace, so the component and its callers stay
+ *  workspace-agnostic. */
 export function useColumnSessions(column: Column): BoardSession[] {
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   return useStore(
     boardStore,
-    useShallow((state: BoardState) => selectColumn(state, column))
+    useShallow((state: BoardState) => selectColumn(state, column, activeWorkspaceId))
   )
 }
 
@@ -971,11 +1006,18 @@ export function selectRailActiveSessionId(state: BoardState): string | null {
  *  group; flipping one group's direction would make the same three sessions read in two different
  *  orders depending on which surface you look at.
  *
- *  Returns an array → REQUIRES `useShallow` at the call site. Derived; never persisted. */
-export function selectRailSection(state: BoardState, column: Column): string[] {
+ *  Returns an array → REQUIRES `useShallow` at the call site. Derived; never persisted.
+ *
+ *  Workspaces (Task 9a): `workspaceId` REQUIRED — a section groups only the active workspace's
+ *  sessions (a hidden workspace's needs-you session must not leak into this rail's groups). */
+export function selectRailSection(
+  state: BoardState,
+  column: Column,
+  workspaceId: string
+): string[] {
   const activeId = selectRailActiveSessionId(state)
   return Object.values(state.sessionsById)
-    .filter((s) => s.column === column && s.id !== activeId)
+    .filter((s) => s.column === column && s.id !== activeId && s.workspaceId === workspaceId)
     .sort((a, b) => {
       if (a.enteredColumnAt !== b.enteredColumnAt) return a.enteredColumnAt - b.enteredColumnAt
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0

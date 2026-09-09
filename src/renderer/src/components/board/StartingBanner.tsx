@@ -16,12 +16,22 @@
 // [Source: story 5-6-keep-app-launched-terminals-reachable.md, Task 3]
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { boardStore, useBoard, selectStartingTerminals } from '../../stores/boardStore'
+import {
+  boardStore,
+  useBoard,
+  selectStartingTerminals,
+  type BoardState
+} from '../../stores/boardStore'
+// Workspaces (Task 9a) — the banner is a component, so it reads the active workspace itself.
+import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
 import styles from './StartingBanner.module.css'
 
 export function StartingBanner(): JSX.Element | null {
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   // Subscribe with useShallow because selectStartingTerminals returns an array (object selector).
-  const startingTerminals = useBoard(useShallow(selectStartingTerminals))
+  const startingTerminals = useBoard(
+    useShallow((s: BoardState) => selectStartingTerminals(s, activeWorkspaceId))
+  )
   const [open, setOpen] = useState(false)
 
   // Render nothing when there are no starting terminals (AC-3: only when ≥1 present).

@@ -250,8 +250,9 @@ describe('App — Story 5.6 selectStartingTerminals reflects launched-but-uncorr
   it('after a launch, selectStartingTerminals has the launched terminal (before correlation)', async () => {
     const r = await renderApp()
     await clickNewSession(r)
-    // No correlation yet → terminal should be "starting".
-    const starting = selectStartingTerminals(boardStore.getState())
+    // No correlation yet → terminal should be "starting". Workspaces (Task 9a): the launch fixture
+    // stamps 'default' (see the window.launch.launch mock above), so query that same workspace.
+    const starting = selectStartingTerminals(boardStore.getState(), 'default')
     expect(starting).toHaveLength(1)
     expect(starting[0]?.terminalId).toBe('launch-A')
     expect(starting[0]?.label).toBe('project') // basename of '/home/op/project'

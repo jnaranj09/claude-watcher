@@ -25,6 +25,7 @@ import {
   selectStartingTerminals,
   selectRailActiveSessionId,
   selectRailSection,
+  selectRailOrder,
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
   makeSelectVisibleSessions,
@@ -43,7 +44,8 @@ function makeClock(start = FIXED_NOW): { now: () => number; advance: (ms: number
   return { now: () => t, advance: (ms) => (t += ms) }
 }
 
-/** Build a validated `session.updated` delta (the enriched wire shape). */
+/** Build a validated `session.updated` delta (the enriched wire shape). Defaults to the
+ *  'default' workspace; Task 9a's two-workspace tests override it via `over.workspaceId`. */
 function updated(
   epoch: number,
   id: string,
@@ -55,6 +57,7 @@ function updated(
     status: string
     pid: number
     pendingToolName: string
+    workspaceId: string
   }> = {}
 ): WatchEventsPayload {
   return {
@@ -68,7 +71,7 @@ function updated(
       column,
       enteredColumnAt,
       pid: over.pid ?? 1000,
-      workspaceId: 'default',
+      workspaceId: over.workspaceId ?? 'default',
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }
@@ -104,7 +107,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
       workspaceId: 'default',
       pendingToolName: 'Bash'
     })
-    expect(selectTotalCount(store.getState())).toBe(1)
+    expect(selectTotalCount(store.getState(), 'default')).toBe(1)
   })
 
   it('coldLoaded flips true on the FIRST delta (epoch ≥ 1)', () => {
@@ -137,10 +140,10 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
   it('session.removed makes the card VANISH (no Done column — AC-2)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
-    expect(selectTotalCount(store.getState())).toBe(1)
+    expect(selectTotalCount(store.getState(), 'default')).toBe(1)
     store.getState().applyWatchEvent(removed(2, 'a'))
     expect(store.getState().sessionsById['a']).toBeUndefined()
-    expect(selectTotalCount(store.getState())).toBe(0)
+    expect(selectTotalCount(store.getState(), 'default')).toBe(0)
   })
 
   it('attention.raised is IGNORED by the board projection (Epic 2/3 consume it)', () => {
@@ -158,7 +161,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
       }
     })
     // The session is unchanged (still one card, still working); only epoch/liveness move.
-    expect(selectTotalCount(store.getState())).toBe(1)
+    expect(selectTotalCount(store.getState(), 'default')).toBe(1)
     expect(store.getState().sessionsById['a']?.column).toBe('working')
     expect(store.getState().epoch).toBe(2)
   })
@@ -234,26 +237,26 @@ describe('boardStore selectors — column grouping + per-column sort (AC-3)', ()
 
   it('working column is sorted DESC (most-recent on top)', () => {
     const state = seed().getState()
-    expect(selectColumn(state, 'working').map((s) => s.id)).toEqual(['w2', 'w3', 'w1'])
-    expect(selectColumnCount(state, 'working')).toBe(3)
+    expect(selectColumn(state, 'working', 'default').map((s) => s.id)).toEqual(['w2', 'w3', 'w1'])
+    expect(selectColumnCount(state, 'working', 'default')).toBe(3)
   })
 
   it('needs-you column is sorted ASC (longest-waiting on top)', () => {
     const state = seed().getState()
-    expect(selectColumn(state, 'needs-you').map((s) => s.id)).toEqual(['n2', 'n1'])
-    expect(selectColumnCount(state, 'needs-you')).toBe(2)
+    expect(selectColumn(state, 'needs-you', 'default').map((s) => s.id)).toEqual(['n2', 'n1'])
+    expect(selectColumnCount(state, 'needs-you', 'default')).toBe(2)
   })
 
   it('idle column is sorted ASC (longest-waiting on top)', () => {
     const state = seed().getState()
-    expect(selectColumn(state, 'idle').map((s) => s.id)).toEqual(['i2', 'i1'])
-    expect(selectColumnCount(state, 'idle')).toBe(2)
+    expect(selectColumn(state, 'idle', 'default').map((s) => s.id)).toEqual(['i2', 'i1'])
+    expect(selectColumnCount(state, 'idle', 'default')).toBe(2)
   })
 
   it('grouping is exact — every session is in exactly one column, none missing/duplicated (AC-1)', () => {
     const state = seed().getState()
     const ids = (['working', 'needs-you', 'idle'] as const).flatMap((c) =>
-      selectColumn(state, c).map((s) => s.id)
+      selectColumn(state, c, 'default').map((s) => s.id)
     )
     expect(ids.sort()).toEqual(['i1', 'i2', 'n1', 'n2', 'w1', 'w2', 'w3'])
     expect(new Set(ids).size).toBe(ids.length) // no duplicates
@@ -270,7 +273,7 @@ describe('boardStore — the engine-started cold-load contract (Story 5.3 / 6.4:
     const store = createBoardStore({ now: () => FIXED_NOW })
     // Non-vacuous: confirm coldLoaded starts false (no delta has arrived).
     expect(selectColdLoaded(store.getState())).toBe(false)
-    expect(selectTotalCount(store.getState())).toBe(0) // truly no sessions — empty cold start
+    expect(selectTotalCount(store.getState(), 'default')).toBe(0) // truly no sessions — empty cold start
     store.getState().setReconnecting(false)
     expect(selectColdLoaded(store.getState())).toBe(true)
   })
@@ -790,7 +793,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
   it('a launched terminal with no correlated card is "starting"', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().openLaunchedTerminal('t-1', 'myproject', 'default')
-    const starting = selectStartingTerminals(store.getState())
+    const starting = selectStartingTerminals(store.getState(), 'default')
     expect(starting).toHaveLength(1)
     expect(starting[0]?.terminalId).toBe('t-1')
     expect(starting[0]?.label).toBe('myproject')
@@ -798,7 +801,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
 
   it('selectStartingTerminals returns nothing when the registry is empty', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    expect(selectStartingTerminals(store.getState())).toHaveLength(0)
+    expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(0)
   })
 
   it('supersede (AC-4): a correlated terminal with a present card leaves the Starting strip', () => {
@@ -808,12 +811,12 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().openLaunchedTerminal('t-1', 'project', 'default')
     // No card yet → should appear in starting.
-    expect(selectStartingTerminals(store.getState())).toHaveLength(1)
+    expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(1)
     // Add a card + correlation binding → should leave the strip.
     store.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
     store.getState().addCorrelation('sess-1', 't-1')
     // Both the card exists AND the binding exists → NOT starting.
-    expect(selectStartingTerminals(store.getState())).toHaveLength(0)
+    expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(0)
   })
 
   it('supersede window: correlation landing without a card keeps the terminal in the strip', () => {
@@ -824,7 +827,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     // Correlation binding arrives but NO card in sessionsById yet.
     store.getState().addCorrelation('sess-1', 't-1')
     // Card not present → still starting (the predicate checks BOTH binding AND card).
-    expect(selectStartingTerminals(store.getState())).toHaveLength(1)
+    expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(1)
   })
 
   it('session.removed: a removed session whose terminal is still launched falls back into the strip', () => {
@@ -835,10 +838,10 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     store.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
     store.getState().addCorrelation('sess-1', 't-1')
     // Correlated + card present → NOT starting.
-    expect(selectStartingTerminals(store.getState())).toHaveLength(0)
+    expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(0)
     // Session removed → card gone + binding cleared → falls back into strip.
     store.getState().applyWatchEvent(removed(2, 'sess-1'))
-    expect(selectStartingTerminals(store.getState())).toHaveLength(1)
+    expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(1)
   })
 
   it('selectStartingTerminals is SORTED by launchedAt then terminalId', () => {
@@ -850,7 +853,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     store.getState().showBoard()
     clock.advance(200)
     store.getState().openLaunchedTerminal('t-a', 'a', 'default')
-    const starting = selectStartingTerminals(store.getState())
+    const starting = selectStartingTerminals(store.getState(), 'default')
     expect(starting[0]?.terminalId).toBe('t-z') // earlier launchedAt first
     expect(starting[1]?.terminalId).toBe('t-a')
   })
@@ -901,16 +904,16 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
   it('selectRailSection groups by column and EXCLUDES the pinned active session', () => {
     const store = withFocus()
     // 'open' is idle AND pinned → its own group comes back empty, not containing it.
-    expect(selectRailSection(store.getState(), 'idle')).toEqual([])
-    expect(selectRailSection(store.getState(), 'needs-you')).toEqual(['wants-you'])
-    expect(selectRailSection(store.getState(), 'working')).toEqual(['busy'])
+    expect(selectRailSection(store.getState(), 'idle', 'default')).toEqual([])
+    expect(selectRailSection(store.getState(), 'needs-you', 'default')).toEqual(['wants-you'])
+    expect(selectRailSection(store.getState(), 'working', 'default')).toEqual(['busy'])
   })
 
   it('selectRailSection includes every session in the column when nothing is pinned', () => {
     const store = createBoardStore({ now: makeClock().now })
     store.getState().applyWatchEvent(updated(1, 'a', 'idle', 100))
     store.getState().applyWatchEvent(updated(1, 'b', 'idle', 200))
-    expect(selectRailSection(store.getState(), 'idle')).toEqual(['a', 'b'])
+    expect(selectRailSection(store.getState(), 'idle', 'default')).toEqual(['a', 'b'])
   })
 
   // ASCENDING in EVERY group — deliberately NOT `sortByEnteredColumn`, which sorts the BOARD's
@@ -920,14 +923,14 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
     const store = createBoardStore({ now: makeClock().now })
     store.getState().applyWatchEvent(updated(1, 'newer', 'working', 300))
     store.getState().applyWatchEvent(updated(1, 'older', 'working', 100))
-    expect(selectRailSection(store.getState(), 'working')).toEqual(['older', 'newer'])
+    expect(selectRailSection(store.getState(), 'working', 'default')).toEqual(['older', 'newer'])
   })
 
   it('selectRailSection breaks an enteredColumnAt tie on id, deterministically', () => {
     const store = createBoardStore({ now: makeClock().now })
     store.getState().applyWatchEvent(updated(1, 'zz', 'needs-you', 100))
     store.getState().applyWatchEvent(updated(1, 'aa', 'needs-you', 100))
-    expect(selectRailSection(store.getState(), 'needs-you')).toEqual(['aa', 'zz'])
+    expect(selectRailSection(store.getState(), 'needs-you', 'default')).toEqual(['aa', 'zz'])
   })
 
   // NON-VACUITY: the pin and the exclusion are ONE behaviour. Moving focus to another session must
@@ -938,8 +941,8 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
     store.getState().addCorrelation('busy', 'tid-busy')
     store.getState().switchTerminal('tid-busy')
     expect(selectRailActiveSessionId(store.getState())).toBe('busy')
-    expect(selectRailSection(store.getState(), 'working')).toEqual([]) // 'busy' is pinned now
-    expect(selectRailSection(store.getState(), 'idle')).toEqual(['open']) // 'open' rejoined
+    expect(selectRailSection(store.getState(), 'working', 'default')).toEqual([]) // 'busy' is pinned now
+    expect(selectRailSection(store.getState(), 'idle', 'default')).toEqual(['open']) // 'open' rejoined
   })
 })
 
@@ -1046,6 +1049,105 @@ describe('workspace filtering', () => {
     store.getState().openLaunchedTerminal('t2', 'b', 'w2')
     store.getState().focusWorkspace('w1')
     expect(Object.keys(store.getState().launchedTerminals).sort()).toEqual(['t1', 't2'])
+  })
+})
+
+// ===========================================================================
+// Task 9a — scope the board and rail selectors to the active workspace.
+//
+// Each POSITIVE test below seeds sessions/terminals in TWO workspaces and asserts a
+// selector returns only the queried workspace's slice — so the test would fail (not
+// vacuously pass) if the workspace filter were absent (see the fault-injection evidence
+// in task-9a-report.md). The two NEGATIVE tests assert the opposite for the two
+// selectors that must NEVER be workspace-filtered.
+// ===========================================================================
+describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => {
+  it("selectColumn returns only the queried workspace's sessions in that column", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
+    // Without the filter, both calls would return ['a', 'b'] (or ['b','a'] by entered-time) —
+    // this fails for the right reason if the `s.workspaceId === workspaceId` term is removed.
+    expect(selectColumn(store.getState(), 'working', 'w1').map((s) => s.id)).toEqual(['a'])
+    expect(selectColumn(store.getState(), 'working', 'w2').map((s) => s.id)).toEqual(['b'])
+  })
+
+  it("selectColumnCount counts only the queried workspace's sessions", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(updated(1, 'c', 'working', 300, { workspaceId: 'w1' }))
+    // Without the filter both counts would be 3 (the full column) — non-vacuous.
+    expect(selectColumnCount(store.getState(), 'working', 'w1')).toBe(2)
+    expect(selectColumnCount(store.getState(), 'working', 'w2')).toBe(1)
+  })
+
+  it("selectTotalCount counts only the queried workspace's sessions", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(updated(1, 'b', 'idle', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(updated(1, 'c', 'needs-you', 300, { workspaceId: 'w2' }))
+    // Without the filter both calls would return 3 (the whole board) — non-vacuous.
+    expect(selectTotalCount(store.getState(), 'w1')).toBe(1)
+    expect(selectTotalCount(store.getState(), 'w2')).toBe(2)
+  })
+
+  it("selectStartingTerminals returns only the queried workspace's launched-but-uncorrelated terminals", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('t1', 'projA', 'w1')
+    store.getState().showBoard()
+    store.getState().openLaunchedTerminal('t2', 'projB', 'w2')
+    // Same fixed now() for both entries, so without the workspace filter the terminalId
+    // tiebreak would return BOTH ids (['t1','t2']) for either workspace query — non-vacuous.
+    expect(selectStartingTerminals(store.getState(), 'w1').map((t) => t.terminalId)).toEqual(['t1'])
+    expect(selectStartingTerminals(store.getState(), 'w2').map((t) => t.terminalId)).toEqual(['t2'])
+  })
+
+  it("selectRailOrder returns only the queried workspace's session ids", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 50, { workspaceId: 'w2' }))
+    // Without the filter, both calls would return ['b', 'a'] (needs-you sorts first) —
+    // non-vacuous: the w1 query would wrongly include 'b', the w2 query would wrongly include 'a'.
+    expect(selectRailOrder(store.getState(), 'w1')).toEqual(['a'])
+    expect(selectRailOrder(store.getState(), 'w2')).toEqual(['b'])
+  })
+
+  it("selectRailSection returns only the queried workspace's session ids for that column", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
+    // Without the filter, both calls would return ['a', 'b'] (oldest-entered first) —
+    // non-vacuous either way (each query is missing an exclusion or has an extra inclusion).
+    expect(selectRailSection(store.getState(), 'working', 'w1')).toEqual(['a'])
+    expect(selectRailSection(store.getState(), 'working', 'w2')).toEqual(['b'])
+  })
+
+  // ---- the two NEGATIVE tests — the most important tests in this task -------------------
+  it('NEGATIVE: selectKeptAliveTerminalIds is NOT workspace-filtered — every workspace stays mounted', () => {
+    // Filtering this selector would UNMOUNT a hidden workspace's terminals and kill their
+    // PTYs — the one guarantee the whole feature rests on (a switch is a pure show/hide).
+    // This has NO workspaceId parameter and must never grow one.
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('t1', 'projA', 'w1')
+    store.getState().showBoard()
+    store.getState().openLaunchedTerminal('t2', 'projB', 'w2')
+    const alive = selectKeptAliveTerminalIds(store.getState())
+    expect(alive).toContain('t1')
+    expect(alive).toContain('t2')
+  })
+
+  it('NEGATIVE: selectNeedsYouCountByWorkspace is NOT workspace-filtered — it counts EVERY workspace', () => {
+    // This feeds the switcher's "another workspace needs you" badge — filtering it to the
+    // active workspace would make that badge always read zero. (Overlaps the Task-8 guard
+    // "counts needs-you per workspace INCLUDING hidden ones" above; kept here too so this
+    // task's deliverable is self-contained.)
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200, { workspaceId: 'w2' }))
+    const counts = selectNeedsYouCountByWorkspace(store.getState())
+    expect(counts['w1']).toBe(1)
+    expect(counts['w2']).toBe(1)
   })
 })
 

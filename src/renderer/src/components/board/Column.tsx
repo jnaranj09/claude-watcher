@@ -30,6 +30,9 @@ import {
   selectRailEmphasis,
   type BoardSession
 } from '../../stores/boardStore'
+// Workspaces (Task 9a) — `useColumnSessions` already scopes itself internally; Column still
+// needs the active workspace directly for its OWN `selectColumnCount` call below.
+import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
 import styles from './Board.module.css'
 
 /** The human column names + accents + empty-column hints (AC-4 copy). */
@@ -125,7 +128,8 @@ export function Column({
   selectedId = null
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
-  const count = useBoard((s) => selectColumnCount(s, column))
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId))
   const meta = COLUMN_META[column]
 
   // The hero column's cards are the large full-contrast `variant="hero"` (with the 3px

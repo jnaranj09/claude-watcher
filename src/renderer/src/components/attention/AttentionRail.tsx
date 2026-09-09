@@ -68,6 +68,14 @@ import {
   type BoardState,
   type LaunchedTerminal
 } from '../../stores/boardStore'
+// Workspaces (Task 9a) — the rail is a component tree, so each subscriber reads the active
+// workspace itself (`useWorkspaces`); the imperative announce effect below reads the singleton
+// `workspacesStore.getState()` directly (it runs outside React render, in a store subscription).
+import {
+  useWorkspaces,
+  workspacesStore,
+  selectActiveWorkspaceId
+} from '../../stores/workspacesStore'
 import { shortName } from './railName'
 import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './AttentionRail.module.css'
@@ -309,7 +317,10 @@ function RailSection(props: {
   onRename?: ((sessionId: string) => void) | undefined
 }): JSX.Element | null {
   const { column, collapsed, onActivate, onRename } = props
-  const ids = useBoard(useShallow((s: BoardState) => selectRailSection(s, column)))
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const ids = useBoard(
+    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId))
+  )
   if (ids.length === 0) return null
   const label = statusLabel(DOT_STATUS_FOR_COLUMN[column])
   return (
@@ -403,10 +414,14 @@ export function AttentionRail({
   // whole-list subscription here any more: a session flipping to needs-you now re-renders the two
   // sections involved instead of every row in the rail.
   const activeId = useBoard(selectRailActiveSessionId)
+  // Workspaces (Task 9a) — the active workspace, threaded into selectStartingTerminals below.
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   // Story 5.6 (rail gap) — launched-but-not-yet-correlated terminals: the "Starting" group.
   // useShallow because selectStartingTerminals returns an array. Supersede is automatic:
   // once a terminal correlates AND has a card in sessionsById, selectStartingTerminals drops it.
-  const startingTerminals = useBoard(useShallow(selectStartingTerminals))
+  const startingTerminals = useBoard(
+    useShallow((s: BoardState) => selectStartingTerminals(s, activeWorkspaceId))
+  )
   // Collapse is RENDERER VIEW-STATE; local to the rail (do NOT round-trip to main). UX-DR9:
   // collapsible to 56px icons, NEVER hidden.
   const [collapsed, setCollapsed] = useState(false)
@@ -422,8 +437,12 @@ export function AttentionRail({
   useEffect(() => {
     const computeAndAnnounce = (): void => {
       const state = boardStore.getState()
+      // Workspaces (Task 9a) — this runs in a store-subscription callback, not React render, so
+      // there is no hook to call: read the CURRENT active workspace off the singleton store
+      // (mirrors reading `boardStore.getState()` on the line above).
+      const workspaceId = selectActiveWorkspaceId(workspacesStore.getState())
       const nowNeeds = new Set<string>()
-      for (const id of selectRailOrder(state)) {
+      for (const id of selectRailOrder(state, workspaceId)) {
         if (selectRailEmphasis(state, id) === 'needs-you') nowNeeds.add(id)
       }
       // The FIRST call (priming, on mount) seeds the baseline ONLY — a session already in needs-you
