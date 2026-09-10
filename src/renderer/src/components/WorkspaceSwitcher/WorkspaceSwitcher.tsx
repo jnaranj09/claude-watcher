@@ -11,19 +11,11 @@ import {
   useWorkspaces,
   workspacesStore
 } from '../../stores/workspacesStore'
-import type { WorkspaceColor } from '../../../../shared/schemas/workspace'
+import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import styles from './WorkspaceSwitcher.module.css'
 
 export interface WorkspaceSwitcherProps {
   onManage: () => void
-}
-
-/** `noUncheckedIndexedAccess`-safe dot-color lookup: `styles` is a CSS-module index signature
- *  (`{ readonly [key: string]: string }`), so any index access — even with a `WorkspaceColor`
- *  literal — types as `string | undefined`. Fall back to `.slate` (always defined below) so the
- *  class list is never `undefined` in the DOM. */
-function dotClass(color: WorkspaceColor): string {
-  return styles[color] ?? styles.slate ?? ''
 }
 
 export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Element {
@@ -96,10 +88,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span
-          className={`${styles.dot} ${dotClass(active?.color ?? 'slate')}`}
-          aria-hidden="true"
-        />
+        <WorkspaceDot tone={active?.color ?? 'slate'} />
         <span className={styles.name}>{active?.name ?? 'Workspace'}</span>
         {elsewhere > 0 && (
           <span
@@ -123,7 +112,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
               aria-current={w.id === activeId}
               onClick={() => pick(w.id)}
             >
-              <span className={`${styles.dot} ${dotClass(w.color)}`} aria-hidden="true" />
+              <WorkspaceDot tone={w.color} />
               <span className={styles.rowName}>{w.name}</span>
               {(counts[w.id] ?? 0) > 0 && <span className={styles.rowCount}>{counts[w.id]}</span>}
             </button>

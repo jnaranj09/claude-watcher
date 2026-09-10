@@ -1,4 +1,13 @@
-import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog, clipboard } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  MessageChannelMain,
+  dialog,
+  clipboard,
+  nativeTheme
+} from 'electron'
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
@@ -1915,6 +1924,14 @@ function createWindow(): void {
 // renderer's data model, never the compositor, so it passed green while the window was invisible.
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('disable-software-rasterizer')
+
+// The app is dark-only, and Chromium draws some widgets ITSELF — the `<select>` popup list above
+// all — from the NATIVE theme, not from the page. `:root { color-scheme: dark }` in main.css is
+// necessary but NOT sufficient on Linux: with the desktop on a light GTK theme the popup still
+// came up white with a blue highlight, floating over a dark dialog. `themeSource = 'dark'` is
+// what tells Chromium to draw its own surfaces dark (and makes `prefers-color-scheme: dark`
+// true in the renderer). Set before `ready`, so the first window never paints a light popup.
+nativeTheme.themeSource = 'dark'
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.

@@ -3,12 +3,23 @@
 // other modals and closes it on the quit guard.
 import { useState, type JSX, type KeyboardEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import type { Template } from '../../../../shared/ipc/contract'
 import { selectTemplates, useTemplates } from '../../stores/templatesStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
+import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
+import {
+  ALL_SCOPE,
+  filterByScope,
+  hasOrphans,
+  knownWorkspaceIds,
+  scopeOf,
+  workspaceScope,
+  type ScopeFilterValue
+} from '../ScopeFilter/scope'
 import { TemplateForm } from './TemplateForm'
 import { TemplateList } from './TemplateList'
 import styles from './TemplatesDialog.module.css'
@@ -18,13 +29,39 @@ export interface TemplatesDialogProps {
 }
 
 export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element {
-  // The Manage dialog shows EVERY template regardless of scope (unlike the popover) — no
-  // makeSelectVisibleTemplates here. activeWorkspaceId + workspaces feed the grouping below.
+  // The Manage dialog can show EVERY template regardless of scope (unlike the popover) — no
+  // makeSelectVisibleTemplates here. activeWorkspaceId + workspaces feed the header's scope
+  // filter, which is the ONE thing that narrows this list.
   const templates = useTemplates(selectTemplates)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = templates.find((t) => t.id === selectedId) ?? null
+  const known = knownWorkspaceIds(workspaces)
+  // Opens on the workspace you are working in — the rows you most likely came to edit. Falls
+  // back to the `all` entry if that id names no known workspace, so the select can never sit on
+  // an option it does not offer.
+  const [scope, setScope] = useState<ScopeFilterValue>(() =>
+    workspaces.some((w) => w.id === activeWorkspaceId)
+      ? workspaceScope(activeWorkspaceId)
+      : ALL_SCOPE
+  )
+
+  function changeScope(next: ScopeFilterValue): void {
+    setScope(next)
+    // A row selected in the OLD scope is gone from the list; leaving it in the form means editing
+    // something you can no longer see. Drop back to the empty form instead.
+    setSelectedId(null)
+  }
+
+  /** Keeps a just-saved row visible: changing its Workspace can move it out of the view you
+   *  saved it from, and a row that vanishes on save reads as a failed save. */
+  function revealSaved(template: Template): void {
+    setSelectedId(template.id)
+    if (filterByScope([template], scope, known).length === 0) {
+      setScope(scopeOf(template.workspaceId, known))
+    }
+  }
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (e.key === 'Escape') {
@@ -44,7 +81,18 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
     >
       <div className={styles.panel} data-testid="templates-panel">
         <div className={styles.header}>
-          <span className={styles.title}>Templates</span>
+          <div className={styles.headerText}>
+            <span className={styles.title}>Templates</span>
+            <ScopeFilter
+              value={scope}
+              workspaces={workspaces}
+              showOrphans={hasOrphans(templates, known)}
+              onChange={changeScope}
+              allLabel="All templates"
+              testId="template-scope-filter"
+              ariaLabel="Filter templates by workspace"
+            />
+          </div>
           <button
             type="button"
             className={styles.closeButton}
@@ -58,8 +106,8 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
         <div className={styles.columns}>
           <TemplateList
             templates={templates}
-            activeWorkspaceId={activeWorkspaceId}
             workspaces={workspaces}
+            scope={scope}
             selectedId={selected?.id ?? null}
             onSelect={setSelectedId}
             onNew={() => setSelectedId(null)}
@@ -67,7 +115,7 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
           <TemplateForm
             key={selected?.id ?? 'new'}
             template={selected}
-            onSaved={(t) => setSelectedId(t.id)}
+            onSaved={revealSaved}
             onRemoved={() => setSelectedId(null)}
           />
         </div>

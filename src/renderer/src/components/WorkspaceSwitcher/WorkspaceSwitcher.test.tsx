@@ -13,9 +13,7 @@ import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { boardStore } from '../../stores/boardStore'
 import { workspacesStore } from '../../stores/workspacesStore'
-import { WORKSPACE_COLORS } from '../../../../shared/schemas/workspace'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
-import styles from './WorkspaceSwitcher.module.css'
 
 const rows = [
   { id: 'default', name: 'Default', color: 'slate' as const, defaultCwd: null },
@@ -196,12 +194,8 @@ describe('WorkspaceSwitcher', () => {
     expect(onManage).toHaveBeenCalled()
   })
 
-  // "Two things to watch" #2 — a completeness net: iterates the CANONICAL
-  // WORKSPACE_COLORS array (never a hand-typed copy) so a future 7th color that gets no CSS
-  // class turns this red instead of silently rendering an undefined-class (invisible) dot.
-  it('defines a CSS class for every WORKSPACE_COLORS entry', () => {
-    for (const color of WORKSPACE_COLORS) {
-      expect(styles[color]).toBeTruthy()
-    }
-  })
+  // The swatch colors moved to WorkspaceDot.module.css (ONE definition app-wide); the
+  // completeness net over WORKSPACE_COLORS lives in WorkspaceDot.test.tsx, where it reads the
+  // stylesheet. Indexing an imported `styles` object could never have caught a missing class —
+  // vitest resolves a CSS module to a proxy that answers every key.
 })

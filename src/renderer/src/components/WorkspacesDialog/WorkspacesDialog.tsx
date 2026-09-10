@@ -3,9 +3,12 @@
 // trap, and a list + form split. UX-DR14: App.tsx guards it against the other modals via
 // isModalOpen() and closes it on the quit guard.
 //
-// Delete lives on the LIST side (not the form): it is two-step per row (`workspace-delete-<id>`
-// arms an inline confirm; `workspace-delete-confirm` commits) and the Default workspace's row
-// never renders a delete control at all — main also refuses it, but the UI must not offer it.
+// Delete lives in the FORM footer beside Save — the shape TemplateForm.tsx and ShortcutRow.tsx
+// already use (see .claude/rules/design.md): ONE button that arms in place and commits on the
+// second press, with Escape or blur disarming it. The two-step keeps its two test ids on that one
+// button (`workspace-delete-<id>` armed → `workspace-delete-confirm`) precisely so a test cannot
+// commit a delete with a single click. The Default workspace renders NO delete control at all —
+// main also refuses it, but the UI must not offer it.
 //
 // Never render a raw thrown error: every IPC rejection is mapped through `copyFor()` to
 // operator-facing copy (an unknown code falls back to a generic sentence) before it reaches the
@@ -19,6 +22,7 @@ import {
   WORKSPACE_NAME_MAX_LENGTH,
   type WorkspaceColor
 } from '../../../../shared/schemas/workspace'
+import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 import { loadShortcuts } from '../../stores/shortcutsStore'
 import { loadTemplates } from '../../stores/templatesStore'
@@ -28,6 +32,7 @@ import {
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
+import { TextInput } from '../TextInput/TextInput'
 import styles from './WorkspacesDialog.module.css'
 
 export interface WorkspacesDialogProps {
@@ -55,94 +60,52 @@ function copyFor(error: unknown): string {
   return 'Something went wrong. Try again.'
 }
 
-/** `noUncheckedIndexedAccess`-safe dot-color lookup — mirrors WorkspaceSwitcher.tsx's helper. */
-function dotClass(color: WorkspaceColor): string {
-  return styles[color] ?? styles.slate ?? ''
-}
-
 interface WorkspaceRowProps {
   workspace: Workspace
   selected: boolean
-  armed: boolean
-  busy: boolean
   onSelect: () => void
-  onArm: () => void
-  onCancelArm: () => void
-  onConfirmDelete: () => void
 }
 
-function WorkspaceRow({
-  workspace,
-  selected,
-  armed,
-  busy,
-  onSelect,
-  onArm,
-  onCancelArm,
-  onConfirmDelete
-}: WorkspaceRowProps): JSX.Element {
+function WorkspaceRow({ workspace, selected, onSelect }: WorkspaceRowProps): JSX.Element {
   return (
     <div
       className={styles.row}
       data-testid={`workspace-item-${workspace.id}`}
       data-selected={selected}
     >
-      <button type="button" className={styles.rowMain} onClick={onSelect}>
-        <span className={`${styles.dot} ${dotClass(workspace.color)}`} aria-hidden="true" />
+      <button
+        type="button"
+        className={styles.rowMain}
+        data-testid={`workspace-select-${workspace.id}`}
+        onClick={onSelect}
+      >
+        <WorkspaceDot tone={workspace.color} />
         <span className={styles.rowName}>{workspace.name}</span>
         <span className={styles.rowFolder}>{workspace.defaultCwd ?? 'None'}</span>
       </button>
-      {/* The Default workspace is undeletable (main refuses it too), so its row renders NO
-          delete control at all — `workspace-delete-default` must not exist. */}
-      {workspace.id !== DEFAULT_WORKSPACE_ID && !armed && (
-        <button
-          type="button"
-          className={styles.ghostButton}
-          data-testid={`workspace-delete-${workspace.id}`}
-          onClick={onArm}
-        >
-          Delete
-        </button>
-      )}
-      {armed && (
-        <div className={styles.confirmRow}>
-          <p className={styles.hint} data-testid="workspace-delete-confirm-text">
-            {`Delete ${workspace.name}? Any templates and shortcuts scoped to it are deleted too. This cannot be undone.`}
-          </p>
-          <div className={styles.confirmActions}>
-            <button
-              type="button"
-              className={styles.ghostButton}
-              disabled={busy}
-              onClick={onCancelArm}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.dangerButton}
-              data-testid="workspace-delete-confirm"
-              disabled={busy}
-              onClick={onConfirmDelete}
-            >
-              Confirm delete
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
 interface WorkspaceFormProps {
   workspace: Workspace | null
+  deleteBusy: boolean
   onSaved: (saved: Workspace) => void
-  onError: (message: string) => void
+  onError: (message: string | null) => void
+  onDelete: () => void
 }
 
 /** Keyed by the selected id in WorkspacesDialog, so a selection change remounts it with a fresh
- *  draft (no effect-based syncing) — same reasoning as TemplateForm.tsx. */
-function WorkspaceForm({ workspace, onSaved, onError }: WorkspaceFormProps): JSX.Element {
+ *  draft (no effect-based syncing) — same reasoning as TemplateForm.tsx. That remount is also what
+ *  disarms a left-over Delete: an armed confirm can never follow the operator to another row. */
+function WorkspaceForm({
+  workspace,
+  deleteBusy,
+  onSaved,
+  onError,
+  onDelete
+}: WorkspaceFormProps): JSX.Element {
+  const [armed, setArmed] = useState(false)
   const [name, setName] = useState(workspace?.name ?? '')
   const [color, setColor] = useState<WorkspaceColor>(workspace?.color ?? 'slate')
   const [defaultCwd, setDefaultCwd] = useState<string | null>(workspace?.defaultCwd ?? null)
@@ -177,19 +140,38 @@ function WorkspaceForm({ workspace, onSaved, onError }: WorkspaceFormProps): JSX
     }
   }
 
+  function handleDelete(): void {
+    if (!armed) {
+      setArmed(true)
+      onError(null)
+      return
+    }
+    onDelete()
+  }
+
   return (
-    <form className={styles.form} data-testid="workspace-form" onSubmit={(e) => void submit(e)}>
+    <form
+      className={styles.form}
+      data-testid="workspace-form"
+      onSubmit={(e) => void submit(e)}
+      // Escape peels ONE layer (UX-DR14), same as TemplateForm.tsx: while Delete is armed it
+      // disarms and stops there, so the keypress never reaches the dialog's close handler.
+      onKeyDown={(e: KeyboardEvent<HTMLFormElement>) => {
+        if (e.key === 'Escape' && armed) {
+          e.stopPropagation()
+          setArmed(false)
+        }
+      }}
+    >
       <label className={styles.label} htmlFor="workspace-name">
         Name
       </label>
-      <input
+      <TextInput
         id="workspace-name"
-        type="text"
-        className={styles.input}
-        data-testid="workspace-name-input"
+        testId="workspace-name-input"
         maxLength={WORKSPACE_NAME_MAX_LENGTH}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={setName}
       />
 
       <span className={styles.label}>Color</span>
@@ -205,7 +187,7 @@ function WorkspaceForm({ workspace, onSaved, onError }: WorkspaceFormProps): JSX
               checked={color === c}
               onChange={() => setColor(c)}
             />
-            <span className={`${styles.dot} ${dotClass(c)}`} aria-hidden="true" />
+            <WorkspaceDot tone={c} />
           </label>
         ))}
       </div>
@@ -225,7 +207,27 @@ function WorkspaceForm({ workspace, onSaved, onError }: WorkspaceFormProps): JSX
         </button>
       </div>
 
+      {/* The cascade warning — the one thing this Delete says that Templates' does not, because
+          deleting a workspace also deletes every template and shortcut scoped to it. */}
+      {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && armed && (
+        <p className={styles.hint} data-testid="workspace-delete-confirm-text">
+          {`Delete ${workspace.name}? Any templates and shortcuts scoped to it are deleted too. This cannot be undone.`}
+        </p>
+      )}
+
       <div className={styles.actions}>
+        {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && (
+          <button
+            type="button"
+            className={armed ? styles.dangerButton : styles.deleteButton}
+            data-testid={armed ? 'workspace-delete-confirm' : `workspace-delete-${workspace.id}`}
+            disabled={deleteBusy}
+            onClick={handleDelete}
+            onBlur={() => setArmed(false)}
+          >
+            {armed ? 'Confirm delete' : 'Delete'}
+          </button>
+        )}
         <button
           type="submit"
           className={styles.primaryButton}
@@ -242,7 +244,6 @@ function WorkspaceForm({ workspace, onSaved, onError }: WorkspaceFormProps): JSX
 export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Element {
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [armedDeleteId, setArmedDeleteId] = useState<string | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
@@ -265,13 +266,11 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
 
   function selectWorkspace(id: string): void {
     setSelectedId(id)
-    setArmedDeleteId(null)
     setError(null)
   }
 
   function startNew(): void {
     setSelectedId(null)
-    setArmedDeleteId(null)
     setError(null)
   }
 
@@ -288,7 +287,6 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // a code and leaves its projection alone), so this cannot turn a successful delete into
       // an error. Only on the SUCCESS path — a refused delete cascaded nothing.
       await Promise.all([loadTemplates(), loadShortcuts()])
-      setArmedDeleteId(null)
       setError(null)
       if (selectedId === id) setSelectedId(null)
     } catch (err) {
@@ -329,21 +327,13 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
                   key={w.id}
                   workspace={w}
                   selected={w.id === selected?.id}
-                  armed={armedDeleteId === w.id}
-                  busy={deleteBusy}
                   onSelect={() => selectWorkspace(w.id)}
-                  onArm={() => {
-                    setArmedDeleteId(w.id)
-                    setError(null)
-                  }}
-                  onCancelArm={() => setArmedDeleteId(null)}
-                  onConfirmDelete={() => void commitDelete(w.id)}
                 />
               ))}
             </div>
             <button
               type="button"
-              className={styles.ghostButton}
+              className={`${styles.ghostButton} ${styles.newButton}`}
               data-testid="workspace-new"
               onClick={startNew}
             >
@@ -353,11 +343,15 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
           <WorkspaceForm
             key={selected?.id ?? 'new'}
             workspace={selected}
+            deleteBusy={deleteBusy}
             onSaved={(saved) => {
               setSelectedId(saved.id)
               setError(null)
             }}
             onError={setError}
+            onDelete={() => {
+              if (selected !== null) void commitDelete(selected.id)
+            }}
           />
         </div>
         {error !== null && (

@@ -92,6 +92,16 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
 5. **State ownership** (`.claude/rules/state.md`). Session-truth = main; view-state =
    renderer Zustand; derived = narrow selectors (never persisted). Inject `now()` for
    determinism.
+6. **UI shape** (`.claude/rules/design.md`). The three Manage dialogs (Templates /
+   Shortcuts / Workspaces) share ONE layout — a header scope dropdown, a select-only FLAT
+   row list (never sections), a form, and a `[Delete] [Save]` footer. Destructive actions arm
+   in place and are red-outlined at rest; a workspace is always drawn with `WorkspaceDot`.
+   **A native `<select>` is banned** — Chromium paints its popup from the desktop's GTK theme,
+   so it comes up light on a dark app; use `components/Select/Select.tsx`. **A bare
+   `<input type="text">` is banned too** — five dialogs had grown five drifting copies of the
+   same `.input` CSS rule; use `components/TextInput/TextInput.tsx` (its test fails if any other
+   module declares an `.input`/`.search` class). Read the sibling dialog before laying out a
+   new one.
 
 **Debugging a symptom?** Read `.claude/rules/troubleshooting.md` first — run its Step-0
 questions (data present? depends on a sibling? console empty?) to pin the layer before

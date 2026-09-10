@@ -3,7 +3,7 @@
 // Layout: a header that states what a shortcut DOES, then the editor card (only while adding or
 // editing), then the list. The editor is deliberately NOT a row in the list — see ShortcutRow.tsx.
 // UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
-import { Fragment, useState, type JSX, type KeyboardEvent } from 'react'
+import { useState, type JSX, type KeyboardEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import {
@@ -19,7 +19,16 @@ import {
 } from '../../stores/workspacesStore'
 import { ShortcutRow, ShortcutEditor } from './ShortcutRow'
 import { ChordKeys } from './ChordKeys'
-import { groupShortcuts } from './groupShortcuts'
+import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
+import {
+  ALL_SCOPE,
+  filterByScope,
+  hasOrphans,
+  knownWorkspaceIds,
+  scopeOf,
+  workspaceScope,
+  type ScopeFilterValue
+} from '../ScopeFilter/scope'
 import {
   emptyDraft,
   toDraft,
@@ -39,8 +48,9 @@ export interface ShortcutsDialogProps {
 const NEW_ROW = 'new'
 
 export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element {
-  // The Manage dialog shows EVERY shortcut regardless of scope (unlike the terminal matcher) —
-  // no makeSelectVisibleShortcuts here. activeWorkspaceId + workspaces feed the grouping below.
+  // The Manage dialog can show EVERY shortcut regardless of scope (unlike the terminal matcher) —
+  // no makeSelectVisibleShortcuts here. activeWorkspaceId + workspaces feed the header's scope
+  // filter, which is the ONE thing that narrows this list.
   const shortcuts = useShortcuts(selectShortcuts)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
@@ -48,6 +58,21 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ShortcutDraft>(emptyDraft)
   const [error, setError] = useState<ShortcutErrorCode | null>(null)
+  const known = knownWorkspaceIds(workspaces)
+  // Opens on the workspace you are working in; the `all` entry if that id names no known
+  // workspace, so the select never sits on an option it does not offer. Same rule as
+  // TemplatesDialog — the two dialogs must behave identically here.
+  const [scope, setScope] = useState<ScopeFilterValue>(() =>
+    workspaces.some((w) => w.id === activeWorkspaceId)
+      ? workspaceScope(activeWorkspaceId)
+      : ALL_SCOPE
+  )
+
+  function changeScope(next: ScopeFilterValue): void {
+    setScope(next)
+    // An editor open on a row from the OLD scope would outlive the list it came from.
+    cancel()
+  }
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (e.key === 'Escape') {
@@ -77,10 +102,17 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   function handleSave(): void {
     const result = draftToSaveRequest(draft)
     if (!result.ok) return
+    // Changing a row's Workspace can move it out of the view you saved it from, and a row that
+    // vanishes on save reads as a failed save — follow it instead. Read off the draft, which is
+    // what was just written.
+    const saved = scopeOf(draft.workspaceId, known)
     // void + catch: a rejected save renders a code-mapped message, never the error object
     // (it can carry operator content).
     void saveShortcut(result.req)
-      .then(cancel)
+      .then(() => {
+        cancel()
+        if (scope !== ALL_SCOPE && scope !== saved) setScope(saved)
+      })
       .catch((err: unknown) => setError(shortcutErrorCode(err)))
   }
 
@@ -91,8 +123,11 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   // The shortcut under edit, if any. The editor card renders it, so the list hides that row —
   // one thing on screen per shortcut.
   const editingShortcut = shortcuts.find((s) => s.id === editingId) ?? null
-  const listed = shortcuts.filter((s) => s.id !== editingId)
-  const groups = groupShortcuts(listed, activeWorkspaceId, workspaces)
+  const listed = filterByScope(
+    shortcuts.filter((s) => s.id !== editingId),
+    scope,
+    known
+  )
 
   return (
     <div
@@ -106,7 +141,18 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
       <div className={styles.panel} data-testid="shortcuts-panel">
         <div className={styles.header}>
           <div className={styles.headerText}>
-            <h2 className={styles.title}>Shortcuts</h2>
+            <div className={styles.titleRow}>
+              <h2 className={styles.title}>Shortcuts</h2>
+              <ScopeFilter
+                value={scope}
+                workspaces={workspaces}
+                showOrphans={hasOrphans(shortcuts, known)}
+                onChange={changeScope}
+                allLabel="All shortcuts"
+                testId="shortcut-scope-filter"
+                ariaLabel="Filter shortcuts by workspace"
+              />
+            </div>
             <p className={styles.subtitle}>
               Press a chord in a session to type its phrase. You press Enter to send.
             </p>
@@ -162,28 +208,18 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
               <span>Phrase</span>
               <span />
             </div>
-            {groups.map((g) => (
-              <Fragment key={g.id}>
-                {/* Workspaces (Task 11) — the label is its OWN role="row" sibling, ABOVE the
-                    rowgroup, so it never sits as a bare non-row child of role="table" (a11y). */}
-                <div className={styles.groupLabelRow} role="row">
-                  <p className={styles.groupLabel}>{g.label}</p>
-                </div>
-                <div
-                  className={styles.group}
-                  role="rowgroup"
-                  data-testid={g.id === 'orphans' ? 'shortcut-group-orphans' : undefined}
-                >
-                  {g.shortcuts.map((shortcut) => (
-                    <ShortcutRow
-                      key={shortcut.id}
-                      shortcut={shortcut}
-                      onEdit={() => startEdit(shortcut)}
-                    />
-                  ))}
-                </div>
-              </Fragment>
-            ))}
+            {/* ONE flat rowgroup — no scope sections. Which workspace a row belongs to is the
+                editor's Workspace field; a section header repeated it and cost the list a third
+                of its height. Still a rowgroup so the a11y tree stays table > rowgroup > row. */}
+            <div className={styles.group} role="rowgroup">
+              {listed.map((shortcut) => (
+                <ShortcutRow
+                  key={shortcut.id}
+                  shortcut={shortcut}
+                  onEdit={() => startEdit(shortcut)}
+                />
+              ))}
+            </div>
           </div>
         )}
 

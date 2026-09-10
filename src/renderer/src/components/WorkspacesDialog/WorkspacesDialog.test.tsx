@@ -107,6 +107,7 @@ describe('WorkspacesDialog', () => {
       new Error("Error invoking remote method 'workspaces:delete': Error: workspace_has_sessions")
     )
     const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
     await flush()
@@ -139,6 +140,7 @@ describe('WorkspacesDialog', () => {
     const { r } = render()
     expect(templatesList).not.toHaveBeenCalled()
     expect(shortcutsList).not.toHaveBeenCalled()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
     await flush()
@@ -155,6 +157,7 @@ describe('WorkspacesDialog', () => {
       new Error("Error invoking remote method 'workspaces:delete': Error: workspace_has_sessions")
     )
     const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
     await flush()
@@ -163,13 +166,30 @@ describe('WorkspacesDialog', () => {
     expect(shortcutsList).not.toHaveBeenCalled()
   })
 
+  // Non-vacuous: Default is SELECTED first, so its form is the one on screen — the assertion
+  // fails if the delete control renders for every selected row. Without the select the form
+  // would be the empty "new" form, which shows no delete for any workspace.
   it('offers no delete for the Default workspace', () => {
     const { r } = render()
+    click(q(r, '[data-testid="workspace-select-default"]'))
+    expect(q(r, '[data-testid="workspace-form"]')).not.toBeNull()
     expect(r.container.querySelector('[data-testid="workspace-delete-default"]')).toBeNull()
+  })
+
+  // Placement is the rule, not a detail (.claude/rules/design.md): Delete sits in the form
+  // footer beside Save, the way TemplateForm and ShortcutRow do it — never back on the list row.
+  // Moving the button into the list turns this red while every behavior test above stays green.
+  it('puts Delete in the form footer, not on the list row', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
+    const del = q(r, '[data-testid="workspace-delete-w1"]')
+    expect(del.closest('[data-testid="workspace-form"]')).not.toBeNull()
+    expect(del.closest('[data-testid="workspace-item-w1"]')).toBeNull()
   })
 
   it('warns that scoped templates and shortcuts go with the workspace', () => {
     const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     expect(q(r, '[data-testid="workspace-delete-confirm-text"]').textContent).toMatch(
       /templates and shortcuts scoped to it/i

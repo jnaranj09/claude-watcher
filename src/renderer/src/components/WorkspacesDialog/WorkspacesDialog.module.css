@@ -110,17 +110,6 @@
   color: var(--text-secondary);
 }
 
-.confirmRow {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: 0 var(--space-3) var(--space-2);
-}
-.confirmActions {
-  display: flex;
-  gap: var(--space-2);
-}
-
 .form {
   display: flex;
   flex-direction: column;
@@ -131,17 +120,6 @@
   font-weight: var(--font-weight-label);
   color: var(--text-secondary);
   margin-top: var(--space-2);
-}
-.input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body, 13px);
 }
 .colorRow {
   display: flex;
@@ -185,6 +163,13 @@
   margin-top: var(--space-4);
 }
 
+/* `+ New` sits at the BOTTOM of the rail, not directly under the last row. `.rows` stops at its
+   max-height, so without this the button floats mid-column whenever the form is the taller side —
+   `margin-top: auto` hands the leftover space to the gap above it instead. Its own class, not
+   `.ghostButton`: that class is shared with Browse…, which must NOT be pushed anywhere. */
+.newButton {
+  margin-top: auto;
+}
 .ghostButton {
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border-strong);
@@ -236,38 +221,37 @@
   cursor: not-allowed;
 }
 
-/* The color dot — a fixed-size swatch, never the sole carrier of meaning (name text is always
-   beside it). One class per src/shared/schemas/workspace.ts WORKSPACE_COLORS entry — literal hex
-   values copied from WorkspaceSwitcher.module.css (same new color axis, not a chrome/status
-   color, so it does not belong in the shared token sheet). */
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--rounded-full);
+/* The color dot + its six workspace colors moved to WorkspaceDot.module.css — ONE
+   definition for the whole app (.claude/rules/design.md). Render <WorkspaceDot tone={color} />. */
+/* The Delete affordance (.claude/rules/design.md): danger is stated in the OUTLINE at rest and
+   FILLED only on hover/focus, so a destructive control never dominates a resting form. The armed
+   ("Confirm delete") state swaps to .dangerButton — the same solid red the fill lands on, so
+   arming reads as the button staying put rather than a new control appearing. */
+.deleteButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--font-size-body, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
 }
-.slate {
-  background: #7f849c;
+.deleteButton:hover:not(:disabled),
+.deleteButton:focus-visible {
+  background: var(--danger);
+  color: #ffffff;
 }
-.blue {
-  background: #89b4fa;
-}
-.green {
-  background: #a6e3a1;
-}
-.amber {
-  background: #f9e2af;
-}
-.violet {
-  background: #cba6f7;
-}
-.rose {
-  background: #f38ba8;
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.input:focus-visible,
 .rowMain:focus-visible,
 .ghostButton:focus-visible,
+.deleteButton:focus-visible,
 .primaryButton:focus-visible,
 .dangerButton:focus-visible,
 .closeButton:focus-visible {

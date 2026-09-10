@@ -24,6 +24,7 @@
 // NEVER logs the typed name or the cwd — both are operator content (zod-boundaries.md).
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { SESSION_NAME_MAX_LENGTH } from '../../../../shared/schemas/launch'
+import { TextInput } from '../TextInput/TextInput'
 import styles from './SessionNameDialog.module.css'
 
 export interface SessionNameDialogProps {
@@ -101,18 +102,16 @@ export function SessionNameDialog({
           </p>
         )}
 
-        <input
-          ref={inputRef}
-          type="text"
-          className={styles.input}
-          data-testid="session-name-input"
+        <TextInput
+          inputRef={inputRef}
+          testId="session-name-input"
           // Its OWN accessible name — not the dialog title, which is already announced by the
           // dialog container's aria-label.
-          aria-label="Session name"
-          aria-invalid={tooLong}
+          ariaLabel="Session name"
+          invalid={tooLong}
           value={value}
           maxLength={SESSION_NAME_MAX_LENGTH}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={setValue}
         />
 
         {/* Only reachable via an over-long PREFILL (typing is capped by maxLength). Without this

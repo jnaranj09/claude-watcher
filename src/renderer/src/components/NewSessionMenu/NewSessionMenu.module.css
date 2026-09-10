@@ -103,22 +103,9 @@
   background: var(--bg-surface);
 }
 .item:focus-visible,
-.row:focus-visible,
-.search:focus-visible {
+.row:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
-}
-
-.search {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
 }
 
 .list {

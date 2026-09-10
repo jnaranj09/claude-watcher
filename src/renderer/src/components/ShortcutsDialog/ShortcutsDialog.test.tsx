@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { chooseOption, optionValues } from '../../test/selectHarness'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
@@ -67,14 +68,6 @@ function type(el: Element | null, value: string): void {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     setter?.call(input, value)
     input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
-}
-
-function select(el: Element | null, value: string): void {
-  act(() => {
-    const sel = el as HTMLSelectElement
-    sel.value = value
-    sel.dispatchEvent(new Event('change', { bubbles: true }))
   })
 }
 
@@ -346,7 +339,7 @@ describe('ShortcutsDialog', () => {
     type(byTestId('shortcut-name-input'), 'approve')
     type(byTestId('shortcut-text-input'), 'I explicitly approve')
     recordChord('a')
-    select(byTestId('shortcut-scope'), 'w1')
+    chooseOption(document, 'shortcut-scope', 'w1')
 
     click(byTestId('shortcut-save'))
 
@@ -358,7 +351,7 @@ describe('ShortcutsDialog', () => {
     })
   })
 
-  it('groups a row whose workspace is gone under (no workspace)', () => {
+  it('keeps a row whose workspace is gone reachable', () => {
     act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
     act(() =>
       shortcutsStore.setState({
@@ -369,6 +362,10 @@ describe('ShortcutsDialog', () => {
       })
     )
     render()
-    expect(byTestId('shortcut-group-orphans')?.textContent).toContain('Orphan')
+    // No scope sections any more — the row stays REACHABLE instead: listed under
+    // `All shortcuts` (the fallback here, since no workspace matches the active id) and
+    // selectable from its own `(no workspace)` entry in the header dropdown.
+    expect(byTestId('shortcut-row-orphan')?.textContent).toContain('Orphan')
+    expect(optionValues(document, 'shortcut-scope-filter')).toContain('orphans')
   })
 })

@@ -1,0 +1,45 @@
+/* The workspace swatch. ONE definition for the whole app — WorkspaceSwitcher and
+   WorkspacesDialog used to carry their own copies of this block. */
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rounded-full);
+}
+
+/* One class per src/shared/schemas/workspace.ts `WORKSPACE_COLORS` entry — WorkspaceDot.test.tsx
+   iterates that array and fails if one is missing. Literal hex, not a `tokens.css` var: this is a
+   NEW color axis (the operator's own workspace labels), not a status/chrome color, so it does not
+   belong in the shared token sheet. The values are the Catppuccin Mocha names the rest of the
+   app's accents already borrow from (tokens.css: "Catppuccin Mocha + one custom gold") — Blue and
+   Green happen to equal --working/--done exactly; the other four extend the same family
+   (Overlay1 "slate", Yellow "amber", Mauve "violet", Red "rose"). */
+.slate {
+  background: #7f849c;
+}
+.blue {
+  background: #89b4fa;
+}
+.green {
+  background: #a6e3a1;
+}
+.amber {
+  background: #f9e2af;
+}
+.violet {
+  background: #cba6f7;
+}
+.rose {
+  background: #f38ba8;
+}
+
+/* The two NON-workspace scopes. Neither may borrow a workspace color: `Global` is not a
+   workspace, and an orphan row's workspace is gone. Shape carries the difference (ring vs disc)
+   so they stay apart in greyscale. */
+.global {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-secondary);
+}
+.orphan {
+  background: var(--text-dim);
+}
