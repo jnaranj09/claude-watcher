@@ -15,8 +15,7 @@ export interface ShortcutDraft {
   /** 1..3 chords; [] while the operator has not recorded one yet. */
   keys: string[]
   text: string
-  /** Workspaces — round-trips the shortcut's scope through the draft UNCHANGED. There is no
-   *  picker for it yet (Task 11 adds one); this field exists purely so `toDraft` →
+  /** Workspaces — round-trips the shortcut's scope through the draft UNCHANGED, so `toDraft` →
    *  `draftToSaveRequest` does not silently reset an existing scope to GLOBAL on every edit. */
   workspaceId: string | null
 }
@@ -44,8 +43,7 @@ export function draftToSaveRequest(draft: ShortcutDraft): DraftResult {
   // Workspaces — workspaceId round-trips from the draft (toDraft copied it from the base
   // shortcut; a NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no
   // partial-update path, so this dialog must re-send the existing scope on every edit or lose
-  // it. There is still no PICKER here (Task 11 adds one) — this only stops an edit from
-  // silently resetting an already-scoped shortcut to GLOBAL.
+  // it.
   const candidate =
     draft.id === null
       ? { name: draft.name, keys: draft.keys, text: draft.text, workspaceId: draft.workspaceId }

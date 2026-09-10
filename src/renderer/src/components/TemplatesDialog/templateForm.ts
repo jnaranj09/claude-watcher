@@ -25,9 +25,8 @@ export interface TemplateDraft {
   customModel: string
   permissionChoice: PermissionChoice
   effortChoice: EffortChoice
-  /** Workspaces — round-trips the template's scope through the draft UNCHANGED. There is no
-   *  picker for it yet (Task 11 adds one); this field exists purely so `toDraft` → `validateDraft`
-   *  does not silently reset an existing scope to GLOBAL on every edit. */
+  /** Workspaces — round-trips the template's scope through the draft UNCHANGED, so `toDraft` →
+   *  `validateDraft` does not silently reset an existing scope to GLOBAL on every edit. */
   workspaceId: string | null
 }
 
@@ -121,9 +120,7 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     effort: draft.effortChoice === 'default' ? null : draft.effortChoice,
     // Workspaces — round-tripped from the draft (toDraft copied it from the base template; a
     // NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no partial-update
-    // path, so this dialog must re-send the existing scope on every edit or lose it. There is
-    // still no PICKER here (Task 11 adds one) — this only stops an edit from silently resetting
-    // an already-scoped template to GLOBAL.
+    // path, so this dialog must re-send the existing scope on every edit or lose it.
     workspaceId: draft.workspaceId
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)

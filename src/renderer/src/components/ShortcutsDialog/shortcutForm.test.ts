@@ -175,8 +175,9 @@ describe('isDraftDirty', () => {
     expect(isDraftDirty(draft, SC)).toBe(true)
   })
 
-  // workspaceId round-trips through the draft (Finding 1) but has no picker yet, so it must
-  // NOT affect dirtiness.
+  // `toDraft` round-trips workspaceId UNCHANGED, so an already-scoped shortcut that nobody
+  // edited must still read clean. (The companion test below covers the other direction — an
+  // actual scope CHANGE does make the draft dirty.)
   it('an unchanged SCOPED shortcut draft stays clean', () => {
     const scoped = { ...SC, workspaceId: 'w1' }
     expect(isDraftDirty(toDraft(scoped), scoped)).toBe(false)
