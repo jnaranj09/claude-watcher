@@ -93,6 +93,36 @@ They live in `claude-watcher-shortcuts.json` in the app's data directory. If tha
 corrupt — or was written by an older build — it is backed up beside itself and the list starts
 empty; nothing else is affected.
 
+## Workspaces
+
+A workspace scopes the board to one slice of your work — separate a client's sessions from your
+own tooling, or keep a deploy workspace apart from day-to-day dev. Every session belongs to
+exactly one workspace, set at launch to whichever workspace is active; the board only ever shows
+the active workspace's cards, and switching workspaces does not stop or disconnect anything —
+kept-alive terminals stay connected in the background and reappear with their scrollback intact
+the moment you switch back.
+
+**Alerts stay global; only the cards are scoped.** A needs-you session in another workspace still
+fires its desktop notification and counts toward the tray badge — the workspace switcher in the
+header also badges itself with how many sessions need you elsewhere, so you never lose track of a
+session just because you switched away from it.
+
+Every install starts with a **Default** workspace, which cannot be deleted. Add more from
+**Manage workspaces…** in the header switcher: a name, a color, and an optional default folder for
+its `+ New session → Pick a folder…` picker. **A workspace with any running session — in any open
+window — cannot be deleted**; the dialog tells you to stop or move the sessions first. Deleting an
+allowed (empty) workspace also deletes every template and shortcut scoped to it.
+
+Move an existing session to another workspace from its card's move affordance, without stopping
+it.
+
+**Templates and shortcuts can be scoped too.** Each row in the Manage dialogs has a **Workspace**
+field: **Global** (the default — visible and usable from every workspace) or one specific
+workspace (visible and usable only there). If you delete a workspace a row was scoped to, the row
+isn't deleted with it — it stops appearing in the `+ New session` popover or the shortcut list
+anywhere, and shows up in its Manage dialog under a **(no workspace)** group so you can re-scope
+or remove it.
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
