@@ -336,6 +336,111 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(onActivate).not.toHaveBeenCalled()
   })
 
+  // Review finding — the toggle's OWN keydown guard (handleMoveToggleKeyDown) had a click test
+  // but no keyboard test, so a regression there had no net. Mirrors the pencil's own
+  // "Enter/Space … does NOT activate the card" case above (same jsdom caveat: dispatching a raw
+  // keydown does not synthesize a click, so this pins ONLY the no-activation guard).
+  it('Enter/Space on the move toggle does NOT activate the card (keydown stopPropagation)', () => {
+    const onActivate = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          onActivate,
+          workspaces: [{ id: 'w2', name: 'Side', color: 'rose', defaultCwd: null }],
+          currentWorkspaceId: 'w1',
+          onMoveToWorkspace: () => {}
+        })}
+      />
+    )
+    cleanup = unmount
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(
+      toggle as HTMLButtonElement,
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    )
+    fireEvent(
+      toggle as HTMLButtonElement,
+      new KeyboardEvent('keydown', { key: ' ', bubbles: true })
+    )
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  // Review finding 1 — the row buttons had the same keyboard race as the toggle (a keydown
+  // bubbles to the card's handleKeyDown BEFORE the browser turns Enter/Space into a click) but no
+  // keydown guard at all. This is the test that would have caught it: it fails RED without
+  // handleMoveItemKeyDown's stopPropagation (see the fix report for the fault-injection run).
+  it('Enter/Space on a move-target row does NOT activate the card (keydown stopPropagation)', () => {
+    const onActivate = vi.fn()
+    const onMoveToWorkspace = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          onActivate,
+          workspaces: [{ id: 'w2', name: 'Side', color: 'rose', defaultCwd: null }],
+          currentWorkspaceId: 'w1',
+          onMoveToWorkspace
+        })}
+      />
+    )
+    cleanup = unmount
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(toggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    const row = container.querySelector<HTMLButtonElement>('[data-testid="card-move-w2"]')
+    fireEvent(
+      row as HTMLButtonElement,
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    )
+    fireEvent(row as HTMLButtonElement, new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    expect(onActivate).not.toHaveBeenCalled()
+    // `onMoveToWorkspace` is unused here on purpose, same as the pencil's own keydown case above:
+    // jsdom does not synthesize a click from a raw dispatched keydown, so this pins ONLY the
+    // no-activation guard. The click path in the earlier test covers the actual invocation.
+    expect(onMoveToWorkspace).not.toHaveBeenCalled()
+  })
+
+  // Review finding 2 — a toggle that opens onto zero rows is a control with nothing behind it.
+  // `currentWorkspaceId` here is the ONLY workspace in the list, so the filtered target list is
+  // empty and the whole affordance must not render at all (the same optional-seam rule as
+  // omitting `onMoveToWorkspace`).
+  it('renders no move affordance when every workspace IS the card’s own (empty target list)', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+          currentWorkspaceId: 'w1',
+          onMoveToWorkspace: () => {}
+        })}
+      />
+    )
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="card-move"]')).toBeNull()
+  })
+
+  // Review finding 3 — Escape-to-close, matching WorkspaceSwitcher's own popover test
+  // ("closes on Escape and returns focus to the trigger").
+  it('closes the move menu on Escape and returns focus to the toggle', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          workspaces: [
+            { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null },
+            { id: 'w2', name: 'Side', color: 'rose', defaultCwd: null }
+          ],
+          currentWorkspaceId: 'w1',
+          onMoveToWorkspace: () => {}
+        })}
+      />
+    )
+    cleanup = unmount
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(toggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    const menu = container.querySelector('[role="menu"]')
+    expect(menu).not.toBeNull()
+    fireEvent(menu as Element, new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(container.querySelector('[role="menu"]')).toBeNull()
+    expect(document.activeElement).toBe(toggle)
+  })
+
   // ── Visual hierarchy: the NAME is the title, the PATH is reference detail ────
   //
   // This shipped INVERTED. `.calm` set a variant-level `color: var(--text-dim)` meaning "dimmed
