@@ -288,6 +288,54 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(pencil?.getAttribute('aria-label')).toBe('Rename deploy-prod')
   })
 
+  // ── Workspaces (Task 12) — move-to-workspace affordance ──────────────────────
+  it('offers a move target per other workspace and calls back with its id', () => {
+    const onMoveToWorkspace = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          workspaces: [
+            { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null },
+            { id: 'w2', name: 'Side', color: 'rose', defaultCwd: null }
+          ],
+          currentWorkspaceId: 'w1',
+          onMoveToWorkspace
+        })}
+      />
+    )
+    cleanup = unmount
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(toggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(container.querySelector('[data-testid="card-move-w1"]')).toBeNull() // never offer the current one
+    const target = container.querySelector<HTMLButtonElement>('[data-testid="card-move-w2"]')
+    fireEvent(target as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(onMoveToWorkspace).toHaveBeenCalledWith('w2')
+  })
+
+  it('renders no move affordance when the callback is absent', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="card-move"]')).toBeNull()
+  })
+
+  it('does not activate the card when the move affordance is clicked', () => {
+    const onActivate = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          onActivate,
+          workspaces: [{ id: 'w2', name: 'Side', color: 'rose', defaultCwd: null }],
+          currentWorkspaceId: 'w1',
+          onMoveToWorkspace: () => {}
+        })}
+      />
+    )
+    cleanup = unmount
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(toggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
   // ── Visual hierarchy: the NAME is the title, the PATH is reference detail ────
   //
   // This shipped INVERTED. `.calm` set a variant-level `color: var(--text-dim)` meaning "dimmed

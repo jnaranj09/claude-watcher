@@ -93,6 +93,10 @@ declare global {
       // illegal name (same SessionNameSchema as create); the retitled card arrives as a
       // `session.updated` delta, not as the resolve value.
       rename(id: string, name: string): Promise<void>
+      // Workspaces (Task 12) — move an existing card to another workspace by its stable session
+      // id. Resolves void; the moved card arrives as a normal `session.updated` delta, not as
+      // the resolve value (mirrors `rename` above — never optimistic).
+      setWorkspace(sessionId: string, workspaceId: string): Promise<void>
       // Deterministic-attention (Task 6) — report "the operator is viewing this session" (active
       // rail tab, focused window). Main demotes ONLY a YourTurn session to idle; questions/
       // permissions are untouched. Rejects on a blank id (parse-and-throw at the main boundary).

@@ -163,6 +163,51 @@
   }
 }
 
+/* ── Workspaces (Task 12) move-to-workspace affordance ─────────────────────────
+ * The toggle button itself reuses `.renameButton` verbatim (same reveal-on-hover/focus-within
+ * chrome as the pencil); only the popover it opens is new here. Chrome mirrors
+ * WorkspaceSwitcher.module.css's `.menu`/`.row`, scaled down for the card's own footprint. */
+.moveWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.moveMenu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 140px;
+  padding: var(--space-1);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+}
+
+.moveMenuItem {
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  text-align: left;
+  cursor: pointer;
+}
+.moveMenuItem:hover {
+  background: var(--bg-surface);
+}
+.moveMenuItem:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 /* sessionName — SANS, body ramp (the primary line). */
 /* The card's TITLE, and it must read as one: the operator's custom name is the thing they scan for,
  * the path is reference detail underneath it. Both the colour and the weight are set EXPLICITLY

@@ -22,7 +22,7 @@ import type { JSX } from 'react'
 import { ColumnHeader, type ColumnAccent } from '../ColumnHeader/ColumnHeader'
 import { SessionCard, type CardAccent } from '../SessionCard/SessionCard'
 import type { DotStatus } from '../StatusDot/StatusDot'
-import type { Column as BoardColumn } from '../../../../shared/ipc/contract'
+import type { Column as BoardColumn, Workspace } from '../../../../shared/ipc/contract'
 import {
   useBoard,
   useColumnSessions,
@@ -32,7 +32,14 @@ import {
 } from '../../stores/boardStore'
 // Workspaces (Task 9a) — `useColumnSessions` already scopes itself internally; Column still
 // needs the active workspace directly for its OWN `selectColumnCount` call below.
-import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
+// Task 12 — also the move-to-workspace target list (`selectWorkspaces`, `useShallow` per the
+// array-selector rule).
+import {
+  useWorkspaces,
+  selectActiveWorkspaceId,
+  selectWorkspaces
+} from '../../stores/workspacesStore'
+import { useShallow } from 'zustand/react/shallow'
 import styles from './Board.module.css'
 
 /** The human column names + accents + empty-column hints (AC-4 copy). */
@@ -81,8 +88,23 @@ function EmphasizedSessionCard(props: {
   onActivateCard?: ((id: string) => void) | undefined
   /** A2 — rename seam, threaded straight through to the card's pencil. */
   onRenameCard?: ((id: string) => void) | undefined
+  /** Task 12 — the move-to-workspace target list (the OTHER workspaces are filtered inside
+   *  SessionCard itself, against `currentWorkspaceId`). */
+  workspaces: Workspace[]
+  /** Task 12 — move seam, threaded straight through to the card's move affordance. */
+  onMoveCardToWorkspace?: ((id: string, workspaceId: string) => void) | undefined
 }): JSX.Element {
-  const { session, variant, status, accent, selected, onActivateCard, onRenameCard } = props
+  const {
+    session,
+    variant,
+    status,
+    accent,
+    selected,
+    onActivateCard,
+    onRenameCard,
+    workspaces,
+    onMoveCardToWorkspace
+  } = props
   const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
   return (
     <SessionCard
@@ -101,6 +123,14 @@ function EmphasizedSessionCard(props: {
         : {})}
       {...(onActivateCard ? { onActivate: () => onActivateCard(session.id) } : {})}
       {...(onRenameCard ? { onRename: () => onRenameCard(session.id) } : {})}
+      {...(onMoveCardToWorkspace
+        ? {
+            workspaces,
+            currentWorkspaceId: session.workspaceId,
+            onMoveToWorkspace: (workspaceId: string) =>
+              onMoveCardToWorkspace(session.id, workspaceId)
+          }
+        : {})}
     />
   )
 }
@@ -115,6 +145,9 @@ export interface ColumnProps {
   onActivateCard?: (id: string) => void
   /** Session-naming A2 — called when a card's rename pencil is activated. Omitted ⇒ no pencil. */
   onRenameCard?: (id: string) => void
+  /** Task 12 — called when a card's move-to-workspace affordance picks a target. Omitted ⇒ no
+   *  move control. */
+  onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
   /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
    *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
   selectedId?: string | null
@@ -125,10 +158,12 @@ export function Column({
   isHero = false,
   onActivateCard,
   onRenameCard,
+  onMoveCardToWorkspace,
   selectedId = null
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId))
   const meta = COLUMN_META[column]
 
@@ -161,6 +196,8 @@ export function Column({
               selected={session.id === selectedId}
               onActivateCard={onActivateCard}
               onRenameCard={onRenameCard}
+              workspaces={workspaces}
+              onMoveCardToWorkspace={onMoveCardToWorkspace}
             />
           ))}
         </div>

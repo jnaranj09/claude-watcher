@@ -331,6 +331,15 @@ function App(): React.JSX.Element {
     []
   )
 
+  // Task 12 — move an existing card to another workspace (the Board onMoveCardToWorkspace seam).
+  // NOT optimistic: no local state write here. The moved card arrives as a normal
+  // `session.updated` delta over the watch channel — the renderer never invents or mutates
+  // session truth (state.md). An unknown session id is a logged no-op in main (a move racing a
+  // stop that already removed the card).
+  const handleMoveCardToWorkspace = useCallback((sessionId: string, workspaceId: string): void => {
+    void window.launch.setWorkspace(sessionId, workspaceId)
+  }, [])
+
   // Story 3.2 (FR-11 / F6) — focus a card (the Board onActivateCard seam). ONE selection
   // (reconciled with the Story-2.2 selectedId). View-state only — no window raise.
   // Story 3.5 (SM-2): two consequences at this call site (FROZEN-5): the board view-state
@@ -567,6 +576,7 @@ function App(): React.JSX.Element {
               onManageTemplates={handleManageTemplates}
               onActivateCard={handleActivateCard}
               onRenameCard={handleRenameSession}
+              onMoveCardToWorkspace={handleMoveCardToWorkspace}
             />
           </div>
           {hasFocusableTerminal && (
