@@ -74,12 +74,8 @@ import { createAttentionTracker, type AttentionTracker } from './c9watch/attenti
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema } from '../shared/schemas/settings'
-import {
-  createWorkspacesStore,
-  WORKSPACE_ERROR,
-  type WorkspacesStore
-} from './persistence/workspaces'
-import { createWorkspacesIpcHandlers } from './persistence/workspacesIpc'
+import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
+import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './persistence/workspacesIpc'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
 import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
 import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
@@ -114,7 +110,6 @@ import {
   SessionLaunchSchema,
   SessionRenameSchema,
   SessionSeenSchema,
-  SessionSetWorkspaceSchema,
   LaunchCorrelatedSchema
 } from '../shared/schemas/launch'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
@@ -1699,10 +1694,9 @@ function registerLaunchIpc(): void {
   // instead of being applied. An unknown SESSION id is not an error (the reducer logs
   // set_workspace_unknown_id and emits nothing — a move racing a stop that already removed it).
   ipcMain.handle(CH.sessionSetWorkspace, (event, raw: unknown) => {
-    const { sessionId, workspaceId } = SessionSetWorkspaceSchema.parse(raw)
-    if (requireWorkspacesStore().get(workspaceId) === null) {
-      throw new Error(WORKSPACE_ERROR.notFound)
-    }
+    // Both gates live in persistence/workspacesIpc.ts (unit-testable in node, unlike this file);
+    // index.ts only binds the CH.* channel and routes to the sender's seam.
+    const { sessionId, workspaceId } = parseSessionWorkspaceMove(requireWorkspacesStore(), raw)
     launchBoardSeams.get(event.sender)?.setWorkspaceLaunched(sessionId, workspaceId)
   })
 
