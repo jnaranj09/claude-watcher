@@ -146,6 +146,27 @@ describe('computeBadgeCount — count = needs-you ONLY (AC-1/3; Jose 2026-06-19 
   })
 })
 
+// Workspaces — the ATTENTION PATH IS GLOBAL. This is one of the feature's two hard rules
+// (CLAUDE.md): the BOARD is scoped to the active workspace, the tray badge and the desktop
+// notification are NOT. Every other case in this file uses the `default` workspace, so a
+// workspace filter sneaking into computeBadgeCount would have turned nothing red.
+describe('computeBadgeCount — workspaces are NOT filtered (the attention path stays global)', () => {
+  /** Same filler as `session()`, with the workspace as the varying field. */
+  function inWorkspace(id: string, status: string, workspaceId: string): Session {
+    return { ...session(id, status), workspaceId }
+  }
+
+  it('counts needs-you sessions from DIFFERENT workspaces — BOTH, not just one', () => {
+    // Non-vacuous by construction: no two sessions share a workspace, so ANY filter to a single
+    // workspace (active-or-not) can return at most 1 and this goes red. The all-`default` cases
+    // above cannot detect that.
+    const m = new Map<string, Session>()
+    m.set('a', inWorkspace('a', 'NeedsAttention', 'w1'))
+    m.set('b', inWorkspace('b', 'NeedsPermission', 'w2'))
+    expect(computeBadgeCount(m, allLaunched)).toBe(2)
+  })
+})
+
 describe('computeBadgeCount — launched-only membership gate (Story 3.3 / AC-3; F4 behavior change)', () => {
   it('an EXTERNAL (non-launched) needs-you session is NOT counted → 0', () => {
     // The single needs-you session was NOT launched by the Cockpit → the tray badge stays 0.
