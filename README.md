@@ -118,10 +118,11 @@ it.
 
 **Templates and shortcuts can be scoped too.** Each row in the Manage dialogs has a **Workspace**
 field: **Global** (the default — visible and usable from every workspace) or one specific
-workspace (visible and usable only there). If you delete a workspace a row was scoped to, the row
-isn't deleted with it — it stops appearing in the `+ New session` popover or the shortcut list
-anywhere, and shows up in its Manage dialog under a **(no workspace)** group so you can re-scope
-or remove it.
+workspace (visible and usable only there). Deleting a workspace from the app takes its scoped
+rows with it, as above. If a workspace disappears some other way — a hand-edited settings file,
+say — the rows that named it aren't lost: they stop appearing in the `+ New session` popover and
+the shortcut list everywhere, and show up in their Manage dialog under a **(no workspace)** group
+so you can re-scope or remove them.
 
 ## Recommended IDE Setup
 
