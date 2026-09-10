@@ -40,11 +40,17 @@ const ERROR_COPY: Record<string, string> = {
 }
 
 /** Maps a thrown IPC error to operator-facing copy. NEVER render `error.message` directly — it
- *  is a fixed code today, but the fallback keeps an unrecognized string off the screen too. */
+ *  is a fixed code today, but the fallback keeps an unrecognized string off the screen too.
+ *
+ *  Matched with `.includes(...)`, NOT `===`: main throws `new Error('workspace_has_sessions')`
+ *  and Electron wraps it as `Error invoking remote method '…': Error: <code>` on the way across
+ *  the seam, so an exact-key lookup NEVER hits and every code falls through to the fallback.
+ *  Same reasoning (and the same verified behavior) as `templateErrorMessage` in
+ *  TemplatesDialog/templateForm.ts and `shortcutErrorCode` in ShortcutsDialog/shortcutForm.ts. */
 function copyFor(error: unknown): string {
-  return (
-    ERROR_COPY[error instanceof Error ? error.message : ''] ?? 'Something went wrong. Try again.'
-  )
+  const text = error instanceof Error ? error.message : ''
+  for (const [code, copy] of Object.entries(ERROR_COPY)) if (text.includes(code)) return copy
+  return 'Something went wrong. Try again.'
 }
 
 /** `noUncheckedIndexedAccess`-safe dot-color lookup — mirrors WorkspaceSwitcher.tsx's helper. */

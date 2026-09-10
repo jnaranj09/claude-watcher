@@ -90,8 +90,14 @@ describe('WorkspacesDialog', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Side' }))
   })
 
+  // Rejects with the WRAPPED shape Electron actually delivers — `Error invoking remote method
+  // '…': Error: <code>` — not the bare code. A bare code makes an exact-key lookup pass in
+  // jsdom while production always falls through to the generic sentence, so the wrapped shape
+  // is what makes this test able to fail at all.
   it('shows the operator-facing copy when a delete is blocked by live sessions', async () => {
-    remove.mockRejectedValueOnce(new Error('workspace_has_sessions'))
+    remove.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'workspaces:delete': Error: workspace_has_sessions")
+    )
     const { r } = render()
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
@@ -101,8 +107,11 @@ describe('WorkspacesDialog', () => {
     )
   })
 
+  // Wrapped shape, same reasoning as the delete case above.
   it('shows the name-taken copy on a duplicate', async () => {
-    save.mockRejectedValueOnce(new Error('workspace_name_taken'))
+    save.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'workspaces:save': Error: workspace_name_taken")
+    )
     const { r } = render()
     click(q(r, '[data-testid="workspace-new"]'))
     type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
