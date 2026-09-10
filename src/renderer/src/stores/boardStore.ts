@@ -105,7 +105,10 @@ export interface LaunchedTerminal {
   /** Display label — the basename of the picked cwd (e.g. "myproject"). */
   label: string
   /** Workspaces — the workspace MAIN stamped on this launch (from SessionLaunchResult). Held
-   *  here so a frame can be hidden before its first session delta ever arrives. */
+   *  here ONLY so a frame can be hidden before its first session delta ever arrives; it is
+   *  stamped once and never rewritten, so it goes STALE once a card is moved
+   *  (`CH.sessionSetWorkspace` moves the SESSION, not this entry). Never filter on it directly —
+   *  go through `terminalWorkspaceId(state, entry)`, which prefers the bound session's value. */
   workspaceId: string
 }
 
@@ -420,6 +423,30 @@ export interface BoardStoreOptions {
 export type BoardStore = StoreApi<BoardState>
 
 /**
+ * Workspaces — the workspace a launched terminal currently belongs to. DERIVED at the point of
+ * use, never a stored copy (state.md: derived state is computed in narrow selectors, never
+ * denormalized and kept in sync).
+ *
+ * `LaunchedTerminal.workspaceId` is stamped ONCE from `SessionLaunchResult` and is never written
+ * again, but `CH.sessionSetWorkspace` (the card's move affordance) moves the SESSION. So the
+ * stamp goes stale the moment a card is moved, and a stamp-based filter then hides the terminal
+ * from the workspace its card is actually in while offering it in the one it left.
+ *
+ * The SESSION's own `workspaceId` is the truth — main ships it on every `session.updated` delta.
+ * The stamp is the fallback for its ONE stated purpose: the pre-correlation window, before any
+ * delta for this terminal has arrived (no binding yet, or a binding whose card is not on the
+ * board yet).
+ */
+function terminalWorkspaceId(state: BoardState, entry: LaunchedTerminal): string {
+  for (const [sessionId, terminalId] of Object.entries(state.terminalIdBySessionId)) {
+    if (terminalId !== entry.terminalId) continue
+    const session = state.sessionsById[sessionId]
+    if (session !== undefined) return session.workspaceId
+  }
+  return entry.workspaceId
+}
+
+/**
  * Build a fresh board store. Exported as a FACTORY so tests inject `now()` and get an
  * isolated instance; the app uses the singleton `boardStore` / `useBoard` below.
  */
@@ -583,9 +610,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
 
     focusWorkspace: (activeId) => {
+      // Workspaces: resolve each terminal's workspace through `terminalWorkspaceId` (the SESSION's
+      // value when the terminal is bound, the launch stamp only before that) — the stamp alone
+      // goes stale as soon as a card is moved. PURE show/hide: this only moves focus; every
+      // registry key stays in `selectKeptAliveTerminalIds`, so nothing is ever unmounted.
       const state = get()
       const next = Object.values(state.launchedTerminals)
-        .filter((t) => t.workspaceId === activeId)
+        .filter((t) => terminalWorkspaceId(state, t) === activeId)
         .sort((a, b) => b.launchedAt - a.launchedAt)[0]
       if (next === undefined) {
         set({ viewMode: 'board', focusedTerminalId: null })
@@ -851,16 +882,6 @@ export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.s
 export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.workspacesDialogOpen
 
 /**
- * Workspaces — the board's card list, filtered to one workspace. A FACTORY (not a bare
- * selector) because it closes over `activeId`; call it inside `useShallow` at the component so
- * an unrelated workspace's delta does not re-render the board.
- */
-export const makeSelectVisibleSessions =
-  (activeId: string) =>
-  (state: BoardState): BoardSession[] =>
-    Object.values(state.sessionsById).filter((s) => s.workspaceId === activeId)
-
-/**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.
  * This is the switcher badge and it is the whole reason the renderer keeps every session: main
  * ships every delta, so a hidden workspace's count is free here and needs no second IPC channel.
@@ -874,15 +895,6 @@ export const selectNeedsYouCountByWorkspace = (state: BoardState): Record<string
   }
   return counts
 }
-
-/** Workspaces — the kept-alive terminals that belong to one workspace, newest first. */
-export const makeSelectVisibleLaunchedTerminalIds =
-  (activeId: string) =>
-  (state: BoardState): string[] =>
-    Object.values(state.launchedTerminals)
-      .filter((t) => t.workspaceId === activeId)
-      .sort((a, b) => b.launchedAt - a.launchedAt)
-      .map((t) => t.terminalId)
 
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the
@@ -932,8 +944,16 @@ export function selectStartingTerminals(
       correlatedTerminalIds.add(terminalId)
     }
   }
+  // Workspaces: the workspace is DERIVED (`terminalWorkspaceId`), not read off the launch stamp.
+  // For THIS selector the two agree by construction — an entry whose session is on the board is
+  // already excluded by `correlatedTerminalIds`, which is the same condition under which the
+  // helper prefers the session's value — so this is consistency insurance, not a behavior change:
+  // it keeps the filter correct if the exclusion predicate above ever narrows.
   return Object.values(state.launchedTerminals)
-    .filter((lt) => lt.workspaceId === workspaceId && !correlatedTerminalIds.has(lt.terminalId))
+    .filter(
+      (lt) =>
+        terminalWorkspaceId(state, lt) === workspaceId && !correlatedTerminalIds.has(lt.terminalId)
+    )
     .sort((a, b) => {
       if (a.launchedAt !== b.launchedAt) return a.launchedAt - b.launchedAt
       return a.terminalId < b.terminalId ? -1 : a.terminalId > b.terminalId ? 1 : 0

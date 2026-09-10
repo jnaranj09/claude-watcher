@@ -28,9 +28,7 @@ import {
   selectRailOrder,
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
-  makeSelectVisibleSessions,
   selectNeedsYouCountByWorkspace,
-  makeSelectVisibleLaunchedTerminalIds,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -972,14 +970,6 @@ describe('workspace filtering', () => {
     expect(store.getState().sessionsById['a']?.workspaceId).toBe('w1')
   })
 
-  it('makeSelectVisibleSessions returns only the active workspace', () => {
-    const store = createBoardStore({ now: () => 1 })
-    store.getState().applyWatchEvent(updated('a', 'w1'))
-    store.getState().applyWatchEvent(updated('b', 'w2'))
-    const visible = makeSelectVisibleSessions('w1')(store.getState())
-    expect(visible.map((s) => s.id)).toEqual(['a'])
-  })
-
   it('counts needs-you per workspace INCLUDING hidden ones', () => {
     const store = createBoardStore({ now: () => 1 })
     store.getState().applyWatchEvent(updated('a', 'w1', 'needs-you'))
@@ -995,20 +985,6 @@ describe('workspace filtering', () => {
     expect(store.getState().launchedTerminals['t1']?.workspaceId).toBe('w1')
   })
 
-  it('makeSelectVisibleLaunchedTerminalIds returns only the active workspace, newest first', () => {
-    // Seed terminals across TWO workspaces with DIFFERENT launchedAt values, so this one
-    // assertion covers both the filter (only w1's ids) and the ordering (newest first).
-    let clock = 1
-    const store = createBoardStore({ now: () => clock })
-    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
-    clock = 2
-    store.getState().openLaunchedTerminal('t2', 'b', 'w2') // different workspace — must be excluded
-    clock = 3
-    store.getState().openLaunchedTerminal('t3', 'c', 'w1') // newer than t1, same workspace
-    const visible = makeSelectVisibleLaunchedTerminalIds('w1')(store.getState())
-    expect(visible).toEqual(['t3', 't1'])
-  })
-
   it('focusWorkspace moves focus to the newest terminal of the new workspace', () => {
     // A mutable clock — w1 gets TWO terminals with DIFFERENT launchedAt values, so "newest wins"
     // is actually distinguishable from "the only one wins" (a constant now() would stamp both
@@ -1022,6 +998,34 @@ describe('workspace filtering', () => {
     store.getState().focusWorkspace('w1')
     expect(store.getState().focusedTerminalId).toBe('t3')
     expect(store.getState().viewMode).toBe('focused')
+  })
+
+  it('focusWorkspace follows the SESSION workspace after a move, not the launch stamp', () => {
+    // The reachable defect: `LaunchedTerminal.workspaceId` is stamped once at launch and never
+    // rewritten, but CH.sessionSetWorkspace (the card's move affordance) moves the SESSION. A
+    // stamp-based filter then offers the terminal in the workspace it LEFT and hides it from the
+    // one its card is actually in.
+    //
+    // Non-vacuous in BOTH directions: with the stale stamp, focusWorkspace('w2') finds nothing
+    // and takes the board-fallback branch (focusedTerminalId := null, viewMode := 'board'), so
+    // the first pair of assertions goes red; focusWorkspace('w1') then matches the stamp and
+    // focuses t1, so the second pair goes red too.
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().openLaunchedTerminal('t1', 'proj', 'w1')
+    store.getState().addCorrelation('s1', 't1')
+    store.getState().applyWatchEvent(updated('s1', 'w1'))
+    // The move arrives as a normal session.updated delta — main is the only writer of this field.
+    store.getState().applyWatchEvent(updated('s1', 'w2'))
+
+    store.getState().focusWorkspace('w2')
+    expect(store.getState().focusedTerminalId).toBe('t1')
+    expect(store.getState().viewMode).toBe('focused')
+
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBeNull()
+    expect(store.getState().viewMode).toBe('board')
+    // Still a pure show/hide — the move must not unmount anything (terminal.md).
+    expect(Object.keys(store.getState().launchedTerminals)).toEqual(['t1'])
   })
 
   it('focusWorkspace falls back to the board when the workspace has no terminal', () => {
