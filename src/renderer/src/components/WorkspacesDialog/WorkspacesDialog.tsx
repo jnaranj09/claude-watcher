@@ -20,6 +20,8 @@ import {
   type WorkspaceColor
 } from '../../../../shared/schemas/workspace'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
+import { loadShortcuts } from '../../stores/shortcutsStore'
+import { loadTemplates } from '../../stores/templatesStore'
 import {
   removeWorkspace,
   saveWorkspace,
@@ -277,6 +279,15 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
     setDeleteBusy(true)
     try {
       await removeWorkspace(id)
+      // A committed delete CASCADES in main (templatesStore/shortcutsStore removeByWorkspace),
+      // and nothing else tells the renderer: loadTemplates/loadShortcuts otherwise run ONLY at
+      // startup. Without this re-read the deleted rows sit in the two projections until an
+      // unrelated round-trip or a restart — and since their workspace is gone, the Manage
+      // dialogs file them under `(no workspace)`, where they look legitimate and saving one
+      // throws template_not_found on a row the UI is showing. Neither loader throws (each logs
+      // a code and leaves its projection alone), so this cannot turn a successful delete into
+      // an error. Only on the SUCCESS path — a refused delete cascaded nothing.
+      await Promise.all([loadTemplates(), loadShortcuts()])
       setArmedDeleteId(null)
       setError(null)
       if (selectedId === id) setSelectedId(null)
