@@ -1000,6 +1000,29 @@ describe('workspace filtering', () => {
     expect(store.getState().viewMode).toBe('focused')
   })
 
+  it('focusWorkspace leaves you on the BOARD when the board is where you were', () => {
+    // The reported bug: sitting on w1's board, switch to w2 (empty — board, as expected), then
+    // switch back to w1 and the app jumped straight into w1's terminal instead of showing w1's
+    // board and its card again. Switching workspace changes WHAT you are looking at, never WHERE
+    // you are looking, so the view mode is the operator's and this action must not overwrite it.
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1') // a launch drops into Focused
+    store.getState().showBoard() // Esc — back to w1's board
+    clock = 2
+
+    store.getState().focusWorkspace('w2') // w2 owns no terminal: board is the only option
+    expect(store.getState().viewMode).toBe('board')
+    expect(store.getState().focusedTerminalId).toBeNull()
+
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().viewMode).toBe('board')
+    // The PIN still moves with the workspace even while the board is showing: the rail's active
+    // row (selectRailActiveSessionId) and EmbeddedTerminal's shortcut scope both read it, and
+    // both assume the focused terminal belongs to the active workspace.
+    expect(store.getState().focusedTerminalId).toBe('t1')
+  })
+
   it('focusWorkspace follows the SESSION workspace after a move, not the launch stamp', () => {
     // The reachable defect: `LaunchedTerminal.workspaceId` is stamped once at launch and never
     // rewritten, but CH.sessionSetWorkspace (the card's move affordance) moves the SESSION. A

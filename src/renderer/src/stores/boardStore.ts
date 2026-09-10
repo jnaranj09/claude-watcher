@@ -306,10 +306,13 @@ export interface BoardState {
   /**
    * Workspaces — reconcile the focused view with a newly-active workspace.
    *
-   * Moves focus to that workspace's most recently launched terminal, or drops to the board when
-   * it has none. It NEVER unmounts a terminal: every kept-alive frame stays in
-   * `launchedTerminals` and simply renders inactive (`active={false}` → `visibility:hidden` on
-   * the whole frame — terminal.md). Switching back is a pure show/hide with the PTY untouched.
+   * Re-points the PIN (`focusedTerminalId`) at that workspace's most recently launched terminal,
+   * or drops to the board when it has none. It does NOT change `viewMode` otherwise: the view is
+   * the operator's, so a switch made from the board comes back to the board.
+   *
+   * It NEVER unmounts a terminal: every kept-alive frame stays in `launchedTerminals` and simply
+   * renders inactive (`active={false}` → `visibility:hidden` on the whole frame — terminal.md).
+   * Switching back is a pure show/hide with the PTY untouched.
    */
   focusWorkspace: (activeId: string) => void
   /** Story 3.2 (FR-11 / F6) — activate a card by its session `id` (the Board `onActivateCard`
@@ -622,7 +625,14 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
         set({ viewMode: 'board', focusedTerminalId: null })
         return
       }
-      set({ viewMode: 'focused', focusedTerminalId: next.terminalId })
+      // Re-point the PIN, never the VIEW. Switching workspace changes WHAT you are looking at,
+      // not WHERE you are looking — from w1's board, via an empty w2, back to w1 must land on
+      // w1's board with its card, not inside w1's terminal. `viewMode` is the operator's (Esc
+      // and a card click own it); this action only keeps `focusedTerminalId` inside the active
+      // workspace, which selectRailActiveSessionId and EmbeddedTerminal's shortcut scope both
+      // assume. The board fallback above is the one exception: with no terminal to show there
+      // is no focused view to stay in.
+      set({ focusedTerminalId: next.terminalId })
     },
 
     activateCard: (id) => {
