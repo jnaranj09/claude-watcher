@@ -3,7 +3,7 @@
 // Layout: a header that states what a shortcut DOES, then the editor card (only while adding or
 // editing), then the list. The editor is deliberately NOT a row in the list — see ShortcutRow.tsx.
 // UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
-import { useState, type JSX, type KeyboardEvent } from 'react'
+import { Fragment, useState, type JSX, type KeyboardEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import {
@@ -163,20 +163,26 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
               <span />
             </div>
             {groups.map((g) => (
-              <div
-                key={g.id}
-                className={styles.group}
-                data-testid={g.id === 'orphans' ? 'shortcut-group-orphans' : undefined}
-              >
-                <p className={styles.groupLabel}>{g.label}</p>
-                {g.shortcuts.map((shortcut) => (
-                  <ShortcutRow
-                    key={shortcut.id}
-                    shortcut={shortcut}
-                    onEdit={() => startEdit(shortcut)}
-                  />
-                ))}
-              </div>
+              <Fragment key={g.id}>
+                {/* Workspaces (Task 11) — the label is its OWN role="row" sibling, ABOVE the
+                    rowgroup, so it never sits as a bare non-row child of role="table" (a11y). */}
+                <div className={styles.groupLabelRow} role="row">
+                  <p className={styles.groupLabel}>{g.label}</p>
+                </div>
+                <div
+                  className={styles.group}
+                  role="rowgroup"
+                  data-testid={g.id === 'orphans' ? 'shortcut-group-orphans' : undefined}
+                >
+                  {g.shortcuts.map((shortcut) => (
+                    <ShortcutRow
+                      key={shortcut.id}
+                      shortcut={shortcut}
+                      onEdit={() => startEdit(shortcut)}
+                    />
+                  ))}
+                </div>
+              </Fragment>
             ))}
           </div>
         )}

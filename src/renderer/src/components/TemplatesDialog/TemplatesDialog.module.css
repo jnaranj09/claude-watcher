@@ -68,9 +68,18 @@
   max-height: 360px;
 }
 /* Workspaces (Task 11) — one group per scope (Global / active workspace / another workspace /
-   orphans). A group label with zero rows is never rendered (groupTemplates omits it). */
+   orphans). A group label with zero rows is never rendered (groupTemplates omits it).
+   `.group` MUST re-declare the flex column: `.row` buttons have no display/width of their own —
+   they stack full-width only because `.rows` is a flex column. Nesting them one level deeper,
+   inside a plain block `.group` div, falls back to the UA default `display:inline-block` for
+   buttons (shrink-to-fit, flowing horizontally) unless `.group` repeats the same flex layout. */
 .group + .group {
   margin-top: var(--space-2);
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .groupLabel {
   margin: 0;

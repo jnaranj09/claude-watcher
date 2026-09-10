@@ -174,16 +174,28 @@
   overflow-y: auto;
 }
 /* Workspaces (Task 11) — one group per scope (Global / active workspace / another workspace /
-   orphans). A group label with zero rows is never rendered (groupShortcuts omits it). */
-.group + .group {
+   orphans). A group label with zero rows is never rendered (groupShortcuts omits it).
+   `role="rowgroup"` sits on `.group` (rows only — a rowgroup's only valid owned element is
+   `row`); the label is its OWN `role="row"` sibling, ABOVE the rowgroup, so the a11y tree still
+   sees table > row/rowgroup > row throughout (a bare non-row `<p>` inside role="table" would
+   otherwise orphan it from the table). `.group` also re-declares the flex column: `.row` is
+   `display:grid` so it still stacks even one level deeper, but `.list`'s `gap:2px` no longer
+   reaches between rows INSIDE a group without this — rows would sit flush against each other. */
+.groupLabelRow {
   margin-top: var(--space-2);
+  padding: 0 var(--space-3);
 }
 .groupLabel {
   margin: 0;
-  padding: var(--space-1) var(--space-3) 2px;
+  padding: var(--space-1) 0 2px;
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-label);
   color: var(--text-muted);
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .headRow,
 .row {
