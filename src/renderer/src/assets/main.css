@@ -6,6 +6,15 @@
   box-sizing: border-box;
 }
 
+/* The app is dark-only. Declaring it is what makes CHROMIUM'S OWN widgets dark: a native
+   <select> popup, the scrollbars, checkboxes and the focus rings it draws itself are painted from
+   this, NOT from our CSS — a <select> styled dark still dropped a white popup list with a blue
+   highlight over the dialog, because the default `light dark` resolves to light. One declaration
+   at the root covers every native control in the app. */
+:root {
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {

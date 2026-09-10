@@ -15,39 +15,62 @@ export interface ShortcutDraft {
   /** 1..3 chords; [] while the operator has not recorded one yet. */
   keys: string[]
   text: string
+  /** Workspaces — round-trips the shortcut's scope through the draft UNCHANGED, so `toDraft` →
+   *  `draftToSaveRequest` does not silently reset an existing scope to GLOBAL on every edit. */
+  workspaceId: string | null
 }
 
 export function emptyDraft(): ShortcutDraft {
-  return { id: null, name: '', keys: [], text: '' }
+  return { id: null, name: '', keys: [], text: '', workspaceId: null }
 }
 
 export function toDraft(shortcut: Shortcut): ShortcutDraft {
   // Copy the array: the draft is replaced wholesale by the recorder and must not alias store
   // state, which is a projection of main's truth.
-  return { id: shortcut.id, name: shortcut.name, keys: [...shortcut.keys], text: shortcut.text }
+  return {
+    id: shortcut.id,
+    name: shortcut.name,
+    keys: [...shortcut.keys],
+    text: shortcut.text,
+    workspaceId: shortcut.workspaceId
+  }
 }
 
 export type DraftResult = { ok: true; req: ShortcutSaveRequest } | { ok: false; error: 'invalid' }
 
 /** Runs the SAME schema main will run, so the form can disable Save before any IPC round-trip. */
 export function draftToSaveRequest(draft: ShortcutDraft): DraftResult {
+  // Workspaces — workspaceId round-trips from the draft (toDraft copied it from the base
+  // shortcut; a NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no
+  // partial-update path, so this dialog must re-send the existing scope on every edit or lose
+  // it.
   const candidate =
     draft.id === null
-      ? { name: draft.name, keys: draft.keys, text: draft.text }
-      : { id: draft.id, name: draft.name, keys: draft.keys, text: draft.text }
+      ? { name: draft.name, keys: draft.keys, text: draft.text, workspaceId: draft.workspaceId }
+      : {
+          id: draft.id,
+          name: draft.name,
+          keys: draft.keys,
+          text: draft.text,
+          workspaceId: draft.workspaceId
+        }
   const parsed = ShortcutSaveSchema.safeParse(candidate)
   // NEVER surface the ZodError itself — it stringifies its input, which is operator content.
   if (!parsed.success) return { ok: false, error: 'invalid' }
   return { ok: true, req: parsed.data }
 }
 
+// Task 11 — workspaceId IS part of this comparison now: the scope select is a real control, so
+// changing ONLY the scope must mark the draft dirty or the operator has no way to save the
+// change they just made (Save stays disabled forever).
 export function isDraftDirty(draft: ShortcutDraft, shortcut: Shortcut | null): boolean {
   const base = shortcut === null ? emptyDraft() : toDraft(shortcut)
   return (
     draft.name !== base.name ||
     // By VALUE — two equal sequences are different array objects.
     shortcutKeysId(draft.keys) !== shortcutKeysId(base.keys) ||
-    draft.text !== base.text
+    draft.text !== base.text ||
+    draft.workspaceId !== base.workspaceId
   )
 }
 

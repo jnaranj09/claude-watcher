@@ -6,14 +6,16 @@ import {
   ShortcutsFileSchema,
   shortcutKeysId,
   SHORTCUT_SEQUENCE_MAX_CHORDS,
-  SHORTCUT_TEXT_MAX_LENGTH
+  SHORTCUT_TEXT_MAX_LENGTH,
+  SHORTCUTS_FILE_VERSION
 } from './shortcut'
 
 const VALID = {
   id: 'sc-1',
   name: 'approve',
   keys: ['Ctrl+Alt+A'],
-  text: 'I explicitly approve'
+  text: 'I explicitly approve',
+  workspaceId: null
 }
 
 describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
@@ -163,5 +165,22 @@ describe('ShortcutsFileSchema', () => {
   it('fails the WHOLE file closed when any row is bad', () => {
     const bad = { version: 2, shortcuts: [VALID, { ...VALID, id: 'sc-2', keys: ['Ctrl+A'] }] }
     expect(ShortcutsFileSchema.safeParse(bad).success).toBe(false)
+  })
+})
+
+describe('workspaceId — the item-level scope (Task 6)', () => {
+  it('defaults workspaceId to null for a file written before the field existed', () => {
+    const legacy = {
+      version: 2,
+      shortcuts: [{ id: 's1', name: 'S', keys: ['Ctrl+Alt+A'], text: 'hi' }]
+    }
+    const parsed = ShortcutsFileSchema.parse(legacy)
+    expect(parsed.shortcuts[0]?.workspaceId).toBeNull()
+  })
+
+  // Corrected against this branch's shortcut.ts: SHORTCUTS_FILE_VERSION is 2 here, not 3 — the
+  // point is unchanged either way, a bump on the way in would fail every existing file closed.
+  it('keeps SHORTCUTS_FILE_VERSION at 2 — a bump would wipe every saved shortcut', () => {
+    expect(SHORTCUTS_FILE_VERSION).toBe(2)
   })
 })

@@ -4,6 +4,7 @@
 // operator text — log path + code only.
 import { z } from 'zod'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from './launch'
+import { WorkspaceIdSchema } from './workspace'
 
 export const SHORTCUT_NAME_MAX_LENGTH = SESSION_NAME_MAX_LENGTH
 export const SHORTCUT_TEXT_MAX_LENGTH = 500
@@ -80,7 +81,11 @@ export const ShortcutSchema = z.object({
   id: ShortcutIdSchema,
   name: ShortcutNameSchema,
   keys: ShortcutKeysSchema,
-  text: ShortcutTextSchema
+  text: ShortcutTextSchema,
+  // Workspaces — the item-level scope. Same field, same backward-compat reasoning as
+  // `Template.workspaceId` in template.ts: null ⇒ GLOBAL, `.default(null)` protects a
+  // pre-change file from failing closed. Do NOT bump SHORTCUTS_FILE_VERSION instead.
+  workspaceId: WorkspaceIdSchema.nullable().default(null)
 })
 export type Shortcut = z.infer<typeof ShortcutSchema>
 

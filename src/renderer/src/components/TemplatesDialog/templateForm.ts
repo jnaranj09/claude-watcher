@@ -25,6 +25,9 @@ export interface TemplateDraft {
   customModel: string
   permissionChoice: PermissionChoice
   effortChoice: EffortChoice
+  /** Workspaces — round-trips the template's scope through the draft UNCHANGED, so `toDraft` →
+   *  `validateDraft` does not silently reset an existing scope to GLOBAL on every edit. */
+  workspaceId: string | null
 }
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -67,7 +70,8 @@ export function emptyDraft(): TemplateDraft {
     modelChoice: 'default',
     customModel: '',
     permissionChoice: 'default',
-    effortChoice: 'default'
+    effortChoice: 'default',
+    workspaceId: null
   }
 }
 
@@ -86,7 +90,8 @@ export function toDraft(template: Template): TemplateDraft {
     modelChoice: choice,
     customModel: custom,
     permissionChoice: template.permissionMode ?? 'default',
-    effortChoice: template.effort ?? 'default'
+    effortChoice: template.effort ?? 'default',
+    workspaceId: template.workspaceId
   }
 }
 
@@ -112,7 +117,11 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     cwd: draft.cwd,
     model,
     permissionMode: draft.permissionChoice === 'default' ? null : draft.permissionChoice,
-    effort: draft.effortChoice === 'default' ? null : draft.effortChoice
+    effort: draft.effortChoice === 'default' ? null : draft.effortChoice,
+    // Workspaces — round-tripped from the draft (toDraft copied it from the base template; a
+    // NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no partial-update
+    // path, so this dialog must re-send the existing scope on every edit or lose it.
+    workspaceId: draft.workspaceId
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)
   if (parsed.success) return { ok: true, request: parsed.data }
@@ -124,6 +133,9 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
 export function isDraftDirty(draft: TemplateDraft, base: Template | null): boolean {
   return normalize(draft) !== normalize(base === null ? emptyDraft() : toDraft(base))
 }
+// Task 11 — workspaceId IS part of this comparison now: the scope select is a real control, so
+// changing ONLY the scope must mark the draft dirty or the operator has no way to save the
+// change they just made (Save stays disabled forever).
 function normalize(d: TemplateDraft): string {
   return JSON.stringify([
     d.id,
@@ -132,7 +144,8 @@ function normalize(d: TemplateDraft): string {
     d.modelChoice,
     d.customModel.trim(),
     d.permissionChoice,
-    d.effortChoice
+    d.effortChoice,
+    d.workspaceId
   ])
 }
 

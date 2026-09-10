@@ -69,7 +69,7 @@ function openMirror(
     // the Session shape here. This mirror used to hardcode `sessionName: 'proj'`, which made it
     // look naming-aware while asserting nothing about naming — the "asserts a re-implemented
     // copy" defect class this repo keeps hitting. Now a synthesis regression reaches this file.
-    reducer.upsertLaunched(buildLaunchedSession(minted, 51234))
+    reducer.upsertLaunched(buildLaunchedSession(minted, 51234, 'default'))
   }
   return minted
 }

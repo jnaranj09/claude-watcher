@@ -1,0 +1,260 @@
+/* Workspaces — the Manage dialog. Token spine 1:1 with TemplatesDialog.module.css. The six dot
+   colors mirror WorkspaceSwitcher.module.css — the ONE color axis in the app, reused here rather
+   than reinvented. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.panel {
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-6);
+  min-width: 640px;
+  max-width: 760px;
+  width: 100%;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-dialog);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.title {
+  font-size: var(--font-size-display, 20px);
+  font-weight: var(--font-weight-display, 600);
+  line-height: var(--line-height-display, 1.3);
+}
+.closeButton {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  line-height: 1;
+}
+.closeButton:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.columns {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--space-4);
+  min-height: 320px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-right: 1px solid var(--border);
+  padding-right: var(--space-4);
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 360px;
+}
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+}
+.row[data-selected='true'] {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+}
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+.rowMain:hover {
+  background: var(--bg-surface);
+}
+.rowName {
+  flex: none;
+  font-weight: var(--font-weight-label);
+}
+.rowFolder {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.label {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  color: var(--text-secondary);
+  margin-top: var(--space-2);
+}
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.colorOption {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.folderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.path {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.error {
+  margin: 0;
+  font-size: var(--font-size-meta, 12px);
+  color: var(--danger);
+}
+.hint {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--text-muted);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* `+ New` sits at the BOTTOM of the rail, not directly under the last row. `.rows` stops at its
+   max-height, so without this the button floats mid-column whenever the form is the taller side —
+   `margin-top: auto` hands the leftover space to the gap above it instead. Its own class, not
+   `.ghostButton`: that class is shared with Browse…, which must NOT be pushed anywhere. */
+.newButton {
+  margin-top: auto;
+}
+.ghostButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-body, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.ghostButton:hover {
+  background: var(--bg-surface);
+}
+.primaryButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--working);
+  border-radius: var(--rounded-md);
+  background: var(--working);
+  color: #11111b;
+  font-size: var(--font-size-body, 13px);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+}
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.primaryButton:disabled {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.dangerButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: var(--danger);
+  color: #ffffff;
+  font-size: var(--font-size-body, 13px);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+}
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* The color dot + its six workspace colors moved to WorkspaceDot.module.css — ONE
+   definition for the whole app (.claude/rules/design.md). Render <WorkspaceDot tone={color} />. */
+/* The Delete affordance (.claude/rules/design.md): danger is stated in the OUTLINE at rest and
+   FILLED only on hover/focus, so a destructive control never dominates a resting form. The armed
+   ("Confirm delete") state swaps to .dangerButton — the same solid red the fill lands on, so
+   arming reads as the button staying put rather than a new control appearing. */
+.deleteButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--font-size-body, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.deleteButton:hover:not(:disabled),
+.deleteButton:focus-visible {
+  background: var(--danger);
+  color: #ffffff;
+}
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rowMain:focus-visible,
+.ghostButton:focus-visible,
+.deleteButton:focus-visible,
+.primaryButton:focus-visible,
+.dangerButton:focus-visible,
+.closeButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

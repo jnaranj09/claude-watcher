@@ -40,6 +40,10 @@ export interface TemplatesStore {
   save(input: TemplateSaveRequest): TemplatesSaveResult
   /** Unknown id is a no-op (idempotent). */
   remove(id: string): Template[]
+  /** Workspaces — delete every template scoped to `workspaceId`. Returns how many were removed.
+   *  Called ONLY by the workspaces store's cascade, after a delete was allowed. Global rows
+   *  (`workspaceId === null`) are never touched. */
+  removeByWorkspace(workspaceId: string): number
 }
 
 const LOG_PREFIX = '[claude-watcher][templates]'
@@ -85,7 +89,8 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
       cwd: input.cwd,
       model: input.model,
       permissionMode: input.permissionMode,
-      effort: input.effort
+      effort: input.effort,
+      workspaceId: input.workspaceId
     }
     byId.set(id, saved)
     persist()
@@ -97,6 +102,18 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     return list()
   }
 
+  function removeByWorkspace(workspaceId: string): number {
+    let removed = 0
+    for (const [id, template] of byId) {
+      if (template.workspaceId === workspaceId) {
+        byId.delete(id)
+        removed += 1
+      }
+    }
+    if (removed > 0) persist()
+    return removed
+  }
+
   function isNameTaken(name: string, ownId: string): boolean {
     const key = nameKey(name)
     for (const other of byId.values()) {
@@ -105,7 +122,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     return false
   }
 
-  return { list, get, save, remove }
+  return { list, get, save, remove, removeByWorkspace }
 }
 
 function nameKey(name: string): string {

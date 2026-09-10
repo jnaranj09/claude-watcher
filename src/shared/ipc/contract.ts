@@ -12,6 +12,12 @@
 //   - Events are discriminated unions on a `type` field.
 import type { Template } from '../schemas/template'
 import type { Shortcut } from '../schemas/shortcut'
+import type {
+  Workspace,
+  WorkspaceSaveRequest,
+  WorkspaceDeleteRequest,
+  WorkspaceSetActiveRequest
+} from '../schemas/workspace'
 
 /**
  * The canonical channel registry. A single `as const` object so every channel
@@ -65,6 +71,11 @@ export const CH = {
   // seen is a session-TRUTH transition, ack is a highlight. The rename seam is the precedent
   // for user intent driving a truth change through a typed invoke.
   sessionSeen: 'session:seen',
+  // Workspaces — `session:set-workspace`: renderer → main VIEW INTENT ("move this card"). A real
+  // new channel, like `session:rename`: it is not a terminal operation, and `terminal:*` is keyed
+  // by terminalId while the reducer's map is keyed by session id. Invoke returning void; the
+  // moved card comes back the normal way, as a `session.updated` delta over CH.watchEvents.
+  sessionSetWorkspace: 'session:set-workspace',
   // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
   // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
   // that binds an app-spawned `claude` to its c9watch session `id`). It carries the
@@ -96,6 +107,13 @@ export const CH = {
   shortcutsList: 'shortcuts:list',
   shortcutsSave: 'shortcuts:save',
   shortcutsDelete: 'shortcuts:delete',
+  // Workspaces — the workspaces CRUD invokes plus the persisted active-workspace pointer.
+  // `workspaces:set-active` is its own channel rather than a field on save: switching the view
+  // is not editing a row, and it is the ONE call the switcher makes on every click.
+  workspacesList: 'workspaces:list',
+  workspacesSave: 'workspaces:save',
+  workspacesDelete: 'workspaces:delete',
+  workspacesSetActive: 'workspaces:set-active',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
@@ -291,6 +309,9 @@ export type SessionUpdatedEvent = {
   /** Process id — a native c9watch field shown verbatim on the card (AC-1).
    *  A wandering thread id; NEVER used as identity (key on `id`). */
   pid: number
+  /** Workspaces — which workspace this card belongs to. The renderer filters on it; it never
+   *  mutates it (session truth is main's). */
+  workspaceId: string
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
 }
@@ -475,6 +496,14 @@ export type TemplatesSaveResult = { saved: Template; templates: Template[] }
 /** `session:launch-from-template` arg. Returns `SessionLaunchResult` like `session:launch`. */
 export type SessionLaunchFromTemplateRequest = { templateId: string; name: string }
 
+// Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
+// is the file's VIEW, not a bare array: `activeId` and the list change together and must never be
+// read from two different round-trips.
+export type { Workspace, WorkspaceSaveRequest, WorkspaceDeleteRequest, WorkspaceSetActiveRequest }
+export type WorkspacesListResult = { activeId: string; workspaces: Workspace[] }
+/** `workspaces:save` result — the saved row (so the dialog can select it) PLUS the full view. */
+export type WorkspacesSaveResult = { saved: Workspace } & WorkspacesListResult
+
 // Phrase shortcuts — main-owned; the renderer holds a projection (shortcutsStore.ts). The phrase
 // itself never travels on an IPC channel: a matched chord posts it on the terminal's EXISTING
 // MessagePort `{type:'input'}` frame, so these three channels are CRUD only.
@@ -536,6 +565,10 @@ export type SessionLaunchRequest = {
 export type SessionLaunchResult = {
   /** The opaque per-terminal id (NOT a session id, NOT a pid — F6). */
   terminalId: string
+  /** Workspaces — the workspace MAIN stamped on this launch. Returned so the renderer can
+   *  register the launched terminal's workspace before any session delta arrives (it must be
+   *  able to hide the frame if the operator switches away in between). */
+  workspaceId: string
 }
 
 /**
@@ -558,6 +591,11 @@ export type SessionRenameRequest = {
    *  definition the create-time prompt uses, so both paths agree on what a legal name is. */
   name: string
 }
+
+// Workspaces — `session:set-workspace` request. Defined (via z.infer) at
+// `../schemas/launch.ts#SessionSetWorkspaceSchema`; re-exported here so preload/main import the
+// request type from the SAME place they import every other CH.* payload type.
+export type { SessionSetWorkspaceRequest } from '../schemas/launch'
 
 /**
  * `session:seen` request — the viewed session's stable id (the launch-minted uuid; NEVER a

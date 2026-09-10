@@ -3,6 +3,8 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { NewSessionButton } from './NewSessionButton'
 import { templatesStore } from '../../stores/templatesStore'
+import { workspacesStore } from '../../stores/workspacesStore'
+import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Template } from '../../../../shared/ipc/contract'
 
 const T1: Template = {
@@ -11,13 +13,17 @@ const T1: Template = {
   cwd: '/api',
   model: null,
   permissionMode: null,
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 let cleanup: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
   act(() => templatesStore.getState().hydrate([]))
+  act(() =>
+    workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
+  )
 })
 function render(): {
   r: RenderResult
@@ -92,6 +98,29 @@ describe('NewSessionButton', () => {
     })
     expect(menu(r)).toBeNull()
     expect(document.activeElement).toBe(button(r))
+  })
+
+  // Task 11 review Finding 3 — the ONE test that pins this component to
+  // makeSelectVisibleTemplates: reverting to the unfiltered selectTemplates leaves every other
+  // test in this file green (their fixtures are all workspaceId: null), so this is the only
+  // wiring proof the popover has.
+  it('lists only Global + the active workspace templates, never another workspace’s', () => {
+    const G: Template = { ...T1, id: 'g', workspaceId: null }
+    const OWN: Template = { ...T1, id: 'own', workspaceId: 'w1' }
+    const OTHER: Template = { ...T1, id: 'other', workspaceId: 'w2' }
+    act(() => {
+      workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true })
+      templatesStore.getState().hydrate([G, OWN, OTHER])
+    })
+    const r = renderComponent(
+      <NewSessionButton onPickFolder={vi.fn()} onPickTemplate={vi.fn()} onManage={vi.fn()} />
+    )
+    cleanup = r.unmount
+    act(() => button(r).click())
+    const ids = Array.from(r.container.querySelectorAll('[data-testid="menu-template"]')).map(
+      (el) => el.getAttribute('data-template-id')
+    )
+    expect(ids.sort()).toEqual(['g', 'own'])
   })
 })
 

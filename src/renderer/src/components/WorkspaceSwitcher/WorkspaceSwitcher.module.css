@@ -1,0 +1,120 @@
+/* Workspaces — the header switcher popover. Chrome (radius/border/surface/shadow) mirrors
+   NewSessionMenu.module.css; the six dot colors below are the ONE new color axis in the app —
+   everything else reuses the existing tokens, no new chrome color is invented. */
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  cursor: pointer;
+}
+.button:hover {
+  background: var(--bg-surface);
+}
+.button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.name {
+  white-space: nowrap;
+}
+
+/* The elsewhere-badge — a small pill, same visual weight as the needs-you accent used elsewhere
+   on the board (StatusDot/AttentionRail), so "something needs you" reads consistently. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--rounded-full);
+  background: var(--needs-you);
+  color: var(--bg-base);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-heading);
+  line-height: 1;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 50;
+  min-width: 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.row,
+.manage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+.row:hover,
+.manage:hover {
+  background: var(--bg-surface);
+}
+.row:focus-visible,
+.manage:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.rowName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowCount {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+}
+
+.manage {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  color: var(--text-secondary);
+}
+
+/* The color dot + its six workspace colors moved to WorkspaceDot.module.css — ONE
+   definition for the whole app (.claude/rules/design.md). Render <WorkspaceDot tone={color} />. */

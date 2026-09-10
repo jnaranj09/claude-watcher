@@ -1,0 +1,33 @@
+/* The ONE text-field box. It is deliberately identical to Select's `.field` trigger, so a text
+   field and a dropdown standing in the same form column are the same shape and the same height. */
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body, 13px);
+  line-height: 1.4;
+}
+/* --text-secondary, NOT --text-muted. Measured on --bg-surface: muted is 2.85:1, secondary is
+   6.08:1. A hint nobody can read is not a hint, and the placeholder is the only copy some of
+   these fields carry (the menu search has no label at all). */
+.input::placeholder {
+  color: var(--text-secondary);
+}
+.input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.input:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+/* Never the only signal — the dialog's error line says what is wrong (UX-DR29). */
+.input[aria-invalid='true'] {
+  border-color: var(--danger);
+}

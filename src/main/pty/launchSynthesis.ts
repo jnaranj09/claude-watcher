@@ -37,13 +37,24 @@ import type { MintedLaunchSpawn } from './launchSession'
  * `SessionNameSchema`-validated value, so an empty one is unreachable through the shipped launch
  * path — but a caller constructing a `MintedLaunchSpawn` by hand must degrade to the pre-naming
  * behavior rather than put a blank title on the board.
+ *
+ * `workspaceId` is an ARGUMENT, not a default. Hardcoding `DEFAULT_WORKSPACE_ID` here would make
+ * every launch land in Default while the tests still passed — the same single-point-of-failure
+ * the session name had before this module existed.
  */
-export function buildLaunchedSession(minted: MintedLaunchSpawn, ptyPid: number): Session {
+export function buildLaunchedSession(
+  minted: MintedLaunchSpawn,
+  ptyPid: number,
+  workspaceId: string
+): Session {
   return {
     id: minted.sessionId,
     status: 'Connecting',
     projectPath: minted.spawn.cwd,
     sessionName: minted.displayName || basename(minted.spawn.cwd),
-    pid: ptyPid
+    pid: ptyPid,
+    // Workspaces — passed in, never derived here: main's workspaces store owns the active
+    // pointer, and this module must stay importable without Electron.
+    workspaceId
   }
 }

@@ -17,6 +17,7 @@ import {
   selectKeptAliveTerminalIds,
   selectStartingTerminals
 } from './stores/boardStore'
+import { workspacesStore } from './stores/workspacesStore'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
 async function flush(): Promise<void> {
@@ -55,6 +56,9 @@ beforeEach(() => {
     terminalIdBySessionId: {},
     launchedTerminals: {}
   })
+  // Workspaces (Task 9a fix, review round 1, Finding 3) — reset the active workspace so a test
+  // that switches it does not bleed into a later test in this file.
+  workspacesStore.setState({ activeId: 'default' })
 
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
     matches: false,
@@ -104,9 +108,11 @@ beforeEach(() => {
     launch: vi.fn(() => {
       const id = launchTerminalIds[launchCallCount.n] ?? `launch-${launchCallCount.n}`
       launchCallCount.n++
-      return Promise.resolve({ terminalId: id })
+      return Promise.resolve({ terminalId: id, workspaceId: 'default' })
     }),
-    launchFromTemplate: vi.fn(() => Promise.resolve({ terminalId: 'launch-tpl' })),
+    launchFromTemplate: vi.fn(() =>
+      Promise.resolve({ terminalId: 'launch-tpl', workspaceId: 'default' })
+    ),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined))
   }
@@ -248,10 +254,56 @@ describe('App — Story 5.6 selectStartingTerminals reflects launched-but-uncorr
   it('after a launch, selectStartingTerminals has the launched terminal (before correlation)', async () => {
     const r = await renderApp()
     await clickNewSession(r)
-    // No correlation yet → terminal should be "starting".
-    const starting = selectStartingTerminals(boardStore.getState())
+    // No correlation yet → terminal should be "starting". Workspaces (Task 9a): the launch fixture
+    // stamps 'default' (see the window.launch.launch mock above), so query that same workspace.
+    const starting = selectStartingTerminals(boardStore.getState(), 'default')
     expect(starting).toHaveLength(1)
     expect(starting[0]?.terminalId).toBe('launch-A')
     expect(starting[0]?.label).toBe('project') // basename of '/home/op/project'
+  })
+})
+
+// Task 9a fix (review round 1, Finding 3 — highest risk) — a workspace switch must be a PURE
+// show/hide. `selectKeptAliveTerminalIds` proves the SELECTOR body is unfiltered (boardStore.test.ts),
+// but that cannot catch the catastrophic version of the mistake: someone wrapping the
+// `keptAlive.map(...)` in FocusedSession.tsx (or the `App.tsx` mount-gate that keeps FocusedSession
+// alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT the
+// EmbeddedTerminal, which runs its cleanup (term.dispose() + window.terminal.stop(terminalId)) and
+// KILLS the live PTY — losing the operator's session. This mirrors the shipped B-1 regression guard
+// in App.launch.test.tsx (:452-495), just for a WORKSPACE switch instead of a Board↔Focused toggle.
+describe("App — Task 9a fix: a workspace switch keeps a HIDDEN workspace's terminal mounted (PTY survives)", () => {
+  it('a terminal launched in workspace w1 stays in the DOM (and its PTY is never stopped) after switching the active workspace to w2', async () => {
+    const r = await renderApp()
+
+    // Launch directly via the store action (the same production action App wires to the picker
+    // flow) — simpler than driving the picker UI, and exercises the real App→FocusedSession→
+    // EmbeddedTerminal mount pipeline reactively, exactly like the store-level tests above.
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('t-w1', 'projA', 'w1')
+    })
+    await flush()
+    expect(r.container.querySelector('[data-terminal-id="t-w1"]')).not.toBeNull()
+
+    const stopSpy = (window as unknown as { terminal: { stop: ReturnType<typeof vi.fn> } }).terminal
+      .stop
+    expect(stopSpy).not.toHaveBeenCalled() // baseline: launching must not have stopped anything
+
+    // Switch the ACTIVE workspace to w2, which has no terminal of its own — `focusWorkspace` falls
+    // back to the board view (mirrors how Task 9b's switcher will wire setActiveWorkspace +
+    // focusWorkspace; see boardStore.test.ts's "workspace filtering" describe block).
+    act(() => {
+      workspacesStore.setState({ activeId: 'w2' })
+      boardStore.getState().focusWorkspace('w2')
+    })
+    await flush()
+    expect(boardStore.getState().viewMode).toBe('board') // w2 has nothing to focus → falls back
+
+    // THE ASSERTION: w1's terminal is STILL in the DOM (hidden is fine and expected —
+    // visibility:hidden on the whole frame per terminal.md — but PRESENT, not unmounted) and its
+    // PTY was NEVER stopped. Non-vacuous: a workspace filter wrapped around `keptAlive.map(...)`
+    // would unmount it, both these assertions would flip, and this test would fail exactly here.
+    const termAfter = r.container.querySelector('[data-terminal-id="t-w1"]')
+    expect(termAfter).not.toBeNull()
+    expect(stopSpy).not.toHaveBeenCalled()
   })
 })

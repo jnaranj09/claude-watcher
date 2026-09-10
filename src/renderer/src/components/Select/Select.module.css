@@ -1,0 +1,103 @@
+/* The project's ONE dropdown. Every colour comes from a token, which is the entire point — a
+   native <select>'s popup does not, and cannot be made to. */
+.anchor {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  text-align: left;
+}
+.trigger:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+/* A form row: fills its column, sized like .input beside it. */
+.field {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-body, 13px);
+}
+/* Dialog-header chrome: compact, shrinks before it pushes the close button out. */
+.inline {
+  max-width: 220px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-label);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caret {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+  line-height: 1;
+}
+
+/* The popup. `min-width: 100%` so it never renders narrower than the trigger it drops from, and
+   a max-height so a long workspace list scrolls instead of running off the dialog. */
+.list {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 10;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  box-shadow: var(--shadow-dialog);
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body, 13px);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.option:hover {
+  background: var(--bg-surface);
+}
+.option:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+/* The current value, marked by more than colour — it is also the row that has focus on open. */
+.option[aria-selected='true'] {
+  background: var(--bg-surface);
+  font-weight: 600;
+}

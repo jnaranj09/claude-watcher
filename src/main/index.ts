@@ -1,4 +1,13 @@
-import { app, shell, BrowserWindow, ipcMain, MessageChannelMain, dialog, clipboard } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  MessageChannelMain,
+  dialog,
+  clipboard,
+  nativeTheme
+} from 'electron'
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
@@ -74,6 +83,9 @@ import { createAttentionTracker, type AttentionTracker } from './c9watch/attenti
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema } from '../shared/schemas/settings'
+import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
+import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './persistence/workspacesIpc'
+import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
 import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
 import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
 import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
@@ -275,6 +287,9 @@ const reducers = new Map<Electron.WebContents, ReducerLike>()
 interface LaunchBoardSeam {
   /** Story 6.2 — synthesize/refresh the instant card at spawn (upsertLaunched → handleDelta). */
   upsertLaunched(session: Session): void
+  /** Workspaces — the live-session guard (spec W-6): true when THIS window's board has any
+   *  card in `workspaceId`. Read-only scan of the reducer snapshot; no handleDelta involved. */
+  hasSessionsInWorkspace(workspaceId: string): boolean
   /** Story 6.3 — immediate stop/exit removal (applyHookStatus removed → handleDelta). */
   removeLaunched(sessionId: string): void
   /** ESCAPE-INTERRUPT — demote a session to idle because the operator pressed Escape.
@@ -284,6 +299,10 @@ interface LaunchBoardSeam {
   /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
    *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
   renameLaunched(sessionId: string, name: string): void
+  /** Workspaces — move an existing card to another workspace (setWorkspace → handleDelta).
+   *  Unknown session id is a quiet reducer no-op; the target workspace's EXISTENCE is checked by
+   *  the caller (the IPC handler), not here — mirrors renameLaunched's no-existence-check shape. */
+  setWorkspaceLaunched(sessionId: string, workspaceId: string): void
   /** Deterministic-attention — the operator viewed this session (markSeen → handleDelta).
    *  Only a YourTurn session demotes; everything else is a quiet reducer no-op. */
   seenLaunched(sessionId: string): void
@@ -455,6 +474,12 @@ function registerWatchFeed(window: BrowserWindow): void {
     upsertLaunched: (session) => {
       reducer.upsertLaunched(session).forEach(handleDelta)
     },
+    hasSessionsInWorkspace: (workspaceId) => {
+      for (const session of reducer.snapshotMap().values()) {
+        if (session.workspaceId === workspaceId) return true
+      }
+      return false
+    },
     // Story 6.3 — the fast stop/exit removal rides the HOOK-REMOVAL reducer path (REUSE,
     // not a new reducer API): applyHookStatus(id, removed) deletes the session + emits
     // `session.removed`, and the delta takes the SAME handleDelta chokepoint (tracker →
@@ -486,6 +511,13 @@ function registerWatchFeed(window: BrowserWindow): void {
       // other way). Recorded here, pushed once by the hook server, then cleared. Until the
       // operator submits their next prompt the two names disagree — an accepted limit.
       pendingTitles.set(sessionId, name)
+    },
+    // Workspaces — same handleDelta chokepoint as every other seam action; the moved card
+    // reaches the renderer as an ordinary `session.updated`. The target workspace's existence is
+    // the CALLER's job (the IPC handler below) — this seam trusts it was already checked, exactly
+    // like renameLaunched trusts the name was already validated.
+    setWorkspaceLaunched: (sessionId, workspaceId) => {
+      reducer.setWorkspace(sessionId, workspaceId).forEach(handleDelta)
     },
     seenLaunched: (sessionId) => {
       reducer.markSeen(sessionId).forEach(handleDelta)
@@ -542,6 +574,8 @@ function registerWatchFeed(window: BrowserWindow): void {
       return false
     }
     // Main-owned data reshaped by main (parse-once boundary: never re-run through SessionSchema).
+    // Workspaces — `{ ...stored, id: newSessionId }` already carries `workspaceId` (it is on
+    // `stored`, a full `Session`), so the rebound card keeps its workspace with no extra code.
     launchedSet.add(newSessionId)
     reducer.upsertLaunched({ ...stored, id: newSessionId }).forEach(handleDelta)
     launchService.rebind(terminalId, newSessionId)
@@ -878,6 +912,31 @@ function registerPtyIpc(): void {
 // app-ready (electron-store needs userData). A null until then; registerSettingsIpc reads it.
 let settingsStore: SettingsStore | null = null
 
+// Workspaces — same lifecycle as settingsStore (needs app-ready for electron-store). Built
+// BEFORE templatesStore (see the construction block below): the launch path reads the
+// workspaces store.
+let workspacesStore: WorkspacesStore | null = null
+function requireWorkspacesStore(): WorkspacesStore {
+  if (workspacesStore === null) throw new Error('workspaces_store_not_initialized')
+  return workspacesStore
+}
+
+/** Workspaces — the live-session guard (spec W-6). A workspace with ANY card in ANY window
+ *  cannot be deleted. Reads every window's reducer snapshot; keyed on the stable session id. */
+function hasLiveSessions(workspaceId: string): boolean {
+  for (const seam of launchBoardSeams.values()) {
+    if (seam.hasSessionsInWorkspace(workspaceId)) return true
+  }
+  return false
+}
+
+/** Workspaces — the scoped-config cascade. Runs ONLY after a delete was allowed and committed.
+ *  Late-bound on purpose: the workspaces store is constructed before these two exist. */
+function cascade(workspaceId: string): void {
+  templatesStore?.removeByWorkspace(workspaceId)
+  shortcutsStore?.removeByWorkspace(workspaceId)
+}
+
 // Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
 let templatesStore: TemplatesStore | null = null
 function requireTemplatesStore(): TemplatesStore {
@@ -934,6 +993,16 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/workspacesIpc.ts (unit-tested); this only binds them to CH.* channels.
+function registerWorkspacesIpc(): void {
+  const handlers = createWorkspacesIpcHandlers(requireWorkspacesStore())
+  ipcMain.handle(CH.workspacesList, () => handlers.list())
+  ipcMain.handle(CH.workspacesSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipcMain.handle(CH.workspacesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+  ipcMain.handle(CH.workspacesSetActive, (_evt, raw: unknown) => handlers.setActive(raw))
 }
 
 // Phrase shortcuts — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1208,7 +1277,13 @@ function registerTerminalIpc(): void {
         // `buildLaunchedSession` (launchSynthesis.ts) — index.ts is not importable by any test,
         // so inlining it left the operator's name reaching the board through an uncovered
         // expression. Keep this a one-line call; put any synthesis logic in that module.
-        launchBoardSeams.get(wc)?.upsertLaunched(buildLaunchedSession(minted, ptyPid))
+        // Workspaces — stamp main's OWN active-workspace pointer at synthesis time (never
+        // derived in the extracted module, which must stay importable without Electron).
+        launchBoardSeams
+          .get(wc)
+          ?.upsertLaunched(
+            buildLaunchedSession(minted, ptyPid, requireWorkspacesStore().activeId())
+          )
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
         // the Starting-banner join is instant (no ancestry walk, no c9watch discovery wait).
         // Validate AT SOURCE before send (main→renderer delta; zod-boundaries.md), exactly as
@@ -1544,10 +1619,19 @@ function registerLaunchIpc(): void {
     const testPickDir = process.env.C9_TEST_PICK_DIR
     if (testPickDir !== undefined && testPickDir !== '') return testPickDir
     const owner = BrowserWindow.fromWebContents(event.sender)
+    // Workspaces — open the picker at the active workspace's default folder when it has one.
+    // Read from MAIN's own store (the renderer never sends it) and NEVER logged.
+    const defaultPath = requireWorkspacesStore().get(
+      requireWorkspacesStore().activeId()
+    )?.defaultCwd
+    const dialogOptions: Electron.OpenDialogOptions = {
+      properties: ['openDirectory'],
+      ...(defaultPath !== null && defaultPath !== undefined ? { defaultPath } : {})
+    }
     // showOpenDialog accepts an optional parent window; pass it so the dialog is modal-to-window.
     const result = owner
-      ? await dialog.showOpenDialog(owner, { properties: ['openDirectory'] })
-      : await dialog.showOpenDialog({ properties: ['openDirectory'] })
+      ? await dialog.showOpenDialog(owner, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions)
     // Cancel ⇒ canceled:true (or empty filePaths) ⇒ null ⇒ the renderer no-ops (no launch).
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0] ?? null
@@ -1577,7 +1661,9 @@ function registerLaunchIpc(): void {
     // to merge a hook block into this project's `.claude/settings.local.json` — it no longer
     // touches the operator's project at all.
     const { terminalId } = launchService.launch({ cwd, name })
-    return { terminalId }
+    // Workspaces — report the workspace MAIN stamped on this launch's card so the renderer can
+    // register the terminal's workspace before any session delta arrives.
+    return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
   })
 
   // session:launch-from-template — resolve the template FIRST (untrusted arg → main-owned
@@ -1590,7 +1676,8 @@ function registerLaunchIpc(): void {
       throw new Error('claude version below the supported minimum')
     }
     const { terminalId } = launchService.launch(req)
-    return { terminalId }
+    // Workspaces — same reasoning as session:launch above.
+    return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
   })
 
   // session:rename — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS boundary: a
@@ -1608,6 +1695,18 @@ function registerLaunchIpc(): void {
   ipcMain.handle(CH.sessionRename, (event, raw: unknown) => {
     const { id, name } = SessionRenameSchema.parse(raw)
     launchBoardSeams.get(event.sender)?.renameLaunched(id, name)
+  })
+
+  // session:set-workspace — UNTRUSTED cross-process input; parse-and-throw at THIS boundary.
+  // The WORKSPACE is validated against main's own store: moving a card into a workspace that
+  // does not exist would strand it where no view can show it, so that fails closed with a code
+  // instead of being applied. An unknown SESSION id is not an error (the reducer logs
+  // set_workspace_unknown_id and emits nothing — a move racing a stop that already removed it).
+  ipcMain.handle(CH.sessionSetWorkspace, (event, raw: unknown) => {
+    // Both gates live in persistence/workspacesIpc.ts (unit-testable in node, unlike this file);
+    // index.ts only binds the CH.* channel and routes to the sender's seam.
+    const { sessionId, workspaceId } = parseSessionWorkspaceMove(requireWorkspacesStore(), raw)
+    launchBoardSeams.get(event.sender)?.setWorkspaceLaunched(sessionId, workspaceId)
   })
 
   // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by
@@ -1826,6 +1925,14 @@ function createWindow(): void {
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('disable-software-rasterizer')
 
+// The app is dark-only, and Chromium draws some widgets ITSELF — the `<select>` popup list above
+// all — from the NATIVE theme, not from the page. `:root { color-scheme: dark }` in main.css is
+// necessary but NOT sufficient on Linux: with the desktop on a light GTK theme the popup still
+// came up white with a blue highlight, floating over a dark dialog. `themeSource = 'dark'` is
+// what tells Chromium to draw its own surfaces dark (and makes `prefers-color-scheme: dark`
+// true in the renderer). Set before `ready`, so the first window never paints a light popup.
+nativeTheme.themeSource = 'dark'
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app
@@ -1865,6 +1972,22 @@ app
       settingsStore = createSettingsStore()
     }
     registerSettingsIpc()
+
+    try {
+      workspacesStore = SMOKE
+        ? createWorkspacesStore({ hasLiveSessions, cascade })
+        : createWorkspacesStore({
+            blobStore: createElectronWorkspacesBlobStore(),
+            hasLiveSessions,
+            cascade
+          })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a
+      // workspaces blob carries operator names and a default cwd.
+      console.error('[claude-watcher][workspaces] code=workspaces_store_init_failed (in-memory)')
+      workspacesStore = createWorkspacesStore({ hasLiveSessions, cascade })
+    }
+    registerWorkspacesIpc()
 
     try {
       templatesStore = SMOKE

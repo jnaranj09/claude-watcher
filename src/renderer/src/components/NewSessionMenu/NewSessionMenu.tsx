@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react
 import type { Template } from '../../../../shared/ipc/contract'
 import { describeTemplateFlags } from '../TemplatesDialog/templateForm'
 import { filterTemplates } from './filterTemplates'
+import { TextInput } from '../TextInput/TextInput'
 import styles from './NewSessionMenu.module.css'
 
 export interface NewSessionMenuProps {
@@ -92,16 +93,14 @@ export function NewSessionMenu({
         Pick a folder…
       </button>
       <div className={styles.divider} />
-      <input
-        ref={searchRef}
-        type="text"
-        className={styles.search}
-        data-menu-item
-        data-testid="menu-search"
-        aria-label="Search templates"
+      <TextInput
+        inputRef={searchRef}
+        menuItem
+        testId="menu-search"
+        ariaLabel="Search templates"
         placeholder="Search templates"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={setQuery}
       />
       <div className={styles.list}>
         {filtered.length === 0 ? (

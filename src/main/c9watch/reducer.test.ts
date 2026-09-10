@@ -71,6 +71,21 @@ describe('reducer — upsertLaunched (Story 6.2: spawn-time launch synthesis)', 
     r.upsertLaunched(launchedSession(id))
     expect(r.snapshotMap().get(id)?.status).toBe('Connecting')
   })
+
+  it('a re-upsert under a new id keeps the workspaceId (the /clear rebind)', () => {
+    const reducer = createReducer({ now: () => 1 })
+    const stored = {
+      id: 'old',
+      status: 'Working',
+      projectPath: '/p',
+      pid: 3,
+      sessionName: 'n',
+      workspaceId: 'w5'
+    }
+    reducer.upsertLaunched(stored)
+    reducer.upsertLaunched({ ...stored, id: 'new' })
+    expect(reducer.snapshotMap().get('new')?.workspaceId).toBe('w5')
+  })
 })
 
 describe('reducer — applyHookStatus (hooks own every status transition)', () => {
@@ -279,6 +294,46 @@ describe('reducer — renameSession (session-naming A2)', () => {
     expect(r.renameSession(ID, 'third')).toHaveLength(1)
     expect(r.snapshotMap().get(ID)?.sessionName).toBe('third')
     expect(r.size()).toBe(1)
+  })
+})
+
+describe('setWorkspace', () => {
+  const stored = {
+    id: 's1',
+    status: 'Working',
+    projectPath: '/p',
+    pid: 3,
+    sessionName: 'n',
+    workspaceId: 'w1'
+  }
+
+  it('emits one session.updated with the new workspace', () => {
+    const reducer = createReducer({ now: () => 1 })
+    reducer.upsertLaunched(stored)
+    const deltas = reducer.setWorkspace('s1', 'w2')
+    expect(deltas).toHaveLength(1)
+    expect(reducer.snapshotMap().get('s1')?.workspaceId).toBe('w2')
+  })
+
+  it('changes NOTHING else — status, name, projectPath and pid survive', () => {
+    const reducer = createReducer({ now: () => 1 })
+    reducer.upsertLaunched(stored)
+    reducer.setWorkspace('s1', 'w2')
+    expect(reducer.snapshotMap().get('s1')).toEqual({ ...stored, workspaceId: 'w2' })
+  })
+
+  it('is a logged no-op for an unknown session id — never synthesizes a card', () => {
+    const log = vi.fn()
+    const reducer = createReducer({ now: () => 1, log })
+    expect(reducer.setWorkspace('ghost', 'w2')).toEqual([])
+    expect(reducer.size()).toBe(0)
+    expect(log).toHaveBeenCalledWith({ path: '(set-workspace)', code: 'set_workspace_unknown_id' })
+  })
+
+  it('is a no-op when the workspace is unchanged', () => {
+    const reducer = createReducer({ now: () => 1 })
+    reducer.upsertLaunched(stored)
+    expect(reducer.setWorkspace('s1', 'w1')).toEqual([])
   })
 })
 

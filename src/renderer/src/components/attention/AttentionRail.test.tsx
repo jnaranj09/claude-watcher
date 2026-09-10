@@ -12,6 +12,7 @@ import { AttentionRail } from './AttentionRail'
 import { shortName } from './railName'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
 import { boardStore } from '../../stores/boardStore'
+import { workspacesStore } from '../../stores/workspacesStore'
 import type { Column, WatchEventsPayload } from '../../../../shared/ipc/contract'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -24,7 +25,7 @@ function updated(
   id: string,
   column: Column,
   enteredColumnAt: number,
-  over: Partial<{ sessionName: string; projectPath: string }> = {}
+  over: Partial<{ sessionName: string; projectPath: string; workspaceId: string }> = {}
 ): WatchEventsPayload {
   return {
     epoch,
@@ -36,7 +37,8 @@ function updated(
       status: column === 'needs-you' ? 'NeedsAttention' : 'Working',
       column,
       enteredColumnAt,
-      pid: 1000
+      pid: 1000,
+      workspaceId: over.workspaceId ?? 'default'
     }
   }
 }
@@ -54,6 +56,9 @@ function resetStore(): void {
     // tests do not bleed state into each other (prior tests left entries).
     launchedTerminals: {}
   })
+  // Workspaces (Task 9a fix, review round 1) — reset the active workspace so a test that
+  // switches it does not bleed into a later test in this file.
+  workspacesStore.setState({ activeId: 'default' })
 }
 
 beforeEach(() => {
@@ -264,7 +269,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
       boardStore.getState().applyWatchEvent(updated(1, 'i', 'idle', 300))
       boardStore.getState().applyWatchEvent(updated(1, 'n', 'needs-you', 100))
       boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 200))
-      boardStore.getState().openLaunchedTerminal('tid-new', 'fresh')
+      boardStore.getState().openLaunchedTerminal('tid-new', 'fresh', 'default')
     })
     const r = render()
     expect(dividerLabels(r)).toEqual(['Needs you', 'Working', 'Idle', 'Starting'])
@@ -319,7 +324,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // A just-launched terminal has no session card yet, so nothing can be pinned. The rail must not
   // guess — it leaves the pin empty and the Starting row carries the active marker instead.
   it('a focused-but-uncorrelated launch pins nothing; the starting row is marked active', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-fresh', 'fresh'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-fresh', 'fresh', 'default'))
     const r = render()
     expect(r.container.querySelector('[data-testid="rail-pinned-list"]')).toBeNull()
     expect(
@@ -657,6 +662,56 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
     expect(announcer?.textContent).toContain('deploy-prod-rose needs you')
   })
 
+  // Task 9a fix (review round 1, Finding 1) — a workspace SWITCH must re-prime the announce
+  // baseline, exactly like the mount-time priming above. Without the fix, every already-needs-you
+  // session already sitting in the newly-active workspace gets diffed against the PREVIOUS
+  // workspace's baseline and is wrongly announced as "new" on every switch (and again on every
+  // switch back). The second assertion matters as much as the first: a fix that simply suppresses
+  // every announcement after a switch would be worse than the bug it replaces.
+  it("a workspace switch does NOT re-announce that workspace's pre-existing needs-you sessions, but a genuinely new one still IS announced", () => {
+    // Seed BEFORE mount: 'a' needs-you in w1 (the workspace we mount into — present at mount, not
+    // announced), 'b' needs-you in w2 (present at mount in a workspace we have not switched to
+    // yet — must never surface while w1 is active, and must not poison w2's own priming either).
+    workspacesStore.setState({ activeId: 'w1' })
+    act(() => {
+      boardStore
+        .getState()
+        .applyWatchEvent(
+          updated(1, 'a', 'needs-you', 100, { sessionName: 'w1-preexisting', workspaceId: 'w1' })
+        )
+      boardStore
+        .getState()
+        .applyWatchEvent(
+          updated(2, 'b', 'needs-you', 200, { sessionName: 'w2-preexisting', workspaceId: 'w2' })
+        )
+    })
+    const r = render()
+    const announcer = r.container.querySelector('[data-testid="live-announcer"]')
+    expect(announcer?.textContent).toBe('') // mount priming for w1 — nothing announced yet
+
+    // Switch the active workspace to w2. `focusWorkspace` is a boardStore action (it fires the
+    // rail's `boardStore.subscribe` callback), which is how a real workspace switch reaches the
+    // announce effect — mirrors how Task 9b's switcher will wire setActiveWorkspace + focusWorkspace.
+    act(() => {
+      workspacesStore.setState({ activeId: 'w2' })
+      boardStore.getState().focusWorkspace('w2')
+    })
+    // 'b' was ALREADY needs-you before the switch — it must be re-primed into the baseline, NOT
+    // announced as new. This is the exact defect: without the fix this assertion fails.
+    expect(announcer?.textContent).toBe('')
+
+    // A session that ENTERS needs-you in w2 AFTER the re-prime still IS announced — proving the
+    // fix does not just blanket-suppress every announcement after a switch.
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(
+          updated(3, 'c', 'needs-you', 300, { sessionName: 'w2-genuinely-new', workspaceId: 'w2' })
+        )
+    )
+    expect(announcer?.textContent).toContain('w2-genuinely-new needs you')
+  })
+
   it('the rail itself has an aria-label nav region (keyboard-navigable landmark)', () => {
     const r = render()
     const rail = r.container.querySelector('[data-testid="attention-rail"]')
@@ -680,8 +735,8 @@ describe('railName.shortName', () => {
 describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   it('renders one calm starting row per selectStartingTerminals entry', () => {
     act(() => {
-      boardStore.getState().openLaunchedTerminal('tid-a', 'alpha')
-      boardStore.getState().openLaunchedTerminal('tid-b', 'beta')
+      boardStore.getState().openLaunchedTerminal('tid-a', 'alpha', 'default')
+      boardStore.getState().openLaunchedTerminal('tid-b', 'beta', 'default')
     })
     const r = render()
     const rows = r.container.querySelectorAll('[data-testid="starting-rail-row"]')
@@ -700,7 +755,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   })
 
   it('clicking a starting row calls switchTerminal(terminalId)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-x', 'xray'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-x', 'xray', 'default'))
     const r = render()
     // Reset to board so we can verify switchTerminal actually flips to focused.
     act(() => boardStore.getState().showBoard())
@@ -714,7 +769,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   })
 
   it('clicking a starting row does NOT call onActivateSession (no acknowledge; not a c9watch session)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-y', 'yankee'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-y', 'yankee', 'default'))
     const onActivate = vi.fn()
     const r = render(onActivate)
     const row = r.container.querySelector<HTMLButtonElement>('[data-terminal-id="tid-y"]')
@@ -725,7 +780,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   it('a correlated terminal (has card in sessionsById) does NOT appear as a starting row (supersede)', () => {
     // Launch + correlate + add a card — the terminal should disappear from the starting group.
     act(() => {
-      boardStore.getState().openLaunchedTerminal('tid-corr', 'correlated')
+      boardStore.getState().openLaunchedTerminal('tid-corr', 'correlated', 'default')
       boardStore.getState().addCorrelation('sess-1', 'tid-corr')
       boardStore.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
     })
@@ -745,7 +800,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   })
 
   it('starting row is a <button> activatable by keyboard (Enter = click)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-kbd', 'keyboard'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-kbd', 'keyboard', 'default'))
     const r = render()
     const row = r.container.querySelector('[data-terminal-id="tid-kbd"]')
     expect(row?.tagName).toBe('BUTTON')
@@ -756,7 +811,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
   // renders a neutral hollow RING instead. It must render NO text: the letter is what Goal B
   // removed, and dropping it without a glyph would leave an empty button.
   it('in collapsed mode, starting row renders a neutral ring and NO text (no initial letter)', () => {
-    act(() => boardStore.getState().openLaunchedTerminal('tid-coll', 'delta'))
+    act(() => boardStore.getState().openLaunchedTerminal('tid-coll', 'delta', 'default'))
     const r = render()
     const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
     act(() => toggle?.click())
@@ -781,8 +836,8 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
     // This test proves the starting rows render is load-bearing.
     // Without the startingTerminals rendering, querySelectorAll below returns 0.
     act(() => {
-      boardStore.getState().openLaunchedTerminal('tid-nv1', 'nv-alpha')
-      boardStore.getState().openLaunchedTerminal('tid-nv2', 'nv-beta')
+      boardStore.getState().openLaunchedTerminal('tid-nv1', 'nv-alpha', 'default')
+      boardStore.getState().openLaunchedTerminal('tid-nv2', 'nv-beta', 'default')
     })
     const r = render()
     // If StartingRailRow rendering were removed, this assertion would go RED.

@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
 import { TemplatesDialog } from './TemplatesDialog'
 import { templatesStore } from '../../stores/templatesStore'
+import { workspacesStore } from '../../stores/workspacesStore'
+import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Template } from '../../../../shared/ipc/contract'
 
 const T1: Template = {
@@ -11,7 +14,8 @@ const T1: Template = {
   cwd: '/home/op/api',
   model: 'opus',
   permissionMode: 'plan',
-  effort: 'high'
+  effort: 'high',
+  workspaceId: null
 }
 
 let cleanup: (() => void) | undefined
@@ -36,6 +40,9 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   act(() => templatesStore.getState().hydrate([]))
+  act(() =>
+    workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
+  )
   vi.restoreAllMocks()
 })
 async function flush(): Promise<void> {
@@ -62,12 +69,6 @@ function type(el: HTMLInputElement, value: string): void {
     el.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-function select(el: HTMLSelectElement, value: string): void {
-  act(() => {
-    el.value = value
-    el.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-}
 const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('TemplatesDialog', () => {
@@ -92,9 +93,9 @@ describe('TemplatesDialog', () => {
     type(q(r, '[data-testid="template-name"]'), 'blog')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
-    select(q(r, '[data-testid="template-model"]'), 'custom')
+    chooseOption(r.container, 'template-model', 'custom')
     type(q(r, '[data-testid="template-model-custom"]'), 'claude-x')
-    select(q(r, '[data-testid="template-permission"]'), 'acceptEdits')
+    chooseOption(r.container, 'template-permission', 'acceptEdits')
     expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(false)
     click(q(r, '[data-testid="template-save"]'))
     await flush()
@@ -103,7 +104,8 @@ describe('TemplatesDialog', () => {
       cwd: '/home/op/blog',
       model: 'claude-x',
       permissionMode: 'acceptEdits',
-      effort: null
+      effort: null,
+      workspaceId: null
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
   })
@@ -111,7 +113,7 @@ describe('TemplatesDialog', () => {
     const { r } = render()
     click(q(r, '[data-template-id="a"]'))
     expect(q<HTMLInputElement>(r, '[data-testid="template-name"]').value).toBe('api')
-    expect(q<HTMLSelectElement>(r, '[data-testid="template-model"]').value).toBe('opus')
+    expect(selectedValue(r.container, 'template-model')).toBe('opus')
     type(q(r, '[data-testid="template-name"]'), 'api2')
     save.mockRejectedValueOnce(new Error('template_name_taken'))
     click(q(r, '[data-testid="template-save"]'))
@@ -125,7 +127,8 @@ describe('TemplatesDialog', () => {
       cwd: '/home/op/api',
       model: 'opus',
       permissionMode: 'plan',
-      effort: 'high'
+      effort: 'high',
+      workspaceId: null
     })
   })
   it('a chosen effort reaches window.templates.save; Default sends null', async () => {
@@ -133,7 +136,7 @@ describe('TemplatesDialog', () => {
     type(q(r, '[data-testid="template-name"]'), 'blog')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
-    select(q(r, '[data-testid="template-effort"]'), 'xhigh')
+    chooseOption(r.container, 'template-effort', 'xhigh')
     click(q(r, '[data-testid="template-save"]'))
     await flush()
     expect(save).toHaveBeenCalledWith({
@@ -141,16 +144,16 @@ describe('TemplatesDialog', () => {
       cwd: '/home/op/blog',
       model: null,
       permissionMode: null,
-      effort: 'xhigh'
+      effort: 'xhigh',
+      workspaceId: null
     })
   })
   it('selecting a row preselects its effort, and changing only the effort enables Save', () => {
     const { r } = render()
     click(q(r, '[data-template-id="a"]'))
-    const effort = q<HTMLSelectElement>(r, '[data-testid="template-effort"]')
-    expect(effort.value).toBe('high')
+    expect(selectedValue(r.container, 'template-effort')).toBe('high')
     expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
-    select(effort, 'low')
+    chooseOption(r.container, 'template-effort', 'low')
     expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(false)
   })
   it('Delete is two-step: first click arms "Confirm delete", second removes and returns to a new draft', async () => {
@@ -207,5 +210,57 @@ describe('TemplatesDialog', () => {
       )
     })
     expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  // --- Task 11: scope control + orphan grouping ---------------------------------------------
+  it('saves the scope chosen in the form', async () => {
+    act(() =>
+      workspacesStore.setState({
+        activeId: 'w1',
+        workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+        loaded: true
+      })
+    )
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'blog')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    chooseOption(r.container, 'template-scope', 'w1')
+    click(q(r, '[data-testid="template-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith({
+      name: 'blog',
+      cwd: '/home/op/blog',
+      model: null,
+      permissionMode: null,
+      effort: null,
+      workspaceId: 'w1'
+    })
+  })
+
+  it('keeps a row whose workspace is gone reachable', () => {
+    act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
+    act(() =>
+      templatesStore.setState({
+        templates: [
+          {
+            id: 't1',
+            name: 'Orphan',
+            cwd: '/p',
+            model: null,
+            permissionMode: null,
+            effort: null,
+            workspaceId: 'gone'
+          }
+        ],
+        loaded: true
+      })
+    )
+    const { r } = render()
+    // The list has no scope sections any more — a row whose workspace is gone stays REACHABLE
+    // instead: visible under `All templates` (the fallback here, since no workspace matches the
+    // active id) and selectable from its own `(no workspace)` entry in the header dropdown.
+    expect(q(r, '[data-testid="template-row"]').textContent).toContain('Orphan')
+    expect(optionValues(r.container, 'template-scope-filter')).toContain('orphans')
   })
 })

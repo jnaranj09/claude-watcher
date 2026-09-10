@@ -38,7 +38,8 @@ function updated(id: string): SessionUpdatedEvent {
     status: 'Working',
     column: 'working',
     enteredColumnAt: 0,
-    pid: 1
+    pid: 1,
+    workspaceId: 'default'
   }
 }
 

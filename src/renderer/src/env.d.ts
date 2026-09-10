@@ -26,7 +26,10 @@ import type {
   TemplatesSaveResult,
   Shortcut,
   ShortcutSaveRequest,
-  ShortcutsSaveResult
+  ShortcutsSaveResult,
+  WorkspaceSaveRequest,
+  WorkspacesListResult,
+  WorkspacesSaveResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -90,6 +93,10 @@ declare global {
       // illegal name (same SessionNameSchema as create); the retitled card arrives as a
       // `session.updated` delta, not as the resolve value.
       rename(id: string, name: string): Promise<void>
+      // Workspaces (Task 12) — move an existing card to another workspace by its stable session
+      // id. Resolves void; the moved card arrives as a normal `session.updated` delta, not as
+      // the resolve value (mirrors `rename` above — never optimistic).
+      setWorkspace(sessionId: string, workspaceId: string): Promise<void>
       // Deterministic-attention (Task 6) — report "the operator is viewing this session" (active
       // rail tab, focused window). Main demotes ONLY a YourTurn session to idle; questions/
       // permissions are untouched. Rejects on a blank id (parse-and-throw at the main boundary).
@@ -114,6 +121,14 @@ declare global {
       list(): Promise<Shortcut[]>
       save(req: ShortcutSaveRequest): Promise<ShortcutsSaveResult>
       remove(id: string): Promise<Shortcut[]>
+    }
+    // Workspaces — mirrors src/preload/index.ts `workspacesApi`. `remove`, not `delete`
+    // (reserved word), so the store and the bridge share one verb — same as templatesApi.
+    workspaces: {
+      list(): Promise<WorkspacesListResult>
+      save(req: WorkspaceSaveRequest): Promise<WorkspacesSaveResult>
+      remove(id: string): Promise<WorkspacesListResult>
+      setActive(id: string): Promise<WorkspacesListResult>
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

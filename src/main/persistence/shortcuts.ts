@@ -42,6 +42,10 @@ export interface ShortcutsStore {
   save(input: ShortcutSaveRequest): ShortcutsSaveResult
   /** Unknown id is a no-op (idempotent). */
   remove(id: string): Shortcut[]
+  /** Workspaces — delete every shortcut scoped to `workspaceId`. Returns how many were removed.
+   *  Called ONLY by the workspaces store's cascade, after a delete was allowed. Global rows
+   *  (`workspaceId === null`) are never touched. */
+  removeByWorkspace(workspaceId: string): number
 }
 
 const LOG_PREFIX = '[claude-watcher][shortcuts]'
@@ -82,7 +86,13 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     if (input.id !== undefined && !byId.has(input.id)) throw new Error(SHORTCUT_ERROR.notFound)
     const id = input.id ?? newId()
     if (isKeysTaken(input.keys, id)) throw new Error(SHORTCUT_ERROR.keysTaken)
-    const saved: Shortcut = { id, name: input.name, keys: input.keys, text: input.text }
+    const saved: Shortcut = {
+      id,
+      name: input.name,
+      keys: input.keys,
+      text: input.text,
+      workspaceId: input.workspaceId
+    }
     byId.set(id, saved)
     persist()
     return { saved, shortcuts: list() }
@@ -91,6 +101,18 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
   function remove(id: string): Shortcut[] {
     if (byId.delete(id)) persist()
     return list()
+  }
+
+  function removeByWorkspace(workspaceId: string): number {
+    let removed = 0
+    for (const [id, shortcut] of byId) {
+      if (shortcut.workspaceId === workspaceId) {
+        byId.delete(id)
+        removed += 1
+      }
+    }
+    if (removed > 0) persist()
+    return removed
   }
 
   /** Uniqueness is on the FULL sequence. A PREFIX has a different canonical id, so a prefix and
@@ -103,7 +125,7 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     return false
   }
 
-  return { list, get, save, remove }
+  return { list, get, save, remove, removeByWorkspace }
 }
 
 /** Sorted by the canonical sequence id — the table's scan column. A prefix sorts immediately

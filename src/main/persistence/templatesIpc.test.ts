@@ -2,7 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { createTemplatesStore } from './templates'
 import { createTemplatesIpcHandlers } from './templatesIpc'
 
-const ROW = { name: 'blog', cwd: '/home/op/blog', model: null, permissionMode: null, effort: null }
+const ROW = {
+  name: 'blog',
+  cwd: '/home/op/blog',
+  model: null,
+  permissionMode: null,
+  effort: null,
+  workspaceId: null
+}
 
 describe('templates IPC handler logic — parse-and-throw on the arg (untrusted cross-process input)', () => {
   it('list returns the store list directly (no envelope)', () => {

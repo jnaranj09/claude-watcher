@@ -92,6 +92,16 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
 5. **State ownership** (`.claude/rules/state.md`). Session-truth = main; view-state =
    renderer Zustand; derived = narrow selectors (never persisted). Inject `now()` for
    determinism.
+6. **UI shape** (`.claude/rules/design.md`). The three Manage dialogs (Templates /
+   Shortcuts / Workspaces) share ONE layout — a header scope dropdown, a select-only FLAT
+   row list (never sections), a form, and a `[Delete] [Save]` footer. Destructive actions arm
+   in place and are red-outlined at rest; a workspace is always drawn with `WorkspaceDot`.
+   **A native `<select>` is banned** — Chromium paints its popup from the desktop's GTK theme,
+   so it comes up light on a dark app; use `components/Select/Select.tsx`. **A bare
+   `<input type="text">` is banned too** — five dialogs had grown five drifting copies of the
+   same `.input` CSS rule; use `components/TextInput/TextInput.tsx` (its test fails if any other
+   module declares an `.input`/`.search` class). Read the sibling dialog before laying out a
+   new one.
 
 **Debugging a symptom?** Read `.claude/rules/troubleshooting.md` first — run its Step-0
 questions (data present? depends on a sibling? console empty?) to pin the layer before
@@ -157,6 +167,29 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   The EXISTING `c9watch`-prefixed dirs, `CH.watch*` channels, `[c9watch]` log prefixes and
   the `c9watch-settings.json` store file are a PENDING rename (the store file needs a
   migration so settings survive). Do not rename them in passing — one dedicated change.
+
+### Workspaces
+
+- **Every session carries a `workspaceId`** (`src/shared/schemas/session.ts`) — session TRUTH,
+  REQUIRED (not optional), stamped at launch synthesis from main's own active workspace
+  (`buildLaunchedSession`) and changed only by `CH.sessionSetWorkspace`. The renderer FILTERS on
+  it and never writes it.
+- **Alerts are global, cards are scoped.** `notifier.notify` and the `computeBadgeCount` call
+  (`src/main/kde/badge.ts`) in `src/main/index.ts` must stay unfiltered — the per-workspace badge
+  is a renderer selector (`selectNeedsYouCountByWorkspace`). Do NOT add a workspace filter in
+  main; it would be a drift-prone duplicate.
+- **`Template.workspaceId` / `Shortcut.workspaceId` use `.nullable().default(null)`** (null =
+  GLOBAL) and the file versions stay `TEMPLATES_FILE_VERSION = 1` / `SHORTCUTS_FILE_VERSION = 2`.
+  Bumping either makes every existing file fail closed → backed up → started EMPTY, losing every
+  saved template and shortcut.
+- **A workspace switch unmounts NOTHING.** Hidden terminals stay in `launchedTerminals` and
+  render `active={false}` → `visibility:hidden` on the whole frame. Live xterms accumulate
+  across workspaces; bounding that memory is a separate IdeasBoard item.
+- **Every `window.*` bridge is declared twice** — in `src/preload/index.d.ts` (which the web
+  build program sees) and again in `src/renderer/src/env.d.ts` (because the `tsconfig.test.json`
+  program does NOT see the preload's augment, and sources its types from the shared contract
+  instead). Adding a bridge method and updating only one of them typechecks in one program and
+  fails in the other. Update both. (Bit the Workspaces implementation twice.)
 
 ### node-pty + packaging (a day-costing gotcha)
 

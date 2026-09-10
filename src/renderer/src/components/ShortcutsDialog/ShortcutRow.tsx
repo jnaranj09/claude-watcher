@@ -5,11 +5,20 @@
 // collapsed to a couple of words and a 3-chord sequence overflowed its column. The editor now owns
 // a card of its own with labelled fields, so each control gets the width it needs.
 import { useState, type JSX } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
+import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import { KeyChordRecorder } from './KeyChordRecorder'
 import { ChordKeys } from './ChordKeys'
 import { draftToSaveRequest, isDraftDirty, type ShortcutDraft } from './shortcutForm'
+import { Select } from '../Select/Select'
+import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { TextInput } from '../TextInput/TextInput'
 import styles from './ShortcutsDialog.module.css'
+
+/** The `Workspace` dropdown's stand-in for "no workspace" — a word, not '', because it becomes
+ *  part of the option's testid. Cannot collide with a workspace id. */
+const GLOBAL_SCOPE = 'global'
 
 export interface ShortcutRowProps {
   shortcut: Shortcut
@@ -55,6 +64,8 @@ export function ShortcutEditor({
   // Two-step delete mirrors TemplateForm's affordance (first click arms, second confirms; blur
   // disarms).
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const valid = draftToSaveRequest(draft).ok
   const dirty = isDraftDirty(draft, shortcut)
 
@@ -69,13 +80,12 @@ export function ShortcutEditor({
           <label className={styles.fieldLabel} htmlFor="shortcut-name">
             Name
           </label>
-          <input
+          <TextInput
             id="shortcut-name"
-            className={styles.input}
-            data-testid="shortcut-name-input"
+            testId="shortcut-name-input"
             placeholder="approve"
             value={draft.name}
-            onChange={(e) => onDraftChange({ ...draft, name: e.target.value })}
+            onChange={(name) => onDraftChange({ ...draft, name })}
           />
         </div>
 
@@ -92,24 +102,49 @@ export function ShortcutEditor({
         <label className={styles.fieldLabel} htmlFor="shortcut-text">
           Phrase
         </label>
-        <input
+        <TextInput
           id="shortcut-text"
-          className={styles.input}
-          data-testid="shortcut-text-input"
+          testId="shortcut-text-input"
           placeholder="I explicitly approve this plan"
           value={draft.text}
-          onChange={(e) => onDraftChange({ ...draft, text: e.target.value })}
+          onChange={(text) => onDraftChange({ ...draft, text })}
         />
         <span className={styles.fieldHelp}>
           Typed into the session as if you had typed it. Nothing is sent until you press Enter.
         </span>
       </div>
 
+      <div className={styles.field}>
+        {/* A <span>, not a <label htmlFor>: the control is a button-and-listbox, which `for`
+            cannot address — `ariaLabel` carries the name to assistive tech instead. */}
+        <span className={styles.fieldLabel}>Workspace</span>
+        {/* `'global'` ⇄ null. A WORD, not '': the sentinel ends up in the option's testid. A
+            workspace id can never collide with it (uuids, or the literal `default`). A NEW row
+            defaults to Global (emptyDraft), never the active workspace: the non-surprising
+            default, matching every shortcut that predates scoping. */}
+        <Select
+          value={draft.workspaceId ?? GLOBAL_SCOPE}
+          options={[
+            { value: GLOBAL_SCOPE, label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+            ...workspaces.map((w) => ({
+              value: w.id,
+              label: w.name,
+              adornment: <WorkspaceDot tone={w.color} />
+            }))
+          ]}
+          onChange={(next) =>
+            onDraftChange({ ...draft, workspaceId: next === GLOBAL_SCOPE ? null : next })
+          }
+          ariaLabel="Workspace"
+          testId="shortcut-scope"
+        />
+      </div>
+
       <div className={styles.editorActions}>
         {shortcut !== null && (
           <button
             type="button"
-            className={confirmingDelete ? styles.dangerButton : styles.ghostButton}
+            className={confirmingDelete ? styles.dangerButton : styles.deleteButton}
             data-testid="shortcut-delete"
             onClick={() => {
               if (confirmingDelete) onDelete()

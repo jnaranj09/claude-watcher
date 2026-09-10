@@ -12,6 +12,7 @@ import {
   SESSION_NAME_MAX_LENGTH,
   LaunchCorrelatedSchema,
   SessionSeenSchema,
+  SessionSetWorkspaceSchema,
   SessionLaunchFromTemplateSchema
 } from './launch'
 import { CH } from '../ipc/contract'
@@ -264,6 +265,61 @@ describe('SessionSeenSchema', () => {
     expect(() => SessionSeenSchema.parse({ id: '' })).toThrow()
     expect(() => SessionSeenSchema.parse({})).toThrow()
     expect(() => SessionSeenSchema.parse('abc')).toThrow()
+  })
+})
+
+// Workspaces — the `session:set-workspace` arg boundary (ipc.md step 5: a schema test with
+// every new channel). Same our-shape fail-closed posture as the rename/seen args: BOTH ids are
+// required and non-blank, and NEITHER is echoed on a miss (the throw IS the signal). The
+// WORKSPACE-EXISTS half of the handler is a separate gate, covered in
+// src/main/persistence/workspacesIpc.test.ts — the schema only proves the shape.
+describe('SessionSetWorkspaceSchema — the move-arg fail-closed boundary', () => {
+  const VALID_MOVE = { sessionId: 'sess-1', workspaceId: 'w1' }
+
+  it('accepts two non-empty ids and returns them unchanged', () => {
+    expect(SessionSetWorkspaceSchema.parse(VALID_MOVE)).toEqual(VALID_MOVE)
+  })
+
+  it('fails closed on a BLANK sessionId', () => {
+    expect(SessionSetWorkspaceSchema.safeParse({ ...VALID_MOVE, sessionId: '' }).success).toBe(
+      false
+    )
+  })
+
+  it('fails closed on a BLANK workspaceId', () => {
+    expect(SessionSetWorkspaceSchema.safeParse({ ...VALID_MOVE, workspaceId: '' }).success).toBe(
+      false
+    )
+  })
+
+  it('fails closed on a MISSING id, a non-string id, or a non-object arg', () => {
+    expect(SessionSetWorkspaceSchema.safeParse({ sessionId: 'sess-1' }).success).toBe(false)
+    expect(SessionSetWorkspaceSchema.safeParse({ workspaceId: 'w1' }).success).toBe(false)
+    expect(SessionSetWorkspaceSchema.safeParse({ ...VALID_MOVE, workspaceId: 42 }).success).toBe(
+      false
+    )
+    expect(SessionSetWorkspaceSchema.safeParse('sess-1').success).toBe(false)
+    expect(SessionSetWorkspaceSchema.safeParse(null).success).toBe(false)
+  })
+
+  it('strips an unknown extra key (our shape — no passthrough)', () => {
+    const r = SessionSetWorkspaceSchema.safeParse({ ...VALID_MOVE, cwd: '/etc' })
+    expect(r.success).toBe(true)
+    if (r.success) expect('cwd' in r.data).toBe(false)
+  })
+
+  it('reports a PATH + CODE on a parse miss (never requires echoing the value)', () => {
+    const r = SessionSetWorkspaceSchema.safeParse({ sessionId: 'sess-1', workspaceId: '' })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      const issue = r.error.issues[0]
+      expect(issue?.path.join('.')).toBe('workspaceId')
+      expect(typeof issue?.code).toBe('string')
+    }
+  })
+
+  it('CH.sessionSetWorkspace is the registered channel const (never a literal at a call site)', () => {
+    expect(CH.sessionSetWorkspace).toBe('session:set-workspace')
   })
 })
 

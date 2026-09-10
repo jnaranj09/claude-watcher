@@ -1,12 +1,16 @@
 // Session templates — the edit form. Keyed by the selected id in TemplatesDialog, so a
 // selection change remounts it with a fresh draft (no effect-based syncing).
 import { useState, type FormEvent, type JSX } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
 import {
   TEMPLATE_NAME_MAX_LENGTH,
   MODEL_NAME_MAX_LENGTH
 } from '../../../../shared/schemas/template'
 import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
+import { Select } from '../Select/Select'
+import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
   MODEL_CHOICES,
   PERMISSION_CHOICES,
@@ -16,12 +20,14 @@ import {
   templateErrorMessage,
   toDraft,
   validateDraft,
-  type ModelChoice,
-  type PermissionChoice,
-  type EffortChoice,
   type TemplateDraft
 } from './templateForm'
+import { TextInput } from '../TextInput/TextInput'
 import styles from './TemplatesDialog.module.css'
+
+/** The `Workspace` dropdown's stand-in for "no workspace". A word, not '': it becomes part of
+ *  the option's testid. Cannot collide with a workspace id (uuids, or the literal `default`). */
+const GLOBAL_SCOPE = 'global'
 
 export interface TemplateFormProps {
   template: Template | null
@@ -36,6 +42,8 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
 
   const validation = validateDraft(draft)
   const dirty = isDraftDirty(draft, template)
@@ -95,14 +103,12 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
       <label className={styles.label} htmlFor="template-name">
         Name
       </label>
-      <input
+      <TextInput
         id="template-name"
-        type="text"
-        className={styles.input}
-        data-testid="template-name"
+        testId="template-name"
         maxLength={TEMPLATE_NAME_MAX_LENGTH}
         value={draft.name}
-        onChange={(e) => patch({ name: e.target.value })}
+        onChange={(name) => patch({ name })}
       />
 
       <span className={styles.label}>Folder</span>
@@ -120,70 +126,67 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         </button>
       </div>
 
-      <label className={styles.label} htmlFor="template-model">
-        Model
-      </label>
+      {/* A <span>, not a <label htmlFor>: the control is a button-and-listbox, which `for` cannot
+          address. `ariaLabel` on the Select carries the name to assistive tech instead. */}
+      <span className={styles.label}>Model</span>
       <div className={styles.modelRow}>
-        <select
-          id="template-model"
-          className={styles.select}
-          data-testid="template-model"
+        <Select
           value={draft.modelChoice}
-          onChange={(e) => patch({ modelChoice: e.target.value as ModelChoice })}
-        >
-          {MODEL_CHOICES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+          options={MODEL_CHOICES}
+          onChange={(modelChoice) => patch({ modelChoice })}
+          ariaLabel="Model"
+          testId="template-model"
+        />
         {draft.modelChoice === 'custom' && (
-          <input
-            type="text"
-            className={styles.input}
-            data-testid="template-model-custom"
-            aria-label="Model name"
+          <TextInput
+            testId="template-model-custom"
+            ariaLabel="Model name"
             placeholder="claude-…"
             maxLength={MODEL_NAME_MAX_LENGTH}
             value={draft.customModel}
-            onChange={(e) => patch({ customModel: e.target.value })}
+            onChange={(customModel) => patch({ customModel })}
           />
         )}
       </div>
 
-      <label className={styles.label} htmlFor="template-permission">
-        Permission mode
-      </label>
-      <select
-        id="template-permission"
-        className={styles.select}
-        data-testid="template-permission"
+      <span className={styles.label}>Permission mode</span>
+      <Select
         value={draft.permissionChoice}
-        onChange={(e) => patch({ permissionChoice: e.target.value as PermissionChoice })}
-      >
-        {PERMISSION_CHOICES.map((c) => (
-          <option key={c.value} value={c.value}>
-            {c.label}
-          </option>
-        ))}
-      </select>
+        options={PERMISSION_CHOICES}
+        onChange={(permissionChoice) => patch({ permissionChoice })}
+        ariaLabel="Permission mode"
+        testId="template-permission"
+      />
 
-      <label className={styles.label} htmlFor="template-effort">
-        Thinking effort
-      </label>
-      <select
-        id="template-effort"
-        className={styles.select}
-        data-testid="template-effort"
+      <span className={styles.label}>Thinking effort</span>
+      <Select
         value={draft.effortChoice}
-        onChange={(e) => patch({ effortChoice: e.target.value as EffortChoice })}
-      >
-        {EFFORT_CHOICES.map((c) => (
-          <option key={c.value} value={c.value}>
-            {c.label}
-          </option>
-        ))}
-      </select>
+        options={EFFORT_CHOICES}
+        onChange={(effortChoice) => patch({ effortChoice })}
+        ariaLabel="Thinking effort"
+        testId="template-effort"
+      />
+
+      <span className={styles.label}>Workspace</span>
+      {/* `'global'` ⇄ null. The sentinel is a WORD, not '': it ends up in the option's testid,
+          and `template-scope-option-` with nothing after it is not a name anyone can read. A
+          workspace id can never collide with it — ids are uuids or `default`. A NEW row defaults
+          to Global (emptyDraft), never the active workspace: the non-surprising default,
+          matching every template that predates scoping. */}
+      <Select
+        value={draft.workspaceId ?? GLOBAL_SCOPE}
+        options={[
+          { value: GLOBAL_SCOPE, label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+          ...workspaces.map((w) => ({
+            value: w.id,
+            label: w.name,
+            adornment: <WorkspaceDot tone={w.color} />
+          }))
+        ]}
+        onChange={(next) => patch({ workspaceId: next === GLOBAL_SCOPE ? null : next })}
+        ariaLabel="Workspace"
+        testId="template-scope"
+      />
 
       {/* Why Save is disabled, once the operator has actually edited something. Muted hint —
           NOT role=alert: the `template-error` line below stays reserved for IPC failures. */}
@@ -203,7 +206,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         {template !== null && (
           <button
             type="button"
-            className={confirmingDelete ? styles.dangerButton : styles.ghostButton}
+            className={confirmingDelete ? styles.dangerButton : styles.deleteButton}
             data-testid="template-delete"
             disabled={busy}
             onClick={() => void remove()}

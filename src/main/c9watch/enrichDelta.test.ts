@@ -15,6 +15,7 @@ import { createReducer } from './reducer'
 import { createAttentionTracker } from './attention'
 import { enrichDelta, type EnrichErrorRecord } from './enrichDelta'
 import { columnForStatus } from './columns'
+import type { Session } from '../../shared/schemas/session'
 import {
   fakeLaunchedSessions,
   WORKING_ID as DASHBOARD_ID, // Working → working
@@ -122,6 +123,76 @@ describe('enrichDelta — session.updated is enriched + validated at source (AC-
     }
     const out = enrichDelta(bare, tracker, reducer.snapshotMap())
     expect(out).toEqual(bare) // unchanged
+  })
+})
+
+describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
+  it('carries workspaceId from the session map onto the enriched delta', () => {
+    const enriched = enrichDelta(
+      {
+        epoch: 0,
+        event: {
+          type: 'session.updated',
+          id: 's1',
+          sessionName: 'n',
+          projectPath: '/p',
+          status: 'Working'
+        }
+      },
+      { columnOf: () => 'working', enteredColumnAt: () => 10 },
+      new Map([
+        [
+          's1',
+          {
+            id: 's1',
+            status: 'Working',
+            projectPath: '/p',
+            pid: 7,
+            sessionName: 'n',
+            workspaceId: 'w1'
+          }
+        ]
+      ]),
+      () => {}
+    )
+    expect(enriched?.event).toMatchObject({ type: 'session.updated', workspaceId: 'w1' })
+  })
+
+  // CORRECTED per review: the session map below has a session with a VALID pid but NO
+  // workspaceId, so the drop is caused ONLY by the missing workspaceId. An empty map would
+  // already drop on the missing `pid` and prove nothing about this field.
+  it('DROPS an updated delta whose session has no workspaceId, logging path+code only', () => {
+    const log = vi.fn()
+    const enriched = enrichDelta(
+      {
+        epoch: 0,
+        event: {
+          type: 'session.updated',
+          id: 's1',
+          sessionName: 'n',
+          projectPath: '/secret/path',
+          status: 'Working'
+        }
+      },
+      { columnOf: () => 'working', enteredColumnAt: () => 10 },
+      new Map([
+        [
+          's1',
+          {
+            id: 's1',
+            status: 'Working',
+            projectPath: '/secret/path',
+            pid: 7,
+            sessionName: 'n'
+          } as unknown as Session
+        ]
+      ]),
+      log
+    )
+    expect(enriched).toBeNull()
+    expect(log).toHaveBeenCalled()
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged).not.toContain('/secret/path')
   })
 })
 

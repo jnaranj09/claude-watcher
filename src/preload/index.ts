@@ -15,6 +15,7 @@ import type {
   SessionLaunchRequest,
   SessionLaunchResult,
   SessionRenameRequest,
+  SessionSetWorkspaceRequest,
   SessionSeenRequest,
   LaunchCorrelatedEvent,
   TelemetryAcknowledgeRequest,
@@ -27,7 +28,12 @@ import type {
   Shortcut,
   ShortcutSaveRequest,
   ShortcutDeleteRequest,
-  ShortcutsSaveResult
+  ShortcutsSaveResult,
+  WorkspaceSaveRequest,
+  WorkspaceDeleteRequest,
+  WorkspaceSetActiveRequest,
+  WorkspacesListResult,
+  WorkspacesSaveResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -238,6 +244,12 @@ const launchApi = {
     const req: SessionRenameRequest = { id, name }
     return ipcRenderer.invoke(CH.sessionRename, req)
   },
+  /** Workspaces — move an existing card to another workspace by its stable session id. Returns
+   *  void; the moved card arrives as a normal `session.updated` delta. */
+  setWorkspace(sessionId: string, workspaceId: string): Promise<void> {
+    const req: SessionSetWorkspaceRequest = { sessionId, workspaceId }
+    return ipcRenderer.invoke(CH.sessionSetWorkspace, req)
+  },
   /** Session templates — launch `claude` from a saved template by its stable id. Main
    *  resolves the template's flags (cwd/model/permissionMode) from its own validated store
    *  and returns `{ terminalId }` exactly like `launch(cwd, name)`. The renderer never carries
@@ -299,6 +311,26 @@ const shortcutsApi = {
   }
 }
 export type ShortcutsApi = typeof shortcutsApi
+
+// Workspaces — typed invoke wrappers over CH.workspaces*. `remove`, not `delete` (reserved
+// word), so the store and the bridge share one verb — same as templatesApi.
+const workspacesApi = {
+  list(): Promise<WorkspacesListResult> {
+    return ipcRenderer.invoke(CH.workspacesList)
+  },
+  save(req: WorkspaceSaveRequest): Promise<WorkspacesSaveResult> {
+    return ipcRenderer.invoke(CH.workspacesSave, req)
+  },
+  remove(id: string): Promise<WorkspacesListResult> {
+    const req: WorkspaceDeleteRequest = { id }
+    return ipcRenderer.invoke(CH.workspacesDelete, req)
+  },
+  setActive(id: string): Promise<WorkspacesListResult> {
+    const req: WorkspaceSetActiveRequest = { id }
+    return ipcRenderer.invoke(CH.workspacesSetActive, req)
+  }
+}
+export type WorkspacesApi = typeof workspacesApi
 
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
@@ -394,6 +426,8 @@ if (process.contextIsolated) {
     // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete). The phrase
     // itself never crosses here: a matched chord posts it on the terminal's existing port.
     contextBridge.exposeInMainWorld('shortcuts', shortcutsApi)
+    // Workspaces — the workspaces CRUD bridge (workspaces:list/save/delete/set-active).
+    contextBridge.exposeInMainWorld('workspaces', workspacesApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -431,4 +465,6 @@ if (process.contextIsolated) {
   window.templates = templatesApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.shortcuts is in index.d.ts
   window.shortcuts = shortcutsApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.workspaces is in index.d.ts
+  window.workspaces = workspacesApi
 }

@@ -39,6 +39,14 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+/* Title + the scope dropdown on one line, above the subtitle. Matches TemplatesDialog's header
+   cluster — the two Manage dialogs put the filter in the same place. */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
 .headerActions {
   display: flex;
   align-items: center;
@@ -72,21 +80,6 @@
   border-color: var(--border-strong);
 }
 
-.input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
-  line-height: 1.4;
-}
-.input::placeholder {
-  color: var(--text-dim);
-}
 .error {
   margin: 0;
   font-size: var(--font-size-meta);
@@ -172,6 +165,23 @@
   gap: 2px;
   max-height: 380px;
   overflow-y: auto;
+}
+/* Workspaces (Task 11) — one group per scope (Global / active workspace / another workspace /
+   orphans). A group label with zero rows is never rendered (groupShortcuts omits it).
+   `role="rowgroup"` sits on `.group` (rows only — a rowgroup's only valid owned element is
+   `row`); the label is its OWN `role="row"` sibling, ABOVE the rowgroup, so the a11y tree still
+   sees table > row/rowgroup > row throughout (a bare non-row `<p>` inside role="table" would
+   otherwise orphan it from the table). `.group` also re-declares the flex column: `.row` is
+   `display:grid` so it still stacks even one level deeper, but `.list`'s `gap:2px` no longer
+   reaches between rows INSIDE a group without this — rows would sit flush against each other. */
+/* ONE flat rowgroup — the scope sections are gone (the header dropdown narrows the list, and
+   the editor's Workspace field names the row's scope). `.group` re-declares the flex column:
+   `.row` is display:grid so it stacks anyway, but `.list`'s gap does not reach between rows one
+   level deeper without this — they would sit flush against each other. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .headRow,
 .row {
@@ -327,9 +337,34 @@
   font-size: var(--font-size-meta);
   line-height: 1.4;
 }
+/* The Delete affordance (.claude/rules/design.md): danger is stated in the OUTLINE at rest and
+   FILLED only on hover/focus, so a destructive control never dominates a resting form. The armed
+   ("Confirm delete") state swaps to .dangerButton — the same solid red the fill lands on, so
+   arming reads as the button staying put rather than a new control appearing. */
+.deleteButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.deleteButton:hover:not(:disabled),
+.deleteButton:focus-visible {
+  background: var(--danger);
+  color: #ffffff;
+}
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
-.input:focus-visible,
 .ghostButton:focus-visible,
+.deleteButton:focus-visible,
 .primaryButton:focus-visible,
 .dangerButton:focus-visible,
 .recorderButton:focus-visible,

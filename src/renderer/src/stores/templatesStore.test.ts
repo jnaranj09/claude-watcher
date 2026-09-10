@@ -4,6 +4,7 @@ import {
   templatesStore,
   selectTemplates,
   selectTemplatesLoaded,
+  makeSelectVisibleTemplates,
   loadTemplates,
   saveTemplate,
   removeTemplate
@@ -16,7 +17,8 @@ const T1: Template = {
   cwd: '/api',
   model: 'opus',
   permissionMode: null,
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 const T2: Template = {
   id: 'b',
@@ -24,7 +26,8 @@ const T2: Template = {
   cwd: '/blog',
   model: null,
   permissionMode: 'plan',
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 
 interface Bridge {
@@ -60,6 +63,27 @@ describe('templatesStore — projection', () => {
   })
 })
 
+describe('makeSelectVisibleTemplates', () => {
+  const GLOBAL: Template = { ...T1, id: 'g', workspaceId: null }
+  const OWN: Template = { ...T1, id: 'own', workspaceId: 'w1' }
+  const OTHER: Template = { ...T1, id: 'other', workspaceId: 'w2' }
+  const ORPHAN: Template = { ...T1, id: 'orphan', workspaceId: 'gone' }
+
+  it('keeps global rows and the active workspace’s own rows; drops every other scope', () => {
+    const s = createTemplatesStore()
+    s.getState().hydrate([GLOBAL, OWN, OTHER, ORPHAN])
+    const visible = makeSelectVisibleTemplates('w1')(s.getState())
+    expect(visible.map((t) => t.id)).toEqual(['g', 'own'])
+  })
+
+  it('a row scoped to a workspace that no longer exists is visible in NO workspace', () => {
+    const s = createTemplatesStore()
+    s.getState().hydrate([ORPHAN])
+    expect(makeSelectVisibleTemplates('w1')(s.getState())).toEqual([])
+    expect(makeSelectVisibleTemplates('w9')(s.getState())).toEqual([])
+  })
+})
+
 describe('templatesStore — bridge helpers', () => {
   it('loadTemplates hydrates from window.templates.list', async () => {
     stubBridge()
@@ -80,14 +104,16 @@ describe('templatesStore — bridge helpers', () => {
       cwd: '/api',
       model: 'opus',
       permissionMode: null,
-      effort: null
+      effort: null,
+      workspaceId: null
     })
     expect(bridge.save).toHaveBeenCalledWith({
       name: 'api',
       cwd: '/api',
       model: 'opus',
       permissionMode: null,
-      effort: null
+      effort: null,
+      workspaceId: null
     })
     expect(saved).toEqual(T1)
     expect(selectTemplates(templatesStore.getState())).toEqual([T1])
@@ -95,7 +121,14 @@ describe('templatesStore — bridge helpers', () => {
   it('saveTemplate RETHROWS so the form can show the reason', async () => {
     stubBridge({ save: vi.fn(() => Promise.reject(new Error('template_name_taken'))) })
     await expect(
-      saveTemplate({ name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null })
+      saveTemplate({
+        name: 'x',
+        cwd: '/x',
+        model: null,
+        permissionMode: null,
+        effort: null,
+        workspaceId: null
+      })
     ).rejects.toThrow('template_name_taken')
   })
   it('removeTemplate hydrates with the returned list; a failure logs a code', async () => {

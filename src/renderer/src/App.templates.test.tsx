@@ -23,7 +23,8 @@ const T1: Template = {
   cwd: '/home/op/api',
   model: 'opus',
   permissionMode: 'plan',
-  effort: null
+  effort: null,
+  workspaceId: null
 }
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
@@ -94,8 +95,12 @@ beforeEach(() => {
     stop: vi.fn(() => Promise.resolve()),
     onExit: vi.fn(() => () => {})
   }
-  launch = vi.fn(() => Promise.resolve({ terminalId: 'launch-term-folder' }))
-  launchFromTemplate = vi.fn(() => Promise.resolve({ terminalId: 'launch-term-tpl' }))
+  launch = vi.fn(() =>
+    Promise.resolve({ terminalId: 'launch-term-folder', workspaceId: 'default' })
+  )
+  launchFromTemplate = vi.fn(() =>
+    Promise.resolve({ terminalId: 'launch-term-tpl', workspaceId: 'default' })
+  )
   pickDirectory = vi.fn(() => Promise.resolve('/home/op/project'))
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory,
@@ -224,7 +229,7 @@ describe('App — session templates', () => {
         return () => {}
       })
     }
-    boardStore.getState().openLaunchedTerminal('launch-dead', 'dead')
+    boardStore.getState().openLaunchedTerminal('launch-dead', 'dead', 'default')
     const r = await renderApp()
 
     act(() => exitCbs.forEach((cb) => cb({ terminalId: 'launch-dead', exitCode: 0 })))

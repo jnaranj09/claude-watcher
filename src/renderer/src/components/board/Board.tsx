@@ -31,6 +31,9 @@ import {
   selectStartingTerminals,
   HERO_COLUMN
 } from '../../stores/boardStore'
+// Workspaces (Task 9a) — Board is a component, so it reads the active workspace itself (per
+// task instructions) and passes it into the now-required workspace-scoped selectors below.
+import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
@@ -80,6 +83,8 @@ export interface BoardProps {
   onManageTemplates?: () => void
   /** Session-naming A2 — card rename seam (the pencil). Omitted ⇒ no pencil is rendered. */
   onRenameCard?: (id: string) => void
+  /** Task 12 — card move-to-workspace seam. Omitted ⇒ no move affordance is rendered. */
+  onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
 }
 
 export function Board({
@@ -87,19 +92,25 @@ export function Board({
   onNewSession,
   onPickTemplate,
   onManageTemplates,
-  onRenameCard
+  onRenameCard,
+  onMoveCardToWorkspace
 }: BoardProps): JSX.Element {
+  // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
+  // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const coldLoaded = useBoard(selectColdLoaded)
-  const total = useBoard(selectTotalCount)
-  const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you'))
-  const workingCount = useBoard((s) => selectColumnCount(s, 'working'))
-  const idleCount = useBoard((s) => selectColumnCount(s, 'idle'))
+  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId))
+  const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you', activeWorkspaceId))
+  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId))
+  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId))
   // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
   const selectedId = useBoard(selectSelectedId)
   // Story 5.6 (AC-6 optional) — starting terminals count (for the empty-board copy softening).
   // useShallow required (array selector). We only need the count here; the StartingBanner
   // component subscribes independently to the full list.
-  const startingCount = useBoard(useShallow((s) => selectStartingTerminals(s).length))
+  const startingCount = useBoard(
+    useShallow((s) => selectStartingTerminals(s, activeWorkspaceId).length)
+  )
 
   // Mount the watch subscription ONCE; feed validated deltas into the store. The
   // store applies idempotently (stale-epoch discard) so a reconnect never drops a
@@ -206,6 +217,7 @@ export function Board({
               selectedId={selectedId}
               {...(onActivateCard ? { onActivateCard } : {})}
               {...(onRenameCard ? { onRenameCard } : {})}
+              {...(onMoveCardToWorkspace ? { onMoveCardToWorkspace } : {})}
             />
           ))}
         </div>

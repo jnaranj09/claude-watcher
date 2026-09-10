@@ -21,9 +21,10 @@
 // NO IPC, NO store). The card is keyboard-focusable with a lavender AA focus ring
 // and calls `onActivate` on click/Enter — the handler is wired by Story 1.4; this
 // component only takes the callback. Status is dot + text label (never color-only).
-import type { JSX, KeyboardEvent, MouseEvent } from 'react'
+import { useRef, useState, type JSX, type KeyboardEvent, type MouseEvent } from 'react'
 import { StatusDot, type DotStatus } from '../StatusDot/StatusDot'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
+import type { Workspace } from '../../../../shared/ipc/contract'
 import styles from './SessionCard.module.css'
 
 export type SessionCardVariant = 'hero' | 'calm'
@@ -67,6 +68,20 @@ export interface SessionCardProps {
    * focused-session view behind the dialog.
    */
   onRename?: () => void
+  /**
+   * Workspaces (Task 12) — the move-to-workspace targets. Omitted (along with
+   * `onMoveToWorkspace`) ⇒ the card renders no move affordance at all — the same
+   * optional-seam pattern as `onRename`.
+   */
+  workspaces?: Workspace[]
+  /** Workspaces — the session's OWN workspace. Never offered as a move target. */
+  currentWorkspaceId?: string
+  /**
+   * Workspaces — the operator picked a target workspace from the move affordance. Optional:
+   * omitted ⇒ no move control is rendered. Same stopPropagation requirement as `onRename` — the
+   * control is a DOM child of the card's own `role="button"`.
+   */
+  onMoveToWorkspace?: (workspaceId: string) => void
   /** Story 2.2 (FR-9) — true when this card is the SELECTED card (the operator activated a
    *  notification for this session and the window is up). Renders a locate-and-highlight
    *  affordance via the shipped lavender focus-ring / raised-surface tokens — NOT a new color,
@@ -104,9 +119,22 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     cost,
     onActivate,
     onRename,
+    workspaces,
+    currentWorkspaceId,
+    onMoveToWorkspace,
     selected = false,
     emphasized = false
   } = props
+
+  // Workspaces (Task 12) — local, presentational toggle for the move-target list. Ephemeral UI
+  // state only (not session truth, not persisted) — the same category of local state the header
+  // WorkspaceSwitcher popover already uses.
+  const [moveOpen, setMoveOpen] = useState(false)
+  const moveButtonRef = useRef<HTMLButtonElement | null>(null)
+  // Review finding 2 — an empty target list is a control that opens nothing, which is a defect,
+  // not a valid state. Computed once here so the render guard below and the menu's map share the
+  // SAME filtered list (never re-derived, never drifting).
+  const otherWorkspaces = (workspaces ?? []).filter((w) => w.id !== currentWorkspaceId)
 
   // The accent bar only renders on the hero variant (calm is recessed).
   const accentClass = variant === 'hero' ? ACCENT_CLASS[accent] : ''
@@ -146,6 +174,58 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       // Do NOT preventDefault: that would suppress the button's own native click, which is what
       // actually invokes onRename. Only stop the bubble to the card.
       e.stopPropagation()
+    }
+  }
+
+  // Workspaces (Task 12) — the SAME LOAD-BEARING guard pair as the rename pencil above, copied
+  // verbatim (click + keydown), for the SAME reason: this toggle is a DOM child of the card's own
+  // `role="button"` onClick/onKeyDown, so a bare handler here would ALSO activate the card, and a
+  // keyboard Enter/Space would bubble a keydown to the card's handleKeyDown BEFORE the browser
+  // synthesizes the button's own click — stopping only the click leaves that path activating the
+  // card underneath.
+  const handleMoveToggleClick = (e: MouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation()
+    setMoveOpen((v) => !v)
+  }
+
+  const handleMoveToggleKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Do NOT preventDefault — see handleRenameKeyDown above.
+      e.stopPropagation()
+    }
+  }
+
+  // Each move-target row is ALSO a DOM child of the card's role="button" — the same guard applies
+  // (picking a workspace must not also activate/open the card underneath the closing menu).
+  const handleMoveItemClick = (e: MouseEvent<HTMLButtonElement>, workspaceId: string): void => {
+    e.stopPropagation()
+    setMoveOpen(false)
+    onMoveToWorkspace?.(workspaceId)
+  }
+
+  // Review finding 1 — the SAME keyboard race as the toggle (handleMoveToggleKeyDown above), one
+  // level down: a keyboard operator who tabs to a row and presses Enter/Space fires a keydown that
+  // bubbles to the card's handleKeyDown BEFORE the browser synthesizes the row button's own click.
+  // Stopping only the row's onClick (handleMoveItemClick) leaves this path activating the card.
+  const handleMoveItemKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Do NOT preventDefault — see handleRenameKeyDown above.
+      e.stopPropagation()
+    }
+  }
+
+  // Review finding 3 — Escape-to-close, matching WorkspaceSwitcher's popover exactly (same
+  // mechanism, no arrow-key roving added here either). The handler lives on the menu element,
+  // which exists ONLY while `moveOpen` — so it can never swallow Escape anywhere else in the app.
+  const closeMoveMenuAndRefocus = (): void => {
+    setMoveOpen(false)
+    moveButtonRef.current?.focus()
+  }
+
+  const handleMoveMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      closeMoveMenuAndRefocus()
     }
   }
 
@@ -199,6 +279,62 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
               <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
             </svg>
           </button>
+        )}
+        {/* Workspaces (Task 12) — move-to-workspace affordance. Same reveal-on-hover/focus-within
+            + always-tab-reachable treatment as the pencil, and the same optional-seam rule:
+            rendered only when `onMoveToWorkspace` is wired AND at least one OTHER workspace
+            exists to move to (review finding 2 — a control that opens onto nothing is a defect,
+            not a valid state; the single-workspace install is the common case this guards). */}
+        {onMoveToWorkspace !== undefined && otherWorkspaces.length > 0 && (
+          <div className={styles.moveWrap}>
+            <button
+              ref={moveButtonRef}
+              type="button"
+              className={styles.renameButton}
+              data-testid="card-move"
+              aria-haspopup="menu"
+              aria-expanded={moveOpen}
+              aria-label={`Move ${sessionName} to another workspace`}
+              title={`Move ${sessionName} to another workspace`}
+              onClick={handleMoveToggleClick}
+              onKeyDown={handleMoveToggleKeyDown}
+            >
+              {/* Inline SVG folder-arrow glyph: no icon dependency, `currentColor` inherits the
+                  card's text ramp the same way the pencil's does. aria-hidden — the button's
+                  aria-label is the accessible name. */}
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M2 4.5h4l1.5 2H14v6.5H2z" />
+                <path d="M8 8.5v3M6.5 10h3" />
+              </svg>
+            </button>
+            {moveOpen && (
+              <div className={styles.moveMenu} role="menu" onKeyDown={handleMoveMenuKeyDown}>
+                {otherWorkspaces.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    role="menuitem"
+                    className={styles.moveMenuItem}
+                    data-testid={`card-move-${w.id}`}
+                    onClick={(e) => handleMoveItemClick(e, w.id)}
+                    onKeyDown={handleMoveItemKeyDown}
+                  >
+                    {w.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         <StatusDot status={status} labelHidden />
       </div>

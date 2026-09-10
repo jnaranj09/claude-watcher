@@ -19,7 +19,8 @@ const T: Template = {
   cwd: '/api',
   model: 'opus',
   permissionMode: 'plan',
-  effort: 'high'
+  effort: 'high',
+  workspaceId: null
 }
 
 describe('draft ⇄ template', () => {
@@ -31,7 +32,8 @@ describe('draft ⇄ template', () => {
       modelChoice: 'default',
       customModel: '',
       permissionChoice: 'default',
-      effortChoice: 'default'
+      effortChoice: 'default',
+      workspaceId: null
     })
   })
   it('modelChoiceOf: null → default, alias → alias, anything else → custom with the text', () => {
@@ -47,8 +49,16 @@ describe('draft ⇄ template', () => {
       modelChoice: 'custom',
       customModel: 'claude-x',
       permissionChoice: 'default',
-      effortChoice: 'default'
+      effortChoice: 'default',
+      workspaceId: null
     })
+  })
+  // Fix round 1, Finding 1 — the clobber this guards against: main's save() has no
+  // partial-update path, so an edit that does not carry the existing scope resets it to
+  // GLOBAL. toDraft must carry a NON-null scope through unchanged (a null-only assertion
+  // would pass even if toDraft hardcoded null).
+  it('toDraft carries a SCOPED template workspaceId through unchanged', () => {
+    expect(toDraft({ ...T, workspaceId: 'w1' }).workspaceId).toBe('w1')
   })
 })
 
@@ -62,15 +72,30 @@ describe('validateDraft', () => {
         cwd: '/api',
         model: 'opus',
         permissionMode: 'plan',
-        effort: 'high'
+        effort: 'high',
+        workspaceId: null
       }
     })
+  })
+  // Fix round 1, Finding 1 — THE test that pins the fix: editing a SCOPED template must
+  // preserve its scope, not reset it to GLOBAL. Hardcoding `workspaceId: null` in
+  // validateDraft's candidate (the reverted defect) would turn this red.
+  it('editing a SCOPED template preserves the scope (does not clobber it to GLOBAL)', () => {
+    const v = validateDraft(toDraft({ ...T, workspaceId: 'w1' }))
+    expect(v.ok && v.request.workspaceId).toBe('w1')
   })
   it('a new draft has NO id key at all (exactOptionalPropertyTypes)', () => {
     const v = validateDraft({ ...emptyDraft(), name: 'x', cwd: '/x' })
     expect(v).toEqual({
       ok: true,
-      request: { name: 'x', cwd: '/x', model: null, permissionMode: null, effort: null }
+      request: {
+        name: 'x',
+        cwd: '/x',
+        model: null,
+        permissionMode: null,
+        effort: null,
+        workspaceId: null
+      }
     })
     expect(v.ok && 'id' in v.request).toBe(false)
   })
@@ -115,6 +140,19 @@ describe('isDraftDirty', () => {
   it('an unchanged template draft is clean; a changed flag is dirty', () => {
     expect(isDraftDirty(toDraft(T), T)).toBe(false)
     expect(isDraftDirty({ ...toDraft(T), permissionChoice: 'auto' }, T)).toBe(true)
+  })
+  // `toDraft` round-trips workspaceId UNCHANGED, so an already-scoped template that nobody
+  // edited must still read clean. (The companion test below covers the other direction — an
+  // actual scope CHANGE does make the draft dirty.)
+  it('an unchanged SCOPED template draft stays clean', () => {
+    const scoped: Template = { ...T, workspaceId: 'w1' }
+    expect(isDraftDirty(toDraft(scoped), scoped)).toBe(false)
+  })
+  // Task 11 — the scope select IS a real control now, so normalize() must include workspaceId.
+  // Reverting that inclusion (the pre-Task-11 state) must turn this red.
+  it('changing only the scope (workspaceId) makes the draft dirty', () => {
+    expect(isDraftDirty(toDraft(T), T)).toBe(false)
+    expect(isDraftDirty({ ...toDraft(T), workspaceId: 'w1' }, T)).toBe(true)
   })
 })
 

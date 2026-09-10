@@ -7,7 +7,8 @@ import {
   PERMISSION_MODES,
   EFFORT_LEVELS,
   TEMPLATE_NAME_MAX_LENGTH,
-  MODEL_NAME_MAX_LENGTH
+  MODEL_NAME_MAX_LENGTH,
+  TEMPLATES_FILE_VERSION
 } from './template'
 
 const VALID = {
@@ -16,7 +17,8 @@ const VALID = {
   cwd: '/home/op/work/api',
   model: 'opus',
   permissionMode: 'acceptEdits',
-  effort: 'high'
+  effort: 'high',
+  workspaceId: null
 }
 
 describe('TemplateSchema — fail-closed (our shape, no passthrough)', () => {
@@ -139,5 +141,22 @@ describe('effort — the --effort level (additive, backward compatible)', () => 
     ['an object', {}]
   ])('rejects %s', (_label, effort) => {
     expect(TemplateSchema.safeParse({ ...VALID, effort }).success).toBe(false)
+  })
+})
+
+describe('workspaceId — the item-level scope (Task 6)', () => {
+  it('defaults workspaceId to null for a file written before the field existed', () => {
+    const legacy = {
+      version: 1,
+      templates: [
+        { id: 't1', name: 'T', cwd: '/p', model: null, permissionMode: null, effort: null }
+      ]
+    }
+    const parsed = TemplatesFileSchema.parse(legacy)
+    expect(parsed.templates[0]?.workspaceId).toBeNull()
+  })
+
+  it('keeps TEMPLATES_FILE_VERSION at 1 — a bump would wipe every saved template', () => {
+    expect(TEMPLATES_FILE_VERSION).toBe(1)
   })
 })

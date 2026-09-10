@@ -29,6 +29,7 @@
 // display:none. [Source: src/renderer/src/SmokeCockpit.tsx; .claude/rules/terminal.md;
 //  src/renderer/src/styles/xtermTheme.ts; src/renderer/src/stores/settingsStore.ts]
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -42,7 +43,8 @@ import type {
 } from '../../../shared/ipc/contract'
 import { xtermTheme } from '../styles/xtermTheme'
 import { useSettings, selectTerminalFontSize } from '../stores/settingsStore'
-import { useShortcuts, selectShortcuts } from '../stores/shortcutsStore'
+import { useShortcuts, makeSelectVisibleShortcuts } from '../stores/shortcutsStore'
+import { selectActiveWorkspaceId, useWorkspaces } from '../stores/workspacesStore'
 import {
   buildSequenceIndex,
   reduceKeyDown,
@@ -139,7 +141,13 @@ export function EmbeddedTerminal({
   // consumed as a prebuilt INDEX read through a ref inside the key handler, so the shortcut list
   // is NOT a dependency of the create-effect: editing a shortcut must never tear down + recreate
   // the terminal (which would dispose the pty). Same pattern as fontSizeRef. [terminal.md]
-  const shortcuts = useShortcuts(selectShortcuts)
+  //
+  // Workspaces (Task 11) — scoped to Global + the ACTIVE workspace, not a per-terminal lookup:
+  // `focusWorkspace` (boardStore) guarantees the focused terminal always belongs to the active
+  // workspace, so reading the active id directly is exact and cheap on this keystroke path.
+  // useShallow because makeSelectVisibleShortcuts returns a new filtered array.
+  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const shortcuts = useShortcuts(useShallow(makeSelectVisibleShortcuts(activeWorkspaceId)))
   const sequenceIndexRef = useRef<SequenceIndex>({ byId: new Map(), prefixes: new Set() })
   /** The chords accepted so far in a multi-chord sequence; [] = idle. Per TERMINAL, so a
    *  half-typed sequence can never leak into another session. */

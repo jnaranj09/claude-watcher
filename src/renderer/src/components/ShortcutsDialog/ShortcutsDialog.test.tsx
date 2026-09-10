@@ -8,10 +8,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { chooseOption, optionValues } from '../../test/selectHarness'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
+import { workspacesStore } from '../../stores/workspacesStore'
+import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 
-const A = { id: 'sc-1', name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve' }
+const A = {
+  id: 'sc-1',
+  name: 'approve',
+  keys: ['Ctrl+Alt+A'],
+  text: 'I explicitly approve',
+  workspaceId: null
+}
 
 let saveMock: ReturnType<typeof vi.fn>
 let removeMock: ReturnType<typeof vi.fn>
@@ -31,6 +40,9 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   act(() => shortcutsStore.getState().hydrate([]))
+  act(() =>
+    workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
+  )
   vi.restoreAllMocks()
 })
 
@@ -100,7 +112,15 @@ describe('ShortcutsDialog', () => {
   it('renders a multi-chord binding as a space-joined sequence', () => {
     act(() =>
       shortcutsStore.setState({
-        shortcuts: [{ id: 'sc-2', name: 'long', keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'], text: 'go' }],
+        shortcuts: [
+          {
+            id: 'sc-2',
+            name: 'long',
+            keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+            text: 'go',
+            workspaceId: null
+          }
+        ],
         loaded: true
       })
     )
@@ -127,7 +147,8 @@ describe('ShortcutsDialog', () => {
     expect(saveMock).toHaveBeenCalledWith({
       name: 'approve',
       keys: ['Ctrl+Alt+A'],
-      text: 'I explicitly approve'
+      text: 'I explicitly approve',
+      workspaceId: null
     })
   })
 
@@ -149,7 +170,8 @@ describe('ShortcutsDialog', () => {
     expect(saveMock).toHaveBeenCalledWith({
       name: 'approve',
       keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 'go ahead'
+      text: 'go ahead',
+      workspaceId: null
     })
   })
 
@@ -300,5 +322,50 @@ describe('ShortcutsDialog', () => {
     expect(document.body.textContent).toContain('You press Enter to send.')
     click(byTestId('shortcuts-add'))
     expect(document.body.textContent).toContain('Nothing is sent until you press Enter.')
+  })
+
+  // --- Task 11: scope control + orphan grouping (mirrors TemplatesDialog.test.tsx) -----------
+  it('saves the scope chosen in the form', () => {
+    act(() =>
+      workspacesStore.setState({
+        activeId: 'w1',
+        workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+        loaded: true
+      })
+    )
+    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+    render()
+    click(byTestId('shortcuts-add'))
+    type(byTestId('shortcut-name-input'), 'approve')
+    type(byTestId('shortcut-text-input'), 'I explicitly approve')
+    recordChord('a')
+    chooseOption(document, 'shortcut-scope', 'w1')
+
+    click(byTestId('shortcut-save'))
+
+    expect(saveMock).toHaveBeenCalledWith({
+      name: 'approve',
+      keys: ['Ctrl+Alt+A'],
+      text: 'I explicitly approve',
+      workspaceId: 'w1'
+    })
+  })
+
+  it('keeps a row whose workspace is gone reachable', () => {
+    act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
+    act(() =>
+      shortcutsStore.setState({
+        shortcuts: [
+          { id: 'orphan', name: 'Orphan', keys: ['Ctrl+Alt+Z'], text: 'z', workspaceId: 'gone' }
+        ],
+        loaded: true
+      })
+    )
+    render()
+    // No scope sections any more — the row stays REACHABLE instead: listed under
+    // `All shortcuts` (the fallback here, since no workspace matches the active id) and
+    // selectable from its own `(no workspace)` entry in the header dropdown.
+    expect(byTestId('shortcut-row-orphan')?.textContent).toContain('Orphan')
+    expect(optionValues(document, 'shortcut-scope-filter')).toContain('orphans')
   })
 })

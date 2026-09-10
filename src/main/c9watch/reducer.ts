@@ -109,6 +109,19 @@ export interface Reducer {
    */
   renameSession(id: string, name: string): SessionDelta[]
   /**
+   * Workspaces — move an EXISTING session to another workspace. Swaps `workspaceId` and
+   * NOTHING else.
+   *
+   * Unknown `id` → `[]` + logs `{ path: '(set-workspace)', code: 'set_workspace_unknown_id' }`,
+   * mirroring `rename_unknown_id`: a move must never SYNTHESIZE a card (Story-3.3 ship gate).
+   * An unchanged workspace → `[]` silently (no delta for a no-op click).
+   *
+   * DOES NOT REORDER THE BOARD. `enteredColumnAt` is stamped by `attention.ts` only on a COLUMN
+   * change, and this re-emits with an UNCHANGED status — so the sort key survives. Do not add a
+   * re-stamp here; moving a card between workspaces is not a state transition.
+   */
+  setWorkspace(id: string, workspaceId: string): SessionDelta[]
+  /**
    * Deterministic-attention — the operator VIEWED this session (active rail tab in a
    * focused window). Demotes ONLY `YourTurn` → `WaitingForInput` (idle); ANY other
    * status — a question, a permission wait, active work, already idle, or an unknown
@@ -234,6 +247,24 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   }
 
   /**
+   * Workspaces — move an existing session to another workspace (see the interface doc).
+   * Unknown id → [] + log set_workspace_unknown_id (never synthesize a card from a move).
+   */
+  function setWorkspace(id: string, workspaceId: string): SessionDelta[] {
+    const stored = map.get(id)
+    if (stored === undefined) {
+      // Path marks the boundary; the workspace id is opaque but the session is not logged.
+      log({ path: '(set-workspace)', code: 'set_workspace_unknown_id' })
+      return []
+    }
+    if (stored.workspaceId === workspaceId) return []
+    const moved: Session = { ...stored, workspaceId }
+    map.set(id, moved)
+    lastApplied = now()
+    return [frame(toUpdated(moved))]
+  }
+
+  /**
    * Deterministic-attention — see the interface doc. Guarded demotion: only a stored
    * `YourTurn` session moves to `WaitingForInput`; every other case (unknown id, or a
    * known id in ANY other status) is a silent no-op — no delta, no log.
@@ -251,6 +282,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     applyHookStatus,
     upsertLaunched,
     renameSession,
+    setWorkspace,
     markSeen,
     // A defensive copy so callers can never mutate the authoritative map.
     snapshotMap: (): Map<string, Session> => new Map(map),
