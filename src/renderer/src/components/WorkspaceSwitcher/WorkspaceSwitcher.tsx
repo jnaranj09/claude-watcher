@@ -190,14 +190,15 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
               >
                 <WorkspaceDot tone={w.color} />
                 <span className={styles.rowName}>{w.name}</span>
-                {needsYou > 0 && (
-                  <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
-                    {needsYou}
-                  </span>
-                )}
+                {/* Grey, then yellow — the button's order, so the pair reads the same everywhere. */}
                 {grey !== null && (
                   <span className={styles.rowCount} data-testid={`workspace-row-count-${w.id}`}>
                     {grey}
+                  </span>
+                )}
+                {needsYou > 0 && (
+                  <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
+                    {needsYou}
                   </span>
                 )}
               </button>
