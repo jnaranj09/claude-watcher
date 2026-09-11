@@ -54,17 +54,10 @@
   align-self: baseline;
 }
 
-/* The cards that do NOT need you (the pill counts the rest). --text-secondary, not --text-muted:
-   it sits on a raised surface (design.md). */
-.count {
-  color: var(--text-secondary);
-  font-size: var(--font-size-meta);
-  font-variant-numeric: tabular-nums;
-}
-
-/* The needs-you pill — in the button (this workspace), on the tab (other workspaces) and on each
-   menu row. Same visual weight as the needs-you accent used elsewhere on the board
-   (StatusDot/AttentionRail), so "something needs you" reads consistently. */
+/* Every count in the switcher is a pill of ONE shape — the grey total and the needs-you pill differ
+   only by fill, so they read as a pair. A bare grey digit beside a pill looked unfinished. */
+.count,
+.rowCount,
 .badge {
   display: inline-flex;
   align-items: center;
@@ -73,12 +66,26 @@
   height: 14px;
   padding: 0 3px;
   border-radius: var(--rounded-full);
-  background: var(--needs-you);
-  color: var(--bg-base);
   font-size: 10px;
   font-weight: var(--font-weight-heading);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+/* The cards that do NOT need you (the yellow pill counts the rest). A neutral fill from the
+   raised-surface family; --text-primary on it measures ~7:1. */
+.count,
+.rowCount {
+  background: var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* The needs-you pill — in the button (this workspace), on the tab (other workspaces) and on each
+   menu row. Same visual weight as the needs-you accent used elsewhere on the board
+   (StatusDot/AttentionRail), so "something needs you" reads consistently. */
+.badge {
+  background: var(--needs-you);
+  color: var(--bg-base);
 }
 
 /* The elsewhere tab — cards needing you in OTHER workspaces. One layer below the button, its left
@@ -196,11 +203,6 @@
 
 .rowCount {
   flex: none;
-  min-width: 2ch;
-  color: var(--text-secondary);
-  font-size: var(--font-size-meta);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 .manage {
