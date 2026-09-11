@@ -13,6 +13,7 @@ import { act } from 'react'
 import { SettingsPanel } from './Settings'
 import { settingsStore } from '../../stores/settingsStore'
 import { renderComponent } from '../../test/renderComponent'
+import { chooseOption, selectedValue, optionValues, optionLabel } from '../../test/selectHarness'
 import {
   DEFAULT_SETTINGS,
   type Settings,
@@ -59,25 +60,27 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
   return { setCalls }
 }
 
-describe('SettingsPanel — exactly two controls, no hotkey (AC-4)', () => {
-  // Story 2.4 froze this panel at EXACTLY TWO controls (F3 / UX-DR30). A background-work
-  // release window was briefly added as a third and has been removed again — claude announces
-  // the end of background work itself, so there was never anything for the operator to tune.
-  // The count is asserted so a third control cannot arrive unnoticed.
-  it('renders EXACTLY two interactive controls (sound + font-size)', () => {
+describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
+  // Story 2.4 froze this panel at two controls (F3 / UX-DR30). Attention reminders (spec
+  // 2026-09-10) deliberately added two dropdowns: how many reminders, and the first delay. The
+  // count is asserted so a fifth control cannot arrive unnoticed.
+  it('renders the sound toggle, the font-size range and the two reminder dropdowns — nothing else', () => {
     stubSettings()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
 
-    const sound = container.querySelector('[data-testid="settings-sound-toggle"]')
-    const fontSize = container.querySelector('[data-testid="settings-font-size"]')
-    expect(sound).not.toBeNull()
-    expect(fontSize).not.toBeNull()
-
-    // No more than these two form controls in the panel body (close button is not a setting).
+    for (const testId of [
+      'settings-sound-toggle',
+      'settings-font-size',
+      'settings-reminder-count',
+      'settings-reminder-first-delay'
+    ]) {
+      expect(container.querySelector(`[data-testid="${testId}"]`)).not.toBeNull()
+    }
     const panel = container.querySelector('[data-testid="settings-panel"]')
-    const formControls = panel?.querySelectorAll('input, select') ?? []
-    expect(formControls.length).toBe(2)
+    expect(panel?.querySelectorAll('input, select, [aria-haspopup="listbox"]').length).toBe(4)
+    // design.md: a native <select> is banned.
+    expect(panel?.querySelectorAll('select').length).toBe(0)
   })
 
   it('has NO hotkey/keybinding control (FR-8 row CUT)', () => {
@@ -96,6 +99,14 @@ describe('SettingsPanel — exactly two controls, no hotkey (AC-4)', () => {
     cleanup = unmount
     expect(container.querySelector('label[for="settings-sound-enabled"]')).not.toBeNull()
     expect(container.querySelector('label[for="settings-terminal-font-size"]')).not.toBeNull()
+    expect(
+      container.querySelector('[data-testid="settings-reminder-count"]')?.getAttribute('aria-label')
+    ).toBe('Reminders')
+    expect(
+      container
+        .querySelector('[data-testid="settings-reminder-first-delay"]')
+        ?.getAttribute('aria-label')
+    ).toBe('First reminder after')
   })
 })
 
@@ -161,5 +172,73 @@ describe('SettingsPanel — the retired background-work window is not rendered',
     cleanup = unmount
 
     expect(container.querySelector('[data-testid="settings-background-timeout"]')).toBeNull()
+  })
+})
+
+describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
+  it('shows the stored values: 3 reminders, first after 2 min', () => {
+    stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    expect(selectedValue(container, 'settings-reminder-count')).toBe('3')
+    expect(selectedValue(container, 'settings-reminder-first-delay')).toBe('2')
+  })
+
+  it('offers Off and 1–5 reminders', () => {
+    stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    expect(optionValues(container, 'settings-reminder-count')).toEqual([
+      '0',
+      '1',
+      '2',
+      '3',
+      '4',
+      '5'
+    ])
+    expect(optionLabel(container, 'settings-reminder-count', '0')).toBe('Off')
+  })
+
+  it('offers first delays of exactly 1, 2, 5, 10, 15 min', () => {
+    stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    expect(optionValues(container, 'settings-reminder-first-delay')).toEqual([
+      '1',
+      '2',
+      '5',
+      '10',
+      '15'
+    ])
+    expect(optionLabel(container, 'settings-reminder-first-delay', '10')).toBe('10 min')
+  })
+
+  it('the helper line reads the reminder times for the current values', () => {
+    stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="settings-reminder-summary"]')?.textContent).toBe(
+      'For permission prompts and questions: +2, +6, +14 min'
+    )
+  })
+
+  it('choosing Off persists { reminderCount: 0 }, hides the delay row, and says Off', () => {
+    const stub = stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    chooseOption(container, 'settings-reminder-count', '0')
+    expect(stub.setCalls).toContainEqual({ reminderCount: 0 })
+    expect(container.querySelector('[data-testid="settings-reminder-first-delay"]')).toBeNull()
+    expect(container.querySelector('[data-testid="settings-reminder-summary"]')?.textContent).toBe(
+      'Off — one alert per permission prompt or question'
+    )
+  })
+
+  it('choosing 5 min persists { reminderFirstDelayMinutes: 5 }', () => {
+    const stub = stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    chooseOption(container, 'settings-reminder-first-delay', '5')
+    expect(stub.setCalls).toContainEqual({ reminderFirstDelayMinutes: 5 })
   })
 })

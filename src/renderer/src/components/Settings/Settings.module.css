@@ -81,6 +81,14 @@
   text-align: right;
 }
 
+/* Attention reminders — the line under the reminder rows. --text-secondary, never --text-muted:
+   muted on this raised panel measures 2.54:1 (design.md). */
+.hint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 /* The header gear that opens the surface. */
 .openButton {
   background: transparent;
