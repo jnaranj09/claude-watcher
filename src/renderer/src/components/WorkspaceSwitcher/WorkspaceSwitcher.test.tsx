@@ -14,13 +14,20 @@ import { renderComponent, fireEvent, type RenderResult } from '../../test/render
 import { boardStore } from '../../stores/boardStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
+import type { Column } from '../../../../shared/ipc/contract'
 
 const rows = [
   { id: 'default', name: 'Default', color: 'slate' as const, defaultCwd: null },
   { id: 'w1', name: 'Ops', color: 'blue' as const, defaultCwd: null }
 ]
 
-function seedNeedsYou(workspaceId: string, id: string): void {
+const STATUS_FOR: Record<Column, string> = {
+  'needs-you': 'YourTurn',
+  working: 'Working',
+  idle: 'Idle'
+}
+
+function seedCard(workspaceId: string, id: string, column: Column): void {
   act(() => {
     boardStore.getState().applyWatchEvent({
       epoch: 0,
@@ -29,14 +36,18 @@ function seedNeedsYou(workspaceId: string, id: string): void {
         id,
         sessionName: id,
         projectPath: '/p',
-        status: 'YourTurn',
-        column: 'needs-you',
+        status: STATUS_FOR[column],
+        column,
         enteredColumnAt: 1,
         pid: 1,
         workspaceId
       }
     })
   })
+}
+
+function seedNeedsYou(workspaceId: string, id: string): void {
+  seedCard(workspaceId, id, 'needs-you')
 }
 
 let cleanup: (() => void) | undefined
@@ -93,26 +104,146 @@ describe('WorkspaceSwitcher', () => {
     expect(q(r, '[data-testid="workspace-switcher"]').textContent).toContain('Default')
   })
 
-  it('badges the OTHER workspaces needs-you total, not the active one', () => {
+  // The grey number is the cards that do NOT need you — the pill beside it counts the rest, so
+  // "2 sessions, 1 needs you" reads `1 (1)`, never `2 (1)`.
+  it('shows the active workspace cards that do not need you, inside the button', () => {
+    seedCard('default', 'a', 'needs-you')
+    seedCard('default', 'b', 'working')
+    seedCard('default', 'c', 'idle')
+    seedCard('w1', 'd', 'working')
+    const r = renderSwitcher()
+    const count = q(r, '[data-testid="workspace-switcher"] [data-testid="workspace-card-count"]')
+    expect(count.textContent).toBe('2')
+  })
+
+  it('hides the grey count when every active card needs you — the pill alone, never 0 (1)', () => {
+    seedNeedsYou('default', 'a')
+    const r = renderSwitcher()
+    expect(r.container.querySelector('[data-testid="workspace-card-count"]')).toBeNull()
+    expect(q(r, '[data-testid="workspace-here-badge"]').textContent).toBe('1')
+  })
+
+  it('shows 0 when the active workspace has no cards', () => {
+    seedCard('w1', 'd', 'working')
+    const r = renderSwitcher()
+    expect(q(r, '[data-testid="workspace-card-count"]').textContent).toBe('0')
+  })
+
+  // The pill INSIDE the button means "this workspace needs you"; the tab BEHIND it means
+  // "another one does". The old single badge sat inside and meant the second — which read as
+  // the first (it pointed at the workspace on screen while the card was elsewhere).
+  it('badges the active workspace inside the button and the OTHER ones on the tab', () => {
     seedNeedsYou('default', 'a')
     seedNeedsYou('w1', 'b')
     seedNeedsYou('w1', 'c')
     const r = renderSwitcher()
-    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toContain('2')
+    const button = q(r, '[data-testid="workspace-switcher"]')
+    expect(q(r, '[data-testid="workspace-here-badge"]').textContent).toBe('1')
+    expect(button.contains(q(r, '[data-testid="workspace-here-badge"]'))).toBe(true)
+    const tab = q(r, '[data-testid="workspace-elsewhere-tab"]')
+    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('2')
+    expect(tab.contains(q(r, '[data-testid="workspace-elsewhere-badge"]'))).toBe(true)
+    expect(button.contains(tab)).toBe(false)
   })
 
-  it('renders no badge when only the active workspace needs you', () => {
+  it('renders no tab when only the active workspace needs you', () => {
     seedNeedsYou('default', 'a')
     const r = renderSwitcher()
-    expect(r.container.querySelector('[data-testid="workspace-elsewhere-badge"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="workspace-elsewhere-tab"]')).toBeNull()
   })
 
-  // Review finding 3 — the aria-label is screen-reader text; "1 sessions" reads wrong.
-  it('pluralizes the badge aria-label correctly for exactly one', () => {
+  it('renders no here-badge when only another workspace needs you', () => {
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
-    const badge = q(r, '[data-testid="workspace-elsewhere-badge"]')
-    expect(badge.getAttribute('aria-label')).toBe('1 session needs you in other workspaces')
+    expect(r.container.querySelector('[data-testid="workspace-here-badge"]')).toBeNull()
+  })
+
+  it('puts one dot per OTHER workspace needing you on the tab — list order, at most 3', () => {
+    workspacesStore.setState({
+      workspaces: [
+        ...rows,
+        { id: 'w2', name: 'Two', color: 'green', defaultCwd: null },
+        { id: 'w3', name: 'Three', color: 'rose', defaultCwd: null },
+        { id: 'w4', name: 'Four', color: 'violet', defaultCwd: null }
+      ]
+    })
+    seedNeedsYou('w4', 'a')
+    seedNeedsYou('w3', 'b')
+    seedNeedsYou('default', 'c')
+    seedNeedsYou('w1', 'd')
+    seedNeedsYou('w2', 'e')
+    const r = renderSwitcher()
+    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
+    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual([
+      'workspace-elsewhere-dot-w1',
+      'workspace-elsewhere-dot-w2',
+      'workspace-elsewhere-dot-w3'
+    ])
+    // The count still covers all four — the dots are capped, the number is not.
+    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('4')
+  })
+
+  // A card whose workspace was deleted still needs you; it gets the dim orphan dot, after the
+  // real workspaces.
+  it('gives a needs-you card in a deleted workspace a dot after the real ones', () => {
+    seedNeedsYou('gone', 'a')
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
+    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual([
+      'workspace-elsewhere-dot-w1',
+      'workspace-elsewhere-dot-gone'
+    ])
+  })
+
+  it('opens the dropdown from the tab too', () => {
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-elsewhere-tab"]'))
+    expect(r.container.querySelector('[role="menu"]')).not.toBeNull()
+  })
+
+  // The tab is aria-hidden (it is not its own Tab-key stop), so the button's accessible name
+  // must carry every count. Review finding 3 — "1 sessions" reads wrong: every noun agrees.
+  it('names every count in the button aria-label, singular for exactly one', () => {
+    seedNeedsYou('default', 'a')
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
+      'Default, 1 session, 1 needs you; 1 session needs you in other workspaces'
+    )
+  })
+
+  it('pluralizes the button aria-label and drops the counts that are zero', () => {
+    seedCard('default', 'a', 'working')
+    seedCard('default', 'b', 'idle')
+    const r = renderSwitcher()
+    expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
+      'Default, 2 sessions'
+    )
+  })
+
+  it('shows each row its cards that do not need you and a needs-you pill', () => {
+    seedCard('w1', 'b', 'needs-you')
+    seedCard('w1', 'c', 'working')
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(q(r, '[data-testid="workspace-row-count-w1"]').textContent).toBe('1')
+    expect(q(r, '[data-testid="workspace-row-needs-w1"]').textContent).toBe('1')
+    expect(q(r, '[data-testid="workspace-row-count-default"]').textContent).toBe('0')
+    expect(r.container.querySelector('[data-testid="workspace-row-needs-default"]')).toBeNull()
+    // Read aloud, the row still gives the TRUE total — "2 sessions, 1 needs you" is accurate.
+    expect(q(r, '[data-testid="workspace-row-w1"]').getAttribute('aria-label')).toBe(
+      'Ops, 2 sessions, 1 needs you'
+    )
+  })
+
+  it('hides a row grey count when every card in that workspace needs you', () => {
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(r.container.querySelector('[data-testid="workspace-row-count-w1"]')).toBeNull()
+    expect(q(r, '[data-testid="workspace-row-needs-w1"]').textContent).toBe('1')
   })
 
   it('lists every workspace with its own count and switches on click', async () => {

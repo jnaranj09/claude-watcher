@@ -25,6 +25,22 @@
   letter-spacing: 0.02em;
 }
 
+/* The brand + workspace switcher group. The switcher lives here, not among the actions, so it
+   reads as context (app / workspace, like a path) rather than one more control. */
+.headerLead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.headerDivider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+
 /* Story 3.2 (FR-11) — the header actions cluster: + New session (UX-DR21) + Settings. */
 .headerActions {
   display: flex;

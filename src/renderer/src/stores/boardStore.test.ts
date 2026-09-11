@@ -29,6 +29,7 @@ import {
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
   selectNeedsYouCountByWorkspace,
+  selectCardCountByWorkspace,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -977,6 +978,15 @@ describe('workspace filtering', () => {
     store.getState().applyWatchEvent(updated('c', 'w2', 'needs-you'))
     store.getState().applyWatchEvent(updated('d', 'w2', 'working'))
     expect(selectNeedsYouCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 2 })
+  })
+
+  it('counts every card per workspace, whatever its column, INCLUDING hidden ones', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().applyWatchEvent(updated('a', 'w1', 'needs-you'))
+    store.getState().applyWatchEvent(updated('b', 'w2', 'working'))
+    store.getState().applyWatchEvent(updated('c', 'w2', 'idle'))
+    store.getState().applyWatchEvent(updated('d', 'w2', 'needs-you'))
+    expect(selectCardCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 3 })
   })
 
   it('records the launch workspace on the terminal registry entry', () => {
