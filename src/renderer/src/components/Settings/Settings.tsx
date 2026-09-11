@@ -1,14 +1,16 @@
 // Story 2.4 — the minimal Settings surface (AC-4).
 //
-// FOUR controls: a SOUND on/off toggle, a TERMINAL FONT-SIZE control, and (spec 2026-09-10)
-// two ATTENTION-REMINDER dropdowns — how many times a still-blocked session is re-notified, and
-// the first reminder's delay. Story 2.4 froze this panel at exactly two (F3 / UX-DR30); a third
-// "background work gives up after" window was added with the background-work latch and then
-// removed, because claude ANNOUNCES the end of background work itself — a finished task wakes
-// the session, which fires a fresh `Stop` carrying an empty `background_tasks`, and the card
-// corrects itself ~4s later (probe-verified, claude 2.1.250). There was nothing left to time
-// out. The reminder rows use `Select` (`components/Select/Select.tsx`), never a native
-// `<select>` (banned — design.md). The
+// FOUR controls, IN ORDER: a SOUND on/off toggle, then (spec 2026-09-10) two ATTENTION-REMINDER
+// dropdowns — how many times a still-blocked session is re-notified, and the first reminder's
+// delay — then a TERMINAL FONT-SIZE control. The reminder rows sit directly after Attention
+// sound (spec §4): sound and reminders are both attention settings, so they read together;
+// font-size is unrelated and comes last. Story 2.4 froze this panel at exactly two (F3 /
+// UX-DR30); a third "background work gives up after" window was added with the background-work
+// latch and then removed, because claude ANNOUNCES the end of background work itself — a
+// finished task wakes the session, which fires a fresh `Stop` carrying an empty
+// `background_tasks`, and the card corrects itself ~4s later (probe-verified, claude 2.1.250).
+// There was nothing left to time out. The reminder rows use `Select`
+// (`components/Select/Select.tsx`), never a native `<select>` (banned — design.md). The
 // global-hotkey-binding row stays CUT (FR-8 dropped 2026-06-19). Reachable
 // from the header via a `⚙` gear button (EXPERIENCE.md:33). Reads the live projection off the
 // renderer settings store and writes back via window.settings.set(...) through
@@ -101,7 +103,53 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
           </div>
         </div>
 
-        {/* Control 2 — TERMINAL FONT-SIZE (a labeled range + readout; keyboard-operable). */}
+        {/* Control 2 — ATTENTION REMINDERS: how many times a session still blocked on a
+            permission prompt or a question is re-notified (spec 2026-09-10). 0 = Off. Sits
+            directly after Attention sound (spec §4) — both are attention settings. The label
+            is a <span>: a <label for> cannot address the Select's button (design.md). */}
+        <div className={styles.row}>
+          <span className={styles.label}>Reminders</span>
+          <div className={styles.controlGroup}>
+            <Select
+              value={String(reminderCount)}
+              options={REMINDER_COUNT_OPTIONS}
+              onChange={(next) => {
+                const n = Number(next)
+                if (Number.isInteger(n)) void persistSettingsPatch({ reminderCount: n })
+              }}
+              ariaLabel="Reminders"
+              testId="settings-reminder-count"
+            />
+          </div>
+        </div>
+
+        {/* Control 3 — the first reminder's delay; every later gap doubles. NOT rendered when
+            reminders are Off (design.md: a control the operator must not use is not rendered). */}
+        {reminderCount > 0 && (
+          <div className={styles.row}>
+            <span className={styles.label}>First reminder after</span>
+            <div className={styles.controlGroup}>
+              <Select
+                value={String(reminderFirstDelayMinutes)}
+                options={REMINDER_DELAY_OPTIONS}
+                onChange={(next) => {
+                  const minutes = REMINDER_FIRST_DELAY_OPTIONS.find((m) => String(m) === next)
+                  if (minutes !== undefined) {
+                    void persistSettingsPatch({ reminderFirstDelayMinutes: minutes })
+                  }
+                }}
+                ariaLabel="First reminder after"
+                testId="settings-reminder-first-delay"
+              />
+            </div>
+          </div>
+        )}
+
+        <p className={styles.hint} data-testid="settings-reminder-summary">
+          {reminderSummary(reminderCount, reminderFirstDelayMinutes)}
+        </p>
+
+        {/* Control 4 — TERMINAL FONT-SIZE (a labeled range + readout; keyboard-operable). */}
         <div className={styles.row}>
           <label className={styles.label} htmlFor="settings-terminal-font-size">
             Terminal font size
@@ -127,51 +175,6 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             </span>
           </div>
         </div>
-
-        {/* Control 3 — ATTENTION REMINDERS: how many times a session still blocked on a
-            permission prompt or a question is re-notified (spec 2026-09-10). 0 = Off. The label
-            is a <span>: a <label for> cannot address the Select's button (design.md). */}
-        <div className={styles.row}>
-          <span className={styles.label}>Reminders</span>
-          <div className={styles.controlGroup}>
-            <Select
-              value={String(reminderCount)}
-              options={REMINDER_COUNT_OPTIONS}
-              onChange={(next) => {
-                const n = Number(next)
-                if (Number.isInteger(n)) void persistSettingsPatch({ reminderCount: n })
-              }}
-              ariaLabel="Reminders"
-              testId="settings-reminder-count"
-            />
-          </div>
-        </div>
-
-        {/* Control 4 — the first reminder's delay; every later gap doubles. NOT rendered when
-            reminders are Off (design.md: a control the operator must not use is not rendered). */}
-        {reminderCount > 0 && (
-          <div className={styles.row}>
-            <span className={styles.label}>First reminder after</span>
-            <div className={styles.controlGroup}>
-              <Select
-                value={String(reminderFirstDelayMinutes)}
-                options={REMINDER_DELAY_OPTIONS}
-                onChange={(next) => {
-                  const minutes = REMINDER_FIRST_DELAY_OPTIONS.find((m) => String(m) === next)
-                  if (minutes !== undefined) {
-                    void persistSettingsPatch({ reminderFirstDelayMinutes: minutes })
-                  }
-                }}
-                ariaLabel="First reminder after"
-                testId="settings-reminder-first-delay"
-              />
-            </div>
-          </div>
-        )}
-
-        <p className={styles.hint} data-testid="settings-reminder-summary">
-          {reminderSummary(reminderCount, reminderFirstDelayMinutes)}
-        </p>
       </div>
     </div>
   )

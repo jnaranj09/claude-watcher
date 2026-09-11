@@ -241,4 +241,23 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
     chooseOption(container, 'settings-reminder-first-delay', '5')
     expect(stub.setCalls).toContainEqual({ reminderFirstDelayMinutes: 5 })
   })
+
+  // Controller Ruling 8 (fix round 1): spec §4 says the two reminder rows go directly after
+  // Attention sound — sound and reminders are both attention settings, so they belong together.
+  it('the rows appear in order: sound, reminders, first delay, then font size (spec §4)', () => {
+    stubSettings()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+    const orderedIds = [
+      'settings-sound-toggle',
+      'settings-reminder-count',
+      'settings-reminder-first-delay',
+      'settings-font-size'
+    ]
+    const panel = container.querySelector('[data-testid="settings-panel"]')
+    const seen = [...(panel?.querySelectorAll('[data-testid]') ?? [])]
+      .map((el) => el.getAttribute('data-testid'))
+      .filter((id): id is string => id !== null && orderedIds.includes(id))
+    expect(seen).toEqual(orderedIds)
+  })
 })
