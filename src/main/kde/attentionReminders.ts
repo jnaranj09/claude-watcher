@@ -59,10 +59,19 @@ interface Series {
 
 export function createAttentionReminders(options: AttentionRemindersOptions): AttentionReminders {
   const now = options.now ?? Date.now
-  const setTimer = options.setTimer ?? ((fn: () => void, ms: number): unknown => setTimeout(fn, ms))
-  const clearTimer =
-    options.clearTimer ??
-    ((handle: unknown): void => clearTimeout(handle as ReturnType<typeof setTimeout>))
+  // F2 (final-review fix wave) — the timer seam is a PAIR, chosen together: the default
+  // clearTimer casts its handle to a real Node Timeout, which is only valid for a handle the
+  // default setTimeout produced. A caller injecting one without the other (e.g. setTimer only)
+  // would otherwise hand that cast a foreign handle. So: use the injected pair only when BOTH
+  // are given, else fall back to BOTH defaults.
+  const { setTimer, clearTimer } =
+    options.setTimer !== undefined && options.clearTimer !== undefined
+      ? { setTimer: options.setTimer, clearTimer: options.clearTimer }
+      : {
+          setTimer: (fn: () => void, ms: number): unknown => setTimeout(fn, ms),
+          clearTimer: (handle: unknown): void =>
+            clearTimeout(handle as ReturnType<typeof setTimeout>)
+        }
   const log = options.log ?? ((message: string): void => console.warn(message))
 
   /** id → the session's reminder series. Keyed by the stable id, never pid. */
