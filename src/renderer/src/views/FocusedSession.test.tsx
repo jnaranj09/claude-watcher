@@ -80,8 +80,24 @@ beforeEach(() => {
     onExit: vi.fn(() => () => {})
   }
   ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() => Promise.resolve({ version: 1, soundEnabled: true, terminalFontSize: 14 })),
-    set: vi.fn(() => Promise.resolve({ version: 1, soundEnabled: true, terminalFontSize: 14 }))
+    get: vi.fn(() =>
+      Promise.resolve({
+        version: 1,
+        soundEnabled: true,
+        terminalFontSize: 14,
+        reminderCount: 3,
+        reminderFirstDelayMinutes: 2
+      })
+    ),
+    set: vi.fn(() =>
+      Promise.resolve({
+        version: 1,
+        soundEnabled: true,
+        terminalFontSize: 14,
+        reminderCount: 3,
+        reminderFirstDelayMinutes: 2
+      })
+    )
   }
   // Story 3.5 (SM-2) — mock the telemetry bridge so acknowledgeSession() does not throw
   // in the test environment (window.telemetry is not wired by the preload in jsdom).

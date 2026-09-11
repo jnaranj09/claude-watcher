@@ -85,7 +85,9 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
     const persisted: Settings = {
       version: 1,
       soundEnabled: false,
-      terminalFontSize: 22
+      terminalFontSize: 22,
+      reminderCount: 3,
+      reminderFirstDelayMinutes: 2
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()

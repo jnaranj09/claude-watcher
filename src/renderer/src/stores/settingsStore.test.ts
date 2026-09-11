@@ -8,7 +8,9 @@ import {
   createSettingsStore,
   selectSoundEnabled,
   selectTerminalFontSize,
-  selectLoaded
+  selectLoaded,
+  selectReminderCount,
+  selectReminderFirstDelayMinutes
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -27,12 +29,16 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     store.getState().hydrate({
       version: 1,
       soundEnabled: false,
-      terminalFontSize: 22
+      terminalFontSize: 22,
+      reminderCount: 5,
+      reminderFirstDelayMinutes: 10
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
     expect(selectTerminalFontSize(s)).toBe(22)
     expect(selectLoaded(s)).toBe(true)
+    expect(selectReminderCount(s)).toBe(5)
+    expect(selectReminderFirstDelayMinutes(s)).toBe(10)
   })
 
   it('applyPatch updates ONLY the named field (soundEnabled) — immediate effect', () => {
@@ -56,5 +62,24 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     store.getState().applyPatch({})
     expect(selectSoundEnabled(store.getState())).toBe(before.soundEnabled)
     expect(selectTerminalFontSize(store.getState())).toBe(before.terminalFontSize)
+  })
+
+  it('starts at the reminder defaults (3 reminders, first after 2 min)', () => {
+    const s = createSettingsStore().getState()
+    expect(selectReminderCount(s)).toBe(DEFAULT_SETTINGS.reminderCount)
+    expect(selectReminderFirstDelayMinutes(s)).toBe(DEFAULT_SETTINGS.reminderFirstDelayMinutes)
+  })
+
+  it('applyPatch updates ONLY the named reminder field', () => {
+    const store = createSettingsStore()
+    store.getState().applyPatch({ reminderCount: 0 })
+    expect(selectReminderCount(store.getState())).toBe(0)
+    expect(selectReminderFirstDelayMinutes(store.getState())).toBe(
+      DEFAULT_SETTINGS.reminderFirstDelayMinutes
+    )
+    store.getState().applyPatch({ reminderFirstDelayMinutes: 15 })
+    expect(selectReminderFirstDelayMinutes(store.getState())).toBe(15)
+    expect(selectReminderCount(store.getState())).toBe(0)
+    expect(selectSoundEnabled(store.getState())).toBe(DEFAULT_SETTINGS.soundEnabled)
   })
 })

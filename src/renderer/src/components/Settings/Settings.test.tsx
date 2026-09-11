@@ -47,7 +47,10 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
       const merged: Settings = {
         version: DEFAULT_SETTINGS.version,
         soundEnabled: patch.soundEnabled ?? DEFAULT_SETTINGS.soundEnabled,
-        terminalFontSize: patch.terminalFontSize ?? DEFAULT_SETTINGS.terminalFontSize
+        terminalFontSize: patch.terminalFontSize ?? DEFAULT_SETTINGS.terminalFontSize,
+        reminderCount: patch.reminderCount ?? DEFAULT_SETTINGS.reminderCount,
+        reminderFirstDelayMinutes:
+          patch.reminderFirstDelayMinutes ?? DEFAULT_SETTINGS.reminderFirstDelayMinutes
       }
       return merged
     }
