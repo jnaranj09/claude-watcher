@@ -70,3 +70,12 @@ export const WatchStatusSchema = z.object({
 export const AttentionActivateSchema = z.object({
   id: z.string().min(1)
 })
+
+/**
+ * Attention reminders — validate-at-source for the `attention:reminder` push. Same shape and same
+ * reasoning as `AttentionActivateSchema`: a blank id never crosses the seam, and a parse miss is
+ * logged by PATH + CODE only.
+ */
+export const AttentionReminderSchema = z.object({
+  id: z.string().min(1)
+})

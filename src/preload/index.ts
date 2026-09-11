@@ -8,6 +8,7 @@ import type {
   WatchEventsPayload,
   WatchStatus,
   AttentionActivatePayload,
+  AttentionReminderPayload,
   Settings,
   SettingsPatch,
   TerminalExitEvent,
@@ -115,6 +116,15 @@ const attentionApi = {
     const listener = (_evt: unknown, payload: AttentionActivatePayload): void => cb(payload)
     ipcRenderer.on(CH.attentionActivate, listener)
     return () => ipcRenderer.removeListener(CH.attentionActivate, listener)
+  },
+
+  /** Attention reminders — subscribe to the reminder push (main re-notified a session still
+   *  blocked on you). The renderer plays the attention sound on it. Returns an unsubscribe fn.
+   *  `CH.attentionReminder` is a const, never a literal. */
+  onReminder(cb: (payload: AttentionReminderPayload) => void): () => void {
+    const listener = (_evt: unknown, payload: AttentionReminderPayload): void => cb(payload)
+    ipcRenderer.on(CH.attentionReminder, listener)
+    return () => ipcRenderer.removeListener(CH.attentionReminder, listener)
   }
 }
 
