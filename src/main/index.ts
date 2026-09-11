@@ -50,16 +50,14 @@ import {
 } from '../shared/schemas/terminal'
 // Story 1.4 fix — validate-at-source for the watch:status connection-state push.
 // Story 2.2 — validate-at-source for the FR-9 attention:activate push.
-import {
-  WatchStatusSchema,
-  AttentionActivateSchema,
-  AttentionReminderSchema
-} from '../shared/schemas/watchDelta'
+import { WatchStatusSchema, AttentionActivateSchema } from '../shared/schemas/watchDelta'
 // Story 2.2 — the KDE attention notifier (Electron Notification → libnotify), behind a DI
 // seam. Fires 1:1 off the tracker's attention.raised; informational only (NO self-raise).
 import { createAttentionNotifier } from './kde/notifications'
 // Attention reminders (spec 2026-09-10) — re-notify a session still blocked on you.
 import { createAttentionReminders, type AttentionReminders } from './kde/attentionReminders'
+// F1 (final-review fix wave) — the extracted, independently-tested `remind` callback body.
+import { createReminderSink } from './kde/reminderSink'
 // Story 2.3 — the tray + PAINTED-badge controller (behind a DI seam, mirrors the notifier) +
 // the pure badge-count fn. The count = needs-you + idle, derived from the SAME reducer map +
 // columnForStatus the board uses (single source of truth). Tray is badge + menu only (NO
@@ -398,32 +396,17 @@ function registerWatchFeed(window: BrowserWindow): void {
   const reminders = createAttentionReminders({
     getSettings: () => settingsStore?.get() ?? DEFAULT_SETTINGS,
     getSession: (id) => reducer.snapshotMap().get(id),
-    remind: (session, { waitedMs }) => {
-      // The SAME launched-only gate as the first alert (Story 3.3): one membership rule for
-      // every attention consumer.
-      if (!launchedSet.has(session.id)) return
-      notifier.remind({
-        id: session.id,
-        sessionName: session.sessionName,
-        projectPath: session.projectPath,
-        status: session.status,
-        waitedMs,
-        ...(session.pendingToolName !== undefined
-          ? { pendingToolName: session.pendingToolName }
-          : {})
-      })
-      if (wc.isDestroyed()) return
-      // Validate AT SOURCE before send (renderer-facing push). PATH + CODE only on a miss.
-      const r = AttentionReminderSchema.safeParse({ id: session.id })
-      if (!r.success) {
-        const issue = r.error.issues[0]
-        console.error(
-          `[claude-watcher][reminders] dropped attention:reminder path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
-        )
-        return
-      }
-      wc.send(CH.attentionReminder, r.data)
-    },
+    // F1 (final-review fix wave) — extracted to reminderSink.ts so the launched gate, the
+    // ReminderInput shape and the validate-at-source send are exercised by a real test instead
+    // of a copy of this body living only in the pipeline test's fixture.
+    remind: createReminderSink({
+      isLaunched: (id) => launchedSet.has(id),
+      notifier,
+      send: (payload) => wc.send(CH.attentionReminder, payload),
+      isDestroyed: () => wc.isDestroyed(),
+      // never-log-the-parsed-value: id + code only.
+      log: (message) => console.error(message)
+    }),
     // never-log-the-parsed-value: id + code only.
     log: (message) => console.warn(message)
   })

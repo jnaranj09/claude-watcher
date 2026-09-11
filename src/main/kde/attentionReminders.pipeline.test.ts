@@ -2,7 +2,10 @@
 //
 // Mirrors production (`main/index.ts#registerWatchFeed` + `handleDelta`): the REAL reducer, the
 // REAL tracker, the REAL scheduler and the REAL notifier (fake factory), with the same
-// launched-only gate on both the first alert and the reminders. Time is a fake queue.
+// launched-only gate on both the first alert and the reminders. `remind` is the SAME
+// `createReminderSink` factory index.ts wires (F1, final-review fix wave) — not a copy of its
+// body — so fault-injecting the production gate or the validate-at-source send here would turn
+// this suite red too. Time is a fake queue.
 // Spec: docs/superpowers/specs/2026-09-10-attention-reminders-design.md §1.
 import { describe, it, expect } from 'vitest'
 import { createReducer, type SessionDelta } from '../c9watch/reducer'
@@ -13,6 +16,7 @@ import {
   type NotificationOptions
 } from './notifications'
 import { createAttentionReminders } from './attentionReminders'
+import { createReminderSink } from './reminderSink'
 import { launchedSession } from '../../__fixtures__/fakeSessions'
 import { createFakeTimers } from '../../__fixtures__/fakeTimers'
 
@@ -42,19 +46,14 @@ function pipeline(isLaunched: (id: string) => boolean = () => true): {
     clearTimer: clock.clearTimer,
     getSettings: () => ({ reminderCount: 3, reminderFirstDelayMinutes: 2 }),
     getSession: (id) => reducer.snapshotMap().get(id),
-    remind: (session, { waitedMs }) => {
-      if (!isLaunched(session.id)) return // the same launched-only gate as the first alert
-      notifier.remind({
-        id: session.id,
-        sessionName: session.sessionName,
-        projectPath: session.projectPath,
-        status: session.status,
-        waitedMs,
-        ...(session.pendingToolName !== undefined
-          ? { pendingToolName: session.pendingToolName }
-          : {})
-      })
-    }
+    // The SAME factory production wires (F1) — exercises the real launched gate + the real
+    // validate-at-source send, not a copy of the callback body.
+    remind: createReminderSink({
+      isLaunched,
+      notifier,
+      send: () => {}, // this pipeline asserts on the OS popup (`shown()`), not the IPC push
+      isDestroyed: () => false
+    })
   })
 
   function route(deltas: SessionDelta[]): void {
