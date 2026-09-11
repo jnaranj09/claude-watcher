@@ -31,6 +31,7 @@ interface WatchBridge {
 /** The shape the Board needs off `window.attention` (mirrors the preload AttentionApi). */
 interface AttentionBridge {
   onActivate(cb: (payload: AttentionActivatePayload) => void): () => void
+  onReminder(cb: (payload: { id: string }) => void): () => void
 }
 
 let cleanup: (() => void) | undefined
@@ -85,7 +86,8 @@ function stubBridges(): {
       return () => {
         activateCb = undefined
       }
-    }
+    },
+    onReminder: () => () => {}
   }
   ;(window as unknown as { watch: WatchBridge }).watch = watch
   ;(window as unknown as { attention: AttentionBridge }).attention = attention

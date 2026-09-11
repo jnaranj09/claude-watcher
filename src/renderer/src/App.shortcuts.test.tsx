@@ -76,7 +76,10 @@ beforeEach(() => {
     onEvents: vi.fn(() => () => {}),
     onStatus: vi.fn(() => () => {})
   }
-  ;(window as unknown as { attention: unknown }).attention = { onActivate: vi.fn(() => () => {}) }
+  ;(window as unknown as { attention: unknown }).attention = {
+    onActivate: vi.fn(() => () => {}),
+    onReminder: vi.fn(() => () => {})
+  }
   ;(window as unknown as { settings: unknown }).settings = {
     get: vi.fn(() =>
       Promise.resolve({

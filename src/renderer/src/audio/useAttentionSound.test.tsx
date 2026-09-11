@@ -13,12 +13,18 @@ import { act } from 'react'
 import { useAttentionSound } from './useAttentionSound'
 import type { AttentionSound } from './attentionSound'
 import { renderComponent } from '../test/renderComponent'
-import type { WatchEventsPayload } from '../../../shared/ipc/contract'
+import type { WatchEventsPayload, AttentionReminderPayload } from '../../../shared/ipc/contract'
 
 /** The shape the hook needs off window.watch (mirrors the preload WatchApi). */
 interface WatchBridge {
   onEvents(cb: (payload: WatchEventsPayload) => void): () => void
   onStatus(cb: (status: { reconnecting: boolean }) => void): () => void
+}
+
+/** The shape the hook needs off window.attention (mirrors the preload AttentionApi). */
+interface AttentionBridge {
+  onActivate(cb: (payload: { id: string }) => void): () => void
+  onReminder(cb: (payload: AttentionReminderPayload) => void): () => void
 }
 
 let cleanup: (() => void) | undefined
@@ -28,9 +34,14 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-/** Stub window.watch and capture the registered onEvents callback so a test can push deltas. */
-function stubWatch(): { push: (payload: WatchEventsPayload) => void } {
+/** Stub window.watch + window.attention and capture the registered callbacks so a test can push
+ *  a delta or a reminder through the real seam. */
+function stubWatch(): {
+  push: (payload: WatchEventsPayload) => void
+  pushReminder: (id: string) => void
+} {
   let eventsCb: ((payload: WatchEventsPayload) => void) | undefined
+  let reminderCb: ((payload: AttentionReminderPayload) => void) | undefined
   const watch: WatchBridge = {
     onEvents: (cb) => {
       eventsCb = cb
@@ -40,11 +51,25 @@ function stubWatch(): { push: (payload: WatchEventsPayload) => void } {
     },
     onStatus: () => () => {}
   }
+  const attention: AttentionBridge = {
+    onActivate: () => () => {},
+    onReminder: (cb) => {
+      reminderCb = cb
+      return () => {
+        reminderCb = undefined
+      }
+    }
+  }
   ;(window as unknown as { watch: WatchBridge }).watch = watch
+  ;(window as unknown as { attention: AttentionBridge }).attention = attention
   return {
     push: (payload) =>
       act(() => {
         eventsCb?.(payload)
+      }),
+    pushReminder: (id) =>
+      act(() => {
+        reminderCb?.({ id })
       })
   }
 }
@@ -148,5 +173,35 @@ describe('useAttentionSound — plays 1:1 off attention.raised when enabled (AC-
     watch.push(raised(1, 'a'))
     watch.push(raised(2, 'b'))
     expect(play).toHaveBeenCalledTimes(2)
+  })
+})
+
+// Attention reminders (spec 2026-09-10 D-4) — main re-notified a session still blocked on you.
+describe('useAttentionSound — plays on a reminder push, same live mute', () => {
+  it('a reminder with sound ENABLED plays exactly once', () => {
+    const watch = stubWatch()
+    const play = vi.fn()
+    const { unmount } = renderComponent(<Harness sound={{ play }} enabled={() => true} />)
+    cleanup = unmount
+    watch.pushReminder('a')
+    expect(play).toHaveBeenCalledTimes(1)
+  })
+
+  it('with sound MUTED, a reminder does NOT play', () => {
+    const watch = stubWatch()
+    const play = vi.fn()
+    const { unmount } = renderComponent(<Harness sound={{ play }} enabled={() => false} />)
+    cleanup = unmount
+    watch.pushReminder('a')
+    expect(play).not.toHaveBeenCalled()
+  })
+
+  it('unmount unsubscribes from the reminder push', () => {
+    const watch = stubWatch()
+    const play = vi.fn()
+    const { unmount } = renderComponent(<Harness sound={{ play }} enabled={() => true} />)
+    unmount()
+    watch.pushReminder('a')
+    expect(play).not.toHaveBeenCalled()
   })
 })
