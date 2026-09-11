@@ -906,6 +906,19 @@ export const selectNeedsYouCountByWorkspace = (state: BoardState): Record<string
   return counts
 }
 
+/**
+ * Workspaces — card counts keyed by workspace, every column, INCLUDING workspaces that are not
+ * active. The switcher's per-workspace total; the needs-you selector above is its subset.
+ * Derived, never stored (state.md forbids a denormalized copy).
+ */
+export const selectCardCountByWorkspace = (state: BoardState): Record<string, number> => {
+  const counts: Record<string, number> = {}
+  for (const session of Object.values(state.sessionsById)) {
+    counts[session.workspaceId] = (counts[session.workspaceId] ?? 0) + 1
+  }
+  return counts
+}
+
 /** Story 3.4 (FR-16 / Task 4.3) — the set of app-launched terminal ids to keep ALIVE in the
  *  focused view (so a rail switch is a pure show/hide, never a recreate — terminal.md). It is the
  *  correlated bindings (`terminalIdBySessionId` values) UNION the current `focusedTerminalId` (the
