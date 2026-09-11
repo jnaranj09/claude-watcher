@@ -187,7 +187,8 @@ export function buildReminderContent(input: ReminderInput): { title: string; bod
 /**
  * Create an attention notifier (AC-6). `notify(raised)` fires exactly ONE notification per
  * call (1:1 with the tracker's `attention.raised`), behind the injectable factory, and
- * NEVER throws (never-crash). On any failure it logs `id` + a code ONLY.
+ * NEVER throws (never-crash). On any failure it logs `id` + a code ONLY. `remind(input)` fires
+ * one reminder popup the same way, for a session still blocked on you.
  */
 export function createAttentionNotifier(options: AttentionNotifierOptions = {}): AttentionNotifier {
   const notificationFactory = options.notificationFactory ?? electronNotificationFactory

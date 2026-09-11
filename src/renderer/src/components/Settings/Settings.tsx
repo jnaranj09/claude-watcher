@@ -18,8 +18,10 @@
 // sound module reads the live `soundEnabled` on each attention event; `terminalFontSize` is
 // persisted now and Epic-3's terminal will consume it (no terminal to preview yet — F5).
 //
-// Accessibility floor (Task 6.3): every control has a real <label> (label + control, never
-// color-only) and is keyboard-operable (native checkbox / range / number inputs).
+// Accessibility floor (Task 6.3): every control is labeled (label + control, never color-only)
+// and is keyboard-operable — a real <label> for the sound checkbox and the font-size range, and
+// a <span> + `ariaLabel` for the two reminder `Select` rows (a `<label for>` cannot address
+// `Select`'s button — design.md).
 // [Source: story 2.4 Task 6; AC-4; F3/F5; .claude/rules/state.md; src/renderer/src/styles/
 //  tokens.ts (design tokens — no new colors); ColumnHeader.tsx (component/CSS-module pattern)]
 import { useState, type JSX } from 'react'

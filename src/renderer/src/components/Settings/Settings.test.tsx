@@ -2,11 +2,12 @@
 //
 // Renders the SettingsPanel against a stubbed window.settings + the singleton settings store.
 // Asserts (AC-4):
-//   - EXACTLY two controls (one sound toggle + one terminal-font-size control) — no third;
+//   - EXACTLY four controls (a sound toggle, the two attention-reminder dropdowns, and a
+//     terminal-font-size control) — no fifth;
 //   - NO hotkey control present (FR-8 row CUT);
 //   - toggling sound calls window.settings.set({ soundEnabled });
 //   - changing font-size calls window.settings.set({ terminalFontSize });
-//   - both controls are labeled (accessibility floor).
+//   - every control is labeled (accessibility floor).
 // [Source: story 2.4 Task 6.4; AC-4; F3; ColumnHeader.test.tsx render style]
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { act } from 'react'
