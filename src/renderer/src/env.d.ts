@@ -11,6 +11,7 @@ import type {
   WatchEventsPayload,
   WatchStatus,
   AttentionActivatePayload,
+  AttentionReminderPayload,
   Settings,
   SettingsPatch,
   TerminalExitEvent,
@@ -57,6 +58,8 @@ declare global {
     // jump-to-card subscription (the operator activated a notification). View-state only.
     attention: {
       onActivate(cb: (payload: AttentionActivatePayload) => void): () => void
+      // Attention reminders — mirrors src/preload/index.ts `attentionApi.onReminder`.
+      onReminder(cb: (payload: AttentionReminderPayload) => void): () => void
     }
     // Story 2.4 — mirrors src/preload/index.ts `settingsApi`. The renderer reads/writes
     // settings ONLY through this typed bridge (never electron-store directly — F4). MAIN

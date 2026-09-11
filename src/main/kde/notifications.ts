@@ -73,6 +73,10 @@ export interface AttentionNotifier {
   /** Fire exactly ONE notification for this `attention.raised`. NEVER throws (never-crash).
    *  Fed ONLY the tracker's raised events, so it never fires on session.updated/removed. */
   notify(raised: AttentionRaisedEvent): void
+  /** Attention reminders — fire ONE reminder for a session still blocked on you. Same title and
+   *  same activation as the first alert; the body adds the minutes waited. NEVER throws. Called
+   *  only by the reminder scheduler (src/main/kde/attentionReminders.ts). */
+  remind(input: ReminderInput): void
 }
 
 /**
@@ -130,6 +134,24 @@ function titleForStatus(sessionName: string, status: string): string {
   }
 }
 
+/** Attention reminders — what one reminder needs. The SAME privacy surface as the first alert
+ *  (sessionName, projectPath, status, pendingToolName) plus how long the session has waited. It
+ *  never crosses IPC, so it is not on the frozen contract. */
+export interface ReminderInput {
+  id: string
+  sessionName: string
+  projectPath: string
+  status: string
+  pendingToolName?: string
+  /** Milliseconds since the session became blocked (the start of the reminder series). */
+  waitedMs: number
+}
+
+/** The body both alerts share: projectPath, plus the pending tool VERBATIM when non-empty. */
+function bodyFor(projectPath: string, pendingToolName: string | undefined): string {
+  return pendingToolName ? `${projectPath} · ${pendingToolName}` : projectPath
+}
+
 /**
  * Build the notification CONTENT from the frozen `AttentionRaisedEvent` (AC-3). Read ONLY
  * the union's fields — title names the session + what happened (per `status`, see
@@ -144,19 +166,29 @@ export function buildNotificationContent(raised: AttentionRaisedEvent): {
 } {
   const title = titleForStatus(raised.sessionName, raised.status)
   // Body = projectPath, plus the pending tool name verbatim when c9watch reported one.
-  // (Status words are shown verbatim, never re-labeled — UX-DR22.) Guard on a NON-EMPTY
-  // value, not just `!== undefined`: c9watch's `pendingToolName` is `z.string().optional()`
-  // ("may be absent/empty"), so an empty string would otherwise leave a dangling "· " tail.
-  const body = raised.pendingToolName
-    ? `${raised.projectPath} · ${raised.pendingToolName}`
-    : raised.projectPath
-  return { title, body }
+  // (Status words are shown verbatim, never re-labeled — UX-DR22.) `bodyFor` guards on a
+  // NON-EMPTY value: an empty string would otherwise leave a dangling "· " tail.
+  return { title, body: bodyFor(raised.projectPath, raised.pendingToolName) }
+}
+
+/**
+ * Attention reminders (spec 2026-09-10 D-10). The title is the first alert's title for the
+ * session's CURRENT status, so it reads as the same alert again; the body adds the whole minutes
+ * waited. Reads ONLY `ReminderInput` fields (privacy). Exported for the content test.
+ */
+export function buildReminderContent(input: ReminderInput): { title: string; body: string } {
+  const minutes = Math.round(input.waitedMs / 60_000)
+  return {
+    title: titleForStatus(input.sessionName, input.status),
+    body: `${bodyFor(input.projectPath, input.pendingToolName)} · waiting ${minutes} min`
+  }
 }
 
 /**
  * Create an attention notifier (AC-6). `notify(raised)` fires exactly ONE notification per
  * call (1:1 with the tracker's `attention.raised`), behind the injectable factory, and
- * NEVER throws (never-crash). On any failure it logs `id` + a code ONLY.
+ * NEVER throws (never-crash). On any failure it logs `id` + a code ONLY. `remind(input)` fires
+ * one reminder popup the same way, for a session still blocked on you.
  */
 export function createAttentionNotifier(options: AttentionNotifierOptions = {}): AttentionNotifier {
   const notificationFactory = options.notificationFactory ?? electronNotificationFactory
@@ -164,18 +196,19 @@ export function createAttentionNotifier(options: AttentionNotifierOptions = {}):
   // never-log-the-parsed-value: identity (id) + code ONLY — never a session value.
   const log = options.log ?? ((message: string): void => console.warn(message))
 
+  /** Build + show one notification. Activation emits the FR-9 jump-to-card signal ONLY (no
+   *  window raise — AC-4). A null factory return = unsupported platform → graceful no-op. */
+  function show(id: string, content: { title: string; body: string }): void {
+    const n = notificationFactory({
+      ...content,
+      ...(onActivate ? { onActivate: () => onActivate(id) } : {})
+    })
+    n?.show()
+  }
+
   function notify(raised: AttentionRaisedEvent): void {
     try {
-      const { title, body } = buildNotificationContent(raised)
-      const n = notificationFactory({
-        title,
-        body,
-        // Activation emits the FR-9 jump-to-card signal ONLY (no window raise — AC-4).
-        // Bind the id at construction so the handler carries this session's identity.
-        ...(onActivate ? { onActivate: () => onActivate(raised.id) } : {})
-      })
-      // A null factory return = unsupported platform → graceful no-op (never an error).
-      n?.show()
+      show(raised.id, buildNotificationContent(raised))
     } catch {
       // never-crash (AC-7): one failed notification must not take the board/feed down.
       // Log id + code ONLY — NEVER a session value (Guardrail #6). The id is an opaque UUID.
@@ -183,5 +216,14 @@ export function createAttentionNotifier(options: AttentionNotifierOptions = {}):
     }
   }
 
-  return { notify }
+  function remind(input: ReminderInput): void {
+    try {
+      show(input.id, buildReminderContent(input))
+    } catch {
+      // never-crash: a failed reminder popup must not end the series or the board. id + code only.
+      log(`[claude-watcher][reminders] id=${input.id} code=remind_failed`)
+    }
+  }
+
+  return { notify, remind }
 }

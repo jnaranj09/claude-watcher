@@ -125,6 +125,11 @@ export const CH = {
   // AR-8 cut). Carries only the stable session `id`; the renderer selects that card if
   // it is present on the board, else no-ops. See `AttentionActivatePayload` below.
   attentionActivate: 'attention:activate',
+  // Attention reminders (spec 2026-09-10) — main pushes one each time it re-notifies a session
+  // still blocked on you (a permission prompt or a question), so the renderer plays the attention
+  // sound. NOT an `attention.raised`: the AttentionEvent union is frozen and a reminder is not a
+  // new entry. Carries only the session `id`. See `AttentionReminderPayload` below.
+  attentionReminder: 'attention:reminder',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
 
@@ -459,6 +464,17 @@ export type WatchStatus = {
  */
 export type AttentionActivatePayload = {
   /** The activated session's stable id (UUID). Never key on pid. */
+  id: string
+}
+
+/**
+ * Attention reminders — `attention:reminder` push payload: main → renderer. Fired each time main
+ * re-notifies a launched session that is still blocked on a permission prompt or a question. It
+ * carries ONLY the stable session `id`; the renderer plays the attention sound (when sound is on).
+ * Validated AT SOURCE in main before send (`AttentionReminderSchema`).
+ */
+export type AttentionReminderPayload = {
+  /** The reminded session's stable id (UUID). Never key on pid. */
   id: string
 }
 

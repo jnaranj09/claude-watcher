@@ -1,7 +1,7 @@
 ---
 title: "Ideas board"
 description: "This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list"
-last_modified: 2026-09-09
+last_modified: 2026-09-11
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort]
 ---

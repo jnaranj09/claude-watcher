@@ -17,8 +17,10 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   createAttentionNotifier,
   buildNotificationContent,
+  buildReminderContent,
   type NotificationLike,
-  type NotificationOptions
+  type NotificationOptions,
+  type ReminderInput
 } from './notifications'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import type { AttentionRaisedEvent } from '../../shared/ipc/contract'
@@ -271,5 +273,106 @@ describe('attention notifier — never-crash + never-log-the-value (AC-7)', () =
     expect(() => notifier.notify(raised({ id: 'x' }))).not.toThrow()
     expect(log).toHaveBeenCalledTimes(1)
     expect(String(log.mock.calls[0]?.[0])).toContain('id=x')
+  })
+})
+
+// Attention reminders (spec 2026-09-10 D-10). A reminder is the SAME alert again — same title for
+// the same status — and its body adds how long the session has waited.
+const MIN = 60_000
+
+function reminder(over: Partial<ReminderInput> = {}): ReminderInput {
+  return {
+    id: over.id ?? 'id-1',
+    sessionName: over.sessionName ?? 'webapp',
+    projectPath: over.projectPath ?? '/home/u/projects/webapp',
+    status: over.status ?? 'NeedsPermission',
+    waitedMs: over.waitedMs ?? 6 * MIN,
+    ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
+  }
+}
+
+describe('buildReminderContent — the first alert again, plus how long it has waited', () => {
+  it.each(['NeedsPermission', 'NeedsAttention'])(
+    'the title equals the first alert title for %s',
+    (status) => {
+      expect(buildReminderContent(reminder({ status })).title).toBe(
+        buildNotificationContent(raised({ status })).title
+      )
+    }
+  )
+
+  it('the body is the project path plus the minutes waited', () => {
+    expect(buildReminderContent(reminder()).body).toBe('/home/u/projects/webapp · waiting 6 min')
+  })
+
+  it('the body keeps the pending tool, verbatim, before the minutes', () => {
+    expect(buildReminderContent(reminder({ pendingToolName: 'Bash' })).body).toBe(
+      '/home/u/projects/webapp · Bash · waiting 6 min'
+    )
+  })
+
+  it('an empty pendingToolName leaves no dangling separator', () => {
+    expect(buildReminderContent(reminder({ pendingToolName: '' })).body).toBe(
+      '/home/u/projects/webapp · waiting 6 min'
+    )
+  })
+
+  it('rounds to whole minutes, so a timer a few ms early or late still reads the scheduled minute', () => {
+    expect(buildReminderContent(reminder({ waitedMs: 2 * MIN - 40 })).body).toContain(
+      'waiting 2 min'
+    )
+    expect(buildReminderContent(reminder({ waitedMs: 2 * MIN + 40 })).body).toContain(
+      'waiting 2 min'
+    )
+  })
+
+  it('never reads a field outside ReminderInput (privacy)', () => {
+    const withSecrets = {
+      ...reminder(),
+      pendingToolInput: SECRET_TOOL_INPUT,
+      firstPrompt: SECRET_FIRST_PROMPT,
+      latestMessage: SECRET_LATEST_MESSAGE
+    } as ReminderInput
+    const { title, body } = buildReminderContent(withSecrets)
+    for (const secret of [SECRET_TOOL_INPUT, SECRET_FIRST_PROMPT, SECRET_LATEST_MESSAGE]) {
+      expect(title).not.toContain(secret)
+      expect(body).not.toContain(secret)
+    }
+  })
+})
+
+describe('notifier.remind — one popup, same jump-to-card, never throws', () => {
+  it('shows exactly ONE notification carrying the reminder content', () => {
+    const fake = makeFakeFactory()
+    const notifier = createAttentionNotifier({ notificationFactory: fake.factory })
+    notifier.remind(reminder())
+    expect(fake.showCalls).toBe(1)
+    expect(fake.last()?.title).toBe('webapp wants permission')
+    expect(fake.last()?.body).toBe('/home/u/projects/webapp · waiting 6 min')
+  })
+
+  it('activation emits the jump-to-card id and nothing else', () => {
+    const fake = makeFakeFactory()
+    const onActivate = vi.fn()
+    const notifier = createAttentionNotifier({ notificationFactory: fake.factory, onActivate })
+    notifier.remind(reminder({ id: 'id-7' }))
+    fake.last()?.onActivate?.()
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(onActivate).toHaveBeenCalledWith('id-7')
+  })
+
+  it('a throwing factory does not throw out of remind(); the log has id + code only', () => {
+    const log = vi.fn()
+    const notifier = createAttentionNotifier({
+      notificationFactory: () => {
+        throw new Error('libnotify down')
+      },
+      log
+    })
+    expect(() => notifier.remind(reminder())).not.toThrow()
+    expect(log).toHaveBeenCalledTimes(1)
+    const message = String(log.mock.calls[0]?.[0])
+    expect(message).toBe('[claude-watcher][reminders] id=id-1 code=remind_failed')
+    expect(message).not.toContain('webapp')
   })
 })

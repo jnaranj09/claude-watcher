@@ -124,10 +124,29 @@ beforeEach(() => {
     onEvents: vi.fn(() => () => {}),
     onStatus: vi.fn(() => () => {})
   }
-  ;(window as unknown as { attention: unknown }).attention = { onActivate: vi.fn(() => () => {}) }
+  ;(window as unknown as { attention: unknown }).attention = {
+    onActivate: vi.fn(() => () => {}),
+    onReminder: vi.fn(() => () => {})
+  }
   ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() => Promise.resolve({ version: 1, soundEnabled: true, terminalFontSize: 14 })),
-    set: vi.fn(() => Promise.resolve({ version: 1, soundEnabled: true, terminalFontSize: 14 }))
+    get: vi.fn(() =>
+      Promise.resolve({
+        version: 1,
+        soundEnabled: true,
+        terminalFontSize: 14,
+        reminderCount: 3,
+        reminderFirstDelayMinutes: 2
+      })
+    ),
+    set: vi.fn(() =>
+      Promise.resolve({
+        version: 1,
+        soundEnabled: true,
+        terminalFontSize: 14,
+        reminderCount: 3,
+        reminderFirstDelayMinutes: 2
+      })
+    )
   }
   ;(window as unknown as { terminal: unknown }).terminal = {
     open: vi.fn(() => () => {}),

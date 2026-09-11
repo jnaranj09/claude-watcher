@@ -17,13 +17,17 @@ import { useStore } from 'zustand'
 import type { Settings, SettingsPatch } from '../../../shared/ipc/contract'
 // DEFAULT_SETTINGS is a runtime VALUE (the fresh-start defaults) — it lives in the shared
 // schema (pure Zod, importable by both sides). The contract re-exports only the payload TYPES.
-import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
+import { DEFAULT_SETTINGS, type ReminderFirstDelayMinutes } from '../../../shared/schemas/settings'
 
 export interface SettingsState {
   /** The live sound toggle (default ON — UX-DR26). The sole governor of sound frequency. */
   soundEnabled: boolean
   /** The live terminal font-size (px). Persisted now; Epic-3's terminal consumes it (F5). */
   terminalFontSize: number
+  /** Attention reminders — how many times a still-blocked session is re-notified (0 = off). */
+  reminderCount: number
+  /** Attention reminders — minutes before the first reminder; each later gap doubles. */
+  reminderFirstDelayMinutes: ReminderFirstDelayMinutes
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
@@ -45,12 +49,16 @@ export function createSettingsStore(): SettingsStoreApi {
   return createStore<SettingsState>((set) => ({
     soundEnabled: DEFAULT_SETTINGS.soundEnabled,
     terminalFontSize: DEFAULT_SETTINGS.terminalFontSize,
+    reminderCount: DEFAULT_SETTINGS.reminderCount,
+    reminderFirstDelayMinutes: DEFAULT_SETTINGS.reminderFirstDelayMinutes,
     loaded: false,
 
     hydrate: (settings) => {
       set({
         soundEnabled: settings.soundEnabled,
         terminalFontSize: settings.terminalFontSize,
+        reminderCount: settings.reminderCount,
+        reminderFirstDelayMinutes: settings.reminderFirstDelayMinutes,
         loaded: true
       })
     },
@@ -61,6 +69,10 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.soundEnabled !== undefined ? { soundEnabled: patch.soundEnabled } : {}),
         ...(patch.terminalFontSize !== undefined
           ? { terminalFontSize: patch.terminalFontSize }
+          : {}),
+        ...(patch.reminderCount !== undefined ? { reminderCount: patch.reminderCount } : {}),
+        ...(patch.reminderFirstDelayMinutes !== undefined
+          ? { reminderFirstDelayMinutes: patch.reminderFirstDelayMinutes }
           : {})
       })
     }
@@ -75,6 +87,11 @@ export function createSettingsStore(): SettingsStoreApi {
 export const selectSoundEnabled = (state: SettingsState): boolean => state.soundEnabled
 /** The live terminal font-size (primitive). */
 export const selectTerminalFontSize = (state: SettingsState): number => state.terminalFontSize
+/** Attention reminders — the live reminder count (primitive; 0 = off). */
+export const selectReminderCount = (state: SettingsState): number => state.reminderCount
+/** Attention reminders — the live first-reminder delay in minutes (primitive). */
+export const selectReminderFirstDelayMinutes = (state: SettingsState): ReminderFirstDelayMinutes =>
+  state.reminderFirstDelayMinutes
 /** Whether the initial load has completed (primitive). */
 export const selectLoaded = (state: SettingsState): boolean => state.loaded
 

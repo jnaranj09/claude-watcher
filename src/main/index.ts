@@ -54,6 +54,10 @@ import { WatchStatusSchema, AttentionActivateSchema } from '../shared/schemas/wa
 // Story 2.2 — the KDE attention notifier (Electron Notification → libnotify), behind a DI
 // seam. Fires 1:1 off the tracker's attention.raised; informational only (NO self-raise).
 import { createAttentionNotifier } from './kde/notifications'
+// Attention reminders (spec 2026-09-10) — re-notify a session still blocked on you.
+import { createAttentionReminders, type AttentionReminders } from './kde/attentionReminders'
+// F1 (final-review fix wave) — the extracted, independently-tested `remind` callback body.
+import { createReminderSink } from './kde/reminderSink'
 // Story 2.3 — the tray + PAINTED-badge controller (behind a DI seam, mirrors the notifier) +
 // the pure badge-count fn. The count = needs-you + idle, derived from the SAME reducer map +
 // columnForStatus the board uses (single source of truth). Tray is badge + menu only (NO
@@ -82,7 +86,7 @@ import { createAttentionTracker, type AttentionTracker } from './c9watch/attenti
 // The renderer reads/writes via window.settings.* — never electron-store directly (F4).
 import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
-import { SettingsPatchSchema } from '../shared/schemas/settings'
+import { SettingsPatchSchema, DEFAULT_SETTINGS } from '../shared/schemas/settings'
 import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
 import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './persistence/workspacesIpc'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
@@ -261,6 +265,10 @@ const hookServers = new Map<Electron.WebContents, HookServer>()
 // no-op and never touches the feed (never-crash).
 const trays = new Map<Electron.WebContents, TrayController>()
 
+// Attention reminders — one scheduler per window (same lifetime as the notifier/tracker). Kept
+// in a map so teardownWatchFeed can clear its timers; none may fire into a closed window.
+const reminderSchedulers = new Map<Electron.WebContents, AttentionReminders>()
+
 // Story 3.5 (SM-2) — one tracker reference per window, stored here so the app-global
 // telemetry IPC handler can look up `tracker.columnOf(id)` + `tracker.enteredColumnAt(id)`
 // when the acknowledge lands. SAME lifetime as the feed (constructed in registerWatchFeed,
@@ -381,6 +389,28 @@ function registerWatchFeed(window: BrowserWindow): void {
     log: (message) => console.warn(message)
   })
   trays.set(wc, tray)
+  // Attention reminders (spec 2026-09-10) — while a LAUNCHED session stays blocked on a
+  // permission prompt or a question, re-notify up to `reminderCount` times with doubling gaps.
+  // Fed every delta from handleDelta below; disposed in teardownWatchFeed. Settings are read
+  // live, so a change in the Settings panel applies without a restart.
+  const reminders = createAttentionReminders({
+    getSettings: () => settingsStore?.get() ?? DEFAULT_SETTINGS,
+    getSession: (id) => reducer.snapshotMap().get(id),
+    // F1 (final-review fix wave) — extracted to reminderSink.ts so the launched gate, the
+    // ReminderInput shape and the validate-at-source send are exercised by a real test instead
+    // of a copy of this body living only in the pipeline test's fixture.
+    remind: createReminderSink({
+      isLaunched: (id) => launchedSet.has(id),
+      notifier,
+      send: (payload) => wc.send(CH.attentionReminder, payload),
+      isDestroyed: () => wc.isDestroyed(),
+      // never-log-the-parsed-value: id + code only.
+      log: (message) => console.error(message)
+    }),
+    // never-log-the-parsed-value: id + code only.
+    log: (message) => console.warn(message)
+  })
+  reminderSchedulers.set(wc, reminders)
   // Hook-status feature — extract the onDelta body into a named handleDelta so that
   // hook deltas can route through the SAME chokepoint (same enrich/column/tray/attention
   // treatment). The spec requires this extraction: hook events call
@@ -403,6 +433,9 @@ function registerWatchFeed(window: BrowserWindow): void {
     // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
     // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
     const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
+    // Attention reminders — start / keep / cancel this session's reminder series off the SAME
+    // delta (every status change and removal passes through here). Never throws.
+    reminders.onDelta(delta)
     // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
     // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 — the
     // onDelta path already runs per delta with the current snapshotMap; no new polling loop).
@@ -762,6 +795,12 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   if (tray) {
     trays.delete(wc)
     tray.destroy()
+  }
+  // Attention reminders — clear every armed reminder timer so none fires into a closed window.
+  const reminders = reminderSchedulers.get(wc)
+  if (reminders) {
+    reminderSchedulers.delete(wc)
+    reminders.dispose()
   }
   // Story 3.5 (SM-2) — remove the per-window tracker reference (same lifetime as the feed).
   // The telemetry IPC handler will see no tracker for a destroyed window → graceful no-op.

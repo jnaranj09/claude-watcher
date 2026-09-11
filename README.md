@@ -50,6 +50,12 @@ says which of those states you landed in — `webapp · your turn`,
 `webapp asked a question`, `webapp wants permission` — never the column name. The
 body is the project path plus the pending tool, verbatim.
 
+If a session is still blocked on a permission prompt or a question, it is reminded — by
+default three more times, at +2, +6 and +14 minutes (each gap doubles), each with the
+attention sound when sound is on. The reminders stop as soon as the session is no longer
+blocked. `Your turn` gets no reminders: nothing is stuck. Settings → **Reminders** sets how
+many (Off, 1–5) and **First reminder after** sets the first gap (1, 2, 5, 10 or 15 min).
+
 ## Session templates
 
 A template is a saved bundle of **folder + model + permission mode + thinking effort** under

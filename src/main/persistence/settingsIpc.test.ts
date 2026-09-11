@@ -10,7 +10,7 @@
 //  .claude/rules/zod-boundaries.md IPC-arg row]
 import { describe, it, expect } from 'vitest'
 import { createSettingsStore, type SettingsStore } from './settings'
-import { SettingsPatchSchema, DEFAULT_SETTINGS } from '../../shared/schemas/settings'
+import { SettingsPatchSchema, DEFAULT_SETTINGS, type Settings } from '../../shared/schemas/settings'
 
 /** Re-create the EXACT handler logic the main process wires (sans the ipcMain plumbing). */
 function makeHandlers(store: SettingsStore): {
@@ -39,9 +39,29 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
     expect(result).toEqual({
       version: 1,
       soundEnabled: false,
-      terminalFontSize: 18
+      terminalFontSize: 18,
+      reminderCount: 3,
+      reminderFirstDelayMinutes: 2
     })
     expect(get()).toEqual(result)
+  })
+
+  it('settings:set persists a reminder patch and keeps every other field', () => {
+    const store = createSettingsStore()
+    const { get, set } = makeHandlers(store)
+    set({ soundEnabled: false })
+    const result = set({ reminderCount: 0, reminderFirstDelayMinutes: 10 }) as Settings
+    expect(result.reminderCount).toBe(0)
+    expect(result.reminderFirstDelayMinutes).toBe(10)
+    expect(result.soundEnabled).toBe(false)
+    expect(get()).toEqual(result)
+  })
+
+  it('settings:set rejects a reminder value the settings do not offer', () => {
+    const store = createSettingsStore()
+    const { set } = makeHandlers(store)
+    expect(() => set({ reminderCount: 9 })).toThrow()
+    expect(() => set({ reminderFirstDelayMinutes: 7 })).toThrow()
   })
 
   it('settings:set with a MALFORMED arg THROWS (untrusted cross-process input fails closed)', () => {

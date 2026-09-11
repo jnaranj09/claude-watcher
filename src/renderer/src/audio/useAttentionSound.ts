@@ -5,6 +5,7 @@
 // sound IFF the live `soundEnabled` setting is on (AC-1/3). The board store still IGNORES
 // `attention.raised` for session truth (boardStore.ts) — this sound is a SEPARATE renderer-side
 // side effect off the same delta; the frozen `AttentionEvent` union is NOT reshaped (AC-8).
+// Also plays on the `attention:reminder` push (attention reminders).
 //
 // Mute = the SOLE governor (AC-2/3/F2): we read `soundEnabled` LIVE on each event (off the
 // settings store) so a mute takes effect IMMEDIATELY with no restart; we fire 1:1 with NO
@@ -36,18 +37,27 @@ export function useAttentionSound(
   isSoundEnabled: SoundEnabledGetter = defaultSoundEnabled
 ): void {
   useEffect(() => {
-    const off = window.watch.onEvents((payload) => {
+    const offEvents = window.watch.onEvents((payload) => {
       // ONLY react to the attention edge; session.updated/removed never play (AC-1/by-type).
       // Story 3.3 — NO renderer-side launched-vs-external filter here: main GATES the
       // attention.raised SEND at the source (index.ts onDelta), so the renderer only ever
-      // receives a LAUNCHED session's raise. An external session's raise never crosses the seam,
-      // so the sound auto-narrows with zero edits here. Do NOT add a redundant membership filter
-      // (the renderer has no launched-set; main owns it — adding one would be a drift-prone copy).
+      // receives a LAUNCHED session's raise. Do NOT add a redundant membership filter.
       if (payload.event.type !== 'attention.raised') return
       // Live mute check (AC-3 — immediate, no restart). NO debounce here (AC-2).
       if (!isSoundEnabled()) return
       sound.play() // 1:1 with the already-debounced attention.raised.
     })
-    return off
+    // Attention reminders (spec 2026-09-10) — main re-notified a session still blocked on you.
+    // Same live mute check, same one sound. It rides its own push (CH.attentionReminder), not
+    // watch:events: a reminder is not an attention.raised (that union is frozen). Main gates it
+    // to launched sessions at the source, exactly like the raise.
+    const offReminder = window.attention.onReminder(() => {
+      if (!isSoundEnabled()) return
+      sound.play()
+    })
+    return () => {
+      offEvents()
+      offReminder()
+    }
   }, [sound, isSoundEnabled])
 }

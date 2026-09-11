@@ -246,6 +246,30 @@ describe('WorkspaceSwitcher', () => {
     expect(q(r, '[data-testid="workspace-row-needs-w1"]').textContent).toBe('1')
   })
 
+  // The pair reads the same in the button and in every row: grey first, then yellow. The rows
+  // once put yellow first, so the same two pills swapped places when the menu opened.
+  it('puts the grey count before the needs-you pill in the button and in every row', () => {
+    seedCard('default', 'a', 'needs-you')
+    seedCard('default', 'b', 'working')
+    seedCard('w1', 'c', 'needs-you')
+    seedCard('w1', 'd', 'working')
+    const r = renderSwitcher()
+    const follows = (first: string, second: string): boolean =>
+      (q(r, first).compareDocumentPosition(q(r, second)) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    expect(
+      follows('[data-testid="workspace-card-count"]', '[data-testid="workspace-here-badge"]')
+    ).toBe(true)
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    for (const id of ['default', 'w1']) {
+      expect(
+        follows(
+          `[data-testid="workspace-row-count-${id}"]`,
+          `[data-testid="workspace-row-needs-${id}"]`
+        )
+      ).toBe(true)
+    }
+  })
+
   it('lists every workspace with its own count and switches on click', async () => {
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()

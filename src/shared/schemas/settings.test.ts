@@ -18,6 +18,10 @@ import {
   SETTINGS_VERSION,
   TERMINAL_FONT_SIZE_MIN,
   TERMINAL_FONT_SIZE_MAX,
+  REMINDER_COUNT_MAX,
+  REMINDER_FIRST_DELAY_OPTIONS,
+  DEFAULT_REMINDER_COUNT,
+  DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
   type Settings
 } from './settings'
 
@@ -26,7 +30,9 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
     const valid: Settings = {
       version: 1,
       soundEnabled: false,
-      terminalFontSize: 16
+      terminalFontSize: 16,
+      reminderCount: 3,
+      reminderFirstDelayMinutes: 2
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -161,5 +167,78 @@ describe('backgroundWorkTimeoutMinutes — retired; a persisted blob carrying it
   it('the patch schema no longer accepts it as a settable field', () => {
     const parsed = SettingsPatchSchema.parse({ backgroundWorkTimeoutMinutes: 30 })
     expect(parsed).not.toHaveProperty('backgroundWorkTimeoutMinutes')
+  })
+})
+
+// Attention reminders (spec 2026-09-10 D-12, §3). The two fields are ADDITIVE on the v1 shape:
+// `.default()` fills them on a file written before they existed, so that file does not fail
+// closed (a fail-closed read backs the file up and starts fresh — losing sound and font size).
+describe('reminder settings — additive, default-filled, no version bump', () => {
+  it('a v1 blob written before reminders parses, keeps sound + font size, and fills the defaults', () => {
+    const parsed = parseSettings({ version: 1, soundEnabled: false, terminalFontSize: 16 })
+    expect(parsed.soundEnabled).toBe(false)
+    expect(parsed.terminalFontSize).toBe(16)
+    expect(parsed.reminderCount).toBe(DEFAULT_REMINDER_COUNT)
+    expect(parsed.reminderFirstDelayMinutes).toBe(DEFAULT_REMINDER_FIRST_DELAY_MINUTES)
+  })
+
+  it('defaults to 3 reminders, the first after 2 minutes, and stays at version 1', () => {
+    expect(DEFAULT_REMINDER_COUNT).toBe(3)
+    expect(DEFAULT_REMINDER_FIRST_DELAY_MINUTES).toBe(2)
+    expect(DEFAULT_SETTINGS.reminderCount).toBe(3)
+    expect(DEFAULT_SETTINGS.reminderFirstDelayMinutes).toBe(2)
+    expect(SETTINGS_VERSION).toBe(1)
+    expect(SettingsSchema.safeParse(DEFAULT_SETTINGS).success).toBe(true)
+  })
+
+  it('offers exactly 0–5 reminders and first delays of 1, 2, 5, 10, 15 min', () => {
+    expect(REMINDER_COUNT_MAX).toBe(5)
+    expect([...REMINDER_FIRST_DELAY_OPTIONS]).toEqual([1, 2, 5, 10, 15])
+  })
+
+  it('accepts every offered count and delay', () => {
+    for (let count = 0; count <= REMINDER_COUNT_MAX; count++) {
+      for (const delay of REMINDER_FIRST_DELAY_OPTIONS) {
+        const r = SettingsSchema.safeParse({
+          ...DEFAULT_SETTINGS,
+          reminderCount: count,
+          reminderFirstDelayMinutes: delay
+        })
+        expect(r.success).toBe(true)
+      }
+    }
+  })
+
+  it.each([-1, 6, 2.5, '3'])('a reminderCount of %j fails closed', (bad) => {
+    expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, reminderCount: bad }).success).toBe(
+      false
+    )
+  })
+
+  it.each([0, 3, 7, 60, '2'])(
+    'a reminderFirstDelayMinutes of %j (not offered) fails closed',
+    (bad) => {
+      const r = SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, reminderFirstDelayMinutes: bad })
+      expect(r.success).toBe(false)
+    }
+  )
+
+  // THE PATCH TRAP (§3): a defaulted field inside a `.partial()` patch is FILLED by zod, so a
+  // patch that only toggles sound would silently reset the operator's reminder count. The patch
+  // schema must declare these fields WITHOUT a default.
+  it('a sound-only patch carries NO reminder keys', () => {
+    const p = SettingsPatchSchema.parse({ soundEnabled: false })
+    expect(p).toEqual({ soundEnabled: false })
+    expect(p).not.toHaveProperty('reminderCount')
+    expect(p).not.toHaveProperty('reminderFirstDelayMinutes')
+  })
+
+  it('the patch schema validates each reminder field', () => {
+    expect(SettingsPatchSchema.parse({ reminderCount: 0 })).toEqual({ reminderCount: 0 })
+    expect(SettingsPatchSchema.parse({ reminderFirstDelayMinutes: 5 })).toEqual({
+      reminderFirstDelayMinutes: 5
+    })
+    expect(SettingsPatchSchema.safeParse({ reminderCount: 6 }).success).toBe(false)
+    expect(SettingsPatchSchema.safeParse({ reminderFirstDelayMinutes: 7 }).success).toBe(false)
   })
 })
