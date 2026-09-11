@@ -97,6 +97,25 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
     expect(fake.backupCount).toBe(0)
     expect(log).not.toHaveBeenCalled()
   })
+
+  it('loads a v1 blob written BEFORE reminders existed — keeps it, defaults only the new fields (D-12)', () => {
+    // A real pre-reminders v1 file: no reminderCount/reminderFirstDelayMinutes keys at all.
+    const preReminders = { version: 1, soundEnabled: false, terminalFontSize: 16 }
+    const fake = makeFakeBlobStore(preReminders)
+    const log = vi.fn()
+    const store = createSettingsStore({ blobStore: fake.blobStore, log })
+
+    // Additive, not corrupt: the missing fields default — the rest of the file is untouched.
+    expect(fake.backupCount).toBe(0)
+    expect(log).not.toHaveBeenCalled()
+    expect(store.get()).toEqual({
+      version: 1,
+      soundEnabled: false,
+      terminalFontSize: 16,
+      reminderCount: 3,
+      reminderFirstDelayMinutes: 2
+    })
+  })
 })
 
 describe('createSettingsStore — corrupt read fails closed: backup + start fresh (AC-6)', () => {
