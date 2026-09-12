@@ -1,10 +1,11 @@
-# Rule: UI shape (copy the sibling, don't invent a second layout)
+# Rule: UI shape (one shell, don't invent a second layout)
 
-This app has THREE "Manage X" dialogs — Templates, Shortcuts, Workspaces — that do the
-same job: pick a row on the left, edit it on the right. They must look and behave like
-one another. When you add or change one, read the other two FIRST and copy the shape.
-Two dialogs that do the same job in two different layouts is a defect, even when each
-one is internally fine.
+This app's "Manage X" dialogs — Templates, Shortcuts, Workspaces, and the Tags and Rules
+dialogs to come — do the same job: pick a row, edit it. They must look and behave like one
+another, so they are all built on ONE shell: `components/ManageDialog/` (import
+`ManageDialog` and `useManageDialog` from `ManageDialog.ts`). Compose its parts; read a
+sibling dialog first to see how. Two dialogs that do the same job in two different layouts
+is a defect, even when each one is internally fine.
 
 (The `UX-DR<n>` ids in code comments come from the original design docs, which are not
 in this tree. This file is the design rule set that IS.)
@@ -12,44 +13,47 @@ in this tree. This file is the design rule set that IS.)
 ## Canonical example (the Manage-dialog shape)
 
 ```tsx
-<div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Templates">
-  <div className={styles.panel}>
-    <div className={styles.header}>title + ✕ close</div>
-    <div className={styles.columns}>
-      {' '}
+const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', onClose })
+
+<ManageDialog.Provider {...dialog}>
+  <ManageDialog.Frame>
+    {/* overlay z-60, role=dialog, Escape closes */}
+    <ManageDialog.Header>
+      <ScopeFilter … /> {/* beside the title */}
+    </ManageDialog.Header>
+    <ManageDialog.Columns>
       {/* grid: fixed rail | 1fr form */}
-      <div className={styles.list}>
-        <div className={styles.rows}>…rows: SELECT only, no per-row actions…</div>
-        <button>+ New</button> {/* bottom of the rail */}
-      </div>
-      <form className={styles.form}>
+      <ManageDialog.List>
+        <ManageDialog.Rows>
+          <ManageDialog.Row id={t.id} testId="template-row">
+            {t.name}
+            {/* <ManageDialog.RowActions> ONLY for actions the form does not own */}
+          </ManageDialog.Row>
+        </ManageDialog.Rows>
+        <ManageDialog.New testId="template-new" /> {/* bottom of the rail */}
+      </ManageDialog.List>
+      <ManageDialog.Form onSubmit={submit}>
         …fields…
-        <div className={styles.actions}>
-          {' '}
+        <ManageDialog.Footer>
           {/* flex, justify-content: flex-end */}
-          <button className={armed ? styles.dangerButton : styles.deleteButton}>
-            {armed ? 'Confirm delete' : 'Delete'}
-          </button>
-          <button type="submit" className={styles.primaryButton}>
-            Save
-          </button>
-        </div>
-      </form>
-    </div>
-    {error !== null && (
-      <p className={styles.error} role="alert">
-        …
-      </p>
-    )}
-  </div>
-</div>
+          <ManageDialog.Delete testId="template-delete" onConfirm={remove} />
+          <ManageDialog.Save testId="template-save" disabled={!canSave} />
+        </ManageDialog.Footer>
+      </ManageDialog.Form>
+    </ManageDialog.Columns>
+    <ManageDialog.Error testId="template-error" />
+  </ManageDialog.Frame>
+</ManageDialog.Provider>
 ```
 
 ## The rules
 
-- **A list row selects. It does not act.** No Delete, no rename, no per-row buttons in
-  the rail. Row actions make the rail ragged, they push the list items around when one
-  arms, and they duplicate an affordance the form already has to own.
+- **A row may carry actions only inside `ManageDialog.RowActions`, and never an action the
+  form already owns (Delete, rename).** The row itself selects. `RowActions` is a
+  fixed-width slot revealed on hover / focus-within, so the rail never goes ragged and
+  nothing shifts when a control arms. An action the form has stays in the form — a second
+  control for the same job is the defect. (Rules' ↑/↓ reorder is the case this exists
+  for: it has no form equivalent.)
 - **Destructive actions live in the form footer, left of the primary button.** The
   footer is ONE `flex-end` row: `[Delete] [Save]`. The operator reads the object they
   are about to destroy (the form) right above the button that destroys it.
@@ -61,9 +65,10 @@ in this tree. This file is the design rule set that IS.)
 - **Delete is red at rest, filled on hover/focus.** `.deleteButton` = `--danger` border
   and text on a transparent background; `:hover`/`:focus-visible` fills `--danger` with
   white text. `.dangerButton` (solid `--danger`) is the ARMED state only, so arming
-  reads as the same button changing, not a new one appearing. Copy both blocks from a
-  sibling dialog's `.module.css` — the classes are per-module by design (CSS Modules),
-  the values are not free to drift.
+  reads as the same button changing, not a new one appearing. Both classes live in
+  `ManageDialog.module.css` and nowhere else: render `<ManageDialog.Delete>`, which owns
+  the arm / blur / Escape behaviour once. `ManageDialog.styles.test.ts` fails if any other
+  module declares either class.
 - **One error line per dialog**, `role="alert"`, shared by every flow in it. Never a
   second error surface per section, and never render a thrown `error.message` — map the
   code to operator copy first (see the `copyFor`/`templateErrorMessage` precedent).
@@ -214,10 +219,12 @@ and assert on its text instead.
 
 ## Don't
 
-- Don't add a per-row action "just for this one dialog".
+- Don't put a per-row action anywhere but `ManageDialog.RowActions`, and never one the form
+  already has.
 - Don't write `<input type="text">` or a `.input` CSS rule. That is `<TextInput>`.
 - Don't introduce a fourth button style. There are three: `primaryButton`,
-  `ghostButton`, `deleteButton` (+ its armed `dangerButton`).
+  `ghostButton`, `deleteButton` (+ its armed `dangerButton`) — all in
+  `ManageDialog.module.css`; render `ManageDialog.Save` / `GhostButton` / `Delete`.
 - Don't reach for a native `<select>`, `alert()`, `confirm()`, or any other browser-drawn widget
   with a popup. They are painted by the platform and cannot be themed.
 - Don't hard-code a color that a token already names (`--danger`, `--working`,
@@ -229,5 +236,6 @@ and assert on its text instead.
   scope dropdown's own `<option>` labels contain every one of them, so such an assertion passes
   whether or not the thing you meant to check rendered. Query a `data-testid`, or assert on
   structure (row count vs container child count).
-- Don't reach for a new dialog shell. The three overlays are `z-index: 60`, single-modal
-  (App.tsx `isModalOpen()` guards them against each other), and Escape-closable.
+- Don't reach for a new dialog shell. A Manage dialog is `ManageDialog.Frame`: `z-index: 60`,
+  single-modal (App.tsx `isModalOpen()` guards it against the other modals — a new dialog
+  adds its open flag there), and Escape-closable.
