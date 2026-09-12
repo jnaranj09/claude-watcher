@@ -21,10 +21,13 @@
 // NO IPC, NO store). The card is keyboard-focusable with a lavender AA focus ring
 // and calls `onActivate` on click/Enter — the handler is wired by Story 1.4; this
 // component only takes the callback. Status is dot + text label (never color-only).
-import { useRef, useState, type JSX, type KeyboardEvent, type MouseEvent } from 'react'
+import { useId, useRef, useState, type JSX, type KeyboardEvent, type MouseEvent } from 'react'
 import { StatusDot, type DotStatus } from '../StatusDot/StatusDot'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
-import type { Workspace } from '../../../../shared/ipc/contract'
+import type { Tag, Workspace } from '../../../../shared/ipc/contract'
+import { TagChipRow } from '../TagChip/TagChipRow'
+import { TagPicker } from '../TagPicker/TagPicker'
+import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import styles from './SessionCard.module.css'
 
 export type SessionCardVariant = 'hero' | 'calm'
@@ -82,6 +85,14 @@ export interface SessionCardProps {
    * control is a DOM child of the card's own `role="button"`.
    */
   onMoveToWorkspace?: (workspaceId: string) => void
+  /** Tags — the chips this card carries, already resolved and in TAG-LIST order (T-26). Omitted or
+   *  empty ⇒ no chip row. */
+  tags?: readonly Tag[]
+  /** Tags — what the Tags… menu may offer: global + this card's workspace (T-11), tag-list order. */
+  availableTags?: readonly Tag[]
+  /** Tags — the operator changed this card's tags in the Tags… menu. Omitted ⇒ no Tags… button,
+   *  the same optional-seam rule as `onRename`. */
+  onSetTags?: (tagIds: string[]) => void
   /** Story 2.2 (FR-9) — true when this card is the SELECTED card (the operator activated a
    *  notification for this session and the window is up). Renders a locate-and-highlight
    *  affordance via the shipped lavender focus-ring / raised-surface tokens — NOT a new color,
@@ -122,6 +133,9 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     workspaces,
     currentWorkspaceId,
     onMoveToWorkspace,
+    tags,
+    availableTags,
+    onSetTags,
     selected = false,
     emphasized = false
   } = props
@@ -135,6 +149,20 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   // not a valid state. Computed once here so the render guard below and the menu's map share the
   // SAME filtered list (never re-derived, never drifting).
   const otherWorkspaces = (workspaces ?? []).filter((w) => w.id !== currentWorkspaceId)
+
+  // Tags (T-26) — local, presentational toggle for the Tags… list; the same kind of ephemeral UI
+  // state as `moveOpen`.
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const tagsAnchorRef = useRef<HTMLDivElement | null>(null)
+  const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
+  const cardTags = tags ?? []
+  const pickable = availableTags ?? []
+  // T-9 — the tags that do not survive a move: this workspace's own. Global tags travel.
+  const droppedOnMove = cardTags.filter((t) => t.workspaceId === currentWorkspaceId).length
+  const currentWorkspaceName =
+    workspaces?.find((w) => w.id === currentWorkspaceId)?.name ?? 'this workspace'
+  const moveWarningId = useId()
+  const tagPickerId = useId()
 
   // The accent bar only renders on the hero variant (calm is recessed).
   const accentClass = variant === 'hero' ? ACCENT_CLASS[accent] : ''
@@ -193,6 +221,21 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       // Do NOT preventDefault — see handleRenameKeyDown above.
       e.stopPropagation()
     }
+  }
+
+  // Tags — the SAME load-bearing guard pair as the pencil and the move toggle: this button is a DOM
+  // child of the card's role="button", so a bare click (or an Enter/Space keydown, which reaches
+  // the card BEFORE the browser synthesizes the click) would also open the session.
+  const handleTagsToggleClick = (e: MouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation()
+    setTagsOpen((v) => !v)
+  }
+  const handleTagsToggleKeyDown = handleMoveToggleKeyDown
+
+  const closeTags = (reason: 'escape' | 'outside'): void => {
+    setTagsOpen(false)
+    // Only Escape hands focus back; an outside click leaves focus where the operator clicked.
+    if (reason === 'escape') tagsButtonRef.current?.focus()
   }
 
   // Each move-target row is ALSO a DOM child of the card's role="button" — the same guard applies
@@ -318,7 +361,25 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
               </svg>
             </button>
             {moveOpen && (
-              <div className={styles.moveMenu} role="menu" onKeyDown={handleMoveMenuKeyDown}>
+              <div
+                className={styles.moveMenu}
+                role="menu"
+                onKeyDown={handleMoveMenuKeyDown}
+                {...(droppedOnMove > 0 ? { 'aria-describedby': moveWarningId } : {})}
+              >
+                {/* T-9 — say what the move costs BEFORE it happens: this workspace's own tags do
+                    not exist elsewhere. `role="none"` keeps the menu's children menu items only;
+                    aria-describedby reads it out. */}
+                {droppedOnMove > 0 && (
+                  <p
+                    id={moveWarningId}
+                    className={styles.moveWarning}
+                    role="none"
+                    data-testid="card-move-warning"
+                  >
+                    {`Moving drops ${droppedOnMove} ${droppedOnMove === 1 ? 'tag' : 'tags'} from ${currentWorkspaceName}`}
+                  </p>
+                )}
                 {otherWorkspaces.map((w) => (
                   <button
                     key={w.id}
@@ -333,6 +394,39 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
                   </button>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+        {/* Tags (T-26) — the Tags… menu. Same reveal-on-hover + always-tab-reachable treatment as
+            the pencil, and the same "never a control that opens onto nothing" rule as the move
+            button: rendered only when tagging is wired AND this card's workspace has tags. */}
+        {onSetTags !== undefined && pickable.length > 0 && (
+          <div className={styles.moveWrap} ref={tagsAnchorRef}>
+            <button
+              ref={tagsButtonRef}
+              type="button"
+              className={styles.renameButton}
+              data-testid="card-tags-button"
+              aria-expanded={tagsOpen}
+              aria-controls={tagPickerId}
+              aria-label={`Tags for ${sessionName}`}
+              title={`Tags for ${sessionName}`}
+              onClick={handleTagsToggleClick}
+              onKeyDown={handleTagsToggleKeyDown}
+            >
+              <TagGlyphIcon />
+            </button>
+            {tagsOpen && (
+              <TagPicker
+                id={tagPickerId}
+                tags={pickable}
+                selectedIds={cardTags.map((t) => t.id)}
+                onChange={(tagIds) => onSetTags(tagIds)}
+                onClose={closeTags}
+                anchorRef={tagsAnchorRef}
+                testId="card-tag-picker"
+                label={`Tags for ${sessionName}`}
+              />
             )}
           </div>
         )}
@@ -368,6 +462,12 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
             </span>
             <span data-testid="cost">{cost}</span>
           </>
+        )}
+        {/* T-26 — tags sit at the RIGHT of the footer on ONE line; what does not fit becomes +N. */}
+        {cardTags.length > 0 && (
+          <div className={styles.footerTags}>
+            <TagChipRow tags={cardTags} testId="card-tags" />
+          </div>
         )}
       </div>
     </div>

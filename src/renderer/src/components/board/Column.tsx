@@ -39,7 +39,8 @@ import {
   selectActiveWorkspaceId,
   selectWorkspaces
 } from '../../stores/workspacesStore'
-import { effectiveTagFilter, useTags } from '../../stores/tagsStore'
+import { effectiveTagFilter, tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
+import { visibleTags } from '../../../../shared/tags/tagScope'
 import { useShallow } from 'zustand/react/shallow'
 import styles from './Board.module.css'
 
@@ -94,6 +95,8 @@ function EmphasizedSessionCard(props: {
   workspaces: Workspace[]
   /** Task 12 — move seam, threaded straight through to the card's move affordance. */
   onMoveCardToWorkspace?: ((id: string, workspaceId: string) => void) | undefined
+  /** Tags — the Tags… seam, threaded to the card's Tags… menu. */
+  onSetCardTags?: ((id: string, tagIds: string[]) => void) | undefined
 }): JSX.Element {
   const {
     session,
@@ -104,9 +107,16 @@ function EmphasizedSessionCard(props: {
     onActivateCard,
     onRenameCard,
     workspaces,
-    onMoveCardToWorkspace
+    onMoveCardToWorkspace,
+    onSetCardTags
   } = props
   const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
+  // Tags — this card's chips (tag-list order) and what its Tags… menu may offer (T-11). Arrays →
+  // useShallow, so an unrelated catalog change does not re-render the card.
+  const tags = useTags(useShallow((s: TagsState) => tagsForIds(s.tags, session.tagIds)))
+  const availableTags = useTags(
+    useShallow((s: TagsState) => visibleTags(s.tags, session.workspaceId))
+  )
   return (
     <SessionCard
       variant={variant}
@@ -119,6 +129,7 @@ function EmphasizedSessionCard(props: {
       pid={session.pid}
       selected={selected}
       emphasized={emphasized}
+      tags={tags}
       {...(session.pendingToolName !== undefined
         ? { pendingToolName: session.pendingToolName }
         : {})}
@@ -130,6 +141,12 @@ function EmphasizedSessionCard(props: {
             currentWorkspaceId: session.workspaceId,
             onMoveToWorkspace: (workspaceId: string) =>
               onMoveCardToWorkspace(session.id, workspaceId)
+          }
+        : {})}
+      {...(onSetCardTags
+        ? {
+            availableTags,
+            onSetTags: (tagIds: string[]) => onSetCardTags(session.id, tagIds)
           }
         : {})}
     />
@@ -149,6 +166,8 @@ export interface ColumnProps {
   /** Task 12 — called when a card's move-to-workspace affordance picks a target. Omitted ⇒ no
    *  move control. */
   onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
+  /** Tags — called when a card's Tags… menu changes its tags. Omitted ⇒ no Tags… button. */
+  onSetCardTags?: (id: string, tagIds: string[]) => void
   /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
    *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
   selectedId?: string | null
@@ -160,6 +179,7 @@ export function Column({
   onActivateCard,
   onRenameCard,
   onMoveCardToWorkspace,
+  onSetCardTags,
   selectedId = null
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
@@ -216,6 +236,7 @@ export function Column({
               onRenameCard={onRenameCard}
               workspaces={workspaces}
               onMoveCardToWorkspace={onMoveCardToWorkspace}
+              onSetCardTags={onSetCardTags}
             />
           ))}
         </div>

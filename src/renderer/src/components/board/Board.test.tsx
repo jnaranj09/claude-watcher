@@ -636,4 +636,16 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     )
     expect(idleCol?.querySelector('[data-testid="empty-hint-filtered"]')).toBeNull()
   })
+
+  it('a card draws its tags from the catalog, in TAG-LIST order', () => {
+    const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
+    act(() => tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true, activeTagId: null }))
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
+    const row = container.querySelector('[data-session-id="tagged"] [data-testid="card-tags"]')
+    expect(
+      [...(row?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent)
+    ).toEqual(['deploy', 'prod'])
+  })
 })

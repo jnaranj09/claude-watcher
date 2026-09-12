@@ -15,6 +15,10 @@ import { TagChip } from '../TagChip/TagChip'
 import styles from './TagPicker.module.css'
 
 export interface TagPickerProps {
+  /** DOM id for the popup root. Lets a trigger button point `aria-controls` at it (SessionCard's
+   *  Tags… button — design.md: no `aria-haspopup="menu"` here, this is a checkbox group). Optional:
+   *  omit for a caller with no such trigger. */
+  id?: string
   /** What the card may carry (global + its workspace), in tag-list order. */
   tags: readonly Tag[]
   /** The card's current tag ids. */
@@ -30,6 +34,7 @@ export interface TagPickerProps {
 }
 
 export function TagPicker({
+  id,
   tags,
   selectedIds,
   onChange,
@@ -72,6 +77,7 @@ export function TagPicker({
       role="group"
       aria-label={label}
       data-testid={testId}
+      {...(id !== undefined ? { id } : {})}
       onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onKeyDown={handleKeyDown}
     >

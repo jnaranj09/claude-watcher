@@ -86,6 +86,8 @@ export interface BoardProps {
   onRenameCard?: (id: string) => void
   /** Task 12 — card move-to-workspace seam. Omitted ⇒ no move affordance is rendered. */
   onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
+  /** Tags — card Tags… seam. Omitted ⇒ no Tags… button. */
+  onSetCardTags?: (id: string, tagIds: string[]) => void
 }
 
 export function Board({
@@ -94,7 +96,8 @@ export function Board({
   onPickTemplate,
   onManageTemplates,
   onRenameCard,
-  onMoveCardToWorkspace
+  onMoveCardToWorkspace,
+  onSetCardTags
 }: BoardProps): JSX.Element {
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
@@ -238,6 +241,7 @@ export function Board({
               {...(onActivateCard ? { onActivateCard } : {})}
               {...(onRenameCard ? { onRenameCard } : {})}
               {...(onMoveCardToWorkspace ? { onMoveCardToWorkspace } : {})}
+              {...(onSetCardTags ? { onSetCardTags } : {})}
             />
           ))}
         </div>

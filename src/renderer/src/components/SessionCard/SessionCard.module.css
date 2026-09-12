@@ -260,10 +260,13 @@
 }
 
 /* Muted footer — `pid · tasks · cost` (meta ramp); pid value in mono. */
+/* The chip height: the first tag must never grow the card (T-26 — a rule tagging a card never
+ * moves the cards below it). */
 .footer {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 18px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-meta);
   line-height: var(--line-height-meta);
@@ -276,4 +279,23 @@
 
 .sep {
   color: var(--text-muted);
+}
+
+/* Tags (T-26) — the chips' slot at the right of the footer. `min-width: 0` lets it shrink to what
+ * is left beside the pid, which is the width TagChipRow measures. */
+.footerTags {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+}
+
+/* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised
+ * panel (design.md: never --text-muted there). */
+.moveWarning {
+  margin: 0 0 var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
 }
