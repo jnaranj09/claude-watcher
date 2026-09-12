@@ -22,6 +22,7 @@ import {
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 import { loadShortcuts } from '../../stores/shortcutsStore'
+import { loadTags } from '../../stores/tagsStore'
 import { loadTemplates } from '../../stores/templatesStore'
 import {
   removeWorkspace,
@@ -153,7 +154,7 @@ function WorkspaceForm({
           deleting a workspace also deletes every template and shortcut scoped to it. */}
       {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && state.armed && (
         <ManageDialog.Hint testId="workspace-delete-confirm-text">
-          {`Delete ${workspace.name}? Any templates and shortcuts scoped to it are deleted too. This cannot be undone.`}
+          {`Delete ${workspace.name}? Any templates, shortcuts and tags scoped to it are deleted too. This cannot be undone.`}
         </ManageDialog.Hint>
       )}
 
@@ -193,15 +194,16 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
     setDeleteBusy(true)
     try {
       await removeWorkspace(id)
-      // A committed delete CASCADES in main (templatesStore/shortcutsStore removeByWorkspace),
-      // and nothing else tells the renderer: loadTemplates/loadShortcuts otherwise run ONLY at
-      // startup. Without this re-read the deleted rows sit in the two projections until an
-      // unrelated round-trip or a restart — and since their workspace is gone, the Manage
-      // dialogs file them under `(no workspace)`, where they look legitimate and saving one
-      // throws template_not_found on a row the UI is showing. Neither loader throws (each logs
-      // a code and leaves its projection alone), so this cannot turn a successful delete into
-      // an error. Only on the SUCCESS path — a refused delete cascaded nothing.
-      await Promise.all([loadTemplates(), loadShortcuts()])
+      // A committed delete CASCADES in main (templatesStore/shortcutsStore/tag catalog
+      // removeByWorkspace), and nothing else tells the renderer: loadTemplates/loadShortcuts/
+      // loadTags otherwise run ONLY at startup. Without this re-read the deleted rows sit in the
+      // three projections until an unrelated round-trip or a restart — and since their workspace
+      // is gone, the Manage dialogs file them under `(no workspace)`, where they look legitimate
+      // and saving one throws template_not_found on a row the UI is showing. None of the loaders
+      // throw (each logs a code and leaves its projection alone), so this cannot turn a
+      // successful delete into an error. Only on the SUCCESS path — a refused delete cascaded
+      // nothing, so re-reading templates, shortcuts and tags would be pointless work.
+      await Promise.all([loadTemplates(), loadShortcuts(), loadTags()])
       // The deleted row was the selected one: back to the New form. `select` also clears the
       // error line and the armed Delete.
       dialog.actions.select(null)

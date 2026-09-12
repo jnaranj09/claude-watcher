@@ -18,10 +18,12 @@ const ROWS: Workspace[] = [
 let cleanup: (() => void) | undefined
 let save: ReturnType<typeof vi.fn>
 let remove: ReturnType<typeof vi.fn>
-// The two list bridges `loadTemplates`/`loadShortcuts` call — stubbed so the re-read after a
-// committed delete is observable end-to-end (the real store functions run; only IPC is faked).
+// The three list bridges `loadTemplates`/`loadShortcuts`/`loadTags` call — stubbed so the re-read
+// after a committed delete is observable end-to-end (the real store functions run; only IPC is
+// faked).
 let templatesList: ReturnType<typeof vi.fn>
 let shortcutsList: ReturnType<typeof vi.fn>
+let tagsList: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   save = vi.fn((req: WorkspaceSaveRequest) => {
@@ -36,9 +38,11 @@ beforeEach(() => {
   remove = vi.fn(() => Promise.resolve({ activeId: 'default', workspaces: [ROWS[0]] }))
   templatesList = vi.fn(() => Promise.resolve([]))
   shortcutsList = vi.fn(() => Promise.resolve([]))
+  tagsList = vi.fn(() => Promise.resolve([]))
   ;(window as unknown as { workspaces: unknown }).workspaces = { save, remove }
   ;(window as unknown as { templates: unknown }).templates = { list: templatesList }
   ;(window as unknown as { shortcuts: unknown }).shortcuts = { list: shortcutsList }
+  ;(window as unknown as { tags: unknown }).tags = { list: tagsList }
   act(() => workspacesStore.setState({ workspaces: ROWS, activeId: 'default', loaded: true }))
 })
 
@@ -129,17 +133,20 @@ describe('WorkspacesDialog', () => {
     expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/already/i)
   })
 
-  // Deleting a workspace CASCADES its scoped templates and shortcuts in main; the renderer's
-  // two projections only load at startup, so without an explicit re-read they keep showing the
-  // deleted rows (filed under `(no workspace)`, where saving one throws template_not_found).
+  // Deleting a workspace CASCADES its scoped templates, shortcuts and tags in main; the
+  // renderer's three projections only load at startup, so without an explicit re-read they keep
+  // showing the deleted rows (filed under `(no workspace)`, where saving one throws
+  // template_not_found).
   //
-  // Non-vacuous: both spies start at zero call count and the seeded delete is the only thing in
-  // the test that could reach them — dropping the `Promise.all([loadTemplates(), loadShortcuts()])`
-  // line leaves both at 0 and turns both assertions red.
-  it('re-reads templates and shortcuts after a committed delete', async () => {
+  // Non-vacuous: all three spies start at zero call count and the seeded delete is the only thing
+  // in the test that could reach them — dropping the
+  // `Promise.all([loadTemplates(), loadShortcuts(), loadTags()])` line leaves them at 0 and turns
+  // the assertions red.
+  it('re-reads templates, shortcuts and tags after a committed delete', async () => {
     const { r } = render()
     expect(templatesList).not.toHaveBeenCalled()
     expect(shortcutsList).not.toHaveBeenCalled()
+    expect(tagsList).not.toHaveBeenCalled()
     click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
@@ -147,12 +154,13 @@ describe('WorkspacesDialog', () => {
     expect(remove).toHaveBeenCalledWith('w1')
     expect(templatesList).toHaveBeenCalledTimes(1)
     expect(shortcutsList).toHaveBeenCalledTimes(1)
+    expect(tagsList).toHaveBeenCalledTimes(1)
   })
 
   // The other half of the same rule: a REFUSED delete cascaded nothing in main, so re-reading
-  // would be pointless work. This pins the re-read to the success path — moving the two loads
+  // would be pointless work. This pins the re-read to the success path — moving the three loads
   // out of the try (or into a finally) turns this red while the test above stays green.
-  it('does NOT re-read templates and shortcuts when the delete was refused', async () => {
+  it('does NOT re-read templates, shortcuts and tags when the delete was refused', async () => {
     remove.mockRejectedValueOnce(
       new Error("Error invoking remote method 'workspaces:delete': Error: workspace_has_sessions")
     )
@@ -164,6 +172,7 @@ describe('WorkspacesDialog', () => {
     expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/still has running/i)
     expect(templatesList).not.toHaveBeenCalled()
     expect(shortcutsList).not.toHaveBeenCalled()
+    expect(tagsList).not.toHaveBeenCalled()
   })
 
   // Non-vacuous: Default is SELECTED first, so its form is the one on screen — the assertion
@@ -187,12 +196,12 @@ describe('WorkspacesDialog', () => {
     expect(del.closest('[data-testid="workspace-item-w1"]')).toBeNull()
   })
 
-  it('warns that scoped templates and shortcuts go with the workspace', () => {
+  it('warns that scoped templates, shortcuts and tags go with the workspace', () => {
     const { r } = render()
     click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     expect(q(r, '[data-testid="workspace-delete-confirm-text"]').textContent).toMatch(
-      /templates and shortcuts scoped to it/i
+      /templates, shortcuts and tags scoped to it/i
     )
   })
 
