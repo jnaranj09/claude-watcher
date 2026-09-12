@@ -281,6 +281,11 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     }
   }
 
+  // SessionCard.module.css `.root[data-menu-open]` — lifts THIS card's stacking context above
+  // its siblings while its own move menu or tag picker is open, so the popover never paints
+  // under the next card in the column (Task 17 drive-scenario finding).
+  const menuOpen = moveOpen || tagsOpen
+
   return (
     <div
       className={`${styles.root} ${VARIANT_CLASS[variant]} ${accentClass} ${emphasisClass}`}
@@ -290,6 +295,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       {...(sessionId !== undefined ? { 'data-session-id': sessionId } : {})}
       {...(selected ? { 'data-selected': true } : {})}
       {...(emphasized ? { 'data-emphasized': true } : {})}
+      {...(menuOpen ? { 'data-menu-open': true } : {})}
       role="button"
       tabIndex={0}
       onClick={() => onActivate?.()}

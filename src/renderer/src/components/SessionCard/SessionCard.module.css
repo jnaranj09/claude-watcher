@@ -31,6 +31,19 @@
   outline-offset: 2px;
 }
 
+/* The move menu / tag picker (both `.moveWrap` popovers below) are `position: absolute` with
+ * `z-index: 10`, but `.root` itself is `z-index: auto` — an unpositioned-for-stacking-purposes
+ * box that never bundles its own popover into one paint unit. Confirmed live (getBoundingClientRect
+ * + getComputedStyle walk, tags-visual.mjs drive scenario, Task 17): with `z-index: auto` here, a
+ * card's open popover painted UNDER the very next card in the same column (the later sibling in
+ * DOM order), because sibling cards are ALSO `position: relative, z-index: auto` and out-rank a
+ * plain `z-index: auto` ancestor at that tier. Only elevating THIS card while ITS OWN popover is
+ * open (never unconditionally, or two adjacent open cards would tie and fall back to DOM order
+ * again) fixes it — same reasoning as WorkspaceSwitcher.module.css's `.anchor` comment. */
+.root[data-menu-open] {
+  z-index: 1;
+}
+
 /* The LEFT EDGE carries STATUS — the same three states the StatusDot shows. Driven off
  * `data-status` (always on the root, both variants) rather than a class, so the bar and the
  * dot can never drift apart: they read the same prop.

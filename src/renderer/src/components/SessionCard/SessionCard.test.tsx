@@ -443,6 +443,42 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(document.activeElement).toBe(toggle)
   })
 
+  // Task 17 drive scenario — opening the tag picker on the top card of a 3-card Idle column
+  // painted its lower rows UNDER the very next card: `.root` was `position: relative` with
+  // z-index AUTO, so it never bundled its own popover into one paint unit, and the popover's
+  // `z-index: 10` escaped to compete against sibling cards (also z-index:auto) by DOM tree order
+  // instead of by z-index. `.root[data-menu-open]` (SessionCard.module.css) fixes it by lifting
+  // ONLY the card with an open popover — never unconditionally, or two adjacent open cards would
+  // tie and fall back to tree order again.
+  it('carries data-menu-open on the root ONLY while its own move menu or tag picker is open', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+          currentWorkspaceId: 'default',
+          onMoveToWorkspace: () => {},
+          availableTags: [{ id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }],
+          onSetTags: vi.fn()
+        })}
+      />
+    )
+    cleanup = unmount
+    const root = container.querySelector('[data-testid="session-name"]')?.closest('[role="button"]')
+    expect(root?.getAttribute('data-menu-open')).toBeNull()
+
+    const moveToggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(moveToggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(root?.getAttribute('data-menu-open')).toBe('true')
+    fireEvent(moveToggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(root?.getAttribute('data-menu-open')).toBeNull()
+
+    const tagsToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="card-tags-button"]'
+    )
+    fireEvent(tagsToggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(root?.getAttribute('data-menu-open')).toBe('true')
+  })
+
   // ── Visual hierarchy: the NAME is the title, the PATH is reference detail ────
   //
   // This shipped INVERTED. `.calm` set a variant-level `color: var(--text-dim)` meaning "dimmed
