@@ -226,8 +226,12 @@ export type Channel = (typeof CH)[keyof typeof CH]
  * may import — the renderer must never reach into `src/main`). There is NO `done`
  * column: an exited session VANISHES (`session.removed`), it never lands in one.
  * [Source: story 1.4 Task 1.1; src/main/c9watch/columns.ts; c9watch-0.8.1-contract.md §4]
+ *
+ * The rule triggers' enums and the enriched delta's `ColumnSchema` derive from the same
+ * list (spec §1.2), so a fourth column cannot be added to one and not the others.
  */
-export type Column = 'working' | 'needs-you' | 'idle'
+export const COLUMNS = ['working', 'needs-you', 'idle'] as const
+export type Column = (typeof COLUMNS)[number]
 
 // ---------------------------------------------------------------------------
 // Payload types (PascalCase, no `I` prefix, camelCase fields).
