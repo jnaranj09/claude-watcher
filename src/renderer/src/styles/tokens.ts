@@ -59,6 +59,26 @@ export const TOKENS = {
   danger: '#db4b4b',
   'focus-ring': '#b4befe',
 
+  // ── Tags (spec 2026-09-11 T-7) — opaque fills; see tokens.css for why ──────
+  'tag-slate-fill': '#373739',
+  'tag-slate-border': '#5b5e65',
+  'tag-slate-text': '#c4c9d4',
+  'tag-blue-fill': '#333943',
+  'tag-blue-border': '#516482',
+  'tag-blue-text': '#a9c7fb',
+  'tag-green-fill': '#384135',
+  'tag-green-border': '#5e795a',
+  'tag-green-text': '#b7e4b2',
+  'tag-amber-fill': '#443629',
+  'tag-amber-border': '#7f5b3a',
+  'tag-amber-text': '#f0b98a',
+  'tag-violet-fill': '#3e3742',
+  'tag-violet-border': '#6f5d81',
+  'tag-violet-text': '#d7bff9',
+  'tag-rose-fill': '#443336',
+  'tag-rose-border': '#81515d',
+  'tag-rose-text': '#f5a9be',
+
   // ── Typography: families ───────────────────────────────────────────────────
   'font-ui': "system-ui, 'Noto Sans', 'Segoe UI', sans-serif",
   'font-mono': "'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace",
