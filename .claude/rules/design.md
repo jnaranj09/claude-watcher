@@ -139,6 +139,28 @@ scope dropdown.
   dialog panel `#2c2b27` measures **2.54:1** — under the 4.5:1 body floor and under even the
   3:1 large-text floor. Secondary measures 5.41:1. `--text-muted` is for text on `--bg-base`.
 
+## Naming a tag in the UI
+
+`components/TagChip/TagChip.tsx` is the ONE drawing of a tag's name — board card footers, rail rows
+(peek and "Show all tags"), the tag filter, the `Tags…` picker and the Tags dialog.
+`components/TagIndicator/TagIndicator.tsx` is its compact form, used only by the rail's default view.
+
+- **A tag is a label pill, never a dot.** A rounded rectangle with a tinted fill and the name in it.
+  The workspace dot and the status dot are circles; the rail's tag indicator is a tag OUTLINE.
+  Nothing else draws a tag.
+- **Colours come from the `--tag-<color>-{fill,border,text}` tokens only.** The fills are OPAQUE (the
+  hue pre-composited over `--bg-surface`), so a chip measures the same on every surface — the gold
+  needs-you rail row included, where the old translucent tint fell to 3.78:1. Chip text is ≥ 4.5:1
+  on its fill and the indicator's stroke is ≥ 3:1 on every rail row fill; both are pinned against
+  `tokens.ts` in the component tests.
+- **Chips render in TAG-LIST order** (the catalog's name order), never in a card's own id order, so
+  one tag sits in the same place on every card.
+- **One line, `+N` for the rest** (`TagChipRow`) on board cards and in "Show all tags"; the `+N`
+  chip's `title` lists the hidden tags.
+- **A tag never changes a rail row's height in the default view.** Only the operator's own clicks —
+  the peek and "Show all tags" — add a chip line (TWO ROW SIZES in `src/renderer/src/components/attention/AttentionRail.module.css`).
+- **A tag name truncates and keeps its `title`**, like every operator-typed name.
+
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 
 Every dropdown in this app is that component. Not "prefer" — there is no case where a native
