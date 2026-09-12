@@ -349,7 +349,8 @@ export interface ManageDialogRowProps {
   selectTestId?: string
   /** Extra attributes for the select button (`data-template-id`). */
   dataAttributes?: Readonly<Record<`data-${string}`, string>>
-  /** The row's label, plus at most one <ManageDialog.RowActions>. */
+  /** The row's label, plus at most one <ManageDialog.RowActions> — a DIRECT child of this row,
+   *  not wrapped in a Fragment or a wrapper component (see `ManageDialogRowActions`). */
   children: ReactNode
 }
 
@@ -357,6 +358,11 @@ export interface ManageDialogRowProps {
  * One row: a select button (the label) and, when the row has <RowActions>, a fixed-width action
  * slot BESIDE it. The actions cannot live inside the button — a <button> inside a <button> is
  * invalid HTML — so the row picks them out of its children and renders them in the slot.
+ *
+ * The wrapper `<div>` carries `testId` (as `data-testid`) and `data-selected`; `dataAttributes`
+ * (e.g. `data-template-id`) land on the inner select `<button>`, not the wrapper. In jsdom,
+ * `.click()` on the wrapper does not select the row — tests must click the select button
+ * (`selectTestId`, or the button carrying `dataAttributes`).
  */
 export function ManageDialogRow({
   id,
@@ -393,6 +399,11 @@ export function ManageDialogRow({
  * Per-row actions with NO form equivalent (Rules' ↑/↓). Never a Delete or a rename — the form owns
  * those, and a second control for the same job is the defect design.md forbids. Revealed on row
  * hover / focus-within, in a fixed-width slot, so rows never go ragged.
+ *
+ * Must be a DIRECT child of `Row` — `Row` finds it by element identity
+ * (`node.type === ManageDialogRowActions`), so wrapping it in a Fragment or a wrapper component
+ * defeats that check silently: it is not picked out of `children`, and instead renders inside the
+ * row's own select button (a button nested inside a button).
  */
 export function ManageDialogRowActions({ children }: { children: ReactNode }): JSX.Element {
   return <>{children}</>
