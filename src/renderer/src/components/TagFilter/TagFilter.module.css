@@ -1,0 +1,105 @@
+/* Tags — the header tag filter. Chrome mirrors WorkspaceSwitcher.module.css (`.anchor`, `.button`,
+ * `.menu`, `.row`, `.manage`) so the two header popovers read as one family. */
+.anchor {
+  position: relative;
+  display: inline-flex;
+  /* The same stacking reasoning as the switcher's anchor: above the board, which paints after the
+     header, so the open menu is never covered. */
+  z-index: 50;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 220px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-body);
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--bg-surface);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.glyph {
+  flex: none;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+.row,
+.manage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover,
+.manage:hover {
+  background: var(--bg-surface);
+}
+
+/* The chosen entry — a border, like a selected Manage-dialog row, never a fill that could read as
+ * a tag colour. */
+.row[aria-checked='true'] {
+  border-color: var(--border-strong);
+}
+
+.row:focus-visible,
+.manage:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.manage {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  color: var(--text-secondary);
+}
