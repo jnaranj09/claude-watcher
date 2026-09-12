@@ -4,10 +4,14 @@
 // recorder, phrase, three buttons) crammed into the same grid the list uses. The phrase input
 // collapsed to a couple of words and a 3-chord sequence overflowed its column. The editor now owns
 // a card of its own with labelled fields, so each control gets the width it needs.
-import { useState, type JSX } from 'react'
+//
+// Its buttons are the shared ManageDialog ones: the arm-in-place Delete (blur and Escape disarm),
+// the ghost Cancel/Edit and the primary Save. Rendered inside ShortcutsDialog's ManageDialog.Provider.
+import type { JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
+import { ManageDialog } from '../ManageDialog/ManageDialog'
 import { KeyChordRecorder } from './KeyChordRecorder'
 import { ChordKeys } from './ChordKeys'
 import { draftToSaveRequest, isDraftDirty, type ShortcutDraft } from './shortcutForm'
@@ -31,14 +35,9 @@ export function ShortcutRow({ shortcut, onEdit }: ShortcutRowProps): JSX.Element
       <span className={styles.cellName}>{shortcut.name}</span>
       <ChordKeys keys={shortcut.keys} />
       <span className={styles.cellText}>{shortcut.text}</span>
-      <button
-        type="button"
-        className={styles.ghostButton}
-        data-testid={`shortcut-edit-${shortcut.id}`}
-        onClick={onEdit}
-      >
+      <ManageDialog.GhostButton testId={`shortcut-edit-${shortcut.id}`} onClick={onEdit}>
         Edit
-      </button>
+      </ManageDialog.GhostButton>
     </div>
   )
 }
@@ -61,9 +60,6 @@ export function ShortcutEditor({
   onSave,
   onDelete
 }: ShortcutEditorProps): JSX.Element {
-  // Two-step delete mirrors TemplateForm's affordance (first click arms, second confirms; blur
-  // disarms).
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const valid = draftToSaveRequest(draft).ok
@@ -141,38 +137,14 @@ export function ShortcutEditor({
       </div>
 
       <div className={styles.editorActions}>
-        {shortcut !== null && (
-          <button
-            type="button"
-            className={confirmingDelete ? styles.dangerButton : styles.deleteButton}
-            data-testid="shortcut-delete"
-            onClick={() => {
-              if (confirmingDelete) onDelete()
-              else setConfirmingDelete(true)
-            }}
-            onBlur={() => setConfirmingDelete(false)}
-          >
-            {confirmingDelete ? 'Confirm delete' : 'Delete'}
-          </button>
-        )}
+        {shortcut !== null && <ManageDialog.Delete testId="shortcut-delete" onConfirm={onDelete} />}
         <div className={styles.editorActionsRight}>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            data-testid="shortcut-cancel"
-            onClick={onCancel}
-          >
+          <ManageDialog.GhostButton testId="shortcut-cancel" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className={styles.primaryButton}
-            data-testid="shortcut-save"
-            disabled={!valid || !dirty}
-            onClick={onSave}
-          >
+          </ManageDialog.GhostButton>
+          <ManageDialog.Save testId="shortcut-save" disabled={!valid || !dirty} onClick={onSave}>
             Save shortcut
-          </button>
+          </ManageDialog.Save>
         </div>
       </div>
     </div>

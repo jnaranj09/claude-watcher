@@ -1,9 +1,11 @@
-// Phrase shortcuts — the Manage dialog (modal, z 60 like TemplatesDialog).
+// Phrase shortcuts — the Manage dialog (modal, z 60 like the other Manage dialogs).
 //
 // Layout: a header that states what a shortcut DOES, then the editor card (only while adding or
 // editing), then the list. The editor is deliberately NOT a row in the list — see ShortcutRow.tsx.
+// So this dialog uses the SHARED ManageDialog pieces — shell, header, buttons, Delete, the error
+// line — but not the list|form split the other Manage dialogs have (Phase-0 plan, P0-1).
 // UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
-import { useState, type JSX, type KeyboardEvent } from 'react'
+import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import {
@@ -17,6 +19,7 @@ import {
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
+import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { ShortcutRow, ShortcutEditor } from './ShortcutRow'
 import { ChordKeys } from './ChordKeys'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
@@ -35,8 +38,7 @@ import {
   draftToSaveRequest,
   shortcutErrorCode,
   SHORTCUT_ERROR_COPY,
-  type ShortcutDraft,
-  type ShortcutErrorCode
+  type ShortcutDraft
 } from './shortcutForm'
 import styles from './ShortcutsDialog.module.css'
 
@@ -44,7 +46,7 @@ export interface ShortcutsDialogProps {
   onClose: () => void
 }
 
-/** The sentinel `editingId` for the add-a-shortcut draft (no real id exists yet). */
+/** The sentinel open-editor id for the add-a-shortcut draft (no real id exists yet). */
 const NEW_ROW = 'new'
 
 export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element {
@@ -54,10 +56,12 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   const shortcuts = useShortcuts(selectShortcuts)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
+  const dialog = useManageDialog({ title: 'Shortcuts', testIdPrefix: 'shortcuts', onClose })
   // NEW_ROW = the add-a-shortcut draft; a string id = editing that shortcut; null = nothing open.
-  const [editingId, setEditingId] = useState<string | null>(null)
+  // It is the shell's `selectedId`, so opening, switching or closing the editor also disarms
+  // Delete and clears the error line (`select`).
+  const editingId = dialog.state.selectedId
   const [draft, setDraft] = useState<ShortcutDraft>(emptyDraft)
-  const [error, setError] = useState<ShortcutErrorCode | null>(null)
   const known = knownWorkspaceIds(workspaces)
   // Opens on the workspace you are working in; the `all` entry if that id names no known
   // workspace, so the select never sits on an option it does not offer. Same rule as
@@ -74,29 +78,19 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
     cancel()
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      onClose()
-    }
-  }
-
   function startAdd(): void {
-    setEditingId(NEW_ROW)
+    dialog.actions.select(NEW_ROW)
     setDraft(emptyDraft())
-    setError(null)
   }
 
   function startEdit(shortcut: Shortcut): void {
-    setEditingId(shortcut.id)
+    dialog.actions.select(shortcut.id)
     setDraft(toDraft(shortcut))
-    setError(null)
   }
 
   function cancel(): void {
-    setEditingId(null)
+    dialog.actions.select(null)
     setDraft(emptyDraft())
-    setError(null)
   }
 
   function handleSave(): void {
@@ -113,7 +107,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
         cancel()
         if (scope !== ALL_SCOPE && scope !== saved) setScope(saved)
       })
-      .catch((err: unknown) => setError(shortcutErrorCode(err)))
+      .catch((err: unknown) => dialog.actions.setError(SHORTCUT_ERROR_COPY[shortcutErrorCode(err)]))
   }
 
   function handleDelete(id: string): void {
@@ -130,54 +124,30 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   )
 
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Shortcuts"
-      data-testid="shortcuts-overlay"
-      onKeyDown={handleKeyDown}
-    >
-      <div className={styles.panel} data-testid="shortcuts-panel">
-        <div className={styles.header}>
-          <div className={styles.headerText}>
-            <div className={styles.titleRow}>
-              <h2 className={styles.title}>Shortcuts</h2>
-              <ScopeFilter
-                value={scope}
-                workspaces={workspaces}
-                showOrphans={hasOrphans(shortcuts, known)}
-                onChange={changeScope}
-                allLabel="All shortcuts"
-                testId="shortcut-scope-filter"
-                ariaLabel="Filter shortcuts by workspace"
-              />
-            </div>
-            <p className={styles.subtitle}>
-              Press a chord in a session to type its phrase. You press Enter to send.
-            </p>
-          </div>
-          <div className={styles.headerActions}>
-            <button
-              type="button"
-              className={styles.ghostButton}
-              data-testid="shortcuts-add"
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame size="wide">
+        <ManageDialog.Header
+          subtitle="Press a chord in a session to type its phrase. You press Enter to send."
+          buttons={
+            <ManageDialog.GhostButton
+              testId="shortcuts-add"
               onClick={startAdd}
               disabled={editingId === NEW_ROW}
             >
               Add shortcut
-            </button>
-            <button
-              type="button"
-              className={styles.closeButton}
-              data-testid="shortcuts-close"
-              aria-label="Close shortcuts"
-              onClick={onClose}
-            >
-              ✕
-            </button>
-          </div>
-        </div>
+            </ManageDialog.GhostButton>
+          }
+        >
+          <ScopeFilter
+            value={scope}
+            workspaces={workspaces}
+            showOrphans={hasOrphans(shortcuts, known)}
+            onChange={changeScope}
+            allLabel="All shortcuts"
+            testId="shortcut-scope-filter"
+            ariaLabel="Filter shortcuts by workspace"
+          />
+        </ManageDialog.Header>
 
         {editingId !== null && (
           <ShortcutEditor
@@ -223,12 +193,8 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
           </div>
         )}
 
-        {error !== null && (
-          <span className={styles.error} data-testid="shortcuts-error" role="alert">
-            {SHORTCUT_ERROR_COPY[error]}
-          </span>
-        )}
-      </div>
-    </div>
+        <ManageDialog.Error testId="shortcuts-error" />
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
   )
 }
