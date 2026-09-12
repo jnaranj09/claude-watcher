@@ -1,0 +1,46 @@
+/* Tags — the rail's compact tag mark (spec T-27). Quiet on purpose: a 10px outline, no fill, a
+ * ~1.2px line — the first, filled drawing pulled the eye. The stroke is the tag's --tag-*-text
+ * token, measured ≥ 3:1 (the non-text floor) on the resting, needs-you and active row fills
+ * (TagIndicator.test.tsx). */
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 2px;
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}
+
+/* The `+` (3-or-more tags) is a graphic, not text (controller ruling, T-27): two short strokes in
+ * an SVG <path>, stroked with `currentColor`, coloured here — never a font glyph. As text it needs
+ * 4.5:1 and measures only 3.21:1 on the needs-you row; as a graphic the non-text 3:1 floor applies
+ * and it clears on every row fill (TagIndicator.test.tsx). */
+.plus {
+  display: block;
+  overflow: visible;
+  color: var(--text-secondary);
+}
+
+/* One class per TAG_COLORS entry — the glyph strokes and fills with `currentColor`. */
+.slate {
+  color: var(--tag-slate-text);
+}
+.blue {
+  color: var(--tag-blue-text);
+}
+.green {
+  color: var(--tag-green-text);
+}
+.amber {
+  color: var(--tag-amber-text);
+}
+.violet {
+  color: var(--tag-violet-text);
+}
+.rose {
+  color: var(--tag-rose-text);
+}
