@@ -33,8 +33,12 @@ describe('TagSchema', () => {
   it('fails closed on an unknown colour, a blank name, a control character and a blank id', () => {
     expect(TagSchema.safeParse({ ...ROW, color: 'teal' }).success).toBe(false)
     expect(TagSchema.safeParse({ ...ROW, name: '   ' }).success).toBe(false)
-    expect(TagSchema.safeParse({ ...ROW, name: 'ab' }).success).toBe(false)
+    expect(TagSchema.safeParse({ ...ROW, name: 'ab' }).success).toBe(false) // BEL control char
     expect(TagSchema.safeParse({ ...ROW, id: '' }).success).toBe(false)
+  })
+
+  it('accepts a 2-character name', () => {
+    expect(TagSchema.parse({ ...ROW, name: 'P0' }).name).toBe('P0')
   })
 
   it('trims the name', () => {

@@ -12,8 +12,8 @@ export type TagColor = (typeof TAG_COLORS)[number]
 
 export const TAG_NAME_MAX_LENGTH = SESSION_NAME_MAX_LENGTH
 
-/** Trimmed, 3..60 (longer minimum than sessions), no control characters. */
-export const TagNameSchema = SessionNameSchema.min(3)
+/** Same rules as a session name: trimmed, 1..60, no control characters. */
+export const TagNameSchema = SessionNameSchema
 
 /** Not `.uuid()` — existence is the store's call (`tag_not_found`), same reasoning as
  *  TemplateIdSchema. */
