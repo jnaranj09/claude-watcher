@@ -12,6 +12,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createReducer, type SessionDelta } from './reducer'
 import { launchedSession } from '../../__fixtures__/fakeSessions'
+import { createAttentionTracker } from './attention'
 
 const FIXED_NOW = 1_750_000_000_000
 
@@ -322,7 +323,7 @@ describe('setWorkspace', () => {
   it('emits one session.updated with the new workspace', () => {
     const reducer = createReducer({ now: () => 1 })
     reducer.upsertLaunched(stored)
-    const deltas = reducer.setWorkspace('s1', 'w2')
+    const deltas = reducer.setWorkspace('s1', 'w2', [])
     expect(deltas).toHaveLength(1)
     expect(reducer.snapshotMap().get('s1')?.workspaceId).toBe('w2')
   })
@@ -330,14 +331,14 @@ describe('setWorkspace', () => {
   it('changes NOTHING else — status, name, projectPath and pid survive', () => {
     const reducer = createReducer({ now: () => 1 })
     reducer.upsertLaunched(stored)
-    reducer.setWorkspace('s1', 'w2')
+    reducer.setWorkspace('s1', 'w2', [])
     expect(reducer.snapshotMap().get('s1')).toEqual({ ...stored, workspaceId: 'w2' })
   })
 
   it('is a logged no-op for an unknown session id — never synthesizes a card', () => {
     const log = vi.fn()
     const reducer = createReducer({ now: () => 1, log })
-    expect(reducer.setWorkspace('ghost', 'w2')).toEqual([])
+    expect(reducer.setWorkspace('ghost', 'w2', [])).toEqual([])
     expect(reducer.size()).toBe(0)
     expect(log).toHaveBeenCalledWith({ path: '(set-workspace)', code: 'set_workspace_unknown_id' })
   })
@@ -345,7 +346,55 @@ describe('setWorkspace', () => {
   it('is a no-op when the workspace is unchanged', () => {
     const reducer = createReducer({ now: () => 1 })
     reducer.upsertLaunched(stored)
-    expect(reducer.setWorkspace('s1', 'w1')).toEqual([])
+    expect(reducer.setWorkspace('s1', 'w1', [])).toEqual([])
+  })
+
+  it('carries the tag list the caller kept, in the SAME delta as the move (T-9)', () => {
+    const reducer = createReducer({ now: () => 1 })
+    reducer.upsertLaunched({ ...stored, tagIds: ['global', 'old-ws'] })
+    expect(reducer.setWorkspace('s1', 'w2', ['global'])).toHaveLength(1)
+    expect(reducer.snapshotMap().get('s1')?.tagIds).toEqual(['global'])
+  })
+})
+
+describe('reducer — setTags (tags, spec §2.5)', () => {
+  it('replaces the tags and changes nothing else', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession('s1', { status: 'Working' }))
+    expect(r.setTags('s1', ['t1', 't2'])).toHaveLength(1)
+    expect(r.snapshotMap().get('s1')).toEqual(
+      launchedSession('s1', { status: 'Working', tagIds: ['t1', 't2'] })
+    )
+  })
+
+  it('an unchanged set, in any order, emits nothing', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession('s1'))
+    r.setTags('s1', ['a', 'b'])
+    expect(r.setTags('s1', ['b', 'a'])).toEqual([])
+  })
+
+  it('is a logged no-op for an unknown id — never synthesizes a card', () => {
+    const log = vi.fn()
+    const r = createReducer({ now: () => FIXED_NOW, log })
+    expect(r.setTags('ghost', ['t1'])).toEqual([])
+    expect(r.size()).toBe(0)
+    expect(log).toHaveBeenCalledWith({ path: '(set-tags)', code: 'set_tags_unknown_id' })
+  })
+
+  // Drift guard for spec §2.5 ("does not re-stamp `enteredColumnAt`"): a tag write must never
+  // read as a column entry to the attention tracker, or it would reorder the board / fire rules.
+  it('keeps enteredColumnAt — a tag write is not a column change (no reorder, no rule edge)', () => {
+    let t = 100
+    const r = createReducer({ now: () => t })
+    const tracker = createAttentionTracker({ now: () => t })
+    const route = (deltas: SessionDelta[]): void => {
+      for (const d of deltas) tracker.onDelta(d, r.snapshotMap())
+    }
+    route(r.upsertLaunched(launchedSession('s1', { status: 'Working' })))
+    t = 500
+    route(r.setTags('s1', ['t1']))
+    expect(tracker.enteredColumnAt('s1')).toBe(100)
   })
 })
 

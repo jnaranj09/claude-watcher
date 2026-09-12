@@ -96,6 +96,9 @@ import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
 import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcuts'
 import { createElectronShortcutsBlobStore } from './persistence/electronShortcutsBlobStore'
 import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
+import { createTagsStore, type TagsStore } from './persistence/tags'
+import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
+import { keepVisibleTags } from '../shared/tags/tagScope'
 import { resolveTemplateLaunch } from './pty/launchFromTemplate'
 import type { ClaudeLaunchFlags } from './pty/launchSession'
 // Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
@@ -550,7 +553,14 @@ function registerWatchFeed(window: BrowserWindow): void {
     // the CALLER's job (the IPC handler below) — this seam trusts it was already checked, exactly
     // like renameLaunched trusts the name was already validated.
     setWorkspaceLaunched: (sessionId, workspaceId) => {
-      reducer.setWorkspace(sessionId, workspaceId).forEach(handleDelta)
+      const stored = reducer.snapshotMap().get(sessionId)
+      // T-9 — a workspace's own tags do not exist outside it; global tags travel with the card.
+      // Computed HERE (the reducer stays store-free) and applied in the SAME delta as the move.
+      const tagIds =
+        stored === undefined
+          ? []
+          : keepVisibleTags(stored.tagIds, workspaceId, (id) => tagsStore?.get(id) ?? null)
+      reducer.setWorkspace(sessionId, workspaceId, tagIds).forEach(handleDelta)
     },
     seenLaunched: (sessionId) => {
       reducer.markSeen(sessionId).forEach(handleDelta)
@@ -970,10 +980,12 @@ function hasLiveSessions(workspaceId: string): boolean {
 }
 
 /** Workspaces — the scoped-config cascade. Runs ONLY after a delete was allowed and committed.
- *  Late-bound on purpose: the workspaces store is constructed before these two exist. */
+ *  Late-bound on purpose: the workspaces store is constructed before templates, shortcuts and
+ *  tags exist. */
 function cascade(workspaceId: string): void {
   templatesStore?.removeByWorkspace(workspaceId)
   shortcutsStore?.removeByWorkspace(workspaceId)
+  tagsStore?.removeByWorkspace(workspaceId)
 }
 
 // Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
@@ -989,6 +1001,9 @@ function requireShortcutsStore(): ShortcutsStore {
   if (shortcutsStore === null) throw new Error('shortcuts store not initialized')
   return shortcutsStore
 }
+
+// Tags — same lifecycle as templatesStore (needs app-ready for electron-store).
+let tagsStore: TagsStore | null = null
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
 // (AR-9: no database; Zod-validated + versioned; corrupt read → back up + start fresh).
@@ -2044,6 +2059,17 @@ app
       templatesStore = createTemplatesStore()
     }
     registerTemplatesIpc()
+
+    try {
+      tagsStore = SMOKE
+        ? createTagsStore()
+        : createTagsStore({ blobStore: createElectronTagsBlobStore() })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a tags blob
+      // carries operator names.
+      console.error('[claude-watcher][tags] code=tags_store_init_failed (in-memory)')
+      tagsStore = createTagsStore()
+    }
 
     try {
       shortcutsStore = SMOKE
