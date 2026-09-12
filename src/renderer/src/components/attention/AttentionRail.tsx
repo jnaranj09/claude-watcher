@@ -76,6 +76,7 @@ import {
   workspacesStore,
   selectActiveWorkspaceId
 } from '../../stores/workspacesStore'
+import { effectiveTagFilter, useTags } from '../../stores/tagsStore'
 import { shortName } from './railName'
 import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './AttentionRail.module.css'
@@ -318,8 +319,11 @@ function RailSection(props: {
 }): JSX.Element | null {
   const { column, collapsed, onActivate, onRename } = props
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  // Tags — sections follow the header filter. The PINNED row does not (it is the terminal you are
+  // typing in), and neither does the needs-you announcement (alerts ignore the filter).
+  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
   const ids = useBoard(
-    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId))
+    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId, tagId))
   )
   if (ids.length === 0) return null
   const label = statusLabel(DOT_STATUS_FOR_COLUMN[column])

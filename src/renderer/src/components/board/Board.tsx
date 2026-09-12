@@ -34,6 +34,7 @@ import {
 // Workspaces (Task 9a) — Board is a component, so it reads the active workspace itself (per
 // task instructions) and passes it into the now-required workspace-scoped selectors below.
 import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
+import { effectiveTagFilter, useTags } from '../../stores/tagsStore'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
@@ -98,11 +99,18 @@ export function Board({
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  // Tags — the header filter, resolved for this workspace (null = All tags, or a tag it cannot see).
+  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
+  const tagName = useTags((s) =>
+    tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
+  )
   const coldLoaded = useBoard(selectColdLoaded)
-  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId))
-  const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you', activeWorkspaceId))
-  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId))
-  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId))
+  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId, tagId))
+  // "Is the workspace empty" must not follow the filter: a filtered-out board is not an empty one.
+  const workspaceTotal = useBoard((s) => selectTotalCount(s, activeWorkspaceId, null))
+  const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you', activeWorkspaceId, tagId))
+  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId, tagId))
+  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId, tagId))
   // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
   const selectedId = useBoard(selectSelectedId)
   // Story 5.6 (AC-6 optional) — starting terminals count (for the empty-board copy softening).
@@ -175,7 +183,7 @@ export function Board({
           <SkeletonColumn name="Needs you" accent="needs-you" />
           <SkeletonColumn name="Idle" accent="idle" />
         </div>
-      ) : total === 0 ? (
+      ) : workspaceTotal === 0 ? (
         // AC-4 — empty board (cold-loaded, zero sessions). Headline + line + the ONE
         // primary action. `+ New session` launches an in-app session (Epic-3 / FR-11).
         // Story 3.3 (FR-1 amended) — the Board shows ONLY app-launched sessions, so the empty
@@ -202,6 +210,18 @@ export function Board({
             onPickTemplate={(template) => onPickTemplate?.(template)}
             onManage={() => onManageTemplates?.()}
           />
+        </div>
+      ) : total === 0 ? (
+        // Tags — the workspace HAS sessions and the tag filter hides them all. A different sentence
+        // from "No sessions yet." (design.md: three nothings, three answers) — otherwise the
+        // operator goes looking for sessions that are only filtered out.
+        <div className={styles.emptyBoard} data-testid="empty-board-filtered">
+          <p className={styles.emptyBoardHeadline}>
+            {`No sessions tagged ${tagName ?? 'with this tag'}.`}
+          </p>
+          <p className={styles.emptyBoardLine}>
+            Choose All tags in the tag filter to see every session.
+          </p>
         </div>
       ) : (
         // The live three-column grid: slots are left flank (working) · center hero

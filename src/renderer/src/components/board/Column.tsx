@@ -39,6 +39,7 @@ import {
   selectActiveWorkspaceId,
   selectWorkspaces
 } from '../../stores/workspacesStore'
+import { effectiveTagFilter, useTags } from '../../stores/tagsStore'
 import { useShallow } from 'zustand/react/shallow'
 import styles from './Board.module.css'
 
@@ -164,7 +165,18 @@ export function Column({
   const sessions = useColumnSessions(column)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId))
+  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
+  const tagName = useTags((s) =>
+    tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
+  )
+  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, tagId))
+  // Controller ruling (spec §4.3, design.md three-empty-states) — a column can be empty for two
+  // DIFFERENT reasons under a tag filter: genuinely nothing here, or something here that just
+  // doesn't carry the tag. The UNFILTERED count tells them apart; only the second one gets its
+  // own sentence (never the calm "Nothing waiting. All quiet." — that is a claim about needs-you
+  // that would be FALSE here).
+  const unfilteredCount = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, null))
+  const hiddenByFilter = count === 0 && tagId !== null && unfilteredCount > 0
   const meta = COLUMN_META[column]
 
   // The hero column's cards are the large full-contrast `variant="hero"` (with the 3px
@@ -181,9 +193,15 @@ export function Column({
     >
       <ColumnHeader name={meta.name} count={count} accent={meta.accent} prominent={isHero} />
       {count === 0 ? (
-        <p className={styles.emptyHint} data-testid="empty-hint">
-          {meta.emptyHint}
-        </p>
+        hiddenByFilter ? (
+          <p className={styles.emptyHint} data-testid="empty-hint-filtered">
+            {`No sessions tagged ${tagName ?? 'with this tag'} here.`}
+          </p>
+        ) : (
+          <p className={styles.emptyHint} data-testid="empty-hint">
+            {meta.emptyHint}
+          </p>
+        )
       ) : (
         <div className={styles.cardStack}>
           {sessions.map((session: BoardSession) => (

@@ -34,6 +34,10 @@ import type { Column, WatchEventsPayload, QuitGuardPayload } from '../../../shar
 // allowed to read the active workspace itself; this keeps the workspace/board coupling in this
 // ONE commented place instead of threading an extra prop through every `Column.tsx` caller.
 import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
+// Tags (Task 9) — the header tag filter. `effectiveTagFilter` resolves the chosen tag id for a
+// workspace (null when it cannot see it); the workspace-scoped selectors below take that as a
+// SECOND required argument, same as workspaceId (spec §4.1: no denormalized tag index here).
+import { effectiveTagFilter, useTags } from './tagsStore'
 
 /**
  * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
@@ -274,6 +278,11 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   workspacesDialogOpen: boolean
+  /**
+   * Tags — whether the Manage-tags dialog is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  tagsDialogOpen: boolean
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -417,6 +426,10 @@ export interface BoardState {
    * Workspaces — close the Manage-workspaces dialog. No-op if already closed.
    */
   closeWorkspacesDialog: () => void
+  /** Tags — open the Manage-tags dialog. No-op if already open. */
+  openTagsDialog: () => void
+  /** Tags — close the Manage-tags dialog. No-op if already closed. */
+  closeTagsDialog: () => void
 }
 
 export interface BoardStoreOptions {
@@ -483,6 +496,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     shortcutsDialogOpen: false,
     // Workspaces — the Manage-workspaces dialog starts closed.
     workspacesDialogOpen: false,
+    // Tags — the Manage-tags dialog starts closed.
+    tagsDialogOpen: false,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -762,6 +777,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeWorkspacesDialog: () => {
       if (get().workspacesDialogOpen) set({ workspacesDialogOpen: false })
+    },
+
+    openTagsDialog: () => {
+      if (!get().tagsDialogOpen) set({ tagsDialogOpen: true })
+    },
+    closeTagsDialog: () => {
+      if (get().tagsDialogOpen) set({ tagsDialogOpen: false })
     }
   }))
 }
@@ -773,28 +795,43 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 // `useShallow` (architecture rule) — see the bound hooks below.
 // ---------------------------------------------------------------------------
 
+/** Tags — does this card pass the tag filter? `null` = All tags. */
+function carriesTag(session: BoardSession, tagId: string | null): boolean {
+  return tagId === null || session.tagIds.includes(tagId)
+}
+
 /** All sessions in a column, SORTED by entered-column time (working desc;
  *  needs-you/idle asc — `sortByEnteredColumn`). Derived; never persisted.
  *  Workspaces (Task 9a): `workspaceId` is REQUIRED (not defaulted) so a caller can never
- *  forget to scope it — the board must show only the active workspace's cards. */
+ *  forget to scope it — the board must show only the active workspace's cards.
+ *  Tags: `tagId` is REQUIRED like `workspaceId` — `null` means All tags. Alerts never read this
+ *  selector, so the filter can never mute one (spec §4.1). */
 export function selectColumn(
   state: BoardState,
   column: Column,
-  workspaceId: string
+  workspaceId: string,
+  tagId: string | null
 ): BoardSession[] {
   const inColumn = Object.values(state.sessionsById).filter(
-    (s) => s.column === column && s.workspaceId === workspaceId
+    (s) => s.column === column && s.workspaceId === workspaceId && carriesTag(s, tagId)
   )
   return sortByEnteredColumn(inColumn, (s) => s.enteredColumnAt, column)
 }
 
 /** Live count for a column (a primitive — safe without useShallow). Workspaces (Task 9a):
- *  `workspaceId` REQUIRED — the column header counts only the active workspace's cards. */
-export function selectColumnCount(state: BoardState, column: Column, workspaceId: string): number {
+ *  `workspaceId` REQUIRED — the column header counts only the active workspace's cards.
+ *  Tags: `tagId` is REQUIRED like `workspaceId` — `null` means All tags. Alerts never read this
+ *  selector, so the filter can never mute one (spec §4.1). */
+export function selectColumnCount(
+  state: BoardState,
+  column: Column,
+  workspaceId: string,
+  tagId: string | null
+): number {
   let n = 0
   for (const id in state.sessionsById) {
     const s = state.sessionsById[id]
-    if (s?.column === column && s.workspaceId === workspaceId) n++
+    if (s?.column === column && s.workspaceId === workspaceId && carriesTag(s, tagId)) n++
   }
   return n
 }
@@ -802,11 +839,17 @@ export function selectColumnCount(state: BoardState, column: Column, workspaceId
 /** Total session count (a primitive — used for the empty-board state). Workspaces (Task 9a):
  *  `workspaceId` REQUIRED — "is the board empty" is asked per-workspace, not globally (a
  *  hidden workspace with sessions must not suppress the active workspace's empty state, and
- *  vice versa). */
-export function selectTotalCount(state: BoardState, workspaceId: string): number {
+ *  vice versa).
+ *  Tags: `tagId` is REQUIRED like `workspaceId` — `null` means All tags. Alerts never read this
+ *  selector, so the filter can never mute one (spec §4.1). */
+export function selectTotalCount(
+  state: BoardState,
+  workspaceId: string,
+  tagId: string | null
+): number {
   let n = 0
   for (const s of Object.values(state.sessionsById)) {
-    if (s.workspaceId === workspaceId) n++
+    if (s.workspaceId === workspaceId && carriesTag(s, tagId)) n++
   }
   return n
 }
@@ -893,6 +936,12 @@ export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.s
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.workspacesDialogOpen
+
+/**
+ * Tags — whether the Manage-tags dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectTagsDialogOpen = (state: BoardState): boolean => state.tagsDialogOpen
 
 /**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.
@@ -1030,9 +1079,11 @@ export function useBoard<T>(selector: (state: BoardState) => T): T {
  *  workspace-agnostic. */
 export function useColumnSessions(column: Column): BoardSession[] {
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  // Tags — the header filter, resolved for the active workspace (null when it cannot see it).
+  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
   return useStore(
     boardStore,
-    useShallow((state: BoardState) => selectColumn(state, column, activeWorkspaceId))
+    useShallow((state: BoardState) => selectColumn(state, column, activeWorkspaceId, tagId))
   )
 }
 
@@ -1083,15 +1134,26 @@ export function selectRailActiveSessionId(state: BoardState): string | null {
  *  Returns an array → REQUIRES `useShallow` at the call site. Derived; never persisted.
  *
  *  Workspaces (Task 9a): `workspaceId` REQUIRED — a section groups only the active workspace's
- *  sessions (a hidden workspace's needs-you session must not leak into this rail's groups). */
+ *  sessions (a hidden workspace's needs-you session must not leak into this rail's groups).
+ *  Tags: `tagId` is REQUIRED like `workspaceId` — `null` means All tags. Alerts never read this
+ *  selector, so the filter can never mute one (spec §4.1). The PINNED row (P1-6) is untouched: it
+ *  comes from `selectRailActiveSessionId`, which this selector only reads to EXCLUDE from the
+ *  section, never to filter by tag. */
 export function selectRailSection(
   state: BoardState,
   column: Column,
-  workspaceId: string
+  workspaceId: string,
+  tagId: string | null
 ): string[] {
   const activeId = selectRailActiveSessionId(state)
   return Object.values(state.sessionsById)
-    .filter((s) => s.column === column && s.id !== activeId && s.workspaceId === workspaceId)
+    .filter(
+      (s) =>
+        s.column === column &&
+        s.id !== activeId &&
+        s.workspaceId === workspaceId &&
+        carriesTag(s, tagId)
+    )
     .sort((a, b) => {
       if (a.enteredColumnAt !== b.enteredColumnAt) return a.enteredColumnAt - b.enteredColumnAt
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0

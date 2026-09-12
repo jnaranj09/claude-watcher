@@ -18,9 +18,11 @@ import type {
   Column,
   WatchEventsPayload,
   AttentionActivatePayload,
-  Template
+  Template,
+  Tag
 } from '../../../../shared/ipc/contract'
 import { templatesStore } from '../../stores/templatesStore'
+import { tagsStore } from '../../stores/tagsStore'
 
 /** The shape the Board needs off `window.watch` (mirrors the preload WatchApi). */
 interface WatchBridge {
@@ -109,6 +111,7 @@ function updated(
     pid: number
     pendingToolName: string
     workspaceId: string
+    tagIds: string[]
   }> = {}
 ): WatchEventsPayload {
   return {
@@ -123,7 +126,7 @@ function updated(
       enteredColumnAt,
       pid: over.pid ?? 1000,
       workspaceId: over.workspaceId ?? 'default',
-      tagIds: [],
+      tagIds: over.tagIds ?? [],
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }
@@ -558,5 +561,79 @@ describe('Board — Task 9a fix: reads the ACTIVE workspace, not a hardcoded one
     expect(container.querySelector('[data-session-id="in-w2"]')).not.toBeNull()
     expect(container.querySelector('[data-session-id="in-w1"]')).toBeNull()
     expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
+  })
+})
+
+describe('Board — the tag filter (spec §4.1, §4.3)', () => {
+  const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
+  const cardIds = (container: HTMLElement): string[] =>
+    [...container.querySelectorAll('[data-column] [data-session-id]')].map(
+      (el) => el.getAttribute('data-session-id') ?? ''
+    )
+
+  beforeEach(() => {
+    act(() => tagsStore.setState({ tags: [PROD], loaded: true, activeTagId: null }))
+  })
+  afterEach(() => {
+    act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+  })
+
+  it('shows only the cards carrying the filtered tag', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(updated(1, 'plain', 'working', 101))
+    expect(cardIds(container).sort()).toEqual(['plain', 'tagged'])
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    expect(cardIds(container)).toEqual(['tagged'])
+  })
+
+  it('names the tag when the filter hides every card — not "No sessions yet."', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'plain', 'working', 100))
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    expect(container.querySelector('[data-testid="empty-board-filtered"]')?.textContent).toContain(
+      'No sessions tagged prod.'
+    )
+    expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
+  })
+
+  it('keeps the plain empty board when the workspace has no sessions at all', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    act(() => boardStore.getState().setReconnecting(false))
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    expect(container.querySelector('[data-testid="empty-board"]')?.textContent).toContain(
+      'No sessions yet.'
+    )
+    expect(container.querySelector('[data-testid="empty-board-filtered"]')).toBeNull()
+  })
+
+  // Controller ruling (spec §4.3 applies design.md's three-empty-states rule to the board): a
+  // column emptied ONLY by the tag filter must not claim "Nothing waiting. All quiet." — that
+  // hint is a true statement about needs-you, and here it would be a false one about the filter.
+  it('a column emptied ONLY by the filter names the tag — not the calm "All quiet." hint', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(
+      updated(1, 'untagged-needs-you', 'needs-you', 100, { status: 'NeedsAttention', tagIds: [] })
+    )
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+
+    // Needs-you HAS a session, but not one carrying the filtered tag — the filtered hint.
+    const needsYouCol = container.querySelector('[data-column="needs-you"]')
+    expect(
+      needsYouCol?.querySelector('[data-testid="empty-hint-filtered"]')?.textContent
+    ).toContain('No sessions tagged prod here.')
+    expect(needsYouCol?.querySelector('[data-testid="empty-hint"]')).toBeNull()
+
+    // Idle has NO sessions at all (filtered or not) — the plain, unfiltered hint is unchanged.
+    const idleCol = container.querySelector('[data-column="idle"]')
+    expect(idleCol?.querySelector('[data-testid="empty-hint"]')?.textContent).toBe(
+      'Nothing waiting.'
+    )
+    expect(idleCol?.querySelector('[data-testid="empty-hint-filtered"]')).toBeNull()
   })
 })
