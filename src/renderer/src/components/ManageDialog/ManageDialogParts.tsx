@@ -8,7 +8,14 @@
 // `{ state, actions, meta }` with `useManageDialog()`; every part reads what it needs through
 // `useManageDialogContext()`. Components only in this file (react-refresh) — the compound object
 // is `ManageDialog.ts`.
-import type { FormEvent, JSX, KeyboardEvent, ReactNode } from 'react'
+import {
+  Children,
+  isValidElement,
+  type FormEvent,
+  type JSX,
+  type KeyboardEvent,
+  type ReactNode
+} from 'react'
 import {
   ManageDialogContext,
   useManageDialogContext,
@@ -304,6 +311,108 @@ export function ManageDialogGhostButton({
       onClick={onClick}
     >
       {children}
+    </button>
+  )
+}
+
+/** The `rail | form` grid. The rail sets its own width (List `size`), the form takes the rest. */
+export function ManageDialogColumns({ children }: { children: ReactNode }): JSX.Element {
+  return <div className={styles.columns}>{children}</div>
+}
+
+export interface ManageDialogListProps {
+  /** `wide` (260px) fits a second line of detail in each row (Workspaces' default folder). */
+  size?: 'standard' | 'wide'
+  children: ReactNode
+}
+
+/** The left rail: an optional search field, <Rows>, then <New> pinned to the bottom. */
+export function ManageDialogList({
+  size = 'standard',
+  children
+}: ManageDialogListProps): JSX.Element {
+  return <div className={cx(styles.list, size === 'wide' && styles.listWide)}>{children}</div>
+}
+
+/** The scrolling row list. Rows are its DIRECT children — the list is flat in every scope, never
+ *  sectioned (design.md "Scoped lists"). */
+export function ManageDialogRows({ children }: { children: ReactNode }): JSX.Element {
+  return <div className={styles.rows}>{children}</div>
+}
+
+export interface ManageDialogRowProps {
+  /** What `select` receives, and what `state.selectedId` is compared with. */
+  id: string
+  /** On the row wrapper — the direct child of <Rows>. */
+  testId: string
+  /** On the select button, when a test clicks it by id (`workspace-select-<id>`). */
+  selectTestId?: string
+  /** Extra attributes for the select button (`data-template-id`). */
+  dataAttributes?: Readonly<Record<`data-${string}`, string>>
+  /** The row's label, plus at most one <ManageDialog.RowActions>. */
+  children: ReactNode
+}
+
+/**
+ * One row: a select button (the label) and, when the row has <RowActions>, a fixed-width action
+ * slot BESIDE it. The actions cannot live inside the button — a <button> inside a <button> is
+ * invalid HTML — so the row picks them out of its children and renders them in the slot.
+ */
+export function ManageDialogRow({
+  id,
+  testId,
+  selectTestId,
+  dataAttributes = {},
+  children
+}: ManageDialogRowProps): JSX.Element {
+  const { state, actions } = useManageDialogContext()
+  const parts = Children.toArray(children)
+  const rowActions = parts.filter(isRowActions)
+  const label = parts.filter((part) => !isRowActions(part))
+  return (
+    <div className={styles.row} data-testid={testId} data-selected={state.selectedId === id}>
+      <button
+        type="button"
+        className={styles.rowSelect}
+        data-testid={selectTestId}
+        {...dataAttributes}
+        onClick={() => actions.select(id)}
+      >
+        {label}
+      </button>
+      {rowActions.length > 0 && (
+        <div className={styles.rowActions} data-testid="manage-row-actions">
+          {rowActions}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Per-row actions with NO form equivalent (Rules' ↑/↓). Never a Delete or a rename — the form owns
+ * those, and a second control for the same job is the defect design.md forbids. Revealed on row
+ * hover / focus-within, in a fixed-width slot, so rows never go ragged.
+ */
+export function ManageDialogRowActions({ children }: { children: ReactNode }): JSX.Element {
+  return <>{children}</>
+}
+
+function isRowActions(node: ReactNode): boolean {
+  return isValidElement(node) && node.type === ManageDialogRowActions
+}
+
+/** `+ New` — back to the empty form. Sits at the BOTTOM of the rail (`margin-top: auto`). */
+export function ManageDialogNew({ testId }: { testId: string }): JSX.Element {
+  const { actions } = useManageDialogContext()
+  return (
+    <button
+      type="button"
+      className={cx(styles.ghostButton, styles.newButton)}
+      data-testid={testId}
+      onClick={() => actions.select(null)}
+    >
+      + New
     </button>
   )
 }

@@ -4,6 +4,7 @@
 // Parts live in ManageDialogParts.tsx, the state contract in manageDialogState.ts. A `.ts` file on
 // purpose: an object export beside components would trip react-refresh/only-export-components.
 import {
+  ManageDialogColumns,
   ManageDialogDelete,
   ManageDialogError,
   ManageDialogFooter,
@@ -13,7 +14,12 @@ import {
   ManageDialogHeader,
   ManageDialogHint,
   ManageDialogLabel,
+  ManageDialogList,
+  ManageDialogNew,
   ManageDialogProvider,
+  ManageDialogRow,
+  ManageDialogRowActions,
+  ManageDialogRows,
   ManageDialogSave
 } from './ManageDialogParts'
 
@@ -21,6 +27,12 @@ export const ManageDialog = {
   Provider: ManageDialogProvider,
   Frame: ManageDialogFrame,
   Header: ManageDialogHeader,
+  Columns: ManageDialogColumns,
+  List: ManageDialogList,
+  Rows: ManageDialogRows,
+  Row: ManageDialogRow,
+  RowActions: ManageDialogRowActions,
+  New: ManageDialogNew,
   Form: ManageDialogForm,
   Footer: ManageDialogFooter,
   Delete: ManageDialogDelete,

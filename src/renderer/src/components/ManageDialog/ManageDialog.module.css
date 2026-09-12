@@ -90,6 +90,85 @@
   border-color: var(--border-strong);
 }
 
+/* ── The list rail ─────────────────────────────────────────────────────────────────────────── */
+.columns {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  min-height: 320px;
+}
+.list {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-right: 1px solid var(--border);
+  padding-right: var(--space-4);
+}
+.listWide {
+  width: 260px;
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 360px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+}
+.row[data-selected='true'] {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+}
+.rowSelect {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+.rowSelect:hover {
+  background: var(--bg-surface);
+}
+/* Fixed width + `visibility` (not `display`): the slot always takes its space, so a row never
+   changes width when its actions appear, and nothing moves when one of them arms. Hidden controls
+   are not focusable, but the row's own select button is — focusing it reveals the slot
+   (focus-within), and the next Tab reaches the actions. */
+.rowActions {
+  flex: none;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding-right: var(--space-1);
+  visibility: hidden;
+}
+.row:hover .rowActions,
+.row:focus-within .rowActions {
+  visibility: visible;
+}
+/* `+ New` sits at the BOTTOM of the rail, not directly under the last row: `.rows` stops at its
+   max-height, so without this the button floats mid-column whenever the form is the taller side. */
+.newButton {
+  margin-top: auto;
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -203,6 +282,7 @@
   cursor: not-allowed;
 }
 
+.rowSelect:focus-visible,
 .closeButton:focus-visible,
 .ghostButton:focus-visible,
 .primaryButton:focus-visible,
