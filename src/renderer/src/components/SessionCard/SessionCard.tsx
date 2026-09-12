@@ -25,6 +25,7 @@ import { useId, useRef, useState, type JSX, type KeyboardEvent, type MouseEvent 
 import { StatusDot, type DotStatus } from '../StatusDot/StatusDot'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
 import type { Tag, Workspace } from '../../../../shared/ipc/contract'
+import { tagsDroppedByMove } from '../../../../shared/tags/tagScope'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagPicker } from '../TagPicker/TagPicker'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
@@ -157,8 +158,16 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
   const cardTags = tags ?? []
   const pickable = availableTags ?? []
-  // T-9 — the tags that do not survive a move: this workspace's own. Global tags travel.
-  const droppedOnMove = cardTags.filter((t) => t.workspaceId === currentWorkspaceId).length
+  // T-9 — the tags that do not survive a move: whatever `tagsDroppedByMove` (the SAME shared
+  // predicate `keepVisibleTags` uses to APPLY a move — src/shared/tags/tagScope.ts) says is
+  // invisible in a representative OTHER workspace. Every target other than the card's own
+  // currently gives the SAME count (T-11: a card only ever holds a GLOBAL tag or one scoped to
+  // its OWN workspace, so a scoped tag disappears for every other target alike) — reading the
+  // drop through the shared predicate, rather than a bare `workspaceId` comparison, is what keeps
+  // this honest if that invariant ever loosens.
+  const dropTargetId = otherWorkspaces[0]?.id
+  const droppedOnMove =
+    dropTargetId === undefined ? 0 : tagsDroppedByMove(cardTags, dropTargetId).length
   const currentWorkspaceName =
     workspaces?.find((w) => w.id === currentWorkspaceId)?.name ?? 'this workspace'
   const moveWarningId = useId()

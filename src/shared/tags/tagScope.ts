@@ -40,3 +40,19 @@ export function sameTagSet(a: readonly string[], b: readonly string[]): boolean 
   const set = new Set(a)
   return b.every((id) => set.has(id))
 }
+
+/**
+ * T-9 — the subset of `tags` a move TO `toWorkspaceId` costs: whichever ones are not visible
+ * there afterward (the complement of `visibleTags`). `keepVisibleTags` above is what main
+ * actually APPLIES on a move (it keeps the survivors); this is the same rule read the other way,
+ * for a caller that wants to say what is LOST rather than filter a stored id list — today, the
+ * card's move-menu warning (T-9, SessionCard.tsx). Sharing `isTagVisibleIn` here (not a bare
+ * `tag.workspaceId === fromWorkspaceId` comparison) is what keeps the warning's count honest if a
+ * tag is ever visible in more than just its own workspace + global.
+ */
+export function tagsDroppedByMove<T extends Pick<Tag, 'workspaceId'>>(
+  tags: readonly T[],
+  toWorkspaceId: string
+): T[] {
+  return tags.filter((t) => !isTagVisibleIn(t, toWorkspaceId))
+}

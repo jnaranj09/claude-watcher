@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { isTagVisibleIn, keepVisibleTags, sameTagSet, visibleTags } from './tagScope'
+import {
+  isTagVisibleIn,
+  keepVisibleTags,
+  sameTagSet,
+  tagsDroppedByMove,
+  visibleTags
+} from './tagScope'
 
 const GLOBAL = { id: 'g', workspaceId: null }
 const IN_A = { id: 'a', workspaceId: 'wa' }
@@ -31,5 +37,16 @@ describe('sameTagSet', () => {
     expect(sameTagSet(['a', 'b'], ['b', 'a'])).toBe(true)
     expect(sameTagSet(['a'], ['a', 'b'])).toBe(false)
     expect(sameTagSet(['a', 'b'], ['a', 'c'])).toBe(false)
+  })
+})
+
+describe('tagsDroppedByMove (T-9 — the card move-menu warning shares this, not a bare workspaceId compare)', () => {
+  it('is the complement of visibleTags: a tag scoped to the FROM workspace drops, a global one does not', () => {
+    expect(tagsDroppedByMove([GLOBAL, IN_A], 'wb')).toEqual([IN_A])
+    expect(tagsDroppedByMove([GLOBAL, IN_B], 'wb')).toEqual([])
+  })
+
+  it('drops nothing when the target IS where the tag is already scoped', () => {
+    expect(tagsDroppedByMove([IN_A], 'wa')).toEqual([])
   })
 })

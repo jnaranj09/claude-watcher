@@ -649,3 +649,39 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     ).toEqual(['deploy', 'prod'])
   })
 })
+
+// Review round 1, Finding 2 — the T-11 caller-scoping ruling (Column.tsx's `visibleTags(s.tags,
+// session.workspaceId)`) had no covering test: nothing exercised the Tags… menu's actual offered
+// list end-to-end, so a caller that passed the WHOLE catalog instead of the scoped one would have
+// gone undetected.
+describe('Board — the Tags… menu offers only global + the card’s own workspace (T-11)', () => {
+  const GLOBAL: Tag = { id: 't-global', name: 'global-tag', color: 'slate', workspaceId: null }
+  const OWN: Tag = { id: 't-own', name: 'own-tag', color: 'blue', workspaceId: 'default' }
+  const OTHER: Tag = { id: 't-other', name: 'other-tag', color: 'rose', workspaceId: 'w2' }
+
+  beforeEach(() => {
+    act(() => tagsStore.setState({ tags: [GLOBAL, OWN, OTHER], loaded: true, activeTagId: null }))
+  })
+  afterEach(() => {
+    act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+  })
+
+  it('never offers a tag scoped to ANOTHER workspace; offers global + the card’s own', () => {
+    const { container, unmount } = renderComponent(<Board onSetCardTags={vi.fn()} />)
+    cleanup = unmount
+    // The default (unnamed override) workspaceId from `updated()` IS 'default' — the same
+    // workspace the fresh workspacesStore is active on (resetStore), so this card is "here".
+    applyDelta(updated(1, 'card', 'working', 100))
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-session-id="card"] [data-testid="card-tags-button"]'
+        )
+        ?.click()
+    )
+    // data-testid queried, never textContent search (design.md).
+    expect(container.querySelector('[data-testid="card-tag-picker-row-t-global"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="card-tag-picker-row-t-own"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="card-tag-picker-row-t-other"]')).toBeNull()
+  })
+})
