@@ -11,6 +11,7 @@
 //   - `invoke` returns the value directly — NO `{ data, error }` wrapper.
 //   - Events are discriminated unions on a `type` field.
 import type { Template } from '../schemas/template'
+import type { Tag } from '../schemas/tag'
 import type { Shortcut } from '../schemas/shortcut'
 import type {
   Workspace,
@@ -514,6 +515,11 @@ export type {
 export type TemplatesSaveResult = { saved: Template; templates: Template[] }
 /** `session:launch-from-template` arg. Returns `SessionLaunchResult` like `session:launch`. */
 export type SessionLaunchFromTemplateRequest = { templateId: string; name: string }
+
+// Tags — main-owned catalog; the renderer holds a projection (tagsStore.ts).
+export type { Tag, TagSaveRequest, TagDeleteRequest, SessionSetTagsRequest } from '../schemas/tag'
+/** `tags:save` result — the saved row (so the dialog can select it) + the full sorted list. */
+export type TagsSaveResult = { saved: Tag; tags: Tag[] }
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be
