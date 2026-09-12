@@ -27,6 +27,10 @@ import { loadShortcuts } from './stores/shortcutsStore'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
 import { loadWorkspaces } from './stores/workspacesStore'
+// Tags — the header tag filter (+ Manage tags…) and the Manage-tags modal.
+import { TagFilter } from './components/TagFilter/TagFilter'
+import { TagsDialog } from './components/TagsDialog/TagsDialog'
+import { loadTags, setSessionTags } from './stores/tagsStore'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
 import { Settings } from './components/Settings/Settings'
@@ -52,7 +56,8 @@ import {
   selectSessionNamePrompt,
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
-  selectWorkspacesDialogOpen
+  selectWorkspacesDialogOpen,
+  selectTagsDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -77,7 +82,7 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 import { useSessionSeen } from './hooks/useSessionSeen'
 import styles from './App.module.css'
 
-/** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces dialogs
+/** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces/Tags dialogs
  *  never co-exist. A MODULE-LEVEL function (not a component-body const) so the `[]`-deps
  *  useCallbacks that call it stay free of exhaustive-deps warnings. */
 function isModalOpen(): boolean {
@@ -86,7 +91,8 @@ function isModalOpen(): boolean {
     s.sessionNamePrompt !== null ||
     s.templatesDialogOpen ||
     s.shortcutsDialogOpen ||
-    s.workspacesDialogOpen
+    s.workspacesDialogOpen ||
+    s.tagsDialogOpen
   )
 }
 
@@ -129,6 +135,8 @@ function App(): React.JSX.Element {
       // Workspaces (Task 9b) — never throws (logs a code and leaves the projection empty on
       // failure, same as the three above).
       void loadWorkspaces()
+      // Tags — never throws (logs a code and leaves the projection empty on failure).
+      void loadTags()
     }
   }, [smoke])
 
@@ -147,6 +155,8 @@ function App(): React.JSX.Element {
   const shortcutsDialogOpen = useBoard(selectShortcutsDialogOpen)
   // Workspaces — whether the Manage-workspaces dialog is open.
   const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
+  // Tags — whether the Manage-tags dialog is open.
+  const tagsDialogOpen = useBoard(selectTagsDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -202,6 +212,7 @@ function App(): React.JSX.Element {
       boardStore.getState().closeTemplatesDialog()
       boardStore.getState().closeShortcutsDialog()
       boardStore.getState().closeWorkspacesDialog()
+      boardStore.getState().closeTagsDialog()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -265,6 +276,18 @@ function App(): React.JSX.Element {
   const handleManageWorkspaces = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openWorkspacesDialog()
+  }, [])
+
+  // Tags — "Manage tags…" from the header tag filter. Same single-modal guard as every opener.
+  const handleManageTags = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openTagsDialog()
+  }, [])
+
+  // Tags — a card's Tags… menu or a rail peek changed a session's tags. Never optimistic: the
+  // tagged card comes back as a session.updated delta.
+  const handleSetSessionTags = useCallback((sessionId: string, tagIds: string[]): void => {
+    void setSessionTags(sessionId, tagIds)
   }, [])
 
   // Session-naming A2 — open the RENAME prompt for an EXISTING session. Reuses the same prompt
@@ -453,6 +476,7 @@ function App(): React.JSX.Element {
           boardStore.getState().closeTemplatesDialog()
           boardStore.getState().closeShortcutsDialog()
           boardStore.getState().closeWorkspacesDialog()
+          boardStore.getState().closeTagsDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -530,7 +554,11 @@ function App(): React.JSX.Element {
   // render a focus trap of their own; this is the trap. The name stays — it now means "a modal
   // is open," not just "the name prompt is open."
   const namePromptOpen =
-    sessionNamePrompt !== null || templatesDialogOpen || shortcutsDialogOpen || workspacesDialogOpen
+    sessionNamePrompt !== null ||
+    templatesDialogOpen ||
+    shortcutsDialogOpen ||
+    workspacesDialogOpen ||
+    tagsDialogOpen
 
   return (
     <div className={styles.app}>
@@ -540,6 +568,8 @@ function App(): React.JSX.Element {
           <span className={styles.brand}>Claude Watcher</span>
           <span className={styles.headerDivider} aria-hidden="true" />
           <WorkspaceSwitcher onManage={handleManageWorkspaces} />
+          {/* Tags — the filter says WHAT you are looking at, beside the switcher that says WHERE. */}
+          <TagFilter onManageTags={handleManageTags} />
         </div>
         <div className={styles.headerActions}>
           <NewSessionButton
@@ -581,6 +611,7 @@ function App(): React.JSX.Element {
               onActivateCard={handleActivateCard}
               onRenameCard={handleRenameSession}
               onMoveCardToWorkspace={handleMoveCardToWorkspace}
+              onSetCardTags={handleSetSessionTags}
             />
           </div>
           {hasFocusableTerminal && (
@@ -598,6 +629,7 @@ function App(): React.JSX.Element {
                 onPickTemplate={handleTemplateSession}
                 onManageTemplates={handleManageTemplates}
                 onRenameSession={handleRenameSession}
+                onSetSessionTags={handleSetSessionTags}
               />
             </div>
           )}
@@ -632,6 +664,8 @@ function App(): React.JSX.Element {
       {workspacesDialogOpen && (
         <WorkspacesDialog onClose={() => boardStore.getState().closeWorkspacesDialog()} />
       )}
+      {/* Tags — the Manage-tags modal (same z-60 layer and single-modal rule as the three above). */}
+      {tagsDialogOpen && <TagsDialog onClose={() => boardStore.getState().closeTagsDialog()} />}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and the operator submitting or cancelling). NOTHING is
           spawned while it is open, so Cancel/Esc is a complete no-op: no PTY, no card, no view
