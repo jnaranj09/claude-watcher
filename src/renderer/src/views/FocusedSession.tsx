@@ -68,6 +68,9 @@ export interface FocusedSessionProps {
   /** Session-naming A2 — rename a rail row's session (opens the rename prompt). Threaded to the
    *  AttentionRail; omitted ⇒ the rail renders no pencil. */
   onRenameSession?: (sessionId: string) => void
+  /** Tags — a rail peek's Edit changed a session's tags. Threaded to the AttentionRail; omitted ⇒
+   *  the rail offers no tag editing. */
+  onSetSessionTags?: (sessionId: string, tagIds: string[]) => void
 }
 
 export function FocusedSession({
@@ -75,7 +78,8 @@ export function FocusedSession({
   onNewSession,
   onPickTemplate,
   onManageTemplates,
-  onRenameSession
+  onRenameSession,
+  onSetSessionTags
 }: FocusedSessionProps): JSX.Element {
   // The currently-visible terminal (the others are kept alive but hidden). A primitive selector.
   const focusedTerminalId = useBoard(selectFocusedTerminalId)
@@ -110,6 +114,7 @@ export function FocusedSession({
       <AttentionRail
         onActivateSession={onActivateSession}
         {...(onRenameSession ? { onRenameSession } : {})}
+        {...(onSetSessionTags ? { onSetSessionTags } : {})}
       />
       <div className={styles.main}>
         <div className={styles.bar}>

@@ -15,12 +15,16 @@ export interface TagGlyphIconProps {
   /** The glyph is decorative by default; the host button/control names itself. Set false only
    *  when no accessible name exists anywhere else. */
   ariaHidden?: boolean
+  /** Stroke weight. Default 1.5 (the card affordance weight); the rail's smaller 10px toggle
+   *  (Task 12) wants a touch thicker so the outline does not thin away at that size. */
+  strokeWidth?: number
 }
 
 export function TagGlyphIcon({
   size = 12,
   className,
-  ariaHidden = true
+  ariaHidden = true,
+  strokeWidth = 1.5
 }: TagGlyphIconProps): JSX.Element {
   return (
     <svg
@@ -29,7 +33,7 @@ export function TagGlyphIcon({
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.5"
+      strokeWidth={strokeWidth}
       strokeLinejoin="round"
       aria-hidden={ariaHidden}
       {...(className !== undefined ? { className } : {})}

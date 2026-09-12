@@ -8,12 +8,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
-import { AttentionRail } from './AttentionRail'
+import { AttentionRail, type AttentionRailProps } from './AttentionRail'
 import { shortName } from './railName'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
 import { boardStore } from '../../stores/boardStore'
 import { workspacesStore } from '../../stores/workspacesStore'
-import type { Column, WatchEventsPayload } from '../../../../shared/ipc/contract'
+import { tagsStore } from '../../stores/tagsStore'
+import type { Column, Tag, WatchEventsPayload } from '../../../../shared/ipc/contract'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,7 +26,12 @@ function updated(
   id: string,
   column: Column,
   enteredColumnAt: number,
-  over: Partial<{ sessionName: string; projectPath: string; workspaceId: string }> = {}
+  over: Partial<{
+    sessionName: string
+    projectPath: string
+    workspaceId: string
+    tagIds: string[]
+  }> = {}
 ): WatchEventsPayload {
   return {
     epoch,
@@ -39,7 +45,7 @@ function updated(
       enteredColumnAt,
       pid: 1000,
       workspaceId: over.workspaceId ?? 'default',
-      tagIds: []
+      tagIds: over.tagIds ?? []
     }
   }
 }
@@ -60,6 +66,9 @@ function resetStore(): void {
   // Workspaces (Task 9a fix, review round 1) — reset the active workspace so a test that
   // switches it does not bleed into a later test in this file.
   workspacesStore.setState({ activeId: 'default' })
+  // Tags (Task 12) — reset the catalog + filter so a test that hydrates tags does not bleed
+  // into a later test in this file.
+  tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
 }
 
 beforeEach(() => {
@@ -985,5 +994,152 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
     const gutter = (collapsedWidth - RAIL_BORDER_PX - squareWidth) / 2
 
     expect(gutter).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('AttentionRail — tags (T-27, T-28)', () => {
+  const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
+  const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
+  const readCss = (rel: string): string =>
+    readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
+
+  /** `tagged` carries prod + deploy (catalog order: deploy, prod); `plain` carries nothing. */
+  function seed(): void {
+    act(() => {
+      tagsStore.getState().hydrate([DEPLOY, PROD])
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'tagged', 'working', 10, { tagIds: ['t-prod', 't-deploy'] }))
+      boardStore.getState().applyWatchEvent(updated(1, 'plain', 'working', 20))
+    })
+  }
+
+  function renderRail(props: Partial<AttentionRailProps> = {}): RenderResult {
+    const r = renderComponent(<AttentionRail onActivateSession={() => {}} {...props} />)
+    cleanup = r.unmount
+    return r
+  }
+
+  /** The <li> holding a session's row, its tools and (when open) its peek panel. */
+  const itemOf = (r: RenderResult, id: string): Element | null =>
+    r.container.querySelector(`[data-session-id="${id}"]`)?.closest('li') ?? null
+
+  it('a tagged row carries the compact indicator, in a peek toggle named after its tags', () => {
+    seed()
+    const r = renderRail()
+    const peek = itemOf(r, 'tagged')?.querySelector('[data-testid="rail-tags-peek"]')
+    expect(peek?.getAttribute('aria-expanded')).toBe('false')
+    expect(peek?.getAttribute('aria-label')).toBe('Tags: deploy, prod')
+    expect(peek?.querySelector('[data-testid="tag-indicator"]')).not.toBeNull()
+    // Untagged, and tagging not wired: nothing to show and nothing to offer.
+    expect(itemOf(r, 'plain')?.querySelector('[data-testid="rail-tags-peek"]')).toBeNull()
+  })
+
+  it('the default view never adds a chip line or a panel — a row height cannot follow its tags', () => {
+    seed()
+    const r = renderRail()
+    expect(r.container.querySelector('[data-testid="rail-row-tags"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="rail-tags-panel"]')).toBeNull()
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(2, 'plain', 'working', 20, { tagIds: ['t-deploy'] }))
+    )
+    expect(r.container.querySelector('[data-testid="rail-row-tags"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="rail-tags-panel"]')).toBeNull()
+  })
+
+  it('peek opens a panel with every chip; Edit opens the picker that sets the tags', () => {
+    seed()
+    const onSetSessionTags = vi.fn()
+    const onActivateSession = vi.fn()
+    const r = renderRail({ onSetSessionTags, onActivateSession })
+    const peek = itemOf(r, 'tagged')?.querySelector<HTMLButtonElement>(
+      '[data-testid="rail-tags-peek"]'
+    )
+    act(() => peek?.click())
+    expect(peek?.getAttribute('aria-expanded')).toBe('true')
+    const panel = itemOf(r, 'tagged')?.querySelector('[data-testid="rail-tags-panel"]')
+    expect(
+      [...(panel?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent)
+    ).toEqual(['deploy', 'prod'])
+    act(() => panel?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-edit"]')?.click())
+    act(() =>
+      panel
+        ?.querySelector<HTMLInputElement>('[data-testid="rail-tag-picker-check-t-deploy"]')
+        ?.click()
+    )
+    expect(onSetSessionTags).toHaveBeenCalledWith('tagged', ['t-prod'])
+    // The toggle is a sibling of the row, not part of it: peeking never switches terminals.
+    expect(onActivateSession).not.toHaveBeenCalled()
+  })
+
+  // Controller ruling (T-11 in the caller): the rail's Edit picker offers ONLY global tags + the
+  // row's OWN workspace's tags — never a tag scoped to some OTHER workspace.
+  it("the Edit picker offers global + this row's own-workspace tags, never another workspace's", () => {
+    const OWN: Tag = { id: 't-own', name: 'own', color: 'blue', workspaceId: 'default' }
+    const OTHER: Tag = { id: 't-other', name: 'other-ws', color: 'violet', workspaceId: 'other' }
+    act(() => {
+      tagsStore.getState().hydrate([DEPLOY, PROD, OWN, OTHER])
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'tagged', 'working', 10, { tagIds: ['t-deploy'] }))
+    })
+    const r = renderRail({ onSetSessionTags: vi.fn() })
+    const item = itemOf(r, 'tagged')
+    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-peek"]')?.click())
+    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-edit"]')?.click())
+    expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-other"]')).toBeNull()
+    expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-own"]')).not.toBeNull()
+    expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-deploy"]')).not.toBeNull()
+  })
+
+  it('"Show all tags" gives every tagged row a one-line chip row — and only while it is on', () => {
+    seed()
+    const r = renderRail()
+    const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-show-tags"]')
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false')
+    act(() => toggle?.click())
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true')
+    expect(itemOf(r, 'tagged')?.querySelector('[data-testid="rail-row-tags"]')).not.toBeNull()
+    expect(itemOf(r, 'plain')?.querySelector('[data-testid="rail-row-tags"]')).toBeNull()
+    act(() => toggle?.click())
+    expect(r.container.querySelector('[data-testid="rail-row-tags"]')).toBeNull()
+  })
+
+  it('hides the header toggle while no tag exists (a control that does nothing is not rendered)', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'plain', 'working', 20)))
+    const r = renderRail()
+    expect(r.container.querySelector('[data-testid="rail-show-tags"]')).toBeNull()
+  })
+
+  it('the collapsed rail draws no tag icons; the row label names its tags instead', () => {
+    seed()
+    const r = renderRail()
+    act(() =>
+      r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')?.click()
+    )
+    expect(r.container.querySelector('[data-testid="rail-tags-peek"]')).toBeNull()
+    expect(
+      r.container.querySelector('[data-session-id="tagged"]')?.getAttribute('aria-label')
+    ).toContain(', tags: deploy, prod')
+  })
+
+  it('an untagged row offers a hover "add tags" toggle when tagging is wired', () => {
+    seed()
+    const r = renderRail({ onSetSessionTags: vi.fn() })
+    const peek = itemOf(r, 'plain')?.querySelector('[data-testid="rail-tags-peek"]')
+    expect(peek?.getAttribute('aria-label')).toBe('Add tags to s-plain')
+    expect(peek?.querySelector('[data-testid="tag-indicator"]')).toBeNull()
+  })
+
+  it('CSS: the tools overlay the row, the untagged toggle hides until hover, tags only PAD the row', () => {
+    const css = readCss('./AttentionRail.module.css')
+    expect(/\.rowTools\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/position:\s*absolute/)
+    expect(/\.peekButtonEmpty\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/opacity:\s*0/)
+    expect(css).toMatch(/\.rowWrap:hover \.peekButtonEmpty/)
+    const hasTags = /\.row\[data-has-tags\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(hasTags).toMatch(/padding-right/)
+    expect(hasTags).not.toMatch(/height/)
   })
 })
