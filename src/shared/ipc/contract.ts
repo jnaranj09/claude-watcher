@@ -12,6 +12,7 @@
 //   - Events are discriminated unions on a `type` field.
 import type { Template } from '../schemas/template'
 import type { Tag } from '../schemas/tag'
+import type { Rule } from '../schemas/rule'
 import type { Shortcut } from '../schemas/shortcut'
 import type {
   Workspace,
@@ -531,6 +532,22 @@ export type SessionLaunchFromTemplateRequest = { templateId: string; name: strin
 export type { Tag, TagSaveRequest, TagDeleteRequest, SessionSetTagsRequest } from '../schemas/tag'
 /** `tags:save` result — the saved row (so the dialog can select it) + the full sorted list. */
 export type TagsSaveResult = { saved: Tag; tags: Tag[] }
+
+// Rules — main-owned, run-ordered list; the renderer holds a projection (rulesStore.ts).
+export type {
+  Rule,
+  RuleSaveRequest,
+  RuleDeleteRequest,
+  RuleMoveRequest,
+  RuleTrigger,
+  RuleCondition,
+  RuleAction
+} from '../schemas/rule'
+/** `rules:list` result — the rules in RUN order + the ids of those that can never fire (T-23: a
+ *  missing or out-of-scope reference, or a regex that does not compile). */
+export type RulesListResult = { rules: Rule[]; brokenIds: string[] }
+/** `rules:save` result — the saved row (so the dialog can select it) PLUS the full view. */
+export type RulesSaveResult = { saved: Rule } & RulesListResult
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

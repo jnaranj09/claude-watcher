@@ -4,8 +4,12 @@
 import type { Tag } from '../schemas/tag'
 
 /** T-11 — a card in `workspaceId` may carry a tag that is global or scoped to that exact
- *  workspace. A tag naming a workspace that no longer exists is visible NOWHERE. */
-export function isTagVisibleIn(tag: Pick<Tag, 'workspaceId'>, workspaceId: string): boolean {
+ *  workspace. A tag naming a workspace that no longer exists is visible NOWHERE.
+ *
+ *  `workspaceId` accepts `null` too (widened for `rules/ruleRefs.ts#inRuleScope`): a RULE, unlike
+ *  a card, can itself be global, and the same comparison holds — a global viewer sees only a
+ *  global item. Every existing caller here passes a concrete workspace, so this is additive. */
+export function isTagVisibleIn(tag: Pick<Tag, 'workspaceId'>, workspaceId: string | null): boolean {
   return tag.workspaceId === null || tag.workspaceId === workspaceId
 }
 
