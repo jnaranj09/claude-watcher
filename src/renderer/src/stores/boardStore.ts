@@ -133,6 +133,8 @@ export interface BoardSession {
   /** Workspaces — which workspace this card belongs to (session truth, read off the delta).
    *  The store never writes it; only main's `session.updated` changes it. */
   workspaceId: string
+  /** Tags — the card's tag ids (session truth, read off the delta). The store never writes them. */
+  tagIds: string[]
 }
 
 /** The two columns that were ever HERO-ELIGIBLE. Idle is NEVER the hero (FROZEN-1 / AC-2) —
@@ -505,6 +507,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           column: event.column,
           enteredColumnAt: event.enteredColumnAt,
           workspaceId: event.workspaceId,
+          tagIds: event.tagIds,
           ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
         }
         const sessionsById = { ...state.sessionsById, [event.id]: next }

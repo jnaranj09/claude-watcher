@@ -22,6 +22,8 @@ export function launchedSession(id: string, over: Partial<Session> = {}): Sessio
     // Workspaces — 'default' unless a test overrides it; not the subject of most of these
     // fixtures, so a fixed constant keeps every existing call site mechanical.
     workspaceId: 'default',
+    tagIds: [],
+    templateId: null,
     ...over
   }
 }

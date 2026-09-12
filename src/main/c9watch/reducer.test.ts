@@ -80,11 +80,21 @@ describe('reducer — upsertLaunched (Story 6.2: spawn-time launch synthesis)', 
       projectPath: '/p',
       pid: 3,
       sessionName: 'n',
-      workspaceId: 'w5'
+      workspaceId: 'w5',
+      tagIds: [],
+      templateId: null
     }
     reducer.upsertLaunched(stored)
     reducer.upsertLaunched({ ...stored, id: 'new' })
     expect(reducer.snapshotMap().get('new')?.workspaceId).toBe('w5')
+  })
+
+  it('a re-upsert under a new id keeps the tags and the template (the /clear rebind, spec §5)', () => {
+    const reducer = createReducer({ now: () => 1 })
+    const stored = launchedSession('old', { tagIds: ['t1'], templateId: 'tpl-1' })
+    reducer.upsertLaunched(stored)
+    reducer.upsertLaunched({ ...stored, id: 'new' })
+    expect(reducer.snapshotMap().get('new')).toMatchObject({ tagIds: ['t1'], templateId: 'tpl-1' })
   })
 })
 
@@ -304,7 +314,9 @@ describe('setWorkspace', () => {
     projectPath: '/p',
     pid: 3,
     sessionName: 'n',
-    workspaceId: 'w1'
+    workspaceId: 'w1',
+    tagIds: [],
+    templateId: null
   }
 
   it('emits one session.updated with the new workspace', () => {

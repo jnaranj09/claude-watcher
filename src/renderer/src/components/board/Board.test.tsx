@@ -123,6 +123,7 @@ function updated(
       enteredColumnAt,
       pid: over.pid ?? 1000,
       workspaceId: over.workspaceId ?? 'default',
+      tagIds: [],
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }

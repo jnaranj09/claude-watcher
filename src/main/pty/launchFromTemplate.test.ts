@@ -19,6 +19,7 @@ describe('resolveTemplateLaunch — template id + name → LaunchRequest', () =>
     expect(resolveTemplateLaunch(storeWith(), { templateId: 'tpl-1', name: ' api 2 ' })).toEqual({
       cwd: '/home/op/api',
       name: 'api 2',
+      templateId: 'tpl-1',
       flags: { model: 'opus', permissionMode: 'acceptEdits', effort: 'max' }
     })
   })

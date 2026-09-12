@@ -317,6 +317,9 @@ export type SessionUpdatedEvent = {
   /** Workspaces — which workspace this card belongs to. The renderer filters on it; it never
    *  mutates it (session truth is main's). */
   workspaceId: string
+  /** Tags — the card's tag ids (session truth, main-owned). Order carries no meaning: the renderer
+   *  draws chips in TAG-LIST order. */
+  tagIds: string[]
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
 }

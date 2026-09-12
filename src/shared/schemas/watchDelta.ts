@@ -43,6 +43,9 @@ export const EnrichedSessionUpdatedSchema = z.object({
   /** Workspaces — required. A missing one means the session map had no entry (or an older
    *  session shape), which is exactly the half-formed delta this guard exists to drop. */
   workspaceId: z.string().min(1),
+  /** Tags — required. A missing one means the session map had no entry (or an older session
+   *  shape), which is exactly the half-formed delta this guard exists to drop. */
+  tagIds: z.array(z.string().min(1)),
   pendingToolName: z.string().optional()
 })
 

@@ -15,6 +15,7 @@ function minted(over: Partial<MintedLaunchSpawn> = {}): MintedLaunchSpawn {
   return {
     sessionId: 'sess-uuid-1',
     displayName: 'billing api',
+    templateId: null,
     spawn: {
       file: '/bin/bash',
       args: ['-l', '-c', "claude --session-id 'sess-uuid-1'"],
@@ -27,7 +28,7 @@ function minted(over: Partial<MintedLaunchSpawn> = {}): MintedLaunchSpawn {
 
 describe('buildLaunchedSession — the operator name becomes card truth', () => {
   it('uses the OPERATOR name, not the cwd basename (the whole point of the feature)', () => {
-    const session = buildLaunchedSession(minted(), 4242, 'default')
+    const session = buildLaunchedSession(minted(), 4242, 'default', [])
     expect(session.sessionName).toBe('billing api')
     // Non-vacuity: the basename is a DIFFERENT string, so this cannot pass by coincidence.
     expect(session.sessionName).not.toBe('api')
@@ -37,12 +38,14 @@ describe('buildLaunchedSession — the operator name becomes card truth', () => 
     const a = buildLaunchedSession(
       minted({ sessionId: 'sess-a', displayName: 'billing api' }),
       1,
-      'default'
+      'default',
+      []
     )
     const b = buildLaunchedSession(
       minted({ sessionId: 'sess-b', displayName: 'refunds api' }),
       2,
-      'default'
+      'default',
+      []
     )
     expect(a.sessionName).not.toBe(b.sessionName)
     // ...while both still point at the same project directory.
@@ -51,25 +54,30 @@ describe('buildLaunchedSession — the operator name becomes card truth', () => 
   })
 
   it('carries the minted identity, the picked cwd and the pty pid through verbatim', () => {
-    const session = buildLaunchedSession(minted(), 4242, 'default')
+    const session = buildLaunchedSession(minted(), 4242, 'default', [])
     expect(session.id).toBe('sess-uuid-1')
     expect(session.projectPath).toBe('/home/op/api')
     expect(session.pid).toBe(4242)
   })
 
   it('is born Connecting (hooks own every later transition)', () => {
-    expect(buildLaunchedSession(minted(), 1, 'default').status).toBe('Connecting')
+    expect(buildLaunchedSession(minted(), 1, 'default', []).status).toBe('Connecting')
   })
 
   it('DEFENSIVE fallback: a blank displayName degrades to the cwd basename, never a blank title', () => {
     // Unreachable through the shipped launch path (SessionNameSchema.min(1) guarantees non-empty),
     // but a hand-constructed MintedLaunchSpawn must not put an empty title on the board.
-    const session = buildLaunchedSession(minted({ displayName: '' }), 1, 'default')
+    const session = buildLaunchedSession(minted({ displayName: '' }), 1, 'default', [])
     expect(session.sessionName).toBe('api')
   })
 
   it('a name that merely LOOKS like a path is not re-derived — it is used verbatim', () => {
-    const session = buildLaunchedSession(minted({ displayName: 'api/v2 rewrite' }), 1, 'default')
+    const session = buildLaunchedSession(
+      minted({ displayName: 'api/v2 rewrite' }),
+      1,
+      'default',
+      []
+    )
     expect(session.sessionName).toBe('api/v2 rewrite')
   })
 
@@ -77,8 +85,21 @@ describe('buildLaunchedSession — the operator name becomes card truth', () => 
     const session = buildLaunchedSession(
       { sessionId: 'uuid-1', displayName: 'My session', spawn: { cwd: '/home/j/p' } } as never,
       4242,
-      'w7'
+      'w7',
+      []
     )
     expect(session.workspaceId).toBe('w7')
+  })
+
+  it('stamps the template the launch came from (read back off the mint)', () => {
+    expect(buildLaunchedSession(minted({ templateId: 'tpl-9' }), 1, 'default', []).templateId).toBe(
+      'tpl-9'
+    )
+    expect(buildLaunchedSession(minted(), 1, 'default', []).templateId).toBeNull()
+  })
+
+  // FAULT INJECTION: hardcoding `tagIds: []` in launchSynthesis.ts must turn this red.
+  it('is born with the tags it is given', () => {
+    expect(buildLaunchedSession(minted(), 1, 'default', ['t1', 't2']).tagIds).toEqual(['t1', 't2'])
   })
 })

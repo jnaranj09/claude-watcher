@@ -12,6 +12,7 @@ export function resolveTemplateLaunch(store: TemplatesStore, raw: unknown): Laun
   return {
     cwd: template.cwd,
     name,
+    templateId: template.id,
     flags: {
       model: template.model,
       permissionMode: template.permissionMode,

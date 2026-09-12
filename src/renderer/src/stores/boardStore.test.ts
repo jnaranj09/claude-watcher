@@ -71,6 +71,7 @@ function updated(
       enteredColumnAt,
       pid: over.pid ?? 1000,
       workspaceId: over.workspaceId ?? 'default',
+      tagIds: [],
       ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
     }
   }
@@ -104,6 +105,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
       column: 'working',
       enteredColumnAt: 100,
       workspaceId: 'default',
+      tagIds: [],
       pendingToolName: 'Bash'
     })
     expect(selectTotalCount(store.getState(), 'default')).toBe(1)
@@ -961,7 +963,8 @@ describe('workspace filtering', () => {
       column,
       enteredColumnAt: 1,
       pid: 1,
-      workspaceId
+      workspaceId,
+      tagIds: []
     }
   })
 

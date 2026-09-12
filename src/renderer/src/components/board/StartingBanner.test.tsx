@@ -59,7 +59,8 @@ function updated(epoch: number, id: string): WatchEventsPayload {
       column: 'working',
       enteredColumnAt: 100,
       pid: 1000,
-      workspaceId: 'default'
+      workspaceId: 'default',
+      tagIds: []
     }
   }
 }

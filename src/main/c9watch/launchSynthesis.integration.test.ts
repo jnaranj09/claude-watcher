@@ -43,7 +43,9 @@ describe('Story 6.2 — upsertLaunched delta survives the full enrich/ship pipel
       projectPath: CWD,
       sessionName: 'c9watch-webapp', // basename(cwd)
       pid: PTY_PID,
-      workspaceId: 'default'
+      workspaceId: 'default',
+      tagIds: [],
+      templateId: null
     })
     expect(deltas).toHaveLength(1)
     const delta = deltas[0]
@@ -67,7 +69,8 @@ describe('Story 6.2 — upsertLaunched delta survives the full enrich/ship pipel
       column: 'idle', // Connecting classifies into the idle column (fresh spawn = not claude's turn)
       enteredColumnAt: FIXED_NOW,
       pid: PTY_PID,
-      workspaceId: 'default'
+      workspaceId: 'default',
+      tagIds: []
       // no pendingToolName — omitted, not undefined (exactOptionalPropertyTypes)
     })
 
@@ -88,7 +91,9 @@ describe('Story 6.2 — upsertLaunched delta survives the full enrich/ship pipel
         projectPath: CWD,
         sessionName: 'c9watch-webapp',
         pid: PTY_PID,
-        workspaceId: 'default'
+        workspaceId: 'default',
+        tagIds: [],
+        templateId: null
       })
       .forEach((d) => tracker.onDelta(d, reducer.snapshotMap()))
 

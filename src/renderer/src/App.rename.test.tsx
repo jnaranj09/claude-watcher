@@ -38,7 +38,8 @@ function updated(id: string, sessionName: string): WatchEventsPayload {
       column: 'working',
       enteredColumnAt: 100,
       pid: 4242,
-      workspaceId: 'default'
+      workspaceId: 'default',
+      tagIds: []
     }
   }
 }

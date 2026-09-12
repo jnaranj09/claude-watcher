@@ -38,7 +38,8 @@ function updated(
       column,
       enteredColumnAt,
       pid: 1000,
-      workspaceId: over.workspaceId ?? 'default'
+      workspaceId: over.workspaceId ?? 'default',
+      tagIds: []
     }
   }
 }

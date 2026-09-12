@@ -143,7 +143,12 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
     const ov = svc.peekSpawnOverride('t-1')
     // Session-naming: the operator-typed name rides the SAME entry as the cwd — both are
     // per-terminal launch-recipe values, set once at launch and read per spawn.
-    expect(ov).toEqual({ cwd: '/home/op/proj', name: 'proj', flags: NO_LAUNCH_FLAGS })
+    expect(ov).toEqual({
+      cwd: '/home/op/proj',
+      name: 'proj',
+      flags: NO_LAUNCH_FLAGS,
+      templateId: null
+    })
     // NON-CONSUMING (Story 5.4): a second peek returns the SAME recipe. The recipe is durable so
     // a StrictMode dev double-mount's surviving open AND a Reopen both still spawn claude (a
     // consume-once read was the dev blank-terminal bug + the latent Reopen bug).
@@ -294,7 +299,12 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
 
     // The durable spawn-override is untouched: a later Reopen still finds its recipe and
     // mints a FRESH identity + binding (never the default $SHELL, never a stale id).
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p', flags: NO_LAUNCH_FLAGS })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({
+      cwd: '/p',
+      name: 'p',
+      flags: NO_LAUNCH_FLAGS,
+      templateId: null
+    })
     const reopened = svc.mintSpawn('t-1')
     expect(reopened?.sessionId).toBe('sess-2')
     expect(svc.sessionIdFor('t-1')).toBe('sess-2')
@@ -382,6 +392,16 @@ describe('launchSession — the operator-typed session name (session-naming)', (
     // Same directory, distinct identities — neither launch's name bleeds into the other.
     expect(mintedA?.spawn.cwd).toBe(mintedB?.spawn.cwd)
     expect(mintedA?.sessionId).not.toBe(mintedB?.sessionId)
+  })
+
+  it('carries the template id from launch() to the mint; the folder flow mints null', () => {
+    const svc = svcWithMints(['sess-1'])
+    svc.launch({ cwd: '/home/op/api', name: 'api', templateId: 'tpl-9' })
+    expect(svc.mintSpawn('t-1')?.templateId).toBe('tpl-9')
+
+    const folder = svcWithMints(['sess-2'])
+    folder.launch({ cwd: '/home/op/api', name: 'api' })
+    expect(folder.mintSpawn('t-1')?.templateId).toBeNull()
   })
 })
 
@@ -636,9 +656,19 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
     // ...but the spawn-override (the Reopen recipe) SURVIVES forget (Story 5.4): forget() runs when
     // claude exits FOR REAL, and a dead-pane Reopen must still re-spawn claude (not the default
     // $SHELL). A pre-5.4 forget that also deleted the override broke Reopen.
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p', flags: NO_LAUNCH_FLAGS })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({
+      cwd: '/p',
+      name: 'p',
+      flags: NO_LAUNCH_FLAGS,
+      templateId: null
+    })
     svc.forget('t-1') // idempotent
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p', flags: NO_LAUNCH_FLAGS })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({
+      cwd: '/p',
+      name: 'p',
+      flags: NO_LAUNCH_FLAGS,
+      templateId: null
+    })
   })
 })
 
@@ -775,7 +805,12 @@ describe('session templates — launch flags reach spawn()', () => {
     svc.launch({ cwd: '/p', name: 'p' })
     svc.mintSpawn('t-1')
     expect(seen).toEqual([{ model: null, permissionMode: null, effort: null }])
-    expect(svc.peekSpawnOverride('t-1')).toEqual({ cwd: '/p', name: 'p', flags: NO_LAUNCH_FLAGS })
+    expect(svc.peekSpawnOverride('t-1')).toEqual({
+      cwd: '/p',
+      name: 'p',
+      flags: NO_LAUNCH_FLAGS,
+      templateId: null
+    })
   })
 
   it('a template launch hands its flags to spawn(), and a re-spawn of the same terminal keeps them', () => {

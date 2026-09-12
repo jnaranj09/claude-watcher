@@ -1318,11 +1318,16 @@ function registerTerminalIpc(): void {
         // expression. Keep this a one-line call; put any synthesis logic in that module.
         // Workspaces — stamp main's OWN active-workspace pointer at synthesis time (never
         // derived in the extracted module, which must stay importable without Electron).
-        launchBoardSeams
-          .get(wc)
-          ?.upsertLaunched(
-            buildLaunchedSession(minted, ptyPid, requireWorkspacesStore().activeId())
+        launchBoardSeams.get(wc)?.upsertLaunched(
+          buildLaunchedSession(
+            minted,
+            ptyPid,
+            requireWorkspacesStore().activeId(),
+            // Tags — no rules yet, so a new card is born untagged. Phase 2 passes the launch
+            // rules' output here (spec §2.1).
+            []
           )
+        )
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
         // the Starting-banner join is instant (no ancestry walk, no c9watch discovery wait).
         // Validate AT SOURCE before send (main→renderer delta; zod-boundaries.md), exactly as
