@@ -115,6 +115,13 @@ export const CH = {
   workspacesSave: 'workspaces:save',
   workspacesDelete: 'workspaces:delete',
   workspacesSetActive: 'workspaces:set-active',
+  // Tags — the tag catalog's CRUD invokes (main-owned file; the renderer holds a projection in
+  // tagsStore.ts) plus `session:set-tags`, the manual-tagging write (spec §2.4). Invoke returning
+  // void; the tagged card comes back the normal way, as a `session.updated` delta.
+  tagsList: 'tags:list',
+  tagsSave: 'tags:save',
+  tagsDelete: 'tags:delete',
+  sessionSetTags: 'session:set-tags',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session

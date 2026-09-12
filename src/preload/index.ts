@@ -34,7 +34,12 @@ import type {
   WorkspaceDeleteRequest,
   WorkspaceSetActiveRequest,
   WorkspacesListResult,
-  WorkspacesSaveResult
+  WorkspacesSaveResult,
+  Tag,
+  TagSaveRequest,
+  TagDeleteRequest,
+  TagsSaveResult,
+  SessionSetTagsRequest
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -260,6 +265,13 @@ const launchApi = {
     const req: SessionSetWorkspaceRequest = { sessionId, workspaceId }
     return ipcRenderer.invoke(CH.sessionSetWorkspace, req)
   },
+  /** Tags — replace a card's tags by its stable session id. Rejects on an unknown or out-of-scope
+   *  tag (main parse-and-throws); resolves void — the tagged card arrives as a `session.updated`
+   *  delta, never as the resolve value. */
+  setTags(sessionId: string, tagIds: string[]): Promise<void> {
+    const req: SessionSetTagsRequest = { sessionId, tagIds }
+    return ipcRenderer.invoke(CH.sessionSetTags, req)
+  },
   /** Session templates — launch `claude` from a saved template by its stable id. Main
    *  resolves the template's flags (cwd/model/permissionMode) from its own validated store
    *  and returns `{ terminalId }` exactly like `launch(cwd, name)`. The renderer never carries
@@ -341,6 +353,22 @@ const workspacesApi = {
   }
 }
 export type WorkspacesApi = typeof workspacesApi
+
+// Tags — typed invoke wrappers over CH.tags*. `remove`, not `delete` (reserved word) — the same
+// verb as templatesApi.
+const tagsApi = {
+  list(): Promise<Tag[]> {
+    return ipcRenderer.invoke(CH.tagsList)
+  },
+  save(req: TagSaveRequest): Promise<TagsSaveResult> {
+    return ipcRenderer.invoke(CH.tagsSave, req)
+  },
+  remove(id: string): Promise<Tag[]> {
+    const req: TagDeleteRequest = { id }
+    return ipcRenderer.invoke(CH.tagsDelete, req)
+  }
+}
+export type TagsApi = typeof tagsApi
 
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
@@ -438,6 +466,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('shortcuts', shortcutsApi)
     // Workspaces — the workspaces CRUD bridge (workspaces:list/save/delete/set-active).
     contextBridge.exposeInMainWorld('workspaces', workspacesApi)
+    // Tags — the tag catalog CRUD bridge (tags:list/save/delete).
+    contextBridge.exposeInMainWorld('tags', tagsApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -477,4 +507,6 @@ if (process.contextIsolated) {
   window.shortcuts = shortcutsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.workspaces is in index.d.ts
   window.workspaces = workspacesApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.tags is in index.d.ts
+  window.tags = tagsApi
 }

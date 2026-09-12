@@ -99,6 +99,8 @@ import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 import { keepVisibleTags } from '../shared/tags/tagScope'
+import { createTagsIpcHandlers, parseSessionSetTags, staleTagEdits } from './persistence/tagsIpc'
+import type { Tag } from '../shared/schemas/tag'
 import { resolveTemplateLaunch } from './pty/launchFromTemplate'
 import type { ClaudeLaunchFlags } from './pty/launchSession'
 // Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
@@ -317,6 +319,16 @@ interface LaunchBoardSeam {
   /** Deterministic-attention — the operator viewed this session (markSeen → handleDelta).
    *  Only a YourTurn session demotes; everything else is a quiet reducer no-op. */
   seenLaunched(sessionId: string): void
+  /** Tags — the workspace a card lives in, or undefined for an unknown id. Read-only; feeds the
+   *  `session:set-tags` scope check (T-11). */
+  workspaceOf(sessionId: string): string | undefined
+  /** Tags — replace a card's tags (setTags → handleDelta). The caller already proved every id
+   *  exists and is visible to the card (parseSessionSetTags). Unknown session id is a quiet
+   *  reducer no-op. Never triggers rules (spec §2.4). */
+  setTagsLaunched(sessionId: string, tagIds: readonly string[]): void
+  /** Tags — the catalog changed (a tag deleted or re-scoped): strip every tag a card can no longer
+   *  see (staleTagEdits → setTags → handleDelta), spec §1.4. */
+  pruneTags(lookup: (tagId: string) => Pick<Tag, 'workspaceId'> | null): void
 }
 const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 
@@ -564,6 +576,15 @@ function registerWatchFeed(window: BrowserWindow): void {
     },
     seenLaunched: (sessionId) => {
       reducer.markSeen(sessionId).forEach(handleDelta)
+    },
+    workspaceOf: (sessionId) => reducer.snapshotMap().get(sessionId)?.workspaceId,
+    setTagsLaunched: (sessionId, tagIds) => {
+      reducer.setTags(sessionId, tagIds).forEach(handleDelta)
+    },
+    pruneTags: (lookup) => {
+      for (const edit of staleTagEdits(reducer.snapshotMap().values(), lookup)) {
+        reducer.setTags(edit.sessionId, edit.tagIds).forEach(handleDelta)
+      }
     }
   })
 
@@ -1004,6 +1025,10 @@ function requireShortcutsStore(): ShortcutsStore {
 
 // Tags — same lifecycle as templatesStore (needs app-ready for electron-store).
 let tagsStore: TagsStore | null = null
+function requireTagsStore(): TagsStore {
+  if (tagsStore === null) throw new Error('tags store not initialized')
+  return tagsStore
+}
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
 // (AR-9: no database; Zod-validated + versioned; corrupt read → back up + start fresh).
@@ -1047,6 +1072,29 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Tags — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/tagsIpc.ts (unit-tested). After a catalog change, every window strips the tags its
+// cards can no longer see — a deleted tag leaves each card with a `session.updated` without it
+// (spec §1.4).
+function registerTagsIpc(): void {
+  const store = requireTagsStore()
+  const handlers = createTagsIpcHandlers(store)
+  const pruneEverywhere = (): void => {
+    for (const seam of launchBoardSeams.values()) seam.pruneTags((id) => store.get(id))
+  }
+  ipcMain.handle(CH.tagsList, () => handlers.list())
+  ipcMain.handle(CH.tagsSave, (_evt, raw: unknown) => {
+    const result = handlers.save(raw)
+    pruneEverywhere()
+    return result
+  })
+  ipcMain.handle(CH.tagsDelete, (_evt, raw: unknown) => {
+    const tags = handlers.remove(raw)
+    pruneEverywhere()
+    return tags
+  })
 }
 
 // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1768,6 +1816,18 @@ function registerLaunchIpc(): void {
     launchBoardSeams.get(event.sender)?.setWorkspaceLaunched(sessionId, workspaceId)
   })
 
+  // session:set-tags — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Every id
+  // must exist and be visible to the card's workspace (tagsIpc.ts parseSessionSetTags — unit-
+  // testable, unlike this file). Routed by event.sender to the owning window's seam (session truth
+  // is per-window). Returns void; the tagged card arrives as a normal `session.updated` delta.
+  ipcMain.handle(CH.sessionSetTags, (event, raw: unknown) => {
+    const seam = launchBoardSeams.get(event.sender)
+    const { sessionId, tagIds } = parseSessionSetTags(requireTagsStore(), raw, (id) =>
+      seam?.workspaceOf(id)
+    )
+    seam?.setTagsLaunched(sessionId, tagIds)
+  })
+
   // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by
   // event.sender to the owning window's seam (session truth is per-window). The reducer's
   // markSeen guard makes a stale seen harmless — only YourTurn demotes. Returns void; the
@@ -2070,6 +2130,7 @@ app
       console.error('[claude-watcher][tags] code=tags_store_init_failed (in-memory)')
       tagsStore = createTagsStore()
     }
+    registerTagsIpc()
 
     try {
       shortcutsStore = SMOKE

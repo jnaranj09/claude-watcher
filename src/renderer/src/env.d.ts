@@ -30,7 +30,10 @@ import type {
   ShortcutsSaveResult,
   WorkspaceSaveRequest,
   WorkspacesListResult,
-  WorkspacesSaveResult
+  WorkspacesSaveResult,
+  Tag,
+  TagSaveRequest,
+  TagsSaveResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -100,6 +103,9 @@ declare global {
       // id. Resolves void; the moved card arrives as a normal `session.updated` delta, not as
       // the resolve value (mirrors `rename` above — never optimistic).
       setWorkspace(sessionId: string, workspaceId: string): Promise<void>
+      // Tags — replace a card's tags by its stable session id. Resolves void; the tagged card
+      // arrives as a `session.updated` delta (mirrors `setWorkspace`).
+      setTags(sessionId: string, tagIds: string[]): Promise<void>
       // Deterministic-attention (Task 6) — report "the operator is viewing this session" (active
       // rail tab, focused window). Main demotes ONLY a YourTurn session to idle; questions/
       // permissions are untouched. Rejects on a blank id (parse-and-throw at the main boundary).
@@ -132,6 +138,12 @@ declare global {
       save(req: WorkspaceSaveRequest): Promise<WorkspacesSaveResult>
       remove(id: string): Promise<WorkspacesListResult>
       setActive(id: string): Promise<WorkspacesListResult>
+    }
+    // Tags — mirrors src/preload/index.ts `tagsApi`.
+    tags: {
+      list(): Promise<Tag[]>
+      save(req: TagSaveRequest): Promise<TagsSaveResult>
+      remove(id: string): Promise<Tag[]>
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).
