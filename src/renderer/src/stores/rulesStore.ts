@@ -74,3 +74,11 @@ export async function moveRule(id: string, toIndex: number): Promise<void> {
     console.warn(`${LOG_PREFIX} code=rules_move_failed`)
   }
 }
+
+/** "Used by 2 rules. Change or delete them first." — the Tags and Templates dialogs' refusal copy
+ *  for `tag_in_use` / `template_in_use` (T-16, T-17). */
+export function usedByRulesCopy(count: number): string {
+  return count === 1
+    ? 'Used by 1 rule. Change or delete it first.'
+    : `Used by ${count} rules. Change or delete them first.`
+}
