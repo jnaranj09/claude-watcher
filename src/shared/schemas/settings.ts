@@ -62,7 +62,7 @@ export function expanderChord(key: string): string {
 
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
- * `reminderCount` + `reminderFirstDelayMinutes`.
+ * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey`.
  *
  * - `version` is a `z.literal(SETTINGS_VERSION)` — a blob carrying a DIFFERENT version
  *   fails THIS schema (the store treats that as a no-known-migration → corrupt → fresh).

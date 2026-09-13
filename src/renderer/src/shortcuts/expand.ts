@@ -12,6 +12,7 @@ export type ExpandError =
   | { code: 'unknown_alias'; alias: string }
   | { code: 'missing_arg'; index: number }
   | { code: 'too_long' }
+  | { code: 'control_char' }
 
 export type ExpandResult = { ok: true; value: string } | { ok: false; error: ExpandError }
 
@@ -62,6 +63,11 @@ export function expand(text: string, args: readonly string[]): ExpandResult {
     if (tok === '*') return rest
     return args[Number(tok) - 1] ?? ''
   })
+  // The phrase itself is already control-character-free (ShortcutTextBaseSchema), but a typed
+  // VALUE is not validated anywhere upstream — parseInput's `/\s+/` split covers \r\n\t\v\f and
+  // the Unicode spaces, not \x1b/\x00/\x07. A pasted ANSI-coloured value would otherwise survive
+  // substitution and get typed into the pty verbatim. Fail closed instead.
+  if (/\p{Cc}/u.test(value)) return { ok: false, error: { code: 'control_char' } }
   if (value.length > EXPANDED_TEXT_MAX_LENGTH) return { ok: false, error: { code: 'too_long' } }
   return { ok: true, value }
 }
@@ -92,5 +98,7 @@ export function expandErrorCopy(error: ExpandError): string {
       return `Missing value for $${error.index}`
     case 'too_long':
       return `Result is longer than ${EXPANDED_TEXT_MAX_LENGTH} characters`
+    case 'control_char':
+      return 'A value contains a control character'
   }
 }

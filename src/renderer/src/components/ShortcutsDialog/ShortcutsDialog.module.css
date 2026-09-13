@@ -145,7 +145,8 @@
   white-space: nowrap;
 }
 
-/* --- Key chips: one chord = one chip, so a 3-chord sequence stays scannable --------------- */
+/* --- Key chips: one chip per chord; every caller today passes exactly one (the single
+   expanderKey open chord — ChordKeys.tsx) --------------------------------------------------- */
 .chordKeys {
   display: inline-flex;
   flex-wrap: wrap;

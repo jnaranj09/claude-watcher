@@ -73,7 +73,7 @@ describe('createShortcutsStore', () => {
     expect(() => store.save({ ...B, name: A.name })).not.toThrow()
   })
 
-  it('lists sorted by alias, case-insensitively', () => {
+  it('lists sorted by alias', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     store.save({ ...A, alias: 'zz' })
     store.save({ ...B, alias: 'aa' })

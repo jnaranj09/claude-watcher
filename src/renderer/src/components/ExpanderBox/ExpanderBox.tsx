@@ -22,7 +22,10 @@ export interface ExpanderBoxProps {
   shortcuts: readonly Shortcut[]
   /** Success: the expanded text. The caller writes it and closes the box. */
   onExpand: (value: string) => void
-  /** Escape, or focus left the box. Nothing was written. */
+  /** Escape, focus left the box, or — redundantly — a successful expand: `handleExpand`
+   *  refocuses the terminal, which blurs the box and runs this same focus-out path. Both
+   *  call sites are idempotent today, but "Nothing was written" is NOT implied by this call
+   *  alone; check `onExpand` for that. */
   onClose: () => void
 }
 
@@ -71,6 +74,9 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
     if (e.key === 'Enter') {
       e.preventDefault()
       e.stopPropagation()
+      // Fail closed on an empty query: an empty query matches EVERY shortcut (matchAliases),
+      // so without this guard a stray Enter would expand the top row the operator never typed.
+      if (alias === '') return
       const result = expandInput(query, shortcuts, highlighted?.alias)
       if (result.ok) onExpand(result.value)
       else setError(result.error)

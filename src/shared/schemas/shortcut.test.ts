@@ -29,6 +29,12 @@ describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
     expect(ShortcutSchema.parse({ ...VALID, submit: true })).toEqual(VALID)
   })
 
+  it('workspaceId defaults to null (GLOBAL) when absent — protects a pre-workspaces row from failing closed', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { workspaceId: _w, ...noWorkspace } = VALID
+    expect(ShortcutSchema.parse(noWorkspace).workspaceId).toBe(null)
+  })
+
   it('rejects the retired keys field shape (keys without alias)', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { alias: _a, ...noAlias } = VALID
@@ -169,6 +175,12 @@ describe('parseShortcutsFile — v3, or a migrated v2, or a throw', () => {
         }
       ]
     })
+  })
+
+  it('migrates a v2 phrase containing a literal $: doubled to $$, so it stays literal under v3', () => {
+    const row = { ...V2_ROW, text: 'explain what $1 costs' }
+    const migrated = parseShortcutsFile({ version: 2, shortcuts: [row] })
+    expect(migrated.shortcuts[0]?.text).toBe('explain what $$1 costs')
   })
 
   it('migrates a v2 row missing workspaceId to GLOBAL', () => {

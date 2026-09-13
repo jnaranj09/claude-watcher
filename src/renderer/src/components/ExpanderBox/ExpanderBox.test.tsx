@@ -82,6 +82,16 @@ describe('ExpanderBox', () => {
     expect(byTestId('expander-empty')?.textContent).toBe('No shortcut matches')
   })
 
+  it('Enter on an empty query does nothing — it must not expand the top row', () => {
+    // The top row here takes NO values (unlike LIST's own rows), so a naive "expand the
+    // highlighted row" on empty input would succeed and type it — the exact bug this guards.
+    render([sc('hi', 'hello there'), ...LIST])
+    press('Enter')
+    expect(onExpand).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(byTestId('expander-box')).not.toBeNull()
+  })
+
   it('Enter expands with the highlighted row and the typed values', () => {
     render()
     type('h 1234')
@@ -166,11 +176,11 @@ describe('ExpanderBox', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('never hands a control character to onExpand', () => {
+  it('fails closed when a typed value carries a control character (never hands it to onExpand)', () => {
     render()
-    type('ht 1234')
+    type('ht \u001b[31mred')
     press('Enter')
-    const value = onExpand.mock.calls[0]?.[0] as string
-    expect(/[\p{Cc}]/u.test(value)).toBe(false)
+    expect(onExpand).not.toHaveBeenCalled()
+    expect(byTestId('expander-error')?.textContent).toBe('A value contains a control character')
   })
 })

@@ -168,9 +168,26 @@ export function parseShortcutsFile(raw: unknown): ShortcutsFile {
   if (!v2.success) throw v3.error
   return {
     version: SHORTCUTS_FILE_VERSION,
-    shortcuts: v2.data.shortcuts.map(({ keys, ...rest }) => ({
+    shortcuts: v2.data.shortcuts.map(({ keys, text, ...rest }) => ({
       ...rest,
-      alias: aliasFromChords(keys)
+      alias: aliasFromChords(keys),
+      // v2 had no placeholder semantics — every "$" in a v2 phrase was literal. Doubling it
+      // ($ -> $$) preserves that exact meaning under v3's placeholder rules (a lone $5 would
+      // otherwise become a missing-arg placeholder the shortcut can no longer run).
+      //
+      // Done UNCONDITIONALLY, even though doubling can push a near-cap phrase past
+      // SHORTCUT_TEXT_MAX_LENGTH: the migrated object is NOT re-validated here (no
+      // ShortcutsFileSchema.parse() net — that would run the v3 placeholder refine over
+      // migrated text and turn a broken row into a whole-file corrupt-and-reset), so the row
+      // still loads either way. If it now exceeds the cap the operator meets the normal
+      // length error on their next edit — a legible failure. A conditional skip would
+      // silently leave SOME rows with the wrong placeholder semantics, which is the harder
+      // bug to diagnose.
+      //
+      // NOT `text.replaceAll('$', '$$')`: '$$' in a STRING replacement arg is itself a special
+      // pattern (it means "insert one literal $"), so that call is a silent no-op. `split` +
+      // `join` sidesteps the special-pattern machinery entirely.
+      text: text.split('$').join('$$')
     }))
   }
 }

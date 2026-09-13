@@ -80,9 +80,9 @@ describe('expand', () => {
     const r = expand('$1', ['a'.repeat(EXPANDED_TEXT_MAX_LENGTH + 1)])
     expect(r).toEqual({ ok: false, error: { code: 'too_long' } })
   })
-  it('never produces a control character from a placeholder alone', () => {
-    const r = expand('$1', ['plain'])
-    expect(r.ok && /[\p{Cc}]/u.test(r.value)).toBe(false)
+  it('fails closed when a typed value carries a control character (e.g. a pasted ANSI escape)', () => {
+    const r = expand('say $1', ['\u001b[31mred'])
+    expect(r).toEqual({ ok: false, error: { code: 'control_char' } })
   })
 })
 
@@ -121,5 +121,6 @@ describe('expandErrorCopy', () => {
     expect(expandErrorCopy({ code: 'too_long' })).toBe(
       `Result is longer than ${EXPANDED_TEXT_MAX_LENGTH} characters`
     )
+    expect(expandErrorCopy({ code: 'control_char' })).toBe('A value contains a control character')
   })
 })
