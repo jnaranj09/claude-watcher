@@ -21,6 +21,7 @@ import {
 } from '../../../../shared/schemas/workspace'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
+import { loadRules } from '../../stores/rulesStore'
 import { loadShortcuts } from '../../stores/shortcutsStore'
 import { loadTags } from '../../stores/tagsStore'
 import { loadTemplates } from '../../stores/templatesStore'
@@ -194,16 +195,16 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
     setDeleteBusy(true)
     try {
       await removeWorkspace(id)
-      // A committed delete CASCADES in main (templatesStore/shortcutsStore/tag catalog
-      // removeByWorkspace), and nothing else tells the renderer: loadTemplates/loadShortcuts/
-      // loadTags otherwise run ONLY at startup. Without this re-read the deleted rows sit in the
-      // three projections until an unrelated round-trip or a restart — and since their workspace
-      // is gone, the Manage dialogs file them under `(no workspace)`, where they look legitimate
-      // and saving one throws template_not_found on a row the UI is showing. None of the loaders
-      // throw (each logs a code and leaves its projection alone), so this cannot turn a
-      // successful delete into an error. Only on the SUCCESS path — a refused delete cascaded
-      // nothing, so re-reading templates, shortcuts and tags would be pointless work.
-      await Promise.all([loadTemplates(), loadShortcuts(), loadTags()])
+      // A committed delete CASCADES in main (templates, shortcuts, the tag catalog and rules all
+      // removeByWorkspace), and nothing else tells the renderer: the four loaders otherwise run
+      // ONLY at startup. Without this re-read the deleted rows sit in the projections until an
+      // unrelated round-trip or a restart — and since their workspace is gone, the Manage dialogs
+      // file them under `(no workspace)`, where they look legitimate: saving one throws
+      // template_not_found / rule_not_found, ↑/↓ on a rule silently fail, and a deleted rule still
+      // counts in "Used by N rules". None of the loaders throw (each logs a code and leaves its
+      // projection alone), so this cannot turn a successful delete into an error. Only on the
+      // SUCCESS path — a refused delete cascaded nothing, so re-reading would be pointless work.
+      await Promise.all([loadTemplates(), loadShortcuts(), loadTags(), loadRules()])
       // The deleted row was the selected one: back to the New form. `select` also clears the
       // error line and the armed Delete.
       dialog.actions.select(null)
