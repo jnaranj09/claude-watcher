@@ -637,6 +637,29 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     expect(idleCol?.querySelector('[data-testid="empty-hint-filtered"]')).toBeNull()
   })
 
+  // Review finding E — the rail's own live region is inert/aria-hidden in board view, so the
+  // Board's column-count announcement is the only in-app live region, and it must follow the tag
+  // filter: a screen-reader user filtering by tag should hear that sessions are hidden, not just a
+  // lower count with no explanation.
+  it('the aria-live summary notes how many the tag filter hid', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(updated(1, 'plain', 'working', 101))
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    const live = container.querySelector('[data-testid="live-announcer"]')
+    expect(live?.textContent).toBe('0 need you, 1 working, 0 idle, 1 hidden by the tag filter')
+  })
+
+  it('with no filter, the summary text is unchanged (no trailing clause)', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(updated(1, 'plain', 'working', 101))
+    const live = container.querySelector('[data-testid="live-announcer"]')
+    expect(live?.textContent).toBe('0 need you, 2 working, 0 idle')
+  })
+
   it('a card draws its tags from the catalog, in TAG-LIST order', () => {
     const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
     act(() => tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true, activeTagId: null }))

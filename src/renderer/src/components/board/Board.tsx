@@ -165,7 +165,15 @@ export function Board({
 
   // The aria-live announcement of live column counts (AC-9). Re-announced when any
   // count changes (the string is derived, never persisted).
-  const announcement = `${needsYouCount} need you, ${workingCount} working, ${idleCount} idle`
+  //
+  // Review finding E — in board view the rail's own live region is inert/aria-hidden, so this is
+  // the ONLY in-app live region; it must follow the tag filter (never an alert: notifier, badge,
+  // sound and the rail announcement stay unfiltered by design). With no filter (or a filter that
+  // hides nothing in this workspace) the string is BYTE-IDENTICAL to before this change.
+  const hiddenByTagFilter = tagId !== null ? workspaceTotal - total : 0
+  const announcement = `${needsYouCount} need you, ${workingCount} working, ${idleCount} idle${
+    hiddenByTagFilter > 0 ? `, ${hiddenByTagFilter} hidden by the tag filter` : ''
+  }`
 
   return (
     <div className={styles.board} data-testid="board">
