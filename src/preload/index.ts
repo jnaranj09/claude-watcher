@@ -39,7 +39,12 @@ import type {
   TagSaveRequest,
   TagDeleteRequest,
   TagsSaveResult,
-  SessionSetTagsRequest
+  SessionSetTagsRequest,
+  RuleSaveRequest,
+  RuleDeleteRequest,
+  RuleMoveRequest,
+  RulesListResult,
+  RulesSaveResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -370,6 +375,26 @@ const tagsApi = {
 }
 export type TagsApi = typeof tagsApi
 
+// Rules — typed invoke wrappers over CH.rules*. `remove`, not `delete` (reserved word).
+const rulesApi = {
+  list(): Promise<RulesListResult> {
+    return ipcRenderer.invoke(CH.rulesList)
+  },
+  save(req: RuleSaveRequest): Promise<RulesSaveResult> {
+    return ipcRenderer.invoke(CH.rulesSave, req)
+  },
+  remove(id: string): Promise<RulesListResult> {
+    const req: RuleDeleteRequest = { id }
+    return ipcRenderer.invoke(CH.rulesDelete, req)
+  },
+  /** Put the rule at FINAL index `toIndex` in the run order. */
+  move(id: string, toIndex: number): Promise<RulesListResult> {
+    const req: RuleMoveRequest = { id, toIndex }
+    return ipcRenderer.invoke(CH.rulesMove, req)
+  }
+}
+export type RulesApi = typeof rulesApi
+
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
 // touches ipcRenderer directly (contextIsolation stays ON). MAIN computes the wait duration.
@@ -468,6 +493,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('workspaces', workspacesApi)
     // Tags — the tag catalog CRUD bridge (tags:list/save/delete).
     contextBridge.exposeInMainWorld('tags', tagsApi)
+    // Rules — the rule list bridge (rules:list/save/delete/move).
+    contextBridge.exposeInMainWorld('rules', rulesApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -509,4 +536,6 @@ if (process.contextIsolated) {
   window.workspaces = workspacesApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.tags is in index.d.ts
   window.tags = tagsApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.rules is in index.d.ts
+  window.rules = rulesApi
 }

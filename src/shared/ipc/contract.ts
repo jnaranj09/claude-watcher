@@ -123,6 +123,12 @@ export const CH = {
   tagsSave: 'tags:save',
   tagsDelete: 'tags:delete',
   sessionSetTags: 'session:set-tags',
+  // Rules — the rule list's invokes (main-owned, run-ordered file; the renderer holds a projection
+  // in rulesStore.ts). `rules:move` is the only reorder: list order IS run order (spec T-14).
+  rulesList: 'rules:list',
+  rulesSave: 'rules:save',
+  rulesDelete: 'rules:delete',
+  rulesMove: 'rules:move',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session

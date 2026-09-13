@@ -13,4 +13,11 @@ describe('the CH channel registry', () => {
     expect(CH.tagsDelete).toBe('tags:delete')
     expect(CH.sessionSetTags).toBe('session:set-tags')
   })
+
+  it('names the rule channels domain:action', () => {
+    expect(CH.rulesList).toBe('rules:list')
+    expect(CH.rulesSave).toBe('rules:save')
+    expect(CH.rulesDelete).toBe('rules:delete')
+    expect(CH.rulesMove).toBe('rules:move')
+  })
 })

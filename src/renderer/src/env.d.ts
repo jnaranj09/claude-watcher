@@ -33,7 +33,10 @@ import type {
   WorkspacesSaveResult,
   Tag,
   TagSaveRequest,
-  TagsSaveResult
+  TagsSaveResult,
+  RuleSaveRequest,
+  RulesListResult,
+  RulesSaveResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -144,6 +147,13 @@ declare global {
       list(): Promise<Tag[]>
       save(req: TagSaveRequest): Promise<TagsSaveResult>
       remove(id: string): Promise<Tag[]>
+    }
+    // Rules — mirrors src/preload/index.ts `rulesApi`.
+    rules: {
+      list(): Promise<RulesListResult>
+      save(req: RuleSaveRequest): Promise<RulesSaveResult>
+      remove(id: string): Promise<RulesListResult>
+      move(id: string, toIndex: number): Promise<RulesListResult>
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

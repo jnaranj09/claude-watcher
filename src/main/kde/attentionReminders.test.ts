@@ -177,6 +177,22 @@ describe('attention reminders — one wait, one series (D-6, D-7, D-8)', () => {
     expect(r.reminded).toHaveLength(3)
   })
 
+  // Rules (Phase 2) — a rule's tag write re-enters handleDelta as its OWN session.updated with
+  // the SAME status (only tagIds changed). `onDelta` here reads status only, so this delta is
+  // indistinguishable from any other same-status update: it must not restart the series' clock
+  // or arm a second timer. Alerts ignore tags (spec) — pinned here since attentionReminders.ts is
+  // the one place that decision lives, and index.ts's own handleDelta cannot be unit-tested.
+  it('a same-status delta (e.g. a rule-driven tag change) is a no-op — the series keeps its original start and armed count', () => {
+    const r = setup()
+    r.set(ID, 'NeedsPermission')
+    r.clock.advance(1 * MIN)
+    expect(r.clock.armed()).toBe(1)
+    r.set(ID, 'NeedsPermission') // same status — represents the tag-only re-delta
+    expect(r.clock.armed()).toBe(1) // no second timer armed
+    r.clock.advance(1 * MIN)
+    expect(r.reminded).toEqual([{ id: ID, waitedMs: 2 * MIN }]) // measured from the ORIGINAL start
+  })
+
   it('leaving and coming back starts a fresh series from zero', () => {
     const r = setup()
     r.set(ID, 'NeedsPermission')
