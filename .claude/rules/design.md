@@ -158,8 +158,10 @@ scope dropdown.
 - **One line, `+N` for the rest** (`TagChipRow`) on board cards and in "Show all tags"; the `+N`
   chip's `title` lists the hidden tags.
 - **A tag never changes a rail row's height in the default view.** Only the operator's own clicks —
-  the peek and "Show all tags" — add a chip line (TWO ROW SIZES in `src/renderer/src/components/attention/AttentionRail.module.css`).
+  the peek and "Show all tags" — add a chip line (TWO ROW SIZES in `components/attention/AttentionRail.module.css`).
 - **A tag name truncates and keeps its `title`**, like every operator-typed name.
+- **A trigger that opens `TagPicker` uses `aria-expanded` + `aria-controls`** (pointed at the
+  picker's own id), **never `aria-haspopup`** — the popup is a checkbox `group`, not a menu.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 
