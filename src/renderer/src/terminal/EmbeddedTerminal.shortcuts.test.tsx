@@ -19,7 +19,9 @@
 //     stopPropagation — so xterm still emits its ESC + control byte to the pty (design §5
 //     hazard 3). This is the guarantee that keeps the namespace cheap for claude;
 //   - the shipped Ctrl+V takeover still wins and still posts \x16;
-//   - a dead pane (null port) does not throw when the chord fires;
+//   - a chord fires safely (no throw) when the port was never delivered;
+//   - a DEAD pane (the pty exited) refuses to open the box on the chord, AND closes a box that
+//     was already open the moment the exit event lands;
 //   - deactivating the terminal closes an open box;
 //   - EDITING the shortcut list does NOT dispose or re-open the terminal — the terminal.md
 //     regression guard (the list is read through a ref, never a create-effect dependency) — and
@@ -34,6 +36,7 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
+import type { TerminalExitEvent } from '../../../shared/ipc/contract'
 import { shortcutsStore } from '../stores/shortcutsStore'
 import { workspacesStore } from '../stores/workspacesStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../shared/schemas/workspace'
@@ -74,6 +77,9 @@ interface TerminalFakes {
   resize: ReturnType<typeof vi.fn>
   stop: ReturnType<typeof vi.fn>
   onExit: ReturnType<typeof vi.fn>
+  /** Drive the durable dead-terminal signal (CH.terminalExit) — the same mechanism
+   *  EmbeddedTerminal.test.tsx uses to make a pane genuinely DEAD in a test. */
+  emitExit: (info: TerminalExitEvent) => void
 }
 
 let termFakes: TerminalFakes
@@ -114,11 +120,16 @@ beforeEach(() => {
     }
   }
 
+  let exitCb: ((info: TerminalExitEvent) => void) | null = null
   termFakes = {
     open: vi.fn(() => () => {}),
     resize: vi.fn(() => Promise.resolve()),
     stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
+    onExit: vi.fn((cb: (info: TerminalExitEvent) => void) => {
+      exitCb = cb
+      return () => {}
+    }),
+    emitExit: (info) => exitCb?.(info)
   }
   ;(window as unknown as { terminal: unknown }).terminal = {
     open: termFakes.open,
@@ -307,6 +318,7 @@ describe('EmbeddedTerminal shortcut expander', () => {
     ['a bare letter', { key: 'x' }],
     ['plain Ctrl', { key: 'x', ctrlKey: true }],
     ['plain Alt', { key: 'x', altKey: true }],
+    ['the old Ctrl+Shift namespace', { key: 'X', ctrlKey: true, shiftKey: true }],
     ['Ctrl+Alt+Shift', { key: 'X', ctrlKey: true, altKey: true, shiftKey: true }],
     ['Ctrl+Alt+Meta', { key: 'x', ctrlKey: true, altKey: true, metaKey: true }],
     ['a keyup', { key: 'x', ctrlKey: true, altKey: true, type: 'keyup' }],
@@ -317,7 +329,8 @@ describe('EmbeddedTerminal shortcut expander', () => {
     ]
   ])('does not open on %s and lets xterm handle it', (_label, init) => {
     render({ terminalId: 't-x-7' })
-    deliverPort('t-x-7', lastOpenToken())
+    const { port1 } = deliverPort('t-x-7', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
     let result = false
     act(() => {
       result = capturedKeyHandlers[0]!(
@@ -328,6 +341,9 @@ describe('EmbeddedTerminal shortcut expander', () => {
     })
     expect(result).toBe(true)
     expect(byTestId('expander-box')).toBeNull()
+    // A regression that wrote bytes for one of these rows (e.g. a keyup or an IME composition
+    // key) must be caught here, not only by the single unmatched-chord test below.
+    expect(postSpy).not.toHaveBeenCalled()
   })
 
   // Design §5 hazard 3 of the original shortcuts spec: Ctrl+Alt IS encodable by a pty, so any
@@ -360,10 +376,33 @@ describe('EmbeddedTerminal shortcut expander', () => {
     expect(result).toBe(false)
   })
 
-  it('does not throw and does not open on a dead pane (no port)', () => {
+  it('does not throw when the port was never delivered', () => {
     render({ terminalId: 't-x-10' })
-    // No deliverPort(): portRef is null. The chord must still be safe.
+    // No deliverPort(): portRef is null (but `dead` is NOT set — this is a portless pane, not
+    // a dead one). The chord must still be safe.
     expect(() => act(() => void capturedKeyHandlers[0]!(ctrlAlt('x')))).not.toThrow()
+  })
+
+  // Load-bearing rule (terminal.md-adjacent): "the box must not stay open on a dead or
+  // inactive terminal". The `active` half is covered by the test above; this covers the DEAD
+  // half via the durable CH.terminalExit signal (the same mechanism EmbeddedTerminal.test.tsx
+  // uses), asserting BOTH directions in one test.
+  it('refuses to open on a dead pane, and closes a box already open when the pty dies', () => {
+    render({ terminalId: 't-x-10b' })
+    deliverPort('t-x-10b', lastOpenToken())
+
+    // Open the box BEFORE the pty dies.
+    act(() => void capturedKeyHandlers[0]!(ctrlAlt('x')))
+    expect(byTestId('expander-box')).not.toBeNull()
+
+    act(() => termFakes.emitExit({ terminalId: 't-x-10b', exitCode: 0 }))
+
+    // (b) a box that was already open is gone the moment the pane goes dead.
+    expect(byTestId('expander-box')).toBeNull()
+
+    // (a) the chord no longer opens the box once the pane is dead.
+    act(() => void capturedKeyHandlers[0]!(ctrlAlt('x')))
+    expect(byTestId('expander-box')).toBeNull()
   })
 
   it('closes the box when the terminal is deactivated', () => {
