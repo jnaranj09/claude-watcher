@@ -6,8 +6,9 @@ import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption } from '../../test/selectHarness'
 import { TagsDialog } from './TagsDialog'
 import { tagsStore } from '../../stores/tagsStore'
+import { rulesStore } from '../../stores/rulesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
-import type { Tag, TagSaveRequest, Workspace } from '../../../../shared/ipc/contract'
+import type { Tag, TagSaveRequest, Workspace, Rule } from '../../../../shared/ipc/contract'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -44,6 +45,7 @@ afterEach(() => {
   act(() => {
     tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
+    rulesStore.setState({ rules: [], brokenIds: [], loaded: false })
   })
   vi.restoreAllMocks()
 })
@@ -137,6 +139,32 @@ describe('TagsDialog', () => {
     await flush()
     expect(rowNames(r)).toEqual(['ops-only'])
     expect(q<HTMLInputElement>(r, '[data-testid="tag-name"]').value).toBe('')
+  })
+
+  it('a refused delete says how many rules use the tag (T-16)', async () => {
+    const uses: Rule = {
+      id: 'r1',
+      name: 'r',
+      workspaceId: null,
+      trigger: { kind: 'launched' },
+      conditions: [],
+      actions: [{ kind: 'add-tag', tagId: 't-deploy' }]
+    }
+    act(() =>
+      rulesStore.getState().hydrate({ rules: [uses, { ...uses, id: 'r2' }], brokenIds: [] })
+    )
+    remove.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'tags:delete': Error: tag_in_use")
+    )
+    const { r } = render()
+    chooseOption(r.container, 'tag-scope-filter', 'all')
+    click(q(r, '[data-testid="tag-select-t-deploy"]'))
+    click(q(r, '[data-testid="tag-delete"]'))
+    click(q(r, '[data-testid="tag-delete"]'))
+    await flush()
+    expect(q(r, '[data-testid="tag-error"]').textContent).toBe(
+      'Used by 2 rules. Change or delete them first.'
+    )
   })
 
   it('closes on Escape', () => {

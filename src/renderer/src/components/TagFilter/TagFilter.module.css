@@ -103,3 +103,10 @@
   padding-top: var(--space-2);
   color: var(--text-secondary);
 }
+
+/* Rules — a second action row (Manage rules…) follows Manage tags…: the two share ONE divider
+ * instead of stacking a border under each. */
+.manage + .manage {
+  border-top: 0;
+  margin-top: 0;
+}

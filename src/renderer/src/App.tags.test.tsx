@@ -34,6 +34,7 @@ beforeEach(() => {
     sessionNamePrompt: null,
     templatesDialogOpen: false,
     tagsDialogOpen: false,
+    rulesDialogOpen: false,
     quitGuard: null
   })
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -103,6 +104,12 @@ beforeEach(() => {
     list: vi.fn(() => Promise.resolve([DEPLOY])),
     save: vi.fn(),
     remove: vi.fn()
+  }
+  ;(window as unknown as { rules: unknown }).rules = {
+    list: vi.fn(() => Promise.resolve({ rules: [], brokenIds: [] })),
+    save: vi.fn(),
+    remove: vi.fn(),
+    move: vi.fn()
   }
   ;(window as unknown as { quit: unknown }).quit = {
     onGuardShow: vi.fn((cb: (payload: QuitGuardPayload) => void) => {
@@ -178,5 +185,20 @@ describe('App — tags', () => {
     expect(boardStore.getState().tagsDialogOpen).toBe(true)
     act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
     expect(boardStore.getState().tagsDialogOpen).toBe(false)
+  })
+
+  it('Manage rules… opens the Rules dialog under the single-modal rule; Escape closes it', async () => {
+    const r = await renderApp()
+    click(q(r, '[data-testid="tag-filter"]'))
+    click(q(r, '[data-testid="tag-filter-manage-rules"]'))
+    expect(r.container.querySelector('[data-testid="rules-overlay"]')).not.toBeNull()
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    expect(r.container.querySelector('[data-testid="rules-overlay"]')).toBeNull()
+    act(() => boardStore.getState().openTagsDialog())
+    click(q(r, '[data-testid="tag-filter"]'))
+    click(q(r, '[data-testid="tag-filter-manage-rules"]'))
+    expect(boardStore.getState().rulesDialogOpen).toBe(false)
   })
 })

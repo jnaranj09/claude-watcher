@@ -1,5 +1,6 @@
 // Tags — the Tags dialog's copy. A .ts file: react-refresh allows only component exports in a .tsx.
 import type { TagColor } from '../../../../shared/schemas/tag'
+import { usedByRulesCopy } from '../../stores/rulesStore'
 
 export const TAG_COLOR_LABELS: Record<TagColor, string> = {
   slate: 'Slate',
@@ -19,9 +20,13 @@ const FALLBACK_ERROR = 'Something went wrong. Try again.'
 
 /** Electron wraps a thrown handler error as "Error invoking remote method '…': Error: <code>", so
  *  the code is matched as a substring (the same verified behaviour as templateErrorMessage). NEVER
- *  render the raw message. */
-export function tagErrorMessage(err: unknown): string {
+ *  render the raw message.
+ *
+ *  `ruleCount` is how many rules use the tag (the caller counts them in the rules projection):
+ *  main's `tag_in_use` carries only the code. */
+export function tagErrorMessage(err: unknown, ruleCount = 0): string {
   const text = err instanceof Error ? err.message : ''
+  if (text.includes('tag_in_use') && ruleCount > 0) return usedByRulesCopy(ruleCount)
   for (const [code, copy] of Object.entries(ERROR_COPY)) if (text.includes(code)) return copy
   return FALLBACK_ERROR
 }

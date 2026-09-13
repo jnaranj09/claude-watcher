@@ -9,6 +9,7 @@ import {
   MODEL_NAME_MAX_LENGTH
 } from '../../../../shared/schemas/template'
 import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
+import { rulesStore, rulesUsingTemplate } from '../../stores/rulesStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Select } from '../Select/Select'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
@@ -76,13 +77,21 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
     }
   }
 
-  /** The second press of Delete — ManageDialog.Delete owns the first (arm). */
+  /** The second press of Delete — ManageDialog.Delete owns the first (arm). A refusal (a rule uses
+   *  this template, T-17) lands on the dialog's one error line. */
   async function remove(): Promise<void> {
     if (template === null) return
     setBusy(true)
-    await removeTemplate(template.id)
-    setBusy(false)
-    onRemoved()
+    try {
+      await removeTemplate(template.id)
+      setBusy(false)
+      onRemoved()
+    } catch (err) {
+      setBusy(false)
+      actions.setError(
+        templateErrorMessage(err, rulesUsingTemplate(rulesStore.getState().rules, template.id))
+      )
+    }
   }
 
   return (

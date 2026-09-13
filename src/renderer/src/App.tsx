@@ -31,6 +31,9 @@ import { loadWorkspaces } from './stores/workspacesStore'
 import { TagFilter } from './components/TagFilter/TagFilter'
 import { TagsDialog } from './components/TagsDialog/TagsDialog'
 import { loadTags, setSessionTags } from './stores/tagsStore'
+// Rules — the Manage-rules modal (+ the startup rules load).
+import { RulesDialog } from './components/RulesDialog/RulesDialog'
+import { loadRules } from './stores/rulesStore'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (header ⚙) + the startup settings load.
 import { Settings } from './components/Settings/Settings'
@@ -57,7 +60,8 @@ import {
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
-  selectTagsDialogOpen
+  selectTagsDialogOpen,
+  selectRulesDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -82,8 +86,8 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 import { useSessionSeen } from './hooks/useSessionSeen'
 import styles from './App.module.css'
 
-/** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces/Tags dialogs
- *  never co-exist. A MODULE-LEVEL function (not a component-body const) so the `[]`-deps
+/** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces/Tags/Rules
+ *  dialogs never co-exist. A MODULE-LEVEL function (not a component-body const) so the `[]`-deps
  *  useCallbacks that call it stay free of exhaustive-deps warnings. */
 function isModalOpen(): boolean {
   const s = boardStore.getState()
@@ -92,7 +96,8 @@ function isModalOpen(): boolean {
     s.templatesDialogOpen ||
     s.shortcutsDialogOpen ||
     s.workspacesDialogOpen ||
-    s.tagsDialogOpen
+    s.tagsDialogOpen ||
+    s.rulesDialogOpen
   )
 }
 
@@ -137,6 +142,8 @@ function App(): React.JSX.Element {
       void loadWorkspaces()
       // Tags — never throws (logs a code and leaves the projection empty on failure).
       void loadTags()
+      // Rules — never throws (logs a code and leaves the projection empty on failure).
+      void loadRules()
     }
   }, [smoke])
 
@@ -157,6 +164,8 @@ function App(): React.JSX.Element {
   const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
   // Tags — whether the Manage-tags dialog is open.
   const tagsDialogOpen = useBoard(selectTagsDialogOpen)
+  // Rules — whether the Manage-rules dialog is open.
+  const rulesDialogOpen = useBoard(selectRulesDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -213,6 +222,7 @@ function App(): React.JSX.Element {
       boardStore.getState().closeShortcutsDialog()
       boardStore.getState().closeWorkspacesDialog()
       boardStore.getState().closeTagsDialog()
+      boardStore.getState().closeRulesDialog()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -282,6 +292,12 @@ function App(): React.JSX.Element {
   const handleManageTags = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openTagsDialog()
+  }, [])
+
+  // Rules — "Manage rules…" from the header tag filter. Same single-modal guard as every opener.
+  const handleManageRules = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openRulesDialog()
   }, [])
 
   // Tags — a card's Tags… menu or a rail peek changed a session's tags. Never optimistic: the
@@ -477,6 +493,7 @@ function App(): React.JSX.Element {
           boardStore.getState().closeShortcutsDialog()
           boardStore.getState().closeWorkspacesDialog()
           boardStore.getState().closeTagsDialog()
+          boardStore.getState().closeRulesDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -558,7 +575,8 @@ function App(): React.JSX.Element {
     templatesDialogOpen ||
     shortcutsDialogOpen ||
     workspacesDialogOpen ||
-    tagsDialogOpen
+    tagsDialogOpen ||
+    rulesDialogOpen
 
   return (
     <div className={styles.app}>
@@ -569,7 +587,7 @@ function App(): React.JSX.Element {
           <span className={styles.headerDivider} aria-hidden="true" />
           <WorkspaceSwitcher onManage={handleManageWorkspaces} />
           {/* Tags — the filter says WHAT you are looking at, beside the switcher that says WHERE. */}
-          <TagFilter onManageTags={handleManageTags} />
+          <TagFilter onManageTags={handleManageTags} onManageRules={handleManageRules} />
         </div>
         <div className={styles.headerActions}>
           <NewSessionButton
@@ -666,6 +684,8 @@ function App(): React.JSX.Element {
       )}
       {/* Tags — the Manage-tags modal (same z-60 layer and single-modal rule as the three above). */}
       {tagsDialogOpen && <TagsDialog onClose={() => boardStore.getState().closeTagsDialog()} />}
+      {/* Rules — the Manage-rules modal (same z-60 layer and single-modal rule). */}
+      {rulesDialogOpen && <RulesDialog onClose={() => boardStore.getState().closeRulesDialog()} />}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and the operator submitting or cancelling). NOTHING is
           spawned while it is open, so Cancel/Esc is a complete no-op: no PTY, no card, no view

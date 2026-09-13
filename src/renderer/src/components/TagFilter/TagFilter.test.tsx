@@ -120,4 +120,20 @@ describe('TagFilter', () => {
     act(() => workspacesStore.setState({ activeId: 'default' }))
     expect(tagsStore.getState().activeTagId).toBeNull()
   })
+
+  it('Manage rules… is offered when wired, closes the menu and calls onManageRules', () => {
+    const onManageRules = vi.fn()
+    const r = renderComponent(<TagFilter onManageTags={vi.fn()} onManageRules={onManageRules} />)
+    cleanup = r.unmount
+    click(button(r))
+    click(r.container.querySelector('[data-testid="tag-filter-manage-rules"]'))
+    expect(onManageRules).toHaveBeenCalledTimes(1)
+    expect(r.container.querySelector('[role="menu"]')).toBeNull()
+  })
+
+  it('offers no Manage rules… row when nobody handles it', () => {
+    const r = render()
+    click(button(r))
+    expect(r.container.querySelector('[data-testid="tag-filter-manage-rules"]')).toBeNull()
+  })
 })

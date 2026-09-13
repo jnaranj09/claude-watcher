@@ -131,14 +131,12 @@ describe('templatesStore — bridge helpers', () => {
       })
     ).rejects.toThrow('template_name_taken')
   })
-  it('removeTemplate hydrates with the returned list; a failure logs a code', async () => {
+  it('removeTemplate hydrates with the returned list; a failure RETHROWS (template_in_use is operator-facing)', async () => {
     const bridge = stubBridge()
     await removeTemplate('a')
     expect(bridge.remove).toHaveBeenCalledWith('a')
     expect(selectTemplates(templatesStore.getState())).toEqual([T2])
-    stubBridge({ remove: vi.fn(() => Promise.reject(new Error('ipc'))) })
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await removeTemplate('b')
-    expect(warn).toHaveBeenCalledWith('[claude-watcher][templates] code=templates_remove_failed')
+    stubBridge({ remove: vi.fn(() => Promise.reject(new Error('template_in_use'))) })
+    await expect(removeTemplate('b')).rejects.toThrow('template_in_use')
   })
 })

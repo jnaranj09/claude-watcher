@@ -58,10 +58,7 @@ export async function saveTemplate(req: TemplateSaveRequest): Promise<Template> 
   return result.saved
 }
 
+/** Rethrows: `template_in_use` is operator-facing — the Templates form shows it. */
 export async function removeTemplate(id: string): Promise<void> {
-  try {
-    templatesStore.getState().hydrate(await window.templates.remove(id))
-  } catch {
-    console.warn(`${LOG_PREFIX} code=templates_remove_failed`)
-  }
+  templatesStore.getState().hydrate(await window.templates.remove(id))
 }

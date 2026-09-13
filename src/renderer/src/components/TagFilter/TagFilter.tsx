@@ -22,9 +22,11 @@ import styles from './TagFilter.module.css'
 
 export interface TagFilterProps {
   onManageTags: () => void
+  /** Rules — the `Manage rules…` row. Omitted ⇒ no row (a control nobody handles is not rendered). */
+  onManageRules?: () => void
 }
 
-export function TagFilter({ onManageTags }: TagFilterProps): JSX.Element {
+export function TagFilter({ onManageTags, onManageRules }: TagFilterProps): JSX.Element {
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -129,6 +131,20 @@ export function TagFilter({ onManageTags }: TagFilterProps): JSX.Element {
           >
             Manage tags…
           </button>
+          {onManageRules !== undefined && (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.manage}
+              data-testid="tag-filter-manage-rules"
+              onClick={() => {
+                setOpen(false)
+                onManageRules()
+              }}
+            >
+              Manage rules…
+            </button>
+          )}
         </div>
       )}
     </div>

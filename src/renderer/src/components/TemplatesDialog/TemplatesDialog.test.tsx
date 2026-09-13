@@ -4,9 +4,10 @@ import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
 import { TemplatesDialog } from './TemplatesDialog'
 import { templatesStore } from '../../stores/templatesStore'
+import { rulesStore } from '../../stores/rulesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
-import type { Template } from '../../../../shared/ipc/contract'
+import type { Template, Rule } from '../../../../shared/ipc/contract'
 
 const T1: Template = {
   id: 'a',
@@ -262,5 +263,29 @@ describe('TemplatesDialog', () => {
     // active id) and selectable from its own `(no workspace)` entry in the header dropdown.
     expect(q(r, '[data-testid="template-row"]').textContent).toContain('Orphan')
     expect(optionValues(r.container, 'template-scope-filter')).toContain('orphans')
+  })
+
+  it('a refused delete says how many rules use the template (T-17)', async () => {
+    const uses: Rule = {
+      id: 'r1',
+      name: 'r',
+      workspaceId: null,
+      trigger: { kind: 'launched' },
+      conditions: [{ kind: 'template', templateId: T1.id }],
+      actions: [{ kind: 'add-tag', tagId: 't' }]
+    }
+    act(() => rulesStore.getState().hydrate({ rules: [uses], brokenIds: [] }))
+    remove.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'templates:delete': Error: template_in_use")
+    )
+    const { r } = render()
+    click(q(r, `[data-template-id="${T1.id}"]`))
+    click(q(r, '[data-testid="template-delete"]'))
+    click(q(r, '[data-testid="template-delete"]'))
+    await flush()
+    expect(q(r, '[data-testid="template-error"]').textContent).toBe(
+      'Used by 1 rule. Change or delete it first.'
+    )
+    act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
   })
 })

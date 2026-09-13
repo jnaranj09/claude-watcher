@@ -22,6 +22,7 @@ import { TagChip } from '../TagChip/TagChip'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import { removeTag, saveTag, selectTags, useTags } from '../../stores/tagsStore'
+import { rulesStore, rulesUsingTag } from '../../stores/rulesStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
@@ -172,7 +173,7 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
       // remounts (its key changes), so there is no busy flag left to reset.
       actions.select(null)
     } catch (err) {
-      actions.setError(tagErrorMessage(err))
+      actions.setError(tagErrorMessage(err, rulesUsingTag(rulesStore.getState().rules, tag.id)))
       setBusy(false)
     }
   }
