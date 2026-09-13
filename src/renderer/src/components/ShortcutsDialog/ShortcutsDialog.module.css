@@ -66,6 +66,12 @@
   font-size: var(--font-size-body);
   line-height: 1.5;
 }
+.openWith {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
 .closeButton {
   background: transparent;
   border: 1px solid var(--border);
@@ -158,7 +164,7 @@
   white-space: nowrap;
 }
 
-/* --- The list: Name · Keybinding · Phrase · Edit ------------------------------------------ */
+/* --- The list: Name · Alias · Phrase · Edit ------------------------------------------------ */
 .list {
   display: flex;
   flex-direction: column;
@@ -211,6 +217,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.cellAlias {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .cellText {
   color: var(--text-secondary);

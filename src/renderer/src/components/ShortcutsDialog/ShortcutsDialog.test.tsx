@@ -1,10 +1,10 @@
 // Phrase shortcuts — the Manage dialog (a list, plus a separate editor card).
 //
-// Covers: the list shows name/chord-sequence/phrase; the empty state; add → record a 1..3 chord
-// sequence → Save calls window.shortcuts.save with the right payload; Enter finishes, a third
-// chord auto-finishes, Backspace drops one, Escape discards; an AltGr keystroke is refused; the
-// two-step delete; the store-error copy; and the layout/onboarding contract — the edited row
-// leaves the list, and the "how" text sits next to the control it explains.
+// Covers: the list shows name/alias/phrase; the empty state; add → type an alias → Save calls
+// window.shortcuts.save with the alias lowercased; a placeholder gap disables Save; the
+// two-step delete; the store's alias_taken error copy; the layout/onboarding contract — the
+// edited row leaves the list; and the header's ONE "Open with" chord recorder, which reads and
+// patches the single expanderKey setting (an AltGr keystroke is refused there too).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -12,12 +12,15 @@ import { chooseOption, optionValues } from '../../test/selectHarness'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
+import { settingsStore } from '../../stores/settingsStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
+import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
+import type { SettingsPatch } from '../../../../shared/schemas/settings'
 
 const A = {
   id: 'sc-1',
   name: 'approve',
-  keys: ['Ctrl+Alt+A'],
+  alias: 'ap',
   text: 'I explicitly approve',
   workspaceId: null
 }
@@ -35,6 +38,11 @@ beforeEach(() => {
     remove: removeMock
   }
   shortcutsStore.setState({ shortcuts: [A], loaded: true })
+  ;(window as unknown as { settings: unknown }).settings = {
+    get: vi.fn(() => Promise.resolve({ ...DEFAULT_SETTINGS })),
+    set: vi.fn((patch: SettingsPatch) => Promise.resolve({ ...DEFAULT_SETTINGS, ...patch }))
+  }
+  settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS })
 })
 afterEach(() => {
   cleanup?.()
@@ -90,42 +98,12 @@ function chord(key: string): void {
   pressKey(key, { ctrlKey: true, altKey: true })
 }
 
-/** Arm, press one chord, finish with Enter — the common single-chord case. */
-function recordChord(key: string): void {
-  arm()
-  chord(key)
-  pressKey('Enter')
-}
-
-function recorderText(): string {
-  return byTestId('chord-recorder')?.textContent ?? ''
-}
-
 describe('ShortcutsDialog', () => {
-  it('lists the saved shortcuts with their chord and phrase', () => {
+  it('lists the saved shortcuts with their name, alias and phrase', () => {
     render()
     expect(document.body.textContent).toContain('approve')
-    expect(document.body.textContent).toContain('Ctrl+Alt+A')
+    expect(byTestId('shortcut-alias-sc-1')?.textContent).toBe('ap')
     expect(document.body.textContent).toContain('I explicitly approve')
-  })
-
-  it('renders a multi-chord binding as a space-joined sequence', () => {
-    act(() =>
-      shortcutsStore.setState({
-        shortcuts: [
-          {
-            id: 'sc-2',
-            name: 'long',
-            keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-            text: 'go',
-            workspaceId: null
-          }
-        ],
-        loaded: true
-      })
-    )
-    render()
-    expect(document.body.textContent).toContain('Ctrl+Alt+O Ctrl+Alt+A')
   })
 
   it('shows an empty state when there are none', () => {
@@ -134,114 +112,66 @@ describe('ShortcutsDialog', () => {
     expect(byTestId('shortcuts-empty')).not.toBeNull()
   })
 
-  it('saves a new shortcut with the recorded chord', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+  it('the editor has an Alias field and Save sends it lowercased', () => {
     render()
     click(byTestId('shortcuts-add'))
-    type(byTestId('shortcut-name-input'), 'approve')
-    type(byTestId('shortcut-text-input'), 'I explicitly approve')
-    recordChord('a')
-
+    type(byTestId('shortcut-name-input'), 'help desk')
+    type(byTestId('shortcut-alias-input'), 'HT')
+    type(byTestId('shortcut-text-input'), 'work on help desk ticket $1')
     click(byTestId('shortcut-save'))
-
     expect(saveMock).toHaveBeenCalledWith({
-      name: 'approve',
-      keys: ['Ctrl+Alt+A'],
-      text: 'I explicitly approve',
+      name: 'help desk',
+      alias: 'ht',
+      text: 'work on help desk ticket $1',
       workspaceId: null
     })
   })
 
-  it('records a two-chord sequence and finishes on Enter', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+  it('Save stays disabled on a placeholder gap', () => {
     render()
     click(byTestId('shortcuts-add'))
-    type(byTestId('shortcut-name-input'), 'approve')
-    type(byTestId('shortcut-text-input'), 'go ahead')
+    type(byTestId('shortcut-name-input'), 'x')
+    type(byTestId('shortcut-alias-input'), 'x')
+    type(byTestId('shortcut-text-input'), 'do $2')
+    expect((byTestId('shortcut-save') as HTMLButtonElement).disabled).toBe(true)
+  })
 
-    arm()
-    chord('o')
-    expect(recorderText()).toContain('Ctrl+Alt+O')
-    chord('a')
-    pressKey('Enter')
-
+  it('renders the store alias_taken error as copy', async () => {
+    saveMock.mockImplementationOnce(() => Promise.reject(new Error('shortcut_alias_taken')))
+    render()
+    click(byTestId('shortcuts-add'))
+    type(byTestId('shortcut-name-input'), 'x')
+    type(byTestId('shortcut-alias-input'), 'ap')
+    type(byTestId('shortcut-text-input'), 'y')
     click(byTestId('shortcut-save'))
-
-    expect(saveMock).toHaveBeenCalledWith({
-      name: 'approve',
-      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 'go ahead',
-      workspaceId: null
-    })
+    await act(async () => {})
+    expect(byTestId('shortcuts-error')?.textContent).toBe(
+      'That alias is already used by another shortcut.'
+    )
   })
 
-  it('auto-finishes at three chords and ignores a fourth', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+  it('the header shows the open chord and the recorder patches expanderKey', () => {
     render()
-    click(byTestId('shortcuts-add'))
+    expect(byTestId('chord-recorder')?.textContent).toContain('Ctrl+Alt+X')
     arm()
-    chord('o')
-    chord('a')
-    chord('z')
-    // Disarmed: the label is the committed value, not the "…" progress form.
-    expect(recorderText()).toContain('Ctrl+Alt+O Ctrl+Alt+A Ctrl+Alt+Z')
-    // A fourth chord is ignored because the recorder is no longer armed.
-    chord('b')
-    expect(recorderText()).toContain('Ctrl+Alt+O Ctrl+Alt+A Ctrl+Alt+Z')
-    expect(recorderText()).not.toContain('Ctrl+Alt+B')
+    chord('q')
+    const settingsSet = (window as unknown as { settings: { set: ReturnType<typeof vi.fn> } })
+      .settings.set
+    expect(settingsSet).toHaveBeenCalledWith({ expanderKey: 'Q' })
+    expect(settingsStore.getState().expanderKey).toBe('Q')
   })
 
-  it('drops the last chord on Backspace', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
+  it('the recorder refuses an AltGr keystroke and stays armed', () => {
     render()
-    click(byTestId('shortcuts-add'))
     arm()
-    chord('o')
-    chord('a')
-    pressKey('Backspace')
-    pressKey('Enter')
-    expect(recorderText()).toContain('Ctrl+Alt+O')
-    expect(recorderText()).not.toContain('Ctrl+Alt+A')
-  })
-
-  it('discards a partial recording on Escape', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
-    render()
-    click(byTestId('shortcuts-add'))
-    arm()
-    chord('o')
-    pressKey('Escape')
-    expect(recorderText()).toContain('Set chord')
-  })
-
-  // The reserved-letter list is gone (design §6): every letter is assignable now.
-  it('accepts a formerly reserved letter and keeps Save enabled', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
-    render()
-    click(byTestId('shortcuts-add'))
-    type(byTestId('shortcut-name-input'), 'x')
-    type(byTestId('shortcut-text-input'), 'y')
-    recordChord('n')
-
-    expect(recorderText()).toContain('Ctrl+Alt+N')
-    expect(byTestId('chord-hint')).toBeNull()
-    expect((byTestId('shortcut-save') as HTMLButtonElement | null)?.disabled).toBe(false)
-  })
-
-  // Design §5 hazard 2 — the recorder shares chordFromEvent with the terminal matcher, so an
-  // AltGr composition cannot be recorded either.
-  it('refuses an AltGr keystroke with the shape hint and keeps Save disabled', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
-    render()
-    click(byTestId('shortcuts-add'))
-    type(byTestId('shortcut-name-input'), 'x')
-    type(byTestId('shortcut-text-input'), 'y')
-    arm()
+    // '@' is what AltGr+2 composes on many layouts: not an A-Z key, so chordFromEvent says no.
     pressKey('@', { ctrlKey: true, altKey: true })
+    expect(byTestId('chord-hint')?.textContent).toBe('Hold Ctrl+Alt and press a letter.')
+  })
 
-    expect(byTestId('chord-hint')?.textContent).toContain('Hold Ctrl+Alt')
-    expect((byTestId('shortcut-save') as HTMLButtonElement | null)?.disabled).toBe(true)
-    expect(saveMock).not.toHaveBeenCalled()
+  it('the subtitle names the live chord', () => {
+    render()
+    expect(byTestId('shortcuts-subtitle')?.textContent).toContain('Ctrl+Alt+X')
   })
 
   it('deletes only after a confirm click', () => {
@@ -251,22 +181,6 @@ describe('ShortcutsDialog', () => {
     expect(removeMock).not.toHaveBeenCalled()
     click(byTestId('shortcut-delete'))
     expect(removeMock).toHaveBeenCalledWith('sc-1')
-  })
-
-  it('renders the copy for a taken chord', async () => {
-    saveMock.mockRejectedValueOnce(new Error('Error invoking remote method: shortcut_keys_taken'))
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
-    render()
-    click(byTestId('shortcuts-add'))
-    type(byTestId('shortcut-name-input'), 'x')
-    type(byTestId('shortcut-text-input'), 'y')
-    recordChord('a')
-    click(byTestId('shortcut-save'))
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(byTestId('shortcuts-error')?.textContent).toContain('already used')
   })
 
   // --- layout / onboarding -------------------------------------------------------------------
@@ -293,35 +207,11 @@ describe('ShortcutsDialog', () => {
     expect((byTestId('shortcuts-add') as HTMLButtonElement | null)?.disabled).toBe(false)
   })
 
-  // Onboarding: the "how" sits next to the control it explains, and it is there BEFORE the
-  // recorder is armed — a new operator should not have to guess what to press first.
-  it('explains how to record a chord before the recorder is armed', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
-    render()
-    click(byTestId('shortcuts-add'))
-
-    // Not the armed hint — that element exists only while recording.
-    expect(byTestId('chord-hint')).toBeNull()
-    expect(document.body.textContent).toContain('hold Ctrl+Alt and press a letter')
-    expect(document.body.textContent).toContain('Chain up to 3 for a sequence')
-  })
-
-  it('coaches through the sequence while the recorder is armed', () => {
-    act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
-    render()
-    click(byTestId('shortcuts-add'))
-
-    arm()
-    expect(byTestId('chord-hint')?.textContent).toContain('Escape cancels')
-    chord('o')
-    expect(byTestId('chord-hint')?.textContent).toContain('Enter to finish')
-  })
-
   it('says what a shortcut does, and that nothing is sent for you', () => {
     render()
     expect(document.body.textContent).toContain('You press Enter to send.')
     click(byTestId('shortcuts-add'))
-    expect(document.body.textContent).toContain('Nothing is sent until you press Enter.')
+    expect(document.body.textContent).toContain('Typed into the session, never sent.')
   })
 
   // --- Task 11: scope control + orphan grouping (mirrors TemplatesDialog.test.tsx) -----------
@@ -337,15 +227,15 @@ describe('ShortcutsDialog', () => {
     render()
     click(byTestId('shortcuts-add'))
     type(byTestId('shortcut-name-input'), 'approve')
+    type(byTestId('shortcut-alias-input'), 'ap')
     type(byTestId('shortcut-text-input'), 'I explicitly approve')
-    recordChord('a')
     chooseOption(document, 'shortcut-scope', 'w1')
 
     click(byTestId('shortcut-save'))
 
     expect(saveMock).toHaveBeenCalledWith({
       name: 'approve',
-      keys: ['Ctrl+Alt+A'],
+      alias: 'ap',
       text: 'I explicitly approve',
       workspaceId: 'w1'
     })
@@ -355,9 +245,7 @@ describe('ShortcutsDialog', () => {
     act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
     act(() =>
       shortcutsStore.setState({
-        shortcuts: [
-          { id: 'orphan', name: 'Orphan', keys: ['Ctrl+Alt+Z'], text: 'z', workspaceId: 'gone' }
-        ],
+        shortcuts: [{ id: 'orphan', name: 'Orphan', alias: 'oz', text: 'z', workspaceId: 'gone' }],
         loaded: true
       })
     )

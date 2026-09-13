@@ -3,13 +3,14 @@
 // They are two components on purpose. The editor used to BE a row: four controls (name, chord
 // recorder, phrase, three buttons) crammed into the same grid the list uses. The phrase input
 // collapsed to a couple of words and a 3-chord sequence overflowed its column. The editor now owns
-// a card of its own with labelled fields, so each control gets the width it needs.
+// a card of its own with labelled fields, so each control gets the width it needs. The editor's
+// second control is now an Alias field (TextInput), not a chord recorder — the ONE open chord
+// lives in settings and is recorded once, in the dialog header (see ShortcutsDialog.tsx).
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
+import { SHORTCUT_ALIAS_MAX_LENGTH } from '../../../../shared/schemas/shortcut'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
-import { KeyChordRecorder } from './KeyChordRecorder'
-import { ChordKeys } from './ChordKeys'
 import { draftToSaveRequest, isDraftDirty, type ShortcutDraft } from './shortcutForm'
 import { Select } from '../Select/Select'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
@@ -29,7 +30,9 @@ export function ShortcutRow({ shortcut, onEdit }: ShortcutRowProps): JSX.Element
   return (
     <div className={styles.row} role="row" data-testid={`shortcut-row-${shortcut.id}`}>
       <span className={styles.cellName}>{shortcut.name}</span>
-      <ChordKeys keys={shortcut.keys} />
+      <span className={styles.cellAlias} data-testid={`shortcut-alias-${shortcut.id}`}>
+        {shortcut.alias}
+      </span>
       <span className={styles.cellText}>{shortcut.text}</span>
       <button
         type="button"
@@ -90,11 +93,18 @@ export function ShortcutEditor({
         </div>
 
         <div className={styles.field}>
-          <span className={styles.fieldLabel}>Keybinding</span>
-          <KeyChordRecorder
-            value={draft.keys}
-            onChange={(keys) => onDraftChange({ ...draft, keys })}
+          <label className={styles.fieldLabel} htmlFor="shortcut-alias">
+            Alias
+          </label>
+          <TextInput
+            id="shortcut-alias"
+            testId="shortcut-alias-input"
+            placeholder="ht"
+            maxLength={SHORTCUT_ALIAS_MAX_LENGTH}
+            value={draft.alias}
+            onChange={(alias) => onDraftChange({ ...draft, alias })}
           />
+          <span className={styles.fieldHelp}>The word you type first in the box.</span>
         </div>
       </div>
 
@@ -110,7 +120,8 @@ export function ShortcutEditor({
           onChange={(text) => onDraftChange({ ...draft, text })}
         />
         <span className={styles.fieldHelp}>
-          Typed into the session as if you had typed it. Nothing is sent until you press Enter.
+          Typed into the session, never sent. <code>$1</code>, <code>$2</code>… take the values in
+          order, <code>$*</code> takes the rest, <code>$$</code> is a literal $.
         </span>
       </div>
 
