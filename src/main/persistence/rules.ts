@@ -30,6 +30,7 @@ import {
   type PersistedBlobStore
 } from './persistedBlob'
 import type { TagRuleRef } from './tags'
+import type { TemplateRuleRef } from './templates'
 
 export type RulesBlobStore = PersistedBlobStore<RulesFile>
 
@@ -74,6 +75,8 @@ export interface RulesStore {
   refsToTag(tagId: string): TagRuleRef[]
   /** How many rules use a template (T-17). */
   countTemplateRefs(templateId: string): number
+  /** The rules using a template, with their scope — the templates store's §1.4 scope check. */
+  refsToTemplate(templateId: string): TemplateRuleRef[]
 }
 
 const LOG_PREFIX = '[claude-watcher][rules]'
@@ -209,5 +212,22 @@ export function createRulesStore(options: RulesStoreOptions = {}): RulesStore {
     return rules.filter((r) => ruleUsesTemplate(r, templateId)).length
   }
 
-  return { list, get, view, save, remove, move, removeByWorkspace, refsToTag, countTemplateRefs }
+  function refsToTemplate(templateId: string): TemplateRuleRef[] {
+    return rules
+      .filter((r) => ruleUsesTemplate(r, templateId))
+      .map((r) => ({ ruleWorkspaceId: r.workspaceId }))
+  }
+
+  return {
+    list,
+    get,
+    view,
+    save,
+    remove,
+    move,
+    removeByWorkspace,
+    refsToTag,
+    countTemplateRefs,
+    refsToTemplate
+  }
 }

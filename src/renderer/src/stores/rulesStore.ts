@@ -4,7 +4,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import type { Rule, RuleSaveRequest, RulesListResult } from '../../../shared/ipc/contract'
-import { ruleUsesTag, ruleUsesTemplate } from '../../../shared/rules/ruleRefs'
+import { inRuleScope, ruleUsesTag, ruleUsesTemplate } from '../../../shared/rules/ruleRefs'
 
 export interface RulesState {
   rules: Rule[]
@@ -42,6 +42,18 @@ export function rulesUsingTag(rules: readonly Rule[], tagId: string): number {
 /** How many rules use a template (T-17). Delegates to the shared `ruleUsesTemplate` predicate. */
 export function rulesUsingTemplate(rules: readonly Rule[], templateId: string): number {
   return rules.filter((r) => ruleUsesTemplate(r, templateId)).length
+}
+
+/** How many rules that use a template could no longer see it in `workspaceId` — the rules main
+ *  refuses a template scope change for (§1.4). The same shared predicates main runs. */
+export function rulesLosingTemplate(
+  rules: readonly Rule[],
+  templateId: string,
+  workspaceId: string | null
+): number {
+  return rules.filter(
+    (r) => ruleUsesTemplate(r, templateId) && !inRuleScope(r.workspaceId, workspaceId)
+  ).length
 }
 
 const LOG_PREFIX = '[claude-watcher][rules]'

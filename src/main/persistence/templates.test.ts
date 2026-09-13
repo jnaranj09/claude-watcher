@@ -183,3 +183,49 @@ describe('createTemplatesStore — save / get / remove', () => {
     expect(store.get('id-1')).not.toBeNull()
   })
 })
+
+// §1.4 / T-17 — a scope change never hides a template from a rule that uses it: the same injected
+// check the tags store runs for T-16. Widening, or narrowing into the rules' own workspace, is fine.
+describe('createTemplatesStore — a scope change never hides a template from a rule', () => {
+  function usedBy(
+    refs: { ruleWorkspaceId: string | null }[],
+    workspaceId: string | null
+  ): { store: ReturnType<typeof createTemplatesStore>; fake: ReturnType<typeof fakeBlob> } {
+    const fake = fakeBlob(undefined)
+    const store = createTemplatesStore({
+      blobStore: fake.blobStore,
+      newId: () => 'id-1',
+      ruleRefs: (id) => (id === 'id-1' ? refs : [])
+    })
+    store.save({ ...ROW, workspaceId })
+    return { store, fake }
+  }
+
+  it('refuses global → workspace while a global rule uses it, and writes nothing', () => {
+    const { store, fake } = usedBy([{ ruleWorkspaceId: null }], null)
+    const writes = fake.writes.length
+    expect(() => store.save({ id: 'id-1', ...ROW, workspaceId: 'w1' })).toThrow(
+      TEMPLATE_ERROR.inUse
+    )
+    expect(store.get('id-1')?.workspaceId).toBeNull()
+    expect(fake.writes.length).toBe(writes)
+  })
+
+  it('refuses workspace A → B while a rule in A uses it', () => {
+    const { store } = usedBy([{ ruleWorkspaceId: 'w1' }], 'w1')
+    expect(() => store.save({ id: 'id-1', ...ROW, workspaceId: 'w2' })).toThrow(
+      TEMPLATE_ERROR.inUse
+    )
+    expect(store.get('id-1')?.workspaceId).toBe('w1')
+  })
+
+  it('allows widening a used template to global', () => {
+    const { store } = usedBy([{ ruleWorkspaceId: 'w1' }], 'w1')
+    expect(store.save({ id: 'id-1', ...ROW, workspaceId: null }).saved.workspaceId).toBeNull()
+  })
+
+  it('allows narrowing into the workspace of the rule that uses it', () => {
+    const { store } = usedBy([{ ruleWorkspaceId: 'w1' }], null)
+    expect(store.save({ id: 'id-1', ...ROW, workspaceId: 'w1' }).saved.workspaceId).toBe('w1')
+  })
+})

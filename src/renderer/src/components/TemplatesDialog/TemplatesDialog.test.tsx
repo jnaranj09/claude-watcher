@@ -288,4 +288,44 @@ describe('TemplatesDialog', () => {
     )
     act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
   })
+
+  // §1.4 — a SAVE that narrows a used template's scope is refused with the same code as a delete,
+  // and lands on the same error line. It counts the rules the new scope would hide the template
+  // from (the global one), not every rule that uses it (the Ops one can still see it in Ops).
+  it('a refused scope change says how many rules would lose the template', async () => {
+    const globalRule: Rule = {
+      id: 'r1',
+      name: 'r',
+      workspaceId: null,
+      trigger: { kind: 'launched' },
+      conditions: [{ kind: 'template', templateId: T1.id }],
+      actions: [{ kind: 'add-tag', tagId: 't' }]
+    }
+    const opsRule: Rule = { ...globalRule, id: 'r2', workspaceId: 'w1' }
+    act(() => {
+      workspacesStore.setState({
+        workspaces: [
+          { id: DEFAULT_WORKSPACE_ID, name: 'Default', color: 'slate', defaultCwd: null },
+          { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }
+        ],
+        activeId: DEFAULT_WORKSPACE_ID,
+        loaded: true
+      })
+      rulesStore.getState().hydrate({ rules: [globalRule, opsRule], brokenIds: [] })
+    })
+    save.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'templates:save': Error: template_in_use")
+    )
+    const { r } = render()
+    chooseOption(r.container, 'template-scope-filter', 'all')
+    click(q(r, `[data-template-id="${T1.id}"]`))
+    chooseOption(r.container, 'template-scope', 'w1')
+    click(q(r, '[data-testid="template-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: T1.id, workspaceId: 'w1' }))
+    expect(q(r, '[data-testid="template-error"]').textContent).toBe(
+      'Used by 1 rule. Change or delete it first.'
+    )
+    act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
+  })
 })

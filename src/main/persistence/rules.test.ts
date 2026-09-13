@@ -219,6 +219,18 @@ describe('createRulesStore — remove / move / cascade / references', () => {
     expect(store.countTemplateRefs('tpl-other')).toBe(0)
   })
 
+  it('refsToTemplate reports every rule whose template condition names it, with its scope', () => {
+    const { store } = make()
+    const uses = [{ kind: 'template' as const, templateId: 'tpl-global' }]
+    store.save({ ...REQ, conditions: uses })
+    store.save({ ...REQ, workspaceId: 'w1', conditions: uses })
+    expect(store.refsToTemplate('tpl-global')).toEqual([
+      { ruleWorkspaceId: null },
+      { ruleWorkspaceId: 'w1' }
+    ])
+    expect(store.refsToTemplate('tpl-other')).toEqual([])
+  })
+
   it('a failed write logs rules_write_failed and keeps the in-memory rule', () => {
     const { store, log } = make(undefined, { writeThrows: true })
     store.save(REQ)

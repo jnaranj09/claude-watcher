@@ -9,7 +9,7 @@ import {
   MODEL_NAME_MAX_LENGTH
 } from '../../../../shared/schemas/template'
 import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
-import { rulesStore, rulesUsingTemplate } from '../../stores/rulesStore'
+import { rulesLosingTemplate, rulesStore, rulesUsingTemplate } from '../../stores/rulesStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Select } from '../Select/Select'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
@@ -67,11 +67,18 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   async function submit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (!validation.ok || !dirty) return
+    const request = validation.request
     setBusy(true)
     try {
-      onSaved(await saveTemplate(validation.request))
+      onSaved(await saveTemplate(request))
     } catch (err) {
-      actions.setError(templateErrorMessage(err))
+      // §1.4 — a refused scope change (`template_in_use`) counts the rules the NEW scope would
+      // hide the template from; they are the ones the operator has to change.
+      const losing =
+        template === null
+          ? 0
+          : rulesLosingTemplate(rulesStore.getState().rules, template.id, request.workspaceId)
+      actions.setError(templateErrorMessage(err, losing))
     } finally {
       setBusy(false)
     }

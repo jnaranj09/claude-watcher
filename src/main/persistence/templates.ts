@@ -11,6 +11,7 @@ import {
   type TemplatesFile
 } from '../../shared/schemas/template'
 import type { TemplatesSaveResult } from '../../shared/ipc/contract'
+import { inRuleScope } from '../../shared/rules/ruleRefs'
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
@@ -26,6 +27,11 @@ export const TEMPLATE_ERROR = {
   inUse: 'template_in_use'
 } as const
 
+/** One rule that references a template. Only its scope matters to the integrity check. */
+export interface TemplateRuleRef {
+  ruleWorkspaceId: string | null
+}
+
 export interface TemplatesStoreOptions {
   blobStore?: TemplatesBlobStore
   log?: (message: string) => void
@@ -33,13 +39,16 @@ export interface TemplatesStoreOptions {
   /** How many rules use a template (spec T-17). index.ts wires it to the rules store; the default
    *  says none, so this store works without rules. */
   ruleRefCount?: (templateId: string) => number
+  /** The rules that reference a template (spec §1.4) — `save` refuses a scope change that would
+   *  hide it from one of them. index.ts wires it to the rules store; the default says none. */
+  ruleRefs?: (templateId: string) => TemplateRuleRef[]
 }
 
 export interface TemplatesStore {
   /** Sorted by name, case-insensitive. */
   list(): Template[]
   get(id: string): Template | null
-  /** No id ⇒ create; id ⇒ update. Throws TEMPLATE_ERROR.notFound / nameTaken. Trusts its
+  /** No id ⇒ create; id ⇒ update. Throws TEMPLATE_ERROR.notFound / nameTaken / inUse. Trusts its
    *  typed input — the IPC handler (templatesIpc.ts) is the parse boundary. */
   save(input: TemplateSaveRequest): TemplatesSaveResult
   /** Unknown id is a no-op (idempotent). Throws TEMPLATE_ERROR.inUse while a rule uses it. */
@@ -57,6 +66,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
   const log = options.log ?? ((message: string): void => console.warn(message))
   const newId = options.newId ?? randomUUID
   const ruleRefCount = options.ruleRefCount ?? ((): number => 0)
+  const ruleRefs = options.ruleRefs ?? ((): TemplateRuleRef[] => [])
   const byId = new Map<string, Template>()
 
   const loaded = loadPersistedOrReset<TemplatesFile>({
@@ -88,6 +98,10 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     if (input.id !== undefined && !byId.has(input.id)) throw new Error(TEMPLATE_ERROR.notFound)
     const id = input.id ?? newId()
     if (isNameTaken(input.name, id)) throw new Error(TEMPLATE_ERROR.nameTaken)
+    // §1.4 — a scope change must never hide the template from a rule that uses it (T-11, T-17).
+    if (ruleRefs(id).some((ref) => !inRuleScope(ref.ruleWorkspaceId, input.workspaceId))) {
+      throw new Error(TEMPLATE_ERROR.inUse)
+    }
     const saved: Template = {
       id,
       name: input.name,

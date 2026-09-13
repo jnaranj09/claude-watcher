@@ -90,7 +90,11 @@ import { SettingsPatchSchema, DEFAULT_SETTINGS } from '../shared/schemas/setting
 import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
 import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './persistence/workspacesIpc'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
-import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
+import {
+  createTemplatesStore,
+  type TemplateRuleRef,
+  type TemplatesStore
+} from './persistence/templates'
 import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
 import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
 import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcuts'
@@ -2219,15 +2223,21 @@ app
     // closure over the module-level `let`), so it is correct once app startup finishes wiring
     // every store — the same late-binding style as `hasLiveSessions`/`cascade` above.
     const ruleRefCount = (id: string): number => rulesStore?.countTemplateRefs(id) ?? 0
+    // §1.4 — narrowing a used template's scope is refused (the same check tags run for T-16).
+    const templateRuleRefs = (id: string): TemplateRuleRef[] => rulesStore?.refsToTemplate(id) ?? []
     try {
       templatesStore = SMOKE
-        ? createTemplatesStore({ ruleRefCount })
-        : createTemplatesStore({ blobStore: createElectronTemplatesBlobStore(), ruleRefCount })
+        ? createTemplatesStore({ ruleRefCount, ruleRefs: templateRuleRefs })
+        : createTemplatesStore({
+            blobStore: createElectronTemplatesBlobStore(),
+            ruleRefCount,
+            ruleRefs: templateRuleRefs
+          })
     } catch {
       // Code ONLY — never the error (see the settings catch above: a SyntaxError message
       // quotes file content, and a template blob carries operator cwds and names).
       console.error('[claude-watcher][templates] code=templates_store_init_failed (in-memory)')
-      templatesStore = createTemplatesStore({ ruleRefCount })
+      templatesStore = createTemplatesStore({ ruleRefCount, ruleRefs: templateRuleRefs })
     }
     registerTemplatesIpc()
 
