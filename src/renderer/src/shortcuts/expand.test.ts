@@ -1,0 +1,125 @@
+// Shortcut expander — the pure half. No React, no DOM.
+import { describe, it, expect } from 'vitest'
+import type { Shortcut } from '../../../shared/schemas/shortcut'
+import {
+  parseInput,
+  matchAliases,
+  expand,
+  expandInput,
+  expandErrorCopy,
+  EXPANDED_TEXT_MAX_LENGTH
+} from './expand'
+
+function sc(alias: string, text: string, name = alias): Shortcut {
+  return { id: `id-${alias}`, name, alias, text, workspaceId: null }
+}
+
+const HT = sc('ht', 'work on help desk ticket $1', 'help desk')
+const DP = sc('dp', 'deploy $1 to $2', 'deploy')
+const ALL = sc('say', 'say $*', 'say')
+const HELLO = sc('hello', 'hello there', 'greeting')
+
+describe('parseInput', () => {
+  it('splits the first word from the values, lowercasing the alias', () => {
+    expect(parseInput('HT 1234')).toEqual({ alias: 'ht', args: ['1234'] })
+    expect(parseInput('  dp   api  staging ')).toEqual({ alias: 'dp', args: ['api', 'staging'] })
+  })
+  it('an empty input has an empty alias', () => {
+    expect(parseInput('')).toEqual({ alias: '', args: [] })
+    expect(parseInput('   ')).toEqual({ alias: '', args: [] })
+  })
+})
+
+describe('matchAliases', () => {
+  const list = [HELLO, HT, DP, ALL]
+  it('an empty query lists everything in the given order', () => {
+    expect(matchAliases('', list)).toEqual(list)
+  })
+  it('exact alias first, then alias prefix, then name prefix', () => {
+    const h = sc('h', 'h', 'zzz')
+    expect(matchAliases('h', [HELLO, HT, h]).map((s) => s.alias)).toEqual(['h', 'hello', 'ht'])
+  })
+  it('matches on the name too, case-insensitively', () => {
+    expect(matchAliases('Gre', list)).toEqual([HELLO])
+  })
+  it('returns nothing when nothing matches', () => {
+    expect(matchAliases('zzz', list)).toEqual([])
+  })
+})
+
+describe('expand', () => {
+  it('fills $1..$n by position', () => {
+    expect(expand('deploy $1 to $2', ['api', 'staging'])).toEqual({
+      ok: true,
+      value: 'deploy api to staging'
+    })
+  })
+  it('a number used twice takes the same value', () => {
+    expect(expand('$1 and $1', ['x'])).toEqual({ ok: true, value: 'x and x' })
+  })
+  it('$* takes the values no number took, joined with one space', () => {
+    expect(expand('say $*', ['a', 'b', 'c'])).toEqual({ ok: true, value: 'say a b c' })
+    expect(expand('$2 then $*', ['a', 'b', 'c'])).toEqual({ ok: true, value: 'b then a c' })
+  })
+  it('$* with nothing left is empty', () => {
+    expect(expand('say $*', [])).toEqual({ ok: true, value: 'say ' })
+  })
+  it('$$ is a literal dollar, and $$1 is a dollar then a 1', () => {
+    expect(expand('cost $$ $$1', [])).toEqual({ ok: true, value: 'cost $ $1' })
+  })
+  it('extra values are dropped when there is no $*', () => {
+    expect(expand('ticket $1', ['1', '2'])).toEqual({ ok: true, value: 'ticket 1' })
+  })
+  it('a missing value fails closed and names the index', () => {
+    expect(expand('deploy $1 to $2', ['api'])).toEqual({
+      ok: false,
+      error: { code: 'missing_arg', index: 2 }
+    })
+  })
+  it('a result over the cap fails closed', () => {
+    const r = expand('$1', ['a'.repeat(EXPANDED_TEXT_MAX_LENGTH + 1)])
+    expect(r).toEqual({ ok: false, error: { code: 'too_long' } })
+  })
+  it('never produces a control character from a placeholder alone', () => {
+    const r = expand('$1', ['plain'])
+    expect(r.ok && /[\p{Cc}]/u.test(r.value)).toBe(false)
+  })
+})
+
+describe('expandInput', () => {
+  const list = [HT, DP, ALL]
+  it('parses, finds by exact alias, expands', () => {
+    expect(expandInput('ht 1234', list)).toEqual({
+      ok: true,
+      value: 'work on help desk ticket 1234'
+    })
+  })
+  it('an unknown alias fails closed with the typed word', () => {
+    expect(expandInput('nope 1', list)).toEqual({
+      ok: false,
+      error: { code: 'unknown_alias', alias: 'nope' }
+    })
+  })
+  it('an explicit alias (the highlighted row) overrides the typed first word', () => {
+    expect(expandInput('h 1234', list, 'ht')).toEqual({
+      ok: true,
+      value: 'work on help desk ticket 1234'
+    })
+  })
+  it('an empty input is an unknown empty alias', () => {
+    expect(expandInput('', list)).toEqual({
+      ok: false,
+      error: { code: 'unknown_alias', alias: '' }
+    })
+  })
+})
+
+describe('expandErrorCopy', () => {
+  it('maps every code to operator copy', () => {
+    expect(expandErrorCopy({ code: 'unknown_alias', alias: 'xy' })).toBe('No shortcut named "xy"')
+    expect(expandErrorCopy({ code: 'missing_arg', index: 2 })).toBe('Missing value for $2')
+    expect(expandErrorCopy({ code: 'too_long' })).toBe(
+      `Result is longer than ${EXPANDED_TEXT_MAX_LENGTH} characters`
+    )
+  })
+})
