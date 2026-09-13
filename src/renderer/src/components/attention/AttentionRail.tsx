@@ -244,7 +244,13 @@ function RailRow(props: {
     >
       <StatusDot status={status} labelHidden />
       {collapsed ? (
-        <span className="sr-only">{name}</span>
+        // Review finding C — the button rows fold tagSuffix into their aria-label (`label`
+        // above); this sr-only span is the active row's ONLY equivalent, so it must carry the
+        // same tags or a collapsed, active, tagged session announces no tags at all.
+        <span className="sr-only">
+          {name}
+          {tagSuffix(tags)}
+        </span>
       ) : (
         <span className={styles.name} data-testid="rail-row-name">
           {name}

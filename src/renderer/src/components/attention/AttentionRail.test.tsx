@@ -399,6 +399,29 @@ describe('AttentionRail — the active row is NOT a control', () => {
     expect(collapsed?.textContent).toContain(shortName(boardStore.getState().sessionsById['a']!))
   })
 
+  // Review finding C (T-27/T-28): a button row's accessible name already carries its tags (the
+  // aria-label is built from `label`, which folds in `tagSuffix`). The active row's sr-only name
+  // span used to say only the name — a collapsed, active, TAGGED session announced no tags at
+  // all, unlike every other row.
+  it("the collapsed ACTIVE row's accessible text includes its tags too, like the button rows", () => {
+    const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
+    const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
+    act(() => {
+      tagsStore.getState().hydrate([DEPLOY, PROD])
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'a', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
+    })
+    focusSession('a', 'tid-a')
+    const r = render()
+    act(() =>
+      r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')?.click()
+    )
+    const collapsed = r.container.querySelector<HTMLElement>('[data-session-id="a"]')
+    expect(collapsed?.getAttribute('data-active')).not.toBeNull()
+    expect(collapsed?.textContent).toContain('tags: deploy, prod')
+  })
+
   it('the rename pencil still works on the active row, and is still a sibling not a child', () => {
     act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
     focusSession('a', 'tid-a')
