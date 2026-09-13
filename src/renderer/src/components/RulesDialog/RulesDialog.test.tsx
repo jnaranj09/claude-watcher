@@ -131,6 +131,28 @@ describe('RulesDialog', () => {
     expect(rowTexts(r)[0]).toContain('alpha runs second')
   })
 
+  // P2-4 / T-14 — a WORKSPACE scope hides rules that still run in between (a global one before,
+  // Default's between). ↑ / ↓ move past the VISIBLE neighbour, but `rules:move` takes the final
+  // index in the FULL list — the neighbour's index in the filtered list would drop the rule in the
+  // wrong place in the run order.
+  it('in a workspace scope, ↑ / ↓ pass the visible neighbour’s index in the FULL list', async () => {
+    const opsFirst: Rule = { ...R_A, id: 'wa', name: 'ops first', workspaceId: 'w1' }
+    const opsSecond: Rule = { ...R_A, id: 'wc', name: 'ops second', workspaceId: 'w1' }
+    const hidden: Rule = { ...R_A, id: 'hidden', name: 'default only', workspaceId: 'default' }
+    const full = { rules: [R_A, opsFirst, hidden, opsSecond], brokenIds: [] }
+    move.mockImplementation(() => Promise.resolve(full))
+    act(() => rulesStore.getState().hydrate(full))
+    const { r } = render()
+    chooseOption(r.container, 'rule-scope-filter', 'ws:w1')
+    expect(rowTexts(r)).toEqual(['ops firstWorking → Needs you', 'ops secondWorking → Needs you'])
+    click(q(r, '[data-testid="rule-down-wa"]'))
+    await flush()
+    expect(move).toHaveBeenLastCalledWith('wa', 3)
+    click(q(r, '[data-testid="rule-up-wc"]'))
+    await flush()
+    expect(move).toHaveBeenLastCalledWith('wc', 1)
+  })
+
   // R-keyboard (controller ruling): the actions are revealed by CSS `:focus-within` on the row, so
   // Shift+Tab from row B's select button skips row A's hidden-until-focus ↑/↓ and lands on row A's
   // select button — that ordering is real but not something jsdom's layout-free DOM can observe
