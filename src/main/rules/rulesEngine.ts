@@ -2,7 +2,10 @@
 // every reducer delta, with the tracker's column for that id BEFORE and AFTER the tracker saw it.
 // The tracker stays the ONLY component that knows columns; the engine reads the edge from it.
 //
-//   - A real column change runs the matching column-change rules, then re-arms the time rules.
+//   - A real column change re-arms the time rules for the NEW column FIRST, then runs the
+//     matching column-change rules. Arming only reads workspaceId/column/enteredColumnAt — never
+//     the tags a rule write changes — so if the write throws, the new column is still armed and
+//     the old column's timers are still cancelled (never left stale to fire early later, T-19).
 //   - A first sighting (a launch, or claude's new id after /clear) only arms the time rules. Launch
 //     rules are NOT run here: they ran at spawn (launchTags.ts, T-21).
 //   - Same column — including the tag delta this engine itself writes — does nothing (T-3, T-19).
@@ -106,8 +109,11 @@ export function createRulesEngine(options: RulesEngineOptions): RulesEngine {
         return
       }
       if (before === after) return // same column — no rule, no timer (T-3, T-19)
-      write(event.id, { kind: 'column-change', from: before, to: after })
+      // Arm BEFORE the write: arming only reads workspaceId/column/enteredColumnAt (never the
+      // tags `write` changes), so if `write` throws below, the new column's time rules are
+      // already armed and the old column's are already cancelled — never left stale (T-19).
       timers.onColumnEntry(event.id)
+      write(event.id, { kind: 'column-change', from: before, to: after })
     } catch {
       log(`${LOG_PREFIX} id=${event.id} code=rules_failed`)
     }

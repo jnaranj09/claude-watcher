@@ -281,3 +281,97 @@ describe('rules engine — time rules (spec §2.3)', () => {
     expect(p.tags(NEW_ID)).toEqual(['idle10'])
   })
 })
+
+describe('rules engine — never-crash (review round 1 finding)', () => {
+  // Fix-round-1 finding (Important): the never-crash guard (rulesEngine.ts's try/catch around
+  // afterDelta) had no test — deleting it left all 10 pipeline tests green. This test feeds a
+  // throwing `setTags` on a REAL column change and pins three things: `afterDelta` doesn't throw,
+  // the status delta already shipped (main → renderer never blocks on a rule failure), and `log`
+  // gets EXACTLY `id=<id> code=rules_failed` (never a rule name/tag/session value).
+  //
+  // It also covers the controller's reorder ruling: arming used to run AFTER the rule write,
+  // inside the same try, so a throwing write skipped `timers.onColumnEntry` — the new column's
+  // time rules never armed for that stay, and the old column's timer stayed armed (a stale timer
+  // that can fire later, past the point where it is still valid — T-19). Arming is moved BEFORE
+  // the write (it only reads workspaceId/column/enteredColumnAt, which `setTags` never touches),
+  // so a throwing write still leaves the new column armed and the old column cancelled — proved
+  // below by advancing the clock and reading which tag actually lands.
+  it('a throwing setTags on a real column change never crashes the pipeline; the new column still arms, the old cancels (T-19)', () => {
+    const clock = createFakeTimers(START)
+    const reducer = createReducer({ now: clock.now, log: () => {} })
+    const tracker = createAttentionTracker({ now: clock.now })
+    const shipped: { status: string; tagIds: string[] }[] = []
+    const logs: string[] = []
+    // Throws on the FIRST setTags call only (the column-change rule's write, below) — a second
+    // call (the later time-rule fire) goes through to the real reducer, so `p.tags()`-equivalent
+    // reads still prove which timer actually armed.
+    let throwOnce = true
+
+    const rules: Rule[] = [
+      rule({
+        id: 'old',
+        trigger: { kind: 'time-in-column', column: 'working', minutes: 5 },
+        actions: [{ kind: 'add-tag', tagId: 'old' }]
+      }),
+      rule({
+        id: 'new',
+        trigger: { kind: 'time-in-column', column: 'needs-you', minutes: 10 },
+        actions: [{ kind: 'add-tag', tagId: 'new' }]
+      }),
+      rule({
+        id: 'marker',
+        trigger: { kind: 'column-change', from: 'working', to: 'needs-you' },
+        actions: [{ kind: 'add-tag', tagId: 'marker' }]
+      })
+    ]
+
+    // Forward-referenced by `setTags` below; hoisted (a `function` declaration), exactly like the
+    // `pipeline()` helper's own `handleDelta`.
+    function handleDelta(delta: SessionDelta): void {
+      const id = delta.event.id
+      const before = delta.event.type === 'session.updated' ? tracker.columnOf(id) : undefined
+      tracker.onDelta(delta, reducer.snapshotMap())
+      const after = delta.event.type === 'session.updated' ? tracker.columnOf(id) : undefined
+      const out = enrichDelta(delta, tracker, reducer.snapshotMap(), () => {})
+      if (out !== null && out.event.type === 'session.updated') {
+        shipped.push({ status: out.event.status, tagIds: out.event.tagIds })
+      }
+      engine.afterDelta(delta, before, after)
+    }
+
+    const engine = createRulesEngine({
+      getRules: () => ({ rules, brokenIds: new Set<string>() }),
+      getSession: (id) => reducer.snapshotMap().get(id),
+      columnOf: (id) => tracker.columnOf(id),
+      enteredColumnAt: (id) => tracker.enteredColumnAt(id),
+      setTags: (sessionId, tagIds) => {
+        if (throwOnce) {
+          throwOnce = false
+          throw new Error('secret session content') // never-log: must not reach `logs`
+        }
+        reducer.setTags(sessionId, tagIds).forEach(handleDelta)
+      },
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+      log: (message) => logs.push(message)
+    })
+
+    reducer.upsertLaunched(launchedSession(ID)).forEach(handleDelta) // Connecting → idle
+    reducer.applyHookStatus(ID, { kind: 'status', status: 'Working' }).forEach(handleDelta) // idle → working: arms `old`
+
+    expect(() => {
+      // working → needs-you: arms `new` + cancels `old`, THEN the `marker` column-change rule's
+      // write throws.
+      reducer.applyHookStatus(ID, { kind: 'status', status: 'NeedsAttention' }).forEach(handleDelta)
+    }).not.toThrow()
+
+    expect(shipped.at(-1)).toEqual({ status: 'NeedsAttention', tagIds: [] }) // status shipped regardless
+    expect(logs).toEqual([`[claude-watcher][rules] id=${ID} code=rules_failed`]) // id + code ONLY
+
+    clock.advance(10 * MIN)
+    // `new` fired (armed for the column actually entered); `old` never did (cancelled before it
+    // could fire); `marker` never landed (its write threw before reaching the reducer).
+    expect(reducer.snapshotMap().get(ID)?.tagIds).toEqual(['new'])
+  })
+})
