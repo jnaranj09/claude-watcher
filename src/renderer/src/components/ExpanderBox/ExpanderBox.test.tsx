@@ -155,6 +155,15 @@ describe('ExpanderBox', () => {
     })
     expect(onClose).toHaveBeenCalledTimes(1)
     outside.remove()
+    cleanup?.()
+
+    onClose.mockClear()
+    render()
+    const row = byTestId('expander-option-ht')
+    act(() => {
+      input().dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: row }))
+    })
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('never hands a control character to onExpand', () => {
