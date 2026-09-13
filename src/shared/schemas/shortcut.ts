@@ -68,26 +68,27 @@ function isContinuousFromOne(numbers: ReadonlySet<number>): boolean {
 }
 
 /**
- * The phrase. NOT trimmed — a trailing space is meaningful for a phrase the operator will
- * continue after ("run the tests and "), so the stored value keeps it; the refine only REJECTS
- * a whitespace-only phrase, it never rewrites the value.
- *
- * The control-character ban does double duty (spec S-1): it makes a submitting `\r` and an
- * injected ANSI escape structurally impossible, so "type, never submit" is enforced by the
- * schema rather than by convention.
- *
- * The placeholder refine rejects a GAP (`$1 $3` without `$2`): the expander fails closed on a
- * missing value, so a gap would make the shortcut impossible to run.
+ * Base text validation: the four checks shared by v3 (ShortcutTextSchema) and v2 migration.
+ * NOT trimmed — a trailing space is meaningful for a phrase the operator will continue after
+ * ("run the tests and "). The control-character ban (spec S-1) makes `\r` and ANSI escapes
+ * structurally impossible. The blank check rejects whitespace-only phrases.
  */
-export const ShortcutTextSchema = z
+const ShortcutTextBaseSchema = z
   .string()
   .min(1)
   .max(SHORTCUT_TEXT_MAX_LENGTH)
   .regex(/^[^\p{Cc}]+$/u, { error: 'must not contain control characters' })
   .refine((t) => t.trim().length > 0, { error: 'must not be blank' })
-  .refine((t) => isContinuousFromOne(scanPlaceholders(t).numbers), {
-    error: 'text_placeholder_gap'
-  })
+
+/**
+ * The phrase with placeholder validation. The placeholder refine rejects a GAP (`$1 $3`
+ * without `$2`): the expander fails closed on a missing value, so a gap would make the
+ * shortcut impossible to run.
+ */
+export const ShortcutTextSchema = ShortcutTextBaseSchema.refine(
+  (t) => isContinuousFromOne(scanPlaceholders(t).numbers),
+  { error: 'text_placeholder_gap' }
+)
 
 export const ShortcutSchema = z.object({
   id: ShortcutIdSchema,
@@ -136,14 +137,10 @@ const ShortcutV2Schema = z.object({
   id: ShortcutIdSchema,
   name: ShortcutNameSchema,
   keys: z.array(ShortcutChordV2Schema).min(1).max(3),
-  // The v2 text rules minus the placeholder refine: a v2 phrase never carried one on purpose,
-  // and a literal `$2` in old prose must not block the whole file from loading.
-  text: z
-    .string()
-    .min(1)
-    .max(SHORTCUT_TEXT_MAX_LENGTH)
-    .regex(/^[^\p{Cc}]+$/u)
-    .refine((t) => t.trim().length > 0),
+  // V2 text uses the base validation without the placeholder-continuity refine: a v2 phrase
+  // never carried placeholders on purpose, and a literal `$2` in old prose must not block the
+  // whole file from loading.
+  text: ShortcutTextBaseSchema,
   workspaceId: WorkspaceIdSchema.nullable().default(null)
 })
 

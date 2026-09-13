@@ -30,6 +30,7 @@ describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
   })
 
   it('rejects the retired keys field shape (keys without alias)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { alias: _a, ...noAlias } = VALID
     expect(ShortcutSchema.safeParse({ ...noAlias, keys: ['Ctrl+Alt+A'] }).success).toBe(false)
   })
@@ -113,6 +114,7 @@ describe('placeholders in text', () => {
 
 describe('ShortcutSaveSchema / ShortcutDeleteSchema', () => {
   it('save without id ⇒ create; with id ⇒ update', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, ...create } = VALID
     expect(ShortcutSaveSchema.parse(create)).toEqual(create)
     expect(ShortcutSaveSchema.parse(VALID)).toEqual(VALID)
@@ -158,12 +160,19 @@ describe('parseShortcutsFile — v3, or a migrated v2, or a throw', () => {
     expect(migrated).toEqual({
       version: 3,
       shortcuts: [
-        { id: 'sc-2', name: 'approve', alias: 'oa', text: 'I explicitly approve', workspaceId: 'w1' }
+        {
+          id: 'sc-2',
+          name: 'approve',
+          alias: 'oa',
+          text: 'I explicitly approve',
+          workspaceId: 'w1'
+        }
       ]
     })
   })
 
   it('migrates a v2 row missing workspaceId to GLOBAL', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { workspaceId: _w, ...row } = V2_ROW
     expect(parseShortcutsFile({ version: 2, shortcuts: [row] }).shortcuts[0]?.workspaceId).toBe(
       null
