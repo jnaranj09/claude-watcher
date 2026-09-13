@@ -152,14 +152,11 @@ describe('rules engine — column-change rules (spec §2.2)', () => {
 })
 
 describe('rules engine — time rules (spec §2.3)', () => {
-  // FAULT INJECTION (same-column re-arm) — CONTROLLER-CORRECTED NOTE: changing `afterDelta`'s
-  // `if (before === after) return` to ALSO call `timers.onColumnEntry(event.id)` on a same-column
-  // delta does NOT turn THIS test red. The tracker never re-stamps `enteredColumnAt` on a
-  // same-column delta (attention.ts: "no re-stamp of enteredColumnAt … stamp only on a CHANGE"),
-  // and `ruleTimers.arm` anchors its due time on `enteredColumnAt`, so a spurious re-arm from that
-  // injection recomputes the SAME due time (still +5 min from the real entry) — no delay. The test
-  // that DOES go red for that injection is "ONCE PER STAY" below (a hand-removed tag is silently
-  // re-added by the spurious re-arm's immediate re-fire). See task-6-report.md for the recorded run.
+  // Catches two faults: a same-column delta that CANCELS the timer (nothing fires at +5), and a
+  // same-column re-arm combined with anchoring the due time on `now()` instead of
+  // `enteredColumnAt` (the re-arm at +4 pushes the fire to +9). A same-column re-arm ALONE does not
+  // turn this red: the tracker never re-stamps `enteredColumnAt` on a same-column delta, so the
+  // re-armed timer keeps its due time. "ONCE PER STAY" below is the test that catches that one.
   it('TIMER ANCHORING (T-19): same-column deltas never delay the fire', () => {
     const p = pipeline([
       rule({
@@ -216,6 +213,24 @@ describe('rules engine — time rules (spec §2.3)', () => {
     expect(p.tags()).toEqual(['stale'])
   })
 
+  // T-18 beats the move's re-arm: a GLOBAL time rule applies in both workspaces, so re-arming it
+  // from the move would re-add, in the same stay, a tag the operator had removed by hand.
+  it('ONCE PER STAY (T-18): a workspace move never re-fires a time rule that already fired', () => {
+    const p = pipeline([
+      rule({
+        trigger: { kind: 'time-in-column', column: 'idle', minutes: 5 },
+        actions: [{ kind: 'add-tag', tagId: 'stale' }]
+      })
+    ])
+    p.launch() // workspace `default`, idle at START
+    p.clock.advance(5 * MIN)
+    expect(p.tags()).toEqual(['stale'])
+    p.setTags([])
+    p.move('w2', [])
+    p.clock.advance(60 * MIN)
+    expect(p.tags()).toEqual([])
+  })
+
   it('leaving the column cancels its pending time rule; removal cancels everything', () => {
     const p = pipeline([
       rule({
@@ -258,7 +273,7 @@ describe('rules engine — time rules (spec §2.3)', () => {
     expect(p.tags()).toEqual(['new'])
   })
 
-  it('/clear (a new id) runs no launch rule, and the time clock restarts (spec §5)', () => {
+  it('/clear (a new id) keeps its tags, runs no launch rule, and the time clock restarts (spec §5)', () => {
     const p = pipeline([
       rule({
         id: 'born',
@@ -272,13 +287,16 @@ describe('rules engine — time rules (spec §2.3)', () => {
       })
     ])
     p.launch()
+    p.setTags(['keep'])
     p.clock.advance(6 * MIN)
     p.rebind()
-    expect(p.tags(NEW_ID)).toEqual([]) // launch rules run only at spawn (launchTags), never on a rebind
+    // The tag survives onto the new id; `born` does not land — launch rules run only at spawn
+    // (launchTags), never on a rebind.
+    expect(p.tags(NEW_ID)).toEqual(['keep'])
     p.clock.advance(9 * MIN)
-    expect(p.tags(NEW_ID)).toEqual([])
+    expect(p.tags(NEW_ID)).toEqual(['keep'])
     p.clock.advance(1 * MIN)
-    expect(p.tags(NEW_ID)).toEqual(['idle10'])
+    expect(p.tags(NEW_ID)).toEqual(['keep', 'idle10'])
   })
 })
 

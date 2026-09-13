@@ -5,7 +5,10 @@
 //     deltas — more Working hooks, NeedsAttention ↔ NeedsPermission, a rename, a tag change — have
 //     NO path to `arm` (T-19): a stream of hooks can never push a timer forward.
 //   - Due at max(enteredColumnAt, the rule's last save, the card's last move) + minutes.
-//   - It fires ONCE per stay (T-18): firing never re-arms; the next column entry does.
+//   - It fires ONCE per stay (T-18). Per card, the ids of the rules that FIRED during the current
+//     stay are kept. A workspace move or a rule save re-arms only the rules NOT in that set, so
+//     neither can fire a rule twice in one stay (a tag removed by hand stays removed). Only the
+//     next real column entry — a new stay — and removal clear the set.
 //   - never-crash: nothing throws out of a call or a timer. never-log-the-value: ids + codes only.
 import type { Column } from '../../shared/ipc/contract'
 import type { Rule } from '../../shared/schemas/rule'
@@ -36,12 +39,14 @@ export interface RuleTimersOptions {
 }
 
 export interface RuleTimers {
-  /** A real column entry, or the first sight of a card: cancel its timers, arm one per in-scope
-   *  time rule for the column it is in now. */
+  /** A real column entry, or the first sight of a card: a new stay. Cancel its timers, forget what
+   *  fired in the last stay, arm one per in-scope time rule for the column it is in now. */
   onColumnEntry(sessionId: string): void
-  /** The card moved workspace: its clock restarts now, for the new workspace's rules (spec §5). */
+  /** The card moved workspace: its clock restarts now, for the new workspace's rules (spec §5) —
+   *  except a rule that already fired this stay (T-18). */
   onWorkspaceMoved(sessionId: string): void
-  /** A rule was saved: re-arm it for every live card, anchored at now (T-13). */
+  /** A rule was saved: re-arm it, anchored at now (T-13), for every live card it has not already
+   *  fired for this stay (T-18). */
   onRuleSaved(ruleId: string): void
   /** Rules were deleted: cancel every timer whose rule is no longer in the list. */
   onRulesRemoved(): void
@@ -71,6 +76,8 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
   const cards = new Set<string>()
   const ruleAnchor = new Map<string, number>()
   const moveAnchor = new Map<string, number>()
+  /** sessionId → the ids of the rules that fired during the card's current stay (T-18). */
+  const firedThisStay = new Map<string, Set<string>>()
 
   function cancel(sessionId: string, keep: (ruleId: string) => boolean = () => false): void {
     const byRule = armed.get(sessionId)
@@ -81,6 +88,10 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
       byRule.delete(ruleId)
     }
     if (byRule.size === 0) armed.delete(sessionId)
+  }
+
+  function hasFired(sessionId: string, ruleId: string): boolean {
+    return firedThisStay.get(sessionId)?.has(ruleId) === true
   }
 
   function arm(sessionId: string, card: TimedCard, rule: Rule): void {
@@ -98,12 +109,13 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
     armed.set(sessionId, byRule)
   }
 
+  /** Arms every in-scope time rule for the card's column that has not fired this stay. */
   function armAll(sessionId: string): void {
     const card = options.cardOf(sessionId)
     if (card === undefined) return
     const { rules, brokenIds } = options.getRules()
     for (const rule of rulesInScope(rules, card.workspaceId)) {
-      if (!brokenIds.has(rule.id)) arm(sessionId, card, rule)
+      if (!brokenIds.has(rule.id) && !hasFired(sessionId, rule.id)) arm(sessionId, card, rule)
     }
   }
 
@@ -112,6 +124,9 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
     const byRule = armed.get(sessionId)
     byRule?.delete(ruleId)
     if (byRule?.size === 0) armed.delete(sessionId)
+    const fired = firedThisStay.get(sessionId) ?? new Set<string>()
+    fired.add(ruleId)
+    firedThisStay.set(sessionId, fired)
     try {
       options.fire(sessionId, ruleId)
     } catch {
@@ -130,6 +145,7 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
   function onColumnEntry(sessionId: string): void {
     guarded(sessionId, () => {
       cards.add(sessionId)
+      firedThisStay.delete(sessionId) // a new stay (T-18)
       cancel(sessionId)
       armAll(sessionId)
     })
@@ -154,7 +170,7 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
           continue
         }
         cancel(sessionId, (id) => id !== ruleId)
-        if (brokenIds.has(ruleId)) continue
+        if (brokenIds.has(ruleId) || hasFired(sessionId, ruleId)) continue
         // Scope check delegates to Task 4's own "rules that apply to a card in workspace W"
         // helper (evaluateRules.ts#rulesInScope, itself backed by ruleRefs.ts#inRuleScope) —
         // never re-derive the null-is-global comparison inline here.
@@ -176,6 +192,7 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
     guarded(sessionId, () => {
       cards.delete(sessionId)
       moveAnchor.delete(sessionId)
+      firedThisStay.delete(sessionId)
       cancel(sessionId)
     })
   }
@@ -191,6 +208,7 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
     cards.clear()
     moveAnchor.clear()
     ruleAnchor.clear()
+    firedThisStay.clear()
   }
 
   return {

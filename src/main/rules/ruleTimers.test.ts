@@ -184,4 +184,62 @@ describe('ruleTimers (spec §2.3)', () => {
     h.timers.dispose()
     expect(h.clock.armed()).toBe(0)
   })
+
+  // A save re-arms THAT rule only. Cancelling every timer on the card instead would silently drop
+  // every other pending time rule on every live card.
+  it('saving one time rule leaves another pending time rule on the same card untouched', () => {
+    const h = harness([timed('idle5', 'idle', 5), timed('idle10', 'idle', 10)])
+    h.enter('s1', 'idle')
+    h.clock.advance(2 * MIN)
+    h.timers.onRuleSaved('idle5')
+    h.clock.advance(60 * MIN)
+    expect(h.fired).toEqual([
+      { sessionId: 's1', ruleId: 'idle5', at: START + 7 * MIN },
+      { sessionId: 's1', ruleId: 'idle10', at: START + 10 * MIN }
+    ])
+  })
+
+  // The due time counts from the tracker's `enteredColumnAt`, not from the moment the timer is
+  // armed: a card already idle for 3 min when a 5-min rule arms fires 2 min later, not 5.
+  it('counts from enteredColumnAt, not from when the timer is armed (T-19)', () => {
+    const h = harness([timed('idle5', 'idle', 5)])
+    h.cards.set('s1', { workspaceId: 'w1', column: 'idle', enteredColumnAt: START - 3 * MIN })
+    h.timers.onColumnEntry('s1')
+    h.clock.advance(2 * MIN - 1)
+    expect(h.fired).toEqual([])
+    h.clock.advance(1)
+    expect(h.fired).toEqual([{ sessionId: 's1', ruleId: 'idle5', at: START + 2 * MIN }])
+  })
+
+  // T-18 beats the save's re-arm: x already got the rule this stay, so a re-save (a rename here)
+  // must not fire it again. y has not reached its fire time yet, so it re-arms from the save.
+  it('ONCE PER STAY (T-18): a re-save never re-fires a rule for a card it already fired for', () => {
+    const h = harness([timed('idle10', 'idle', 10)])
+    h.enter('x', 'idle') // due START + 10
+    h.clock.advance(5 * MIN)
+    h.enter('y', 'idle') // due START + 15
+    h.clock.advance(5 * MIN)
+    expect(h.fired).toEqual([{ sessionId: 'x', ruleId: 'idle10', at: START + 10 * MIN }])
+    h.clock.advance(2 * MIN)
+    h.current.rules = [{ ...timed('idle10', 'idle', 10), name: 'renamed' }]
+    h.timers.onRuleSaved('idle10') // at START + 12
+    h.clock.advance(60 * MIN)
+    expect(h.fired).toEqual([
+      { sessionId: 'x', ruleId: 'idle10', at: START + 10 * MIN },
+      { sessionId: 'y', ruleId: 'idle10', at: START + 22 * MIN }
+    ])
+  })
+
+  // The other half of T-18: the next real column entry starts a new stay, so a rule that fired in
+  // the last one arms again.
+  it('a real column change starts a new stay: a rule that already fired arms again (T-18)', () => {
+    const h = harness([timed('idle5', 'idle', 5)])
+    h.enter('s1', 'idle')
+    h.clock.advance(5 * MIN) // stay 1 fires
+    h.enter('s1', 'working')
+    h.clock.advance(1 * MIN)
+    h.enter('s1', 'idle') // stay 2, at START + 6
+    h.clock.advance(5 * MIN)
+    expect(h.fired.map((f) => f.at)).toEqual([START + 5 * MIN, START + 11 * MIN])
+  })
 })
