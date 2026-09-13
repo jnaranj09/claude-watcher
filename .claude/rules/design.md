@@ -77,6 +77,11 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
 - **A control the operator must not use is not rendered.** Do not render it disabled and
   refuse it on click (the Default workspace has NO delete button at all). Main refusing
   the operation is the backstop, not the UI's excuse to offer it.
+- **The one exception: a reorder arrow in a `RowActions` slot.** ↑ on the first row and ↓ on
+  the last are rendered DISABLED, with a screen-reader label saying why (`Already first`,
+  `Already last`), not omitted. The slot has a fixed width that must be identical on every
+  row; drop one arrow and that row carries a single off-centre button, and the rail goes
+  ragged. (The Rules dialog.) Nothing else earns this exception.
 
 ## Scoped lists (the header filter)
 

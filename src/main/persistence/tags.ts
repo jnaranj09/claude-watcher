@@ -11,6 +11,7 @@ import {
   type TagsFile
 } from '../../shared/schemas/tag'
 import type { TagsSaveResult } from '../../shared/ipc/contract'
+import { inRuleScope } from '../../shared/rules/ruleRefs'
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
@@ -94,7 +95,7 @@ export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
     const id = input.id ?? newId()
     if (isNameTaken(input.name, input.workspaceId, id)) throw new Error(TAG_ERROR.nameTaken)
     // §1.4 — a scope change must never hide the tag from a rule that uses it (T-11).
-    if (ruleRefs(id).some((ref) => !visibleToRule(input.workspaceId, ref))) {
+    if (ruleRefs(id).some((ref) => !inRuleScope(ref.ruleWorkspaceId, input.workspaceId))) {
       throw new Error(TAG_ERROR.inUse)
     }
     const saved: Tag = { id, name: input.name, color: input.color, workspaceId: input.workspaceId }
@@ -138,11 +139,6 @@ export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
   }
 
   return { list, get, save, remove, removeByWorkspace }
-}
-
-/** A rule scoped to `ref.ruleWorkspaceId` can see a tag scoped to `tagWorkspaceId` (T-11). */
-function visibleToRule(tagWorkspaceId: string | null, ref: TagRuleRef): boolean {
-  return tagWorkspaceId === null || tagWorkspaceId === ref.ruleWorkspaceId
 }
 
 function nameKey(name: string): string {

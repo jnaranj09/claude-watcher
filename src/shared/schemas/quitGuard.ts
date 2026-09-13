@@ -15,9 +15,10 @@
 //  src/shared/ipc/contract.ts (QuitGuardPayload shape)]
 
 import { z } from 'zod'
+import { COLUMNS } from '../ipc/contract'
 
-/** The three live board columns (mirrors the shared Column union; no 'done'). */
-const ColumnSchema = z.enum(['working', 'needs-you', 'idle'])
+/** The three live board columns — derived from the shared COLUMNS tuple, never a copy. */
+const ColumnSchema = z.enum(COLUMNS)
 
 /** Per-session row in the Quit-guard modal list. */
 const QuitGuardSessionSchema = z.object({

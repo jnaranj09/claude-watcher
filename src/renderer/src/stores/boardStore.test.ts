@@ -1084,11 +1084,9 @@ describe('workspace filtering', () => {
     expect(store.getState().focusedTerminalId).toBeNull()
     expect(store.getState().viewMode).toBe('board')
     // The board-fallback branch must NEVER unmount a terminal either — every kept-alive frame
-    // stays in the registry (terminal.md: hide via visibility, never remove). Without this
-    // assertion the fallback branch was UNGUARDED: adding `launchedTerminals: {}` to the
-    // board-fallback set(...) left the whole suite green while silently killing every kept-alive
-    // terminal on a switch to an empty workspace. FAULT-INJECTION EVIDENCE recorded in
-    // task-8-report.md: that injection turns THIS line red; restoring it turns it back green.
+    // stays in the registry (terminal.md: hide via visibility, never remove). This line guards
+    // that branch: a `launchedTerminals: {}` in the board-fallback set(...) would silently kill
+    // every kept-alive terminal on a switch to an empty workspace, and turns it red.
     expect(Object.keys(store.getState().launchedTerminals).sort()).toEqual(['t1', 't2'])
   })
 
