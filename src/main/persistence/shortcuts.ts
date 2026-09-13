@@ -4,9 +4,8 @@
 import { randomUUID } from 'node:crypto'
 import {
   EMPTY_SHORTCUTS_FILE,
-  shortcutKeysId,
+  parseShortcutsFile,
   SHORTCUTS_FILE_VERSION,
-  ShortcutsFileSchema,
   type Shortcut,
   type ShortcutSaveRequest,
   type ShortcutsFile
@@ -22,7 +21,7 @@ export type ShortcutsBlobStore = PersistedBlobStore<ShortcutsFile>
 
 /** Error messages thrown across the IPC seam; the renderer maps them back to copy. */
 export const SHORTCUT_ERROR = {
-  keysTaken: 'shortcut_keys_taken',
+  aliasTaken: 'shortcut_alias_taken',
   notFound: 'shortcut_not_found'
 } as const
 
@@ -33,11 +32,10 @@ export interface ShortcutsStoreOptions {
 }
 
 export interface ShortcutsStore {
-  /** Sorted by the canonical sequence id — the table's scan column (uniqueness is on the full
-   *  chord sequence, not the name). */
+  /** Sorted by alias — the box's match column (uniqueness is on the alias, not the name). */
   list(): Shortcut[]
   get(id: string): Shortcut | null
-  /** No id ⇒ create; id ⇒ update. Throws SHORTCUT_ERROR.notFound / keysTaken. Trusts its typed
+  /** No id ⇒ create; id ⇒ update. Throws SHORTCUT_ERROR.notFound / aliasTaken. Trusts its typed
    *  input — the IPC handler (shortcutsIpc.ts) is the parse boundary. */
   save(input: ShortcutSaveRequest): ShortcutsSaveResult
   /** Unknown id is a no-op (idempotent). */
@@ -58,7 +56,8 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
 
   const loaded = loadPersistedOrReset<ShortcutsFile>({
     blobStore,
-    parse: (raw) => ShortcutsFileSchema.parse(raw),
+    // v3 as is; a v2 file is migrated in memory and rewritten as v3 by the persist() below.
+    parse: parseShortcutsFile,
     fallback: () => EMPTY_SHORTCUTS_FILE,
     // CODE only — the thrown ZodError stringifies the file, which carries operator phrases.
     onProblem: (code) => log(`${LOG_PREFIX} code=shortcuts_${code}`)
@@ -75,7 +74,7 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
   }
 
   function list(): Shortcut[] {
-    return [...byId.values()].sort(byKeys)
+    return [...byId.values()].sort(byAlias)
   }
 
   function get(id: string): Shortcut | null {
@@ -85,11 +84,11 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
   function save(input: ShortcutSaveRequest): ShortcutsSaveResult {
     if (input.id !== undefined && !byId.has(input.id)) throw new Error(SHORTCUT_ERROR.notFound)
     const id = input.id ?? newId()
-    if (isKeysTaken(input.keys, id)) throw new Error(SHORTCUT_ERROR.keysTaken)
+    if (isAliasTaken(input.alias, id)) throw new Error(SHORTCUT_ERROR.aliasTaken)
     const saved: Shortcut = {
       id,
       name: input.name,
-      keys: input.keys,
+      alias: input.alias,
       text: input.text,
       workspaceId: input.workspaceId
     }
@@ -115,12 +114,11 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     return removed
   }
 
-  /** Uniqueness is on the FULL sequence. A PREFIX has a different canonical id, so a prefix and
-   *  the sequence it prefixes coexist by construction — the operator's explicit requirement. */
-  function isKeysTaken(keys: readonly string[], ownId: string): boolean {
-    const id = shortcutKeysId(keys)
+  /** Uniqueness is file-wide, the same scope the chord sequences had: the box lists global +
+   *  active-workspace rows together, and two rows answering to one word would be a coin toss. */
+  function isAliasTaken(alias: string, ownId: string): boolean {
     for (const other of byId.values()) {
-      if (other.id !== ownId && shortcutKeysId(other.keys) === id) return true
+      if (other.id !== ownId && other.alias === alias) return true
     }
     return false
   }
@@ -128,10 +126,7 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
   return { list, get, save, remove, removeByWorkspace }
 }
 
-/** Sorted by the canonical sequence id — the table's scan column. A prefix sorts immediately
- *  before its extensions, which is the right reading order. */
-function byKeys(a: Shortcut, b: Shortcut): number {
-  return shortcutKeysId(a.keys).localeCompare(shortcutKeysId(b.keys), undefined, {
-    sensitivity: 'base'
-  })
+/** Sorted by alias — the column the operator scans in the box and the table. */
+function byAlias(a: Shortcut, b: Shortcut): number {
+  return a.alias.localeCompare(b.alias, undefined, { sensitivity: 'base' })
 }
