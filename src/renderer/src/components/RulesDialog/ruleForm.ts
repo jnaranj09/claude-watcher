@@ -4,6 +4,7 @@
 import { COLUMNS, type Column } from '../../../../shared/ipc/contract'
 import {
   RuleSaveSchema,
+  TEXT_MATCH_MODES,
   TIME_RULE_MINUTES,
   type Rule,
   type RuleAction,
@@ -62,10 +63,16 @@ export const CONDITION_CHOICES: { value: ConditionKind; label: string }[] = [
   { value: 'name', label: 'Session name' }
 ]
 
-export const MODE_CHOICES: { value: 'contains' | 'regex'; label: string }[] = [
-  { value: 'contains', label: 'contains' },
-  { value: 'regex', label: 'matches regex' }
-]
+/** A label for every TEXT_MATCH_MODES entry — a Record, so a mode added to the shared constant
+ *  without a label here is a COMPILE error, not a silently-omitted dropdown row. */
+const MODE_LABELS: Record<(typeof TEXT_MATCH_MODES)[number], string> = {
+  contains: 'contains',
+  regex: 'matches regex'
+}
+
+export const MODE_CHOICES: { value: 'contains' | 'regex'; label: string }[] = TEXT_MATCH_MODES.map(
+  (m) => ({ value: m, label: MODE_LABELS[m] })
+)
 
 export const ACTION_CHOICES: { value: ActionKind; label: string }[] = [
   { value: 'add-tag', label: 'Add tag' },

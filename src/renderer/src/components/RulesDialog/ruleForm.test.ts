@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   MINUTES_CHOICES,
+  MODE_CHOICES,
   conditionFor,
   emptyDraft,
   isDraftDirty,
@@ -14,6 +15,7 @@ import {
 } from './ruleForm'
 import { usedByRulesCopy } from '../../stores/rulesStore'
 import type { Rule } from '../../../../shared/ipc/contract'
+import { TEXT_MATCH_MODES } from '../../../../shared/schemas/rule'
 
 const RULE: Rule = {
   id: 'r1',
@@ -50,6 +52,10 @@ describe('triggerSummary — the one line under a rule row', () => {
       '24 h'
     ])
     expect(minutesFrom('240')).toBe(240)
+  })
+
+  it('MODE_CHOICES is derived from TEXT_MATCH_MODES, not a re-typed literal', () => {
+    expect(MODE_CHOICES.map((c) => c.value)).toEqual([...TEXT_MATCH_MODES])
   })
 })
 
