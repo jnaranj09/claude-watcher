@@ -163,6 +163,14 @@
 .row:focus-within .rowActions {
   visibility: visible;
 }
+/* Rules' ↑ / ↓ (Task 10, R-width): the default ghostButton padding (8px 16px) makes two of them
+   ~84px wide — they overflow this 56px slot onto the row label. Compact them here, scoped to the
+   slot, rather than widen the slot (it must stay this exact width on every row) or add a fourth
+   button style. */
+.rowActions .ghostButton {
+  padding: 2px 6px;
+  font-size: var(--font-size-meta);
+}
 /* `+ New` sits at the BOTTOM of the rail, not directly under the last row: `.rows` stops at its
    max-height, so without this the button floats mid-column whenever the form is the taller side. */
 .newButton {

@@ -1,0 +1,69 @@
+/* Rules — the Manage-rules dialog. Everything shared (shell, list, form, buttons, the RowActions
+ * slot) comes from ManageDialog.module.css; this module holds only the Rules dialog's own. */
+
+/* A row: the name over its trigger summary. */
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.rowName,
+.rowSummary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On the raised panel: --text-secondary, never --text-muted (design.md). */
+.rowSummary {
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+
+/* T-23 — a rule that can never run. The glyph is CSS-drawn (::before) rather than real text, so
+ * the row's plain textContent stays "<name><trigger summary> (broken)" — the sr-only suffix below
+ * is the only text this span contributes. Colour is never the only signal: the glyph, the title
+ * tooltip and the sr-only text all carry it too. */
+.broken {
+  flex: none;
+  margin-left: auto;
+  color: var(--danger);
+  font-size: var(--font-size-meta);
+}
+
+.broken::before {
+  content: '⚠';
+  margin-right: 2px;
+}
+
+.empty,
+.note {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+
+.empty {
+  padding: var(--space-2) var(--space-3);
+}
+
+/* One trigger / condition / action line: its controls side by side, wrapping when narrow. */
+.clause {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.clause > * {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.clause > .arrow {
+  flex: none;
+  color: var(--text-secondary);
+}
