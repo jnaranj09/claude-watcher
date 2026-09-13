@@ -169,6 +169,29 @@ describe('ShortcutsDialog', () => {
     expect(byTestId('chord-hint')?.textContent).toBe('Hold Ctrl+Alt and press a letter.')
   })
 
+  it('shows the resting help before arming, and the default hint the instant it arms', () => {
+    render()
+    // Resting: the recorder is not armed yet, so there is no chord-hint element at all.
+    expect(byTestId('chord-hint')).toBeNull()
+    expect(document.body.textContent).toContain('Click, then hold Ctrl+Alt and press a letter.')
+    arm()
+    // Armed, before any keystroke: the default coaching line, not the AltGr/invalid hint.
+    expect(byTestId('chord-hint')?.textContent).toBe('Press the chord now. Escape cancels.')
+  })
+
+  it('Escape disarms the recorder in place without committing a chord', () => {
+    render()
+    arm()
+    pressKey('Escape')
+    // Disarmed: back to the resting label (the still-live expanderKey chord), no hint element.
+    expect(byTestId('chord-hint')).toBeNull()
+    expect(byTestId('chord-recorder')?.textContent).toContain('Ctrl+Alt+X')
+    // The part that matters: Escape must never commit a chord.
+    const settingsSet = (window as unknown as { settings: { set: ReturnType<typeof vi.fn> } })
+      .settings.set
+    expect(settingsSet).not.toHaveBeenCalled()
+  })
+
   it('the subtitle names the live chord', () => {
     render()
     expect(byTestId('shortcuts-subtitle')?.textContent).toContain('Ctrl+Alt+X')
