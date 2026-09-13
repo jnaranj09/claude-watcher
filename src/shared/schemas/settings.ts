@@ -49,6 +49,17 @@ export const DEFAULT_REMINDER_FIRST_DELAY_MINUTES: ReminderFirstDelayMinutes = 2
 const ReminderCountSchema = z.number().int().min(0).max(REMINDER_COUNT_MAX)
 const ReminderFirstDelaySchema = z.literal(REMINDER_FIRST_DELAY_OPTIONS)
 
+/** Shortcut expander — the letter of the ONE `Ctrl+Alt+<letter>` chord that opens the box.
+ *  `X` by default: bash's emacs keymap binds twelve `\e\C-<letter>` sequences and X is not one
+ *  of them, so the default shadows nothing in a plain shell. */
+export const DEFAULT_EXPANDER_KEY = 'X'
+const ExpanderKeySchema = z.string().regex(/^[A-Z]$/, { error: 'one upper-case letter' })
+
+/** The chord string the terminal's key handler compares `chordFromEvent()` against. */
+export function expanderChord(key: string): string {
+  return `Ctrl+Alt+${key}`
+}
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
  * `reminderCount` + `reminderFirstDelayMinutes`.
@@ -76,7 +87,9 @@ export const SettingsSchema = z.object({
   // fail closed → backup → start fresh (the operator's sound and font size lost). This is why
   // SETTINGS_VERSION stays 1.
   reminderCount: ReminderCountSchema.default(DEFAULT_REMINDER_COUNT),
-  reminderFirstDelayMinutes: ReminderFirstDelaySchema.default(DEFAULT_REMINDER_FIRST_DELAY_MINUTES)
+  reminderFirstDelayMinutes: ReminderFirstDelaySchema.default(DEFAULT_REMINDER_FIRST_DELAY_MINUTES),
+  // Shortcut expander. Same `.default()` reasoning as the reminder fields: additive on v1.
+  expanderKey: ExpanderKeySchema.default(DEFAULT_EXPANDER_KEY)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -98,7 +111,8 @@ export const SettingsPatchSchema = z
     // defaulted field inside a `.partial()` object, so a sound-only patch would silently reset
     // the reminder count to its default (verified on zod 4.4.3).
     reminderCount: ReminderCountSchema,
-    reminderFirstDelayMinutes: ReminderFirstDelaySchema
+    reminderFirstDelayMinutes: ReminderFirstDelaySchema,
+    expanderKey: ExpanderKeySchema
   })
   .partial()
 
@@ -113,7 +127,8 @@ export const DEFAULT_SETTINGS: Settings = {
   soundEnabled: true,
   terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
   reminderCount: DEFAULT_REMINDER_COUNT,
-  reminderFirstDelayMinutes: DEFAULT_REMINDER_FIRST_DELAY_MINUTES
+  reminderFirstDelayMinutes: DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
+  expanderKey: DEFAULT_EXPANDER_KEY
 }
 
 /**

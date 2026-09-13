@@ -28,6 +28,8 @@ export interface SettingsState {
   reminderCount: number
   /** Attention reminders — minutes before the first reminder; each later gap doubles. */
   reminderFirstDelayMinutes: ReminderFirstDelayMinutes
+  /** Shortcut expander — the letter of the Ctrl+Alt chord that opens the box. */
+  expanderKey: string
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
@@ -51,6 +53,7 @@ export function createSettingsStore(): SettingsStoreApi {
     terminalFontSize: DEFAULT_SETTINGS.terminalFontSize,
     reminderCount: DEFAULT_SETTINGS.reminderCount,
     reminderFirstDelayMinutes: DEFAULT_SETTINGS.reminderFirstDelayMinutes,
+    expanderKey: DEFAULT_SETTINGS.expanderKey,
     loaded: false,
 
     hydrate: (settings) => {
@@ -59,6 +62,7 @@ export function createSettingsStore(): SettingsStoreApi {
         terminalFontSize: settings.terminalFontSize,
         reminderCount: settings.reminderCount,
         reminderFirstDelayMinutes: settings.reminderFirstDelayMinutes,
+        expanderKey: settings.expanderKey,
         loaded: true
       })
     },
@@ -73,7 +77,8 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.reminderCount !== undefined ? { reminderCount: patch.reminderCount } : {}),
         ...(patch.reminderFirstDelayMinutes !== undefined
           ? { reminderFirstDelayMinutes: patch.reminderFirstDelayMinutes }
-          : {})
+          : {}),
+        ...(patch.expanderKey !== undefined ? { expanderKey: patch.expanderKey } : {})
       })
     }
   }))
@@ -92,6 +97,8 @@ export const selectReminderCount = (state: SettingsState): number => state.remin
 /** Attention reminders — the live first-reminder delay in minutes (primitive). */
 export const selectReminderFirstDelayMinutes = (state: SettingsState): ReminderFirstDelayMinutes =>
   state.reminderFirstDelayMinutes
+/** Shortcut expander — the live open-chord letter (primitive). */
+export const selectExpanderKey = (state: SettingsState): string => state.expanderKey
 /** Whether the initial load has completed (primitive). */
 export const selectLoaded = (state: SettingsState): boolean => state.loaded
 
