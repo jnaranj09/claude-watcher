@@ -22,13 +22,17 @@ export type TemplatesBlobStore = PersistedBlobStore<TemplatesFile>
 /** Error messages thrown across the IPC seam; the renderer maps them back to copy. */
 export const TEMPLATE_ERROR = {
   nameTaken: 'template_name_taken',
-  notFound: 'template_not_found'
+  notFound: 'template_not_found',
+  inUse: 'template_in_use'
 } as const
 
 export interface TemplatesStoreOptions {
   blobStore?: TemplatesBlobStore
   log?: (message: string) => void
   newId?: () => string
+  /** How many rules use a template (spec T-17). index.ts wires it to the rules store; the default
+   *  says none, so this store works without rules. */
+  ruleRefCount?: (templateId: string) => number
 }
 
 export interface TemplatesStore {
@@ -38,7 +42,7 @@ export interface TemplatesStore {
   /** No id ⇒ create; id ⇒ update. Throws TEMPLATE_ERROR.notFound / nameTaken. Trusts its
    *  typed input — the IPC handler (templatesIpc.ts) is the parse boundary. */
   save(input: TemplateSaveRequest): TemplatesSaveResult
-  /** Unknown id is a no-op (idempotent). */
+  /** Unknown id is a no-op (idempotent). Throws TEMPLATE_ERROR.inUse while a rule uses it. */
   remove(id: string): Template[]
   /** Workspaces — delete every template scoped to `workspaceId`. Returns how many were removed.
    *  Called ONLY by the workspaces store's cascade, after a delete was allowed. Global rows
@@ -52,6 +56,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
   const blobStore = options.blobStore ?? createInMemoryBlobStore<TemplatesFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
   const newId = options.newId ?? randomUUID
+  const ruleRefCount = options.ruleRefCount ?? ((): number => 0)
   const byId = new Map<string, Template>()
 
   const loaded = loadPersistedOrReset<TemplatesFile>({
@@ -98,7 +103,11 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
   }
 
   function remove(id: string): Template[] {
-    if (byId.delete(id)) persist()
+    if (!byId.has(id)) return list()
+    // T-17 — a rule never silently loses the template it points at.
+    if (ruleRefCount(id) > 0) throw new Error(TEMPLATE_ERROR.inUse)
+    byId.delete(id)
+    persist()
     return list()
   }
 

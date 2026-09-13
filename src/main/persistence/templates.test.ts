@@ -169,4 +169,17 @@ describe('createTemplatesStore — save / get / remove', () => {
       templates: store.list()
     })
   })
+
+  // T-17 — no rule is ever silently changed by a delete.
+  it('refuses to delete a template a rule uses, and keeps it', () => {
+    const fake = fakeBlob(undefined)
+    const store = createTemplatesStore({
+      blobStore: fake.blobStore,
+      newId: () => 'id-1',
+      ruleRefCount: (id) => (id === 'id-1' ? 2 : 0)
+    })
+    store.save(ROW)
+    expect(() => store.remove('id-1')).toThrow(TEMPLATE_ERROR.inUse)
+    expect(store.get('id-1')).not.toBeNull()
+  })
 })
