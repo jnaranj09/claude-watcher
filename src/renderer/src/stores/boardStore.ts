@@ -283,6 +283,11 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   tagsDialogOpen: boolean
+  /**
+   * Rules — whether the Manage-rules dialog is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  rulesDialogOpen: boolean
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -430,6 +435,10 @@ export interface BoardState {
   openTagsDialog: () => void
   /** Tags — close the Manage-tags dialog. No-op if already closed. */
   closeTagsDialog: () => void
+  /** Rules — open the Manage-rules dialog. No-op if already open. */
+  openRulesDialog: () => void
+  /** Rules — close the Manage-rules dialog. No-op if already closed. */
+  closeRulesDialog: () => void
 }
 
 export interface BoardStoreOptions {
@@ -498,6 +507,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     workspacesDialogOpen: false,
     // Tags — the Manage-tags dialog starts closed.
     tagsDialogOpen: false,
+    // Rules — the Manage-rules dialog starts closed.
+    rulesDialogOpen: false,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -784,6 +795,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeTagsDialog: () => {
       if (get().tagsDialogOpen) set({ tagsDialogOpen: false })
+    },
+
+    openRulesDialog: () => {
+      if (!get().rulesDialogOpen) set({ rulesDialogOpen: true })
+    },
+    closeRulesDialog: () => {
+      if (get().rulesDialogOpen) set({ rulesDialogOpen: false })
     }
   }))
 }
@@ -942,6 +960,12 @@ export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectTagsDialogOpen = (state: BoardState): boolean => state.tagsDialogOpen
+
+/**
+ * Rules — whether the Manage-rules dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectRulesDialogOpen = (state: BoardState): boolean => state.rulesDialogOpen
 
 /**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.

@@ -31,6 +31,7 @@ import {
   selectNeedsYouCountByWorkspace,
   selectCardCountByWorkspace,
   selectTagsDialogOpen,
+  selectRulesDialogOpen,
   HERO_COLUMN,
   type BoardState
 } from './boardStore'
@@ -1298,5 +1299,17 @@ describe('tag filtering (spec §4.1)', () => {
     expect(selectTagsDialogOpen(store.getState())).toBe(true)
     store.getState().closeTagsDialog()
     expect(selectTagsDialogOpen(store.getState())).toBe(false)
+  })
+})
+
+describe('the Rules dialog flag', () => {
+  it('opens and closes, idempotently', () => {
+    const store = createBoardStore()
+    expect(selectRulesDialogOpen(store.getState())).toBe(false)
+    store.getState().openRulesDialog()
+    store.getState().openRulesDialog()
+    expect(selectRulesDialogOpen(store.getState())).toBe(true)
+    store.getState().closeRulesDialog()
+    expect(selectRulesDialogOpen(store.getState())).toBe(false)
   })
 })
