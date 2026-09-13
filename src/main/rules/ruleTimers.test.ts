@@ -104,6 +104,27 @@ describe('ruleTimers (spec §2.3)', () => {
     expect(h.fired).toEqual([])
   })
 
+  it('a throwing clearTimer during onRemoved never escapes, and is logged by id + code only', () => {
+    const clock = createFakeTimers(START)
+    const cards = new Map<string, Card>()
+    const log = vi.fn()
+    const timers = createRuleTimers({
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: () => {
+        throw new Error('secret content')
+      },
+      getRules: () => ({ rules: [timed('idle5', 'idle', 5)], brokenIds: new Set() }),
+      cardOf: (id) => cards.get(id),
+      fire: () => {},
+      log
+    })
+    cards.set('s1', { workspaceId: 'w1', column: 'idle', enteredColumnAt: clock.now() })
+    timers.onColumnEntry('s1')
+    expect(() => timers.onRemoved('s1')).not.toThrow()
+    expect(log).toHaveBeenCalledWith('[claude-watcher][rules] id=s1 code=rule_timer_failed')
+  })
+
   it('a rule saved mid-stay fires at max(entered, save) + minutes — never at save (T-13)', () => {
     const h = harness([])
     h.enter('s1', 'idle')

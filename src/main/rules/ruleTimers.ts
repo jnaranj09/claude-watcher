@@ -173,9 +173,11 @@ export function createRuleTimers(options: RuleTimersOptions): RuleTimers {
   }
 
   function onRemoved(sessionId: string): void {
-    cards.delete(sessionId)
-    moveAnchor.delete(sessionId)
-    cancel(sessionId)
+    guarded(sessionId, () => {
+      cards.delete(sessionId)
+      moveAnchor.delete(sessionId)
+      cancel(sessionId)
+    })
   }
 
   function armedCount(): number {
