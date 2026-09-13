@@ -4,13 +4,14 @@ import {
   toDraft,
   draftToSaveRequest,
   isDraftDirty,
-  shortcutErrorCode
+  shortcutErrorCode,
+  SHORTCUT_ERROR_COPY
 } from './shortcutForm'
 
 const SC = {
   id: 'sc-1',
   name: 'approve',
-  keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+  alias: 'oa',
   text: 'I explicitly approve',
   workspaceId: null
 }
@@ -20,8 +21,8 @@ const SC = {
 // both the recorder and the terminal matcher, and there is no reserved-letter problem any more.
 
 describe('emptyDraft / toDraft', () => {
-  it('starts with an empty sequence and no id', () => {
-    expect(emptyDraft().keys).toEqual([])
+  it('starts with an empty alias and no id', () => {
+    expect(emptyDraft().alias).toBe('')
     expect(emptyDraft().id).toBeNull()
   })
 
@@ -29,7 +30,7 @@ describe('emptyDraft / toDraft', () => {
     expect(toDraft(SC)).toEqual({
       id: 'sc-1',
       name: SC.name,
-      keys: SC.keys,
+      alias: SC.alias,
       text: SC.text,
       workspaceId: null
     })
@@ -43,10 +44,9 @@ describe('emptyDraft / toDraft', () => {
     expect(toDraft({ ...SC, workspaceId: 'w1' }).workspaceId).toBe('w1')
   })
 
-  it('copies the sequence rather than aliasing it', () => {
+  it('copies the alias', () => {
     const draft = toDraft(SC)
-    expect(draft.keys).toEqual(['Ctrl+Alt+O', 'Ctrl+Alt+A'])
-    expect(draft.keys).not.toBe(SC.keys)
+    expect(draft.alias).toBe('oa')
   })
 })
 
@@ -55,7 +55,7 @@ describe('draftToSaveRequest', () => {
     const r = draftToSaveRequest({
       id: null,
       name: 'approve',
-      keys: ['Ctrl+Alt+A'],
+      alias: 'ap',
       text: 'yes',
       workspaceId: null
     })
@@ -63,7 +63,7 @@ describe('draftToSaveRequest', () => {
     if (r.ok) {
       expect(r.req).toEqual({
         name: 'approve',
-        keys: ['Ctrl+Alt+A'],
+        alias: 'ap',
         text: 'yes',
         workspaceId: null
       })
@@ -74,7 +74,7 @@ describe('draftToSaveRequest', () => {
     const r = draftToSaveRequest({
       id: 'sc-1',
       name: 'approve',
-      keys: ['Ctrl+Alt+A'],
+      alias: 'ap',
       text: 'yes',
       workspaceId: null
     })
@@ -89,7 +89,7 @@ describe('draftToSaveRequest', () => {
     const r = draftToSaveRequest({
       id: 'sc-1',
       name: 'approve',
-      keys: ['Ctrl+Alt+A'],
+      alias: 'ap',
       text: 'yes',
       workspaceId: 'w1'
     })
@@ -97,66 +97,35 @@ describe('draftToSaveRequest', () => {
     if (r.ok) expect(r.req.workspaceId).toBe('w1')
   })
 
-  it('accepts a 2-chord sequence', () => {
+  it('lowercases the alias on the way out', () => {
     const r = draftToSaveRequest({
       id: null,
-      name: 'n',
-      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 't',
+      name: 'x',
+      alias: 'HT',
+      text: 'y',
       workspaceId: null
     })
     expect(r.ok).toBe(true)
-    if (r.ok) expect(r.req.keys).toEqual(['Ctrl+Alt+O', 'Ctrl+Alt+A'])
-  })
-
-  it('accepts a formerly reserved letter', () => {
-    expect(
-      draftToSaveRequest({
-        id: null,
-        name: 'n',
-        keys: ['Ctrl+Alt+N'],
-        text: 't',
-        workspaceId: null
-      }).ok
-    ).toBe(true)
+    if (r.ok) expect(r.req.alias).toBe('ht')
   })
 
   it.each([
+    ['a blank name', { id: null, name: '  ', alias: 'ap', text: 'yes', workspaceId: null }],
+    ['a blank phrase', { id: null, name: 'x', alias: 'ap', text: '', workspaceId: null }],
+    ['a blank alias', { id: null, name: 'x', alias: '', text: 'yes', workspaceId: null }],
     [
-      'a blank name',
-      { id: null, name: '  ', keys: ['Ctrl+Alt+A'], text: 'yes', workspaceId: null }
+      'an alias with a space',
+      { id: null, name: 'x', alias: 'a b', text: 'yes', workspaceId: null }
     ],
-    ['a blank phrase', { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: '', workspaceId: null }],
-    ['an empty sequence', { id: null, name: 'x', keys: [], text: 'yes', workspaceId: null }],
-    [
-      'four chords',
-      {
-        id: null,
-        name: 'x',
-        keys: ['Ctrl+Alt+A', 'Ctrl+Alt+B', 'Ctrl+Alt+C', 'Ctrl+Alt+D'],
-        text: 'yes',
-        workspaceId: null
-      }
-    ],
-    [
-      'the old Ctrl+Shift namespace',
-      { id: null, name: 'x', keys: ['Ctrl+Shift+A'], text: 'yes', workspaceId: null }
-    ],
-    [
-      'a malformed chord',
-      { id: null, name: 'x', keys: ['Ctrl+A'], text: 'yes', workspaceId: null }
-    ],
-    [
-      'a submitting phrase',
-      { id: null, name: 'x', keys: ['Ctrl+Alt+A'], text: 'yes\r', workspaceId: null }
-    ]
+    ['a placeholder gap', { id: null, name: 'x', alias: 'ap', text: 'do $2', workspaceId: null }],
+    ['a submitting phrase', { id: null, name: 'x', alias: 'ap', text: 'yes\r', workspaceId: null }]
   ])('rejects %s', (_label, draft) => {
     expect(draftToSaveRequest(draft).ok).toBe(false)
   })
 })
 
 describe('isDraftDirty', () => {
-  it('is false for an unchanged sequence (compared by VALUE, not reference)', () => {
+  it('is false for an unchanged alias (compared by VALUE, not reference)', () => {
     expect(isDraftDirty(toDraft(SC), SC)).toBe(false)
     expect(isDraftDirty(emptyDraft(), null)).toBe(false)
   })
@@ -165,13 +134,8 @@ describe('isDraftDirty', () => {
     expect(isDraftDirty({ ...toDraft(SC), text: 'other' }, SC)).toBe(true)
   })
 
-  it('is true when a chord is appended', () => {
-    const draft = { ...toDraft(SC), keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A', 'Ctrl+Alt+Z'] }
-    expect(isDraftDirty(draft, SC)).toBe(true)
-  })
-
-  it('is true when the sequence ORDER changes', () => {
-    const draft = { ...toDraft(SC), keys: ['Ctrl+Alt+A', 'Ctrl+Alt+O'] }
+  it('is true when the alias changes', () => {
+    const draft = { ...toDraft(SC), alias: 'different' }
     expect(isDraftDirty(draft, SC)).toBe(true)
   })
 
@@ -192,7 +156,7 @@ describe('isDraftDirty', () => {
 
 describe('shortcutErrorCode', () => {
   it('maps the known store errors and falls back for anything else', () => {
-    expect(shortcutErrorCode(new Error('shortcut_keys_taken'))).toBe('shortcut_keys_taken')
+    expect(shortcutErrorCode(new Error('shortcut_alias_taken'))).toBe('shortcut_alias_taken')
     expect(shortcutErrorCode(new Error('shortcut_not_found'))).toBe('shortcut_not_found')
     expect(shortcutErrorCode(new Error('kaboom'))).toBe('unknown')
     expect(shortcutErrorCode('not an error')).toBe('unknown')
@@ -201,8 +165,14 @@ describe('shortcutErrorCode', () => {
   it('sees through the Electron IPC wrapper around the thrown message', () => {
     expect(
       shortcutErrorCode(
-        new Error("Error invoking remote method 'shortcuts:save': Error: shortcut_keys_taken")
+        new Error("Error invoking remote method 'shortcuts:save': Error: shortcut_alias_taken")
       )
-    ).toBe('shortcut_keys_taken')
+    ).toBe('shortcut_alias_taken')
+  })
+
+  it('has copy for the taken alias error', () => {
+    expect(SHORTCUT_ERROR_COPY.shortcut_alias_taken).toBe(
+      'That alias is already used by another shortcut.'
+    )
   })
 })
