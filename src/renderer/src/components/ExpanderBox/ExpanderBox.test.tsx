@@ -11,13 +11,13 @@ function sc(alias: string, text: string, name = alias): Shortcut {
 }
 const LIST = [sc('ht', 'work on help desk ticket $1', 'help desk'), sc('dp', 'deploy $1 to $2')]
 
-let onExpand: ReturnType<typeof vi.fn>
-let onClose: ReturnType<typeof vi.fn>
+let onExpand: ReturnType<typeof vi.fn<(value: string) => void>>
+let onClose: ReturnType<typeof vi.fn<() => void>>
 let cleanup: (() => void) | undefined
 
 beforeEach(() => {
-  onExpand = vi.fn()
-  onClose = vi.fn()
+  onExpand = vi.fn<(value: string) => void>()
+  onClose = vi.fn<() => void>()
 })
 afterEach(() => {
   cleanup?.()

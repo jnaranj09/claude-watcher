@@ -42,18 +42,12 @@ import type {
   TerminalExitEvent
 } from '../../../shared/ipc/contract'
 import { xtermTheme } from '../styles/xtermTheme'
-import { useSettings, selectTerminalFontSize } from '../stores/settingsStore'
+import { useSettings, selectTerminalFontSize, selectExpanderKey } from '../stores/settingsStore'
+import { expanderChord } from '../../../shared/schemas/settings'
+import { chordFromEvent } from '../shortcuts/chord'
+import { ExpanderBox } from '../components/ExpanderBox/ExpanderBox'
 import { useShortcuts, makeSelectVisibleShortcuts } from '../stores/shortcutsStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../stores/workspacesStore'
-import {
-  buildSequenceIndex,
-  reduceKeyDown,
-  reduceTimeout,
-  SEQUENCE_TIMEOUT_MS,
-  type SequenceIndex,
-  type SequenceResult
-} from '../shortcuts/sequence'
-import { shortcutKeysId } from '../../../shared/schemas/shortcut'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
 import styles from './EmbeddedTerminal.module.css'
@@ -137,9 +131,9 @@ export function EmbeddedTerminal({
   // live font-size effect below keeps it current on every change. Never written during render.
   const fontSizeRef = useRef(fontSize)
 
-  // Phrase shortcuts — the operator's chord→phrase list, subscribed via a NARROW selector. It is
-  // consumed as a prebuilt INDEX read through a ref inside the key handler, so the shortcut list
-  // is NOT a dependency of the create-effect: editing a shortcut must never tear down + recreate
+  // Shortcut expander — the operator's alias→phrase list, subscribed via a NARROW selector. It
+  // is handed straight to the ExpanderBox (which owns its own matching), so the shortcut list is
+  // NOT a dependency of the create-effect: editing a shortcut must never tear down + recreate
   // the terminal (which would dispose the pty). Same pattern as fontSizeRef. [terminal.md]
   //
   // Workspaces (Task 11) — scoped to Global + the ACTIVE workspace, not a per-terminal lookup:
@@ -148,31 +142,35 @@ export function EmbeddedTerminal({
   // useShallow because makeSelectVisibleShortcuts returns a new filtered array.
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const shortcuts = useShortcuts(useShallow(makeSelectVisibleShortcuts(activeWorkspaceId)))
-  const sequenceIndexRef = useRef<SequenceIndex>({ byId: new Map(), prefixes: new Set() })
-  /** The chords accepted so far in a multi-chord sequence; [] = idle. Per TERMINAL, so a
-   *  half-typed sequence can never leak into another session. */
-  const pendingRef = useRef<readonly string[]>([])
-  const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** The pending-sequence indicator, written IMPERATIVELY — never React state. */
-  const hintRef = useRef<HTMLDivElement | null>(null)
 
-  /**
-   * Drop a half-typed sequence WITHOUT firing anything. Refs + DOM only, so a reset can never
-   * re-render (and so never touch) the terminal. Called on blur, on deactivation, on pty death,
-   * on unmount, and when the shortcut list changes under the machine.
-   */
-  const resetSequence = useCallback((): void => {
-    if (sequenceTimerRef.current !== null) {
-      clearTimeout(sequenceTimerRef.current)
-      sequenceTimerRef.current = null
-    }
-    pendingRef.current = []
-    const hint = hintRef.current
-    if (hint !== null) {
-      hint.textContent = ''
-      hint.hidden = true
-    }
-  }, [])
+  // Shortcut expander — the ONE chord that opens the box. Read through a REF inside the key
+  // handler so the settings value is NOT a create-effect dependency: changing the letter must
+  // never tear down + recreate the terminal (the same pattern as fontSizeRef).
+  const expanderKey = useSettings(selectExpanderKey)
+  const expanderChordRef = useRef(expanderChord(expanderKey))
+  /** The box is per-terminal React view-state. It is a form, not terminal state: opening it
+   *  re-renders this component but never touches xterm (the terminal lives in refs). */
+  const [expanderOpen, setExpanderOpen] = useState(false)
+  /** Mirrors `dead` for the key handler, which must not close over React state. */
+  const deadRef = useRef<DeadState>(null)
+
+  // Close the box the moment attention leaves this terminal (active=false) or the pty dies. A
+  // kept-alive terminal switch or a dead pane must not leave a box open over a pane nobody is
+  // looking at. This ADJUSTS STATE DURING RENDER (React's documented escape hatch — "Adjusting
+  // some state when a prop changes") rather than in a useEffect: an effect that unconditionally
+  // calls a state setter fires a wasted extra commit after every render
+  // (react-hooks/set-state-in-effect), and a REF may not be read or written during render
+  // (react-hooks/refs) — so the "previous" value is tracked in STATE, exactly as the React docs'
+  // own example does. Comparing against it keeps this idempotent under React's double-invoke
+  // (StrictMode/dev) and fires exactly once per real transition.
+  const [prevAttention, setPrevAttention] = useState<{ active: boolean; dead: DeadState }>({
+    active,
+    dead
+  })
+  if (prevAttention.active !== active || prevAttention.dead !== dead) {
+    setPrevAttention({ active, dead })
+    if ((!active || dead !== null) && expanderOpen) setExpanderOpen(false)
+  }
 
   // --- Create the terminal EXACTLY ONCE per (terminalId, openNonce) + wire the port. --------
   // openNonce in the deps re-runs this on a re-open (the cleanup disposes the old terminal first).
@@ -338,51 +336,6 @@ export function EmbeddedTerminal({
     // A capture-phase `paste` listener on the container also calls stopImmediatePropagation()
     // so xterm's paste handler (on the descendant textarea) never fires — ensuring exactly
     // ONE `\x16` per keypress, never a text paste (Konsole parity). [spec §Ctrl+V takeover]
-    // ── Phrase shortcuts — the imperative half of the sequence machine ──────────────
-    // The pure state machine lives in ../shortcuts/sequence.ts; this owns the timer, the port
-    // write and the hint DOM. Nothing here is React state.
-    function postPhrases(texts: readonly string[]): void {
-      if (texts.length === 0) return
-      const p = portRef.current
-      if (!p) return // dead pane — no throw
-      for (const text of texts) {
-        // The SAME {type:'input'} frame every keystroke and the Ctrl+V takeover use — no new
-        // byte path. TYPED, never submitted: no \r is appended, and ShortcutTextSchema makes a
-        // stored control character impossible (S-1, frozen).
-        const msg: TerminalPortRendererMessage = { type: 'input', data: text }
-        p.postMessage(msg)
-      }
-    }
-
-    function renderPendingHint(): void {
-      const hint = hintRef.current
-      if (hint === null) return
-      const pending = pendingRef.current
-      if (pending.length === 0) {
-        hint.textContent = ''
-        hint.hidden = true
-        return
-      }
-      hint.textContent = `${shortcutKeysId(pending)} …`
-      hint.hidden = false
-    }
-
-    function applyResult(result: SequenceResult): void {
-      postPhrases(result.emit)
-      pendingRef.current = result.pending
-      if (sequenceTimerRef.current !== null) {
-        clearTimeout(sequenceTimerRef.current)
-        sequenceTimerRef.current = null
-      }
-      if (result.pending.length > 0) {
-        sequenceTimerRef.current = setTimeout(() => {
-          sequenceTimerRef.current = null
-          applyResult(reduceTimeout(pendingRef.current, sequenceIndexRef.current))
-        }, SEQUENCE_TIMEOUT_MS)
-      }
-      renderPendingHint()
-    }
-
     term.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
       if (
         event.type === 'keydown' &&
@@ -392,9 +345,6 @@ export function EmbeddedTerminal({
         !event.metaKey &&
         event.key.toLowerCase() === 'v'
       ) {
-        // Ctrl+V is a non-chord key, so it ENDS a pending sequence like any other: the prefix
-        // resolves to its own phrase first, then the takeover runs.
-        applyResult(reduceTimeout(pendingRef.current, sequenceIndexRef.current))
         // Forward the raw control byte to the PTY over the EXISTING port input frame.
         // No new byte-transport path — the same {type:'input'} message the onData handler uses.
         const port = portRef.current
@@ -405,20 +355,20 @@ export function EmbeddedTerminal({
         return false // suppress xterm: no key-sequence write, no built-in paste
       }
 
-      // ── Phrase shortcuts — the 1..3 chord sequence machine ─────────────────
+      // ── Shortcut expander — the ONE chord that opens the box ────────────────────────
       //
-      // Ctrl+Alt+<A-Z>, 1 to 3 chords. Unlike the old Ctrl+Shift namespace this IS encodable by
-      // a pty, so an UNMATCHED chord must fall through completely untouched (no preventDefault,
-      // no stopPropagation) and let xterm emit its ESC + control byte. Only a chord that starts
-      // or completes a binding is swallowed. The phrase is TYPED, never submitted (S-1).
-      const result = reduceKeyDown(pendingRef.current, event, sequenceIndexRef.current)
-      applyResult(result)
-      if (result.swallow) {
+      // Ctrl+Alt+<A-Z> IS encodable by a pty, so every chord that is not the expander's must
+      // fall through completely untouched (no preventDefault, no stopPropagation) and let xterm
+      // emit its ESC + control byte. Only the expander chord is swallowed, and only on a live
+      // pane. The expanded text is TYPED by the box's onExpand, never submitted (S-1).
+      const chord = chordFromEvent(event)
+      if (chord !== null && chord === expanderChordRef.current && deadRef.current === null) {
+        setExpanderOpen(true)
         event.preventDefault()
         // Belt-and-braces with App.tsx's `!e.altKey` guard — correctness must not depend on
         // listener ordering.
         event.stopPropagation()
-        return false // suppress xterm entirely
+        return false
       }
       return true // all other keys pass through to xterm unchanged
     })
@@ -432,12 +382,6 @@ export function EmbeddedTerminal({
       e.stopImmediatePropagation()
     }
     container.addEventListener('paste', pasteHandler, true) // capture phase
-
-    // Focus leaving the terminal cancels a half-typed sequence: firing a phrase into a terminal
-    // nobody is looking at is the worst outcome. `focusout`, not `blur` — focus lives on xterm's
-    // inner textarea and `blur` does not bubble.
-    const sequenceBlurHandler = (): void => resetSequence()
-    container.addEventListener('focusout', sequenceBlurHandler)
 
     // (2) Right-click context menu — Copy / Paste entries.
     //
@@ -468,8 +412,6 @@ export function EmbeddedTerminal({
       // Clipboard feature cleanup — remove listeners BEFORE disposing the terminal.
       container.removeEventListener('contextmenu', contextMenuHandler)
       container.removeEventListener('paste', pasteHandler, true)
-      container.removeEventListener('focusout', sequenceBlurHandler)
-      resetSequence()
       // Dismiss any open context menu when this effect re-runs (a re-open) or unmounts.
       setMenu(null)
 
@@ -506,8 +448,7 @@ export function EmbeddedTerminal({
     // terminalId + openNonce are the ONLY recreate keys (the dead-pane fallback re-open bumps
     // openNonce). fontSize is applied live in the second effect, never here — so it is
     // intentionally not a dependency.
-    // resetSequence is a useCallback([]) — stable, so it cannot re-run this effect.
-  }, [terminalId, openNonce, resetSequence])
+  }, [terminalId, openNonce])
 
   // --- Apply a LIVE font-size change WITHOUT recreating the terminal (F3/F5). ---------------
   // A settings change sets term.options.fontSize then re-fits (which re-sends dims to main).
@@ -526,22 +467,15 @@ export function EmbeddedTerminal({
       .catch(() => console.warn('[c9watch][term] code=resize_failed'))
   }, [fontSize, terminalId])
 
-  // --- Keep the sequence INDEX current for the key handler WITHOUT touching the terminal. ----
-  // The handler reads sequenceIndexRef, so a shortcut edit re-runs only this effect. Putting
-  // `shortcuts` in the create-effect's deps would dispose the live pty on every edit
-  // (terminal.md; guarded by EmbeddedTerminal.shortcuts.test.tsx).
+  // --- Keep the expander chord current for the key handler WITHOUT touching the terminal. ---
   useEffect(() => {
-    sequenceIndexRef.current = buildSequenceIndex(shortcuts)
-    // The binding set moved under the state machine — drop any half-typed sequence rather than
-    // resolve it against a stale index.
-    resetSequence()
-  }, [shortcuts, resetSequence])
+    expanderChordRef.current = expanderChord(expanderKey)
+  }, [expanderKey])
 
-  // --- Cancel a pending sequence when attention leaves this terminal. ------------------------
-  // A kept-alive terminal switch (active=false) or a dead pty must not leave a prefix armed.
+  // --- The key handler reads `dead` through a ref (it must not close over state). ----------
   useEffect(() => {
-    if (!active || dead !== null) resetSequence()
-  }, [active, dead, resetSequence])
+    deadRef.current = dead
+  }, [dead])
 
   // Re-open fallback: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty +
   // port). Only reachable from the dead pane's button when NO onNewSession prop was provided
@@ -591,6 +525,24 @@ export function EmbeddedTerminal({
     setMenu(null)
   }, []) // setMenu is guaranteed stable by React
 
+  // ── Shortcut expander — the box's two exits ─────────────────────────────────────────
+  /** Success: write the expanded text over the SAME {type:'input'} frame every keystroke uses
+   *  (no new byte path, no \r), close, and give focus back to the terminal. */
+  const handleExpand = useCallback((value: string): void => {
+    const p = portRef.current
+    if (p) {
+      const msg: TerminalPortRendererMessage = { type: 'input', data: value }
+      p.postMessage(msg)
+    }
+    setExpanderOpen(false)
+    termRef.current?.focus()
+  }, [])
+
+  const handleExpanderClose = useCallback((): void => {
+    setExpanderOpen(false)
+    termRef.current?.focus()
+  }, [])
+
   return (
     <div
       className={`${styles.frame} ${active ? '' : styles.hidden}`}
@@ -605,19 +557,12 @@ export function EmbeddedTerminal({
           blanking the visible terminal while a 2nd terminal was alive. visibility:hidden keeps the
           layout box, so the inner host stays sized for fit(). */}
       <div ref={containerRef} className={styles.host} />
-      {/* Phrase shortcuts — the pending-sequence indicator. While a sequence is open the
-          operator is in a hidden mode with his keystroke swallowed; without this it reads as
-          "the app ate my key". Updated IMPERATIVELY (textContent + .hidden) from the key
-          handler — never React state, because a re-render per chord must not go anywhere near
-          the terminal (terminal.md). Absolutely positioned OUTSIDE the terminal's layout box,
-          so it cannot affect fit(). */}
-      <div
-        ref={hintRef}
-        className={styles.chordHint}
-        data-testid="chord-pending"
-        aria-live="polite"
-        hidden
-      />
+      {/* Shortcut expander — the box over the terminal. Per-terminal view-state; the terminal
+          itself is untouched by its open/close (refs). `shortcuts` is already scoped to Global +
+          the active workspace by makeSelectVisibleShortcuts. */}
+      {expanderOpen && (
+        <ExpanderBox shortcuts={shortcuts} onExpand={handleExpand} onClose={handleExpanderClose} />
+      )}
       {/* Story 6.1 — the dead pane shows exactly ONE action: New session. */}
       {dead !== null && (
         <div className={styles.dead} role="alert" data-testid="dead-terminal">

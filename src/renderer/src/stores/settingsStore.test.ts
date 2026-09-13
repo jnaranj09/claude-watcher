@@ -32,7 +32,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       soundEnabled: false,
       terminalFontSize: 22,
       reminderCount: 5,
-      reminderFirstDelayMinutes: 10
+      reminderFirstDelayMinutes: 10,
+      expanderKey: 'X'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
