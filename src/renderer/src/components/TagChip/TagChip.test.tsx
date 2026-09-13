@@ -1,7 +1,7 @@
 // Tags — TagChip / TagChipWrap / TagChipRow / fitCount. jsdom `unit` project, `renderComponent`
 // harness (no @testing-library).
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import type { ReactElement } from 'react'
+import { act, type ReactElement } from 'react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -67,6 +67,61 @@ describe('TagChipRow — one line, +N for the rest (T-26)', () => {
     const more = r.container.querySelector('[data-testid="tag-chip-more"]')
     expect(more?.textContent).toBe('+2')
     expect(more?.getAttribute('title')).toBe('prod, release-2.1')
+  })
+
+  // Review finding A (T-26): the ResizeObserver must watch the element that tracks AVAILABLE
+  // space (the parent slot: `.footerTags` / `.rowTags`), not the row's own span — once fitted,
+  // the row is only as wide as the chips it kept, so its own box does not change size when the
+  // card/rail gets WIDER, and the old code (observing the row) never saw that as a resize.
+  it('re-fits when the SLOT around it widens, not just when it narrows', () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(50)
+    const clientWidthSpy = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(120)
+
+    class FakeResizeObserver {
+      static registrations: { target: Element; cb: () => void }[] = []
+      constructor(private cb: () => void) {}
+      observe(target: Element): void {
+        FakeResizeObserver.registrations.push({ target, cb: this.cb })
+      }
+      disconnect(): void {
+        FakeResizeObserver.registrations = FakeResizeObserver.registrations.filter(
+          (r) => r.cb !== this.cb
+        )
+      }
+      static fireResizeOn(target: Element): void {
+        for (const r of FakeResizeObserver.registrations) {
+          if (r.target === target) r.cb()
+        }
+      }
+    }
+    FakeResizeObserver.registrations = []
+    const originalRO = globalThis.ResizeObserver
+    ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = FakeResizeObserver
+    const g = globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean | undefined }
+    const originalActEnv = g.IS_REACT_ACT_ENVIRONMENT
+    g.IS_REACT_ACT_ENVIRONMENT = true
+
+    const r = render(
+      <div data-testid="slot">
+        <TagChipRow tags={[DEPLOY, PROD, RELEASE]} testId="row" />
+      </div>
+    )
+    // Narrow: matches the fitted baseline above.
+    expect(chipNames(r)).toEqual(['deploy'])
+
+    // The container widens: in the real browser this is a resize of the SLOT (the available
+    // space around the row), not the row itself. Widen the stubbed width and fire the resize
+    // only on the slot — a fix that still observes the row would never see this.
+    clientWidthSpy.mockReturnValue(1000)
+    const slot = r.container.querySelector('[data-testid="slot"]')
+    act(() => {
+      if (slot !== null) FakeResizeObserver.fireResizeOn(slot)
+    })
+
+    expect(chipNames(r)).toEqual(['deploy', 'prod', 'release-2.1'])
+    expect(r.container.querySelector('[data-testid="tag-chip-more"]')).toBeNull()
+    ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = originalRO
+    g.IS_REACT_ACT_ENVIRONMENT = originalActEnv
   })
 })
 

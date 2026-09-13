@@ -294,13 +294,18 @@
   color: var(--text-muted);
 }
 
-/* Tags (T-26) — the chips' slot at the right of the footer. `min-width: 0` lets it shrink to what
- * is left beside the pid, which is the width TagChipRow measures. */
+/* Tags (T-26) — the chips' slot at the right of the footer. `flex: 1 1 auto` (not the old
+ * `margin-left: auto`) so this slot's OWN box always equals the space actually left beside the
+ * pid: an auto margin absorbs free space instead of growing the box it sits on, so it never grew
+ * back on widen once the row inside had fitted narrow (review finding A). `justify-content:
+ * flex-end` keeps the chips flush against the footer's right edge now that the slot itself can be
+ * wider than they are. `min-width: 0` still lets it shrink to what is left beside the pid, which
+ * is the width TagChipRow measures. */
 .footerTags {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
-  margin-left: auto;
   display: flex;
+  justify-content: flex-end;
 }
 
 /* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised

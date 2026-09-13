@@ -18,8 +18,9 @@ export interface TagChipRowProps {
 export function TagChipRow({ tags, testId }: TagChipRowProps): JSX.Element | null {
   const rowRef = useRef<HTMLSpanElement | null>(null)
   // Changes whenever what is drawn changes (a tag added, removed or renamed) — a stale fit is then
-  // measured again.
-  const key = tags.map((t) => `${t.id} ${t.name}`).join('')
+  // measured again. Joined with `\n` (never `''`) — the same separator the rail's own `tagKey`
+  // uses — so two different id/name pairs can never collide into the same key.
+  const key = tags.map((t) => `${t.id} ${t.name}`).join('\n')
   const [fit, setFit] = useState<{ key: string; count: number } | null>(null)
   const measuring = fit === null || fit.key !== key
   const hasTags = tags.length > 0
@@ -29,17 +30,22 @@ export function TagChipRow({ tags, testId }: TagChipRowProps): JSX.Element | nul
     setFit({ key, count: fitCount(rowRef.current) })
   }, [measuring, key])
 
-  // A width change (window resize, the rail collapsing) invalidates the fit.
+  // A width change (window resize, the rail collapsing) invalidates the fit. Observed target is
+  // the PARENT SLOT (`.footerTags` in the card footer, `.rowTags` in the rail's show-all row),
+  // never this row's own span: once fitted, the row is only as wide as the chips it kept, so its
+  // own box does not change size when the card/rail gets WIDER — only the slot around it tracks
+  // the space that is actually available (review finding A, T-26).
   useEffect(() => {
     const row = rowRef.current
     if (!hasTags || row === null || typeof ResizeObserver === 'undefined') return
-    let width = row.clientWidth
+    const target = row.parentElement ?? row
+    let width = target.clientWidth
     const observer = new ResizeObserver(() => {
-      if (row.clientWidth === width) return
-      width = row.clientWidth
+      if (target.clientWidth === width) return
+      width = target.clientWidth
       setFit(null)
     })
-    observer.observe(row)
+    observer.observe(target)
     return () => observer.disconnect()
   }, [hasTags])
 
