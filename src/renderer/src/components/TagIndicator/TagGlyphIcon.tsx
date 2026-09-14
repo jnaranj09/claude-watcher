@@ -1,6 +1,6 @@
 // Tags — the ONE tag glyph icon (outline + dot), shared by every button-sized tag affordance: the
 // board card's `Tags…` menu trigger (Task 11), the rail's Tags… affordance (Task 12) and the header
-// tag-filter button (Task 13). Reuses `TAG_GLYPH_PATH` (the same outline `TagIndicator` strokes) so
+// tags-menu button (TagsMenu). Reuses `TAG_GLYPH_PATH` (the same outline `TagIndicator` strokes) so
 // every "tag" mark in the app is the same shape (spec T-7 — never a circle).
 //
 // A `.tsx` that exports ONLY this component — `TAG_GLYPH_PATH` itself stays in the sibling

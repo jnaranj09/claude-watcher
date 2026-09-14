@@ -34,7 +34,7 @@ import type { Column, WatchEventsPayload, QuitGuardPayload } from '../../../shar
 // allowed to read the active workspace itself; this keeps the workspace/board coupling in this
 // ONE commented place instead of threading an extra prop through every `Column.tsx` caller.
 import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
-// Tags (Task 9) — the header tag filter. `effectiveTagFilter` resolves the chosen tag id for a
+// Tags (Task 9) — the board's tag filter (FilterBar). `effectiveTagFilter` resolves the chosen tag id for a
 // workspace (null when it cannot see it); the workspace-scoped selectors below take that as a
 // SECOND required argument, same as workspaceId (spec §4.1: no denormalized tag index here).
 import { effectiveTagFilter, useTags } from './tagsStore'
@@ -1103,7 +1103,7 @@ export function useBoard<T>(selector: (state: BoardState) => T): T {
  *  workspace-agnostic. */
 export function useColumnSessions(column: Column): BoardSession[] {
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // Tags — the header filter, resolved for the active workspace (null when it cannot see it).
+  // Tags — the filter bar's tag, resolved for the active workspace (null when it cannot see it).
   const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
   return useStore(
     boardStore,

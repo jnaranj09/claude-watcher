@@ -10,7 +10,7 @@ export interface TagsState {
   /** The catalog, in TAG-LIST order (main sorts it by name). Chips render in this order. */
   tags: Tag[]
   loaded: boolean
-  /** The header filter — a tag id, or null for "All tags". */
+  /** The board's tag filter (FilterBar) — a tag id, or null for no filter. */
   activeTagId: string | null
   hydrate: (tags: Tag[]) => void
   setActiveTag: (id: string | null) => void

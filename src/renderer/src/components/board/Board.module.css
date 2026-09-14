@@ -82,14 +82,17 @@
   padding: var(--space-2) 0;
 }
 
-/* Empty BOARD (zero sessions, cold-loaded) — headline + line + the single primary. */
+/* Empty BOARD (zero sessions, cold-loaded) — headline + line + the single primary. It FILLS what
+ * is left of the board rather than taking `height: 100%`: the filtered-empty board shares the column
+ * with the filter bar above it, and 100% would push it past the bottom by the bar's height. */
 .emptyBoard {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: var(--space-8);
   text-align: center;
 }

@@ -21,6 +21,7 @@ import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
 // Story 5.6 (AC-3, AC-6) — the compact starting-terminals banner (status-line region).
 import { StartingBanner } from './StartingBanner'
 import { NewSessionButton } from '../NewSessionMenu/NewSessionButton'
+import { FilterBar } from '../FilterBar/FilterBar'
 import {
   boardStore,
   useBoard,
@@ -105,7 +106,8 @@ export function Board({
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // Tags — the header filter, resolved for this workspace (null = All tags, or a tag it cannot see).
+  // Tags — the filter bar's choice, resolved for this workspace (null = no filter, or a tag it
+  // cannot see).
   const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
   const tagName = useTags((s) =>
     tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
@@ -189,6 +191,15 @@ export function Board({
 
       <LiveAnnouncer message={coldLoaded ? announcement : ''} />
 
+      {/* Tags — the filter bar: what the board is filtered by, above the columns. It draws itself
+          only once the workspace has sessions, and stays when the filter hides them all (so the
+          operator can remove it right there). */}
+      <FilterBar
+        total={total}
+        workspaceTotal={workspaceTotal}
+        {...(onManageTags ? { onManageTags } : {})}
+      />
+
       {!coldLoaded ? (
         // AC-5 — cold-load skeleton (haven't heard from the session engine yet). NOT a
         // spinner, and DISTINCT from the empty board ("heard, and there are none").
@@ -233,9 +244,7 @@ export function Board({
           <p className={styles.emptyBoardHeadline}>
             {`No sessions tagged ${tagName ?? 'with this tag'}.`}
           </p>
-          <p className={styles.emptyBoardLine}>
-            Choose All tags in the tag filter to see every session.
-          </p>
+          <p className={styles.emptyBoardLine}>Remove the tag filter to see every session.</p>
         </div>
       ) : (
         // The live three-column grid: slots are left flank (working) · center hero

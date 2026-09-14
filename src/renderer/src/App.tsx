@@ -27,8 +27,8 @@ import { loadShortcuts } from './stores/shortcutsStore'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
 import { loadWorkspaces } from './stores/workspacesStore'
-// Tags — the header tag filter (+ Manage tags…) and the Manage-tags modal.
-import { TagFilter } from './components/TagFilter/TagFilter'
+// Tags — the header tags menu (Manage tags… / Manage rules…) and the Manage-tags modal.
+import { TagsMenu } from './components/TagsMenu/TagsMenu'
 import { TagsDialog } from './components/TagsDialog/TagsDialog'
 import { loadTags, setSessionTags } from './stores/tagsStore'
 // Rules — the Manage-rules modal (+ the startup rules load).
@@ -288,13 +288,13 @@ function App(): React.JSX.Element {
     boardStore.getState().openWorkspacesDialog()
   }, [])
 
-  // Tags — "Manage tags…" from the header tag filter. Same single-modal guard as every opener.
+  // Tags — "Manage tags…" from the header tags menu. Same single-modal guard as every opener.
   const handleManageTags = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openTagsDialog()
   }, [])
 
-  // Rules — "Manage rules…" from the header tag filter. Same single-modal guard as every opener.
+  // Rules — "Manage rules…" from the header tags menu. Same single-modal guard as every opener.
   const handleManageRules = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openRulesDialog()
@@ -586,8 +586,6 @@ function App(): React.JSX.Element {
           <span className={styles.brand}>Claude Watcher</span>
           <span className={styles.headerDivider} aria-hidden="true" />
           <WorkspaceSwitcher onManage={handleManageWorkspaces} />
-          {/* Tags — the filter says WHAT you are looking at, beside the switcher that says WHERE. */}
-          <TagFilter onManageTags={handleManageTags} onManageRules={handleManageRules} />
         </div>
         <div className={styles.headerActions}>
           <NewSessionButton
@@ -607,6 +605,9 @@ function App(): React.JSX.Element {
           >
             ⌨
           </button>
+          {/* Tags — Manage tags… / Manage rules…, beside the other settings icons. It filters
+              nothing: the tag filter is the board's FilterBar. */}
+          <TagsMenu onManageTags={handleManageTags} onManageRules={handleManageRules} />
         </div>
       </header>
       <main className={styles.main}>

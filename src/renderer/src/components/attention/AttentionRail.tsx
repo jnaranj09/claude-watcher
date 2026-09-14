@@ -463,7 +463,7 @@ function RailSection(props: {
 }): JSX.Element | null {
   const { column, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // Tags — sections follow the header filter. The PINNED row does not (it is the terminal you are
+  // Tags — sections follow the board's filter bar. The PINNED row does not (it is the terminal you are
   // typing in), and neither does the needs-you announcement (alerts ignore the filter).
   const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
   const ids = useBoard(

@@ -172,6 +172,24 @@ scope dropdown.
   so it carries `aria-haspopup="dialog"` and no `aria-expanded`. It is hidden only when there is
   no Tags dialog to open.
 
+## The board's filter bar
+
+`components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered. It sits above the
+columns, never in the header: a header button reading "All tags" did not read as a filter.
+
+- **It says what it is.** A `Filters` label, the active filter as a pill (`Tag is <chip>`: click it
+  to change the tag, `×` to remove it), `+ Add filter` while none is on, and the count on the right
+  (`5 sessions`, or `3 shown · 2 hidden by the filter`).
+- **Tag is the only filter type, so `+ Add filter` opens the tag list directly.** Add a type step
+  (`Tag ▸`, `Status ▸`) only once a second filter type exists.
+- **One tag at a time.** While a tag filter is on, the pill is where it changes, and `+ Add filter`
+  is not rendered.
+- **It draws only when the workspace has sessions**, and it stays when the filter hides them all,
+  so the operator removes the filter right where they see the empty board.
+- **No tag yet:** the list offers `Create tags…` (the Tags dialog), never an empty popup.
+- **The header keeps only the tag ICON** (`components/TagsMenu/TagsMenu.tsx`), beside ⚙ and ⌨. It
+  opens `Manage tags…` / `Manage rules…` and filters nothing.
+
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 
 Every dropdown in this app is that component. Not "prefer" — there is no case where a native

@@ -588,18 +588,31 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     expect(cardIds(container)).toEqual(['tagged'])
   })
 
-  it('names the tag when the filter hides every card — not "No sessions yet."', () => {
+  it('carries the filter bar ABOVE the columns once the workspace has sessions', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    act(() => boardStore.getState().setReconnecting(false))
+    expect(container.querySelector('[data-testid="filter-bar"]')).toBeNull()
+    applyDelta(updated(1, 'plain', 'working', 100))
+    const bar = container.querySelector('[data-testid="filter-bar"]')
+    const grid = container.querySelector('[data-testid="column-grid"]')
+    if (bar === null || grid === null) throw new Error('missing filter bar or column grid')
+    expect(bar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('names the tag when the filter hides every card — and keeps the bar to remove it', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(updated(1, 'plain', 'working', 100))
     act(() => tagsStore.getState().setActiveTag('t-prod'))
-    expect(container.querySelector('[data-testid="empty-board-filtered"]')?.textContent).toContain(
-      'No sessions tagged prod.'
-    )
+    const empty = container.querySelector('[data-testid="empty-board-filtered"]')
+    expect(empty?.textContent).toContain('No sessions tagged prod.')
+    expect(empty?.textContent).toContain('Remove the tag filter to see every session.')
     expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
+    expect(container.querySelector('[data-testid="filter-pill-tag"]')).not.toBeNull()
   })
 
-  it('keeps the plain empty board when the workspace has no sessions at all', () => {
+  it('keeps the plain empty board, with no filter bar, when the workspace has no sessions', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     act(() => boardStore.getState().setReconnecting(false))
@@ -608,6 +621,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
       'No sessions yet.'
     )
     expect(container.querySelector('[data-testid="empty-board-filtered"]')).toBeNull()
+    expect(container.querySelector('[data-testid="filter-bar"]')).toBeNull()
   })
 
   // Controller ruling (spec §4.3 applies design.md's three-empty-states rule to the board): a

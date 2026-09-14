@@ -1,0 +1,182 @@
+/* Tags — the board's filter bar (design option C, 2026-09-14). One row above the columns: a
+ * `Filters` label, the active filter as a pill, `+ Add filter`, and the count pushed right. The
+ * list mirrors the header popovers (TagsMenu / WorkspaceSwitcher). */
+.bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  margin: var(--gutter) var(--gutter) 0;
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-lg);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.anchor {
+  position: relative;
+  display: inline-flex;
+  /* Above the column grid, which paints after the bar, so the open list is never covered. */
+  z-index: 50;
+}
+
+/* `+ Add filter` — dashed, so it reads as "add one", not as a filter that is already on. */
+.add {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--rounded-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  cursor: pointer;
+}
+
+.add:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-raised);
+}
+
+/* The active filter: `Tag is <chip>` (click to change) + × (remove), one rounded pill. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-full);
+  background: var(--bg-surface-raised);
+}
+
+.pillEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 0;
+  border-radius: var(--rounded-full) 0 0 var(--rounded-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  cursor: pointer;
+}
+
+.pillEdit:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.pillKey {
+  white-space: nowrap;
+}
+
+.pillRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0 var(--rounded-full) var(--rounded-full) 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pillRemove:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.count {
+  margin-left: auto;
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+.row,
+.create {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover,
+.create:hover {
+  background: var(--bg-surface);
+}
+
+/* The chosen tag — a border, like a selected Manage-dialog row, never a fill that could read as a
+ * tag colour. */
+.row[aria-checked='true'] {
+  border-color: var(--border-strong);
+}
+
+.empty {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+}
+
+.create {
+  color: var(--text-secondary);
+}
+
+.add:focus-visible,
+.pillEdit:focus-visible,
+.pillRemove:focus-visible,
+.row:focus-visible,
+.create:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
