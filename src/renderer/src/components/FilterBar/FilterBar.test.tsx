@@ -3,6 +3,8 @@
 // It starts COLLAPSED to a small `Filters` toggle, so it costs the board less height until it is
 // used. jsdom `unit` project.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { FilterBar, type FilterBarProps } from './FilterBar'
@@ -74,9 +76,10 @@ describe('FilterBar', () => {
     const toggle = q(r, 'filter-toggle')
     // An icon, not the word: an uppercase FILTERS label read badly.
     expect(toggle?.textContent).toBe('')
-    expect(toggle?.querySelector('svg')).not.toBeNull()
+    expect(toggle?.querySelector('svg')?.getAttribute('width')).toBe('16')
     expect(toggle?.getAttribute('aria-label')).toBe('Filters')
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle?.getAttribute('data-filter-on')).toBe('false')
     expect(toggle?.getAttribute('title')).toBe('Show filters')
     expect(q(r, 'filter-add')).toBeNull()
     expect(q(r, 'filter-count')).toBeNull()
@@ -106,10 +109,30 @@ describe('FilterBar', () => {
     expect(q(r, 'filter-pill-tag')).toBeNull()
     expect(q(r, 'filter-toggle-count')?.textContent).toBe('1')
     expect(toggle?.getAttribute('aria-label')).toBe('Filters, 1 on')
+    // It lights up: the loudest state, so hidden cards are hard to forget.
+    expect(toggle?.getAttribute('data-filter-on')).toBe('true')
     click(toggle)
     expect(q(r, 'filter-pill-tag')).not.toBeNull()
     expect(q(r, 'filter-toggle-count')).toBeNull()
+    expect(toggle?.getAttribute('data-filter-on')).toBe('false')
     expect(toggle?.getAttribute('aria-label')).toBe('Filters')
+  })
+
+  // The toggle is the header ☰ button's box (AppMenu `.button`): 26px tall, a 16px icon, the same
+  // border. Open reads as PRESSED, so it draws no chevron. jsdom has no layout: read the stylesheet.
+  it('the toggle is the ☰ button’s box, draws no chevron, and lights up only through data-filter-on', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/FilterBar/FilterBar.module.css'),
+      'utf8'
+    )
+    const toggle = /\n\.toggle \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(toggle).toMatch(/height: 26px;/)
+    expect(toggle).toMatch(/border: 1px solid var\(--border\);/)
+    expect(toggle).toMatch(/border-radius: var\(--rounded-md\);/)
+    expect(css).not.toMatch(/\.toggle::after/)
+    expect(css).toMatch(
+      /\.toggle\[data-filter-on='true'\] \{[^}]*background: var\(--text-primary\);/
+    )
   })
 
   it('collapsing closes an open tag list', () => {

@@ -16,8 +16,8 @@
   border-radius: var(--rounded-lg);
 }
 
-/* Collapsed: the toggle alone, with no box around it, so the row is the toggle's 24px and not the
- * bar's 38px. The side padding and border width stay, so the toggle does not move when it opens. */
+/* Collapsed: the toggle alone, with no box around it, so the row is the toggle's height and not
+ * the bar's 38px. The side padding and border width stay, so the toggle does not move when it opens. */
 .bar[data-expanded='false'] {
   min-height: 0;
   padding-block: 0;
@@ -25,12 +25,16 @@
   border-color: transparent;
 }
 
-/* The `Filters` toggle — a funnel icon, never the word: an uppercase FILTERS label read badly. */
+/* The `Filters` toggle — the header ☰ button's box (AppMenu `.button`): 26px tall, a 16px icon, the
+ * same border and radius. An icon, never the word: an uppercase FILTERS label read badly. No
+ * chevron: open reads as PRESSED. */
 .toggle {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-1);
-  height: 22px;
+  height: 26px;
+  min-width: 34px;
   padding: 0 var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--rounded-md);
@@ -41,36 +45,30 @@
   cursor: pointer;
 }
 
-.toggle:hover {
+.toggle:hover,
+.toggle[aria-expanded='true'] {
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
 
-/* The chevron — CSS, so the button's text stays its name. */
-.toggle::after {
-  content: '▾';
-  font-size: 10px;
-  letter-spacing: 0;
-}
-
-.toggle[aria-expanded='true']::after {
-  content: '▴';
-}
-
-/* Collapsed with a filter on: how many filters are hiding cards. */
-.toggleCount {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 var(--space-1);
-  border-radius: var(--rounded-full);
+/* Open: pressed. */
+.toggle[aria-expanded='true'] {
   background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  color: var(--text-primary);
-  font-size: 10px;
-  letter-spacing: 0;
+}
+
+/* Collapsed with a filter on: LIT — a light fill with the count inside. The loudest state on the
+ * board's edge, on purpose: cards are hidden and the pill that says so is out of sight. Ink on fill
+ * is 11.6:1. Placed LAST so it wins over :hover (same specificity), whose light ink would vanish
+ * on this light fill. */
+.toggle[data-filter-on='true'] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-base);
+}
+
+.toggleCount {
+  font-size: var(--font-size-label);
+  font-weight: 700;
 }
 
 .controls {

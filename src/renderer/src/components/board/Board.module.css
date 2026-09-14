@@ -27,7 +27,7 @@
 }
 
 /* The filter bar's slot. While the bar draws, the grid below keeps only 8px of top padding: a
- * full gutter above AND below a 24px toggle read as a gap. When the bar draws nothing the slot is
+ * full gutter above AND below a 26px toggle read as a gap. When the bar draws nothing the slot is
  * empty and the grid keeps its gutter. (Never pull the grid up with a negative margin instead: its
  * box would cover the lower part of the toggle and take its clicks.) */
 .filterSlot {

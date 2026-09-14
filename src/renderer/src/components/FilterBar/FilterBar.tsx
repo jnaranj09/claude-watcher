@@ -4,9 +4,10 @@
 // while none is on, and the count. Tag is the only filter type today, so `+ Add filter` opens the
 // tag list DIRECTLY; a type step (`Tag ▸`) belongs here only once a second filter type exists.
 //
-// It starts COLLAPSED to a small funnel toggle, shorter than the bar, so it costs the board less
-// height until it is used. The toggle opens the bar in place and stays at its left; collapsed with a
-// filter on, it carries a count, because the pill is then out of sight while cards are still hidden.
+// It starts COLLAPSED to a small icon toggle (the header ☰ button's box), shorter than the bar, so it
+// costs the board less height until it is used. The toggle opens the bar in place and stays at its
+// left; collapsed with a filter on, it LIGHTS UP with the count inside, because the pill is then out
+// of sight while cards are still hidden.
 // Open/closed is local view-state, never persisted.
 //
 // The choice is renderer view-state in tagsStore (one tag at a time, never persisted), offered from
@@ -49,16 +50,17 @@ function countText(total: number, workspaceTotal: number, filtered: boolean): st
   return `${total} shown · ${workspaceTotal - total} hidden by the filter`
 }
 
-/** The toggle's funnel. An icon, never the word: an uppercase `FILTERS` label read badly. */
-function FunnelIcon(): JSX.Element {
+/** The toggle's icon: three lines getting shorter (the "filter list" mark), drawn on the ☰ icon's
+ *  grid and stroke so the two header-sized buttons match. An icon, never the word: an uppercase
+ *  `FILTERS` label read badly. */
+function FilterLinesIcon(): JSX.Element {
   return (
-    <svg width={14} height={14} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <path
-        d="M2.5 3.5h11l-4.25 5v4l-2.5-1.25V8.5z"
-        fill="none"
+        d="M2.5 4h11M4.5 8h7M6.5 12h3"
         stroke="currentColor"
-        strokeWidth={1.4}
-        strokeLinejoin="round"
+        strokeWidth={1.5}
+        strokeLinecap="round"
       />
     </svg>
   )
@@ -165,9 +167,10 @@ export function FilterBar({
         aria-controls={controlsId}
         title={expanded ? 'Hide filters' : 'Show filters'}
         aria-label={hiddenFilterOn ? 'Filters, 1 on' : 'Filters'}
+        data-filter-on={hiddenFilterOn}
         onClick={toggleExpanded}
       >
-        <FunnelIcon />
+        <FilterLinesIcon />
         {hiddenFilterOn && (
           <span className={styles.toggleCount} data-testid="filter-toggle-count">
             1

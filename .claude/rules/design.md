@@ -177,22 +177,27 @@ scope dropdown.
 `components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered. It sits above the
 columns, never in the header: a header button reading "All tags" did not read as a filter.
 
-- **It says what it is.** A funnel toggle, the active filter as a pill (`Tag is <chip>`: click it
+- **It says what it is.** A filter toggle, the active filter as a pill (`Tag is <chip>`: click it
   to change the tag, `×` to remove it), `+ Add filter` while none is on, and the count on the right
   (`5 sessions`, or `3 shown · 2 hidden by the filter`).
-- **The toggle is an ICON, never the word.** An uppercase `FILTERS` label was tried first and read
-  as bad UI. The funnel + `▾`/`▴` chevron is named `Filters` by its `aria-label` and titled
-  `Show filters` / `Hide filters`.
-- **It starts COLLAPSED to that toggle** — a 24px row instead of the 38px bar, so it costs the board
+- **The toggle is an ICON, never the word, in the header ☰ button's box.** An uppercase `FILTERS`
+  label was tried first and read as bad UI; then a 22px funnel + `▾` read as too small. It is the
+  "filter list" icon (three lines getting shorter) in the ☰ button's exact box: 26px tall, a 16px
+  icon on the ☰ icon's grid and stroke, `--border`, `--rounded-md` — and ≥ 24px, the WCAG 2.2
+  target minimum. Named `Filters` by its `aria-label`, titled `Show filters` / `Hide filters`.
+  A stylesheet test in `FilterBar.test.tsx` pins the box.
+- **No chevron: open reads as PRESSED** (`--bg-surface-raised` fill, `--border-strong`).
+- **It starts COLLAPSED to that toggle** — a 28px row instead of the 38px bar, so it costs the board
   less height until it is used. The toggle opens the bar in place and stays at its left; collapsing
   closes an open list. Open/closed is not persisted.
 - **It sits tight: 8px under the header, 8px above the columns** (not the 16px gutter either side,
-  which read as a gap around a 24px control). The grid trims its top padding only while the bar
-  draws (`Board.module.css` `.filterSlot`). Never pull the grid up with a negative margin: its box
-  would cover the lower part of the toggle and take its clicks.
-- **Collapsed with a filter on, the toggle carries a count** (a `1` badge beside the funnel, named
-  `Filters, 1 on`). The pill is then out of sight while cards are still hidden, and nothing else
-  would say why.
+  which read as a gap around the toggle). The grid trims its top padding only while the bar draws
+  (`Board.module.css` `.filterSlot`). Never pull the grid up with a negative margin: its box would
+  cover the lower part of the toggle and take its clicks.
+- **Collapsed with a filter on, the toggle LIGHTS UP** — `--text-primary` fill, `--bg-base` ink,
+  the count inside (named `Filters, 1 on`). The loudest thing on the board's edge, on purpose: cards
+  are hidden and the pill that says so is out of sight. (A corner count badge was the quieter
+  option; the operator chose this one.)
 - **Tag is the only filter type, so `+ Add filter` opens the tag list directly.** Add a type step
   (`Tag ▸`, `Status ▸`) only once a second filter type exists.
 - **One tag at a time.** While a tag filter is on, the pill is where it changes, and `+ Add filter`
