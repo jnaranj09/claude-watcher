@@ -15,7 +15,7 @@ import type { Shortcut } from '../../shared/ipc/contract'
 const SC: Shortcut = {
   id: 'sc-1',
   name: 'approve',
-  keys: ['Ctrl+Alt+A'],
+  alias: 'ap',
   text: 'I explicitly approve',
   workspaceId: null
 }

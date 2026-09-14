@@ -87,7 +87,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       soundEnabled: false,
       terminalFontSize: 22,
       reminderCount: 3,
-      reminderFirstDelayMinutes: 2
+      reminderFirstDelayMinutes: 2,
+      expanderKey: 'X'
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
@@ -113,7 +114,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       soundEnabled: false,
       terminalFontSize: 16,
       reminderCount: 3,
-      reminderFirstDelayMinutes: 2
+      reminderFirstDelayMinutes: 2,
+      expanderKey: 'X'
     })
   })
 })

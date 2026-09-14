@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createShortcutsStore, SHORTCUT_ERROR, type ShortcutsBlobStore } from './shortcuts'
-import { shortcutKeysId, type ShortcutsFile } from '../../shared/schemas/shortcut'
+import type { ShortcutsFile } from '../../shared/schemas/shortcut'
 
 function fakeBlobStore(initial?: unknown): ShortcutsBlobStore & {
   written: ShortcutsFile[]
@@ -19,8 +19,8 @@ function fakeBlobStore(initial?: unknown): ShortcutsBlobStore & {
   }
 }
 
-const A = { name: 'approve', keys: ['Ctrl+Alt+A'], text: 'I explicitly approve', workspaceId: null }
-const B = { name: 'go on', keys: ['Ctrl+Alt+G'], text: 'continue', workspaceId: null }
+const A = { name: 'approve', alias: 'ap', text: 'I explicitly approve', workspaceId: null }
+const B = { name: 'go on', alias: 'go', text: 'continue', workspaceId: null }
 
 function idSeq(): () => string {
   let n = 0
@@ -54,83 +54,30 @@ describe('createShortcutsStore', () => {
     expect(() => store.save({ id: 'nope', ...A })).toThrow(SHORTCUT_ERROR.notFound)
   })
 
-  it('throws keys_taken when another row already holds the chord', () => {
+  it('throws alias_taken when another row already holds the alias', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     store.save(A)
     expect(() => store.save(B)).not.toThrow()
-    expect(() => store.save({ ...B, name: 'dup', keys: ['Ctrl+Alt+A'] })).toThrow(
-      SHORTCUT_ERROR.keysTaken
-    )
+    expect(() => store.save({ ...B, alias: 'ap' })).toThrow(SHORTCUT_ERROR.aliasTaken)
   })
 
-  it("does NOT report keys_taken against the row's own chord", () => {
+  it('an update keeping its OWN alias is not a collision', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     store.save(A)
-    expect(() => store.save({ id: 'sc-1', ...A, name: 'renamed' })).not.toThrow()
+    expect(() => store.save({ id: 'sc-1', ...A, text: 'changed' })).not.toThrow()
   })
 
-  it('allows two shortcuts to share a name (uniqueness is on the chord only)', () => {
+  it('allows two shortcuts to share a name (uniqueness is on the alias only)', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     store.save(A)
     expect(() => store.save({ ...B, name: A.name })).not.toThrow()
   })
 
-  it('lists sorted by chord', () => {
+  it('lists sorted by alias', () => {
     const store = createShortcutsStore({ newId: idSeq() })
-    store.save(B) // Ctrl+Alt+G
-    store.save(A) // Ctrl+Alt+A
-    expect(store.list().map((s) => shortcutKeysId(s.keys))).toEqual(['Ctrl+Alt+A', 'Ctrl+Alt+G'])
-  })
-
-  it('throws keys_taken for a duplicate FULL sequence', () => {
-    const store = createShortcutsStore({ newId: idSeq() })
-    store.save({
-      name: 'one',
-      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 'first',
-      workspaceId: null
-    })
-    expect(() =>
-      store.save({
-        name: 'two',
-        keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-        text: 'second',
-        workspaceId: null
-      })
-    ).toThrow(SHORTCUT_ERROR.keysTaken)
-  })
-
-  // The operator's explicit requirement: a prefix and its extension are DIFFERENT bindings and
-  // must coexist. Making isKeysTaken compare prefixes must turn this red.
-  it('lets a PREFIX coexist with the sequence it prefixes', () => {
-    const store = createShortcutsStore({ newId: idSeq() })
-    store.save({
-      name: 'long',
-      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 'long phrase',
-      workspaceId: null
-    })
-    expect(() =>
-      store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short phrase', workspaceId: null })
-    ).not.toThrow()
-    expect(store.list()).toHaveLength(2)
-  })
-
-  it('sorts by the canonical sequence id, so a prefix sorts before its extensions', () => {
-    const store = createShortcutsStore({ newId: idSeq() })
-    store.save({
-      name: 'long',
-      keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
-      text: 'long',
-      workspaceId: null
-    })
-    store.save({ name: 'short', keys: ['Ctrl+Alt+O'], text: 'short', workspaceId: null })
-    store.save({ name: 'other', keys: ['Ctrl+Alt+B'], text: 'other', workspaceId: null })
-    expect(store.list().map((s) => shortcutKeysId(s.keys))).toEqual([
-      'Ctrl+Alt+B',
-      'Ctrl+Alt+O',
-      'Ctrl+Alt+O Ctrl+Alt+A'
-    ])
+    store.save({ ...A, alias: 'zz' })
+    store.save({ ...B, alias: 'aa' })
+    expect(store.list().map((s) => s.alias)).toEqual(['aa', 'zz'])
   })
 
   it('remove is idempotent for an unknown id', () => {
@@ -141,9 +88,30 @@ describe('createShortcutsStore', () => {
   })
 
   it('hydrates from a healthy file', () => {
-    const file = { version: 2, shortcuts: [{ id: 'sc-9', ...A }] }
+    const file = { version: 3, shortcuts: [{ id: 'sc-9', ...A }] }
     const store = createShortcutsStore({ blobStore: fakeBlobStore(file), newId: idSeq() })
     expect(store.get('sc-9')).toEqual({ id: 'sc-9', ...A })
+  })
+
+  it('loads a v2 file through the migration and persists it as v3', () => {
+    const blob = fakeBlobStore({
+      version: 2,
+      shortcuts: [
+        {
+          id: 'old-1',
+          name: 'approve',
+          keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+          text: 'I explicitly approve',
+          workspaceId: null
+        }
+      ]
+    })
+    const store = createShortcutsStore({ blobStore: blob, newId: idSeq() })
+    expect(store.list()).toEqual([
+      { id: 'old-1', name: 'approve', alias: 'oa', text: 'I explicitly approve', workspaceId: null }
+    ])
+    expect(blob.written[0]?.version).toBe(3)
+    expect(blob.backups).toBe(0)
   })
 
   it('backs up + resets to empty on a corrupt file, logging a CODE only', () => {
@@ -177,9 +145,9 @@ describe('createShortcutsStore', () => {
   it('removeByWorkspace deletes only that workspace rows and returns the count', () => {
     const blob = fakeBlobStore()
     const store = createShortcutsStore({ blobStore: blob, newId: idSeq() })
-    store.save({ name: 'glob', keys: ['Ctrl+Alt+A'], text: 'global', workspaceId: null })
-    store.save({ name: 'one', keys: ['Ctrl+Alt+B'], text: 'one', workspaceId: 'w1' })
-    store.save({ name: 'two', keys: ['Ctrl+Alt+C'], text: 'two', workspaceId: 'w2' })
+    store.save({ name: 'glob', alias: 'gl', text: 'global', workspaceId: null })
+    store.save({ name: 'one', alias: 'on', text: 'one', workspaceId: 'w1' })
+    store.save({ name: 'two', alias: 'tw', text: 'two', workspaceId: 'w2' })
     const before = blob.written.length
     expect(store.removeByWorkspace('w1')).toBe(1)
     expect(store.list().map((s) => s.name)).toEqual(['glob', 'two'])
@@ -187,7 +155,7 @@ describe('createShortcutsStore', () => {
     // resurrected under a workspace that no longer exists. Deleting the persist() call inside
     // removeByWorkspace must turn this red.
     expect(blob.written.length).toBe(before + 1)
-    expect(blob.written.at(-1)).toEqual({ version: 2, shortcuts: store.list() })
+    expect(blob.written.at(-1)).toEqual({ version: 3, shortcuts: store.list() })
   })
 
   it('NEVER logs a shortcut value (name or text) on any path', () => {

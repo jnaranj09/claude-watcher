@@ -1,8 +1,6 @@
 // Phrase shortcuts — PURE form helpers, unit-tested without React. No store access, no window
-// access. Chord PARSING is deliberately not here: it lives in src/renderer/src/shortcuts/chord.ts
-// so the dialog recorder and the terminal matcher share ONE definition of a chord.
+// access. The "Open with" chord recorder uses src/renderer/src/shortcuts/chord.ts directly.
 import {
-  shortcutKeysId,
   ShortcutSaveSchema,
   type Shortcut,
   type ShortcutSaveRequest
@@ -12,25 +10,21 @@ export interface ShortcutDraft {
   /** null ⇒ a NEW shortcut (create); a string ⇒ an update. */
   id: string | null
   name: string
-  /** 1..3 chords; [] while the operator has not recorded one yet. */
-  keys: string[]
+  /** The word typed first in the box. Kept as typed here; the schema lowercases on save. */
+  alias: string
   text: string
-  /** Workspaces — round-trips the shortcut's scope through the draft UNCHANGED, so `toDraft` →
-   *  `draftToSaveRequest` does not silently reset an existing scope to GLOBAL on every edit. */
   workspaceId: string | null
 }
 
 export function emptyDraft(): ShortcutDraft {
-  return { id: null, name: '', keys: [], text: '', workspaceId: null }
+  return { id: null, name: '', alias: '', text: '', workspaceId: null }
 }
 
 export function toDraft(shortcut: Shortcut): ShortcutDraft {
-  // Copy the array: the draft is replaced wholesale by the recorder and must not alias store
-  // state, which is a projection of main's truth.
   return {
     id: shortcut.id,
     name: shortcut.name,
-    keys: [...shortcut.keys],
+    alias: shortcut.alias,
     text: shortcut.text,
     workspaceId: shortcut.workspaceId
   }
@@ -46,11 +40,11 @@ export function draftToSaveRequest(draft: ShortcutDraft): DraftResult {
   // it.
   const candidate =
     draft.id === null
-      ? { name: draft.name, keys: draft.keys, text: draft.text, workspaceId: draft.workspaceId }
+      ? { name: draft.name, alias: draft.alias, text: draft.text, workspaceId: draft.workspaceId }
       : {
           id: draft.id,
           name: draft.name,
-          keys: draft.keys,
+          alias: draft.alias,
           text: draft.text,
           workspaceId: draft.workspaceId
         }
@@ -67,32 +61,31 @@ export function isDraftDirty(draft: ShortcutDraft, shortcut: Shortcut | null): b
   const base = shortcut === null ? emptyDraft() : toDraft(shortcut)
   return (
     draft.name !== base.name ||
-    // By VALUE — two equal sequences are different array objects.
-    shortcutKeysId(draft.keys) !== shortcutKeysId(base.keys) ||
+    draft.alias !== base.alias ||
     draft.text !== base.text ||
     draft.workspaceId !== base.workspaceId
   )
 }
 
-export type ShortcutErrorCode = 'shortcut_keys_taken' | 'shortcut_not_found' | 'unknown'
+export type ShortcutErrorCode = 'shortcut_alias_taken' | 'shortcut_not_found' | 'unknown'
 
 /**
  * Map a rejected save to a code the dialog can render.
  *
- * Matched with `.includes(...)`, not `===`: main throws `new Error('shortcut_keys_taken')` and
+ * Matched with `.includes(...)`, not `===`: main throws `new Error('shortcut_alias_taken')` and
  * Electron wraps it as `Error invoking remote method '…': Error: <msg>` on the way across the
  * seam. Same reasoning (and the same verified behavior) as `templateErrorMessage` in
  * TemplatesDialog/templateForm.ts.
  */
 export function shortcutErrorCode(err: unknown): ShortcutErrorCode {
   const message = err instanceof Error ? err.message : ''
-  if (message.includes('shortcut_keys_taken')) return 'shortcut_keys_taken'
+  if (message.includes('shortcut_alias_taken')) return 'shortcut_alias_taken'
   if (message.includes('shortcut_not_found')) return 'shortcut_not_found'
   return 'unknown'
 }
 
 export const SHORTCUT_ERROR_COPY: Record<ShortcutErrorCode, string> = {
-  shortcut_keys_taken: 'That chord is already used by another shortcut.',
+  shortcut_alias_taken: 'That alias is already used by another shortcut.',
   shortcut_not_found: 'That shortcut no longer exists.',
   unknown: 'Could not save the shortcut.'
 }

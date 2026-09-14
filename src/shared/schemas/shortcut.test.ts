@@ -4,17 +4,19 @@ import {
   ShortcutSaveSchema,
   ShortcutDeleteSchema,
   ShortcutsFileSchema,
-  shortcutKeysId,
-  SHORTCUT_SEQUENCE_MAX_CHORDS,
+  parseShortcutsFile,
+  aliasFromChords,
+  scanPlaceholders,
+  SHORTCUT_ALIAS_MAX_LENGTH,
   SHORTCUT_TEXT_MAX_LENGTH,
   SHORTCUTS_FILE_VERSION
 } from './shortcut'
 
 const VALID = {
   id: 'sc-1',
-  name: 'approve',
-  keys: ['Ctrl+Alt+A'],
-  text: 'I explicitly approve',
+  name: 'help desk',
+  alias: 'ht',
+  text: 'work on help desk ticket $1',
   workspaceId: null
 }
 
@@ -23,11 +25,20 @@ describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
     expect(ShortcutSchema.parse(VALID)).toEqual(VALID)
   })
 
-  // Same convention as TemplateSchema: unknown keys are STRIPPED, not passed through. A future
-  // `submit` flag therefore cannot sneak in through a hand-edited file (spec S-1), and an
-  // additive field from a newer build does not fail the whole file closed on a downgrade.
   it('strips an unknown extra key (no passthrough)', () => {
     expect(ShortcutSchema.parse({ ...VALID, submit: true })).toEqual(VALID)
+  })
+
+  it('workspaceId defaults to null (GLOBAL) when absent — protects a pre-workspaces row from failing closed', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { workspaceId: _w, ...noWorkspace } = VALID
+    expect(ShortcutSchema.parse(noWorkspace).workspaceId).toBe(null)
+  })
+
+  it('rejects the retired keys field shape (keys without alias)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { alias: _a, ...noAlias } = VALID
+    expect(ShortcutSchema.safeParse({ ...noAlias, keys: ['Ctrl+Alt+A'] }).success).toBe(false)
   })
 
   // --- text: the S-1 guard. A phrase can never carry a submit or an escape. ---
@@ -52,135 +63,152 @@ describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
     expect(parsed.text).toBe('run the tests and ')
   })
 
-  // --- name ---
   it('rejects a blank name and a name with control characters', () => {
     expect(ShortcutSchema.safeParse({ ...VALID, name: '   ' }).success).toBe(false)
     expect(ShortcutSchema.safeParse({ ...VALID, name: 'bad\nname' }).success).toBe(false)
   })
 })
 
-describe('ShortcutKeysSchema — a 1..3 chord sequence in the Ctrl+Alt namespace', () => {
-  it.each([
-    ['one chord', ['Ctrl+Alt+A']],
-    ['two chords', ['Ctrl+Alt+O', 'Ctrl+Alt+A']],
-    ['three chords', ['Ctrl+Alt+O', 'Ctrl+Alt+A', 'Ctrl+Alt+Z']],
-    ['a repeated chord', ['Ctrl+Alt+A', 'Ctrl+Alt+A']]
-  ])('accepts %s', (_label, keys) => {
-    expect(ShortcutSchema.safeParse({ ...VALID, keys }).success).toBe(true)
-  })
-
-  // The reserved list is GONE — every letter is assignable (design §6). Restoring the
-  // isReservedShortcutLetter refine must turn this red.
-  it.each([['N'], ['Q'], ['W'], ['I'], ['J'], ['C'], ['R']])(
-    'accepts the formerly reserved letter %s',
-    (letter) => {
-      expect(ShortcutSchema.safeParse({ ...VALID, keys: [`Ctrl+Alt+${letter}`] }).success).toBe(
-        true
-      )
+describe('ShortcutAliasSchema — the word the operator types first', () => {
+  it.each([['ht'], ['a'], ['dp2'], ['x'.repeat(SHORTCUT_ALIAS_MAX_LENGTH)]])(
+    'accepts %s',
+    (alias) => {
+      expect(ShortcutSchema.parse({ ...VALID, alias }).alias).toBe(alias)
     }
   )
 
+  it('lowercases and trims', () => {
+    expect(ShortcutSchema.parse({ ...VALID, alias: '  HT ' }).alias).toBe('ht')
+  })
+
   it.each([
-    ['an empty sequence', []],
-    ['four chords', ['Ctrl+Alt+A', 'Ctrl+Alt+B', 'Ctrl+Alt+C', 'Ctrl+Alt+D']],
-    ['the old Ctrl+Shift namespace', ['Ctrl+Shift+A']],
-    ['plain Ctrl', ['Ctrl+A']],
-    ['a bare letter', ['A']],
-    ['lower case', ['ctrl+alt+a']],
-    ['a digit', ['Ctrl+Alt+1']],
-    ['two letters', ['Ctrl+Alt+AB']],
-    ['reversed order', ['Alt+Ctrl+A']],
-    ['an extra modifier', ['Ctrl+Alt+Shift+A']],
-    ['a trailing space', ['Ctrl+Alt+A ']],
-    ['an empty chord', ['']],
-    ['a mixed-in bad chord', ['Ctrl+Alt+A', 'Ctrl+Shift+B']]
-  ])('rejects %s', (_label, keys) => {
-    expect(ShortcutSchema.safeParse({ ...VALID, keys }).success).toBe(false)
-  })
-
-  it('rejects a bare string (keys is an array now)', () => {
-    expect(ShortcutSchema.safeParse({ ...VALID, keys: 'Ctrl+Alt+A' }).success).toBe(false)
-  })
-
-  // The fail-closed log is PATH + CODE only, so the path has to stay informative: a per-element
-  // schema names the offending CHORD INDEX. A delimited string would collapse to one opaque
-  // issue on `keys`.
-  it('reports the failing CHORD INDEX in the issue path', () => {
-    const parsed = ShortcutSchema.safeParse({ ...VALID, keys: ['Ctrl+Alt+A', 'nope'] })
-    expect(parsed.success).toBe(false)
-    if (parsed.success) return
-    expect(parsed.error.issues[0]?.path).toEqual(['keys', 1])
-  })
-
-  it('caps the sequence at SHORTCUT_SEQUENCE_MAX_CHORDS', () => {
-    expect(SHORTCUT_SEQUENCE_MAX_CHORDS).toBe(3)
+    ['empty', ''],
+    ['blank', '   '],
+    ['a space inside', 'h t'],
+    ['punctuation', 'h-t'],
+    ['too long', 'x'.repeat(SHORTCUT_ALIAS_MAX_LENGTH + 1)],
+    ['a control character', 'h\u0000t']
+  ])('rejects %s', (_label, alias) => {
+    expect(ShortcutSchema.safeParse({ ...VALID, alias }).success).toBe(false)
   })
 })
 
-describe('shortcutKeysId', () => {
-  it('joins chords with a single space', () => {
-    expect(shortcutKeysId(['Ctrl+Alt+O', 'Ctrl+Alt+A'])).toBe('Ctrl+Alt+O Ctrl+Alt+A')
+describe('placeholders in text', () => {
+  it('scanPlaceholders reports the numbers used and whether $* appears', () => {
+    expect(scanPlaceholders('deploy $1 to $2 $*')).toEqual({
+      numbers: new Set([1, 2]),
+      rest: true
+    })
+    expect(scanPlaceholders('plain')).toEqual({ numbers: new Set(), rest: false })
   })
 
-  it('is the chord itself for a single-chord sequence', () => {
-    expect(shortcutKeysId(['Ctrl+Alt+O'])).toBe('Ctrl+Alt+O')
+  it('scanPlaceholders does not count an escaped $$1', () => {
+    expect(scanPlaceholders('cost $$1')).toEqual({ numbers: new Set(), rest: false })
   })
 
-  it('is the empty string for an empty sequence', () => {
-    expect(shortcutKeysId([])).toBe('')
+  it.each([['$1'], ['$1 and $2'], ['$* only'], ['$$ literal'], ['$1 $1 twice'], ['$0 is text']])(
+    'accepts text %s',
+    (text) => {
+      expect(ShortcutSchema.safeParse({ ...VALID, text }).success).toBe(true)
+    }
+  )
+
+  it.each([['$2'], ['$1 and $3']])('rejects a gap: %s', (text) => {
+    expect(ShortcutSchema.safeParse({ ...VALID, text }).success).toBe(false)
   })
 })
 
 describe('ShortcutSaveSchema / ShortcutDeleteSchema', () => {
-  it('makes id optional on save (no id ⇒ create)', () => {
+  it('save without id ⇒ create; with id ⇒ update', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id: _id, ...noId } = VALID
-    expect(ShortcutSaveSchema.parse(noId)).toEqual(noId)
-    expect(ShortcutSaveSchema.parse(VALID).id).toBe('sc-1')
+    const { id: _id, ...create } = VALID
+    expect(ShortcutSaveSchema.parse(create)).toEqual(create)
+    expect(ShortcutSaveSchema.parse(VALID)).toEqual(VALID)
   })
 
-  it('requires a non-empty id on delete', () => {
-    expect(ShortcutDeleteSchema.parse({ id: 'sc-1' })).toEqual({ id: 'sc-1' })
+  it('delete needs a non-empty id', () => {
     expect(ShortcutDeleteSchema.safeParse({ id: '' }).success).toBe(false)
+    expect(ShortcutDeleteSchema.parse({ id: 'sc-1' })).toEqual({ id: 'sc-1' })
   })
 })
 
-describe('ShortcutsFileSchema', () => {
-  it('accepts version 2 with rows and rejects any other version', () => {
-    expect(ShortcutsFileSchema.parse({ version: 2, shortcuts: [VALID] }).shortcuts).toHaveLength(1)
-    expect(ShortcutsFileSchema.safeParse({ version: 3, shortcuts: [] }).success).toBe(false)
+describe('ShortcutsFileSchema v3', () => {
+  it('the version is 3', () => {
+    expect(SHORTCUTS_FILE_VERSION).toBe(3)
   })
 
-  // A stale v1 file fails on ONE path (`version`) and the store's EXISTING corrupt path backs it
-  // up beside itself + starts empty. That is the migration (design §7) — no migration code.
-  it('rejects a stale version 1 file', () => {
-    expect(
-      ShortcutsFileSchema.safeParse({
-        version: 1,
-        shortcuts: [{ ...VALID, keys: 'Ctrl+Shift+A' }]
-      }).success
-    ).toBe(false)
+  it('accepts a v3 file', () => {
+    const file = { version: 3, shortcuts: [VALID] }
+    expect(ShortcutsFileSchema.parse(file)).toEqual(file)
   })
 
-  it('fails the WHOLE file closed when any row is bad', () => {
-    const bad = { version: 2, shortcuts: [VALID, { ...VALID, id: 'sc-2', keys: ['Ctrl+A'] }] }
-    expect(ShortcutsFileSchema.safeParse(bad).success).toBe(false)
+  it('rejects a v2 file (the plain schema has no migration)', () => {
+    expect(ShortcutsFileSchema.safeParse({ version: 2, shortcuts: [] }).success).toBe(false)
   })
 })
 
-describe('workspaceId — the item-level scope (Task 6)', () => {
-  it('defaults workspaceId to null for a file written before the field existed', () => {
-    const legacy = {
-      version: 2,
-      shortcuts: [{ id: 's1', name: 'S', keys: ['Ctrl+Alt+A'], text: 'hi' }]
-    }
-    const parsed = ShortcutsFileSchema.parse(legacy)
-    expect(parsed.shortcuts[0]?.workspaceId).toBeNull()
+describe('parseShortcutsFile — v3, or a migrated v2, or a throw', () => {
+  const V2_ROW = {
+    id: 'sc-2',
+    name: 'approve',
+    keys: ['Ctrl+Alt+O', 'Ctrl+Alt+A'],
+    text: 'I explicitly approve',
+    workspaceId: 'w1'
+  }
+
+  it('returns a v3 file unchanged', () => {
+    const file = { version: 3, shortcuts: [VALID] }
+    expect(parseShortcutsFile(file)).toEqual(file)
   })
 
-  // Corrected against this branch's shortcut.ts: SHORTCUTS_FILE_VERSION is 2 here, not 3 — the
-  // point is unchanged either way, a bump on the way in would fail every existing file closed.
-  it('keeps SHORTCUTS_FILE_VERSION at 2 — a bump would wipe every saved shortcut', () => {
-    expect(SHORTCUTS_FILE_VERSION).toBe(2)
+  it('migrates a v2 file: alias from the chord letters, keys dropped, version 3', () => {
+    const migrated = parseShortcutsFile({ version: 2, shortcuts: [V2_ROW] })
+    expect(migrated).toEqual({
+      version: 3,
+      shortcuts: [
+        {
+          id: 'sc-2',
+          name: 'approve',
+          alias: 'oa',
+          text: 'I explicitly approve',
+          workspaceId: 'w1'
+        }
+      ]
+    })
+  })
+
+  it('migrates a v2 phrase containing a literal $: doubled to $$, so it stays literal under v3', () => {
+    const row = { ...V2_ROW, text: 'explain what $1 costs' }
+    const migrated = parseShortcutsFile({ version: 2, shortcuts: [row] })
+    expect(migrated.shortcuts[0]?.text).toBe('explain what $$1 costs')
+  })
+
+  it('migrates a v2 row missing workspaceId to GLOBAL', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { workspaceId: _w, ...row } = V2_ROW
+    expect(parseShortcutsFile({ version: 2, shortcuts: [row] }).shortcuts[0]?.workspaceId).toBe(
+      null
+    )
+  })
+
+  it('throws on a v2 file with a malformed chord (no half migration)', () => {
+    expect(() =>
+      parseShortcutsFile({ version: 2, shortcuts: [{ ...V2_ROW, keys: ['Ctrl+A'] }] })
+    ).toThrow()
+  })
+
+  it.each([
+    ['a v1 file', { version: 1, shortcuts: [] }],
+    ['a non-object', 'nope'],
+    ['a v3 file with a bad row', { version: 3, shortcuts: [{ ...VALID, alias: '' }] }]
+  ])('throws on %s', (_label, raw) => {
+    expect(() => parseShortcutsFile(raw)).toThrow()
+  })
+})
+
+describe('aliasFromChords', () => {
+  it('joins the lowercased letters', () => {
+    expect(aliasFromChords(['Ctrl+Alt+O', 'Ctrl+Alt+A'])).toBe('oa')
+    expect(aliasFromChords(['Ctrl+Alt+Z'])).toBe('z')
   })
 })

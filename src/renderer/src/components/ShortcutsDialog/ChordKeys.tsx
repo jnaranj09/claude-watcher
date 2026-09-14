@@ -1,8 +1,11 @@
-// Phrase shortcuts — render a 1..3 chord sequence as key chips.
+// Phrase shortcuts — render a chord (or a short list of them) as key chips.
 //
-// One chip per chord: "Ctrl+Alt+O Ctrl+Alt+A Ctrl+Alt+B" as a single mono string is 32 characters
-// of near-identical text and reads as noise. The chips also carry a literal space between them, so
-// the accessible/text form of the element stays the space-joined id (shortcutKeysId).
+// Since the expander replaced per-shortcut chord sequences with the ONE `expanderKey` open
+// chord, every caller passes a single-element array (the dialog subtitle and the header
+// recorder both do `keys={[chord]}`). The array shape stays rather than narrowing the prop to
+// one string: one chip per chord reads better than cramming multiple chords into one mono
+// string, and keeping the list shape costs nothing while leaving room for a future caller that
+// legitimately shows more than one chord side by side.
 import { Fragment, type JSX } from 'react'
 import styles from './ShortcutsDialog.module.css'
 

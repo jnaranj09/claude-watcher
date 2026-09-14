@@ -184,9 +184,16 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   is a renderer selector (`selectNeedsYouCountByWorkspace`). Do NOT add a workspace filter in
   main; it would be a drift-prone duplicate.
 - **`Template.workspaceId` / `Shortcut.workspaceId` use `.nullable().default(null)`** (null =
-  GLOBAL) and the file versions stay `TEMPLATES_FILE_VERSION = 1` / `SHORTCUTS_FILE_VERSION = 2`.
-  Bumping either makes every existing file fail closed → backed up → started EMPTY, losing every
-  saved template and shortcut.
+  GLOBAL) and the file versions stay `TEMPLATES_FILE_VERSION = 1` / `SHORTCUTS_FILE_VERSION = 3`
+  (v2 → v3 is the ONE migration, in `parseShortcutsFile`; a chord sequence became an alias).
+  Bumping either WITHOUT a migration makes every existing file fail closed → backed up → started
+  EMPTY, losing every saved template and shortcut — the warning still stands for templates, and
+  for any future shortcuts bump that skips the migration step.
+- **Shortcuts are reached by ALIAS, not by a chord of their own.** One chord
+  (`settings.expanderKey`, `Ctrl+Alt+X` by default) opens `ExpanderBox` inside the focused
+  terminal; `<alias> <values…>` expands `$1..$9` / `$*` / `$$` (`src/renderer/src/shortcuts/expand.ts`,
+  pure) and the result is TYPED over the port, never submitted. Any other `Ctrl+Alt` chord still
+  reaches the pty untouched.
 - **A workspace switch unmounts NOTHING.** Hidden terminals stay in `launchedTerminals` and
   render `active={false}` → `visibility:hidden` on the whole frame. Live xterms accumulate
   across workspaces; bounding that memory is a separate IdeasBoard item.
