@@ -88,6 +88,8 @@ export interface BoardProps {
   onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
   /** Tags — card Tags… seam. Omitted ⇒ no Tags… button. */
   onSetCardTags?: (id: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog; a card's Tags… button uses it while no tag exists yet. */
+  onManageTags?: () => void
 }
 
 export function Board({
@@ -97,7 +99,8 @@ export function Board({
   onManageTemplates,
   onRenameCard,
   onMoveCardToWorkspace,
-  onSetCardTags
+  onSetCardTags,
+  onManageTags
 }: BoardProps): JSX.Element {
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
@@ -250,6 +253,7 @@ export function Board({
               {...(onRenameCard ? { onRenameCard } : {})}
               {...(onMoveCardToWorkspace ? { onMoveCardToWorkspace } : {})}
               {...(onSetCardTags ? { onSetCardTags } : {})}
+              {...(onManageTags ? { onManageTags } : {})}
             />
           ))}
         </div>

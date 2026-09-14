@@ -7,9 +7,28 @@ import { renderComponent, type RenderResult } from './test/renderComponent'
 import App from './App'
 import { boardStore } from './stores/boardStore'
 import { tagsStore } from './stores/tagsStore'
-import type { QuitGuardPayload, Tag } from '../../shared/ipc/contract'
+import type { QuitGuardPayload, Tag, WatchEventsPayload } from '../../shared/ipc/contract'
 
 const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
+
+/** An untagged card in the Default workspace (the one a fresh workspacesStore is active on). */
+function untaggedCard(id: string): WatchEventsPayload {
+  return {
+    epoch: 0,
+    event: {
+      type: 'session.updated',
+      id,
+      sessionName: 'card',
+      projectPath: '/home/op/project',
+      status: 'Working',
+      column: 'working',
+      enteredColumnAt: 100,
+      pid: 4242,
+      workspaceId: 'default',
+      tagIds: []
+    }
+  }
+}
 
 async function flush(): Promise<void> {
   await act(async () => {
@@ -185,6 +204,16 @@ describe('App — tags', () => {
     expect(boardStore.getState().tagsDialogOpen).toBe(true)
     act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
     expect(boardStore.getState().tagsDialogOpen).toBe(false)
+  })
+
+  it('with no tags yet, a card tags button opens the Tags dialog', async () => {
+    ;(window as unknown as { tags: { list: () => Promise<Tag[]> } }).tags.list = vi.fn(() =>
+      Promise.resolve([])
+    )
+    const r = await renderApp()
+    act(() => boardStore.getState().applyWatchEvent(untaggedCard('s1')))
+    click(q(r, '[data-session-id="s1"] [data-testid="card-tags-button"]'))
+    expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()
   })
 
   it('Manage rules… opens the Rules dialog under the single-modal rule; Escape closes it', async () => {

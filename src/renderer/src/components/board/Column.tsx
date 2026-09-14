@@ -97,6 +97,8 @@ function EmphasizedSessionCard(props: {
   onMoveCardToWorkspace?: ((id: string, workspaceId: string) => void) | undefined
   /** Tags — the Tags… seam, threaded to the card's Tags… menu. */
   onSetCardTags?: ((id: string, tagIds: string[]) => void) | undefined
+  /** Tags — opens the Tags dialog; the card's Tags… button uses it while no tag exists yet. */
+  onManageTags?: (() => void) | undefined
 }): JSX.Element {
   const {
     session,
@@ -108,7 +110,8 @@ function EmphasizedSessionCard(props: {
     onRenameCard,
     workspaces,
     onMoveCardToWorkspace,
-    onSetCardTags
+    onSetCardTags,
+    onManageTags
   } = props
   const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
   // Tags — this card's chips (tag-list order) and what its Tags… menu may offer (T-11). Arrays →
@@ -146,7 +149,8 @@ function EmphasizedSessionCard(props: {
       {...(onSetCardTags
         ? {
             availableTags,
-            onSetTags: (tagIds: string[]) => onSetCardTags(session.id, tagIds)
+            onSetTags: (tagIds: string[]) => onSetCardTags(session.id, tagIds),
+            ...(onManageTags ? { onManageTags } : {})
           }
         : {})}
     />
@@ -168,6 +172,8 @@ export interface ColumnProps {
   onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
   /** Tags — called when a card's Tags… menu changes its tags. Omitted ⇒ no Tags… button. */
   onSetCardTags?: (id: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog; a card's Tags… button uses it while no tag exists yet. */
+  onManageTags?: () => void
   /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
    *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
   selectedId?: string | null
@@ -180,6 +186,7 @@ export function Column({
   onRenameCard,
   onMoveCardToWorkspace,
   onSetCardTags,
+  onManageTags,
   selectedId = null
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
@@ -237,6 +244,7 @@ export function Column({
               workspaces={workspaces}
               onMoveCardToWorkspace={onMoveCardToWorkspace}
               onSetCardTags={onSetCardTags}
+              onManageTags={onManageTags}
             />
           ))}
         </div>

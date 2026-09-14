@@ -161,7 +161,8 @@ function tagSuffix(tags: readonly Tag[]): string {
  *  (a sibling of the row, like the rename pencil — a `<button>` cannot nest in the row `<button>`).
  *  Clicking it PEEKS the row: every chip on a line of its own, plus `Edit` (opens the picker). An
  *  untagged row gets the same toggle, hover-revealed, when tagging is wired and its workspace has
- *  tags — so a session can still be tagged from the rail. `showAllTags` (the header toggle) instead
+ *  tags — so a session can still be tagged from the rail — and, while no tag exists yet, one that
+ *  opens the Tags dialog instead. `showAllTags` (the header toggle) instead
  *  gives every tagged row a one-line chip row, without opening its peek. Peek + `showAllTags`' own
  *  per-row `editing` state are renderer view-state (T-28) — local `useState`, never persisted. */
 function RailRow(props: {
@@ -171,8 +172,9 @@ function RailRow(props: {
   onActivate: (sessionId: string) => void
   onRename?: ((sessionId: string) => void) | undefined
   onSetTags?: ((sessionId: string, tagIds: string[]) => void) | undefined
+  onManageTags?: (() => void) | undefined
 }): JSX.Element | null {
-  const { id, collapsed, showAllTags, onActivate, onRename, onSetTags } = props
+  const { id, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const view = useBoard(useShallow((s: BoardState) => selectRailRowView(s, id)))
   const tagIds = view.tagKey === '' ? [] : view.tagKey.split('\n')
   // Tags — this row's chips in TAG-LIST order, and what its picker may offer (T-11).
@@ -205,7 +207,10 @@ function RailRow(props: {
   // already shows every chip).
   const chipLine = !collapsed && showAllTags && !peekOpen && tags.length > 0
   const canTag = onSetTags !== undefined && pickable.length > 0
-  const hasPeek = !collapsed && (tags.length > 0 || canTag)
+  // No tag to offer yet: an untagged row's toggle opens the Tags dialog (to create one) instead.
+  const createTags =
+    onSetTags !== undefined && pickable.length === 0 && tags.length === 0 ? onManageTags : undefined
+  const hasPeek = !collapsed && (tags.length > 0 || canTag || createTags !== undefined)
   const showRename = !collapsed && onRename !== undefined
   const chips = chipLine ? (
     <span className={styles.rowTags}>
@@ -298,7 +303,15 @@ function RailRow(props: {
         {row}
         <span className={styles.rowTools}>
           {showRename && <RenameButton name={name} onClick={() => onRename?.(id)} />}
-          {hasPeek && <PeekButton name={name} tags={tags} open={peekOpen} onToggle={togglePeek} />}
+          {hasPeek && (
+            <PeekButton
+              name={name}
+              tags={tags}
+              open={peekOpen}
+              createOnly={createTags !== undefined}
+              onToggle={createTags ?? togglePeek}
+            />
+          )}
         </span>
       </div>
       {/* T-27 — the PEEK: every chip on a line of its own under the row, plus Edit. It grows the
@@ -342,24 +355,29 @@ function RailRow(props: {
 
 /** The row's tag toggle (T-27). Tagged: the compact TagIndicator, ALWAYS visible — it is
  *  information, not a hover action. Untagged: a muted empty tag outline revealed on hover / focus
- *  like the pencil, so a session with no tags can still be tagged from the rail. */
+ *  like the pencil, so a session with no tags can still be tagged from the rail. `createOnly`: no
+ *  tag exists yet, so the same outline opens the Tags dialog (a dialog, not a peek). */
 function PeekButton(props: {
   name: string
   tags: readonly Tag[]
   open: boolean
+  createOnly: boolean
   onToggle: () => void
 }): JSX.Element {
-  const { name, tags, open, onToggle } = props
-  const label =
-    tags.length === 0 ? `Add tags to ${name}` : `Tags: ${tags.map((t) => t.name).join(', ')}`
+  const { name, tags, open, createOnly, onToggle } = props
+  const label = createOnly
+    ? 'Create tags'
+    : tags.length === 0
+      ? `Add tags to ${name}`
+      : `Tags: ${tags.map((t) => t.name).join(', ')}`
   return (
     <button
       type="button"
       className={`${styles.peekButton} ${tags.length === 0 ? styles.peekButtonEmpty : ''}`}
       data-testid="rail-tags-peek"
-      aria-expanded={open}
+      {...(createOnly ? { 'aria-haspopup': 'dialog' as const } : { 'aria-expanded': open })}
       aria-label={label}
-      title={label}
+      title={createOnly ? 'No tags yet — create tags' : label}
       onClick={onToggle}
     >
       {tags.length > 0 ? (
@@ -441,8 +459,9 @@ function RailSection(props: {
   onActivate: (sessionId: string) => void
   onRename?: ((sessionId: string) => void) | undefined
   onSetTags?: ((sessionId: string, tagIds: string[]) => void) | undefined
+  onManageTags?: (() => void) | undefined
 }): JSX.Element | null {
-  const { column, collapsed, showAllTags, onActivate, onRename, onSetTags } = props
+  const { column, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   // Tags — sections follow the header filter. The PINNED row does not (it is the terminal you are
   // typing in), and neither does the needs-you announcement (alerts ignore the filter).
@@ -465,6 +484,7 @@ function RailSection(props: {
               onActivate={onActivate}
               onRename={onRename}
               onSetTags={onSetTags}
+              onManageTags={onManageTags}
             />
           </li>
         ))}
@@ -541,12 +561,16 @@ export interface AttentionRailProps {
   /** Tags — the peek's Edit changed a session's tags. Omitted ⇒ the peek shows chips but offers no
    *  Edit, and untagged rows get no "add tags" toggle. */
   onSetSessionTags?: (sessionId: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog. While no tag exists yet, an untagged row's toggle uses it (to
+   *  create one) instead of an empty peek. Omitted ⇒ with nothing to offer, no toggle at all. */
+  onManageTags?: () => void
 }
 
 export function AttentionRail({
   onActivateSession,
   onRenameSession,
-  onSetSessionTags
+  onSetSessionTags,
+  onManageTags
 }: AttentionRailProps): JSX.Element {
   // T-28 — "Show all tags" is renderer view-state, local like `collapsed`, and starts off.
   const [showAllTags, setShowAllTags] = useState(false)
@@ -691,6 +715,7 @@ export function AttentionRail({
                 onActivate={onActivateSession}
                 onRename={onRenameSession}
                 onSetTags={onSetSessionTags}
+                onManageTags={onManageTags}
               />
             </li>
           </ul>
@@ -708,6 +733,7 @@ export function AttentionRail({
             onActivate={onActivateSession}
             onRename={onRenameSession}
             onSetTags={onSetSessionTags}
+            onManageTags={onManageTags}
           />
         ))}
         {/* Story 5.6 (rail gap) — "Starting" group: calm, BELOW the session rows so it never

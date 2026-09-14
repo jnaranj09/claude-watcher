@@ -1156,6 +1156,28 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     expect(peek?.querySelector('[data-testid="tag-indicator"]')).toBeNull()
   })
 
+  it('with no tags yet, an untagged row toggle opens tag management instead of a peek', () => {
+    act(() => boardStore.getState().applyWatchEvent(updated(1, 'plain', 'working', 20)))
+    const onManageTags = vi.fn()
+    const onActivateSession = vi.fn()
+    // No way to create a tag: nothing to show and nothing to offer.
+    const bare = renderRail({ onSetSessionTags: vi.fn() })
+    expect(itemOf(bare, 'plain')?.querySelector('[data-testid="rail-tags-peek"]')).toBeNull()
+    bare.unmount()
+    const r = renderRail({ onSetSessionTags: vi.fn(), onManageTags, onActivateSession })
+    const peek = itemOf(r, 'plain')?.querySelector<HTMLButtonElement>(
+      '[data-testid="rail-tags-peek"]'
+    )
+    if (peek == null) throw new Error('no tags toggle while tags can be created')
+    expect(peek.getAttribute('aria-label')).toBe('Create tags')
+    expect(peek.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(peek.hasAttribute('aria-expanded')).toBe(false)
+    act(() => peek.click())
+    expect(onManageTags).toHaveBeenCalledTimes(1)
+    expect(r.container.querySelector('[data-testid="rail-tags-panel"]')).toBeNull()
+    expect(onActivateSession).not.toHaveBeenCalled()
+  })
+
   it('CSS: the tools overlay the row, the untagged toggle hides until hover, tags only PAD the row', () => {
     const css = readCss('./AttentionRail.module.css')
     expect(/\.rowTools\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/position:\s*absolute/)

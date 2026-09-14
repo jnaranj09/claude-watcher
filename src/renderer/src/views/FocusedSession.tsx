@@ -71,6 +71,8 @@ export interface FocusedSessionProps {
   /** Tags — a rail peek's Edit changed a session's tags. Threaded to the AttentionRail; omitted ⇒
    *  the rail offers no tag editing. */
   onSetSessionTags?: (sessionId: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog; the rail's untagged rows use it while no tag exists yet. */
+  onManageTags?: () => void
 }
 
 export function FocusedSession({
@@ -79,7 +81,8 @@ export function FocusedSession({
   onPickTemplate,
   onManageTemplates,
   onRenameSession,
-  onSetSessionTags
+  onSetSessionTags,
+  onManageTags
 }: FocusedSessionProps): JSX.Element {
   // The currently-visible terminal (the others are kept alive but hidden). A primitive selector.
   const focusedTerminalId = useBoard(selectFocusedTerminalId)
@@ -115,6 +118,7 @@ export function FocusedSession({
         onActivateSession={onActivateSession}
         {...(onRenameSession ? { onRenameSession } : {})}
         {...(onSetSessionTags ? { onSetSessionTags } : {})}
+        {...(onManageTags ? { onManageTags } : {})}
       />
       <div className={styles.main}>
         <div className={styles.bar}>

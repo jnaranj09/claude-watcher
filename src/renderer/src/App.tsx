@@ -630,6 +630,7 @@ function App(): React.JSX.Element {
               onRenameCard={handleRenameSession}
               onMoveCardToWorkspace={handleMoveCardToWorkspace}
               onSetCardTags={handleSetSessionTags}
+              onManageTags={handleManageTags}
             />
           </div>
           {hasFocusableTerminal && (
@@ -648,6 +649,7 @@ function App(): React.JSX.Element {
                 onManageTemplates={handleManageTemplates}
                 onRenameSession={handleRenameSession}
                 onSetSessionTags={handleSetSessionTags}
+                onManageTags={handleManageTags}
               />
             </div>
           )}

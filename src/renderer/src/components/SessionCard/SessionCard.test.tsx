@@ -589,10 +589,11 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     expect(container.querySelector('[data-testid="card-tags"]')).toBeNull()
   })
 
-  it('offers Tags… only when tagging is wired AND the card has tags to offer', () => {
+  it('offers Tags… only when tagging is wired AND there is somewhere for it to go', () => {
     const none = renderComponent(<SessionCard {...baseProps({ availableTags: [PROD] })} />)
     expect(none.container.querySelector('[data-testid="card-tags-button"]')).toBeNull()
     none.unmount()
+    // No tags to offer and no way to create one: a control that opens onto nothing.
     const empty = renderComponent(
       <SessionCard {...baseProps({ availableTags: [], onSetTags: vi.fn() })} />
     )
@@ -603,6 +604,27 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     )
     cleanup = unmount
     expect(container.querySelector('[data-testid="card-tags-button"]')).not.toBeNull()
+  })
+
+  it('with no tags yet, the tags button opens tag management — never the picker, never the card', () => {
+    const onManageTags = vi.fn()
+    const onActivate = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({ availableTags: [], onSetTags: vi.fn(), onManageTags, onActivate })}
+      />
+    )
+    cleanup = unmount
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')
+    if (button === null) throw new Error('no tags button while tags can be created')
+    // It opens a dialog, not the picker: no aria-expanded/aria-controls pointing at a popup.
+    expect(button.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(button.hasAttribute('aria-expanded')).toBe(false)
+    expect(button.getAttribute('aria-label')).toBe('Create tags')
+    act(() => button.click())
+    expect(onManageTags).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
+    expect(onActivate).not.toHaveBeenCalled()
   })
 
   it('the Tags… menu sets the card tags — and never activates the card', () => {

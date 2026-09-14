@@ -167,6 +167,10 @@ scope dropdown.
 - **A tag name truncates and keeps its `title`**, like every operator-typed name.
 - **A trigger that opens `TagPicker` uses `aria-expanded` + `aria-controls`** (pointed at the
   picker's own id), **never `aria-haspopup`** — the popup is a checkbox `group`, not a menu.
+- **A card and an untagged rail row can always reach tagging, even before a tag exists.** With no
+  tag to offer, the same button (`Create tags`) opens the Tags dialog instead of an empty picker,
+  so it carries `aria-haspopup="dialog"` and no `aria-expanded`. It is hidden only when there is
+  no Tags dialog to open.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 

@@ -94,6 +94,10 @@ export interface SessionCardProps {
   /** Tags — the operator changed this card's tags in the Tags… menu. Omitted ⇒ no Tags… button,
    *  the same optional-seam rule as `onRename`. */
   onSetTags?: (tagIds: string[]) => void
+  /** Tags — open the Tags dialog. Used while `availableTags` is empty: the Tags… button then
+   *  opens the dialog where tags are created, instead of an empty picker. Omitted ⇒ with nothing
+   *  to offer, no Tags… button at all. */
+  onManageTags?: () => void
   /** Story 2.2 (FR-9) — true when this card is the SELECTED card (the operator activated a
    *  notification for this session and the window is up). Renders a locate-and-highlight
    *  affordance via the shipped lavender focus-ring / raised-surface tokens — NOT a new color,
@@ -137,6 +141,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     tags,
     availableTags,
     onSetTags,
+    onManageTags,
     selected = false,
     emphasized = false
   } = props
@@ -158,6 +163,8 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   const tagsButtonRef = useRef<HTMLButtonElement | null>(null)
   const cardTags = tags ?? []
   const pickable = availableTags ?? []
+  // No tag to offer yet: the Tags… button opens the Tags dialog (to create one) instead of a picker.
+  const tagsCreateOnly = pickable.length === 0
   // T-9 — the tags that do not survive a move: whatever `tagsDroppedByMove` (the SAME shared
   // predicate `keepVisibleTags` uses to APPLY a move — src/shared/tags/tagScope.ts) says is
   // invisible in a representative OTHER workspace. Every target other than the card's own
@@ -237,7 +244,8 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   // the card BEFORE the browser synthesizes the click) would also open the session.
   const handleTagsToggleClick = (e: MouseEvent<HTMLButtonElement>): void => {
     e.stopPropagation()
-    setTagsOpen((v) => !v)
+    if (tagsCreateOnly) onManageTags?.()
+    else setTagsOpen((v) => !v)
   }
   const handleTagsToggleKeyDown = handleMoveToggleKeyDown
 
@@ -414,18 +422,27 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
         )}
         {/* Tags (T-26) — the Tags… menu. Same reveal-on-hover + always-tab-reachable treatment as
             the pencil, and the same "never a control that opens onto nothing" rule as the move
-            button: rendered only when tagging is wired AND this card's workspace has tags. */}
-        {onSetTags !== undefined && pickable.length > 0 && (
+            button: rendered only when tagging is wired AND it opens onto something — this card's
+            workspace tags, or, while there are none yet, the Tags dialog that creates them. */}
+        {onSetTags !== undefined && (!tagsCreateOnly || onManageTags !== undefined) && (
           <div className={styles.moveWrap} ref={tagsAnchorRef}>
             <button
               ref={tagsButtonRef}
               type="button"
               className={styles.renameButton}
               data-testid="card-tags-button"
-              aria-expanded={tagsOpen}
-              aria-controls={tagPickerId}
-              aria-label={`Tags for ${sessionName}`}
-              title={`Tags for ${sessionName}`}
+              {...(tagsCreateOnly
+                ? {
+                    'aria-haspopup': 'dialog' as const,
+                    'aria-label': 'Create tags',
+                    title: 'No tags yet — create tags'
+                  }
+                : {
+                    'aria-expanded': tagsOpen,
+                    'aria-controls': tagPickerId,
+                    'aria-label': `Tags for ${sessionName}`,
+                    title: `Tags for ${sessionName}`
+                  })}
               onClick={handleTagsToggleClick}
               onKeyDown={handleTagsToggleKeyDown}
             >
