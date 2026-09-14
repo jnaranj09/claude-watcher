@@ -1,7 +1,8 @@
 // Tags — the ONE tag glyph icon (outline + dot), shared by every button-sized tag affordance: the
-// board card's `Tags…` menu trigger (Task 11), the rail's Tags… affordance (Task 12) and the header
-// tags-menu button (TagsMenu). Reuses `TAG_GLYPH_PATH` (the same outline `TagIndicator` strokes) so
-// every "tag" mark in the app is the same shape (spec T-7 — never a circle).
+// board card's `Tags…` menu trigger (Task 11) and the rail's Tags… affordance (Task 12). (The header
+// tag icon it also drew became the ☰ menu's Tags submenu.) Reuses `TAG_GLYPH_PATH` (the same outline
+// `TagIndicator` strokes) so every "tag" mark in the app is the same shape (spec T-7 — never a
+// circle).
 //
 // A `.tsx` that exports ONLY this component — `TAG_GLYPH_PATH` itself stays in the sibling
 // `tagGlyph.ts` (react-refresh only allows non-component exports from a plain `.ts` module).

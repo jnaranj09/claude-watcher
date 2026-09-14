@@ -288,6 +288,12 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   rulesDialogOpen: boolean
+  /**
+   * Settings — whether the Settings dialog is open (RENDERER VIEW-STATE). Opened from the header ☰
+   * menu, so it joins the single-modal rule like every other dialog.
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  settingsDialogOpen: boolean
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -439,6 +445,10 @@ export interface BoardState {
   openRulesDialog: () => void
   /** Rules — close the Manage-rules dialog. No-op if already closed. */
   closeRulesDialog: () => void
+  /** Settings — open the Settings dialog. No-op if already open. */
+  openSettingsDialog: () => void
+  /** Settings — close the Settings dialog. No-op if already closed. */
+  closeSettingsDialog: () => void
 }
 
 export interface BoardStoreOptions {
@@ -509,6 +519,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     tagsDialogOpen: false,
     // Rules — the Manage-rules dialog starts closed.
     rulesDialogOpen: false,
+    // Settings — the Settings dialog starts closed.
+    settingsDialogOpen: false,
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
 
@@ -802,6 +814,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeRulesDialog: () => {
       if (get().rulesDialogOpen) set({ rulesDialogOpen: false })
+    },
+
+    openSettingsDialog: () => {
+      if (!get().settingsDialogOpen) set({ settingsDialogOpen: true })
+    },
+    closeSettingsDialog: () => {
+      if (get().settingsDialogOpen) set({ settingsDialogOpen: false })
     }
   }))
 }
@@ -960,6 +979,12 @@ export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectTagsDialogOpen = (state: BoardState): boolean => state.tagsDialogOpen
+
+/**
+ * Settings — whether the Settings dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectSettingsDialogOpen = (state: BoardState): boolean => state.settingsDialogOpen
 
 /**
  * Rules — whether the Manage-rules dialog is open (RENDERER VIEW-STATE).

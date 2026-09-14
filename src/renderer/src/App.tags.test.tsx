@@ -1,6 +1,6 @@
-// Tags — App-level wiring (spec §4.3, §4.4): the header tags menu opens the Tags dialog under the
-// single-modal rule (UX-DR14), Escape closes it, and the quit guard closes it. FAKE window bridges,
-// the real App — the same harness as App.templates.test.tsx.
+// Tags — App-level wiring (spec §4.3, §4.4): the header ☰ menu's Tags submenu opens the Tags dialog
+// under the single-modal rule (UX-DR14), Escape closes it, and the quit guard closes it. FAKE window
+// bridges, the real App — the same harness as App.templates.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
@@ -166,28 +166,32 @@ function q<T extends Element>(r: RenderResult, sel: string): T {
 
 const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
+/** The header ☰ menu → its Tags submenu → one of the submenu's rows. */
+function chooseFromTagsSubmenu(r: RenderResult, row: 'manage-tags' | 'manage-rules'): void {
+  click(q(r, '[data-testid="app-menu"]'))
+  click(q(r, '[data-testid="app-menu-tags"]'))
+  click(q(r, `[data-testid="tags-menu-${row}"]`))
+}
+
 function openManageTags(r: RenderResult): void {
-  click(q(r, '[data-testid="tags-menu"]'))
-  click(q(r, '[data-testid="tags-menu-manage-tags"]'))
+  chooseFromTagsSubmenu(r, 'manage-tags')
 }
 
 describe('App — tags', () => {
   it('loads the tags on mount; the board filter bar lists them', async () => {
     const r = await renderApp()
     act(() => boardStore.getState().applyWatchEvent(untaggedCard('s1')))
+    click(q(r, '[data-testid="filter-toggle"]'))
     click(q(r, '[data-testid="filter-add"]'))
     expect(r.container.querySelector('[data-testid="filter-tag-row-t-deploy"]')).not.toBeNull()
   })
 
-  it('the header filters nothing: the tag icon sits after the settings and shortcuts buttons', async () => {
+  it('the header filters nothing: the filter bar lives in the board', async () => {
     const r = await renderApp()
+    act(() => boardStore.getState().applyWatchEvent(untaggedCard('s1')))
     const header = q(r, '[data-testid="app-header"]')
-    expect(header.querySelector('[data-testid="tag-filter"]')).toBeNull()
     expect(header.querySelector('[data-testid="filter-bar"]')).toBeNull()
-    const shortcuts = q(r, '[data-testid="open-shortcuts"]')
-    const tags = q(r, '[data-testid="tags-menu"]')
-    expect(header.contains(tags)).toBe(true)
-    expect(shortcuts.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(q(r, '[data-testid="board-layer"] [data-testid="filter-bar"]')).toBeTruthy()
   })
 
   it('Manage tags… opens the Tags dialog; Escape closes it', async () => {
@@ -230,16 +234,14 @@ describe('App — tags', () => {
 
   it('Manage rules… opens the Rules dialog under the single-modal rule; Escape closes it', async () => {
     const r = await renderApp()
-    click(q(r, '[data-testid="tags-menu"]'))
-    click(q(r, '[data-testid="tags-menu-manage-rules"]'))
+    chooseFromTagsSubmenu(r, 'manage-rules')
     expect(r.container.querySelector('[data-testid="rules-overlay"]')).not.toBeNull()
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
     expect(r.container.querySelector('[data-testid="rules-overlay"]')).toBeNull()
     act(() => boardStore.getState().openTagsDialog())
-    click(q(r, '[data-testid="tags-menu"]'))
-    click(q(r, '[data-testid="tags-menu-manage-rules"]'))
+    chooseFromTagsSubmenu(r, 'manage-rules')
     expect(boardStore.getState().rulesDialogOpen).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 /* Tags — the board's filter bar (design option C, 2026-09-14). One row above the columns: a
  * `Filters` label, the active filter as a pill, `+ Add filter`, and the count pushed right. The
- * list mirrors the header popovers (TagsMenu / WorkspaceSwitcher). */
+ * list mirrors the header popovers (AppMenu / WorkspaceSwitcher). */
 .bar {
   flex: 0 0 auto;
   display: flex;
@@ -14,12 +14,72 @@
   border-radius: var(--rounded-lg);
 }
 
-.label {
+/* Collapsed: the toggle alone, with no box around it, so the row is the toggle's 24px and not the
+ * bar's 38px. The side padding and border width stay, so the toggle does not move when it opens. */
+.bar[data-expanded='false'] {
+  min-height: 0;
+  padding-block: 0;
+  background: transparent;
+  border-color: transparent;
+}
+
+/* The `Filters` toggle — the bar's label, now a button. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* The chevron — CSS, so the button's text stays its name. */
+.toggle::after {
+  content: '▾';
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.toggle[aria-expanded='true']::after {
+  content: '▴';
+}
+
+/* Collapsed with a filter on: how many filters are hiding cards. */
+.toggleCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-1);
+  border-radius: var(--rounded-full);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.controls {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .anchor {
@@ -172,6 +232,7 @@
   color: var(--text-secondary);
 }
 
+.toggle:focus-visible,
 .add:focus-visible,
 .pillEdit:focus-visible,
 .pillRemove:focus-visible,

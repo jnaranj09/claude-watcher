@@ -1,5 +1,5 @@
-/* Tags — the header tags menu. The button matches the ⚙ / ⌨ header icon buttons
- * (App.module.css `.headerIconButton`); the menu mirrors the other header popovers. */
+/* The header ☰ menu. The button is the header's last icon button (it replaced ⚙, ⌨ and the tag
+ * icon, and keeps their look); the menu mirrors the other header popovers. */
 .anchor {
   position: relative;
   display: inline-flex;
@@ -21,16 +21,16 @@
   cursor: pointer;
 }
 
-.button:hover {
+.button:hover,
+.button[aria-expanded='true'] {
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
 
 /* At the header's right edge, so the menu opens leftward from the button. */
-.menu {
+.menu,
+.submenu {
   position: absolute;
-  top: calc(100% + var(--space-1));
-  right: 0;
   z-index: 50;
   min-width: 180px;
   display: flex;
@@ -41,6 +41,22 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-lg);
   box-shadow: var(--shadow-pop);
+}
+
+.menu {
+  top: calc(100% + var(--space-1));
+  right: 0;
+}
+
+.subAnchor {
+  position: relative;
+}
+
+/* The submenu opens to the LEFT of its row, level with it — to the right is off the window. Its
+ * top edge sits one menu-padding above the row, so its first item lines up with `Tags`. */
+.submenu {
+  top: calc(-1 * var(--space-2) - 1px);
+  right: calc(100% + var(--space-2) + var(--space-1));
 }
 
 .item {
@@ -60,8 +76,17 @@
   cursor: pointer;
 }
 
-.item:hover {
+.item:hover,
+.subTrigger[aria-expanded='true'] {
   background: var(--bg-surface);
+}
+
+/* The submenu chevron points LEFT, the way the submenu opens. Drawn by CSS so the row's text stays
+ * its name alone. */
+.subTrigger::before {
+  content: '‹';
+  margin-right: var(--space-2);
+  color: var(--text-secondary);
 }
 
 .button:focus-visible,

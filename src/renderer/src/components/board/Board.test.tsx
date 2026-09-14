@@ -609,6 +609,9 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     expect(empty?.textContent).toContain('No sessions tagged prod.')
     expect(empty?.textContent).toContain('Remove the tag filter to see every session.')
     expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
+    // The bar starts collapsed: its toggle says a filter is on, and opening it reaches the pill.
+    expect(container.querySelector('[data-testid="filter-toggle-count"]')?.textContent).toBe('1')
+    act(() => container.querySelector<HTMLElement>('[data-testid="filter-toggle"]')?.click())
     expect(container.querySelector('[data-testid="filter-pill-tag"]')).not.toBeNull()
   })
 

@@ -177,9 +177,14 @@ scope dropdown.
 `components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered. It sits above the
 columns, never in the header: a header button reading "All tags" did not read as a filter.
 
-- **It says what it is.** A `Filters` label, the active filter as a pill (`Tag is <chip>`: click it
+- **It says what it is.** A `Filters` toggle, the active filter as a pill (`Tag is <chip>`: click it
   to change the tag, `×` to remove it), `+ Add filter` while none is on, and the count on the right
   (`5 sessions`, or `3 shown · 2 hidden by the filter`).
+- **It starts COLLAPSED to the `Filters ▾` toggle** — a 24px row instead of the 38px bar, so it
+  costs the board less height until it is used. The toggle opens the bar in place and stays at its
+  left (`Filters ▴`); collapsing closes an open list. Open/closed is not persisted.
+- **Collapsed with a filter on, the toggle carries a count** (`Filters 1`, named `Filters, 1 on`).
+  The pill is then out of sight while cards are still hidden, and nothing else would say why.
 - **Tag is the only filter type, so `+ Add filter` opens the tag list directly.** Add a type step
   (`Tag ▸`, `Status ▸`) only once a second filter type exists.
 - **One tag at a time.** While a tag filter is on, the pill is where it changes, and `+ Add filter`
@@ -187,8 +192,23 @@ columns, never in the header: a header button reading "All tags" did not read as
 - **It draws only when the workspace has sessions**, and it stays when the filter hides them all,
   so the operator removes the filter right where they see the empty board.
 - **No tag yet:** the list offers `Create tags…` (the Tags dialog), never an empty popup.
-- **The header keeps only the tag ICON** (`components/TagsMenu/TagsMenu.tsx`), beside ⚙ and ⌨. It
-  opens `Manage tags…` / `Manage rules…` and filters nothing.
+
+## The header ☰ menu
+
+`components/AppMenu/AppMenu.tsx` is the ONE header control besides `+ New session`. It replaced three
+icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
+
+- **Rows, in this order:** `Settings…`, `Shortcuts…`, then `Tags` — a SUBMENU holding
+  `Manage tags…` / `Manage rules…`. The tag rows stay grouped under `Tags`; do not flatten them
+  into the top level.
+- **The submenu opens to the LEFT, level with its row** — the menu sits at the window's right edge.
+  Pointing at `Tags` opens it, pointing at another row closes it; ArrowRight opens it on its first
+  row, ArrowLeft goes back.
+- **Escape peels one layer**: the submenu, then the menu, and it stops there. It listens on the whole
+  menu, so it also works while focus is still on the ☰ button. With the menu closed it passes
+  through (Focused → Board still works).
+- **Every row opens a dialog under the single-modal rule** — Settings included (`settingsDialogOpen`
+  in `boardStore`), so it joins `isModalOpen()`, the Escape closer and the quit-guard closer.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 

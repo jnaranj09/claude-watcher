@@ -1,6 +1,7 @@
 // The board's filter bar (2026-09-14, design option C): the active filter as a removable pill, and
 // `+ Add filter`. Tag is the only filter type today, so `+ Add filter` opens the tag list directly.
-// jsdom `unit` project.
+// It starts COLLAPSED to a small `Filters` toggle, so it costs the board less height until it is
+// used. jsdom `unit` project.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
@@ -34,14 +35,6 @@ afterEach(() => {
   })
 })
 
-function render(props: Partial<FilterBarProps> = {}): RenderResult {
-  const r = renderComponent(
-    <FilterBar total={5} workspaceTotal={5} onManageTags={vi.fn()} {...props} />
-  )
-  cleanup = r.unmount
-  return r
-}
-
 const q = (r: RenderResult, testId: string): HTMLElement | null =>
   r.container.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
 const click = (el: Element | null): void => act(() => (el as HTMLElement | null)?.click())
@@ -51,17 +44,82 @@ const rowIds = (r: RenderResult): (string | null)[] =>
     el.getAttribute('data-testid')
   )
 
+/** The bar as it first draws: collapsed to its `Filters` toggle. */
+function render(props: Partial<FilterBarProps> = {}): RenderResult {
+  const r = renderComponent(
+    <FilterBar total={5} workspaceTotal={5} onManageTags={vi.fn()} {...props} />
+  )
+  cleanup = r.unmount
+  return r
+}
+
+/** The bar with its toggle clicked open. */
+function renderOpen(props: Partial<FilterBarProps> = {}): RenderResult {
+  const r = render(props)
+  click(q(r, 'filter-toggle'))
+  return r
+}
+
 describe('FilterBar', () => {
   it('renders nothing while the workspace has no sessions', () => {
     const r = render({ total: 0, workspaceTotal: 0 })
     expect(q(r, 'filter-bar')).toBeNull()
   })
 
-  it('with no filter: a labelled group, + Add filter and the session count', () => {
-    const r = render({ total: 5, workspaceTotal: 5 })
+  it('starts collapsed: a labelled group holding only the Filters toggle', () => {
+    const r = render()
     const bar = q(r, 'filter-bar')
     expect(bar?.getAttribute('role')).toBe('group')
     expect(bar?.getAttribute('aria-label')).toBe('Filters')
+    const toggle = q(r, 'filter-toggle')
+    expect(toggle?.textContent).toBe('Filters')
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle?.getAttribute('title')).toBe('Show filters')
+    expect(q(r, 'filter-add')).toBeNull()
+    expect(q(r, 'filter-count')).toBeNull()
+    expect(q(r, 'filter-toggle-count')).toBeNull()
+  })
+
+  it('the toggle shows the filter controls, and hides them again', () => {
+    const r = render()
+    const toggle = q(r, 'filter-toggle')
+    click(toggle)
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle?.getAttribute('title')).toBe('Hide filters')
+    // getElementById: a React id is not a valid CSS selector.
+    const controls = document.getElementById(toggle?.getAttribute('aria-controls') ?? '')
+    expect(controls?.contains(q(r, 'filter-add'))).toBe(true)
+    expect(q(r, 'filter-count')?.textContent).toBe('5 sessions')
+    click(toggle)
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(q(r, 'filter-add')).toBeNull()
+  })
+
+  // Collapsed, the pill is out of sight while cards are still hidden — the toggle has to say so.
+  it('collapsed with a filter on, the toggle says one filter is on', () => {
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    const r = render()
+    const toggle = q(r, 'filter-toggle')
+    expect(q(r, 'filter-pill-tag')).toBeNull()
+    expect(q(r, 'filter-toggle-count')?.textContent).toBe('1')
+    expect(toggle?.getAttribute('aria-label')).toBe('Filters, 1 on')
+    click(toggle)
+    expect(q(r, 'filter-pill-tag')).not.toBeNull()
+    expect(q(r, 'filter-toggle-count')).toBeNull()
+    expect(toggle?.hasAttribute('aria-label')).toBe(false)
+  })
+
+  it('collapsing closes an open tag list', () => {
+    const r = renderOpen()
+    click(q(r, 'filter-add'))
+    expect(menu(r)).not.toBeNull()
+    click(q(r, 'filter-toggle'))
+    click(q(r, 'filter-toggle'))
+    expect(menu(r)).toBeNull()
+  })
+
+  it('opened with no filter: + Add filter and the session count', () => {
+    const r = renderOpen({ total: 5, workspaceTotal: 5 })
     expect(q(r, 'filter-add')?.textContent).toBe('+ Add filter')
     expect(q(r, 'filter-add')?.getAttribute('aria-expanded')).toBe('false')
     expect(q(r, 'filter-pill-tag')).toBeNull()
@@ -69,12 +127,12 @@ describe('FilterBar', () => {
   })
 
   it('counts one session in the singular', () => {
-    const r = render({ total: 1, workspaceTotal: 1 })
+    const r = renderOpen({ total: 1, workspaceTotal: 1 })
     expect(q(r, 'filter-count')?.textContent).toBe('1 session')
   })
 
   it('+ Add filter opens the tag list directly: global tags, then this workspace’s own, never another’s', () => {
-    const r = render()
+    const r = renderOpen()
     click(q(r, 'filter-add'))
     expect(q(r, 'filter-add')?.getAttribute('aria-expanded')).toBe('true')
     expect(rowIds(r)).toEqual(['filter-tag-row-t-deploy', 'filter-tag-row-t-prod'])
@@ -89,7 +147,7 @@ describe('FilterBar', () => {
   })
 
   it('picking a tag sets the filter, closes the list and shows the filter as a pill', () => {
-    const r = render({ total: 3, workspaceTotal: 5 })
+    const r = renderOpen({ total: 3, workspaceTotal: 5 })
     click(q(r, 'filter-add'))
     click(q(r, 'filter-tag-row-t-prod'))
     expect(tagsStore.getState().activeTagId).toBe('t-prod')
@@ -105,7 +163,7 @@ describe('FilterBar', () => {
 
   it('clicking the pill reopens the list on the current tag; picking another switches it', () => {
     act(() => tagsStore.getState().setActiveTag('t-prod'))
-    const r = render()
+    const r = renderOpen()
     const edit = q(r, 'filter-pill-tag-edit')
     expect(edit?.getAttribute('aria-label')).toBe('Tag filter: prod. Change it')
     click(edit)
@@ -116,7 +174,7 @@ describe('FilterBar', () => {
 
   it('× removes the filter and puts focus on + Add filter', () => {
     act(() => tagsStore.getState().setActiveTag('t-prod'))
-    const r = render()
+    const r = renderOpen()
     const remove = q(r, 'filter-pill-tag-remove')
     expect(remove?.getAttribute('aria-label')).toBe('Remove the tag filter')
     click(remove)
@@ -126,7 +184,7 @@ describe('FilterBar', () => {
   })
 
   it('Escape closes the list, stops there, and puts focus back on its trigger', () => {
-    const r = render()
+    const r = renderOpen()
     const outer = vi.fn()
     document.addEventListener('keydown', outer)
     click(q(r, 'filter-add'))
@@ -140,7 +198,7 @@ describe('FilterBar', () => {
   })
 
   it('a mousedown outside closes the list', () => {
-    const r = render()
+    const r = renderOpen()
     click(q(r, 'filter-add'))
     act(() => {
       document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
@@ -151,7 +209,7 @@ describe('FilterBar', () => {
   it('with no tags yet, + Add filter offers Create tags…, which opens tag management', () => {
     act(() => tagsStore.setState({ tags: [] }))
     const onManageTags = vi.fn()
-    const r = render({ onManageTags })
+    const r = renderOpen({ onManageTags })
     click(q(r, 'filter-add'))
     expect(q(r, 'filter-no-tags')?.textContent).toBe('No tags yet')
     click(q(r, 'filter-create-tags'))
