@@ -86,7 +86,8 @@ const defaultFetchAsset = async (url: string): Promise<ArrayBuffer> => {
 
 /**
  * Create the attention-sound player (AC-1/8). Lazily creates the AudioContext on the first
- * `play()` and decodes+caches the cue buffer ONCE. Every WebAudio touch is wrapped so `play()`
+ * `play()` and decodes+caches the cue buffer ONCE; a `play()` that arrives before the buffer is
+ * ready sounds as soon as the decode lands. Every WebAudio touch is wrapped so `play()`
  * degrades to a silent no-op on any failure (no context / decode failure / suspended context),
  * logging a `code=` only. NO debounce — one `play()` = one sound (AC-2).
  */
@@ -100,8 +101,9 @@ export function createAttentionSound(options: AttentionSoundOptions = {}): Atten
   let ctx: AudioContextLike | null = null
   let ctxFailed = false // once the context can't be created, stop retrying every play()
   let buffer: AudioBuffer | null = null
-  // Guards against firing two concurrent decodes if play() is called rapidly before the first
-  // decode resolves (the decode is async; the play itself is synchronous once the buffer is ready).
+  // The in-flight decode, shared by every play() that arrives before it resolves — so rapid
+  // plays never start two decodes, and each of them waits on the same one (the decode is async;
+  // the play itself is synchronous once the buffer is ready).
   let decoding: Promise<void> | null = null
 
   /** Lazily build the context (once). Returns null on failure (silent no-op). */
@@ -118,20 +120,25 @@ export function createAttentionSound(options: AttentionSoundOptions = {}): Atten
     }
   }
 
-  /** Kick off the one-time decode of the cue into a cached buffer. Idempotent. */
-  function ensureBuffer(context: AudioContextLike): void {
-    if (buffer !== null || decoding !== null) return
-    decoding = (async () => {
-      try {
-        const bytes = await fetchAsset(assetUrl)
-        buffer = await context.decodeAudioData(bytes)
-      } catch {
-        // Decode/fetch failed — leave buffer null (play() stays a silent no-op) + log a code.
-        log('[c9watch][sound] code=decode_failed')
-      } finally {
-        decoding = null
-      }
-    })()
+  /** Fetch + decode the cue into the cached buffer. Never rejects: a failure leaves the buffer
+   *  null (the waiting plays stay silent) and logs a code. */
+  async function decodeCue(context: AudioContextLike): Promise<void> {
+    try {
+      const bytes = await fetchAsset(assetUrl)
+      buffer = await context.decodeAudioData(bytes)
+    } catch {
+      log('[c9watch][sound] code=decode_failed')
+    }
+  }
+
+  /** Start the decode, or join the one already in flight. Resolves once it settles. */
+  function ensureBuffer(context: AudioContextLike): Promise<void> {
+    // `.finally` clears the slot asynchronously, always AFTER this assignment, so a settled
+    // decode never lingers here and the next cold play() retries a failed one.
+    decoding ??= decodeCue(context).finally(() => {
+      decoding = null
+    })
+    return decoding
   }
 
   /** Fire one source off the cached buffer. Assumes a non-null buffer + running context. */
@@ -168,11 +175,19 @@ export function createAttentionSound(options: AttentionSoundOptions = {}): Atten
       }
 
       if (buffer === null) {
-        // First call (or a prior decode failure): kick the (idempotent) decode. This play()
-        // produces no sound yet — acceptable (the cue is alert-only; the next attention event
-        // after the buffer is ready will sound). We do NOT await here (play() is synchronous +
-        // must never throw). NO retry timer (no debounce/cooldown).
-        ensureBuffer(context)
+        // Cold (the first call, or a prior decode failure): start or join the decode, and fire
+        // THIS play once it lands. It used to return here and drop the sound, which made the
+        // first needs-you after every launch silent. play() stays synchronous — the fire runs
+        // after it returns, so it carries its own catch (never-crash). A failed decode leaves the
+        // buffer null and this play silent. NO retry timer (no debounce/cooldown).
+        void ensureBuffer(context).then(() => {
+          if (buffer === null) return
+          try {
+            fireOnce(context, buffer)
+          } catch {
+            log('[c9watch][sound] code=play_failed')
+          }
+        })
         return
       }
 
