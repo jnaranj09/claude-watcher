@@ -194,11 +194,13 @@ export function Board({
       {/* Tags — the filter bar: what the board is filtered by, above the columns. It draws itself
           only once the workspace has sessions, and stays when the filter hides them all (so the
           operator can remove it right there). */}
-      <FilterBar
-        total={total}
-        workspaceTotal={workspaceTotal}
-        {...(onManageTags ? { onManageTags } : {})}
-      />
+      <div className={styles.filterSlot}>
+        <FilterBar
+          total={total}
+          workspaceTotal={workspaceTotal}
+          {...(onManageTags ? { onManageTags } : {})}
+        />
+      </div>
 
       {!coldLoaded ? (
         // AC-5 — cold-load skeleton (haven't heard from the session engine yet). NOT a

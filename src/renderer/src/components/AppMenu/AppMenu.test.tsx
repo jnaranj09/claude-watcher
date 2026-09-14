@@ -38,11 +38,17 @@ const hover = (el: Element | null): void => {
 }
 const mainMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-list')
 const subMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-tags-list')
+/** A row's name without its decorative (aria-hidden) icon. */
+const rowName = (el: Element): string =>
+  [...el.childNodes]
+    .filter((n) => !(n instanceof Element && n.getAttribute('aria-hidden') === 'true'))
+    .map((n) => n.textContent ?? '')
+    .join('')
 /** The rows of ONE menu level — the submenu's rows sit inside the main menu's DOM, so skip them. */
 const labels = (menu: Element | null): string[] =>
   [...(menu?.querySelectorAll('[role="menuitem"]') ?? [])]
     .filter((el) => el.closest('[role="menu"]') === menu)
-    .map((el) => el.textContent ?? '')
+    .map(rowName)
 
 describe('AppMenu', () => {
   it('is an icon-only button named "Menu"', () => {
@@ -65,6 +71,16 @@ describe('AppMenu', () => {
     expect(tags?.getAttribute('aria-haspopup')).toBe('menu')
     expect(tags?.getAttribute('aria-expanded')).toBe('false')
     expect(subMenu(r)).toBeNull()
+  })
+
+  it('keeps the icons the header buttons had: ⚙ Settings…, ⌨ Shortcuts…, the tag glyph on Tags', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    const icon = (id: string): Element | null =>
+      q(r, id)?.querySelector(':scope > [aria-hidden="true"]') ?? null
+    expect(icon('app-menu-settings')?.textContent).toBe('⚙')
+    expect(icon('app-menu-shortcuts')?.textContent).toBe('⌨')
+    expect(icon('app-menu-tags')?.querySelector('svg')).not.toBeNull()
   })
 
   it('Settings… closes the menu and calls onOpenSettings', () => {

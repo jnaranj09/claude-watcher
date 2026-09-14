@@ -72,7 +72,10 @@ describe('FilterBar', () => {
     expect(bar?.getAttribute('role')).toBe('group')
     expect(bar?.getAttribute('aria-label')).toBe('Filters')
     const toggle = q(r, 'filter-toggle')
-    expect(toggle?.textContent).toBe('Filters')
+    // An icon, not the word: an uppercase FILTERS label read badly.
+    expect(toggle?.textContent).toBe('')
+    expect(toggle?.querySelector('svg')).not.toBeNull()
+    expect(toggle?.getAttribute('aria-label')).toBe('Filters')
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
     expect(toggle?.getAttribute('title')).toBe('Show filters')
     expect(q(r, 'filter-add')).toBeNull()
@@ -106,7 +109,7 @@ describe('FilterBar', () => {
     click(toggle)
     expect(q(r, 'filter-pill-tag')).not.toBeNull()
     expect(q(r, 'filter-toggle-count')).toBeNull()
-    expect(toggle?.hasAttribute('aria-label')).toBe(false)
+    expect(toggle?.getAttribute('aria-label')).toBe('Filters')
   })
 
   it('collapsing closes an open tag list', () => {

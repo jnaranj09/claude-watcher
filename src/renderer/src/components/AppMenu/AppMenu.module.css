@@ -81,11 +81,25 @@
   background: var(--bg-surface);
 }
 
-/* The submenu chevron points LEFT, the way the submenu opens. Drawn by CSS so the row's text stays
- * its name alone. */
-.subTrigger::before {
-  content: '‹';
+/* A row's icon — the one its old header button had. A fixed-width slot, so every label starts at
+ * the same x whichever glyph is in it. */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
   margin-right: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* The submenu chevron, at the row's right edge, points LEFT: the way the submenu opens. Drawn by
+ * CSS so the row's text stays its name alone. */
+.subTrigger::after {
+  content: '‹';
+  margin-left: auto;
+  padding-left: var(--space-4);
   color: var(--text-secondary);
 }
 

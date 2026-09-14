@@ -177,14 +177,22 @@ scope dropdown.
 `components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered. It sits above the
 columns, never in the header: a header button reading "All tags" did not read as a filter.
 
-- **It says what it is.** A `Filters` toggle, the active filter as a pill (`Tag is <chip>`: click it
+- **It says what it is.** A funnel toggle, the active filter as a pill (`Tag is <chip>`: click it
   to change the tag, `×` to remove it), `+ Add filter` while none is on, and the count on the right
   (`5 sessions`, or `3 shown · 2 hidden by the filter`).
-- **It starts COLLAPSED to the `Filters ▾` toggle** — a 24px row instead of the 38px bar, so it
-  costs the board less height until it is used. The toggle opens the bar in place and stays at its
-  left (`Filters ▴`); collapsing closes an open list. Open/closed is not persisted.
-- **Collapsed with a filter on, the toggle carries a count** (`Filters 1`, named `Filters, 1 on`).
-  The pill is then out of sight while cards are still hidden, and nothing else would say why.
+- **The toggle is an ICON, never the word.** An uppercase `FILTERS` label was tried first and read
+  as bad UI. The funnel + `▾`/`▴` chevron is named `Filters` by its `aria-label` and titled
+  `Show filters` / `Hide filters`.
+- **It starts COLLAPSED to that toggle** — a 24px row instead of the 38px bar, so it costs the board
+  less height until it is used. The toggle opens the bar in place and stays at its left; collapsing
+  closes an open list. Open/closed is not persisted.
+- **It sits tight: 8px under the header, 8px above the columns** (not the 16px gutter either side,
+  which read as a gap around a 24px control). The grid trims its top padding only while the bar
+  draws (`Board.module.css` `.filterSlot`). Never pull the grid up with a negative margin: its box
+  would cover the lower part of the toggle and take its clicks.
+- **Collapsed with a filter on, the toggle carries a count** (a `1` badge beside the funnel, named
+  `Filters, 1 on`). The pill is then out of sight while cards are still hidden, and nothing else
+  would say why.
 - **Tag is the only filter type, so `+ Add filter` opens the tag list directly.** Add a type step
   (`Tag ▸`, `Status ▸`) only once a second filter type exists.
 - **One tag at a time.** While a tag filter is on, the pill is where it changes, and `+ Add filter`
@@ -201,6 +209,9 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
 - **Rows, in this order:** `Settings…`, `Shortcuts…`, then `Tags` — a SUBMENU holding
   `Manage tags…` / `Manage rules…`. The tag rows stay grouped under `Tags`; do not flatten them
   into the top level.
+- **Every row keeps its icon** — ⚙ `Settings…`, ⌨ `Shortcuts…`, the tag glyph on `Tags` — the icons
+  the three header buttons had, so they are still found by shape. The icon sits in a fixed-width
+  slot so every label starts at the same x; the submenu chevron `‹` sits at the row's right edge.
 - **The submenu opens to the LEFT, level with its row** — the menu sits at the window's right edge.
   Pointing at `Tags` opens it, pointing at another row closes it; ArrowRight opens it on its first
   row, ArrowLeft goes back. Clicking `Tags` OPENS it and never toggles: a mouse points at the row

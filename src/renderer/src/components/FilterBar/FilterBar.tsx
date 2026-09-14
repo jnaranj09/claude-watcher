@@ -4,7 +4,7 @@
 // while none is on, and the count. Tag is the only filter type today, so `+ Add filter` opens the
 // tag list DIRECTLY; a type step (`Tag ▸`) belongs here only once a second filter type exists.
 //
-// It starts COLLAPSED to a small `Filters` toggle, shorter than the bar, so it costs the board less
+// It starts COLLAPSED to a small funnel toggle, shorter than the bar, so it costs the board less
 // height until it is used. The toggle opens the bar in place and stays at its left; collapsed with a
 // filter on, it carries a count, because the pill is then out of sight while cards are still hidden.
 // Open/closed is local view-state, never persisted.
@@ -47,6 +47,21 @@ export interface FilterBarProps {
 function countText(total: number, workspaceTotal: number, filtered: boolean): string {
   if (!filtered) return workspaceTotal === 1 ? '1 session' : `${workspaceTotal} sessions`
   return `${total} shown · ${workspaceTotal - total} hidden by the filter`
+}
+
+/** The toggle's funnel. An icon, never the word: an uppercase `FILTERS` label read badly. */
+function FunnelIcon(): JSX.Element {
+  return (
+    <svg width={14} height={14} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M2.5 3.5h11l-4.25 5v4l-2.5-1.25V8.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 export function FilterBar({
@@ -149,10 +164,10 @@ export function FilterBar({
         aria-expanded={expanded}
         aria-controls={controlsId}
         title={expanded ? 'Hide filters' : 'Show filters'}
-        {...(hiddenFilterOn ? { 'aria-label': 'Filters, 1 on' } : {})}
+        aria-label={hiddenFilterOn ? 'Filters, 1 on' : 'Filters'}
         onClick={toggleExpanded}
       >
-        Filters
+        <FunnelIcon />
         {hiddenFilterOn && (
           <span className={styles.toggleCount} data-testid="filter-toggle-count">
             1

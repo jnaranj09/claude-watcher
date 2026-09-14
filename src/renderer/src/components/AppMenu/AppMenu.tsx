@@ -2,11 +2,14 @@
 // icon buttons (⚙ settings, ⌨ shortcuts, the tag icon). Rows: `Settings…`, `Shortcuts…`, and
 // `Tags`, a SUBMENU holding the tag icon's own two rows unchanged (`Manage tags…` /
 // `Manage rules…`). The submenu opens to the LEFT: the menu sits at the window's right edge.
+// Each row keeps the icon its old header button had (⚙, ⌨, the tag glyph), so it is still found by
+// shape.
 //
 // Escape peels ONE layer: the submenu first, then the menu, and never the app's own Escape
 // (Focused → Board) while either is open. It listens on the whole anchor, so it also works while
 // focus is still on the ☰ button, where a mouse click leaves it.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
+import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import styles from './AppMenu.module.css'
 
 export interface AppMenuProps {
@@ -127,6 +130,9 @@ export function AppMenu({
             onClick={() => choose(onOpenSettings)}
             onMouseEnter={() => setTagsOpen(false)}
           >
+            <span className={styles.icon} aria-hidden="true">
+              ⚙
+            </span>
             Settings…
           </button>
           <button
@@ -137,6 +143,9 @@ export function AppMenu({
             onClick={() => choose(onOpenShortcuts)}
             onMouseEnter={() => setTagsOpen(false)}
           >
+            <span className={styles.icon} aria-hidden="true">
+              ⌨
+            </span>
             Shortcuts…
           </button>
           <div className={styles.subAnchor}>
@@ -153,6 +162,9 @@ export function AppMenu({
               onMouseEnter={() => setTagsOpen(true)}
               onKeyDown={handleTagsKeyDown}
             >
+              <span className={styles.icon} aria-hidden="true">
+                <TagGlyphIcon size={14} />
+              </span>
               Tags
             </button>
             {tagsOpen && (
