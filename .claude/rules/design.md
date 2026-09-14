@@ -203,7 +203,8 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
   into the top level.
 - **The submenu opens to the LEFT, level with its row** — the menu sits at the window's right edge.
   Pointing at `Tags` opens it, pointing at another row closes it; ArrowRight opens it on its first
-  row, ArrowLeft goes back.
+  row, ArrowLeft goes back. Clicking `Tags` OPENS it and never toggles: a mouse points at the row
+  (opening it) before it clicks, so a toggle would shut it on the very click meant to open it.
 - **Escape peels one layer**: the submenu, then the menu, and it stops there. It listens on the whole
   menu, so it also works while focus is still on the ☰ button. With the menu closed it passes
   through (Focused → Board still works).

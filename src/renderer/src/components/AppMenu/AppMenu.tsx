@@ -148,7 +148,8 @@ export function AppMenu({
               data-testid="app-menu-tags"
               aria-haspopup="menu"
               aria-expanded={tagsOpen}
-              onClick={() => setTagsOpen((v) => !v)}
+              // OPEN, never toggle: a mouse points at the row (opening it) before it clicks.
+              onClick={() => setTagsOpen(true)}
               onMouseEnter={() => setTagsOpen(true)}
               onKeyDown={handleTagsKeyDown}
             >

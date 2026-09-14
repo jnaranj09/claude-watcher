@@ -92,8 +92,17 @@ describe('AppMenu', () => {
     expect(q(r, 'app-menu-tags')?.getAttribute('aria-expanded')).toBe('true')
     expect(subMenu(r)?.getAttribute('aria-label')).toBe('Tags')
     expect(labels(subMenu(r))).toEqual(['Manage tags…', 'Manage rules…'])
+  })
+
+  // A mouse points at a row before it clicks it: the pointer opens the submenu, and the click that
+  // follows must not toggle it shut again.
+  it('clicking Tags after pointing at it keeps the submenu open', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    hover(q(r, 'app-menu-tags'))
     click(q(r, 'app-menu-tags'))
-    expect(subMenu(r)).toBeNull()
+    expect(subMenu(r)).not.toBeNull()
+    expect(q(r, 'app-menu-tags')?.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('pointing at Tags opens the submenu; pointing at another row closes it', () => {
