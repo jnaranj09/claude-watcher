@@ -156,9 +156,13 @@ export interface ClaudeCommandSpec {
    *  is what the version gate is for. */
   effort: EffortLevel | null
   /** Programmatic API: the template's initial prompt with its params filled, or null. Appended
-   *  LAST as the positional `[prompt]` argument (`claude [options] [prompt]`, verified on 2.1.272)
-   *  so claude starts interactive AND submits it. `null` / '' appends nothing, so every existing
-   *  command composes byte-identical. Shell-quoted: operator-written text reaching a shell. */
+   *  LAST as the positional `[prompt]` argument — seen in `claude --help` on 2.1.272, probed
+   *  end-to-end on 2.1.273 (an interactive session submitted the prompt with `--session-id` /
+   *  `-n` / `--effort` present) — so claude starts interactive AND submits it. `null` / ''
+   *  appends nothing, so every existing command composes byte-identical. Shell-quoted: the
+   *  template's prose is written in-app by a human, but the `$n` params filled into it come
+   *  from an HTTP caller (regex- and length-constrained upstream), so the composed value is
+   *  PARTLY caller-supplied and this quoting is the last line of defence. */
   initialPrompt: string | null
 }
 
@@ -215,7 +219,10 @@ function flagArg(flag: string, value: string | null): string {
  * argument, so it goes after every flag — `claude [options] [prompt]` — and claude starts
  * interactive AND submits it. Same REQUIRED-and-nullable contract; `null` (or '') appends
  * nothing, so every launch that does not carry a prompt composes byte-identically to before.
- * Shell-quoted for the same reason as `displayName`: operator-written text reaching a shell.
+ * Shell-quoted for the same reason as `displayName`, only more so: the template's prose is
+ * written in-app by a human, but the `$n` params filled into it are supplied by an HTTP caller
+ * (regex- and length-constrained upstream), so the composed value is PARTLY caller-supplied and
+ * `shellQuote` is the last line of defence — which is what the real-shell argv test pins.
  */
 export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
   const prompt =
