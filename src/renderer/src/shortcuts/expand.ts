@@ -1,20 +1,28 @@
 // Shortcut expander — the PURE half. No React, no DOM, no store, no window. The box
 // (components/ExpanderBox) owns the input, the highlight and the port write; this module only
 // answers "given this input and these shortcuts, what text comes out (or which error)".
-import { PLACEHOLDER_RE, scanPlaceholders, type Shortcut } from '../../../shared/schemas/shortcut'
+// `expand` and its result/error types are SHARED with the programmatic API (main), so they live
+// in `src/shared/prompt/expand.ts`; this module re-exports them so the box's call sites and tests
+// keep one import. Its control-char policy is split there: any control char in an arg VALUE is
+// rejected (a value is untrusted and the box types the result into a pty), the RESULT is checked
+// for every control char but `\n` (the API's template prompt is multi-line prose).
+import type { Shortcut } from '../../../shared/schemas/shortcut'
+import {
+  expand,
+  EXPANDED_TEXT_MAX_LENGTH,
+  type ExpandError,
+  type ExpandResult
+} from '../../../shared/prompt/expand'
 
-/** The expanded text cap. Larger than the 500-char phrase cap on purpose: values are appended. */
-export const EXPANDED_TEXT_MAX_LENGTH = 2000
+export {
+  expand,
+  EXPANDED_TEXT_MAX_LENGTH,
+  type ExpandError,
+  type ExpandResult
+} from '../../../shared/prompt/expand'
+
 /** Rows the box shows at most. */
 export const EXPANDER_MAX_ROWS = 8
-
-export type ExpandError =
-  | { code: 'unknown_alias'; alias: string }
-  | { code: 'missing_arg'; index: number }
-  | { code: 'too_long' }
-  | { code: 'control_char' }
-
-export type ExpandResult = { ok: true; value: string } | { ok: false; error: ExpandError }
 
 export interface ParsedInput {
   /** The first word, lowercased. '' when the input is blank. */
@@ -49,27 +57,6 @@ export function matchAliases(query: string, shortcuts: readonly Shortcut[]): Sho
     else if (s.name.toLowerCase().startsWith(q)) namePrefix.push(s)
   }
   return [...exact, ...aliasPrefix, ...namePrefix]
-}
-
-/** Fill `$1..$9`, `$*` and `$$` in `text` from `args`. Fails closed on a missing value. */
-export function expand(text: string, args: readonly string[]): ExpandResult {
-  const { numbers } = scanPlaceholders(text)
-  for (const n of [...numbers].sort((a, b) => a - b)) {
-    if (args[n - 1] === undefined) return { ok: false, error: { code: 'missing_arg', index: n } }
-  }
-  const rest = args.filter((_, i) => !numbers.has(i + 1)).join(' ')
-  const value = text.replace(PLACEHOLDER_RE, (_m, tok: string) => {
-    if (tok === '$') return '$'
-    if (tok === '*') return rest
-    return args[Number(tok) - 1] ?? ''
-  })
-  // The phrase itself is already control-character-free (ShortcutTextBaseSchema), but a typed
-  // VALUE is not validated anywhere upstream — parseInput's `/\s+/` split covers \r\n\t\v\f and
-  // the Unicode spaces, not \x1b/\x00/\x07. A pasted ANSI-coloured value would otherwise survive
-  // substitution and get typed into the pty verbatim. Fail closed instead.
-  if (/\p{Cc}/u.test(value)) return { ok: false, error: { code: 'control_char' } }
-  if (value.length > EXPANDED_TEXT_MAX_LENGTH) return { ok: false, error: { code: 'too_long' } }
-  return { ok: true, value }
 }
 
 /**
