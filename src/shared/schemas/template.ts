@@ -56,9 +56,15 @@ export const TEMPLATE_PARAM_VALUE_MAX_LENGTH = 200
 export const TEMPLATE_PARAMS_MAX = 9
 
 /** The anchored, unicode-flagged RegExp for a param, or null when the pattern does not compile.
- *  Anchoring is the app's job so a template author cannot forget it. */
+ *  Anchoring is the app's job so a template author cannot forget it — and it is a GUARANTEE, so
+ *  the pattern is compiled ON ITS OWN first. Wrapping is not enough by itself: an unbalanced
+ *  pattern closes the wrapper's group and escapes the anchors, `a)|(.*` composing to
+ *  `^(?:a)|(.*)$` — an alternation anchored on NEITHER branch, matching every value, i.e. a
+ *  param that constrains nothing. Such a pattern is invalid standalone, so the first compile
+ *  rejects it. */
 export function compileParamPattern(pattern: string): RegExp | null {
   try {
+    new RegExp(pattern, 'u')
     return new RegExp(`^(?:${pattern})$`, 'u')
   } catch {
     return null

@@ -232,6 +232,17 @@ describe('TemplateSchema — initialPrompt + params (programmatic API)', () => {
     expect(r.success).toBe(false)
     expect(r.success ? '' : r.error.issues[0]?.message).toBe('param_pattern_invalid')
   })
+  // Review fix round 1 — the schema must reject the anchor-escaping pattern too, not just the
+  // helper: `a)|(.*` would otherwise be saved as a param that accepts ANY value.
+  it('rejects a param pattern that would escape the anchors', () => {
+    const r = TemplateSchema.safeParse({
+      ...BASE,
+      initialPrompt: '$1',
+      params: [{ label: 'x', pattern: 'a)|(.*', maxLength: 10 }]
+    })
+    expect(r.success).toBe(false)
+    expect(r.success ? '' : r.error.issues[0]?.message).toBe('param_pattern_invalid')
+  })
   it('bounds label 1..30, pattern 1..200, maxLength 1..200', () => {
     expect(
       TemplateSchema.safeParse({ ...BASE, initialPrompt: '$1', params: [{ ...PARAM, label: '' }] })
@@ -286,5 +297,14 @@ describe('compileParamPattern', () => {
   })
   it('returns null for a pattern that does not compile', () => {
     expect(compileParamPattern('(')).toBeNull()
+  })
+  // Review fix round 1 — an UNBALANCED paren pattern escapes the anchoring by closing the
+  // wrapper's own group: `a)|(.*` composes to `^(?:a)|(.*)$`, which is an alternation anchored
+  // on NEITHER branch, so it matches every value and the param constrains nothing. `)(` composes
+  // to the equally nonsensical `^(?:)()$`. Both fail to compile ON THEIR OWN, which is what the
+  // standalone check catches. Removing that first `new RegExp(pattern, 'u')` turns this red.
+  it('returns null for an unbalanced pattern that would escape the anchors', () => {
+    expect(compileParamPattern('a)|(.*')).toBeNull()
+    expect(compileParamPattern(')(')).toBeNull()
   })
 })
