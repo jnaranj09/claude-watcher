@@ -1651,7 +1651,10 @@ function rawClaudeSpawn(
         appendSystemPrompt: QUESTION_FORMAT_PROMPT,
         model: flags.model,
         permissionMode: flags.permissionMode,
-        effort: flags.effort
+        effort: flags.effort,
+        // The programmatic API threads the template's filled-in prompt through here; the
+        // in-app launch flows carry none, so the composed command is byte-identical to before.
+        initialPrompt: null
       })
     ],
     env

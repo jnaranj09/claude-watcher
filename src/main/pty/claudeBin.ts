@@ -155,6 +155,11 @@ export interface ClaudeCommandSpec {
    *  soft — claude warns on stderr and uses its default — but an unknown FLAG is fatal, which
    *  is what the version gate is for. */
   effort: EffortLevel | null
+  /** Programmatic API: the template's initial prompt with its params filled, or null. Appended
+   *  LAST as the positional `[prompt]` argument (`claude [options] [prompt]`, verified on 2.1.272)
+   *  so claude starts interactive AND submits it. `null` / '' appends nothing, so every existing
+   *  command composes byte-identical. Shell-quoted: operator-written text reaching a shell. */
+  initialPrompt: string | null
 }
 
 function flagArg(flag: string, value: string | null): string {
@@ -205,8 +210,18 @@ function flagArg(flag: string, value: string | null): string {
  * `model` string) omits the flag entirely rather than emitting a bare one. `--effort` is
  * appended LAST so a template with no effort composes a byte-identical command to the
  * pre-effort one — that is what the folder-flow no-regression test asserts.
+ *
+ * `initialPrompt` (programmatic API) is NOT a flag: it is claude's positional `[prompt]`
+ * argument, so it goes after every flag — `claude [options] [prompt]` — and claude starts
+ * interactive AND submits it. Same REQUIRED-and-nullable contract; `null` (or '') appends
+ * nothing, so every launch that does not carry a prompt composes byte-identically to before.
+ * Shell-quoted for the same reason as `displayName`: operator-written text reaching a shell.
  */
 export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
+  const prompt =
+    spec.initialPrompt !== null && spec.initialPrompt.length > 0
+      ? ` ${shellQuote(spec.initialPrompt)}`
+      : ''
   return (
     `${shellQuote(spec.claudeCommand)} --session-id '${spec.sessionId}'` +
     flagArg('-n', spec.displayName) +
@@ -214,7 +229,8 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
     flagArg('--append-system-prompt', spec.appendSystemPrompt) +
     flagArg('--model', spec.model) +
     flagArg('--permission-mode', spec.permissionMode) +
-    flagArg('--effort', spec.effort)
+    flagArg('--effort', spec.effort) +
+    prompt
   )
 }
 

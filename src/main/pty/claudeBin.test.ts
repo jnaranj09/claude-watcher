@@ -207,6 +207,7 @@ describe('composeClaudeCommand', () => {
       model: null,
       permissionMode: null,
       effort: null,
+      initialPrompt: null,
       ...overrides
     }
   }
@@ -248,6 +249,29 @@ describe('composeClaudeCommand', () => {
         expect(cmd).toBe(`'${BIN}' --session-id '${SID}' -n 'x' --effort '${level}'`)
         expect(cmd.split('--effort').length - 1).toBe(1)
       }
+    })
+  })
+
+  describe('composeClaudeCommand — the initial prompt (programmatic API)', () => {
+    it('null ⇒ byte-identical to the command without a prompt', () => {
+      expect(composeClaudeCommand(spec({ initialPrompt: null }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x'`
+      )
+    })
+    it('appends the prompt LAST as one shell-quoted positional argument', () => {
+      expect(composeClaudeCommand(spec({ effort: 'low', initialPrompt: 'work on HT-1' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --effort 'low' 'work on HT-1'`
+      )
+    })
+    it('an apostrophe inside the prompt survives the quoting', () => {
+      expect(composeClaudeCommand(spec({ initialPrompt: "it's HT-1" }))).toContain(
+        `'it'\\''s HT-1'`
+      )
+    })
+    it('an empty prompt appends nothing', () => {
+      expect(composeClaudeCommand(spec({ initialPrompt: '' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x'`
+      )
     })
   })
 
@@ -344,6 +368,19 @@ describe('composeClaudeCommand', () => {
         '--append-system-prompt',
         QUESTION_FORMAT_PROMPT
       ])
+    })
+
+    it('hands a hostile initial prompt to claude as ONE positional argument', () => {
+      // The programmatic API's prompt is REQUEST-supplied text reaching a shell — the same
+      // injection surface as the operator-typed name, which is why it is shell-quoted. Proving
+      // the composed string is not enough here; this proves what a real shell does with it.
+      const prompt = "fix HT-1; echo PWNED $(echo PWNED2) `echo PWNED3` — it's urgent"
+      const cmd = composeClaudeCommand(spec({ claudeCommand: stub, initialPrompt: prompt }))
+      const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+        .split('\n')
+        .filter((l) => l !== '')
+
+      expect(argv).toEqual(['--session-id', SID, '-n', 'x', prompt])
     })
   })
 
