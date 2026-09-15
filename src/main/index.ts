@@ -1489,7 +1489,9 @@ function registerTerminalIpc(): void {
         // expression. Keep this a one-line call; put any synthesis logic in that module.
         // Workspaces — stamp main's OWN active-workspace pointer at synthesis time (never
         // derived in the extracted module, which must stay importable without Electron).
-        const workspaceId = requireWorkspacesStore().activeId()
+        // Programmatic API — a launch that names its workspace (a template's own scope) lands
+        // there; every other launch keeps landing in main's active workspace.
+        const workspaceId = minted.workspaceId ?? requireWorkspacesStore().activeId()
         launchBoardSeams.get(wc)?.upsertLaunched(
           buildLaunchedSession(
             minted,
@@ -1603,7 +1605,8 @@ function registerTerminalIpc(): void {
 function rawClaudeSpawn(
   sessionId: string,
   displayName: string,
-  flags: ClaudeLaunchFlags
+  flags: ClaudeLaunchFlags,
+  initialPrompt: string | null
 ): {
   file: string
   args: string[]
@@ -1652,9 +1655,10 @@ function rawClaudeSpawn(
         model: flags.model,
         permissionMode: flags.permissionMode,
         effort: flags.effort,
-        // The programmatic API threads the template's filled-in prompt through here; the
-        // in-app launch flows carry none, so the composed command is byte-identical to before.
-        initialPrompt: null
+        // The programmatic API threads the template's filled-in prompt through here (it rode
+        // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
+        // none, so for them the composed command stays byte-identical to before.
+        initialPrompt
       })
     ],
     env

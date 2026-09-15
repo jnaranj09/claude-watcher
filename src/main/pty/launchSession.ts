@@ -99,6 +99,12 @@ export interface LaunchRequest {
   /** Tags and rules — the template this launch came from; omitted ⇒ null (the folder flow). Read by
    *  the rules engine's `template` condition (Phase 2), never by the spawn itself. */
   templateId?: string | null
+  /** Programmatic API — the expanded initial prompt claude starts with; omitted ⇒ null (UI
+   *  launches never set it in v1). Rides the durable override, so a Reopen re-runs it. */
+  initialPrompt?: string | null
+  /** Programmatic API — the workspace the card must land in (a template's own scope);
+   *  omitted/null ⇒ main's active workspace at spawn (today's behaviour). */
+  workspaceId?: string | null
 }
 
 /** The per-terminal launch recipe, set once at launch and read on EVERY spawn of that terminal. */
@@ -107,6 +113,10 @@ export interface LaunchOverride {
   name: string
   flags: ClaudeLaunchFlags
   templateId: string | null
+  /** Programmatic API — the expanded initial prompt, or null. Durable like `cwd`. */
+  initialPrompt: string | null
+  /** Programmatic API — the workspace this launch names, or null for "active at spawn". */
+  workspaceId: string | null
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -140,6 +150,10 @@ export interface MintedLaunchSpawn {
   /** Tags and rules — the launch's template id (null for the folder flow), read back off the
    *  override exactly like `displayName`. */
   templateId: string | null
+  /** Programmatic API — read back off the override like `displayName`. */
+  initialPrompt: string | null
+  /** Programmatic API — the override's workspace, or null for "active at spawn". */
+  workspaceId: string | null
 }
 
 export interface LaunchServiceOptions {
@@ -161,11 +175,17 @@ export interface LaunchServiceOptions {
    *
    *  Session templates: `flags` is the launch's `ClaudeLaunchFlags` (`NO_LAUNCH_FLAGS` for a
    *  plain folder launch), read back off the same override as `displayName` so a re-spawn of
-   *  the same terminal (Reopen) keeps the flags it was launched with. */
+   *  the same terminal (Reopen) keeps the flags it was launched with.
+   *
+   *  Programmatic API: `initialPrompt` is the expanded prompt this launch was registered with
+   *  (null for every in-app flow), read off the same override for the same reason — a Reopen
+   *  must re-run the prompt the launch was created with, not a bare `claude`. The factory
+   *  appends it as claude's positional `[prompt]` argument; quoting it is the factory's job. */
   spawn: (
     sessionId: string,
     displayName: string,
-    flags: ClaudeLaunchFlags
+    flags: ClaudeLaunchFlags,
+    initialPrompt: string | null
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
    *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
@@ -243,6 +263,15 @@ export interface LaunchService {
    *  spawn (null before the first mint / for a non-launch terminalId). Story 6.3 consumes
    *  this for exact stop/exit removal. */
   sessionIdFor(terminalId: string): string | null
+  /** Programmatic API — resolve with the session id once `mintSpawn` binds this terminal (at
+   *  once if already bound). Rejects with `Error('spawn_timeout')` after `timeoutMs`. A
+   *  timed-out waiter is dropped; a later mint never calls it.
+   *
+   *  Why it exists: `launch()` only REGISTERS the recipe — the spawn (and therefore the minted
+   *  session id the HTTP caller is told) happens when the RENDERER opens the terminal against
+   *  the returned terminalId. This is how a command waits for that id without polling, and how
+   *  it gives up when the renderer never opens the terminal at all. */
+  awaitBinding(terminalId: string, timeoutMs: number): Promise<string>
   /** Session-rebind — the REVERSE of `sessionIdFor`: which terminal is bound to this session
    *  id, or null. Consumed by the mid-run id-change guard (hooks/sessionRebind.ts): a
    *  `SessionEnd` for a session whose terminal is still ALIVE is an id change, not a removal.
@@ -315,6 +344,8 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
    *  binding present means "the last spawn's session may still be on the board". Not touched
    *  by forget() (correlation tracking is a separate lifecycle). */
   const bindings = new Map<string, string>()
+  /** Programmatic API — one-shot waiters keyed by terminalId, resolved by mintSpawn. */
+  const bindingWaiters = new Map<string, Set<(sessionId: string) => void>>()
 
   function launch(req: LaunchRequest): LaunchOutcome {
     const terminalId = newTerminalId()
@@ -325,11 +356,16 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // Session-naming: the operator-typed name sits beside the cwd — both are per-terminal
     // launch-recipe values with the same key and lifetime. Session templates: `flags` too —
     // omitted (folder flow) collapses to NO_LAUNCH_FLAGS.
+    // Programmatic API: the expanded initial prompt and the named workspace sit beside them —
+    // same key, same lifetime, same "read on every spawn" contract, so a Reopen re-runs the
+    // same prompt and lands the card in the same workspace. Omitted (every in-app flow) ⇒ null.
     overrides.set(terminalId, {
       cwd: req.cwd,
       name: req.name,
       flags: req.flags ?? NO_LAUNCH_FLAGS,
-      templateId: req.templateId ?? null
+      templateId: req.templateId ?? null,
+      initialPrompt: req.initialPrompt ?? null,
+      workspaceId: req.workspaceId ?? null
     })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
@@ -353,7 +389,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
     // generating its own title that would then disagree with the board card. Session templates:
     // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them.
-    const base = options.spawn(sessionId, override.name, override.flags)
+    const base = options.spawn(sessionId, override.name, override.flags, override.initialPrompt)
     const spawn: LaunchSpawnConfig = {
       file: base.file,
       ...(base.args !== undefined ? { args: base.args } : {}),
@@ -364,6 +400,14 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // (c) Record the EXACT binding — a Reopen OVERWRITES with the new id (the old session is
     // gone; the frame now hosts the fresh one). Story 6.3 reads this for removal.
     bindings.set(terminalId, sessionId)
+    // Programmatic API — wake anything waiting on THIS terminal's binding (awaitBinding). The
+    // waiter set is deleted FIRST so each waiter is one-shot: a Reopen's second mint has
+    // nobody left to call, and a waiter can never be resolved twice.
+    const waiters = bindingWaiters.get(terminalId)
+    if (waiters !== undefined) {
+      bindingWaiters.delete(terminalId)
+      for (const resolve of waiters) resolve(sessionId)
+    }
     // (a) Launched-set membership BEFORE the caller ships the synthesized delta — the
     // Story-3.3 board-ship gate passes on the very first `session.updated` for this id.
     options.launchedSet.add(sessionId)
@@ -375,12 +419,42 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
       pending.correlatedId = sessionId
     }
 
-    // The operator's name rides back out of the override (never consumed, like the cwd).
-    return { sessionId, spawn, displayName: override.name, templateId: override.templateId }
+    // The operator's name rides back out of the override (never consumed, like the cwd), and so
+    // do the programmatic API's prompt + workspace — the caller of terminal:open needs the
+    // workspace to stamp the synthesized card with, and the prompt for diagnostics/parity.
+    return {
+      sessionId,
+      spawn,
+      displayName: override.name,
+      templateId: override.templateId,
+      initialPrompt: override.initialPrompt,
+      workspaceId: override.workspaceId
+    }
   }
 
   function sessionIdFor(terminalId: string): string | null {
     return bindings.get(terminalId) ?? null
+  }
+
+  function awaitBinding(terminalId: string, timeoutMs: number): Promise<string> {
+    // Already bound (the renderer opened the terminal before the caller got here) — answer now.
+    const bound = bindings.get(terminalId)
+    if (bound !== undefined) return Promise.resolve(bound)
+    return new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        // Drop THIS waiter (not the whole set — another caller may still be waiting on the
+        // same terminal), so a later mint never calls a promise that already rejected.
+        bindingWaiters.get(terminalId)?.delete(onBound)
+        reject(new Error('spawn_timeout'))
+      }, timeoutMs)
+      const onBound = (sessionId: string): void => {
+        clearTimeout(timer)
+        resolve(sessionId)
+      }
+      const set = bindingWaiters.get(terminalId) ?? new Set<(sessionId: string) => void>()
+      set.add(onBound)
+      bindingWaiters.set(terminalId, set)
+    })
   }
 
   function terminalIdFor(sessionId: string): string | null {
@@ -494,6 +568,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     peekSpawnOverride,
     mintSpawn,
     sessionIdFor,
+    awaitBinding,
     terminalIdFor,
     rebind,
     unbind,
