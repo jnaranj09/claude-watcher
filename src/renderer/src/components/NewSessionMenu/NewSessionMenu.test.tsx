@@ -12,7 +12,9 @@ const T1: Template = {
   model: 'opus',
   permissionMode: 'plan',
   effort: 'xhigh',
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 const T2: Template = {
   id: 'b',
@@ -21,7 +23,9 @@ const T2: Template = {
   model: null,
   permissionMode: null,
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 let cleanup: (() => void) | undefined

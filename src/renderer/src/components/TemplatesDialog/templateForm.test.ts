@@ -20,7 +20,9 @@ const T: Template = {
   model: 'opus',
   permissionMode: 'plan',
   effort: 'high',
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 describe('draft ⇄ template', () => {
@@ -33,7 +35,9 @@ describe('draft ⇄ template', () => {
       customModel: '',
       permissionChoice: 'default',
       effortChoice: 'default',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
   })
   it('modelChoiceOf: null → default, alias → alias, anything else → custom with the text', () => {
@@ -50,7 +54,9 @@ describe('draft ⇄ template', () => {
       customModel: 'claude-x',
       permissionChoice: 'default',
       effortChoice: 'default',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
   })
   // Fix round 1, Finding 1 — the clobber this guards against: main's save() has no
@@ -73,7 +79,9 @@ describe('validateDraft', () => {
         model: 'opus',
         permissionMode: 'plan',
         effort: 'high',
-        workspaceId: null
+        workspaceId: null,
+        initialPrompt: null,
+        params: []
       }
     })
   })
@@ -83,6 +91,17 @@ describe('validateDraft', () => {
   it('editing a SCOPED template preserves the scope (does not clobber it to GLOBAL)', () => {
     const v = validateDraft(toDraft({ ...T, workspaceId: 'w1' }))
     expect(v.ok && v.request.workspaceId).toBe('w1')
+  })
+  // Programmatic API (Task 4) — the SAME clobber as the scope above, one field further on. The
+  // form has no prompt control yet, so hardcoding `initialPrompt: null, params: []` in the
+  // candidate would WIPE a template's prompt on any unrelated edit (main's save() replaces the
+  // whole row). Round-tripping them through the draft is what stops that; reverting it turns
+  // this red.
+  it('editing a template with a prompt preserves the prompt and its params', () => {
+    const params = [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 20 }]
+    const v = validateDraft(toDraft({ ...T, initialPrompt: 'Work on $1', params }))
+    expect(v.ok && v.request.initialPrompt).toBe('Work on $1')
+    expect(v.ok ? v.request.params : null).toEqual(params)
   })
   it('a new draft has NO id key at all (exactOptionalPropertyTypes)', () => {
     const v = validateDraft({ ...emptyDraft(), name: 'x', cwd: '/x' })
@@ -94,7 +113,9 @@ describe('validateDraft', () => {
         model: null,
         permissionMode: null,
         effort: null,
-        workspaceId: null
+        workspaceId: null,
+        initialPrompt: null,
+        params: []
       }
     })
     expect(v.ok && 'id' in v.request).toBe(false)

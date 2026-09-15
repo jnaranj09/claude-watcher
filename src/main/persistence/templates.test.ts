@@ -8,7 +8,9 @@ const ROW = {
   model: 'opus',
   permissionMode: 'acceptEdits' as const,
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 function fakeBlob(
@@ -92,7 +94,9 @@ describe('createTemplatesStore — load', () => {
       permissionMode: 'acceptEdits'
     }
     const { store, fake, log } = make({ version: 1, templates: [preChange] })
-    expect(store.list()).toEqual([{ ...preChange, effort: null, workspaceId: null }])
+    expect(store.list()).toEqual([
+      { ...preChange, effort: null, workspaceId: null, initialPrompt: null, params: [] }
+    ])
     expect(fake.backups()).toBe(0)
     expect(log).not.toHaveBeenCalled()
   })
@@ -142,6 +146,12 @@ describe('createTemplatesStore — save / get / remove', () => {
       expect(out.saved.effort).toBe(level)
       expect(store.get(out.saved.id)?.effort).toBe(level)
     }
+  })
+  it('save persists the initial prompt and its params', () => {
+    const { store } = make()
+    const params = [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 20 }]
+    const out = store.save({ ...ROW, initialPrompt: 'Work on $1', params })
+    expect(store.get(out.saved.id)).toMatchObject({ initialPrompt: 'Work on $1', params })
   })
   it('a failed write logs templates_write_failed and keeps the in-memory row', () => {
     const { store, log } = make(undefined, { writeThrows: true })

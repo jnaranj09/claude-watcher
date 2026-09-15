@@ -9,6 +9,7 @@ import {
   type PermissionMode,
   type EffortLevel,
   type Template,
+  type TemplateParam,
   type TemplateSaveRequest
 } from '../../../../shared/schemas/template'
 import { usedByRulesCopy } from '../../stores/rulesStore'
@@ -29,6 +30,12 @@ export interface TemplateDraft {
   /** Workspaces — round-trips the template's scope through the draft UNCHANGED, so `toDraft` →
    *  `validateDraft` does not silently reset an existing scope to GLOBAL on every edit. */
   workspaceId: string | null
+  /** Programmatic API — round-tripped for the SAME reason as `workspaceId`, one field further on.
+   *  This form has no prompt editor yet, so these are carried, never shown: main's save() replaces
+   *  the whole row, so a draft that dropped them would wipe a template's prompt on any unrelated
+   *  edit. */
+  initialPrompt: string | null
+  params: TemplateParam[]
 }
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -73,7 +80,9 @@ export function emptyDraft(): TemplateDraft {
     customModel: '',
     permissionChoice: 'default',
     effortChoice: 'default',
-    workspaceId: null
+    workspaceId: null,
+    initialPrompt: null,
+    params: []
   }
 }
 
@@ -93,7 +102,9 @@ export function toDraft(template: Template): TemplateDraft {
     customModel: custom,
     permissionChoice: template.permissionMode ?? 'default',
     effortChoice: template.effort ?? 'default',
-    workspaceId: template.workspaceId
+    workspaceId: template.workspaceId,
+    initialPrompt: template.initialPrompt,
+    params: template.params
   }
 }
 
@@ -123,7 +134,11 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     // Workspaces — round-tripped from the draft (toDraft copied it from the base template; a
     // NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no partial-update
     // path, so this dialog must re-send the existing scope on every edit or lose it.
-    workspaceId: draft.workspaceId
+    workspaceId: draft.workspaceId,
+    // Programmatic API — carried, not edited (no prompt control in this form yet). Same
+    // no-partial-update reasoning as workspaceId: dropping them here wipes the prompt.
+    initialPrompt: draft.initialPrompt,
+    params: draft.params
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)
   if (parsed.success) return { ok: true, request: parsed.data }

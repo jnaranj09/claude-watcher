@@ -16,7 +16,9 @@ const T1: Template = {
   model: 'opus',
   permissionMode: 'plan',
   effort: 'high',
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 let cleanup: (() => void) | undefined
@@ -106,7 +108,9 @@ describe('TemplatesDialog', () => {
       model: 'claude-x',
       permissionMode: 'acceptEdits',
       effort: null,
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
   })
@@ -129,7 +133,9 @@ describe('TemplatesDialog', () => {
       model: 'opus',
       permissionMode: 'plan',
       effort: 'high',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
   })
   it('a chosen effort reaches window.templates.save; Default sends null', async () => {
@@ -146,7 +152,9 @@ describe('TemplatesDialog', () => {
       model: null,
       permissionMode: null,
       effort: 'xhigh',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
   })
   it('selecting a row preselects its effort, and changing only the effort enables Save', () => {
@@ -235,7 +243,9 @@ describe('TemplatesDialog', () => {
       model: null,
       permissionMode: null,
       effort: null,
-      workspaceId: 'w1'
+      workspaceId: 'w1',
+      initialPrompt: null,
+      params: []
     })
   })
 
@@ -251,7 +261,9 @@ describe('TemplatesDialog', () => {
             model: null,
             permissionMode: null,
             effort: null,
-            workspaceId: 'gone'
+            workspaceId: 'gone',
+            initialPrompt: null,
+            params: []
           }
         ],
         loaded: true

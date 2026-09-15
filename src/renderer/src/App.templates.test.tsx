@@ -24,7 +24,9 @@ const T1: Template = {
   model: 'opus',
   permissionMode: 'plan',
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
