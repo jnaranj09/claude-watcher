@@ -21,14 +21,14 @@ import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 const A = {
   id: 'sc-1',
   name: 'approve',
-  keys: ['Ctrl+Alt+A'],
+  alias: 'ap',
   text: 'I explicitly approve',
   workspaceId: null
 }
 const B = {
   id: 'sc-2',
   name: 'deny',
-  keys: ['Ctrl+Alt+B'],
+  alias: 'dn',
   text: 'I explicitly deny',
   workspaceId: null
 }

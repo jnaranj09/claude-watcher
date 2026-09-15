@@ -22,6 +22,8 @@ import {
   REMINDER_FIRST_DELAY_OPTIONS,
   DEFAULT_REMINDER_COUNT,
   DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
+  DEFAULT_EXPANDER_KEY,
+  expanderChord,
   type Settings
 } from './settings'
 
@@ -32,7 +34,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       soundEnabled: false,
       terminalFontSize: 16,
       reminderCount: 3,
-      reminderFirstDelayMinutes: 2
+      reminderFirstDelayMinutes: 2,
+      expanderKey: 'X'
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -240,5 +243,38 @@ describe('reminder settings — additive, default-filled, no version bump', () =
     })
     expect(SettingsPatchSchema.safeParse({ reminderCount: 6 }).success).toBe(false)
     expect(SettingsPatchSchema.safeParse({ reminderFirstDelayMinutes: 7 }).success).toBe(false)
+  })
+})
+
+describe('expanderKey — the one Ctrl+Alt letter that opens the shortcut box', () => {
+  it('defaults to X on a pre-change v1 blob', () => {
+    const parsed = parseSettings({ version: 1, soundEnabled: true, terminalFontSize: 14 })
+    expect(parsed.expanderKey).toBe('X')
+    expect(DEFAULT_EXPANDER_KEY).toBe('X')
+    expect(DEFAULT_SETTINGS.expanderKey).toBe('X')
+  })
+
+  it('round-trips a stored letter', () => {
+    expect(
+      parseSettings({ version: 1, soundEnabled: true, terminalFontSize: 14, expanderKey: 'Q' })
+        .expanderKey
+    ).toBe('Q')
+  })
+
+  it.each([['x'], ['XX'], [''], ['1'], ['Ctrl+Alt+X']])('rejects %s in the blob', (bad) => {
+    expect(() =>
+      parseSettings({ version: 1, soundEnabled: true, terminalFontSize: 14, expanderKey: bad })
+    ).toThrow()
+  })
+
+  it('the patch accepts a single upper-case letter and nothing else', () => {
+    expect(SettingsPatchSchema.parse({ expanderKey: 'Q' })).toEqual({ expanderKey: 'Q' })
+    expect(SettingsPatchSchema.safeParse({ expanderKey: 'q' }).success).toBe(false)
+    // No `.default()` on the patch: a sound-only patch must NOT carry a key.
+    expect(SettingsPatchSchema.parse({ soundEnabled: false })).not.toHaveProperty('expanderKey')
+  })
+
+  it('expanderChord renders the chord the terminal compares against', () => {
+    expect(expanderChord('X')).toBe('Ctrl+Alt+X')
   })
 })

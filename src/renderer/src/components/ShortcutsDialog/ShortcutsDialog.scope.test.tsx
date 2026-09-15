@@ -24,21 +24,21 @@ const DEFAULT_WS: Workspace = {
 const GLOBAL: Shortcut = {
   id: 'g',
   name: 'global-one',
-  keys: ['Ctrl+Alt+A'],
+  alias: 'ga',
   text: 'g',
   workspaceId: null
 }
 const OWN: Shortcut = {
   id: 'own',
   name: 'ops-one',
-  keys: ['Ctrl+Alt+B'],
+  alias: 'ow',
   text: 'o',
   workspaceId: 'w1'
 }
 const ORPHAN: Shortcut = {
   id: 'orphan',
   name: 'stranded-one',
-  keys: ['Ctrl+Alt+C'],
+  alias: 'or',
   text: 's',
   workspaceId: 'gone'
 }

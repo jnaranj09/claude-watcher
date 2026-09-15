@@ -52,7 +52,8 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
         terminalFontSize: patch.terminalFontSize ?? DEFAULT_SETTINGS.terminalFontSize,
         reminderCount: patch.reminderCount ?? DEFAULT_SETTINGS.reminderCount,
         reminderFirstDelayMinutes:
-          patch.reminderFirstDelayMinutes ?? DEFAULT_SETTINGS.reminderFirstDelayMinutes
+          patch.reminderFirstDelayMinutes ?? DEFAULT_SETTINGS.reminderFirstDelayMinutes,
+        expanderKey: patch.expanderKey ?? DEFAULT_SETTINGS.expanderKey
       }
       return merged
     }

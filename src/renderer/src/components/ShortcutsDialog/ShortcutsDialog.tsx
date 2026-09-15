@@ -22,6 +22,9 @@ import {
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { ShortcutRow, ShortcutEditor } from './ShortcutRow'
 import { ChordKeys } from './ChordKeys'
+import { KeyChordRecorder } from './KeyChordRecorder'
+import { persistSettingsPatch, selectExpanderKey, useSettings } from '../../stores/settingsStore'
+import { expanderChord } from '../../../../shared/schemas/settings'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   ALL_SCOPE,
@@ -54,6 +57,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   // no makeSelectVisibleShortcuts here. activeWorkspaceId + workspaces feed the header's scope
   // filter, which is the ONE thing that narrows this list.
   const shortcuts = useShortcuts(selectShortcuts)
+  const expanderKey = useSettings(selectExpanderKey)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const dialog = useManageDialog({ title: 'Shortcuts', testIdPrefix: 'shortcuts', onClose })
@@ -127,7 +131,12 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
     <ManageDialog.Provider {...dialog}>
       <ManageDialog.Frame size="wide">
         <ManageDialog.Header
-          subtitle="Press a chord in a session to type its phrase. You press Enter to send."
+          subtitle={
+            <span data-testid="shortcuts-subtitle">
+              Press <ChordKeys keys={[expanderChord(expanderKey)]} />, type an alias and its values,
+              then Enter to type the result. You press Enter to send.
+            </span>
+          }
           buttons={
             <ManageDialog.GhostButton
               testId="shortcuts-add"
@@ -149,6 +158,18 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
           />
         </ManageDialog.Header>
 
+        {/* Its own row, not the subtitle: the subtitle is a <p> and the recorder is a <div>. */}
+        <div className={styles.openWith}>
+          <span className={styles.fieldLabel}>Open with</span>
+          <KeyChordRecorder
+            value={expanderChord(expanderKey)}
+            onChange={(chord) => {
+              // The chord is `Ctrl+Alt+<letter>`; the letter is the last character.
+              void persistSettingsPatch({ expanderKey: chord.slice(-1) })
+            }}
+          />
+        </div>
+
         {editingId !== null && (
           <ShortcutEditor
             shortcut={editingShortcut}
@@ -166,15 +187,14 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
           <div className={styles.empty} data-testid="shortcuts-empty">
             <span className={styles.emptyTitle}>No shortcuts yet</span>
             <span className={styles.emptyBody}>
-              Add one and give it a chord like <ChordKeys keys={['Ctrl+Alt+A']} /> to type its
-              phrase in any session.
+              Add one and give it an alias like <code>ht</code> to type its phrase in any session.
             </span>
           </div>
         ) : (
           <div className={styles.list} role="table" aria-label="Shortcuts">
             <div className={styles.headRow} role="row">
               <span>Name</span>
-              <span>Keybinding</span>
+              <span>Alias</span>
               <span>Phrase</span>
               <span />
             </div>

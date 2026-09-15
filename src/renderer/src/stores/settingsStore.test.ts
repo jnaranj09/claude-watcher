@@ -10,7 +10,8 @@ import {
   selectTerminalFontSize,
   selectLoaded,
   selectReminderCount,
-  selectReminderFirstDelayMinutes
+  selectReminderFirstDelayMinutes,
+  selectExpanderKey
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -31,7 +32,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       soundEnabled: false,
       terminalFontSize: 22,
       reminderCount: 5,
-      reminderFirstDelayMinutes: 10
+      reminderFirstDelayMinutes: 10,
+      expanderKey: 'X'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -81,5 +83,19 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectReminderFirstDelayMinutes(store.getState())).toBe(15)
     expect(selectReminderCount(store.getState())).toBe(0)
     expect(selectSoundEnabled(store.getState())).toBe(DEFAULT_SETTINGS.soundEnabled)
+  })
+})
+
+describe('expanderKey projection', () => {
+  it('starts at the default, hydrates, and applies a patch', () => {
+    const store = createSettingsStore()
+    expect(selectExpanderKey(store.getState())).toBe('X')
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, expanderKey: 'Q' })
+    expect(selectExpanderKey(store.getState())).toBe('Q')
+    store.getState().applyPatch({ expanderKey: 'Z' })
+    expect(selectExpanderKey(store.getState())).toBe('Z')
+    // A patch without the key leaves it alone.
+    store.getState().applyPatch({ soundEnabled: false })
+    expect(selectExpanderKey(store.getState())).toBe('Z')
   })
 })

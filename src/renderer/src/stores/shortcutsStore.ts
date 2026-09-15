@@ -51,7 +51,7 @@ export async function loadShortcuts(): Promise<void> {
   }
 }
 
-/** Rethrows: the Shortcuts form maps `shortcut_keys_taken` etc. to copy. */
+/** Rethrows: the Shortcuts form maps `shortcut_alias_taken` etc. to copy. */
 export async function saveShortcut(req: ShortcutSaveRequest): Promise<Shortcut> {
   const result = await window.shortcuts.save(req)
   shortcutsStore.getState().hydrate(result.shortcuts)

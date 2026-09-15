@@ -6,7 +6,17 @@
    the list grid. Four controls (name, chord recorder, phrase, three buttons) never fit one
    860px row: the phrase input collapsed and a 3-chord sequence overflowed its column. */
 
-/* --- Key chips: one chord = one chip, so a 3-chord sequence stays scannable --------------- */
+/* The header's "Open with" row: the ONE chord that opens the shortcut box (settings.expanderKey).
+   Its own row under the ManageDialog header — the header's subtitle is a <p>, which cannot hold
+   the recorder's <div>. The panel's gap spaces it, so no margin of its own. */
+.openWith {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* --- Key chips: one chip per chord; every caller today passes exactly one (the single
+   expanderKey open chord — ChordKeys.tsx) --------------------------------------------------- */
 .chordKeys {
   display: inline-flex;
   flex-wrap: wrap;
@@ -25,7 +35,7 @@
   white-space: nowrap;
 }
 
-/* --- The list: Name · Keybinding · Phrase · Edit ------------------------------------------ */
+/* --- The list: Name · Alias · Phrase · Edit ------------------------------------------------ */
 .list {
   display: flex;
   flex-direction: column;
@@ -70,6 +80,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.cellAlias {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .cellText {
   color: var(--text-secondary);
