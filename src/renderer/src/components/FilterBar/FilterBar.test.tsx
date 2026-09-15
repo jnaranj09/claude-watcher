@@ -1,7 +1,7 @@
-// The board's filter bar (2026-09-14, design option C): the active filter as a removable pill, and
+// The board's filter bar: a controls row (the search box, the `Filter` button, the count) and,
+// under it once the button is pressed, the chip row — the active filter as a removable pill, and
 // `+ Add filter`. Tag is the only filter type today, so `+ Add filter` opens the tag list directly.
-// It starts COLLAPSED to a small `Filters` toggle, so it costs the board less height until it is
-// used. jsdom `unit` project.
+// jsdom `unit` project.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,6 +10,7 @@ import { renderComponent, fireEvent, type RenderResult } from '../../test/render
 import { FilterBar, type FilterBarProps } from './FilterBar'
 import { tagsStore } from '../../stores/tagsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
+import { boardStore } from '../../stores/boardStore'
 import type { Tag, Workspace } from '../../../../shared/ipc/contract'
 
 const WS: Workspace[] = [
@@ -34,6 +35,7 @@ afterEach(() => {
   act(() => {
     tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
+    boardStore.setState({ searchQuery: '' })
   })
 })
 
@@ -45,8 +47,21 @@ const rowIds = (r: RenderResult): (string | null)[] =>
   [...r.container.querySelectorAll('[role="menu"] [role="menuitemradio"]')].map((el) =>
     el.getAttribute('data-testid')
   )
+const searchBox = (r: RenderResult): HTMLInputElement => {
+  const el = r.container.querySelector<HTMLInputElement>('[data-testid="board-search"]')
+  if (el === null) throw new Error('missing search box')
+  return el
+}
+/** Type into the search box the way the DOM does, so React's onChange fires. */
+function type(el: HTMLInputElement, next: string): void {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  act(() => {
+    setter?.call(el, next)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
 
-/** The bar as it first draws: collapsed to its `Filters` toggle. */
+/** The bar as it first draws: the controls row only. */
 function render(props: Partial<FilterBarProps> = {}): RenderResult {
   const r = renderComponent(
     <FilterBar total={5} workspaceTotal={5} onManageTags={vi.fn()} {...props} />
@@ -55,7 +70,7 @@ function render(props: Partial<FilterBarProps> = {}): RenderResult {
   return r
 }
 
-/** The bar with its toggle clicked open. */
+/** The bar with its `Filter` button pressed: the chip row is showing. */
 function renderOpen(props: Partial<FilterBarProps> = {}): RenderResult {
   const r = render(props)
   click(q(r, 'filter-toggle'))
@@ -68,74 +83,92 @@ describe('FilterBar', () => {
     expect(q(r, 'filter-bar')).toBeNull()
   })
 
-  it('starts collapsed: a labelled group holding only the Filters toggle', () => {
+  it('first draws only the controls row: the search box, the Filter button and the count', () => {
     const r = render()
     const bar = q(r, 'filter-bar')
     expect(bar?.getAttribute('role')).toBe('group')
-    expect(bar?.getAttribute('aria-label')).toBe('Filters')
+    expect(bar?.getAttribute('aria-label')).toBe('Search and filters')
+    const row = q(r, 'filter-controls-row')
+    expect(row?.contains(searchBox(r))).toBe(true)
+    expect(searchBox(r).placeholder).toBe('Search…')
+    expect(searchBox(r).getAttribute('aria-label')).toBe('Search sessions')
     const toggle = q(r, 'filter-toggle')
-    // An icon, not the word: an uppercase FILTERS label read badly.
-    expect(toggle?.textContent).toBe('')
+    expect(row?.contains(toggle)).toBe(true)
+    // The icon AND the word: the mockup's `Filter` button.
+    expect(toggle?.textContent).toBe('Filter')
     expect(toggle?.querySelector('svg')?.getAttribute('width')).toBe('16')
-    expect(toggle?.getAttribute('aria-label')).toBe('Filters')
+    expect(toggle?.getAttribute('aria-label')).toBe('Filter')
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
-    expect(toggle?.getAttribute('data-filter-on')).toBe('false')
+    expect(toggle?.getAttribute('data-lit')).toBe('false')
     expect(toggle?.getAttribute('title')).toBe('Show filters')
+    // The count sits on the controls row, so it shows even with the chip row closed.
+    expect(row?.contains(q(r, 'filter-count'))).toBe(true)
+    expect(q(r, 'filter-count')?.textContent).toBe('5 sessions')
     expect(q(r, 'filter-add')).toBeNull()
-    expect(q(r, 'filter-count')).toBeNull()
     expect(q(r, 'filter-toggle-count')).toBeNull()
   })
 
-  it('the toggle shows the filter controls, and hides them again', () => {
+  it('the Filter button shows the chip row BELOW the controls row, and hides it again', () => {
     const r = render()
     const toggle = q(r, 'filter-toggle')
     click(toggle)
     expect(toggle?.getAttribute('aria-expanded')).toBe('true')
     expect(toggle?.getAttribute('title')).toBe('Hide filters')
+    // Open is LIT, like the rail's open tag toggles — with or without a filter on.
+    expect(toggle?.getAttribute('data-lit')).toBe('true')
     // getElementById: a React id is not a valid CSS selector.
-    const controls = document.getElementById(toggle?.getAttribute('aria-controls') ?? '')
-    expect(controls?.contains(q(r, 'filter-add'))).toBe(true)
-    expect(q(r, 'filter-count')?.textContent).toBe('5 sessions')
+    const chips = document.getElementById(toggle?.getAttribute('aria-controls') ?? '')
+    expect(chips?.contains(q(r, 'filter-add'))).toBe(true)
+    const row = q(r, 'filter-controls-row')
+    expect(row?.contains(chips ?? null)).toBe(false)
+    if (row === null || chips === null) throw new Error('missing a row')
+    expect(row.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     click(toggle)
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle?.getAttribute('data-lit')).toBe('false')
     expect(q(r, 'filter-add')).toBeNull()
   })
 
-  // Collapsed, the pill is out of sight while cards are still hidden — the toggle has to say so.
-  it('collapsed with a filter on, the toggle says one filter is on', () => {
+  // With the chip row closed, the pill is out of sight while cards are still hidden — the button has
+  // to say so, loudly. Opening the row must not put the light out: it stays lit while open.
+  it('with a filter on, the button carries the count and stays lit, chip row closed or open', () => {
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     const r = render()
     const toggle = q(r, 'filter-toggle')
     expect(q(r, 'filter-pill-tag')).toBeNull()
     expect(q(r, 'filter-toggle-count')?.textContent).toBe('1')
-    expect(toggle?.getAttribute('aria-label')).toBe('Filters, 1 on')
-    // It lights up: the loudest state, so hidden cards are hard to forget.
-    expect(toggle?.getAttribute('data-filter-on')).toBe('true')
+    expect(toggle?.getAttribute('aria-label')).toBe('Filter, 1 on')
+    expect(toggle?.getAttribute('data-lit')).toBe('true')
     click(toggle)
     expect(q(r, 'filter-pill-tag')).not.toBeNull()
-    expect(q(r, 'filter-toggle-count')).toBeNull()
-    expect(toggle?.getAttribute('data-filter-on')).toBe('false')
-    expect(toggle?.getAttribute('aria-label')).toBe('Filters')
+    expect(q(r, 'filter-toggle-count')?.textContent).toBe('1')
+    expect(toggle?.getAttribute('data-lit')).toBe('true')
   })
 
-  // The toggle is the header ☰ button's box (AppMenu `.button`): 26px tall, a 16px icon, the same
-  // border. Open reads as PRESSED, so it draws no chevron. jsdom has no layout: read the stylesheet.
-  it('the toggle is the ☰ button’s box, draws no chevron, and lights up only through data-filter-on', () => {
+  // The button is the toolbar's height — 32px, the same as the search box beside it (TextInput's
+  // `toolbar` variant) — with the ☰ button's border and radius. Open reads as LIT, so it draws no
+  // chevron — and no separate "pressed" look either, or open would have two looks. jsdom has no
+  // layout: read the stylesheets.
+  it('the Filter button is the search box’s height, draws no chevron, and lights up only through data-lit', () => {
     const css = readFileSync(
       join(process.cwd(), 'src/renderer/src/components/FilterBar/FilterBar.module.css'),
       'utf8'
     )
+    const field = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/TextInput/TextInput.module.css'),
+      'utf8'
+    )
     const toggle = /\n\.toggle \{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(toggle).toMatch(/height: 26px;/)
+    expect(toggle).toMatch(/height: 32px;/)
+    expect(/\n\.toolbar \{([^}]*)\}/.exec(field)?.[1] ?? '').toMatch(/height: 32px;/)
     expect(toggle).toMatch(/border: 1px solid var\(--border\);/)
     expect(toggle).toMatch(/border-radius: var\(--rounded-md\);/)
     expect(css).not.toMatch(/\.toggle::after/)
-    expect(css).toMatch(
-      /\.toggle\[data-filter-on='true'\] \{[^}]*background: var\(--text-primary\);/
-    )
+    expect(css).toMatch(/\.toggle\[data-lit='true'\] \{[^}]*background: var\(--text-primary\);/)
+    expect(css).not.toMatch(/\.toggle\[aria-expanded/)
   })
 
-  it('collapsing closes an open tag list', () => {
+  it('closing the chip row closes an open tag list', () => {
     const r = renderOpen()
     click(q(r, 'filter-add'))
     expect(menu(r)).not.toBeNull()
@@ -144,16 +177,15 @@ describe('FilterBar', () => {
     expect(menu(r)).toBeNull()
   })
 
-  it('opened with no filter: + Add filter and the session count', () => {
-    const r = renderOpen({ total: 5, workspaceTotal: 5 })
+  it('opened with no filter: + Add filter', () => {
+    const r = renderOpen()
     expect(q(r, 'filter-add')?.textContent).toBe('+ Add filter')
     expect(q(r, 'filter-add')?.getAttribute('aria-expanded')).toBe('false')
     expect(q(r, 'filter-pill-tag')).toBeNull()
-    expect(q(r, 'filter-count')?.textContent).toBe('5 sessions')
   })
 
   it('counts one session in the singular', () => {
-    const r = renderOpen({ total: 1, workspaceTotal: 1 })
+    const r = render({ total: 1, workspaceTotal: 1 })
     expect(q(r, 'filter-count')?.textContent).toBe('1 session')
   })
 
@@ -183,7 +215,7 @@ describe('FilterBar', () => {
     expect(pill?.querySelector('[data-testid="tag-chip"]')?.textContent).toBe('prod')
     // One tag at a time: while it is on, the pill is where it changes — no second Add.
     expect(q(r, 'filter-add')).toBeNull()
-    expect(q(r, 'filter-count')?.textContent).toBe('3 shown · 2 hidden by the filter')
+    expect(q(r, 'filter-count')?.textContent).toBe('3 shown · 2 hidden')
     expect(document.activeElement).toBe(q(r, 'filter-pill-tag-edit'))
   })
 
@@ -243,11 +275,14 @@ describe('FilterBar', () => {
     expect(menu(r)).toBeNull()
   })
 
-  it('with no tags and no way to create one, renders nothing', () => {
+  // A control that opens onto nothing is not rendered — but the search box still has a job.
+  it('with no tags and no way to create one: the search box, and no Filter button', () => {
     act(() => tagsStore.setState({ tags: [] }))
     const r = renderComponent(<FilterBar total={5} workspaceTotal={5} />)
     cleanup = r.unmount
-    expect(q(r, 'filter-bar')).toBeNull()
+    expect(q(r, 'filter-bar')).not.toBeNull()
+    expect(searchBox(r)).not.toBeNull()
+    expect(q(r, 'filter-toggle')).toBeNull()
   })
 
   it('switching to a workspace that cannot see the chosen tag clears the filter (spec §4.1)', () => {
@@ -256,5 +291,60 @@ describe('FilterBar', () => {
     act(() => tagsStore.getState().setActiveTag('t-ops'))
     act(() => workspacesStore.setState({ activeId: 'default' }))
     expect(tagsStore.getState().activeTagId).toBeNull()
+  })
+})
+
+describe('FilterBar — the search box', () => {
+  it('typing sets the board’s search, as typed', () => {
+    const r = render()
+    type(searchBox(r), 'Dep')
+    expect(boardStore.getState().searchQuery).toBe('Dep')
+  })
+
+  it('shows the current search', () => {
+    act(() => boardStore.getState().setSearchQuery('abc'))
+    const r = render()
+    expect(searchBox(r).value).toBe('abc')
+  })
+
+  it('a search counts as hiding: the count says how many are shown', () => {
+    act(() => boardStore.getState().setSearchQuery('x'))
+    const r = render({ total: 2, workspaceTotal: 5 })
+    expect(q(r, 'filter-count')?.textContent).toBe('2 shown · 3 hidden')
+  })
+
+  it('a blank search hides nothing, so the count stays plain', () => {
+    act(() => boardStore.getState().setSearchQuery('   '))
+    const r = render()
+    expect(q(r, 'filter-count')?.textContent).toBe('5 sessions')
+  })
+
+  // The box already says what it holds; the number counts only what is out of sight in the chip row.
+  it('the search is not counted on the Filter button', () => {
+    act(() => boardStore.getState().setSearchQuery('x'))
+    const r = render()
+    expect(q(r, 'filter-toggle-count')).toBeNull()
+    expect(q(r, 'filter-toggle')?.getAttribute('data-lit')).toBe('false')
+  })
+
+  // Escape peels ONE layer: the search text, and it must not also reach App's Escape (Focused → Board).
+  it('Escape in a box holding text clears it and stops there', () => {
+    act(() => boardStore.getState().setSearchQuery('dep'))
+    const r = render()
+    const outer = vi.fn()
+    document.addEventListener('keydown', outer)
+    fireEvent(searchBox(r), new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    document.removeEventListener('keydown', outer)
+    expect(boardStore.getState().searchQuery).toBe('')
+    expect(outer).not.toHaveBeenCalled()
+  })
+
+  it('Escape in an empty box passes through', () => {
+    const r = render()
+    const outer = vi.fn()
+    document.addEventListener('keydown', outer)
+    fireEvent(searchBox(r), new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    document.removeEventListener('keydown', outer)
+    expect(outer).toHaveBeenCalledTimes(1)
   })
 })

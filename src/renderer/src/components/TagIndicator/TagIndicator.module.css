@@ -25,6 +25,12 @@
   color: var(--text-secondary);
 }
 
+/* Mono (the rail's peek toggle while OPEN and lit): the glyphs carry no colour class, so they take
+ * the button's ink, and so does the `+`. */
+.mono .plus {
+  color: inherit;
+}
+
 /* One class per TAG_COLORS entry — the glyph strokes and fills with `currentColor`. */
 .slate {
   color: var(--tag-slate-text);

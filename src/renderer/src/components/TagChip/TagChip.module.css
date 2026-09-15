@@ -20,11 +20,23 @@
   overflow: hidden;
 }
 
-/* A long name truncates and keeps its `title` (design.md: any operator-typed name). */
+/* A long name truncates and keeps its `title` (design.md: any operator-typed name).
+ *
+ * CENTRED ON THE LOWERCASE BODY, and clipped SIDEWAYS only. Measured in Electron's Chromium (Noto
+ * Sans, 11.5px, 18px box): with `line-height: 1` + `overflow: hidden` the name's box ended ~2px above
+ * the glyphs' bottom, so the tail of every `p`/`g`/`y` was cut flat, and the caps-centred line put
+ * the x-height body ~1px low. `prod` read as sitting low in its pill.
+ *   - `text-box` trims the line box to the x-height band, so `align-items: center` centres the
+ *     lowercase body. Tag names are mostly lowercase; a capital sits ~1px high instead, which reads
+ *     as centred far better than a clipped descender did.
+ *   - `overflow-x: clip` keeps the ellipsis but, unlike `hidden`, does not force the other axis to
+ *     clip, so the trimmed box no longer cuts ascenders or descenders. */
 .name {
   min-width: 0;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   text-overflow: ellipsis;
+  text-box: trim-both ex alphabetic;
 }
 
 /* One class per TAG_COLORS entry — TagChip.test.tsx iterates the list and fails if one is missing. */

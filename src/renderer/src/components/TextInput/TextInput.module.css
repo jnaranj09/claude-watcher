@@ -31,3 +31,39 @@
 .input[aria-invalid='true'] {
   border-color: var(--danger);
 }
+
+/* Compact chrome (a toolbar) — Select's `.inline` box, so a search box and a dropdown standing in
+   one bar are the same height. Change one, change both. */
+.inline {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-label);
+}
+
+/* The board filter bar's row (FilterBar): 32px, the height of the `Filter` button beside it, with
+   `.input`'s body-size text. No Select counterpart yet — a dropdown that joins that row (a future
+   Sort) needs the same size there. */
+.toolbar {
+  height: 32px;
+  padding-block: 0;
+}
+
+/* A leading icon, drawn over the box's left padding. The text starts past it, and the icon never
+   takes a click, so clicking it still focuses the field. */
+.iconField {
+  position: relative;
+  display: block;
+}
+
+.icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-2);
+  display: flex;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.withIcon {
+  padding-left: calc(var(--space-2) + 14px + var(--space-2));
+}

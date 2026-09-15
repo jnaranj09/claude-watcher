@@ -112,6 +112,14 @@
   color: var(--text-primary);
 }
 
+/* "Show all tags" ON is LIT — the same state as a row's open peek toggle and the board's filter
+ * toggle: `--text-primary` fill, `--bg-base` ink. Only that toggle carries `aria-pressed` (the
+ * chevron is `aria-expanded`). After :hover so it wins at equal specificity. */
+.collapseToggle[aria-pressed='true'] {
+  background: var(--text-primary);
+  color: var(--bg-base);
+}
+
 .collapseToggle:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
@@ -402,6 +410,8 @@
   display: flex;
   align-items: center;
   width: 100%;
+  /* Each row's `+ tag` anchor stays its own: the button in THIS wrapper finds THIS row's ghost. */
+  anchor-scope: --rail-add-tag;
 }
 
 /* Revealed on row hover / keyboard focus anywhere in the wrapper, and always while itself focused.
@@ -802,7 +812,8 @@
   gap: 2px;
 }
 
-/* A two-line ("Show all tags") row: pin the tools to the FIRST line, not the middle of both. */
+/* A two-line row (the peek, or "Show all tags"): pin the tools to the FIRST line, not the middle of
+ * both. */
 .rowWrap[data-two-line] .rowTools {
   top: 9px;
 }
@@ -829,6 +840,15 @@
 
 .peekButton:hover {
   background: var(--bg-surface-raised);
+}
+
+/* OPEN is LIT — the board filter toggle's lit state (FilterBar `.toggle[data-lit]`): a
+ * `--text-primary` fill with `--bg-base` ink (11.6:1), the mark redrawn in that ink
+ * (`TagIndicator mono`). It is how the row says "expanded — press again to close". Placed after
+ * `:hover` so it wins at equal specificity. */
+.peekButton[aria-expanded='true'] {
+  background: var(--text-primary);
+  color: var(--bg-base);
 }
 
 .peekButton:focus-visible {
@@ -865,40 +885,69 @@
   padding-left: calc(8px + var(--space-2));
 }
 
-/* The PEEK panel under a row — every chip, wrapping, plus Edit. Indented to the name: the spine,
- * the row padding, the dot and the gap. `position: relative` anchors the TagPicker. */
-.peekPanel {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
+/* The PEEK is the row's own second line (`.rowTags`, the same line "Show all tags" uses), so every
+ * chip sits INSIDE the card it belongs to. It used to be a panel UNDER the row, on the rail's
+ * background, where it read as a separate thing; then an `Edit` button stacked under the tag toggle,
+ * which cluttered the row's corner.
+ *
+ * `+ tag` ends the line: the board filter's `+ Add filter` pill (dashed, round), at a chip's height
+ * and type size, so it reads as the next chip. Text is `--text-primary` because `--text-secondary`
+ * measures only 4.48:1 on the resting row and 3.21:1 on the needs-you row; the dashed border is
+ * `--text-secondary`, ≥ 3:1 (the non-text floor) on the resting, needs-you and active fills. */
+.addTag {
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2) var(--space-1)
-    calc(3px + var(--space-3) + 8px + var(--space-2));
-}
-
-.peekEmpty {
-  font-size: var(--font-size-meta);
-  color: var(--text-secondary);
-}
-
-.peekEdit {
-  padding: 2px var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-sm);
+  height: 18px;
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--text-secondary);
+  border-radius: var(--rounded-full);
   background: transparent;
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--font-size-meta);
-  line-height: 1.3;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The hidden copy INSIDE the row: it holds the pill's place at the end of the chip flow (wrapping
+ * with the chips), and names the anchor the real button is laid over. */
+.addTagGhost {
+  visibility: hidden;
+  anchor-name: --rail-add-tag;
+}
+
+/* `+ tag` and its picker in one element for TagPicker's outside-click check, with no box of its
+ * own, so the button is placed from `.rowWrap` and the picker hangs below the whole card. */
+.addTagGroup {
+  display: contents;
+}
+
+/* The real button — a SIBLING of the row (a <button> cannot nest in the row <button>), laid exactly
+ * over its ghost by CSS anchor positioning (Chromium 125+; Electron 39 is 142). Positioned and later
+ * in the tree than the row, so it paints above it.
+ *
+ * `position-visibility: always` is LOAD-BEARING. Its default, `anchors-visible`, force-hides an
+ * anchored box whose anchor is invisible — and the ghost is `visibility: hidden` by design. Without
+ * it the button was laid out on the ghost but never painted or hit (measured in the built app:
+ * `elementFromPoint` returned the chip line). */
+.addTagButton {
+  position: absolute;
+  position-anchor: --rail-add-tag;
+  position-visibility: always;
+  top: anchor(top);
+  left: anchor(left);
   cursor: pointer;
 }
 
-.peekEdit:hover {
-  background: var(--bg-surface-raised);
+.addTagButton:hover,
+.addTagButton[aria-expanded='true'] {
+  border-style: solid;
+  background: var(--bg-surface);
 }
 
-.peekEdit:focus-visible {
+.addTagButton:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }

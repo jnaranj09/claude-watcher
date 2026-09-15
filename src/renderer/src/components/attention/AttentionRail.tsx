@@ -65,6 +65,7 @@ import {
   selectStartingTerminals,
   selectRailSection,
   selectRailActiveSessionId,
+  useBoardFilter,
   type BoardState,
   type LaunchedTerminal
 } from '../../stores/boardStore'
@@ -76,7 +77,7 @@ import {
   workspacesStore,
   selectActiveWorkspaceId
 } from '../../stores/workspacesStore'
-import { effectiveTagFilter, tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
+import { tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { TagIndicator } from '../TagIndicator/TagIndicator'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
@@ -159,7 +160,9 @@ function tagSuffix(tags: readonly Tag[]): string {
  *
  *  Tags (T-27, T-28) — a tagged row also carries a compact `TagIndicator` in a peek toggle
  *  (a sibling of the row, like the rename pencil — a `<button>` cannot nest in the row `<button>`).
- *  Clicking it PEEKS the row: every chip on a line of its own, plus `Edit` (opens the picker). An
+ *  Clicking it PEEKS the row: every chip, wrapping, as the row's own second line — INSIDE the card,
+ *  so it reads as part of this session — ending in a `+ tag` pill (opens the picker) that reads as
+ *  the next chip. While open the toggle is LIT, so the row says it is expanded and can be closed. An
  *  untagged row gets the same toggle, hover-revealed, when tagging is wired and its workspace has
  *  tags — so a session can still be tagged from the rail — and, while no tag exists yet, one that
  *  opens the Tags dialog instead. `showAllTags` (the header toggle) instead
@@ -187,7 +190,7 @@ function RailRow(props: {
   // T-28 — per-row view-state, never persisted.
   const [peekOpen, setPeekOpen] = useState(false)
   const [editing, setEditing] = useState(false)
-  const peekRef = useRef<HTMLDivElement | null>(null)
+  const addGroupRef = useRef<HTMLSpanElement | null>(null)
   const tagPickerId = useId()
   if (!view.present) return null
   const { name, status, emphasized, active } = view
@@ -202,17 +205,42 @@ function RailRow(props: {
 
   const className = `${styles.row} ${emphasized ? `${styles.emphasized} ${needsYouEmphasisClass}` : ''} ${active ? styles.active : ''}`
 
-  // T-27 — the chip line is the show-all view's second line: never in the default view (a row's
-  // height must not follow its tags), never collapsed (no room), not while peeking (the panel
-  // already shows every chip).
-  const chipLine = !collapsed && showAllTags && !peekOpen && tags.length > 0
   const canTag = onSetTags !== undefined && pickable.length > 0
   // No tag to offer yet: an untagged row's toggle opens the Tags dialog (to create one) instead.
   const createTags =
     onSetTags !== undefined && pickable.length === 0 && tags.length === 0 ? onManageTags : undefined
   const hasPeek = !collapsed && (tags.length > 0 || canTag || createTags !== undefined)
   const showRename = !collapsed && onRename !== undefined
-  const chips = chipLine ? (
+  // T-27 — the row's SECOND line, drawn inside the row itself so it reads as part of the card: the
+  // PEEK (every chip, wrapping — the operator asked for it) or else the show-all view's one-line chip
+  // row. Never in the default view (a row's height must not follow its tags), never collapsed.
+  const peekShown = peekOpen && hasPeek
+  const chipLine = !collapsed && showAllTags && !peekShown && tags.length > 0
+  const twoLine = peekShown || chipLine
+  // The peek ends in `+ tag`, which reads as the next chip. The real button is a SIBLING of the row
+  // (a <button> cannot nest in the row <button>): a hidden copy holds its place at the end of the
+  // chip flow, and CSS anchor positioning lays the button exactly over it. (An untagged row only
+  // peeks when it can be tagged, so the line is never empty.)
+  const peekAdd = peekShown && canTag
+  const secondLine = peekShown ? (
+    <span className={styles.rowTags} data-testid="rail-tags-panel">
+      <TagChipWrap
+        tags={tags}
+        testId="rail-tags-panel-chips"
+        trailing={
+          peekAdd ? (
+            <span
+              className={`${styles.addTag} ${styles.addTagGhost}`}
+              data-testid="rail-tags-add-ghost"
+              aria-hidden="true"
+            >
+              + tag
+            </span>
+          ) : undefined
+        }
+      />
+    </span>
+  ) : chipLine ? (
     <span className={styles.rowTags}>
       <TagChipRow tags={tags} testId="rail-row-tags" />
     </span>
@@ -242,7 +270,7 @@ function RailRow(props: {
       data-status={status}
       {...(emphasized ? { 'data-emphasized': true } : {})}
       {...(!collapsed && tags.length > 0 ? { 'data-has-tags': true } : {})}
-      {...(chipLine ? { 'data-two-line': true } : {})}
+      {...(twoLine ? { 'data-two-line': true } : {})}
       data-active
       aria-current="true"
       title={label}
@@ -261,7 +289,7 @@ function RailRow(props: {
           {name}
         </span>
       )}
-      {chips}
+      {secondLine}
     </div>
   ) : (
     <button
@@ -272,7 +300,7 @@ function RailRow(props: {
       data-status={status}
       {...(emphasized ? { 'data-emphasized': true } : {})}
       {...(!collapsed && tags.length > 0 ? { 'data-has-tags': true } : {})}
-      {...(chipLine ? { 'data-two-line': true } : {})}
+      {...(twoLine ? { 'data-two-line': true } : {})}
       aria-label={label}
       title={label}
       onClick={() => onActivate(id)}
@@ -285,7 +313,7 @@ function RailRow(props: {
           {name}
         </span>
       )}
-      {chips}
+      {secondLine}
     </button>
   )
 
@@ -295,68 +323,66 @@ function RailRow(props: {
     return active ? <div className={styles.rowWrap}>{row}</div> : row
   }
 
+  // The pencil and the tag toggle are SIBLINGS of the row (a <button> cannot nest in the row
+  // <button>), in one tools cluster overlaid on its right edge; the peek's `+ tag` is laid over its
+  // ghost on the second line, and its picker hangs below the card.
   return (
-    <>
-      {/* The pencil and the tag toggle are SIBLINGS of the row (a <button> cannot nest in the row
-          <button>), in one tools cluster overlaid on its right edge. */}
-      <div className={styles.rowWrap} {...(chipLine ? { 'data-two-line': true } : {})}>
-        {row}
-        <span className={styles.rowTools}>
-          {showRename && <RenameButton name={name} onClick={() => onRename?.(id)} />}
-          {hasPeek && (
-            <PeekButton
-              name={name}
-              tags={tags}
-              open={peekOpen}
-              createOnly={createTags !== undefined}
-              onToggle={createTags ?? togglePeek}
-            />
-          )}
-        </span>
-      </div>
-      {/* T-27 — the PEEK: every chip on a line of its own under the row, plus Edit. It grows the
-          row only because the operator asked (the same reason the active row may step up). */}
-      {peekOpen && hasPeek && (
-        <div className={styles.peekPanel} data-testid="rail-tags-panel" ref={peekRef}>
-          {tags.length > 0 ? (
-            <TagChipWrap tags={tags} testId="rail-tags-panel-chips" />
-          ) : (
-            <span className={styles.peekEmpty}>No tags</span>
-          )}
-          {canTag && (
-            <button
-              type="button"
-              className={styles.peekEdit}
-              data-testid="rail-tags-edit"
-              aria-expanded={editing}
-              aria-controls={tagPickerId}
-              onClick={() => setEditing((v) => !v)}
-            >
-              Edit
-            </button>
-          )}
-          {editing && canTag && (
+    <div className={styles.rowWrap} {...(twoLine ? { 'data-two-line': true } : {})}>
+      {row}
+      <span className={styles.rowTools}>
+        {showRename && <RenameButton name={name} onClick={() => onRename?.(id)} />}
+        {hasPeek && (
+          <PeekButton
+            name={name}
+            tags={tags}
+            open={peekShown}
+            createOnly={createTags !== undefined}
+            onToggle={createTags ?? togglePeek}
+          />
+        )}
+      </span>
+      {/* The group holds BOTH `+ tag` and its list: TagPicker closes on a mousedown outside its
+          anchor, so an anchor holding only the button would close the list under the click that
+          ticks it. `display: contents` — no box, so both are still placed from `.rowWrap`. */}
+      {peekAdd && (
+        <span className={styles.addTagGroup} ref={addGroupRef}>
+          <button
+            type="button"
+            className={`${styles.addTag} ${styles.addTagButton}`}
+            data-testid="rail-tags-add"
+            aria-expanded={editing}
+            aria-controls={tagPickerId}
+            title="Add or remove tags"
+            onClick={() => setEditing((v) => !v)}
+          >
+            + tag
+          </button>
+          {editing && (
             <TagPicker
               id={tagPickerId}
               tags={pickable}
               selectedIds={tags.map((t) => t.id)}
               onChange={(next) => onSetTags?.(id, next)}
               onClose={() => setEditing(false)}
-              anchorRef={peekRef}
+              anchorRef={addGroupRef}
               testId="rail-tag-picker"
               label={`Tags for ${name}`}
             />
           )}
-        </div>
+        </span>
       )}
-    </>
+    </div>
   )
 }
 
 /** The row's tag toggle (T-27). Tagged: the compact TagIndicator, ALWAYS visible — it is
  *  information, not a hover action. Untagged: a muted empty tag outline revealed on hover / focus
  *  like the pencil, so a session with no tags can still be tagged from the rail. `createOnly`: no
- *  tag exists yet, so the same outline opens the Tags dialog (a dialog, not a peek). */
+ *  tag exists yet, so the same outline opens the Tags dialog (a dialog, not a peek).
+ *
+ *  OPEN is LIT, the board filter toggle's lit state: a light fill, and the mark redrawn in the dark
+ *  ink (`mono`) — the tag hues would not hold up on that fill, and the chips below already show
+ *  them. It is how the row says "expanded — press again to close". */
 function PeekButton(props: {
   name: string
   tags: readonly Tag[]
@@ -370,6 +396,7 @@ function PeekButton(props: {
     : tags.length === 0
       ? `Add tags to ${name}`
       : `Tags: ${tags.map((t) => t.name).join(', ')}`
+  const title = createOnly ? 'No tags yet — create tags' : open ? 'Hide tags' : label
   return (
     <button
       type="button"
@@ -377,11 +404,11 @@ function PeekButton(props: {
       data-testid="rail-tags-peek"
       {...(createOnly ? { 'aria-haspopup': 'dialog' as const } : { 'aria-expanded': open })}
       aria-label={label}
-      title={createOnly ? 'No tags yet — create tags' : label}
+      title={title}
       onClick={onToggle}
     >
       {tags.length > 0 ? (
-        <TagIndicator tags={tags} />
+        <TagIndicator tags={tags} mono={open} />
       ) : (
         <TagGlyphIcon size={10} strokeWidth={1.92} />
       )}
@@ -463,11 +490,12 @@ function RailSection(props: {
 }): JSX.Element | null {
   const { column, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // Tags — sections follow the board's filter bar. The PINNED row does not (it is the terminal you are
-  // typing in), and neither does the needs-you announcement (alerts ignore the filter).
-  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
+  // Sections follow the board's filter bar — its tag AND its search box. The PINNED row does not (it
+  // is the terminal you are typing in), and neither does the needs-you announcement (alerts ignore
+  // the filter).
+  const filter = useBoardFilter(activeWorkspaceId)
   const ids = useBoard(
-    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId, tagId))
+    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId, filter))
   )
   if (ids.length === 0) return null
   const label = statusLabel(DOT_STATUS_FOR_COLUMN[column])

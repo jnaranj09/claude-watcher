@@ -1,82 +1,91 @@
-/* Tags — the board's filter bar (design option C, 2026-09-14). One row above the columns: a
- * `Filters` label, the active filter as a pill, `+ Add filter`, and the count pushed right. The
- * list mirrors the header popovers (AppMenu / WorkspaceSwitcher). */
+/* The board's filter bar: a CONTROLS row (search box, `Filter` button, count pushed right) and,
+ * while the button is pressed, the CHIP row under it (the active filter as a pill, `+ Add filter`).
+ * The list mirrors the header popovers (AppMenu / WorkspaceSwitcher). */
 .bar {
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  min-height: 38px;
   /* 8px under the header, not the full gutter; the grid below trims its own top padding to match
    * (Board.module.css `.filterSlot`). */
   margin: var(--space-2) var(--gutter) 0;
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--rounded-lg);
 }
 
-/* Collapsed: the toggle alone, with no box around it, so the row is the toggle's height and not
- * the bar's 38px. The side padding and border width stay, so the toggle does not move when it opens. */
-.bar[data-expanded='false'] {
-  min-height: 0;
-  padding-block: 0;
-  background: transparent;
-  border-color: transparent;
+/* No box around it: the controls stand on the board's own background, like the header's. */
+.controlsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-/* The `Filters` toggle — the header ☰ button's box (AppMenu `.button`): 26px tall, a 16px icon, the
- * same border and radius. An icon, never the word: an uppercase FILTERS label read badly. No
- * chevron: open reads as PRESSED. */
+/* The search box's width. It gives way first when the window narrows. The box itself is
+ * TextInput's (its `inline` variant) — never a second text-field rule here. */
+.searchSlot {
+  flex: 0 1 240px;
+  min-width: 120px;
+}
+
+/* The `Filter` button — the toolbar's 32px height, the same as the search box beside it (TextInput
+ * `toolbar`), with the ☰ button's border and radius and a 16px icon beside the word. No chevron
+ * and no "pressed" look: open reads as LIT. */
 .toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  height: 26px;
-  min-width: 34px;
-  padding: 0 var(--space-2);
+  gap: 6px;
+  height: 32px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--rounded-md);
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-label);
   line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.toggle:hover,
-.toggle[aria-expanded='true'] {
+.toggle:hover {
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
 
-/* Open: pressed. */
-.toggle[aria-expanded='true'] {
-  background: var(--bg-surface-raised);
-}
-
-/* Collapsed with a filter on: LIT — a light fill with the count inside. The loudest state on the
- * board's edge, on purpose: cards are hidden and the pill that says so is out of sight. Ink on fill
- * is 11.6:1. Placed LAST so it wins over :hover (same specificity), whose light ink would vanish
- * on this light fill. */
-.toggle[data-filter-on='true'] {
+/* LIT — a light fill — while the chip row is open (the rail's open tag toggles do the same), and
+ * while it is closed with a filter on: the pill that says cards are hidden is then out of sight, so
+ * this is the loudest state on the board's edge, on purpose. Ink on fill is 11.6:1. Placed LAST so
+ * it wins over :hover (same specificity), whose light ink would vanish on this light fill. */
+.toggle[data-lit='true'] {
   background: var(--text-primary);
   border-color: var(--text-primary);
   color: var(--bg-base);
 }
 
 .toggleCount {
-  font-size: var(--font-size-label);
   font-weight: 700;
 }
 
-.controls {
-  flex: 1 1 auto;
-  min-width: 0;
+.count {
+  margin-left: auto;
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* The chip row: the boxed bar the filter pill lives in. */
+.chipRow {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-lg);
 }
 
 .anchor {
@@ -162,13 +171,6 @@
 .pillRemove:hover {
   color: var(--text-primary);
   background: var(--bg-surface);
-}
-
-.count {
-  margin-left: auto;
-  font-size: var(--font-size-label);
-  color: var(--text-secondary);
-  white-space: nowrap;
 }
 
 .menu {

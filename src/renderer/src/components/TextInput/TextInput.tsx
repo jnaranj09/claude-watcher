@@ -8,7 +8,7 @@
 //
 // It renders the FIELD only — the <label>, the helper line and the error line stay at the call
 // site, because their layout differs per dialog and the error line is one-per-dialog by rule.
-import type { JSX, Ref } from 'react'
+import type { JSX, KeyboardEvent, ReactNode, Ref } from 'react'
 import styles from './TextInput.module.css'
 
 export interface TextInputProps {
@@ -29,6 +29,16 @@ export interface TextInputProps {
   inputRef?: Ref<HTMLInputElement> | undefined
   /** Joins the enclosing menu's roving focus (its `[data-menu-item]` query). */
   menuItem?: boolean | undefined
+  /** `field` fills a form row; `inline` is compact chrome (a dialog header) — Select's two variants,
+   *  and the same two boxes, so a text field and a dropdown standing side by side match. `toolbar` is
+   *  the board filter bar's 32px row (the search box beside the `Filter` button); a dropdown that
+   *  joins that row needs the same size in Select. */
+  variant?: 'field' | 'inline' | 'toolbar' | undefined
+  /** A leading glyph drawn inside the box (the board search's magnifier). Decorative only: the
+   *  field is still named by `id` or `ariaLabel`. */
+  icon?: ReactNode
+  /** Keys the caller handles itself (the board search clears on Escape). */
+  onKeyDown?: ((e: KeyboardEvent<HTMLInputElement>) => void) | undefined
 }
 
 export function TextInput({
@@ -42,13 +52,23 @@ export function TextInput({
   invalid,
   disabled,
   inputRef,
-  menuItem
+  menuItem,
+  variant = 'field',
+  icon,
+  onKeyDown
 }: TextInputProps): JSX.Element {
-  return (
+  const className = [
+    styles.input,
+    variant === 'inline' ? styles.inline : variant === 'toolbar' ? styles.toolbar : null,
+    icon !== undefined ? styles.withIcon : null
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const input = (
     <input
       ref={inputRef}
       type="text"
-      className={styles.input}
+      className={className}
       id={id}
       data-testid={testId}
       {...(menuItem === true ? { 'data-menu-item': true } : {})}
@@ -59,6 +79,16 @@ export function TextInput({
       disabled={disabled === true}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
     />
+  )
+  if (icon === undefined) return input
+  return (
+    <span className={styles.iconField}>
+      <span className={styles.icon} aria-hidden="true">
+        {icon}
+      </span>
+      {input}
+    </span>
   )
 }

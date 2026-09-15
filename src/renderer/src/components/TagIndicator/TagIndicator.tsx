@@ -34,9 +34,13 @@ const PLUS_GLYPH_PATH = 'M1 4h6M4 1v6'
 export interface TagIndicatorProps {
   /** The row's tags, already in tag-list order. Only `color` is drawn. */
   tags: readonly Pick<Tag, 'id' | 'color'>[]
+  /** Draw every stroke in the parent's ink instead of the tag hues — the rail's peek toggle while
+   *  it is OPEN and lit, where the hues would sit on a light fill. The shape (one, two, two + `+`)
+   *  stays, so the toggle does not change width when it lights. */
+  mono?: boolean
 }
 
-export function TagIndicator({ tags }: TagIndicatorProps): JSX.Element | null {
+export function TagIndicator({ tags, mono = false }: TagIndicatorProps): JSX.Element | null {
   const maskId = `tag-indicator-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const front = tags[0]
   if (front === undefined) return null
@@ -44,9 +48,10 @@ export function TagIndicator({ tags }: TagIndicatorProps): JSX.Element | null {
   const width = back === undefined ? UNITS : UNITS + OFFSET
   return (
     <span
-      className={styles.indicator}
+      className={`${styles.indicator} ${mono ? styles.mono : ''}`}
       data-testid="tag-indicator"
       data-count={tags.length}
+      {...(mono ? { 'data-mono': true } : {})}
       aria-hidden="true"
     >
       <svg
@@ -70,11 +75,11 @@ export function TagIndicator({ tags }: TagIndicatorProps): JSX.Element | null {
               </mask>
             </defs>
             <g mask={`url(#${maskId})`}>
-              <Glyph color={back.color} role="back" x={OFFSET} />
+              <Glyph color={back.color} role="back" x={OFFSET} mono={mono} />
             </g>
           </>
         )}
-        <Glyph color={front.color} role="front" x={0} />
+        <Glyph color={front.color} role="front" x={0} mono={mono} />
       </svg>
       {tags.length > 2 && (
         <svg
@@ -97,11 +102,16 @@ export function TagIndicator({ tags }: TagIndicatorProps): JSX.Element | null {
   )
 }
 
-function Glyph(props: { color: Tag['color']; role: 'front' | 'back'; x: number }): JSX.Element {
-  const { color, role, x } = props
+function Glyph(props: {
+  color: Tag['color']
+  role: 'front' | 'back'
+  x: number
+  mono: boolean
+}): JSX.Element {
+  const { color, role, x, mono } = props
   return (
     <g
-      className={styles[color] ?? ''}
+      className={mono ? '' : (styles[color] ?? '')}
       transform={`translate(${x} 0)`}
       data-testid="tag-glyph"
       data-role={role}

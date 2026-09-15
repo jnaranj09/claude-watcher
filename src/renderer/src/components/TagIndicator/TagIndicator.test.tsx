@@ -90,6 +90,28 @@ describe('TagIndicator — the rail compact view (T-27, §4.2b)', () => {
     expect(ids).toHaveLength(2)
     expect(new Set(ids).size).toBe(2)
   })
+
+  // The rail's LIT peek toggle: the hues would sit on a light fill, so every stroke takes the
+  // button's ink — and the SHAPE stays, so the toggle keeps its width when it lights.
+  it('mono keeps the shape but drops every colour class, so the strokes take the parent ink', () => {
+    const tags = [tag('a', 'rose'), tag('b', 'blue'), tag('c', 'green')]
+    const r = render(<TagIndicator tags={tags} mono />)
+    const root = r.container.querySelector('[data-testid="tag-indicator"]')
+    expect(root?.hasAttribute('data-mono')).toBe(true)
+    expect(glyphs(r)).toEqual([
+      { role: 'back', color: 'blue' },
+      { role: 'front', color: 'rose' }
+    ])
+    for (const g of r.container.querySelectorAll('[data-testid="tag-glyph"]')) {
+      expect(g.getAttribute('class')).toBe('')
+    }
+    expect(r.container.querySelector('[data-testid="tag-indicator-plus"]')).not.toBeNull()
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/TagIndicator/TagIndicator.module.css'),
+      'utf8'
+    )
+    expect(/\.mono \.plus\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/color:\s*inherit/)
+  })
 })
 
 // Asserted on the token VALUES and the stylesheet TEXT (design.md: CSS-module classes are a proxy).

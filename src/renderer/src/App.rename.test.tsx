@@ -188,7 +188,8 @@ describe('App — rename an existing session (session-naming A2)', () => {
     act(() => pencil.click())
     await flush()
 
-    const input = r.container.querySelector<HTMLInputElement>('input[type="text"]')
+    // The dialog's own field, by testid: the board's search box is a text input too, and sits first.
+    const input = r.container.querySelector<HTMLInputElement>('[data-testid="session-name-input"]')
     expect(input).not.toBeNull()
     act(() => {
       // Drive React's onChange the way jsdom requires (native setter + input event).
@@ -215,7 +216,8 @@ describe('App — rename an existing session (session-naming A2)', () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
     await flush()
-    const input = r.container.querySelector<HTMLInputElement>('input[type="text"]')
+    // The dialog's own field, by testid: the board's search box is a text input too, and sits first.
+    const input = r.container.querySelector<HTMLInputElement>('[data-testid="session-name-input"]')
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
@@ -268,7 +270,8 @@ describe('App — rename an existing session (session-naming A2)', () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
     await flush()
-    const input = r.container.querySelector<HTMLInputElement>('input[type="text"]')
+    // The dialog's own field, by testid: the board's search box is a text input too, and sits first.
+    const input = r.container.querySelector<HTMLInputElement>('[data-testid="session-name-input"]')
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,

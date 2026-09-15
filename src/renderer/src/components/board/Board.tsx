@@ -30,12 +30,15 @@ import {
   selectColumnCount,
   selectSelectedId,
   selectStartingTerminals,
+  useBoardFilter,
+  NO_FILTER,
   HERO_COLUMN
 } from '../../stores/boardStore'
 // Workspaces (Task 9a) — Board is a component, so it reads the active workspace itself (per
 // task instructions) and passes it into the now-required workspace-scoped selectors below.
 import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
-import { effectiveTagFilter, useTags } from '../../stores/tagsStore'
+import { useTags } from '../../stores/tagsStore'
+import { clearFilterHint, hiddenByFilterSentence } from '../../lib/filterCopy'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
@@ -106,19 +109,23 @@ export function Board({
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // Tags — the filter bar's choice, resolved for this workspace (null = no filter, or a tag it
-  // cannot see).
-  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
+  // The filter bar's choice for this workspace: its tag (null = no tag filter, or a tag this
+  // workspace cannot see) and its search text.
+  const filter = useBoardFilter(activeWorkspaceId)
+  const tagId = filter.tagId
+  const searching = filter.query.trim() !== ''
   const tagName = useTags((s) =>
     tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
   )
   const coldLoaded = useBoard(selectColdLoaded)
-  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId, tagId))
+  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId, filter))
   // "Is the workspace empty" must not follow the filter: a filtered-out board is not an empty one.
-  const workspaceTotal = useBoard((s) => selectTotalCount(s, activeWorkspaceId, null))
-  const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you', activeWorkspaceId, tagId))
-  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId, tagId))
-  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId, tagId))
+  const workspaceTotal = useBoard((s) => selectTotalCount(s, activeWorkspaceId, NO_FILTER))
+  const needsYouCount = useBoard((s) =>
+    selectColumnCount(s, 'needs-you', activeWorkspaceId, filter)
+  )
+  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId, filter))
+  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId, filter))
   // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
   const selectedId = useBoard(selectSelectedId)
   // Story 5.6 (AC-6 optional) — starting terminals count (for the empty-board copy softening).
@@ -172,12 +179,18 @@ export function Board({
   // count changes (the string is derived, never persisted).
   //
   // Review finding E — in board view the rail's own live region is inert/aria-hidden, so this is
-  // the ONLY in-app live region; it must follow the tag filter (never an alert: notifier, badge,
-  // sound and the rail announcement stay unfiltered by design). With no filter (or a filter that
-  // hides nothing in this workspace) the string is BYTE-IDENTICAL to before this change.
-  const hiddenByTagFilter = tagId !== null ? workspaceTotal - total : 0
+  // the ONLY in-app live region; it must follow the filter bar — its tag and its search (never an
+  // alert: notifier, badge, sound and the rail announcement stay unfiltered by design). With nothing
+  // hidden the string is BYTE-IDENTICAL to before the filter existed.
+  const hiddenByFilter = workspaceTotal - total
+  const hiddenBy =
+    searching && tagId !== null
+      ? 'the search and the tag filter'
+      : searching
+        ? 'the search'
+        : 'the tag filter'
   const announcement = `${needsYouCount} need you, ${workingCount} working, ${idleCount} idle${
-    hiddenByTagFilter > 0 ? `, ${hiddenByTagFilter} hidden by the tag filter` : ''
+    hiddenByFilter > 0 ? `, ${hiddenByFilter} hidden by ${hiddenBy}` : ''
   }`
 
   return (
@@ -239,14 +252,17 @@ export function Board({
           />
         </div>
       ) : total === 0 ? (
-        // Tags — the workspace HAS sessions and the tag filter hides them all. A different sentence
-        // from "No sessions yet." (design.md: three nothings, three answers) — otherwise the
-        // operator goes looking for sessions that are only filtered out.
+        // The workspace HAS sessions and the filter bar (its tag, its search, or both) hides them
+        // all. A different sentence from "No sessions yet." (design.md: three nothings, three
+        // answers) — otherwise the operator goes looking for sessions that are only filtered out.
         <div className={styles.emptyBoard} data-testid="empty-board-filtered">
           <p className={styles.emptyBoardHeadline}>
-            {`No sessions tagged ${tagName ?? 'with this tag'}.`}
+            {`${hiddenByFilterSentence(
+              tagId !== null ? (tagName ?? 'with this tag') : null,
+              filter.query
+            )}.`}
           </p>
-          <p className={styles.emptyBoardLine}>Remove the tag filter to see every session.</p>
+          <p className={styles.emptyBoardLine}>{clearFilterHint(tagId !== null, filter.query)}</p>
         </div>
       ) : (
         // The live three-column grid: slots are left flank (working) · center hero

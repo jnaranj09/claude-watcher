@@ -92,6 +92,47 @@ describe('TextInput', () => {
     const r = render({ inputRef: ref })
     expect(ref.current).toBe(field(r))
   })
+
+  it('draws a leading icon right before the field, hidden from screen readers', () => {
+    const r = render({ icon: <svg data-testid="the-icon" /> })
+    const slot = r.container.querySelector('[data-testid="the-icon"]')?.parentElement
+    expect(slot?.getAttribute('aria-hidden')).toBe('true')
+    expect(slot?.nextElementSibling).toBe(field(r))
+  })
+
+  it('without an icon, renders the bare field and nothing around it', () => {
+    const r = render()
+    expect(r.container.firstElementChild).toBe(field(r))
+  })
+})
+
+describe('the text field box', () => {
+  const css = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/TextInput/TextInput.module.css'),
+    'utf8'
+  )
+  const rule = (selector: string): string =>
+    new RegExp(`\\n${selector.replace(/[.[\]]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+
+  // Select's `inline` variant (Select.module.css `.inline`) is compact chrome; a text field in the
+  // same chrome must be the same box, or a search box and a dropdown in one bar differ in height.
+  it('the inline variant is Select’s inline box', () => {
+    const inline = rule('.inline')
+    expect(inline).toMatch(/padding: var\(--space-1\) var\(--space-2\);/)
+    expect(inline).toMatch(/font-size: var\(--font-size-label\);/)
+  })
+
+  // The board toolbar (FilterBar): the search box and the buttons beside it are one 32px row.
+  it('the toolbar variant is 32px tall', () => {
+    const toolbar = rule('.toolbar')
+    expect(toolbar).toMatch(/height: 32px;/)
+    expect(toolbar).toMatch(/padding-block: 0;/)
+  })
+
+  it('with an icon, the text starts past it and the icon never takes a click', () => {
+    expect(rule('.withIcon')).toMatch(/padding-left:/)
+    expect(rule('.icon')).toMatch(/pointer-events: none;/)
+  })
 })
 
 // These two read the stylesheets off disk on purpose. `vitest.config.ts` sets no `css` option, so

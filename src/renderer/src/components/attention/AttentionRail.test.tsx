@@ -61,7 +61,8 @@ function resetStore(): void {
     terminalIdBySessionId: {},
     // Story 5.6 (rail gap): reset the launched-terminals registry so starting-group
     // tests do not bleed state into each other (prior tests left entries).
-    launchedTerminals: {}
+    launchedTerminals: {},
+    searchQuery: ''
   })
   // Workspaces (Task 9a fix, review round 1) — reset the active workspace so a test that
   // switches it does not bleed into a later test in this file.
@@ -250,6 +251,27 @@ describe('AttentionRail — pinned active row + status sections', () => {
         el.getAttribute('data-session-id')
       )
     ).toEqual(['other'])
+  })
+
+  // The board's search box narrows the rail's groups like the tag filter does. The pinned row is the
+  // terminal you are typing in, so it stays whatever the search says.
+  it('the search narrows the status groups, never the pinned row', () => {
+    act(() => {
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'open', 'idle', 500, { sessionName: 'Review' }))
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'dep', 'needs-you', 100, { sessionName: 'Deploy' }))
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'rev2', 'needs-you', 200, { sessionName: 'Review two' }))
+    })
+    focusSession('open', 'tid-open')
+    const r = render()
+    expect(rowOrder(r)).toEqual(['open', 'dep', 'rev2'])
+    act(() => boardStore.getState().setSearchQuery('deploy'))
+    expect(rowOrder(r)).toEqual(['open', 'dep'])
   })
 
   // "no need to advertise it is the current" — the pinned row's own fill + "(active)" in its
@@ -1082,19 +1104,74 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     )
     act(() => peek?.click())
     expect(peek?.getAttribute('aria-expanded')).toBe('true')
-    const panel = itemOf(r, 'tagged')?.querySelector('[data-testid="rail-tags-panel"]')
+    const item = itemOf(r, 'tagged')
+    const panel = item?.querySelector('[data-testid="rail-tags-panel"]')
     expect(
       [...(panel?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent)
     ).toEqual(['deploy', 'prod'])
-    act(() => panel?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-edit"]')?.click())
-    act(() =>
-      panel
-        ?.querySelector<HTMLInputElement>('[data-testid="rail-tag-picker-check-t-deploy"]')
-        ?.click()
-    )
+    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-add"]')?.click())
+    // A real click starts with a mousedown, and TagPicker closes on a mousedown outside its anchor:
+    // the anchor must hold the list too, or the list is gone before the click lands.
+    const check = (): HTMLInputElement | null | undefined =>
+      item?.querySelector<HTMLInputElement>('[data-testid="rail-tag-picker-check-t-deploy"]')
+    act(() => {
+      check()?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    expect(check()).not.toBeNull()
+    act(() => check()?.click())
     expect(onSetSessionTags).toHaveBeenCalledWith('tagged', ['t-prod'])
     // The toggle is a sibling of the row, not part of it: peeking never switches terminals.
     expect(onActivateSession).not.toHaveBeenCalled()
+  })
+
+  it('the peek draws INSIDE the row card, ending in a + tag whose real button stays outside the row', () => {
+    seed()
+    const r = renderRail({ onSetSessionTags: vi.fn() })
+    const item = itemOf(r, 'tagged')
+    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-peek"]')?.click())
+    const row = item?.querySelector('[data-session-id="tagged"]')
+    const panel = item?.querySelector('[data-testid="rail-tags-panel"]')
+    expect(panel).not.toBeNull()
+    expect(row?.contains(panel ?? null)).toBe(true)
+    expect(row?.hasAttribute('data-two-line')).toBe(true)
+    // The ghost holds the pill's place as the LAST item of the chip flow, hidden from assistive tech.
+    const ghost = panel?.querySelector('[data-testid="rail-tags-add-ghost"]')
+    expect(ghost?.getAttribute('aria-hidden')).toBe('true')
+    expect(ghost?.parentElement?.lastElementChild).toBe(ghost)
+    // A <button> cannot hold a <button>: the real `+ tag` is the row's sibling, laid over the ghost.
+    const add = item?.querySelector('[data-testid="rail-tags-add"]')
+    expect(add?.textContent).toBe('+ tag')
+    expect(row?.contains(add ?? null)).toBe(false)
+  })
+
+  it('an untagged peek holds just the + tag — no chip, no "No tags" line', () => {
+    seed()
+    const r = renderRail({ onSetSessionTags: vi.fn() })
+    const item = itemOf(r, 'plain')
+    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-peek"]')?.click())
+    const panel = item?.querySelector('[data-testid="rail-tags-panel"]')
+    expect(panel?.querySelectorAll('[data-testid="tag-chip"]')).toHaveLength(0)
+    expect(panel?.querySelector('[data-testid="rail-tags-add-ghost"]')).not.toBeNull()
+    expect(panel?.textContent).not.toContain('No tags')
+    expect(item?.querySelector('[data-testid="rail-tags-add"]')).not.toBeNull()
+  })
+
+  it('the open toggle is LIT: its mark switches to the button ink, and closing restores the hues', () => {
+    seed()
+    const r = renderRail()
+    const peek = itemOf(r, 'tagged')?.querySelector<HTMLButtonElement>(
+      '[data-testid="rail-tags-peek"]'
+    )
+    const mono = (): boolean | undefined =>
+      peek?.querySelector('[data-testid="tag-indicator"]')?.hasAttribute('data-mono')
+    expect(mono()).toBe(false)
+    act(() => peek?.click())
+    expect(peek?.getAttribute('aria-expanded')).toBe('true')
+    expect(mono()).toBe(true)
+    expect(peek?.getAttribute('title')).toBe('Hide tags')
+    act(() => peek?.click())
+    expect(mono()).toBe(false)
+    expect(r.container.querySelector('[data-testid="rail-tags-panel"]')).toBeNull()
   })
 
   // Controller ruling (T-11 in the caller): the rail's Edit picker offers ONLY global tags + the
@@ -1111,7 +1188,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     const r = renderRail({ onSetSessionTags: vi.fn() })
     const item = itemOf(r, 'tagged')
     act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-peek"]')?.click())
-    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-edit"]')?.click())
+    act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-add"]')?.click())
     expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-other"]')).toBeNull()
     expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-own"]')).not.toBeNull()
     expect(item?.querySelector('[data-testid="rail-tag-picker-row-t-deploy"]')).not.toBeNull()
@@ -1186,5 +1263,36 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     const hasTags = /\.row\[data-has-tags\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
     expect(hasTags).toMatch(/padding-right/)
     expect(hasTags).not.toMatch(/height/)
+  })
+
+  it('CSS: open/on toggles are lit like the filter toggle; + tag is laid over its ghost', () => {
+    const css = readCss('./AttentionRail.module.css')
+    const block = (re: RegExp): string => re.exec(css)?.[1] ?? ''
+    // The row's open peek toggle, and the header's "Show all tags" while on.
+    for (const [base, lit] of [
+      ['.peekButton', ".peekButton[aria-expanded='true']"],
+      ['.collapseToggle', ".collapseToggle[aria-pressed='true']"]
+    ] as const) {
+      const rule = block(new RegExp(`${lit.replace(/[.[\]]/g, '\\$&')}\\s*\\{([^}]*)\\}`))
+      expect(rule, lit).toMatch(/background:\s*var\(--text-primary\)/)
+      expect(rule, lit).toMatch(/color:\s*var\(--bg-base\)/)
+      // After :hover, or hovering the lit toggle would drop its fill.
+      expect(css.indexOf(lit), lit).toBeGreaterThan(css.indexOf(`${base}:hover`))
+    }
+    // Each wrapper scopes its own anchor; the ghost names it and stays invisible; the real button is
+    // laid over it.
+    expect(block(/\.rowWrap\s*\{([^}]*)\}/)).toMatch(/anchor-scope:\s*--rail-add-tag/)
+    const ghost = block(/\.addTagGhost\s*\{([^}]*)\}/)
+    expect(ghost).toMatch(/anchor-name:\s*--rail-add-tag/)
+    expect(ghost).toMatch(/visibility:\s*hidden/)
+    const button = block(/\.addTagButton\s*\{([^}]*)\}/)
+    expect(button).toMatch(/position:\s*absolute/)
+    expect(button).toMatch(/position-anchor:\s*--rail-add-tag/)
+    // The default (`anchors-visible`) force-hides a box whose anchor is invisible — the ghost is.
+    expect(button).toMatch(/position-visibility:\s*always/)
+    expect(button).toMatch(/top:\s*anchor\(top\)/)
+    expect(button).toMatch(/left:\s*anchor\(left\)/)
+    // The panel under the row and the stacked Edit button are gone.
+    expect(css).not.toMatch(/\.peekPanel|\.peekEdit|data-peek-edit/)
   })
 })

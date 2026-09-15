@@ -1,18 +1,24 @@
-// Tags — the board's FILTER BAR (2026-09-14, design option C). It replaced the header tag filter,
-// whose "All tags" button did not read as a filter. The bar sits above the columns and says what it
-// is: a `Filters` toggle, the active filter as a removable pill (`Tag is <chip> ×`), `+ Add filter`
-// while none is on, and the count. Tag is the only filter type today, so `+ Add filter` opens the
-// tag list DIRECTLY; a type step (`Tag ▸`) belongs here only once a second filter type exists.
+// The board's FILTER BAR (2026-09-14, design option C; the controls row came 2026-09-14 later). It
+// replaced the header tag filter, whose "All tags" button did not read as a filter. It sits above
+// the columns in TWO rows:
 //
-// It starts COLLAPSED to a small icon toggle (the header ☰ button's box), shorter than the bar, so it
-// costs the board less height until it is used. The toggle opens the bar in place and stays at its
-// left; collapsed with a filter on, it LIGHTS UP with the count inside, because the pill is then out
-// of sight while cards are still hidden.
-// Open/closed is local view-state, never persisted.
+//   - the CONTROLS row, always drawn: the search box, the `Filter` button, and the count on the
+//     right. The count lives here so it shows whenever something is hidden, by either control.
+//   - the CHIP row, drawn while the `Filter` button is pressed: the active filter as a removable pill
+//     (`Tag is <chip> ×`), or `+ Add filter` while none is on. Tag is the only filter type today,
+//     so `+ Add filter` opens the tag list DIRECTLY; a type step (`Tag ▸`) belongs here only once a
+//     second filter type exists.
 //
-// The choice is renderer view-state in tagsStore (one tag at a time, never persisted), offered from
-// exactly what the ACTIVE workspace can see (T-11), and it CLEARS when the operator switches to a
-// workspace that cannot see it (spec §4.1). It narrows the board and the rail; alerts ignore it.
+// The button is LIT while the chip row is open (like the rail's open tag toggles), and while it is
+// closed with a filter on, because the pill is then out of sight while cards are still hidden. With
+// a filter on it also carries the count. The search is not counted on it: the box already shows
+// what it holds. Open/closed is local view-state, never persisted.
+//
+// The tag choice is renderer view-state in tagsStore (one tag at a time, never persisted), offered
+// from exactly what the ACTIVE workspace can see (T-11), and it CLEARS when the operator switches to
+// a workspace that cannot see it (spec §4.1). The search text is view-state in boardStore and is
+// matched against the card NAME only (folder and the rest are future filter types). Both narrow the
+// board and the rail; alerts ignore them.
 import {
   useCallback,
   useEffect,
@@ -30,29 +36,34 @@ import {
   useTags,
   type TagsState
 } from '../../stores/tagsStore'
+import { boardStore, selectSearchQuery, useBoard } from '../../stores/boardStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { TagChip } from '../TagChip/TagChip'
+import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
 
 export interface FilterBarProps {
-  /** Sessions the board shows under the current filter. */
+  /** Sessions the board shows under the current filter and search. */
   total: number
   /** Sessions in the active workspace, unfiltered. 0 ⇒ nothing to filter, so no bar. */
   workspaceTotal: number
   /** Opens the Tags dialog: the list's `Create tags…` row while no tag exists yet. Omitted ⇒ with no
-   *  tag to offer, no bar at all (a control that opens onto nothing is not rendered). */
+   *  tag to offer, no `Filter` button (a control that opens onto nothing is not rendered). */
   onManageTags?: () => void
 }
 
 function countText(total: number, workspaceTotal: number, filtered: boolean): string {
   if (!filtered) return workspaceTotal === 1 ? '1 session' : `${workspaceTotal} sessions`
-  return `${total} shown · ${workspaceTotal - total} hidden by the filter`
+  return `${total} shown · ${workspaceTotal - total} hidden`
 }
 
-/** The toggle's icon: three lines getting shorter (the "filter list" mark), drawn on the ☰ icon's
- *  grid and stroke so the two header-sized buttons match. An icon, never the word: an uppercase
- *  `FILTERS` label read badly. */
+function setSearch(query: string): void {
+  boardStore.getState().setSearchQuery(query)
+}
+
+/** The button's icon: three lines getting shorter (the "filter list" mark), drawn on the ☰ icon's
+ *  grid and stroke so the two header-sized buttons match. */
 function FilterLinesIcon(): JSX.Element {
   return (
     <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -66,13 +77,23 @@ function FilterLinesIcon(): JSX.Element {
   )
 }
 
+/** The search box's magnifier, on the same 16-unit grid and stroke, drawn at 14px. */
+function SearchIcon(): JSX.Element {
+  return (
+    <svg width={14} height={14} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth={1.5} />
+      <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function FilterBar({
   total,
   workspaceTotal,
   onManageTags
 }: FilterBarProps): JSX.Element | null {
   const [expanded, setExpanded] = useState(false)
-  const controlsId = useId()
+  const chipRowId = useId()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   // The ONE list trigger on screen: `+ Add filter` with no filter on, the pill's button with one on.
@@ -81,6 +102,7 @@ export function FilterBar({
   // element (the pill replaces `+ Add filter`), so focus moves in an effect, after the render that
   // drew it.
   const [refocusTick, setRefocusTick] = useState(0)
+  const query = useBoard(selectSearchQuery)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const visible = useTags(useShallow((s: TagsState) => visibleTags(s.tags, activeWorkspaceId)))
   const activeTagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
@@ -125,6 +147,17 @@ export function FilterBar({
     [closeAndRefocus]
   )
 
+  // The same for the search box: Escape clears the text and stops there. An empty box has nothing
+  // to peel, so its Escape passes through (Focused → Board still works from inside it).
+  const handleSearchKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>): void => {
+      if (e.key !== 'Escape' || query === '') return
+      e.stopPropagation()
+      setSearch('')
+    },
+    [query]
+  )
+
   function pick(id: string): void {
     setTagFilter(id)
     closeAndRefocus()
@@ -140,45 +173,67 @@ export function FilterBar({
     onManageTags?.()
   }
 
-  // Collapsing takes an open tag list with it: the list hangs off a control that is going away.
+  // Closing the chip row takes an open tag list with it: the list hangs off a control that is going away.
   function toggleExpanded(): void {
     setExpanded((v) => !v)
     setOpen(false)
   }
 
   if (workspaceTotal === 0) return null
-  if (visible.length === 0 && onManageTags === undefined) return null
 
-  const hiddenFilterOn = !expanded && active !== null
+  // No tag to offer and no way to make one: the `Filter` button would open onto nothing.
+  const canFilter = visible.length > 0 || onManageTags !== undefined
+  const filterOn = active !== null
+  const searching = query.trim() !== ''
+  const lit = expanded || filterOn
 
   return (
     <div
       className={styles.bar}
       role="group"
-      aria-label="Filters"
+      aria-label="Search and filters"
       data-testid="filter-bar"
-      data-expanded={expanded}
     >
-      <button
-        type="button"
-        className={styles.toggle}
-        data-testid="filter-toggle"
-        aria-expanded={expanded}
-        aria-controls={controlsId}
-        title={expanded ? 'Hide filters' : 'Show filters'}
-        aria-label={hiddenFilterOn ? 'Filters, 1 on' : 'Filters'}
-        data-filter-on={hiddenFilterOn}
-        onClick={toggleExpanded}
-      >
-        <FilterLinesIcon />
-        {hiddenFilterOn && (
-          <span className={styles.toggleCount} data-testid="filter-toggle-count">
-            1
-          </span>
+      <div className={styles.controlsRow} data-testid="filter-controls-row">
+        <div className={styles.searchSlot}>
+          <TextInput
+            value={query}
+            onChange={setSearch}
+            testId="board-search"
+            ariaLabel="Search sessions"
+            placeholder="Search…"
+            variant="toolbar"
+            icon={<SearchIcon />}
+            onKeyDown={handleSearchKeyDown}
+          />
+        </div>
+        {canFilter && (
+          <button
+            type="button"
+            className={styles.toggle}
+            data-testid="filter-toggle"
+            aria-expanded={expanded}
+            aria-controls={chipRowId}
+            title={expanded ? 'Hide filters' : 'Show filters'}
+            aria-label={filterOn ? 'Filter, 1 on' : 'Filter'}
+            data-lit={lit}
+            onClick={toggleExpanded}
+          >
+            <FilterLinesIcon />
+            Filter
+            {filterOn && (
+              <span className={styles.toggleCount} data-testid="filter-toggle-count">
+                1
+              </span>
+            )}
+          </button>
         )}
-      </button>
-      {expanded && (
-        <div id={controlsId} className={styles.controls}>
+        <span className={styles.count} data-testid="filter-count">
+          {countText(total, workspaceTotal, filterOn || searching)}
+        </span>
+      </div>
+      {canFilter && expanded && (
+        <div id={chipRowId} className={styles.chipRow}>
           <div className={styles.anchor} ref={anchorRef}>
             {active === null ? (
               <button
@@ -259,9 +314,6 @@ export function FilterBar({
               </div>
             )}
           </div>
-          <span className={styles.count} data-testid="filter-count">
-            {countText(total, workspaceTotal, active !== null)}
-          </span>
         </div>
       )}
     </div>

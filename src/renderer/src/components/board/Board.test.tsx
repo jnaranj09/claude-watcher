@@ -50,7 +50,8 @@ function resetStore(): void {
     sessionsById: {},
     epoch: 0,
     coldLoaded: false,
-    selectedId: null
+    selectedId: null,
+    searchQuery: ''
   })
   // Workspaces (Task 9a fix, review round 1, Finding 2) — reset the active workspace so a test
   // that switches it does not bleed into a later test in this file.
@@ -687,6 +688,112 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     expect(
       [...(row?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent)
     ).toEqual(['deploy', 'prod'])
+  })
+})
+
+// The filter bar's search box narrows the board by card NAME, like the tag filter narrows it by tag,
+// and every "why is this empty" sentence has to say which of the two is hiding the cards.
+describe('Board — the search box', () => {
+  const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
+  const cardIds = (container: HTMLElement): string[] =>
+    [...container.querySelectorAll('[data-column] [data-session-id]')].map(
+      (el) => el.getAttribute('data-session-id') ?? ''
+    )
+  const search = (query: string): void => act(() => boardStore.getState().setSearchQuery(query))
+
+  beforeEach(() => {
+    act(() => tagsStore.setState({ tags: [PROD], loaded: true, activeTagId: null }))
+  })
+  afterEach(() => {
+    act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+  })
+
+  it('shows only the cards whose name matches', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(updated(1, 'b', 'working', 101, { sessionName: 'Review' }))
+    search('deploy')
+    expect(cardIds(container)).toEqual(['a'])
+  })
+
+  it('a column emptied ONLY by the search names the search — not the calm hint', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(
+      updated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
+    )
+    search('  deploy ')
+    const needsYouCol = container.querySelector('[data-column="needs-you"]')
+    expect(needsYouCol?.querySelector('[data-testid="empty-hint-filtered"]')?.textContent).toBe(
+      'No sessions match “deploy” here.'
+    )
+    expect(needsYouCol?.querySelector('[data-testid="empty-hint"]')).toBeNull()
+  })
+
+  it('a column emptied by the search AND the tag names both', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] }))
+    applyDelta(
+      updated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
+    )
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    search('deploy')
+    const needsYouCol = container.querySelector('[data-column="needs-you"]')
+    expect(needsYouCol?.querySelector('[data-testid="empty-hint-filtered"]')?.textContent).toBe(
+      'No sessions tagged prod match “deploy” here.'
+    )
+  })
+
+  it('a search that hides every card names the search, and keeps the bar to clear it', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    search('zzz')
+    const empty = container.querySelector('[data-testid="empty-board-filtered"]')
+    expect(empty?.textContent).toContain('No sessions match “zzz”.')
+    expect(empty?.textContent).toContain('Clear the search to see every session.')
+    expect(container.querySelector<HTMLInputElement>('[data-testid="board-search"]')?.value).toBe(
+      'zzz'
+    )
+  })
+
+  it('search and tag hiding every card: the empty board names both', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Review', tagIds: ['t-prod'] }))
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    search('zzz')
+    const empty = container.querySelector('[data-testid="empty-board-filtered"]')
+    expect(empty?.textContent).toContain('No sessions tagged prod match “zzz”.')
+    expect(empty?.textContent).toContain(
+      'Clear the search or remove the tag filter to see every session.'
+    )
+  })
+
+  it('the aria-live summary says how many the search hid', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(updated(1, 'b', 'working', 101, { sessionName: 'Review' }))
+    search('deploy')
+    const live = container.querySelector('[data-testid="live-announcer"]')
+    expect(live?.textContent).toBe('0 need you, 1 working, 0 idle, 1 hidden by the search')
+  })
+
+  it('with both on, the aria-live summary names both', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] }))
+    applyDelta(updated(1, 'b', 'working', 101, { sessionName: 'Review' }))
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    search('deploy')
+    const live = container.querySelector('[data-testid="live-announcer"]')
+    expect(live?.textContent).toBe(
+      '0 need you, 1 working, 0 idle, 1 hidden by the search and the tag filter'
+    )
   })
 })
 

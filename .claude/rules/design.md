@@ -164,7 +164,22 @@ scope dropdown.
   chip's `title` lists the hidden tags.
 - **A tag never changes a rail row's height in the default view.** Only the operator's own clicks —
   the peek and "Show all tags" — add a chip line (TWO ROW SIZES in `components/attention/AttentionRail.module.css`).
-- **A tag name truncates and keeps its `title`**, like every operator-typed name.
+- **The rail peek draws INSIDE the row's card.** Its chips are the row's own second line (the line
+  "Show all tags" uses), never a panel under the row on the rail's background — that read as a
+  separate thing.
+- **The peek ends in a `+ tag` pill, never an `Edit` button.** The board filter's `+ Add filter`
+  pill (dashed, round) at a chip's size, as the last item of the chip flow, so it reads as the next
+  chip. An `Edit` stacked under the tag toggle was tried and read as clutter. The real button cannot
+  nest in the row `<button>`: a hidden copy holds its place in the flow, and CSS anchor positioning
+  lays the button over it (`anchor-scope` per `.rowWrap`). It needs `position-visibility: always`:
+  the default force-hides a box whose anchor is invisible, and the copy is `visibility: hidden`.
+- **An open peek toggle is LIT** — the filter toggle's lit state: `--text-primary` fill, `--bg-base`
+  ink, and the tag mark redrawn in that ink (`TagIndicator mono`, same shape, so nothing shifts). It
+  is the row's only sign that it is expanded and can be closed; its `title` reads `Hide tags`. The
+  rail header's `Show all tags` toggle is lit the same way while on.
+- **A tag name truncates and keeps its `title`**, like every operator-typed name — and it clips
+  SIDEWAYS only (`overflow-x: clip`), centred on the x-height (`text-box: trim-both ex alphabetic`).
+  `overflow: hidden` + `line-height: 1` cut every `p`/`g`/`y` tail flat and sat the text ~1px low.
 - **A trigger that opens `TagPicker` uses `aria-expanded` + `aria-controls`** (pointed at the
   picker's own id), **never `aria-haspopup`** — the popup is a checkbox `group`, not a menu.
 - **A card and an untagged rail row can always reach tagging, even before a tag exists.** With no
@@ -174,37 +189,57 @@ scope dropdown.
 
 ## The board's filter bar
 
-`components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered. It sits above the
-columns, never in the header: a header button reading "All tags" did not read as a filter.
+`components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered or searched. It sits
+above the columns, never in the header: a header button reading "All tags" did not read as a filter.
 
-- **It says what it is.** A filter toggle, the active filter as a pill (`Tag is <chip>`: click it
-  to change the tag, `×` to remove it), `+ Add filter` while none is on, and the count on the right
-  (`5 sessions`, or `3 shown · 2 hidden by the filter`).
-- **The toggle is an ICON, never the word, in the header ☰ button's box.** An uppercase `FILTERS`
-  label was tried first and read as bad UI; then a 22px funnel + `▾` read as too small. It is the
-  "filter list" icon (three lines getting shorter) in the ☰ button's exact box: 26px tall, a 16px
-  icon on the ☰ icon's grid and stroke, `--border`, `--rounded-md` — and ≥ 24px, the WCAG 2.2
-  target minimum. Named `Filters` by its `aria-label`, titled `Show filters` / `Hide filters`.
-  A stylesheet test in `FilterBar.test.tsx` pins the box.
-- **No chevron: open reads as PRESSED** (`--bg-surface-raised` fill, `--border-strong`).
-- **It starts COLLAPSED to that toggle** — a 28px row instead of the 38px bar, so it costs the board
-  less height until it is used. The toggle opens the bar in place and stays at its left; collapsing
-  closes an open list. Open/closed is not persisted.
+- **Two rows.** The CONTROLS row is always drawn, with no box around it: the search box, the
+  `Filter` button, and the count on the right (`5 sessions`, or `3 shown · 2 hidden` whenever the
+  tag or the search hides a card). The CHIP row — the boxed bar holding the active filter as a pill
+  (`Tag is <chip>`: click it to change the tag, `×` to remove it), or `+ Add filter` while none is
+  on — draws UNDER it only while the `Filter` button is pressed. Pressing it again closes the chip
+  row and any open tag list. Open/closed is not persisted.
+- **The search box matches the card NAME only**, case-insensitively, anywhere in the name; spaces
+  around it are ignored and a blank box hides nothing. Folder and the other card fields are future
+  filter TYPES in the chip row, never search. It is `<TextInput variant="inline">` with a leading
+  magnifier `icon` — Select's `inline` box, never a text-field rule of its own. Escape in a box
+  holding text clears it and stops there; in an empty box it passes through. The text is renderer
+  view-state (`boardStore.searchQuery`), not persisted, and it survives a workspace switch: the box
+  shows it, so nothing is hidden by a filter the operator cannot see.
+- **The tag and the search narrow the same things**: the board, the column counts, and the rail's
+  status groups — through ONE `BoardFilter` (`useBoardFilter`) every board and rail selector takes.
+  The pinned rail row, the notifier, the badge and the sound ignore both.
+- **The `Filter` button has the word beside the icon, at the toolbar's height.** 32px tall, the
+  same as the search box beside it (TextInput's `toolbar` variant) — the operator asked for both a
+  little bigger than the 26px ☰ box they started at. A 16px "filter list" icon (three lines getting
+  shorter) on the ☰ icon's grid and stroke, `--border`, `--rounded-md`. (An uppercase `FILTERS`
+  label and a bare icon were both tried before; the operator's toolbar mockup put `Filter` beside
+  the icon.) Titled `Show filters` / `Hide filters`. A stylesheet test in `FilterBar.test.tsx` pins
+  its height to the search box's.
+- **No chevron and no "pressed" look: open reads as LIT** (below). A second look for "open" would
+  make the operator ask which of the two it is in.
 - **It sits tight: 8px under the header, 8px above the columns** (not the 16px gutter either side,
-  which read as a gap around the toggle). The grid trims its top padding only while the bar draws
-  (`Board.module.css` `.filterSlot`). Never pull the grid up with a negative margin: its box would
-  cover the lower part of the toggle and take its clicks.
-- **Collapsed with a filter on, the toggle LIGHTS UP** — `--text-primary` fill, `--bg-base` ink,
-  the count inside (named `Filters, 1 on`). The loudest thing on the board's edge, on purpose: cards
-  are hidden and the pill that says so is out of sight. (A corner count badge was the quieter
-  option; the operator chose this one.)
+  which read as a gap). The grid trims its top padding only while the bar draws (`Board.module.css`
+  `.filterSlot`). Never pull the grid up with a negative margin: its box would cover the lower part
+  of the bar and take its clicks.
+- **The button is LIT while the chip row is open**, like the rail's open tag toggles, **and while
+  it is closed with a filter on** — `--text-primary` fill, `--bg-base` ink (`data-lit`). Closed
+  with a filter on it is the loudest thing on the board's edge, on purpose: cards are hidden and the
+  pill that says so is out of sight. (A corner count badge was the quieter option; the operator
+  chose this one.) With a filter on it also carries the count (named `Filter, 1 on`). The search is
+  never counted on the button: the box already shows what it holds.
+- **Every "why is this empty" sentence names what hides the cards** — the tag, the search, or both
+  (`lib/filterCopy.ts`, shared by the empty board and the empty column): `No sessions tagged prod
+match “dep” here.` The aria-live summary does the same (`1 hidden by the search`).
 - **Tag is the only filter type, so `+ Add filter` opens the tag list directly.** Add a type step
   (`Tag ▸`, `Status ▸`) only once a second filter type exists.
 - **One tag at a time.** While a tag filter is on, the pill is where it changes, and `+ Add filter`
   is not rendered.
 - **It draws only when the workspace has sessions**, and it stays when the filter hides them all,
   so the operator removes the filter right where they see the empty board.
-- **No tag yet:** the list offers `Create tags…` (the Tags dialog), never an empty popup.
+- **No tag yet:** the list offers `Create tags…` (the Tags dialog), never an empty popup. With no
+  tag AND no Tags dialog, the `Filter` button is not rendered; the search box still is.
+- **Not built yet:** the mockup's `Sort` and `⋯` buttons (IdeasBoard.md). A control with nothing
+  behind it is not rendered, so neither is drawn until it does something.
 
 ## The header ☰ menu
 

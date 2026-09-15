@@ -28,8 +28,11 @@ import {
   useColumnSessions,
   selectColumnCount,
   selectRailEmphasis,
+  useBoardFilter,
+  NO_FILTER,
   type BoardSession
 } from '../../stores/boardStore'
+import { hiddenByFilterSentence } from '../../lib/filterCopy'
 // Workspaces (Task 9a) — `useColumnSessions` already scopes itself internally; Column still
 // needs the active workspace directly for its OWN `selectColumnCount` call below.
 // Task 12 — also the move-to-workspace target list (`selectWorkspaces`, `useShallow` per the
@@ -39,7 +42,7 @@ import {
   selectActiveWorkspaceId,
   selectWorkspaces
 } from '../../stores/workspacesStore'
-import { effectiveTagFilter, tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
+import { tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { useShallow } from 'zustand/react/shallow'
 import styles from './Board.module.css'
@@ -192,18 +195,21 @@ export function Column({
   const sessions = useColumnSessions(column)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  const tagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
+  const filter = useBoardFilter(activeWorkspaceId)
+  const tagId = filter.tagId
   const tagName = useTags((s) =>
     tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
   )
-  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, tagId))
+  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, filter))
   // Controller ruling (spec §4.3, design.md three-empty-states) — a column can be empty for two
-  // DIFFERENT reasons under a tag filter: genuinely nothing here, or something here that just
-  // doesn't carry the tag. The UNFILTERED count tells them apart; only the second one gets its
-  // own sentence (never the calm "Nothing waiting. All quiet." — that is a claim about needs-you
-  // that would be FALSE here).
-  const unfilteredCount = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, null))
-  const hiddenByFilter = count === 0 && tagId !== null && unfilteredCount > 0
+  // DIFFERENT reasons under the filter bar: genuinely nothing here, or something here that the tag
+  // or the search hides. The UNFILTERED count tells them apart; only the second one gets its own
+  // sentence (never the calm "Nothing waiting. All quiet." — that is a claim about needs-you that
+  // would be FALSE here).
+  const unfilteredCount = useBoard((s) =>
+    selectColumnCount(s, column, activeWorkspaceId, NO_FILTER)
+  )
+  const hiddenByFilter = count === 0 && unfilteredCount > 0
   const meta = COLUMN_META[column]
 
   // The hero column's cards are the large full-contrast `variant="hero"` (with the 3px
@@ -222,7 +228,10 @@ export function Column({
       {count === 0 ? (
         hiddenByFilter ? (
           <p className={styles.emptyHint} data-testid="empty-hint-filtered">
-            {`No sessions tagged ${tagName ?? 'with this tag'} here.`}
+            {`${hiddenByFilterSentence(
+              tagId !== null ? (tagName ?? 'with this tag') : null,
+              filter.query
+            )} here.`}
           </p>
         ) : (
           <p className={styles.emptyHint} data-testid="empty-hint">
