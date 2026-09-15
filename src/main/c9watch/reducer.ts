@@ -16,6 +16,7 @@
 // .claude/rules/{zod-boundaries,state,ipc}.md]
 import type { Session } from '../../shared/schemas/session'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
+import { sameTagSet } from '../../shared/tags/tagScope'
 import type {
   ReducerSessionUpdatedEvent,
   SessionRemovedEvent,
@@ -119,8 +120,22 @@ export interface Reducer {
    * DOES NOT REORDER THE BOARD. `enteredColumnAt` is stamped by `attention.ts` only on a COLUMN
    * change, and this re-emits with an UNCHANGED status — so the sort key survives. Do not add a
    * re-stamp here; moving a card between workspaces is not a state transition.
+   *
+   * `tagIds` is the list the card KEEPS — spec T-9: the caller drops the old workspace's own
+   * tags, so the reducer stays store-free; it lands in the same delta as the move.
    */
-  setWorkspace(id: string, workspaceId: string): SessionDelta[]
+  setWorkspace(id: string, workspaceId: string, tagIds: readonly string[]): SessionDelta[]
+  /**
+   * Tags — replace an EXISTING session's tags. Swaps `tagIds` and NOTHING else (spec §2.5).
+   *
+   * Unknown `id` → `[]` + logs `{ path: '(set-tags)', code: 'set_tags_unknown_id' }`: a tag write
+   * must never SYNTHESIZE a card (Story-3.3 ship gate). An UNCHANGED set (order-insensitive) →
+   * `[]` silently, so a no-op click ships no delta.
+   *
+   * DOES NOT REORDER THE BOARD: the status is unchanged, so the tracker does not re-stamp
+   * `enteredColumnAt`, and no column-change or time rule can see this delta as an edge (T-3).
+   */
+  setTags(id: string, tagIds: readonly string[]): SessionDelta[]
   /**
    * Deterministic-attention — the operator VIEWED this session (active rail tab in a
    * focused window). Demotes ONLY `YourTurn` → `WaitingForInput` (idle); ANY other
@@ -250,7 +265,11 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
    * Workspaces — move an existing session to another workspace (see the interface doc).
    * Unknown id → [] + log set_workspace_unknown_id (never synthesize a card from a move).
    */
-  function setWorkspace(id: string, workspaceId: string): SessionDelta[] {
+  function setWorkspace(
+    id: string,
+    workspaceId: string,
+    tagIds: readonly string[]
+  ): SessionDelta[] {
     const stored = map.get(id)
     if (stored === undefined) {
       // Path marks the boundary; the workspace id is opaque but the session is not logged.
@@ -258,10 +277,24 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       return []
     }
     if (stored.workspaceId === workspaceId) return []
-    const moved: Session = { ...stored, workspaceId }
+    const moved: Session = { ...stored, workspaceId, tagIds: [...tagIds] }
     map.set(id, moved)
     lastApplied = now()
     return [frame(toUpdated(moved))]
+  }
+
+  /** Tags — swap an existing session's tags (see the interface doc). */
+  function setTags(id: string, tagIds: readonly string[]): SessionDelta[] {
+    const stored = map.get(id)
+    if (stored === undefined) {
+      log({ path: '(set-tags)', code: 'set_tags_unknown_id' })
+      return []
+    }
+    if (sameTagSet(stored.tagIds, tagIds)) return []
+    const tagged: Session = { ...stored, tagIds: [...tagIds] }
+    map.set(id, tagged)
+    lastApplied = now()
+    return [frame(toUpdated(tagged))]
   }
 
   /**
@@ -283,6 +316,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     upsertLaunched,
     renameSession,
     setWorkspace,
+    setTags,
     markSeen,
     // A defensive copy so callers can never mutate the authoritative map.
     snapshotMap: (): Map<string, Session> => new Map(map),

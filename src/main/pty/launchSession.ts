@@ -96,6 +96,9 @@ export interface LaunchRequest {
   /** Session templates — the model/permission-mode/effort flags to spawn claude with. Omitted ⇒
    *  `NO_LAUNCH_FLAGS` (the folder flow). */
   flags?: ClaudeLaunchFlags
+  /** Tags and rules — the template this launch came from; omitted ⇒ null (the folder flow). Read by
+   *  the rules engine's `template` condition (Phase 2), never by the spawn itself. */
+  templateId?: string | null
 }
 
 /** The per-terminal launch recipe, set once at launch and read on EVERY spawn of that terminal. */
@@ -103,6 +106,7 @@ export interface LaunchOverride {
   cwd: string
   name: string
   flags: ClaudeLaunchFlags
+  templateId: string | null
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -133,6 +137,9 @@ export interface MintedLaunchSpawn {
    *  NEW terminalId and re-prompts for a name). The one path that re-reads it is the dev
    *  StrictMode double-mount, where the same terminalId is stopped and re-opened. */
   displayName: string
+  /** Tags and rules — the launch's template id (null for the folder flow), read back off the
+   *  override exactly like `displayName`. */
+  templateId: string | null
 }
 
 export interface LaunchServiceOptions {
@@ -318,7 +325,12 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // Session-naming: the operator-typed name sits beside the cwd — both are per-terminal
     // launch-recipe values with the same key and lifetime. Session templates: `flags` too —
     // omitted (folder flow) collapses to NO_LAUNCH_FLAGS.
-    overrides.set(terminalId, { cwd: req.cwd, name: req.name, flags: req.flags ?? NO_LAUNCH_FLAGS })
+    overrides.set(terminalId, {
+      cwd: req.cwd,
+      name: req.name,
+      flags: req.flags ?? NO_LAUNCH_FLAGS,
+      templateId: req.templateId ?? null
+    })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
   }
@@ -364,7 +376,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     }
 
     // The operator's name rides back out of the override (never consumed, like the cwd).
-    return { sessionId, spawn, displayName: override.name }
+    return { sessionId, spawn, displayName: override.name, templateId: override.templateId }
   }
 
   function sessionIdFor(terminalId: string): string | null {

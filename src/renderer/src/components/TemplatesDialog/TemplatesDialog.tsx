@@ -1,7 +1,8 @@
-// Session templates — the Manage dialog (modal, z 60 like SessionNameDialog). Owns ONLY the
-// selection; the list and the form are separate units. UX-DR14: App.tsx guards it against the
-// other modals and closes it on the quit guard.
-import { useState, type JSX, type KeyboardEvent } from 'react'
+// Session templates — the Manage dialog, on the shared ManageDialog shell (.claude/rules/design.md).
+// Owns the scope filter and the "follow a row a save moved" rule; the selection, the armed Delete
+// and the error line are the shell's state (useManageDialog). The list and the form are separate
+// units. UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
+import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
 import { selectTemplates, useTemplates } from '../../stores/templatesStore'
@@ -10,6 +11,7 @@ import {
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
+import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   ALL_SCOPE,
@@ -22,7 +24,6 @@ import {
 } from '../ScopeFilter/scope'
 import { TemplateForm } from './TemplateForm'
 import { TemplateList } from './TemplateList'
-import styles from './TemplatesDialog.module.css'
 
 export interface TemplatesDialogProps {
   onClose: () => void
@@ -35,8 +36,8 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
   const templates = useTemplates(selectTemplates)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = templates.find((t) => t.id === selectedId) ?? null
+  const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', onClose })
+  const selected = templates.find((t) => t.id === dialog.state.selectedId) ?? null
   const known = knownWorkspaceIds(workspaces)
   // Opens on the workspace you are working in — the rows you most likely came to edit. Falls
   // back to the `all` entry if that id names no known workspace, so the select can never sit on
@@ -51,75 +52,42 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
     setScope(next)
     // A row selected in the OLD scope is gone from the list; leaving it in the form means editing
     // something you can no longer see. Drop back to the empty form instead.
-    setSelectedId(null)
+    dialog.actions.select(null)
   }
 
   /** Keeps a just-saved row visible: changing its Workspace can move it out of the view you
    *  saved it from, and a row that vanishes on save reads as a failed save. */
   function revealSaved(template: Template): void {
-    setSelectedId(template.id)
+    dialog.actions.select(template.id)
     if (filterByScope([template], scope, known).length === 0) {
       setScope(scopeOf(template.workspaceId, known))
     }
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      onClose()
-    }
-  }
-
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Templates"
-      data-testid="templates-overlay"
-      onKeyDown={handleKeyDown}
-    >
-      <div className={styles.panel} data-testid="templates-panel">
-        <div className={styles.header}>
-          <div className={styles.headerText}>
-            <span className={styles.title}>Templates</span>
-            <ScopeFilter
-              value={scope}
-              workspaces={workspaces}
-              showOrphans={hasOrphans(templates, known)}
-              onChange={changeScope}
-              allLabel="All templates"
-              testId="template-scope-filter"
-              ariaLabel="Filter templates by workspace"
-            />
-          </div>
-          <button
-            type="button"
-            className={styles.closeButton}
-            data-testid="templates-close"
-            aria-label="Close templates"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className={styles.columns}>
-          <TemplateList
-            templates={templates}
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Header>
+          <ScopeFilter
+            value={scope}
             workspaces={workspaces}
-            scope={scope}
-            selectedId={selected?.id ?? null}
-            onSelect={setSelectedId}
-            onNew={() => setSelectedId(null)}
+            showOrphans={hasOrphans(templates, known)}
+            onChange={changeScope}
+            allLabel="All templates"
+            testId="template-scope-filter"
+            ariaLabel="Filter templates by workspace"
           />
+        </ManageDialog.Header>
+        <ManageDialog.Columns>
+          <TemplateList templates={templates} workspaces={workspaces} scope={scope} />
           <TemplateForm
             key={selected?.id ?? 'new'}
             template={selected}
             onSaved={revealSaved}
-            onRemoved={() => setSelectedId(null)}
+            onRemoved={() => dialog.actions.select(null)}
           />
-        </div>
-      </div>
-    </div>
+        </ManageDialog.Columns>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
   )
 }

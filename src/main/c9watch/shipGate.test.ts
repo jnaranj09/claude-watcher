@@ -39,7 +39,8 @@ function updated(id: string): SessionUpdatedEvent {
     column: 'working',
     enteredColumnAt: 0,
     pid: 1,
-    workspaceId: 'default'
+    workspaceId: 'default',
+    tagIds: []
   }
 }
 

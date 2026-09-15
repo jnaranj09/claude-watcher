@@ -40,7 +40,8 @@ function seedCard(workspaceId: string, id: string, column: Column): void {
         column,
         enteredColumnAt: 1,
         pid: 1,
-        workspaceId
+        workspaceId,
+        tagIds: []
       }
     })
   })

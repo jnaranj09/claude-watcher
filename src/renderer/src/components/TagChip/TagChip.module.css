@@ -1,0 +1,101 @@
+/* Tags — the label pill (spec T-7, §4.2). ONE drawing of a tag name for the whole app: board
+ * cards, rail rows (peek / show-all), the tag filter, the Tags… picker and the Tags dialog all
+ * render <TagChip>. A rounded label with a tinted fill — never a dot + name, so it cannot read as
+ * a WorkspaceDot (design.md) or a StatusDot — and it carries TEXT, so it cannot read as the
+ * switcher's count pills. Colours come only from the `--tag-*` tokens. */
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  max-width: 120px;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: var(--rounded-sm);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-meta);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* A long name truncates and keeps its `title` (design.md: any operator-typed name).
+ *
+ * CENTRED ON THE LOWERCASE BODY, and clipped SIDEWAYS only. Measured in Electron's Chromium (Noto
+ * Sans, 11.5px, 18px box): with `line-height: 1` + `overflow: hidden` the name's box ended ~2px above
+ * the glyphs' bottom, so the tail of every `p`/`g`/`y` was cut flat, and the caps-centred line put
+ * the x-height body ~1px low. `prod` read as sitting low in its pill.
+ *   - `text-box` trims the line box to the x-height band, so `align-items: center` centres the
+ *     lowercase body. Tag names are mostly lowercase; a capital sits ~1px high instead, which reads
+ *     as centred far better than a clipped descender did.
+ *   - `overflow-x: clip` keeps the ellipsis but, unlike `hidden`, does not force the other axis to
+ *     clip, so the trimmed box no longer cuts ascenders or descenders. */
+.name {
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: visible;
+  text-overflow: ellipsis;
+  text-box: trim-both ex alphabetic;
+}
+
+/* One class per TAG_COLORS entry — TagChip.test.tsx iterates the list and fails if one is missing. */
+.slate {
+  background: var(--tag-slate-fill);
+  border-color: var(--tag-slate-border);
+  color: var(--tag-slate-text);
+}
+.blue {
+  background: var(--tag-blue-fill);
+  border-color: var(--tag-blue-border);
+  color: var(--tag-blue-text);
+}
+.green {
+  background: var(--tag-green-fill);
+  border-color: var(--tag-green-border);
+  color: var(--tag-green-text);
+}
+.amber {
+  background: var(--tag-amber-fill);
+  border-color: var(--tag-amber-border);
+  color: var(--tag-amber-text);
+}
+.violet {
+  background: var(--tag-violet-fill);
+  border-color: var(--tag-violet-border);
+  color: var(--tag-violet-text);
+}
+.rose {
+  background: var(--tag-rose-fill);
+  border-color: var(--tag-rose-border);
+  color: var(--tag-rose-text);
+}
+
+/* The `+N` overflow chip: no hue (it is not a tag), dashed so it reads as "more", and an OPAQUE
+ * --bg-surface fill so its --text-secondary digits clear 4.5:1 on every surface, the gold
+ * needs-you rail row included. */
+.more {
+  background: var(--bg-surface);
+  border-style: dashed;
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+/* One line, `+N` for what does not fit (T-26). `min-width: 0` + `overflow: hidden` let the parent
+ * squeeze it; TagChipRow measures what fits. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Every chip, wrapping onto as many lines as it takes (the rail peek). */
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}

@@ -153,6 +153,12 @@ function q<T extends Element>(r: RenderResult, sel: string): T {
 
 const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
+/** The header ☰ menu → Shortcuts…. */
+function openShortcuts(r: RenderResult): void {
+  click(q(r, '[data-testid="app-menu"]'))
+  click(q(r, '[data-testid="app-menu-shortcuts"]'))
+}
+
 describe('App — shortcuts entry point', () => {
   it('loads the shortcuts once on mount and projects them into the store', async () => {
     await renderApp()
@@ -160,16 +166,16 @@ describe('App — shortcuts entry point', () => {
     expect(shortcutsStore.getState().shortcuts).toEqual([SC])
   })
 
-  it('the header keyboard button opens the shortcuts dialog', async () => {
+  it('the header ☰ menu’s Shortcuts… opens the shortcuts dialog', async () => {
     const r = await renderApp()
     expect(r.container.querySelector('[data-testid="shortcuts-overlay"]')).toBeNull()
-    click(q(r, '[data-testid="open-shortcuts"]'))
+    openShortcuts(r)
     expect(q(r, '[data-testid="shortcuts-overlay"]')).toBeTruthy()
   })
 
   it('counts as a modal — Ctrl+N does NOT start a new session while it is open', async () => {
     const r = await renderApp()
-    click(q(r, '[data-testid="open-shortcuts"]'))
+    openShortcuts(r)
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
     })
@@ -194,14 +200,14 @@ describe('App — shortcuts entry point', () => {
 
   it('✕ closes the dialog', async () => {
     const r = await renderApp()
-    click(q(r, '[data-testid="open-shortcuts"]'))
+    openShortcuts(r)
     click(q(r, '[data-testid="shortcuts-close"]'))
     expect(r.container.querySelector('[data-testid="shortcuts-overlay"]')).toBeNull()
   })
 
   it('Escape from the page body closes the dialog', async () => {
     const r = await renderApp()
-    click(q(r, '[data-testid="open-shortcuts"]'))
+    openShortcuts(r)
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })

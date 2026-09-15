@@ -37,7 +37,9 @@ function session(id: string, status: string): Session {
     projectPath: `/p/${id}`,
     pid: 1,
     sessionName: id,
-    workspaceId: 'default'
+    workspaceId: 'default',
+    tagIds: [],
+    templateId: null
   }
 }
 

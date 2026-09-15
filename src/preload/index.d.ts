@@ -8,6 +8,8 @@ import type {
   TemplatesApi,
   ShortcutsApi,
   WorkspacesApi,
+  TagsApi,
+  RulesApi,
   TelemetryApi,
   QuitApi,
   ClipboardApi
@@ -32,6 +34,10 @@ declare global {
     shortcuts: ShortcutsApi
     // Workspaces — the workspaces CRUD bridge (list/save/remove/setActive via CH.workspaces*).
     workspaces: WorkspacesApi
+    // Tags — the tag catalog CRUD bridge (list/save/remove via CH.tags*).
+    tags: TagsApi
+    // Rules — the rule list bridge (list/save/remove/move via CH.rules*).
+    rules: RulesApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi
     // Story 4.2 (FR-14) — the quit-guard bridge (requestQuit / confirm / cancel / onGuardShow).

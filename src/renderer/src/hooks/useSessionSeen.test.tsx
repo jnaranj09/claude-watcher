@@ -52,7 +52,8 @@ function makeSession(id: string, status: string): BoardSession {
     pid: 1000,
     column: status === STATUS_YOUR_TURN ? 'needs-you' : 'working',
     enteredColumnAt: 1_000,
-    workspaceId: 'default'
+    workspaceId: 'default',
+    tagIds: []
   }
 }
 

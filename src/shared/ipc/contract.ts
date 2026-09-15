@@ -11,6 +11,8 @@
 //   - `invoke` returns the value directly — NO `{ data, error }` wrapper.
 //   - Events are discriminated unions on a `type` field.
 import type { Template } from '../schemas/template'
+import type { Tag } from '../schemas/tag'
+import type { Rule } from '../schemas/rule'
 import type { Shortcut } from '../schemas/shortcut'
 import type {
   Workspace,
@@ -114,6 +116,19 @@ export const CH = {
   workspacesSave: 'workspaces:save',
   workspacesDelete: 'workspaces:delete',
   workspacesSetActive: 'workspaces:set-active',
+  // Tags — the tag catalog's CRUD invokes (main-owned file; the renderer holds a projection in
+  // tagsStore.ts) plus `session:set-tags`, the manual-tagging write (spec §2.4). Invoke returning
+  // void; the tagged card comes back the normal way, as a `session.updated` delta.
+  tagsList: 'tags:list',
+  tagsSave: 'tags:save',
+  tagsDelete: 'tags:delete',
+  sessionSetTags: 'session:set-tags',
+  // Rules — the rule list's invokes (main-owned, run-ordered file; the renderer holds a projection
+  // in rulesStore.ts). `rules:move` is the only reorder: list order IS run order (spec T-14).
+  rulesList: 'rules:list',
+  rulesSave: 'rules:save',
+  rulesDelete: 'rules:delete',
+  rulesMove: 'rules:move',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
@@ -218,8 +233,12 @@ export type Channel = (typeof CH)[keyof typeof CH]
  * may import — the renderer must never reach into `src/main`). There is NO `done`
  * column: an exited session VANISHES (`session.removed`), it never lands in one.
  * [Source: story 1.4 Task 1.1; src/main/c9watch/columns.ts; c9watch-0.8.1-contract.md §4]
+ *
+ * The rule triggers' enums and the enriched delta's `ColumnSchema` derive from the same
+ * list (spec §1.2), so a fourth column cannot be added to one and not the others.
  */
-export type Column = 'working' | 'needs-you' | 'idle'
+export const COLUMNS = ['working', 'needs-you', 'idle'] as const
+export type Column = (typeof COLUMNS)[number]
 
 // ---------------------------------------------------------------------------
 // Payload types (PascalCase, no `I` prefix, camelCase fields).
@@ -317,6 +336,9 @@ export type SessionUpdatedEvent = {
   /** Workspaces — which workspace this card belongs to. The renderer filters on it; it never
    *  mutates it (session truth is main's). */
   workspaceId: string
+  /** Tags — the card's tag ids (session truth, main-owned). Order carries no meaning: the renderer
+   *  draws chips in TAG-LIST order. */
+  tagIds: string[]
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
 }
@@ -511,6 +533,27 @@ export type {
 export type TemplatesSaveResult = { saved: Template; templates: Template[] }
 /** `session:launch-from-template` arg. Returns `SessionLaunchResult` like `session:launch`. */
 export type SessionLaunchFromTemplateRequest = { templateId: string; name: string }
+
+// Tags — main-owned catalog; the renderer holds a projection (tagsStore.ts).
+export type { Tag, TagSaveRequest, TagDeleteRequest, SessionSetTagsRequest } from '../schemas/tag'
+/** `tags:save` result — the saved row (so the dialog can select it) + the full sorted list. */
+export type TagsSaveResult = { saved: Tag; tags: Tag[] }
+
+// Rules — main-owned, run-ordered list; the renderer holds a projection (rulesStore.ts).
+export type {
+  Rule,
+  RuleSaveRequest,
+  RuleDeleteRequest,
+  RuleMoveRequest,
+  RuleTrigger,
+  RuleCondition,
+  RuleAction
+} from '../schemas/rule'
+/** `rules:list` result — the rules in RUN order + the ids of those that can never fire (T-23: a
+ *  missing or out-of-scope reference, or a regex that does not compile). */
+export type RulesListResult = { rules: Rule[]; brokenIds: string[] }
+/** `rules:save` result — the saved row (so the dialog can select it) PLUS the full view. */
+export type RulesSaveResult = { saved: Rule } & RulesListResult
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

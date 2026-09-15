@@ -1,10 +1,11 @@
-# Rule: UI shape (copy the sibling, don't invent a second layout)
+# Rule: UI shape (one shell, don't invent a second layout)
 
-This app has THREE "Manage X" dialogs — Templates, Shortcuts, Workspaces — that do the
-same job: pick a row on the left, edit it on the right. They must look and behave like
-one another. When you add or change one, read the other two FIRST and copy the shape.
-Two dialogs that do the same job in two different layouts is a defect, even when each
-one is internally fine.
+This app's "Manage X" dialogs — Templates, Shortcuts, Workspaces, and the Tags and Rules
+dialogs to come — do the same job: pick a row, edit it. They must look and behave like one
+another, so they are all built on ONE shell: `components/ManageDialog/` (import
+`ManageDialog` and `useManageDialog` from `ManageDialog.ts`). Compose its parts; read a
+sibling dialog first to see how. Two dialogs that do the same job in two different layouts
+is a defect, even when each one is internally fine.
 
 (The `UX-DR<n>` ids in code comments come from the original design docs, which are not
 in this tree. This file is the design rule set that IS.)
@@ -12,44 +13,47 @@ in this tree. This file is the design rule set that IS.)
 ## Canonical example (the Manage-dialog shape)
 
 ```tsx
-<div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Templates">
-  <div className={styles.panel}>
-    <div className={styles.header}>title + ✕ close</div>
-    <div className={styles.columns}>
-      {' '}
+const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', onClose })
+
+<ManageDialog.Provider {...dialog}>
+  <ManageDialog.Frame>
+    {/* overlay z-60, role=dialog, Escape closes */}
+    <ManageDialog.Header>
+      <ScopeFilter … /> {/* beside the title */}
+    </ManageDialog.Header>
+    <ManageDialog.Columns>
       {/* grid: fixed rail | 1fr form */}
-      <div className={styles.list}>
-        <div className={styles.rows}>…rows: SELECT only, no per-row actions…</div>
-        <button>+ New</button> {/* bottom of the rail */}
-      </div>
-      <form className={styles.form}>
+      <ManageDialog.List>
+        <ManageDialog.Rows>
+          <ManageDialog.Row id={t.id} testId="template-row">
+            {t.name}
+            {/* <ManageDialog.RowActions> ONLY for actions the form does not own */}
+          </ManageDialog.Row>
+        </ManageDialog.Rows>
+        <ManageDialog.New testId="template-new" /> {/* bottom of the rail */}
+      </ManageDialog.List>
+      <ManageDialog.Form onSubmit={submit}>
         …fields…
-        <div className={styles.actions}>
-          {' '}
+        <ManageDialog.Footer>
           {/* flex, justify-content: flex-end */}
-          <button className={armed ? styles.dangerButton : styles.deleteButton}>
-            {armed ? 'Confirm delete' : 'Delete'}
-          </button>
-          <button type="submit" className={styles.primaryButton}>
-            Save
-          </button>
-        </div>
-      </form>
-    </div>
-    {error !== null && (
-      <p className={styles.error} role="alert">
-        …
-      </p>
-    )}
-  </div>
-</div>
+          <ManageDialog.Delete testId="template-delete" onConfirm={remove} />
+          <ManageDialog.Save testId="template-save" disabled={!canSave} />
+        </ManageDialog.Footer>
+      </ManageDialog.Form>
+    </ManageDialog.Columns>
+    <ManageDialog.Error testId="template-error" />
+  </ManageDialog.Frame>
+</ManageDialog.Provider>
 ```
 
 ## The rules
 
-- **A list row selects. It does not act.** No Delete, no rename, no per-row buttons in
-  the rail. Row actions make the rail ragged, they push the list items around when one
-  arms, and they duplicate an affordance the form already has to own.
+- **A row may carry actions only inside `ManageDialog.RowActions`, and never an action the
+  form already owns (Delete, rename).** The row itself selects. `RowActions` is a
+  fixed-width slot revealed on hover / focus-within, so the rail never goes ragged and
+  nothing shifts when a control arms. An action the form has stays in the form — a second
+  control for the same job is the defect. (Rules' ↑/↓ reorder is the case this exists
+  for: it has no form equivalent.)
 - **Destructive actions live in the form footer, left of the primary button.** The
   footer is ONE `flex-end` row: `[Delete] [Save]`. The operator reads the object they
   are about to destroy (the form) right above the button that destroys it.
@@ -61,9 +65,10 @@ in this tree. This file is the design rule set that IS.)
 - **Delete is red at rest, filled on hover/focus.** `.deleteButton` = `--danger` border
   and text on a transparent background; `:hover`/`:focus-visible` fills `--danger` with
   white text. `.dangerButton` (solid `--danger`) is the ARMED state only, so arming
-  reads as the same button changing, not a new one appearing. Copy both blocks from a
-  sibling dialog's `.module.css` — the classes are per-module by design (CSS Modules),
-  the values are not free to drift.
+  reads as the same button changing, not a new one appearing. Both classes live in
+  `ManageDialog.module.css` and nowhere else: render `<ManageDialog.Delete>`, which owns
+  the arm / blur / Escape behaviour once. `ManageDialog.styles.test.ts` fails if any other
+  module declares either class.
 - **One error line per dialog**, `role="alert"`, shared by every flow in it. Never a
   second error surface per section, and never render a thrown `error.message` — map the
   code to operator copy first (see the `copyFor`/`templateErrorMessage` precedent).
@@ -72,6 +77,11 @@ in this tree. This file is the design rule set that IS.)
 - **A control the operator must not use is not rendered.** Do not render it disabled and
   refuse it on click (the Default workspace has NO delete button at all). Main refusing
   the operation is the backstop, not the UI's excuse to offer it.
+- **The one exception: a reorder arrow in a `RowActions` slot.** ↑ on the first row and ↓ on
+  the last are rendered DISABLED, with a screen-reader label saying why (`Already first`,
+  `Already last`), not omitted. The slot has a fixed width that must be identical on every
+  row; drop one arrow and that row carries a single off-centre button, and the rail goes
+  ragged. (The Rules dialog.) Nothing else earns this exception.
 
 ## Scoped lists (the header filter)
 
@@ -133,6 +143,124 @@ scope dropdown.
 - **Text on a raised panel is `--text-secondary`, never `--text-muted`.** Muted `#6b685e` on the
   dialog panel `#2c2b27` measures **2.54:1** — under the 4.5:1 body floor and under even the
   3:1 large-text floor. Secondary measures 5.41:1. `--text-muted` is for text on `--bg-base`.
+
+## Naming a tag in the UI
+
+`components/TagChip/TagChip.tsx` is the ONE drawing of a tag's name — board card footers, rail rows
+(peek and "Show all tags"), the tag filter, the `Tags…` picker and the Tags dialog.
+`components/TagIndicator/TagIndicator.tsx` is its compact form, used only by the rail's default view.
+
+- **A tag is a label pill, never a dot.** A rounded rectangle with a tinted fill and the name in it.
+  The workspace dot and the status dot are circles; the rail's tag indicator is a tag OUTLINE.
+  Nothing else draws a tag.
+- **Colours come from the `--tag-<color>-{fill,border,text}` tokens only.** The fills are OPAQUE (the
+  hue pre-composited over `--bg-surface`), so a chip measures the same on every surface — the gold
+  needs-you rail row included, where the old translucent tint fell to 3.78:1. Chip text is ≥ 4.5:1
+  on its fill and the indicator's stroke is ≥ 3:1 on every rail row fill; both are pinned against
+  `tokens.ts` in the component tests.
+- **Chips render in TAG-LIST order** (the catalog's name order), never in a card's own id order, so
+  one tag sits in the same place on every card.
+- **One line, `+N` for the rest** (`TagChipRow`) on board cards and in "Show all tags"; the `+N`
+  chip's `title` lists the hidden tags.
+- **A tag never changes a rail row's height in the default view.** Only the operator's own clicks —
+  the peek and "Show all tags" — add a chip line (TWO ROW SIZES in `components/attention/AttentionRail.module.css`).
+- **The rail peek draws INSIDE the row's card.** Its chips are the row's own second line (the line
+  "Show all tags" uses), never a panel under the row on the rail's background — that read as a
+  separate thing.
+- **The peek ends in a `+ tag` pill, never an `Edit` button.** The board filter's `+ Add filter`
+  pill (dashed, round) at a chip's size, as the last item of the chip flow, so it reads as the next
+  chip. An `Edit` stacked under the tag toggle was tried and read as clutter. The real button cannot
+  nest in the row `<button>`: a hidden copy holds its place in the flow, and CSS anchor positioning
+  lays the button over it (`anchor-scope` per `.rowWrap`). It needs `position-visibility: always`:
+  the default force-hides a box whose anchor is invisible, and the copy is `visibility: hidden`.
+- **An open peek toggle is LIT** — the filter toggle's lit state: `--text-primary` fill, `--bg-base`
+  ink, and the tag mark redrawn in that ink (`TagIndicator mono`, same shape, so nothing shifts). It
+  is the row's only sign that it is expanded and can be closed; its `title` reads `Hide tags`. The
+  rail header's `Show all tags` toggle is lit the same way while on.
+- **A tag name truncates and keeps its `title`**, like every operator-typed name — and it clips
+  SIDEWAYS only (`overflow-x: clip`), centred on the x-height (`text-box: trim-both ex alphabetic`).
+  `overflow: hidden` + `line-height: 1` cut every `p`/`g`/`y` tail flat and sat the text ~1px low.
+- **A trigger that opens `TagPicker` uses `aria-expanded` + `aria-controls`** (pointed at the
+  picker's own id), **never `aria-haspopup`** — the popup is a checkbox `group`, not a menu.
+- **A card and an untagged rail row can always reach tagging, even before a tag exists.** With no
+  tag to offer, the same button (`Create tags`) opens the Tags dialog instead of an empty picker,
+  so it carries `aria-haspopup="dialog"` and no `aria-expanded`. It is hidden only when there is
+  no Tags dialog to open.
+
+## The board's filter bar
+
+`components/FilterBar/FilterBar.tsx` is the ONE place the board is filtered or searched. It sits
+above the columns, never in the header: a header button reading "All tags" did not read as a filter.
+
+- **Two rows.** The CONTROLS row is always drawn, with no box around it: the search box, the
+  `Filter` button, and the count on the right (`5 sessions`, or `3 shown · 2 hidden` whenever the
+  tag or the search hides a card). The CHIP row — the boxed bar holding the active filter as a pill
+  (`Tag is <chip>`: click it to change the tag, `×` to remove it), or `+ Add filter` while none is
+  on — draws UNDER it only while the `Filter` button is pressed. Pressing it again closes the chip
+  row and any open tag list. Open/closed is not persisted.
+- **The search box matches the card NAME only**, case-insensitively, anywhere in the name; spaces
+  around it are ignored and a blank box hides nothing. Folder and the other card fields are future
+  filter TYPES in the chip row, never search. It is `<TextInput variant="inline">` with a leading
+  magnifier `icon` — Select's `inline` box, never a text-field rule of its own. Escape in a box
+  holding text clears it and stops there; in an empty box it passes through. The text is renderer
+  view-state (`boardStore.searchQuery`), not persisted, and it survives a workspace switch: the box
+  shows it, so nothing is hidden by a filter the operator cannot see.
+- **The tag and the search narrow the same things**: the board, the column counts, and the rail's
+  status groups — through ONE `BoardFilter` (`useBoardFilter`) every board and rail selector takes.
+  The pinned rail row, the notifier, the badge and the sound ignore both.
+- **The `Filter` button has the word beside the icon, at the toolbar's height.** 32px tall, the
+  same as the search box beside it (TextInput's `toolbar` variant) — the operator asked for both a
+  little bigger than the 26px ☰ box they started at. A 16px "filter list" icon (three lines getting
+  shorter) on the ☰ icon's grid and stroke, `--border`, `--rounded-md`. (An uppercase `FILTERS`
+  label and a bare icon were both tried before; the operator's toolbar mockup put `Filter` beside
+  the icon.) Titled `Show filters` / `Hide filters`. A stylesheet test in `FilterBar.test.tsx` pins
+  its height to the search box's.
+- **No chevron and no "pressed" look: open reads as LIT** (below). A second look for "open" would
+  make the operator ask which of the two it is in.
+- **It sits tight: 8px under the header, 8px above the columns** (not the 16px gutter either side,
+  which read as a gap). The grid trims its top padding only while the bar draws (`Board.module.css`
+  `.filterSlot`). Never pull the grid up with a negative margin: its box would cover the lower part
+  of the bar and take its clicks.
+- **The button is LIT while the chip row is open**, like the rail's open tag toggles, **and while
+  it is closed with a filter on** — `--text-primary` fill, `--bg-base` ink (`data-lit`). Closed
+  with a filter on it is the loudest thing on the board's edge, on purpose: cards are hidden and the
+  pill that says so is out of sight. (A corner count badge was the quieter option; the operator
+  chose this one.) With a filter on it also carries the count (named `Filter, 1 on`). The search is
+  never counted on the button: the box already shows what it holds.
+- **Every "why is this empty" sentence names what hides the cards** — the tag, the search, or both
+  (`lib/filterCopy.ts`, shared by the empty board and the empty column): `No sessions tagged prod
+match “dep” here.` The aria-live summary does the same (`1 hidden by the search`).
+- **Tag is the only filter type, so `+ Add filter` opens the tag list directly.** Add a type step
+  (`Tag ▸`, `Status ▸`) only once a second filter type exists.
+- **One tag at a time.** While a tag filter is on, the pill is where it changes, and `+ Add filter`
+  is not rendered.
+- **It draws only when the workspace has sessions**, and it stays when the filter hides them all,
+  so the operator removes the filter right where they see the empty board.
+- **No tag yet:** the list offers `Create tags…` (the Tags dialog), never an empty popup. With no
+  tag AND no Tags dialog, the `Filter` button is not rendered; the search box still is.
+- **Not built yet:** the mockup's `Sort` and `⋯` buttons (IdeasBoard.md). A control with nothing
+  behind it is not rendered, so neither is drawn until it does something.
+
+## The header ☰ menu
+
+`components/AppMenu/AppMenu.tsx` is the ONE header control besides `+ New session`. It replaced three
+icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
+
+- **Rows, in this order:** `Settings…`, `Shortcuts…`, then `Tags` — a SUBMENU holding
+  `Manage tags…` / `Manage rules…`. The tag rows stay grouped under `Tags`; do not flatten them
+  into the top level.
+- **Every row keeps its icon** — ⚙ `Settings…`, ⌨ `Shortcuts…`, the tag glyph on `Tags` — the icons
+  the three header buttons had, so they are still found by shape. The icon sits in a fixed-width
+  slot so every label starts at the same x; the submenu chevron `‹` sits at the row's right edge.
+- **The submenu opens to the LEFT, level with its row** — the menu sits at the window's right edge.
+  Pointing at `Tags` opens it, pointing at another row closes it; ArrowRight opens it on its first
+  row, ArrowLeft goes back. Clicking `Tags` OPENS it and never toggles: a mouse points at the row
+  (opening it) before it clicks, so a toggle would shut it on the very click meant to open it.
+- **Escape peels one layer**: the submenu, then the menu, and it stops there. It listens on the whole
+  menu, so it also works while focus is still on the ☰ button. With the menu closed it passes
+  through (Focused → Board still works).
+- **Every row opens a dialog under the single-modal rule** — Settings included (`settingsDialogOpen`
+  in `boardStore`), so it joins `isModalOpen()`, the Escape closer and the quit-guard closer.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 
@@ -214,10 +342,12 @@ and assert on its text instead.
 
 ## Don't
 
-- Don't add a per-row action "just for this one dialog".
+- Don't put a per-row action anywhere but `ManageDialog.RowActions`, and never one the form
+  already has.
 - Don't write `<input type="text">` or a `.input` CSS rule. That is `<TextInput>`.
 - Don't introduce a fourth button style. There are three: `primaryButton`,
-  `ghostButton`, `deleteButton` (+ its armed `dangerButton`).
+  `ghostButton`, `deleteButton` (+ its armed `dangerButton`) — all in
+  `ManageDialog.module.css`; render `ManageDialog.Save` / `GhostButton` / `Delete`.
 - Don't reach for a native `<select>`, `alert()`, `confirm()`, or any other browser-drawn widget
   with a popup. They are painted by the platform and cannot be themed.
 - Don't hard-code a color that a token already names (`--danger`, `--working`,
@@ -229,5 +359,6 @@ and assert on its text instead.
   scope dropdown's own `<option>` labels contain every one of them, so such an assertion passes
   whether or not the thing you meant to check rendered. Query a `data-testid`, or assert on
   structure (row count vs container child count).
-- Don't reach for a new dialog shell. The three overlays are `z-index: 60`, single-modal
-  (App.tsx `isModalOpen()` guards them against each other), and Escape-closable.
+- Don't reach for a new dialog shell. A Manage dialog is `ManageDialog.Frame`: `z-index: 60`,
+  single-modal (App.tsx `isModalOpen()` guards it against the other modals — a new dialog
+  adds its open flag there), and Escape-closable.

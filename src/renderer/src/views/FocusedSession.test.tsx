@@ -35,7 +35,8 @@ function updated(
       column,
       enteredColumnAt,
       pid: 1000,
-      workspaceId: 'default'
+      workspaceId: 'default',
+      tagIds: []
     }
   }
 }

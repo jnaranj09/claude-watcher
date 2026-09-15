@@ -1,20 +1,17 @@
-// Workspaces — the Manage dialog (modal, z 60 like TemplatesDialog/ShortcutsDialog). Modelled on
-// TemplatesDialog.tsx's shell: role="dialog", aria-modal, the Escape handler, the mount-focus
-// trap, and a list + form split. UX-DR14: App.tsx guards it against the other modals via
+// Workspaces — the Manage dialog, on the shared ManageDialog shell (.claude/rules/design.md): the
+// overlay, header, list rail, form footer, arm-in-place Delete and the ONE error line are
+// ManageDialog parts. This file keeps only what is Workspaces': the fields, the cascade warning,
+// the Default rule and the cascade re-read. UX-DR14: App.tsx guards it against the other modals via
 // isModalOpen() and closes it on the quit guard.
 //
-// Delete lives in the FORM footer beside Save — the shape TemplateForm.tsx and ShortcutRow.tsx
-// already use (see .claude/rules/design.md): ONE button that arms in place and commits on the
-// second press, with Escape or blur disarming it. The two-step keeps its two test ids on that one
-// button (`workspace-delete-<id>` armed → `workspace-delete-confirm`) precisely so a test cannot
-// commit a delete with a single click. The Default workspace renders NO delete control at all —
-// main also refuses it, but the UI must not offer it.
+// Delete keeps its two test ids (`workspace-delete-<id>` resting → `workspace-delete-confirm`
+// armed) precisely so a test cannot commit a delete with a single click. The Default workspace
+// renders NO delete control at all — main also refuses it, but the UI must not offer it.
 //
 // Never render a raw thrown error: every IPC rejection is mapped through `copyFor()` to
-// operator-facing copy (an unknown code falls back to a generic sentence) before it reaches the
-// ONE shared `workspace-error` line, which both the list's delete flow and the form's save flow
-// report through (`onError`) rather than each owning its own error surface.
-import { useEffect, useRef, useState, type FormEvent, type JSX, type KeyboardEvent } from 'react'
+// operator-facing copy before it reaches the shared error line, which both the delete flow and
+// the save flow report through.
+import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   DEFAULT_WORKSPACE_ID,
@@ -24,7 +21,9 @@ import {
 } from '../../../../shared/schemas/workspace'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
+import { loadRules } from '../../stores/rulesStore'
 import { loadShortcuts } from '../../stores/shortcutsStore'
+import { loadTags } from '../../stores/tagsStore'
 import { loadTemplates } from '../../stores/templatesStore'
 import {
   removeWorkspace,
@@ -32,6 +31,7 @@ import {
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
+import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './WorkspacesDialog.module.css'
 
@@ -60,52 +60,24 @@ function copyFor(error: unknown): string {
   return 'Something went wrong. Try again.'
 }
 
-interface WorkspaceRowProps {
-  workspace: Workspace
-  selected: boolean
-  onSelect: () => void
-}
-
-function WorkspaceRow({ workspace, selected, onSelect }: WorkspaceRowProps): JSX.Element {
-  return (
-    <div
-      className={styles.row}
-      data-testid={`workspace-item-${workspace.id}`}
-      data-selected={selected}
-    >
-      <button
-        type="button"
-        className={styles.rowMain}
-        data-testid={`workspace-select-${workspace.id}`}
-        onClick={onSelect}
-      >
-        <WorkspaceDot tone={workspace.color} />
-        <span className={styles.rowName}>{workspace.name}</span>
-        <span className={styles.rowFolder}>{workspace.defaultCwd ?? 'None'}</span>
-      </button>
-    </div>
-  )
-}
-
 interface WorkspaceFormProps {
   workspace: Workspace | null
   deleteBusy: boolean
   onSaved: (saved: Workspace) => void
-  onError: (message: string | null) => void
   onDelete: () => void
 }
 
 /** Keyed by the selected id in WorkspacesDialog, so a selection change remounts it with a fresh
- *  draft (no effect-based syncing) — same reasoning as TemplateForm.tsx. That remount is also what
- *  disarms a left-over Delete: an armed confirm can never follow the operator to another row. */
+ *  draft (no effect-based syncing) — same reasoning as TemplateForm.tsx. The armed Delete lives in
+ *  the shell's state, and `select()` disarms it, so an armed confirm can never follow the operator
+ *  to another row either. */
 function WorkspaceForm({
   workspace,
   deleteBusy,
   onSaved,
-  onError,
   onDelete
 }: WorkspaceFormProps): JSX.Element {
-  const [armed, setArmed] = useState(false)
+  const { state, actions } = useManageDialogContext()
   const [name, setName] = useState(workspace?.name ?? '')
   const [color, setColor] = useState<WorkspaceColor>(workspace?.color ?? 'slate')
   const [defaultCwd, setDefaultCwd] = useState<string | null>(workspace?.defaultCwd ?? null)
@@ -134,38 +106,15 @@ function WorkspaceForm({
           : { id: workspace.id, name: trimmed, color, defaultCwd }
       onSaved(await saveWorkspace(req))
     } catch (err) {
-      onError(copyFor(err))
+      actions.setError(copyFor(err))
     } finally {
       setBusy(false)
     }
   }
 
-  function handleDelete(): void {
-    if (!armed) {
-      setArmed(true)
-      onError(null)
-      return
-    }
-    onDelete()
-  }
-
   return (
-    <form
-      className={styles.form}
-      data-testid="workspace-form"
-      onSubmit={(e) => void submit(e)}
-      // Escape peels ONE layer (UX-DR14), same as TemplateForm.tsx: while Delete is armed it
-      // disarms and stops there, so the keypress never reaches the dialog's close handler.
-      onKeyDown={(e: KeyboardEvent<HTMLFormElement>) => {
-        if (e.key === 'Escape' && armed) {
-          e.stopPropagation()
-          setArmed(false)
-        }
-      }}
-    >
-      <label className={styles.label} htmlFor="workspace-name">
-        Name
-      </label>
+    <ManageDialog.Form testId="workspace-form" onSubmit={(e) => void submit(e)}>
+      <ManageDialog.Label htmlFor="workspace-name">Name</ManageDialog.Label>
       <TextInput
         id="workspace-name"
         testId="workspace-name-input"
@@ -174,7 +123,7 @@ function WorkspaceForm({
         onChange={setName}
       />
 
-      <span className={styles.label}>Color</span>
+      <ManageDialog.Label>Color</ManageDialog.Label>
       <div className={styles.colorRow} role="radiogroup" aria-label="Color">
         {WORKSPACE_COLORS.map((c) => (
           <label key={c} className={styles.colorOption}>
@@ -192,174 +141,114 @@ function WorkspaceForm({
         ))}
       </div>
 
-      <span className={styles.label}>Default folder</span>
+      <ManageDialog.Label>Default folder</ManageDialog.Label>
       <div className={styles.folderRow}>
         <span className={styles.path} data-testid="workspace-default-cwd">
           {defaultCwd ?? 'None'}
         </span>
-        <button
-          type="button"
-          className={styles.ghostButton}
-          data-testid="workspace-browse"
-          onClick={() => void browse()}
-        >
+        <ManageDialog.GhostButton testId="workspace-browse" onClick={() => void browse()}>
           Choose…
-        </button>
+        </ManageDialog.GhostButton>
       </div>
 
       {/* The cascade warning — the one thing this Delete says that Templates' does not, because
           deleting a workspace also deletes every template and shortcut scoped to it. */}
-      {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && armed && (
-        <p className={styles.hint} data-testid="workspace-delete-confirm-text">
-          {`Delete ${workspace.name}? Any templates and shortcuts scoped to it are deleted too. This cannot be undone.`}
-        </p>
+      {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && state.armed && (
+        <ManageDialog.Hint testId="workspace-delete-confirm-text">
+          {`Delete ${workspace.name}? Any templates, shortcuts and tags scoped to it are deleted too. This cannot be undone.`}
+        </ManageDialog.Hint>
       )}
 
-      <div className={styles.actions}>
+      <ManageDialog.Footer>
         {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && (
-          <button
-            type="button"
-            className={armed ? styles.dangerButton : styles.deleteButton}
-            data-testid={armed ? 'workspace-delete-confirm' : `workspace-delete-${workspace.id}`}
+          <ManageDialog.Delete
+            testId={`workspace-delete-${workspace.id}`}
+            armedTestId="workspace-delete-confirm"
             disabled={deleteBusy}
-            onClick={handleDelete}
-            onBlur={() => setArmed(false)}
-          >
-            {armed ? 'Confirm delete' : 'Delete'}
-          </button>
+            onConfirm={onDelete}
+          />
         )}
-        <button
-          type="submit"
-          className={styles.primaryButton}
-          data-testid="workspace-submit"
-          disabled={!canSave}
-        >
+        <ManageDialog.Save testId="workspace-submit" disabled={!canSave}>
           {workspace === null ? 'Create' : 'Save'}
-        </button>
-      </div>
-    </form>
+        </ManageDialog.Save>
+      </ManageDialog.Footer>
+    </ManageDialog.Form>
   )
 }
 
 export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Element {
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const dialog = useManageDialog({ title: 'Workspaces', testIdPrefix: 'workspaces', onClose })
+  const { closeRef } = dialog.meta
   const [deleteBusy, setDeleteBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const closeRef = useRef<HTMLButtonElement | null>(null)
 
   // An aria-modal dialog must take focus on mount, or Escape/Tab keep going to whatever was
   // focused behind it (a11y defect) — same reasoning as TemplateList.tsx's search-input focus.
-  // There is no persistent list-side input here, so the close button is the mount-stable target.
+  // There is no persistent list-side input here, so the ✕ is the mount-stable target.
   useEffect(() => {
     closeRef.current?.focus()
-  }, [])
+  }, [closeRef])
 
-  const selected = workspaces.find((w) => w.id === selectedId) ?? null
-
-  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      onClose()
-    }
-  }
-
-  function selectWorkspace(id: string): void {
-    setSelectedId(id)
-    setError(null)
-  }
-
-  function startNew(): void {
-    setSelectedId(null)
-    setError(null)
-  }
+  const selected = workspaces.find((w) => w.id === dialog.state.selectedId) ?? null
 
   async function commitDelete(id: string): Promise<void> {
     setDeleteBusy(true)
     try {
       await removeWorkspace(id)
-      // A committed delete CASCADES in main (templatesStore/shortcutsStore removeByWorkspace),
-      // and nothing else tells the renderer: loadTemplates/loadShortcuts otherwise run ONLY at
-      // startup. Without this re-read the deleted rows sit in the two projections until an
-      // unrelated round-trip or a restart — and since their workspace is gone, the Manage
-      // dialogs file them under `(no workspace)`, where they look legitimate and saving one
-      // throws template_not_found on a row the UI is showing. Neither loader throws (each logs
-      // a code and leaves its projection alone), so this cannot turn a successful delete into
-      // an error. Only on the SUCCESS path — a refused delete cascaded nothing.
-      await Promise.all([loadTemplates(), loadShortcuts()])
-      setError(null)
-      if (selectedId === id) setSelectedId(null)
+      // A committed delete CASCADES in main (templates, shortcuts, the tag catalog and rules all
+      // removeByWorkspace), and nothing else tells the renderer: the four loaders otherwise run
+      // ONLY at startup. Without this re-read the deleted rows sit in the projections until an
+      // unrelated round-trip or a restart — and since their workspace is gone, the Manage dialogs
+      // file them under `(no workspace)`, where they look legitimate: saving one throws
+      // template_not_found / rule_not_found, ↑/↓ on a rule silently fail, and a deleted rule still
+      // counts in "Used by N rules". None of the loaders throw (each logs a code and leaves its
+      // projection alone), so this cannot turn a successful delete into an error. Only on the
+      // SUCCESS path — a refused delete cascaded nothing, so re-reading would be pointless work.
+      await Promise.all([loadTemplates(), loadShortcuts(), loadTags(), loadRules()])
+      // The deleted row was the selected one: back to the New form. `select` also clears the
+      // error line and the armed Delete.
+      dialog.actions.select(null)
     } catch (err) {
-      setError(copyFor(err))
+      dialog.actions.setError(copyFor(err))
     } finally {
       setDeleteBusy(false)
     }
   }
 
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Workspaces"
-      data-testid="workspaces-overlay"
-      onKeyDown={handleKeyDown}
-    >
-      <div className={styles.panel} data-testid="workspaces-panel">
-        <div className={styles.header}>
-          <span className={styles.title}>Workspaces</span>
-          <button
-            ref={closeRef}
-            type="button"
-            className={styles.closeButton}
-            data-testid="workspaces-close"
-            aria-label="Close workspaces"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className={styles.columns}>
-          <div className={styles.list}>
-            <div className={styles.rows}>
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Header />
+        <ManageDialog.Columns>
+          <ManageDialog.List size="wide">
+            <ManageDialog.Rows>
               {workspaces.map((w) => (
-                <WorkspaceRow
+                <ManageDialog.Row
                   key={w.id}
-                  workspace={w}
-                  selected={w.id === selected?.id}
-                  onSelect={() => selectWorkspace(w.id)}
-                />
+                  id={w.id}
+                  testId={`workspace-item-${w.id}`}
+                  selectTestId={`workspace-select-${w.id}`}
+                >
+                  <WorkspaceDot tone={w.color} />
+                  <span className={styles.rowName}>{w.name}</span>
+                  <span className={styles.rowFolder}>{w.defaultCwd ?? 'None'}</span>
+                </ManageDialog.Row>
               ))}
-            </div>
-            <button
-              type="button"
-              className={`${styles.ghostButton} ${styles.newButton}`}
-              data-testid="workspace-new"
-              onClick={startNew}
-            >
-              + New
-            </button>
-          </div>
+            </ManageDialog.Rows>
+            <ManageDialog.New testId="workspace-new" />
+          </ManageDialog.List>
           <WorkspaceForm
             key={selected?.id ?? 'new'}
             workspace={selected}
             deleteBusy={deleteBusy}
-            onSaved={(saved) => {
-              setSelectedId(saved.id)
-              setError(null)
-            }}
-            onError={setError}
+            onSaved={(saved) => dialog.actions.select(saved.id)}
             onDelete={() => {
               if (selected !== null) void commitDelete(selected.id)
             }}
           />
-        </div>
-        {error !== null && (
-          <p className={styles.error} data-testid="workspace-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-    </div>
+        </ManageDialog.Columns>
+        <ManageDialog.Error testId="workspace-error" />
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
   )
 }

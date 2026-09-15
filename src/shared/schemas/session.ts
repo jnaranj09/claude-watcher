@@ -71,6 +71,15 @@ export const SessionSchema = z
      *  forget it and put a card in no workspace, which the no-"All"-view decision has no way to
      *  render. The compiler forcing `buildLaunchedSession` to supply it IS the guard. */
     workspaceId: z.string().min(1),
+    /** Tags — the tags on this card. Session TRUTH, main-owned: written only by `reducer.setTags` /
+     *  `reducer.setWorkspace` (and, from Phase 2, the rules engine). REQUIRED for the same reason as
+     *  `workspaceId`: the compiler forcing `buildLaunchedSession` to supply it IS the guard. Dies
+     *  with the session (spec T-25). */
+    tagIds: z.array(z.string().min(1)),
+    /** The template this session was launched from, or null for the folder flow. Stamped at launch;
+     *  read only by the rules engine's `template` condition (Phase 2). It never crosses the seam —
+     *  `enrichDelta` does not copy it. */
+    templateId: z.string().min(1).nullable(),
     // --- full shape (safe to mark optional) ---
     firstPrompt: z.string().optional(),
     latestMessage: z.string().optional(),

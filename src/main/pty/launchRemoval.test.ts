@@ -93,7 +93,7 @@ function launchAndSynthesize(
   if (minted === null) throw new Error('unreachable — a launch terminalId always mints')
   // Session-naming: use the SHIPPED synthesis rather than a hand-rolled copy of the Session
   // shape (see launchMint.test.ts openMirror for the same fix and the rationale).
-  reducer.upsertLaunched(buildLaunchedSession(minted, 51234, 'default'))
+  reducer.upsertLaunched(buildLaunchedSession(minted, 51234, 'default', []))
   return { terminalId, sessionId: minted.sessionId }
 }
 
@@ -309,7 +309,7 @@ describe('Story 6.3 — Reopen after exit: fresh binding, no stale removal', () 
     if (reopened === null) throw new Error('unreachable — the durable recipe survives')
     expect(reopened.sessionId).toBe('sess-2')
     expect(svc.sessionIdFor(terminalId)).toBe('sess-2')
-    reducer.upsertLaunched(buildLaunchedSession(reopened, 51299, 'default'))
+    reducer.upsertLaunched(buildLaunchedSession(reopened, 51299, 'default', []))
     spawn(terminalId, 'tok-2')
 
     // A later stop removes EXACTLY the new session — never a stale-binding removal.

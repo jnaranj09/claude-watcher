@@ -31,6 +31,19 @@
   outline-offset: 2px;
 }
 
+/* The move menu / tag picker (both `.moveWrap` popovers below) are `position: absolute` with
+ * `z-index: 10`, but `.root` itself is `z-index: auto` — an unpositioned-for-stacking-purposes
+ * box that never bundles its own popover into one paint unit. Confirmed live (getBoundingClientRect
+ * + getComputedStyle walk, tags-visual.mjs drive scenario, Task 17): with `z-index: auto` here, a
+ * card's open popover painted UNDER the very next card in the same column (the later sibling in
+ * DOM order), because sibling cards are ALSO `position: relative, z-index: auto` and out-rank a
+ * plain `z-index: auto` ancestor at that tier. Only elevating THIS card while ITS OWN popover is
+ * open (never unconditionally, or two adjacent open cards would tie and fall back to DOM order
+ * again) fixes it — same reasoning as WorkspaceSwitcher.module.css's `.anchor` comment. */
+.root[data-menu-open] {
+  z-index: 1;
+}
+
 /* The LEFT EDGE carries STATUS — the same three states the StatusDot shows. Driven off
  * `data-status` (always on the root, both variants) rather than a class, so the bar and the
  * dot can never drift apart: they read the same prop.
@@ -260,10 +273,13 @@
 }
 
 /* Muted footer — `pid · tasks · cost` (meta ramp); pid value in mono. */
+/* The chip height: the first tag must never grow the card (T-26 — a rule tagging a card never
+ * moves the cards below it). */
 .footer {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 18px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-meta);
   line-height: var(--line-height-meta);
@@ -276,4 +292,28 @@
 
 .sep {
   color: var(--text-muted);
+}
+
+/* Tags (T-26) — the chips' slot at the right of the footer. `flex: 1 1 auto` (not the old
+ * `margin-left: auto`) so this slot's OWN box always equals the space actually left beside the
+ * pid: an auto margin absorbs free space instead of growing the box it sits on, so it never grew
+ * back on widen once the row inside had fitted narrow (review finding A). `justify-content:
+ * flex-end` keeps the chips flush against the footer's right edge now that the slot itself can be
+ * wider than they are. `min-width: 0` still lets it shrink to what is left beside the pid, which
+ * is the width TagChipRow measures. */
+.footerTags {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised
+ * panel (design.md: never --text-muted there). */
+.moveWarning {
+  margin: 0 0 var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
 }

@@ -17,9 +17,10 @@
 // `safeParse`; the caller (main/index.ts) reads `issues[0].path`/`.code` and logs those.
 // [Source: story 1.4 Task 1.2; .claude/rules/zod-boundaries.md]
 import { z } from 'zod'
+import { COLUMNS } from '../ipc/contract'
 
-/** The three live columns — mirrors the shared `Column` union (no `done`). */
-const ColumnSchema = z.enum(['working', 'needs-you', 'idle'])
+/** The three live columns — the SAME list the shared `Column` union derives from (no `done`). */
+const ColumnSchema = z.enum(COLUMNS)
 
 /**
  * The ENRICHED `session.updated` member shape. This is a VALIDATE-AT-SOURCE guard
@@ -43,6 +44,9 @@ export const EnrichedSessionUpdatedSchema = z.object({
   /** Workspaces — required. A missing one means the session map had no entry (or an older
    *  session shape), which is exactly the half-formed delta this guard exists to drop. */
   workspaceId: z.string().min(1),
+  /** Tags — required. A missing one means the session map had no entry (or an older session
+   *  shape), which is exactly the half-formed delta this guard exists to drop. */
+  tagIds: z.array(z.string().min(1)),
   pendingToolName: z.string().optional()
 })
 

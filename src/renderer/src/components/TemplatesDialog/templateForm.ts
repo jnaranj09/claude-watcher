@@ -11,6 +11,7 @@ import {
   type Template,
   type TemplateSaveRequest
 } from '../../../../shared/schemas/template'
+import { usedByRulesCopy } from '../../stores/rulesStore'
 
 export type ModelChoice = 'default' | ModelAlias | 'custom'
 export type PermissionChoice = 'default' | PermissionMode
@@ -49,7 +50,8 @@ export const EFFORT_LABELS: Record<EffortLevel, string> = {
 
 const ERROR_COPY: Record<string, string> = {
   template_name_taken: 'A template with this name already exists.',
-  template_not_found: 'This template no longer exists.'
+  template_not_found: 'This template no longer exists.',
+  template_in_use: 'A rule uses this template. Change or delete that rule first.'
 }
 const FALLBACK_ERROR = 'Could not save the template.'
 const FIELD_ERRORS: Record<string, string> = {
@@ -150,9 +152,13 @@ function normalize(d: TemplateDraft): string {
 }
 
 /** Electron wraps a thrown handler error as "Error invoking remote method '…': Error: <msg>";
- *  match the code as a substring rather than trusting the wrapper's format. */
-export function templateErrorMessage(err: unknown): string {
+ *  match the code as a substring rather than trusting the wrapper's format.
+ *
+ *  `ruleCount` is how many rules use the template (the caller counts them in the rules
+ *  projection): main's `template_in_use` carries only the code. */
+export function templateErrorMessage(err: unknown, ruleCount = 0): string {
   const text = err instanceof Error ? err.message : ''
+  if (text.includes('template_in_use') && ruleCount > 0) return usedByRulesCopy(ruleCount)
   for (const [code, copy] of Object.entries(ERROR_COPY)) if (text.includes(code)) return copy
   return FALLBACK_ERROR
 }

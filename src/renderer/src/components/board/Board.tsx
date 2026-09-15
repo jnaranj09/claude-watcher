@@ -21,6 +21,7 @@ import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
 // Story 5.6 (AC-3, AC-6) — the compact starting-terminals banner (status-line region).
 import { StartingBanner } from './StartingBanner'
 import { NewSessionButton } from '../NewSessionMenu/NewSessionButton'
+import { FilterBar } from '../FilterBar/FilterBar'
 import {
   boardStore,
   useBoard,
@@ -29,11 +30,15 @@ import {
   selectColumnCount,
   selectSelectedId,
   selectStartingTerminals,
+  useBoardFilter,
+  NO_FILTER,
   HERO_COLUMN
 } from '../../stores/boardStore'
 // Workspaces (Task 9a) — Board is a component, so it reads the active workspace itself (per
 // task instructions) and passes it into the now-required workspace-scoped selectors below.
 import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
+import { useTags } from '../../stores/tagsStore'
+import { clearFilterHint, hiddenByFilterSentence } from '../../lib/filterCopy'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
@@ -85,6 +90,10 @@ export interface BoardProps {
   onRenameCard?: (id: string) => void
   /** Task 12 — card move-to-workspace seam. Omitted ⇒ no move affordance is rendered. */
   onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
+  /** Tags — card Tags… seam. Omitted ⇒ no Tags… button. */
+  onSetCardTags?: (id: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog; a card's Tags… button uses it while no tag exists yet. */
+  onManageTags?: () => void
 }
 
 export function Board({
@@ -93,16 +102,30 @@ export function Board({
   onPickTemplate,
   onManageTemplates,
   onRenameCard,
-  onMoveCardToWorkspace
+  onMoveCardToWorkspace,
+  onSetCardTags,
+  onManageTags
 }: BoardProps): JSX.Element {
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  // The filter bar's choice for this workspace: its tag (null = no tag filter, or a tag this
+  // workspace cannot see) and its search text.
+  const filter = useBoardFilter(activeWorkspaceId)
+  const tagId = filter.tagId
+  const searching = filter.query.trim() !== ''
+  const tagName = useTags((s) =>
+    tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
+  )
   const coldLoaded = useBoard(selectColdLoaded)
-  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId))
-  const needsYouCount = useBoard((s) => selectColumnCount(s, 'needs-you', activeWorkspaceId))
-  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId))
-  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId))
+  const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId, filter))
+  // "Is the workspace empty" must not follow the filter: a filtered-out board is not an empty one.
+  const workspaceTotal = useBoard((s) => selectTotalCount(s, activeWorkspaceId, NO_FILTER))
+  const needsYouCount = useBoard((s) =>
+    selectColumnCount(s, 'needs-you', activeWorkspaceId, filter)
+  )
+  const workingCount = useBoard((s) => selectColumnCount(s, 'working', activeWorkspaceId, filter))
+  const idleCount = useBoard((s) => selectColumnCount(s, 'idle', activeWorkspaceId, filter))
   // Story 2.2 (FR-9) — the SELECTED card id (primitive narrow selector, no useShallow).
   const selectedId = useBoard(selectSelectedId)
   // Story 5.6 (AC-6 optional) — starting terminals count (for the empty-board copy softening).
@@ -154,7 +177,21 @@ export function Board({
 
   // The aria-live announcement of live column counts (AC-9). Re-announced when any
   // count changes (the string is derived, never persisted).
-  const announcement = `${needsYouCount} need you, ${workingCount} working, ${idleCount} idle`
+  //
+  // Review finding E — in board view the rail's own live region is inert/aria-hidden, so this is
+  // the ONLY in-app live region; it must follow the filter bar — its tag and its search (never an
+  // alert: notifier, badge, sound and the rail announcement stay unfiltered by design). With nothing
+  // hidden the string is BYTE-IDENTICAL to before the filter existed.
+  const hiddenByFilter = workspaceTotal - total
+  const hiddenBy =
+    searching && tagId !== null
+      ? 'the search and the tag filter'
+      : searching
+        ? 'the search'
+        : 'the tag filter'
+  const announcement = `${needsYouCount} need you, ${workingCount} working, ${idleCount} idle${
+    hiddenByFilter > 0 ? `, ${hiddenByFilter} hidden by ${hiddenBy}` : ''
+  }`
 
   return (
     <div className={styles.board} data-testid="board">
@@ -167,6 +204,17 @@ export function Board({
 
       <LiveAnnouncer message={coldLoaded ? announcement : ''} />
 
+      {/* Tags — the filter bar: what the board is filtered by, above the columns. It draws itself
+          only once the workspace has sessions, and stays when the filter hides them all (so the
+          operator can remove it right there). */}
+      <div className={styles.filterSlot}>
+        <FilterBar
+          total={total}
+          workspaceTotal={workspaceTotal}
+          {...(onManageTags ? { onManageTags } : {})}
+        />
+      </div>
+
       {!coldLoaded ? (
         // AC-5 — cold-load skeleton (haven't heard from the session engine yet). NOT a
         // spinner, and DISTINCT from the empty board ("heard, and there are none").
@@ -175,7 +223,7 @@ export function Board({
           <SkeletonColumn name="Needs you" accent="needs-you" />
           <SkeletonColumn name="Idle" accent="idle" />
         </div>
-      ) : total === 0 ? (
+      ) : workspaceTotal === 0 ? (
         // AC-4 — empty board (cold-loaded, zero sessions). Headline + line + the ONE
         // primary action. `+ New session` launches an in-app session (Epic-3 / FR-11).
         // Story 3.3 (FR-1 amended) — the Board shows ONLY app-launched sessions, so the empty
@@ -203,6 +251,19 @@ export function Board({
             onManage={() => onManageTemplates?.()}
           />
         </div>
+      ) : total === 0 ? (
+        // The workspace HAS sessions and the filter bar (its tag, its search, or both) hides them
+        // all. A different sentence from "No sessions yet." (design.md: three nothings, three
+        // answers) — otherwise the operator goes looking for sessions that are only filtered out.
+        <div className={styles.emptyBoard} data-testid="empty-board-filtered">
+          <p className={styles.emptyBoardHeadline}>
+            {`${hiddenByFilterSentence(
+              tagId !== null ? (tagName ?? 'with this tag') : null,
+              filter.query
+            )}.`}
+          </p>
+          <p className={styles.emptyBoardLine}>{clearFilterHint(tagId !== null, filter.query)}</p>
+        </div>
       ) : (
         // The live three-column grid: slots are left flank (working) · center hero
         // (needs-you) · right flank (idle), FIXED. `data-hero-column` still reflects the hero
@@ -218,6 +279,8 @@ export function Board({
               {...(onActivateCard ? { onActivateCard } : {})}
               {...(onRenameCard ? { onRenameCard } : {})}
               {...(onMoveCardToWorkspace ? { onMoveCardToWorkspace } : {})}
+              {...(onSetCardTags ? { onSetCardTags } : {})}
+              {...(onManageTags ? { onManageTags } : {})}
             />
           ))}
         </div>

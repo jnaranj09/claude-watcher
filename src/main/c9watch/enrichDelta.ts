@@ -59,6 +59,7 @@ export function enrichDelta(
     enteredColumnAt,
     pid: session?.pid,
     workspaceId: session?.workspaceId,
+    tagIds: session?.tagIds,
     ...(session?.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {})
   }
 
@@ -83,6 +84,7 @@ export function enrichDelta(
     enteredColumnAt: d.enteredColumnAt,
     pid: d.pid,
     workspaceId: d.workspaceId,
+    tagIds: d.tagIds,
     ...(d.pendingToolName !== undefined ? { pendingToolName: d.pendingToolName } : {})
   }
   return { epoch, event: validated }

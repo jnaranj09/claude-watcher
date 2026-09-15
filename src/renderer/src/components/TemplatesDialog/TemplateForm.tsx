@@ -1,5 +1,6 @@
 // Session templates — the edit form. Keyed by the selected id in TemplatesDialog, so a
-// selection change remounts it with a fresh draft (no effect-based syncing).
+// selection change remounts it with a fresh draft (no effect-based syncing). The armed Delete and
+// the error line are the ManageDialog shell's state, so they reset on a selection change too.
 import { useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
@@ -8,6 +9,8 @@ import {
   MODEL_NAME_MAX_LENGTH
 } from '../../../../shared/schemas/template'
 import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
+import { rulesLosingTemplate, rulesStore, rulesUsingTemplate } from '../../stores/rulesStore'
+import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Select } from '../Select/Select'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
@@ -36,12 +39,11 @@ export interface TemplateFormProps {
 }
 
 export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps): JSX.Element {
+  const { state, actions } = useManageDialogContext()
   const [draft, setDraft] = useState<TemplateDraft>(() =>
     template === null ? emptyDraft() : toDraft(template)
   )
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
 
@@ -50,7 +52,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   const canSave = validation.ok && dirty && !busy
   const patch = (p: Partial<TemplateDraft>): void => {
     setDraft((d) => ({ ...d, ...p }))
-    setError(null)
+    actions.setError(null)
   }
 
   async function browse(): Promise<void> {
@@ -65,44 +67,43 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   async function submit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (!validation.ok || !dirty) return
+    const request = validation.request
     setBusy(true)
     try {
-      onSaved(await saveTemplate(validation.request))
+      onSaved(await saveTemplate(request))
     } catch (err) {
-      setError(templateErrorMessage(err))
+      // §1.4 — a refused scope change (`template_in_use`) counts the rules the NEW scope would
+      // hide the template from; they are the ones the operator has to change.
+      const losing =
+        template === null
+          ? 0
+          : rulesLosingTemplate(rulesStore.getState().rules, template.id, request.workspaceId)
+      actions.setError(templateErrorMessage(err, losing))
     } finally {
       setBusy(false)
     }
   }
 
+  /** The second press of Delete — ManageDialog.Delete owns the first (arm). A refusal (a rule uses
+   *  this template, T-17) lands on the dialog's one error line. */
   async function remove(): Promise<void> {
     if (template === null) return
-    if (!confirmingDelete) {
-      setConfirmingDelete(true)
-      return
-    }
     setBusy(true)
-    await removeTemplate(template.id)
-    setBusy(false)
-    onRemoved()
+    try {
+      await removeTemplate(template.id)
+      setBusy(false)
+      onRemoved()
+    } catch (err) {
+      setBusy(false)
+      actions.setError(
+        templateErrorMessage(err, rulesUsingTemplate(rulesStore.getState().rules, template.id))
+      )
+    }
   }
 
   return (
-    <form
-      className={styles.form}
-      onSubmit={(e) => void submit(e)}
-      onKeyDown={(e) => {
-        // Escape peels ONE layer (UX-DR14): while Delete is armed it disarms and stops there,
-        // so the dialog stays open. Unarmed, it bubbles to the overlay and closes the dialog.
-        if (e.key === 'Escape' && confirmingDelete) {
-          e.stopPropagation()
-          setConfirmingDelete(false)
-        }
-      }}
-    >
-      <label className={styles.label} htmlFor="template-name">
-        Name
-      </label>
+    <ManageDialog.Form onSubmit={(e) => void submit(e)}>
+      <ManageDialog.Label htmlFor="template-name">Name</ManageDialog.Label>
       <TextInput
         id="template-name"
         testId="template-name"
@@ -111,24 +112,19 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         onChange={(name) => patch({ name })}
       />
 
-      <span className={styles.label}>Folder</span>
+      <ManageDialog.Label>Folder</ManageDialog.Label>
       <div className={styles.folderRow}>
         <span className={styles.path} data-testid="template-cwd">
           {draft.cwd.length > 0 ? draft.cwd : 'No folder yet'}
         </span>
-        <button
-          type="button"
-          className={styles.ghostButton}
-          data-testid="template-browse"
-          onClick={() => void browse()}
-        >
+        <ManageDialog.GhostButton testId="template-browse" onClick={() => void browse()}>
           Browse…
-        </button>
+        </ManageDialog.GhostButton>
       </div>
 
-      {/* A <span>, not a <label htmlFor>: the control is a button-and-listbox, which `for` cannot
-          address. `ariaLabel` on the Select carries the name to assistive tech instead. */}
-      <span className={styles.label}>Model</span>
+      {/* A <span> (Label without htmlFor), not a <label for>: the control is a button-and-listbox,
+          which `for` cannot address. `ariaLabel` on the Select carries the name instead. */}
+      <ManageDialog.Label>Model</ManageDialog.Label>
       <div className={styles.modelRow}>
         <Select
           value={draft.modelChoice}
@@ -149,7 +145,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         )}
       </div>
 
-      <span className={styles.label}>Permission mode</span>
+      <ManageDialog.Label>Permission mode</ManageDialog.Label>
       <Select
         value={draft.permissionChoice}
         options={PERMISSION_CHOICES}
@@ -158,7 +154,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         testId="template-permission"
       />
 
-      <span className={styles.label}>Thinking effort</span>
+      <ManageDialog.Label>Thinking effort</ManageDialog.Label>
       <Select
         value={draft.effortChoice}
         options={EFFORT_CHOICES}
@@ -167,7 +163,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         testId="template-effort"
       />
 
-      <span className={styles.label}>Workspace</span>
+      <ManageDialog.Label>Workspace</ManageDialog.Label>
       {/* `'global'` ⇄ null. The sentinel is a WORD, not '': it ends up in the option's testid,
           and `template-scope-option-` with nothing after it is not a name anyone can read. A
           workspace id can never collide with it — ids are uuids or `default`. A NEW row defaults
@@ -190,40 +186,24 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
 
       {/* Why Save is disabled, once the operator has actually edited something. Muted hint —
           NOT role=alert: the `template-error` line below stays reserved for IPC failures. */}
-      {dirty && !validation.ok && error === null && (
-        <p className={styles.hint} data-testid="template-hint">
-          {validation.error}
-        </p>
+      {dirty && !validation.ok && state.error === null && (
+        <ManageDialog.Hint testId="template-hint">{validation.error}</ManageDialog.Hint>
       )}
 
-      {error !== null && (
-        <p className={styles.error} data-testid="template-error" role="alert">
-          {error}
-        </p>
-      )}
+      {/* The dialog's ONE error line. It reads the shell's state, so it can sit here, right above
+          the button whose failure it reports — where it has always been. */}
+      <ManageDialog.Error testId="template-error" />
 
-      <div className={styles.actions}>
+      <ManageDialog.Footer>
         {template !== null && (
-          <button
-            type="button"
-            className={confirmingDelete ? styles.dangerButton : styles.deleteButton}
-            data-testid="template-delete"
+          <ManageDialog.Delete
+            testId="template-delete"
             disabled={busy}
-            onClick={() => void remove()}
-            onBlur={() => setConfirmingDelete(false)}
-          >
-            {confirmingDelete ? 'Confirm delete' : 'Delete'}
-          </button>
+            onConfirm={() => void remove()}
+          />
         )}
-        <button
-          type="submit"
-          className={styles.primaryButton}
-          data-testid="template-save"
-          disabled={!canSave}
-        >
-          Save
-        </button>
-      </div>
-    </form>
+        <ManageDialog.Save testId="template-save" disabled={!canSave} />
+      </ManageDialog.Footer>
+    </ManageDialog.Form>
   )
 }

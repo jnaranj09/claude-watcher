@@ -41,11 +41,15 @@ import type { MintedLaunchSpawn } from './launchSession'
  * `workspaceId` is an ARGUMENT, not a default. Hardcoding `DEFAULT_WORKSPACE_ID` here would make
  * every launch land in Default while the tests still passed — the same single-point-of-failure
  * the session name had before this module existed.
+ *
+ * `tagIds` is an ARGUMENT for the same reason as `workspaceId`: a hardcoded `[]` here would pass
+ * every test that never tags a launch.
  */
 export function buildLaunchedSession(
   minted: MintedLaunchSpawn,
   ptyPid: number,
-  workspaceId: string
+  workspaceId: string,
+  tagIds: readonly string[]
 ): Session {
   return {
     id: minted.sessionId,
@@ -55,6 +59,10 @@ export function buildLaunchedSession(
     pid: ptyPid,
     // Workspaces — passed in, never derived here: main's workspaces store owns the active
     // pointer, and this module must stay importable without Electron.
-    workspaceId
+    workspaceId,
+    // Tags — the launch rules' output (spec §2.1); Phase 1 passes [] (no rules yet).
+    tagIds: [...tagIds],
+    // The template rides the launch override, exactly like the operator's name.
+    templateId: minted.templateId
   }
 }

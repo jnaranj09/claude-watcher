@@ -90,12 +90,32 @@ import { SettingsPatchSchema, DEFAULT_SETTINGS } from '../shared/schemas/setting
 import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
 import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './persistence/workspacesIpc'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
-import { createTemplatesStore, type TemplatesStore } from './persistence/templates'
+import {
+  createTemplatesStore,
+  type TemplateRuleRef,
+  type TemplatesStore
+} from './persistence/templates'
 import { createElectronTemplatesBlobStore } from './persistence/electronTemplatesBlobStore'
 import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
 import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcuts'
 import { createElectronShortcutsBlobStore } from './persistence/electronShortcutsBlobStore'
 import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
+import { createTagsStore, type TagsStore } from './persistence/tags'
+import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
+import { keepVisibleTags } from '../shared/tags/tagScope'
+import { createTagsIpcHandlers, parseSessionSetTags, staleTagEdits } from './persistence/tagsIpc'
+import type { Tag } from '../shared/schemas/tag'
+// Rules — the main-owned rule list (Phase 2): the store + its IPC handler bodies + its Electron
+// blob store (mirrors tags/templates), the per-window engine, the launch-time rules, the pure
+// evaluation snapshot type, and the delta-pipeline order the engine depends on (spec §2.2).
+import { createRulesStore, type RulesStore, type RulesStoreOptions } from './persistence/rules'
+import { createElectronRulesBlobStore } from './persistence/electronRulesBlobStore'
+import { createRulesIpcHandlers } from './persistence/rulesIpc'
+import type { TagRuleRef } from './persistence/tags'
+import { createRulesEngine, type RulesEngine } from './rules/rulesEngine'
+import { launchTags } from './rules/launchTags'
+import type { RulesSnapshot } from './rules/evaluateRules'
+import { runDeltaPipeline } from './rules/deltaPipeline'
 import { resolveTemplateLaunch } from './pty/launchFromTemplate'
 import type { ClaudeLaunchFlags } from './pty/launchSession'
 // Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
@@ -269,6 +289,11 @@ const trays = new Map<Electron.WebContents, TrayController>()
 // in a map so teardownWatchFeed can clear its timers; none may fire into a closed window.
 const reminderSchedulers = new Map<Electron.WebContents, AttentionReminders>()
 
+// Rules — one engine per window (spec §2.6, settled in the Phase 2 plan): the reducer is per
+// window, so the engine lives exactly as long as the sessions it tags. Created in
+// registerWatchFeed, disposed in teardownWatchFeed (mirrors reminderSchedulers).
+const ruleEngines = new Map<Electron.WebContents, RulesEngine>()
+
 // Story 3.5 (SM-2) — one tracker reference per window, stored here so the app-global
 // telemetry IPC handler can look up `tracker.columnOf(id)` + `tracker.enteredColumnAt(id)`
 // when the acknowledge lands. SAME lifetime as the feed (constructed in registerWatchFeed,
@@ -314,6 +339,16 @@ interface LaunchBoardSeam {
   /** Deterministic-attention — the operator viewed this session (markSeen → handleDelta).
    *  Only a YourTurn session demotes; everything else is a quiet reducer no-op. */
   seenLaunched(sessionId: string): void
+  /** Tags — the workspace a card lives in, or undefined for an unknown id. Read-only; feeds the
+   *  `session:set-tags` scope check (T-11). */
+  workspaceOf(sessionId: string): string | undefined
+  /** Tags — replace a card's tags (setTags → handleDelta). The caller already proved every id
+   *  exists and is visible to the card (parseSessionSetTags). Unknown session id is a quiet
+   *  reducer no-op. Never triggers rules (spec §2.4). */
+  setTagsLaunched(sessionId: string, tagIds: readonly string[]): void
+  /** Tags — the catalog changed (a tag deleted or re-scoped): strip every tag a card can no longer
+   *  see (staleTagEdits → setTags → handleDelta), spec §1.4. */
+  pruneTags(lookup: (tagId: string) => Pick<Tag, 'workspaceId'> | null): void
 }
 const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 
@@ -411,6 +446,25 @@ function registerWatchFeed(window: BrowserWindow): void {
     log: (message) => console.warn(message)
   })
   reminderSchedulers.set(wc, reminders)
+  // Rules (spec §2) — one engine per window, the same lifetime as this window's reducer (§2.6). It
+  // reads the column edge from the tracker (handleDelta passes before/after via runDeltaPipeline)
+  // and writes tags back through the same handleDelta chokepoint (setTags → handleDelta), so a
+  // rule's tag write ships as its OWN LATER session.updated, never bundled into the delta that
+  // triggered it. `handleDelta` is a hoisted `function` declaration (below), so referencing it here
+  // — before its textual position — is safe: this callback only ever RUNS once a rule actually
+  // fires, well after registerWatchFeed's synchronous body (and handleDelta's declaration) ran.
+  const rulesEngine = createRulesEngine({
+    getRules: rulesSnapshot,
+    getSession: (id) => reducer.snapshotMap().get(id),
+    columnOf: (id) => tracker.columnOf(id),
+    enteredColumnAt: (id) => tracker.enteredColumnAt(id),
+    setTags: (sessionId, tagIds) => {
+      reducer.setTags(sessionId, tagIds).forEach(handleDelta)
+    },
+    // never-log-the-parsed-value: id + code only.
+    log: (message) => console.warn(message)
+  })
+  ruleEngines.set(wc, rulesEngine)
   // Hook-status feature — extract the onDelta body into a named handleDelta so that
   // hook deltas can route through the SAME chokepoint (same enrich/column/tray/attention
   // treatment). The spec requires this extraction: hook events call
@@ -425,70 +479,83 @@ function registerWatchFeed(window: BrowserWindow): void {
     // chokepoint EVERY removal passes through (hook SessionEnd, in-app Stop, pty exit).
     if (delta.event.type === 'session.removed') backgroundWork.forget(delta.event.id)
     if (wc.isDestroyed()) return
-    // Story 1.4 ORDERING (re-ordered from 1.2): the tracker MUST process THIS delta
-    // BEFORE we enrich+send a `session.updated`, so `tracker.columnOf(id)` /
-    // `tracker.enteredColumnAt(id)` reflect this edge. So we run `tracker.onDelta`
-    // FIRST (it both updates the tracker's column map AND returns any attention.raised
-    // for the edge), THEN enrich the updated delta from the now-current tracker, THEN
-    // send. The tracker reads the reducer's current map (parse-once, never re-parsed);
-    // SAME SYNCHRONOUS TICK — no await — so snapshotMap() reflects the post-delta state.
-    const raisedEvents = tracker.onDelta(delta, reducer.snapshotMap())
-    // Attention reminders — start / keep / cancel this session's reminder series off the SAME
-    // delta (every status change and removal passes through here). Never throws.
-    reminders.onDelta(delta)
-    // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
-    // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 — the
-    // onDelta path already runs per delta with the current snapshotMap; no new polling loop).
-    // This RE-RESOLVES the Tgid each time (the reported pid wanders — never cached) and adds a
-    // landed join's session id to the launched-set. It NEVER throws (fail-closed throughout) and
-    // is independent of the board ship below — a correlation failure never blocks a delta. The
-    // launch service is null until app-ready constructs it (a race during startup is a no-op).
-    // It CONSUMES the reducer's already-parsed Session map (parse-once; never re-parses JSON).
-    launchService?.correlateAgainst(reducer.snapshotMap().values())
-    // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
-    // for EVERY delta type (session.updated can raise/lower the count via a column change;
-    // session.removed lowers it when the removed session was in needs-you). The badge counts
-    // needs-you ONLY (Jose 2026-06-19 / UX-DR3) — idle/working never count. Recompute-from-truth
-    // (cheap, can't drift) rather than incrementally diff; the controller no-ops when the
-    // count is unchanged. Derives from the SAME snapshotMap + columnForStatus the board uses
-    // (single source of truth, AC-3). Never throws (never-crash, AC-8).
-    // Story 3.3 — narrow the count to LAUNCHED sessions only (the SAME membership source as the
-    // board + attention): an external needs-you session never bumps the tray badge (AC-3).
-    tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
-    const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
-    // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
-    // enricher logged it by path+code) — we do not ship a half-formed delta. A
-    // `session.removed` (no enrichment) and a passed `session.updated` send as-is —
-    // epoch-framed on the SAME CH.watchEvents channel (const, never a string literal).
-    // Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate: ship ONLY launched-set
-    // members. An external/Konsole session's delta is NOT sent, so the renderer board store
-    // never learns of it and it never becomes a card (AC-2). The gate keys on the stable
-    // `id` (NEVER pid). `session.removed` is INSIDE the gate by design: if its id is in the
-    // set, the removed delta DOES ship so the card vanishes (edge case (a) — no stranded
-    // stale card); if its id was never launched, there was no card to remove anyway.
-    if (outbound !== null && shouldShipToBoard(outbound.event, (id) => launchedSet.has(id))) {
-      wc.send(CH.watchEvents, outbound)
-    }
-    // Then any attention.raised for the SAME edge, framed with the SAME epoch.
-    // Re-check the destroyed window per send: a late event after close is a no-op.
-    // Story 3.3 — the ATTENTION emission gate at the SOURCE: only a LAUNCHED session's raise
-    // is emitted. Gating BOTH the renderer SEND and notifier.notify() here narrows EVERY
-    // attention consumer from ONE place — the renderer never receives an external raise so the
-    // SOUND (useAttentionSound, rides CH.watchEvents) and any rail SOURCE (Story 3.4) auto-
-    // narrow, and the JUMP-TO-CARD (CH.attentionActivate, pushed from the notifier's
-    // onActivate) cannot fire because no notification is ever created. Do NOT add a redundant
-    // filter inside any renderer consumer (it would be a second, drift-prone source). The
-    // Story-1.2 tracker still COMPUTES attention.raised above (raisedEvents) — only EMISSION is
-    // gated here, never the computation, and the frozen AttentionEvent union is NOT reshaped.
-    for (const raised of raisedEvents) {
-      if (!launchedSet.has(raised.id)) continue
-      if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
-      // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
-      // raisedEvents array is already debounced by the tracker; add NO second debounce).
-      // The notifier never throws (never-crash) and only ever sees the tracker's needs-you-
-      // entry output, so it never fires on session.updated/removed (AC-2, by construction).
-      notifier.notify(raised)
-    }
+    // Rules (spec §2.2) — runDeltaPipeline (rules/deltaPipeline.ts) owns the column-edge order
+    // the rules engine depends on: read `tracker.columnOf(id)` BEFORE `tracker.onDelta` sees this
+    // delta, let the tracker see it (mutates its column map, returns any attention.raised for the
+    // edge), read the column AFTER, `ship` the delta (unchanged Story-1.2..3.3 behavior below),
+    // and ONLY THEN run the rules engine's afterDelta — pinned by deltaPipeline.test.ts, since
+    // index.ts itself is not importable by any test.
+    runDeltaPipeline(delta, {
+      columnOf: (id) => tracker.columnOf(id),
+      onTrackerDelta: (d) => tracker.onDelta(d, reducer.snapshotMap()),
+      ship: (raisedEvents) => {
+        // Attention reminders — start / keep / cancel this session's reminder series off the SAME
+        // delta (every status change and removal passes through here). Never throws.
+        reminders.onDelta(delta)
+        // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
+        // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 —
+        // the onDelta path already runs per delta with the current snapshotMap; no new polling
+        // loop). This RE-RESOLVES the Tgid each time (the reported pid wanders — never cached)
+        // and adds a landed join's session id to the launched-set. It NEVER throws (fail-closed
+        // throughout) and is independent of the board ship below — a correlation failure never
+        // blocks a delta. The launch service is null until app-ready constructs it (a race during
+        // startup is a no-op). It CONSUMES the reducer's already-parsed Session map (parse-once;
+        // never re-parses JSON).
+        launchService?.correlateAgainst(reducer.snapshotMap().values())
+        // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
+        // for EVERY delta type (session.updated can raise/lower the count via a column change;
+        // session.removed lowers it when the removed session was in needs-you). The badge counts
+        // needs-you ONLY (Jose 2026-06-19 / UX-DR3) — idle/working never count. Recompute-from-
+        // truth (cheap, can't drift) rather than incrementally diff; the controller no-ops when
+        // the count is unchanged. Derives from the SAME snapshotMap + columnForStatus the board
+        // uses (single source of truth, AC-3). Never throws (never-crash, AC-8).
+        // Story 3.3 — narrow the count to LAUNCHED sessions only (the SAME membership source as
+        // the board + attention): an external needs-you session never bumps the tray badge (AC-3).
+        tray.setCount(computeBadgeCount(reducer.snapshotMap(), (id) => launchedSet.has(id)))
+        const outbound = enrichDelta(delta, tracker, reducer.snapshotMap())
+        // A `session.updated` whose enrichment failed validate-at-source is DROPPED (the
+        // enricher logged it by path+code) — we do not ship a half-formed delta. A
+        // `session.removed` (no enrichment) and a passed `session.updated` send as-is —
+        // epoch-framed on the SAME CH.watchEvents channel (const, never a string literal).
+        // Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate: ship ONLY launched-set
+        // members. An external/Konsole session's delta is NOT sent, so the renderer board store
+        // never learns of it and it never becomes a card (AC-2). The gate keys on the stable
+        // `id` (NEVER pid). `session.removed` is INSIDE the gate by design: if its id is in the
+        // set, the removed delta DOES ship so the card vanishes (edge case (a) — no stranded
+        // stale card); if its id was never launched, there was no card to remove anyway.
+        if (outbound !== null && shouldShipToBoard(outbound.event, (id) => launchedSet.has(id))) {
+          wc.send(CH.watchEvents, outbound)
+        }
+        // Then any attention.raised for the SAME edge, framed with the SAME epoch.
+        // Re-check the destroyed window per send: a late event after close is a no-op.
+        // Story 3.3 — the ATTENTION emission gate at the SOURCE: only a LAUNCHED session's raise
+        // is emitted. Gating BOTH the renderer SEND and notifier.notify() here narrows EVERY
+        // attention consumer from ONE place — the renderer never receives an external raise so
+        // the SOUND (useAttentionSound, rides CH.watchEvents) and any rail SOURCE (Story 3.4)
+        // auto-narrow, and the JUMP-TO-CARD (CH.attentionActivate, pushed from the notifier's
+        // onActivate) cannot fire because no notification is ever created. Do NOT add a redundant
+        // filter inside any renderer consumer (it would be a second, drift-prone source). The
+        // Story-1.2 tracker still COMPUTES attention.raised above (raisedEvents) — only EMISSION
+        // is gated here, never the computation, and the frozen AttentionEvent union is NOT
+        // reshaped.
+        for (const raised of raisedEvents) {
+          if (!launchedSet.has(raised.id)) continue
+          if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
+          // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
+          // raisedEvents array is already debounced by the tracker; add NO second debounce).
+          // The notifier never throws (never-crash) and only ever sees the tracker's needs-you-
+          // entry output, so it never fires on session.updated/removed (AC-2, by construction).
+          notifier.notify(raised)
+        }
+      },
+      afterRules: ({ before, after }) => {
+        // Rules (spec §2.2) — LAST, after this delta shipped: a rule's tag change goes out as
+        // its own session.updated BEHIND the status one, so the renderer sees status first, then
+        // tags. That tag delta re-enters here with before === after and runs nothing (T-3: no
+        // loops).
+        rulesEngine.afterDelta(delta, before, after)
+      }
+    })
   }
 
   // Story 6.2 — expose THIS window's upsertLaunched → handleDelta path to the app-global
@@ -550,10 +617,29 @@ function registerWatchFeed(window: BrowserWindow): void {
     // the CALLER's job (the IPC handler below) — this seam trusts it was already checked, exactly
     // like renameLaunched trusts the name was already validated.
     setWorkspaceLaunched: (sessionId, workspaceId) => {
-      reducer.setWorkspace(sessionId, workspaceId).forEach(handleDelta)
+      const stored = reducer.snapshotMap().get(sessionId)
+      // T-9 — a workspace's own tags do not exist outside it; global tags travel with the card.
+      // Computed HERE (the reducer stays store-free) and applied in the SAME delta as the move.
+      const tagIds =
+        stored === undefined
+          ? []
+          : keepVisibleTags(stored.tagIds, workspaceId, (id) => tagsStore?.get(id) ?? null)
+      const moved = reducer.setWorkspace(sessionId, workspaceId, tagIds)
+      moved.forEach(handleDelta)
+      // Rules (spec §5) — the new workspace's time rules count from the move; the old ones stop.
+      if (moved.length > 0) rulesEngine.onWorkspaceMoved(sessionId)
     },
     seenLaunched: (sessionId) => {
       reducer.markSeen(sessionId).forEach(handleDelta)
+    },
+    workspaceOf: (sessionId) => reducer.snapshotMap().get(sessionId)?.workspaceId,
+    setTagsLaunched: (sessionId, tagIds) => {
+      reducer.setTags(sessionId, tagIds).forEach(handleDelta)
+    },
+    pruneTags: (lookup) => {
+      for (const edit of staleTagEdits(reducer.snapshotMap().values(), lookup)) {
+        reducer.setTags(edit.sessionId, edit.tagIds).forEach(handleDelta)
+      }
     }
   })
 
@@ -802,6 +888,12 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
     reminderSchedulers.delete(wc)
     reminders.dispose()
   }
+  // Rules — clear every armed time-rule timer so none fires into a closed window.
+  const rulesEngine = ruleEngines.get(wc)
+  if (rulesEngine) {
+    ruleEngines.delete(wc)
+    rulesEngine.dispose()
+  }
   // Story 3.5 (SM-2) — remove the per-window tracker reference (same lifetime as the feed).
   // The telemetry IPC handler will see no tracker for a destroyed window → graceful no-op.
   trackers.delete(wc)
@@ -970,10 +1062,16 @@ function hasLiveSessions(workspaceId: string): boolean {
 }
 
 /** Workspaces — the scoped-config cascade. Runs ONLY after a delete was allowed and committed.
- *  Late-bound on purpose: the workspaces store is constructed before these two exist. */
+ *  Late-bound on purpose: the workspaces store is constructed before templates, shortcuts, tags
+ *  and rules exist. */
 function cascade(workspaceId: string): void {
   templatesStore?.removeByWorkspace(workspaceId)
   shortcutsStore?.removeByWorkspace(workspaceId)
+  tagsStore?.removeByWorkspace(workspaceId)
+  rulesStore?.removeByWorkspace(workspaceId)
+  // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
+  // timers honest if that guard ever loosens.
+  for (const engine of ruleEngines.values()) engine.onRulesRemoved()
 }
 
 // Session templates — same lifecycle as settingsStore (needs app-ready for electron-store).
@@ -988,6 +1086,37 @@ let shortcutsStore: ShortcutsStore | null = null
 function requireShortcutsStore(): ShortcutsStore {
   if (shortcutsStore === null) throw new Error('shortcuts store not initialized')
   return shortcutsStore
+}
+
+// Tags — same lifecycle as templatesStore (needs app-ready for electron-store).
+let tagsStore: TagsStore | null = null
+function requireTagsStore(): TagsStore {
+  if (tagsStore === null) throw new Error('tags store not initialized')
+  return tagsStore
+}
+
+// Rules — same lifecycle as the tags store (needs app-ready for electron-store).
+let rulesStore: RulesStore | null = null
+function requireRulesStore(): RulesStore {
+  if (rulesStore === null) throw new Error('rules store not initialized')
+  return rulesStore
+}
+
+/** The rules as the engines and the launch path read them: run order + the broken ids (T-23).
+ *  Empty before the store exists (smoke mode, a race against app-ready) — then no rule can fire. */
+function rulesSnapshot(): RulesSnapshot {
+  if (rulesStore === null) return { rules: [], brokenIds: new Set() }
+  const view = rulesStore.view()
+  return { rules: view.rules, brokenIds: new Set(view.brokenIds) }
+}
+
+/** The catalogs a rule may point at, bound LATE (the repo's DI style — the stores never import
+ *  each other). */
+function ruleLookups(): Pick<RulesStoreOptions, 'lookupTag' | 'lookupTemplate'> {
+  return {
+    lookupTag: (id) => tagsStore?.get(id) ?? null,
+    lookupTemplate: (id) => templatesStore?.get(id) ?? null
+  }
 }
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
@@ -1032,6 +1161,48 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Tags — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/tagsIpc.ts (unit-tested). After a catalog change, every window strips the tags its
+// cards can no longer see — a deleted tag leaves each card with a `session.updated` without it
+// (spec §1.4).
+function registerTagsIpc(): void {
+  const store = requireTagsStore()
+  const handlers = createTagsIpcHandlers(store)
+  const pruneEverywhere = (): void => {
+    for (const seam of launchBoardSeams.values()) seam.pruneTags((id) => store.get(id))
+  }
+  ipcMain.handle(CH.tagsList, () => handlers.list())
+  ipcMain.handle(CH.tagsSave, (_evt, raw: unknown) => {
+    const result = handlers.save(raw)
+    pruneEverywhere()
+    return result
+  })
+  ipcMain.handle(CH.tagsDelete, (_evt, raw: unknown) => {
+    const tags = handlers.remove(raw)
+    pruneEverywhere()
+    return tags
+  })
+}
+
+// Rules — register ONCE (mirrors registerTagsIpc). Handler bodies live in persistence/rulesIpc.ts
+// (unit-tested). A change reaches every window's engine: a saved rule re-arms its timers from NOW
+// (T-13 — nothing fires at save), a deleted one cancels them. A move changes no timer.
+function registerRulesIpc(): void {
+  const handlers = createRulesIpcHandlers(requireRulesStore())
+  ipcMain.handle(CH.rulesList, () => handlers.list())
+  ipcMain.handle(CH.rulesSave, (_evt, raw: unknown) => {
+    const result = handlers.save(raw)
+    for (const engine of ruleEngines.values()) engine.onRuleSaved(result.saved.id)
+    return result
+  })
+  ipcMain.handle(CH.rulesDelete, (_evt, raw: unknown) => {
+    const view = handlers.remove(raw)
+    for (const engine of ruleEngines.values()) engine.onRulesRemoved()
+    return view
+  })
+  ipcMain.handle(CH.rulesMove, (_evt, raw: unknown) => handlers.move(raw))
 }
 
 // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1318,11 +1489,18 @@ function registerTerminalIpc(): void {
         // expression. Keep this a one-line call; put any synthesis logic in that module.
         // Workspaces — stamp main's OWN active-workspace pointer at synthesis time (never
         // derived in the extracted module, which must stay importable without Electron).
-        launchBoardSeams
-          .get(wc)
-          ?.upsertLaunched(
-            buildLaunchedSession(minted, ptyPid, requireWorkspacesStore().activeId())
+        const workspaceId = requireWorkspacesStore().activeId()
+        launchBoardSeams.get(wc)?.upsertLaunched(
+          buildLaunchedSession(
+            minted,
+            ptyPid,
+            workspaceId,
+            // Rules (spec §2.1, T-21) — the launch rules run HERE, at spawn, so the card is
+            // born tagged: one delta, no flash. Never on "first seen" — /clear re-upserts
+            // under a new id and must not run them again.
+            launchTags(rulesSnapshot(), minted, workspaceId)
           )
+        )
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
         // the Starting-banner join is instant (no ancestry walk, no c9watch discovery wait).
         // Validate AT SOURCE before send (main→renderer delta; zod-boundaries.md), exactly as
@@ -1748,6 +1926,18 @@ function registerLaunchIpc(): void {
     launchBoardSeams.get(event.sender)?.setWorkspaceLaunched(sessionId, workspaceId)
   })
 
+  // session:set-tags — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Every id
+  // must exist and be visible to the card's workspace (tagsIpc.ts parseSessionSetTags — unit-
+  // testable, unlike this file). Routed by event.sender to the owning window's seam (session truth
+  // is per-window). Returns void; the tagged card arrives as a normal `session.updated` delta.
+  ipcMain.handle(CH.sessionSetTags, (event, raw: unknown) => {
+    const seam = launchBoardSeams.get(event.sender)
+    const { sessionId, tagIds } = parseSessionSetTags(requireTagsStore(), raw, (id) =>
+      seam?.workspaceOf(id)
+    )
+    seam?.setTagsLaunched(sessionId, tagIds)
+  })
+
   // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by
   // event.sender to the owning window's seam (session truth is per-window). The reducer's
   // markSeen guard makes a stale seen harmless — only YourTurn demotes. Returns void; the
@@ -2028,17 +2218,55 @@ app
     }
     registerWorkspacesIpc()
 
+    // Rules — T-17: a rule never silently loses the template it points at. rulesStore does not
+    // exist yet at this point (constructed after tagsStore below), but this reads it LIVE (a
+    // closure over the module-level `let`), so it is correct once app startup finishes wiring
+    // every store — the same late-binding style as `hasLiveSessions`/`cascade` above.
+    const ruleRefCount = (id: string): number => rulesStore?.countTemplateRefs(id) ?? 0
+    // §1.4 — narrowing a used template's scope is refused (the same check tags run for T-16).
+    const templateRuleRefs = (id: string): TemplateRuleRef[] => rulesStore?.refsToTemplate(id) ?? []
     try {
       templatesStore = SMOKE
-        ? createTemplatesStore()
-        : createTemplatesStore({ blobStore: createElectronTemplatesBlobStore() })
+        ? createTemplatesStore({ ruleRefCount, ruleRefs: templateRuleRefs })
+        : createTemplatesStore({
+            blobStore: createElectronTemplatesBlobStore(),
+            ruleRefCount,
+            ruleRefs: templateRuleRefs
+          })
     } catch {
       // Code ONLY — never the error (see the settings catch above: a SyntaxError message
       // quotes file content, and a template blob carries operator cwds and names).
       console.error('[claude-watcher][templates] code=templates_store_init_failed (in-memory)')
-      templatesStore = createTemplatesStore()
+      templatesStore = createTemplatesStore({ ruleRefCount, ruleRefs: templateRuleRefs })
     }
     registerTemplatesIpc()
+
+    // Rules — T-16: a tag any rule references cannot be deleted; narrowing a used tag's scope
+    // is refused. Same late-binding as ruleRefCount above.
+    const ruleRefs = (id: string): TagRuleRef[] => rulesStore?.refsToTag(id) ?? []
+    try {
+      tagsStore = SMOKE
+        ? createTagsStore({ ruleRefs })
+        : createTagsStore({ blobStore: createElectronTagsBlobStore(), ruleRefs })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a tags blob
+      // carries operator names.
+      console.error('[claude-watcher][tags] code=tags_store_init_failed (in-memory)')
+      tagsStore = createTagsStore({ ruleRefs })
+    }
+    registerTagsIpc()
+
+    try {
+      rulesStore = SMOKE
+        ? createRulesStore(ruleLookups())
+        : createRulesStore({ ...ruleLookups(), blobStore: createElectronRulesBlobStore() })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a rules blob
+      // carries operator names and patterns.
+      console.error('[claude-watcher][rules] code=rules_store_init_failed (in-memory)')
+      rulesStore = createRulesStore(ruleLookups())
+    }
+    registerRulesIpc()
 
     try {
       shortcutsStore = SMOKE

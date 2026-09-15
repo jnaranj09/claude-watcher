@@ -149,7 +149,9 @@ describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
             projectPath: '/p',
             pid: 7,
             sessionName: 'n',
-            workspaceId: 'w1'
+            workspaceId: 'w1',
+            tagIds: [],
+            templateId: null
           }
         ]
       ]),
@@ -193,6 +195,45 @@ describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
     expect(log).toHaveBeenCalled()
     const logged = JSON.stringify(log.mock.calls)
     expect(logged).not.toContain('/secret/path')
+  })
+})
+
+describe('enrichDelta — tags ride the enriched delta (spec §3)', () => {
+  const bare = {
+    epoch: 0,
+    event: {
+      type: 'session.updated' as const,
+      id: 's1',
+      sessionName: 'n',
+      projectPath: '/p',
+      status: 'Working'
+    }
+  }
+  const tracker = { columnOf: () => 'working' as const, enteredColumnAt: () => 10 }
+  const session: Session = {
+    id: 's1',
+    status: 'Working',
+    projectPath: '/p',
+    pid: 7,
+    sessionName: 'n',
+    workspaceId: 'w1',
+    tagIds: ['t1', 't2'],
+    templateId: 'tpl-1'
+  }
+
+  it('copies the session tagIds onto the delta, and never the templateId', () => {
+    const out = enrichDelta(bare, tracker, new Map([['s1', session]]))
+    expect(out?.event.type === 'session.updated' && out.event.tagIds).toEqual(['t1', 't2'])
+    expect(out?.event).not.toHaveProperty('templateId')
+  })
+
+  it('drops a delta whose session carries no tagIds, logging path + code only', () => {
+    const log = vi.fn()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { tagIds: _drop, ...untagged } = session
+    const out = enrichDelta(bare, tracker, new Map([['s1', untagged as unknown as Session]]), log)
+    expect(out).toBeNull()
+    expect(log).toHaveBeenCalledWith({ path: 'tagIds', code: 'invalid_type' })
   })
 })
 

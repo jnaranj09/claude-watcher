@@ -26,6 +26,18 @@
   min-height: 0;
 }
 
+/* The filter bar's slot. While the bar draws, the grid below keeps only 8px of top padding: a
+ * full gutter above AND below a 26px toggle read as a gap. When the bar draws nothing the slot is
+ * empty and the grid keeps its gutter. (Never pull the grid up with a negative margin instead: its
+ * box would cover the lower part of the toggle and take its clicks.) */
+.filterSlot {
+  flex: 0 0 auto;
+}
+
+.filterSlot:not(:empty) ~ .grid {
+  padding-top: var(--space-2);
+}
+
 /* The 3-slot grid (UX-DR7): center hero ~44%, two flanks ~28% each. The center still leads
  * the eye, but by a smaller margin than the original ~50/25/25 — the flanks stay readable
  * instead of looking squeezed. The slot ORDER is FIXED in Board.tsx: working · needs-you
@@ -82,14 +94,17 @@
   padding: var(--space-2) 0;
 }
 
-/* Empty BOARD (zero sessions, cold-loaded) — headline + line + the single primary. */
+/* Empty BOARD (zero sessions, cold-loaded) — headline + line + the single primary. It FILLS what
+ * is left of the board rather than taking `height: 100%`: the filtered-empty board shares the column
+ * with the filter bar above it, and 100% would push it past the bottom by the bar's height. */
 .emptyBoard {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: var(--space-8);
   text-align: center;
 }

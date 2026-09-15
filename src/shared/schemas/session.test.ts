@@ -20,7 +20,9 @@ const base = Object.freeze({
   projectPath: '/home/u/proj',
   pid: 1234,
   sessionName: 'my-session',
-  workspaceId: 'default'
+  workspaceId: 'default',
+  tagIds: [],
+  templateId: null
 })
 
 const ok = (input: unknown): boolean => SessionSchema.safeParse(input).success
@@ -98,7 +100,9 @@ describe('Workspaces — workspaceId is REQUIRED and fails closed on a blank one
       projectPath: '/home/j/p',
       pid: 1,
       sessionName: 'p',
-      workspaceId: 'default'
+      workspaceId: 'default',
+      tagIds: [],
+      templateId: null
     }
     expect(SessionSchema.parse(base).workspaceId).toBe('default')
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -144,6 +148,28 @@ describe('Story-0.3 — polymorphic pendingToolInput (string AND object variants
   })
   it('accepts an absent pendingToolInput (still optional)', () => {
     expect(ok({ ...base })).toBe(true)
+  })
+})
+
+describe('Tags — tagIds and templateId are REQUIRED (spec §1.3)', () => {
+  it('parses a session carrying both', () => {
+    const r = SessionSchema.parse({ ...base, tagIds: ['t1'], templateId: 'tpl-1' })
+    expect(r.tagIds).toEqual(['t1'])
+    expect(r.templateId).toBe('tpl-1')
+  })
+
+  it('fails closed when either is missing, and on a blank tag id', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { tagIds: _t, ...noTags } = base
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { templateId: _p, ...noTemplate } = base
+    expect(SessionSchema.safeParse(noTags).success).toBe(false)
+    expect(SessionSchema.safeParse(noTemplate).success).toBe(false)
+    expect(SessionSchema.safeParse({ ...base, tagIds: [''] }).success).toBe(false)
+  })
+
+  it('templateId is null for the folder flow', () => {
+    expect(SessionSchema.parse({ ...base, templateId: null }).templateId).toBeNull()
   })
 })
 

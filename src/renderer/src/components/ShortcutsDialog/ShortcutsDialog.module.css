@@ -1,148 +1,18 @@
-/* Phrase shortcuts — the Manage dialog. Token spine 1:1 with TemplatesDialog.module.css
-   (zero new colors, zero new tokens — spec S-7).
+/* Phrase shortcuts — what is Shortcuts' own in the Manage dialog: the table list, the key chips,
+   the editor card and the chord recorder. The shell, header, error line and every button are
+   ManageDialog.module.css (.claude/rules/design.md). Zero new colors, zero new tokens (spec S-7).
 
    Layout note: the EDITOR is a card of its own, above the list — it is NOT a row squeezed into
    the list grid. Four controls (name, chord recorder, phrase, three buttons) never fit one
    860px row: the phrase input collapsed and a 3-chord sequence overflowed its column. */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-}
-.panel {
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-lg);
-  padding: var(--space-6);
-  /* Wider than TemplatesDialog's 640px — the list carries three columns AND key chips. */
-  min-width: 760px;
-  max-width: 940px;
-  width: 100%;
-  color: var(--text-primary);
-  box-shadow: var(--shadow-dialog);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.headerText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-/* Title + the scope dropdown on one line, above the subtitle. Matches TemplatesDialog's header
-   cluster — the two Manage dialogs put the filter in the same place. */
-.titleRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.title {
-  margin: 0;
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-display);
-  line-height: var(--line-height-display);
-}
-.subtitle {
-  margin: 0;
-  /* Under 80 characters, and wide enough that this one sentence does not wrap mid-clause. */
-  max-width: 72ch;
-  color: var(--text-secondary);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-}
+
+/* The header's "Open with" row: the ONE chord that opens the shortcut box (settings.expanderKey).
+   Its own row under the ManageDialog header — the header's subtitle is a <p>, which cannot hold
+   the recorder's <div>. The panel's gap spaces it, so no margin of its own. */
 .openWith {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-2);
-}
-.closeButton {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--rounded-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: var(--space-2);
-  line-height: 1;
-}
-.closeButton:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-.error {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--danger);
-}
-.ghostButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--font-size-body);
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-.ghostButton:hover:not(:disabled) {
-  background: var(--bg-surface);
-}
-.ghostButton:disabled {
-  color: var(--text-muted);
-  border-color: var(--border);
-  cursor: not-allowed;
-}
-.primaryButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--working);
-  border-radius: var(--rounded-md);
-  background: var(--working);
-  color: #11111b;
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-.primaryButton:hover:not(:disabled) {
-  opacity: 0.88;
-}
-.primaryButton:disabled {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-muted);
-  cursor: not-allowed;
-}
-.dangerButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--rounded-md);
-  background: var(--danger);
-  color: #ffffff;
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1.4;
-  white-space: nowrap;
 }
 
 /* --- Key chips: one chip per chord; every caller today passes exactly one (the single
@@ -173,14 +43,6 @@
   max-height: 380px;
   overflow-y: auto;
 }
-/* Workspaces (Task 11) — one group per scope (Global / active workspace / another workspace /
-   orphans). A group label with zero rows is never rendered (groupShortcuts omits it).
-   `role="rowgroup"` sits on `.group` (rows only — a rowgroup's only valid owned element is
-   `row`); the label is its OWN `role="row"` sibling, ABOVE the rowgroup, so the a11y tree still
-   sees table > row/rowgroup > row throughout (a bare non-row `<p>` inside role="table" would
-   otherwise orphan it from the table). `.group` also re-declares the flex column: `.row` is
-   `display:grid` so it still stacks even one level deeper, but `.list`'s `gap:2px` no longer
-   reaches between rows INSIDE a group without this — rows would sit flush against each other. */
 /* ONE flat rowgroup — the scope sections are gone (the header dropdown narrows the list, and
    the editor's Workspace field names the row's scope). `.group` re-declares the flex column:
    `.row` is display:grid so it stacks anyway, but `.list`'s gap does not reach between rows one
@@ -297,6 +159,8 @@
   font-size: var(--font-size-meta);
   line-height: 1.4;
 }
+/* [Delete] on the left, [Cancel] [Save shortcut] on the right. Shortcuts' own footer: its editor
+   is a card, not a form, and carries a Cancel the list|form dialogs do not need (P0-1). */
 .editorActions {
   display: flex;
   align-items: center;
@@ -322,7 +186,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  /* Matches the .input height so the two editor columns line up. */
+  /* Matches the TextInput height so the two editor columns line up. */
   min-height: 36px;
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
@@ -353,38 +217,8 @@
   font-size: var(--font-size-meta);
   line-height: 1.4;
 }
-/* The Delete affordance (.claude/rules/design.md): danger is stated in the OUTLINE at rest and
-   FILLED only on hover/focus, so a destructive control never dominates a resting form. The armed
-   ("Confirm delete") state swaps to .dangerButton — the same solid red the fill lands on, so
-   arming reads as the button staying put rather than a new control appearing. */
-.deleteButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--danger);
-  font-size: var(--font-size-body);
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-.deleteButton:hover:not(:disabled),
-.deleteButton:focus-visible {
-  background: var(--danger);
-  color: #ffffff;
-}
-.deleteButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 
-.ghostButton:focus-visible,
-.deleteButton:focus-visible,
-.primaryButton:focus-visible,
-.dangerButton:focus-visible,
-.recorderButton:focus-visible,
-.closeButton:focus-visible {
+.recorderButton:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }

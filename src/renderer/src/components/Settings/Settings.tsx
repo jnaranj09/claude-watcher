@@ -12,7 +12,9 @@
 // There was nothing left to time out. The reminder rows use `Select`
 // (`components/Select/Select.tsx`), never a native `<select>` (banned — design.md). The
 // global-hotkey-binding row stays CUT (FR-8 dropped 2026-06-19). Reachable
-// from the header via a `⚙` gear button (EXPERIENCE.md:33). Reads the live projection off the
+// from the header ☰ menu's `Settings…` row (2026-09-14; it was a `⚙` gear, EXPERIENCE.md:33), which
+// App.tsx renders as `SettingsPanel` under the single-modal rule. The `Settings` gear below is kept
+// only for the `#terminals` proof view. Reads the live projection off the
 // renderer settings store and writes back via window.settings.set(...) through
 // `persistSettingsPatch` (optimistic + persist). Changes take effect IMMEDIATELY (AC-5): the
 // sound module reads the live `soundEnabled` on each attention event; `terminalFontSize` is
@@ -186,6 +188,8 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
  * The header entry point: a `⚙` gear button that toggles the SettingsPanel. Mount this in the
  * app header (App.tsx). Self-contained open/close state (a tiny local view-state — not in the
  * store, since it is purely transient UI). [EXPERIENCE.md:33 — Settings via header ⚙]
+ * Since 2026-09-14 only the `#terminals` proof view mounts it; the real header reaches Settings
+ * through the ☰ menu (AppMenu) and App.tsx renders `SettingsPanel` from `settingsDialogOpen`.
  */
 export function Settings(): JSX.Element {
   const [open, setOpen] = useState(false)

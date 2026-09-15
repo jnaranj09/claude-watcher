@@ -7,8 +7,10 @@
 // FR-12 dropped) — the Board shows ONLY app-launched sessions, so there is no external/Konsole
 // card to present. The retired-variant anatomy case + Konsole-tag test are GONE (not weakened).
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { act } from 'react'
 import { SessionCard, type SessionCardProps } from './SessionCard'
 import { renderComponent, fireEvent } from '../../test/renderComponent'
+import type { Tag, Workspace } from '../../../../shared/ipc/contract'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -441,6 +443,42 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(document.activeElement).toBe(toggle)
   })
 
+  // Task 17 drive scenario — opening the tag picker on the top card of a 3-card Idle column
+  // painted its lower rows UNDER the very next card: `.root` was `position: relative` with
+  // z-index AUTO, so it never bundled its own popover into one paint unit, and the popover's
+  // `z-index: 10` escaped to compete against sibling cards (also z-index:auto) by DOM tree order
+  // instead of by z-index. `.root[data-menu-open]` (SessionCard.module.css) fixes it by lifting
+  // ONLY the card with an open popover — never unconditionally, or two adjacent open cards would
+  // tie and fall back to tree order again.
+  it('carries data-menu-open on the root ONLY while its own move menu or tag picker is open', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }],
+          currentWorkspaceId: 'default',
+          onMoveToWorkspace: () => {},
+          availableTags: [{ id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }],
+          onSetTags: vi.fn()
+        })}
+      />
+    )
+    cleanup = unmount
+    const root = container.querySelector('[data-testid="session-name"]')?.closest('[role="button"]')
+    expect(root?.getAttribute('data-menu-open')).toBeNull()
+
+    const moveToggle = container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')
+    fireEvent(moveToggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(root?.getAttribute('data-menu-open')).toBe('true')
+    fireEvent(moveToggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(root?.getAttribute('data-menu-open')).toBeNull()
+
+    const tagsToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="card-tags-button"]'
+    )
+    fireEvent(tagsToggle as HTMLButtonElement, new MouseEvent('click', { bubbles: true }))
+    expect(root?.getAttribute('data-menu-open')).toBe('true')
+  })
+
   // ── Visual hierarchy: the NAME is the title, the PATH is reference detail ────
   //
   // This shipped INVERTED. `.calm` set a variant-level `color: var(--text-dim)` meaning "dimmed
@@ -522,5 +560,147 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(/^\.calm\s+\.sessionName\s*\{[^}]*color:\s*var\(--text-secondary\)/m.test(css)).toBe(
       true
     )
+  })
+})
+
+describe('SessionCard — tags (T-26, §4.3)', () => {
+  const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
+  const OPS: Tag = { id: 't-ops', name: 'ops-only', color: 'blue', workspaceId: 'default' }
+  const WS: Workspace[] = [
+    { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
+    { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }
+  ]
+  const chips = (root: Element | null): string[] =>
+    [...(root?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent ?? '')
+
+  it('draws the chips in the footer, in the order given', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ tags: [OPS, PROD] })} />
+    )
+    cleanup = unmount
+    expect(
+      chips(container.querySelector('[data-testid="footer"] [data-testid="card-tags"]'))
+    ).toEqual(['ops-only', 'prod'])
+  })
+
+  it('draws no chip row for an untagged card', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="card-tags"]')).toBeNull()
+  })
+
+  it('offers Tags… only when tagging is wired AND there is somewhere for it to go', () => {
+    const none = renderComponent(<SessionCard {...baseProps({ availableTags: [PROD] })} />)
+    expect(none.container.querySelector('[data-testid="card-tags-button"]')).toBeNull()
+    none.unmount()
+    // No tags to offer and no way to create one: a control that opens onto nothing.
+    const empty = renderComponent(
+      <SessionCard {...baseProps({ availableTags: [], onSetTags: vi.fn() })} />
+    )
+    expect(empty.container.querySelector('[data-testid="card-tags-button"]')).toBeNull()
+    empty.unmount()
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ availableTags: [PROD], onSetTags: vi.fn() })} />
+    )
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="card-tags-button"]')).not.toBeNull()
+  })
+
+  it('with no tags yet, the tags button opens tag management — never the picker, never the card', () => {
+    const onManageTags = vi.fn()
+    const onActivate = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({ availableTags: [], onSetTags: vi.fn(), onManageTags, onActivate })}
+      />
+    )
+    cleanup = unmount
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')
+    if (button === null) throw new Error('no tags button while tags can be created')
+    // It opens a dialog, not the picker: no aria-expanded/aria-controls pointing at a popup.
+    expect(button.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(button.hasAttribute('aria-expanded')).toBe(false)
+    expect(button.getAttribute('aria-label')).toBe('Create tags')
+    act(() => button.click())
+    expect(onManageTags).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('the Tags… menu sets the card tags — and never activates the card', () => {
+    const onSetTags = vi.fn()
+    const onActivate = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({ tags: [PROD], availableTags: [OPS, PROD], onSetTags, onActivate })}
+      />
+    )
+    cleanup = unmount
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')?.click()
+    )
+    expect(container.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
+    act(() =>
+      container
+        .querySelector<HTMLInputElement>('[data-testid="card-tag-picker-check-t-ops"]')
+        ?.click()
+    )
+    expect(onSetTags).toHaveBeenCalledWith(['t-ops', 't-prod'])
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('Escape closes the Tags… menu and does not activate the card', () => {
+    const onActivate = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ availableTags: [PROD], onSetTags: vi.fn(), onActivate })} />
+    )
+    cleanup = unmount
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[data-testid="card-tags-button"]')?.click()
+    )
+    const picker = container.querySelector('[data-testid="card-tag-picker"]')
+    if (picker === null) throw new Error('picker did not open')
+    fireEvent(picker, new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(container.querySelector('[data-testid="card-tag-picker"]')).toBeNull()
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('the move menu warns when the move drops this workspace’s own tags (T-9)', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          tags: [OPS, PROD],
+          workspaces: WS,
+          currentWorkspaceId: 'default',
+          onMoveToWorkspace: vi.fn()
+        })}
+      />
+    )
+    cleanup = unmount
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')?.click())
+    expect(container.querySelector('[data-testid="card-move-warning"]')?.textContent).toBe(
+      'Moving drops 1 tag from Default'
+    )
+  })
+
+  it('no warning when the card only carries global tags', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          tags: [PROD],
+          workspaces: WS,
+          currentWorkspaceId: 'default',
+          onMoveToWorkspace: vi.fn()
+        })}
+      />
+    )
+    cleanup = unmount
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')?.click())
+    expect(container.querySelector('[data-testid="card-move-warning"]')).toBeNull()
+  })
+
+  it('the footer reserves the chip height, so the first tag never grows the card (T-26)', async () => {
+    const css = await readCss()
+    expect(/\.footer\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/min-height:\s*18px/)
   })
 })

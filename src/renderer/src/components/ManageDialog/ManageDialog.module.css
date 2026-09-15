@@ -1,0 +1,301 @@
+/* ManageDialog — the ONE shell for the Manage dialogs (.claude/rules/design.md). Every block here
+   used to be copied into TemplatesDialog / ShortcutsDialog / WorkspacesDialog .module.css, and the
+   copies had drifted (two button line-heights, two close-button paddings, a disabled ghost state in
+   one of three). This is the only copy now; ManageDialog.styles.test.ts keeps it that way. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.panel {
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-6);
+  min-width: 640px;
+  max-width: 760px;
+  width: 100%;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-dialog);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* Shortcuts: its list carries three columns AND key chips. */
+.panelWide {
+  min-width: 760px;
+  max-width: 940px;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+/* With a subtitle the ✕ lines up with the TITLE, not with the middle of two lines. */
+.header[data-subtitled='true'] {
+  align-items: flex-start;
+}
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+/* Title + the scope dropdown on one line. `min-width: 0` lets the dropdown shrink instead of
+   pushing ✕ out of the panel. */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.title {
+  flex: none;
+  margin: 0;
+  font-size: var(--font-size-display, 20px);
+  font-weight: var(--font-weight-display, 600);
+  line-height: var(--line-height-display, 1.3);
+}
+.subtitle {
+  margin: 0;
+  /* Under 80 characters, and wide enough that one sentence does not wrap mid-clause. */
+  max-width: 72ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.closeButton {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  line-height: 1;
+}
+.closeButton:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* ── The list rail ─────────────────────────────────────────────────────────────────────────── */
+.columns {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  min-height: 320px;
+}
+.list {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-right: 1px solid var(--border);
+  padding-right: var(--space-4);
+}
+.listWide {
+  width: 260px;
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 360px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+}
+.row[data-selected='true'] {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+}
+.rowSelect {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+.rowSelect:hover {
+  background: var(--bg-surface);
+}
+/* Fixed width + `visibility` (not `display`): the slot always takes its space, so a row never
+   changes width when its actions appear, and nothing moves when one of them arms. Hidden controls
+   are not focusable, but the row's own select button is — focusing it reveals the slot
+   (focus-within), and the next Tab reaches the actions. */
+.rowActions {
+  flex: none;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding-right: var(--space-1);
+  visibility: hidden;
+}
+.row:hover .rowActions,
+.row:focus-within .rowActions {
+  visibility: visible;
+}
+/* Rules' ↑ / ↓ (Task 10, R-width): the default ghostButton padding (8px 16px) makes two of them
+   ~84px wide — they overflow this 56px slot onto the row label. Compact them here, scoped to the
+   slot, rather than widen the slot (it must stay this exact width on every row) or add a fourth
+   button style. */
+.rowActions .ghostButton {
+  padding: 2px 6px;
+  font-size: var(--font-size-meta);
+}
+/* `+ New` sits at the BOTTOM of the rail, not directly under the last row: `.rows` stops at its
+   max-height, so without this the button floats mid-column whenever the form is the taller side. */
+.newButton {
+  margin-top: auto;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.label {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  color: var(--text-secondary);
+  margin-top: var(--space-2);
+}
+.hint {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--text-muted);
+}
+.error {
+  margin: 0;
+  font-size: var(--font-size-meta, 12px);
+  color: var(--danger);
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* ── The three button styles (design.md: never a fourth) ─────────────────────────────────── */
+.ghostButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-body, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.ghostButton:hover:not(:disabled) {
+  background: var(--bg-surface);
+}
+.ghostButton:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+.primaryButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--working);
+  border-radius: var(--rounded-md);
+  background: var(--working);
+  color: #11111b;
+  font-size: var(--font-size-body, 13px);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.primaryButton:disabled {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+/* The Delete affordance (design.md): danger is stated in the OUTLINE at rest and FILLED only on
+   hover/focus, so a destructive control never dominates a resting form. The armed ("Confirm
+   delete") state swaps to .dangerButton — the same solid red the fill lands on, so arming reads as
+   the button staying put rather than a new control appearing. */
+.deleteButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--font-size-body, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.deleteButton:hover:not(:disabled),
+.deleteButton:focus-visible {
+  background: var(--danger);
+  color: #ffffff;
+}
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.dangerButton {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--rounded-md);
+  background: var(--danger);
+  color: #ffffff;
+  font-size: var(--font-size-body, 13px);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rowSelect:focus-visible,
+.closeButton:focus-visible,
+.ghostButton:focus-visible,
+.primaryButton:focus-visible,
+.deleteButton:focus-visible,
+.dangerButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

@@ -28,8 +28,11 @@ import {
   useColumnSessions,
   selectColumnCount,
   selectRailEmphasis,
+  useBoardFilter,
+  NO_FILTER,
   type BoardSession
 } from '../../stores/boardStore'
+import { hiddenByFilterSentence } from '../../lib/filterCopy'
 // Workspaces (Task 9a) — `useColumnSessions` already scopes itself internally; Column still
 // needs the active workspace directly for its OWN `selectColumnCount` call below.
 // Task 12 — also the move-to-workspace target list (`selectWorkspaces`, `useShallow` per the
@@ -39,6 +42,8 @@ import {
   selectActiveWorkspaceId,
   selectWorkspaces
 } from '../../stores/workspacesStore'
+import { tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
+import { visibleTags } from '../../../../shared/tags/tagScope'
 import { useShallow } from 'zustand/react/shallow'
 import styles from './Board.module.css'
 
@@ -93,6 +98,10 @@ function EmphasizedSessionCard(props: {
   workspaces: Workspace[]
   /** Task 12 — move seam, threaded straight through to the card's move affordance. */
   onMoveCardToWorkspace?: ((id: string, workspaceId: string) => void) | undefined
+  /** Tags — the Tags… seam, threaded to the card's Tags… menu. */
+  onSetCardTags?: ((id: string, tagIds: string[]) => void) | undefined
+  /** Tags — opens the Tags dialog; the card's Tags… button uses it while no tag exists yet. */
+  onManageTags?: (() => void) | undefined
 }): JSX.Element {
   const {
     session,
@@ -103,9 +112,17 @@ function EmphasizedSessionCard(props: {
     onActivateCard,
     onRenameCard,
     workspaces,
-    onMoveCardToWorkspace
+    onMoveCardToWorkspace,
+    onSetCardTags,
+    onManageTags
   } = props
   const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
+  // Tags — this card's chips (tag-list order) and what its Tags… menu may offer (T-11). Arrays →
+  // useShallow, so an unrelated catalog change does not re-render the card.
+  const tags = useTags(useShallow((s: TagsState) => tagsForIds(s.tags, session.tagIds)))
+  const availableTags = useTags(
+    useShallow((s: TagsState) => visibleTags(s.tags, session.workspaceId))
+  )
   return (
     <SessionCard
       variant={variant}
@@ -118,6 +135,7 @@ function EmphasizedSessionCard(props: {
       pid={session.pid}
       selected={selected}
       emphasized={emphasized}
+      tags={tags}
       {...(session.pendingToolName !== undefined
         ? { pendingToolName: session.pendingToolName }
         : {})}
@@ -129,6 +147,13 @@ function EmphasizedSessionCard(props: {
             currentWorkspaceId: session.workspaceId,
             onMoveToWorkspace: (workspaceId: string) =>
               onMoveCardToWorkspace(session.id, workspaceId)
+          }
+        : {})}
+      {...(onSetCardTags
+        ? {
+            availableTags,
+            onSetTags: (tagIds: string[]) => onSetCardTags(session.id, tagIds),
+            ...(onManageTags ? { onManageTags } : {})
           }
         : {})}
     />
@@ -148,6 +173,10 @@ export interface ColumnProps {
   /** Task 12 — called when a card's move-to-workspace affordance picks a target. Omitted ⇒ no
    *  move control. */
   onMoveCardToWorkspace?: (id: string, workspaceId: string) => void
+  /** Tags — called when a card's Tags… menu changes its tags. Omitted ⇒ no Tags… button. */
+  onSetCardTags?: (id: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog; a card's Tags… button uses it while no tag exists yet. */
+  onManageTags?: () => void
   /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
    *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
   selectedId?: string | null
@@ -159,12 +188,28 @@ export function Column({
   onActivateCard,
   onRenameCard,
   onMoveCardToWorkspace,
+  onSetCardTags,
+  onManageTags,
   selectedId = null
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId))
+  const filter = useBoardFilter(activeWorkspaceId)
+  const tagId = filter.tagId
+  const tagName = useTags((s) =>
+    tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
+  )
+  const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, filter))
+  // Controller ruling (spec §4.3, design.md three-empty-states) — a column can be empty for two
+  // DIFFERENT reasons under the filter bar: genuinely nothing here, or something here that the tag
+  // or the search hides. The UNFILTERED count tells them apart; only the second one gets its own
+  // sentence (never the calm "Nothing waiting. All quiet." — that is a claim about needs-you that
+  // would be FALSE here).
+  const unfilteredCount = useBoard((s) =>
+    selectColumnCount(s, column, activeWorkspaceId, NO_FILTER)
+  )
+  const hiddenByFilter = count === 0 && unfilteredCount > 0
   const meta = COLUMN_META[column]
 
   // The hero column's cards are the large full-contrast `variant="hero"` (with the 3px
@@ -181,9 +226,18 @@ export function Column({
     >
       <ColumnHeader name={meta.name} count={count} accent={meta.accent} prominent={isHero} />
       {count === 0 ? (
-        <p className={styles.emptyHint} data-testid="empty-hint">
-          {meta.emptyHint}
-        </p>
+        hiddenByFilter ? (
+          <p className={styles.emptyHint} data-testid="empty-hint-filtered">
+            {`${hiddenByFilterSentence(
+              tagId !== null ? (tagName ?? 'with this tag') : null,
+              filter.query
+            )} here.`}
+          </p>
+        ) : (
+          <p className={styles.emptyHint} data-testid="empty-hint">
+            {meta.emptyHint}
+          </p>
+        )
       ) : (
         <div className={styles.cardStack}>
           {sessions.map((session: BoardSession) => (
@@ -198,6 +252,8 @@ export function Column({
               onRenameCard={onRenameCard}
               workspaces={workspaces}
               onMoveCardToWorkspace={onMoveCardToWorkspace}
+              onSetCardTags={onSetCardTags}
+              onManageTags={onManageTags}
             />
           ))}
         </div>

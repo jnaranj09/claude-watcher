@@ -49,12 +49,12 @@
 // sent — alert-only, FR-9-consistent) AND acknowledges that session (UX-DR28). A row whose binding
 // has not landed yet is alert-only-non-switchable (it becomes switchable once the binding arrives —
 // degrade gracefully, never crash). [Source: story 3.4 Task 3/4; UX-DR9/27/28/29; architecture.md]
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useId, useRef, useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { StatusDot, type DotStatus } from '../StatusDot/StatusDot'
 import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
-import type { Column } from '../../../../shared/ipc/contract'
+import type { Column, Tag } from '../../../../shared/ipc/contract'
 import {
   useBoard,
   boardStore,
@@ -65,6 +65,7 @@ import {
   selectStartingTerminals,
   selectRailSection,
   selectRailActiveSessionId,
+  useBoardFilter,
   type BoardState,
   type LaunchedTerminal
 } from '../../stores/boardStore'
@@ -76,6 +77,13 @@ import {
   workspacesStore,
   selectActiveWorkspaceId
 } from '../../stores/workspacesStore'
+import { tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
+import { visibleTags } from '../../../../shared/tags/tagScope'
+import { TagIndicator } from '../TagIndicator/TagIndicator'
+import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import { TagChipRow } from '../TagChip/TagChipRow'
+import { TagChipWrap } from '../TagChip/TagChip'
+import { TagPicker } from '../TagPicker/TagPicker'
 import { shortName } from './railName'
 import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './AttentionRail.module.css'
@@ -106,12 +114,25 @@ interface RailRowView {
   emphasized: boolean
   active: boolean
   present: boolean
+  /** Tags — the card's tag ids joined with '\n'. A PRIMITIVE on purpose: `useShallow` over this
+   *  view compares field by field, and an array here would be a fresh identity on every delta. */
+  tagKey: string
+  /** Tags — the card's workspace ('' when absent): what its tag picker may offer (T-11). */
+  workspaceId: string
 }
 
 function selectRailRowView(state: BoardState, id: string): RailRowView {
   const session = state.sessionsById[id]
   if (session === undefined) {
-    return { name: '', status: 'idle', emphasized: false, active: false, present: false }
+    return {
+      name: '',
+      status: 'idle',
+      emphasized: false,
+      active: false,
+      present: false,
+      tagKey: '',
+      workspaceId: ''
+    }
   }
   const focused = selectFocusedTerminalId(state)
   const terminalId = selectTerminalIdForSession(state, id)
@@ -120,39 +141,119 @@ function selectRailRowView(state: BoardState, id: string): RailRowView {
     status: DOT_STATUS_FOR_COLUMN[session.column],
     emphasized: selectRailEmphasis(state, id) === 'needs-you',
     active: focused !== null && terminalId === focused,
-    present: true
+    present: true,
+    tagKey: session.tagIds.join('\n'),
+    workspaceId: session.workspaceId
   }
+}
+
+/** ", tags: deploy, prod" — or '' for no tags. The collapsed rail draws no tag icons, so the row's
+ *  own label is where it still says which tags it carries (T-27). */
+function tagSuffix(tags: readonly Tag[]): string {
+  return tags.length === 0 ? '' : `, tags: ${tags.map((t) => t.name).join(', ')}`
 }
 
 /** A single rail row. Subscribes NARROWLY (useShallow over `selectRailRowView`) to its OWN slice
  *  (Task 3.6) so a sibling's change does not re-render it. Renders status dot + short name (never
  *  color-only); collapsed mode renders an icon-only row (dot + initial). A `<button>` so it is
- *  keyboard-activatable (Enter/Space = click) with the shipped lavender AA focus ring (UX-DR29). */
+ *  keyboard-activatable (Enter/Space = click) with the shipped lavender AA focus ring (UX-DR29).
+ *
+ *  Tags (T-27, T-28) — a tagged row also carries a compact `TagIndicator` in a peek toggle
+ *  (a sibling of the row, like the rename pencil — a `<button>` cannot nest in the row `<button>`).
+ *  Clicking it PEEKS the row: every chip, wrapping, as the row's own second line — INSIDE the card,
+ *  so it reads as part of this session — ending in a `+ tag` pill (opens the picker) that reads as
+ *  the next chip. While open the toggle is LIT, so the row says it is expanded and can be closed. An
+ *  untagged row gets the same toggle, hover-revealed, when tagging is wired and its workspace has
+ *  tags — so a session can still be tagged from the rail — and, while no tag exists yet, one that
+ *  opens the Tags dialog instead. `showAllTags` (the header toggle) instead
+ *  gives every tagged row a one-line chip row, without opening its peek. Peek + `showAllTags`' own
+ *  per-row `editing` state are renderer view-state (T-28) — local `useState`, never persisted. */
 function RailRow(props: {
   id: string
   collapsed: boolean
+  showAllTags: boolean
   onActivate: (sessionId: string) => void
   onRename?: ((sessionId: string) => void) | undefined
+  onSetTags?: ((sessionId: string, tagIds: string[]) => void) | undefined
+  onManageTags?: (() => void) | undefined
 }): JSX.Element | null {
-  const { id, collapsed, onActivate, onRename } = props
+  const { id, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const view = useBoard(useShallow((s: BoardState) => selectRailRowView(s, id)))
+  const tagIds = view.tagKey === '' ? [] : view.tagKey.split('\n')
+  // Tags — this row's chips in TAG-LIST order, and what its picker may offer (T-11).
+  const tags = useTags(useShallow((s: TagsState) => tagsForIds(s.tags, tagIds)))
+  const pickable = useTags(
+    useShallow((s: TagsState) =>
+      view.workspaceId === '' ? [] : visibleTags(s.tags, view.workspaceId)
+    )
+  )
+  // T-28 — per-row view-state, never persisted.
+  const [peekOpen, setPeekOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const addGroupRef = useRef<HTMLSpanElement | null>(null)
+  const tagPickerId = useId()
   if (!view.present) return null
   const { name, status, emphasized, active } = view
-  // The row's accessible name carries the STATUS TEXT, not just the session name. A <button> with
-  // its own `aria-label` does not expose its inner text to assistive tech — the label REPLACES the
-  // contents — so the dot's screen-reader-only status span below is never announced from in here.
+
+  // The row's accessible name carries the STATUS TEXT (a <button aria-label> replaces its contents
+  // for assistive tech, so the dot's sr-only text is never read from in here) — and the TAG names.
   // Without the status in this string, the status would reach a screen-reader user through dot
   // COLOR alone (the UX-DR29 floor: color is never the sole signal).
   const statusText = statusLabel(status)
-  const label = active ? `${name}, ${statusText} (active)` : `${name}, ${statusText}`
+  const described = `${name}, ${statusText}${tagSuffix(tags)}`
+  const label = active ? `${described} (active)` : described
 
   const className = `${styles.row} ${emphasized ? `${styles.emphasized} ${needsYouEmphasisClass}` : ''} ${active ? styles.active : ''}`
 
-  // The ACTIVE row is NOT a control — it is a `<div>`, with no click, no hover change, and out of
-  // the tab order. Its only job would have been "switch to this session", and you are already in
-  // it. A button that does nothing when pressed is a lie told twice: the pointer changes shape and
-  // the background lights up, both promising something will happen. The rename pencil beside it
-  // stays a real button, so the row is still not a dead end.
+  const canTag = onSetTags !== undefined && pickable.length > 0
+  // No tag to offer yet: an untagged row's toggle opens the Tags dialog (to create one) instead.
+  const createTags =
+    onSetTags !== undefined && pickable.length === 0 && tags.length === 0 ? onManageTags : undefined
+  const hasPeek = !collapsed && (tags.length > 0 || canTag || createTags !== undefined)
+  const showRename = !collapsed && onRename !== undefined
+  // T-27 — the row's SECOND line, drawn inside the row itself so it reads as part of the card: the
+  // PEEK (every chip, wrapping — the operator asked for it) or else the show-all view's one-line chip
+  // row. Never in the default view (a row's height must not follow its tags), never collapsed.
+  const peekShown = peekOpen && hasPeek
+  const chipLine = !collapsed && showAllTags && !peekShown && tags.length > 0
+  const twoLine = peekShown || chipLine
+  // The peek ends in `+ tag`, which reads as the next chip. The real button is a SIBLING of the row
+  // (a <button> cannot nest in the row <button>): a hidden copy holds its place at the end of the
+  // chip flow, and CSS anchor positioning lays the button exactly over it. (An untagged row only
+  // peeks when it can be tagged, so the line is never empty.)
+  const peekAdd = peekShown && canTag
+  const secondLine = peekShown ? (
+    <span className={styles.rowTags} data-testid="rail-tags-panel">
+      <TagChipWrap
+        tags={tags}
+        testId="rail-tags-panel-chips"
+        trailing={
+          peekAdd ? (
+            <span
+              className={`${styles.addTag} ${styles.addTagGhost}`}
+              data-testid="rail-tags-add-ghost"
+              aria-hidden="true"
+            >
+              + tag
+            </span>
+          ) : undefined
+        }
+      />
+    </span>
+  ) : chipLine ? (
+    <span className={styles.rowTags}>
+      <TagChipRow tags={tags} testId="rail-row-tags" />
+    </span>
+  ) : null
+
+  function togglePeek(): void {
+    setPeekOpen((open) => !open)
+    setEditing(false)
+  }
+
+  // The ACTIVE row is NOT a control — a <div>, no click, out of the tab order: pressing it would do
+  // nothing (you are already in it). `aria-current` carries the "(active)" the button path spells
+  // out; collapsed renders the name sr-only so the row never announces a status with no session.
   //
   // NOTE the accessible name is built DIFFERENTLY here than on the button below, and the
   // difference is not cosmetic. A `<button aria-label=…>` REPLACES its contents for assistive
@@ -161,39 +262,36 @@ function RailRow(props: {
   // path lets the real content be read instead: the StatusDot's screen-reader-only status text
   // plus the name. Collapsed hides the name visually, so it is rendered `sr-only` rather than
   // dropped, or the row would announce a status with no session attached to it.
-  //
-  // `aria-current="true"` carries the "(active)" the button path spells out in its label, and
-  // `title` gives a sighted operator the same on hover (the expanded name ellipsizes).
-  if (active) {
-    return (
-      <div className={styles.rowWrap}>
-        <div
-          className={className}
-          data-testid="rail-row"
-          data-session-id={id}
-          data-status={status}
-          {...(emphasized ? { 'data-emphasized': true } : {})}
-          data-active
-          aria-current="true"
-          title={label}
-        >
-          <StatusDot status={status} labelHidden />
-          {collapsed ? (
-            <span className="sr-only">{name}</span>
-          ) : (
-            <span className={styles.name} data-testid="rail-row-name">
-              {name}
-            </span>
-          )}
-        </div>
-        {!collapsed && onRename !== undefined && (
-          <RenameButton name={name} onClick={() => onRename(id)} />
-        )}
-      </div>
-    )
-  }
-
-  const row = (
+  const row = active ? (
+    <div
+      className={className}
+      data-testid="rail-row"
+      data-session-id={id}
+      data-status={status}
+      {...(emphasized ? { 'data-emphasized': true } : {})}
+      {...(!collapsed && tags.length > 0 ? { 'data-has-tags': true } : {})}
+      {...(twoLine ? { 'data-two-line': true } : {})}
+      data-active
+      aria-current="true"
+      title={label}
+    >
+      <StatusDot status={status} labelHidden />
+      {collapsed ? (
+        // Review finding C — the button rows fold tagSuffix into their aria-label (`label`
+        // above); this sr-only span is the active row's ONLY equivalent, so it must carry the
+        // same tags or a collapsed, active, tagged session announces no tags at all.
+        <span className="sr-only">
+          {name}
+          {tagSuffix(tags)}
+        </span>
+      ) : (
+        <span className={styles.name} data-testid="rail-row-name">
+          {name}
+        </span>
+      )}
+      {secondLine}
+    </div>
+  ) : (
     <button
       type="button"
       className={className}
@@ -201,49 +299,120 @@ function RailRow(props: {
       data-session-id={id}
       data-status={status}
       {...(emphasized ? { 'data-emphasized': true } : {})}
+      {...(!collapsed && tags.length > 0 ? { 'data-has-tags': true } : {})}
+      {...(twoLine ? { 'data-two-line': true } : {})}
       aria-label={label}
       title={label}
       onClick={() => onActivate(id)}
     >
-      {/* `labelHidden` UNCONDITIONALLY, and NO `label` override. Both halves matter:
-          - `labelHidden={collapsed}` used to make the dot's label VISIBLE whenever the rail was
-            expanded, and `label={name}` made that visible label the SESSION NAME — so an expanded
-            row printed the name twice (once here, once in `.name` below). That was the bug.
-          - dropping the `label` override lets the dot fall back to its per-state status text, so
-            what it contributes is the STATUS, not a second copy of the title.
-          Mirrors SessionCard.tsx, which has always passed a bare `labelHidden`. */}
+      {/* `labelHidden` unconditionally: the dot contributes the STATUS, never a second name. */}
       <StatusDot status={status} labelHidden />
-      {/* Collapsed is the CIRCLE ALONE. It used to also render the name's first letter beside the
-          dot ("● D"), which is what UX-DR9's "56px icons" never asked for — the dot already IS the
-          row's icon, and the letter made a 44px row carry two glyphs. The row stays identifiable
-          without it: the `aria-label` carries name + status for assistive tech, and the `title`
-          added above gives a sighted operator the same on hover (which is also what makes an
-          ellipsized name readable in the EXPANDED rail — `.name` truncates). */}
+      {/* Collapsed is the CIRCLE alone; `aria-label` + `title` carry the name. */}
       {!collapsed && (
         <span className={styles.name} data-testid="rail-row-name">
           {name}
         </span>
       )}
+      {secondLine}
     </button>
   )
 
-  // A2 — the rename pencil is a SIBLING of the row, never a child.
-  //
-  // This row is a real `<button>`, and a `<button>` inside a `<button>` is invalid HTML (unlike
-  // SessionCard, whose root is a `<div role="button">`, so a nested button is legal there). So the
-  // pencil goes beside the row inside the `<li>`, and the two share a flex wrapper.
-  //
-  // EXPANDED ONLY: a collapsed rail is 56px wide and its `<li>` shrink-wraps a 44/56px circle —
-  // there is no room for a second control, and squeezing one in would push the circle back
-  // off-centre (the exact thing the measured centring fix just corrected). Rename stays reachable
-  // in collapsed mode from the board card's pencil.
-  if (collapsed || onRename === undefined) return row
+  // No tools to show: the old shapes exactly — the active row keeps its wrapper (the collapsed tab
+  // geometry is written against it), the button row stands alone.
+  if (!showRename && !hasPeek) {
+    return active ? <div className={styles.rowWrap}>{row}</div> : row
+  }
 
+  // The pencil and the tag toggle are SIBLINGS of the row (a <button> cannot nest in the row
+  // <button>), in one tools cluster overlaid on its right edge; the peek's `+ tag` is laid over its
+  // ghost on the second line, and its picker hangs below the card.
   return (
-    <div className={styles.rowWrap}>
+    <div className={styles.rowWrap} {...(twoLine ? { 'data-two-line': true } : {})}>
       {row}
-      <RenameButton name={name} onClick={() => onRename(id)} />
+      <span className={styles.rowTools}>
+        {showRename && <RenameButton name={name} onClick={() => onRename?.(id)} />}
+        {hasPeek && (
+          <PeekButton
+            name={name}
+            tags={tags}
+            open={peekShown}
+            createOnly={createTags !== undefined}
+            onToggle={createTags ?? togglePeek}
+          />
+        )}
+      </span>
+      {/* The group holds BOTH `+ tag` and its list: TagPicker closes on a mousedown outside its
+          anchor, so an anchor holding only the button would close the list under the click that
+          ticks it. `display: contents` — no box, so both are still placed from `.rowWrap`. */}
+      {peekAdd && (
+        <span className={styles.addTagGroup} ref={addGroupRef}>
+          <button
+            type="button"
+            className={`${styles.addTag} ${styles.addTagButton}`}
+            data-testid="rail-tags-add"
+            aria-expanded={editing}
+            aria-controls={tagPickerId}
+            title="Add or remove tags"
+            onClick={() => setEditing((v) => !v)}
+          >
+            + tag
+          </button>
+          {editing && (
+            <TagPicker
+              id={tagPickerId}
+              tags={pickable}
+              selectedIds={tags.map((t) => t.id)}
+              onChange={(next) => onSetTags?.(id, next)}
+              onClose={() => setEditing(false)}
+              anchorRef={addGroupRef}
+              testId="rail-tag-picker"
+              label={`Tags for ${name}`}
+            />
+          )}
+        </span>
+      )}
     </div>
+  )
+}
+
+/** The row's tag toggle (T-27). Tagged: the compact TagIndicator, ALWAYS visible — it is
+ *  information, not a hover action. Untagged: a muted empty tag outline revealed on hover / focus
+ *  like the pencil, so a session with no tags can still be tagged from the rail. `createOnly`: no
+ *  tag exists yet, so the same outline opens the Tags dialog (a dialog, not a peek).
+ *
+ *  OPEN is LIT, the board filter toggle's lit state: a light fill, and the mark redrawn in the dark
+ *  ink (`mono`) — the tag hues would not hold up on that fill, and the chips below already show
+ *  them. It is how the row says "expanded — press again to close". */
+function PeekButton(props: {
+  name: string
+  tags: readonly Tag[]
+  open: boolean
+  createOnly: boolean
+  onToggle: () => void
+}): JSX.Element {
+  const { name, tags, open, createOnly, onToggle } = props
+  const label = createOnly
+    ? 'Create tags'
+    : tags.length === 0
+      ? `Add tags to ${name}`
+      : `Tags: ${tags.map((t) => t.name).join(', ')}`
+  const title = createOnly ? 'No tags yet — create tags' : open ? 'Hide tags' : label
+  return (
+    <button
+      type="button"
+      className={`${styles.peekButton} ${tags.length === 0 ? styles.peekButtonEmpty : ''}`}
+      data-testid="rail-tags-peek"
+      {...(createOnly ? { 'aria-haspopup': 'dialog' as const } : { 'aria-expanded': open })}
+      aria-label={label}
+      title={title}
+      onClick={onToggle}
+    >
+      {tags.length > 0 ? (
+        <TagIndicator tags={tags} mono={open} />
+      ) : (
+        <TagGlyphIcon size={10} strokeWidth={1.92} />
+      )}
+    </button>
   )
 }
 
@@ -313,13 +482,20 @@ function RailDivider(props: { label: string }): JSX.Element {
 function RailSection(props: {
   column: Column
   collapsed: boolean
+  showAllTags: boolean
   onActivate: (sessionId: string) => void
   onRename?: ((sessionId: string) => void) | undefined
+  onSetTags?: ((sessionId: string, tagIds: string[]) => void) | undefined
+  onManageTags?: (() => void) | undefined
 }): JSX.Element | null {
-  const { column, collapsed, onActivate, onRename } = props
+  const { column, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  // Sections follow the board's filter bar — its tag AND its search box. The PINNED row does not (it
+  // is the terminal you are typing in), and neither does the needs-you announcement (alerts ignore
+  // the filter).
+  const filter = useBoardFilter(activeWorkspaceId)
   const ids = useBoard(
-    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId))
+    useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId, filter))
   )
   if (ids.length === 0) return null
   const label = statusLabel(DOT_STATUS_FOR_COLUMN[column])
@@ -329,7 +505,15 @@ function RailSection(props: {
       <ul className={styles.list} data-testid="rail-list" aria-label={label}>
         {ids.map((id) => (
           <li key={id} className={styles.listItem}>
-            <RailRow id={id} collapsed={collapsed} onActivate={onActivate} onRename={onRename} />
+            <RailRow
+              id={id}
+              collapsed={collapsed}
+              showAllTags={showAllTags}
+              onActivate={onActivate}
+              onRename={onRename}
+              onSetTags={onSetTags}
+              onManageTags={onManageTags}
+            />
           </li>
         ))}
       </ul>
@@ -402,12 +586,24 @@ export interface AttentionRailProps {
    *  pencil is rendered, so the rail stays usable in the presentational/test callers that do not
    *  wire rename. Expanded rail only (see RailRow). */
   onRenameSession?: (sessionId: string) => void
+  /** Tags — the peek's Edit changed a session's tags. Omitted ⇒ the peek shows chips but offers no
+   *  Edit, and untagged rows get no "add tags" toggle. */
+  onSetSessionTags?: (sessionId: string, tagIds: string[]) => void
+  /** Tags — opens the Tags dialog. While no tag exists yet, an untagged row's toggle uses it (to
+   *  create one) instead of an empty peek. Omitted ⇒ with nothing to offer, no toggle at all. */
+  onManageTags?: () => void
 }
 
 export function AttentionRail({
   onActivateSession,
-  onRenameSession
+  onRenameSession,
+  onSetSessionTags,
+  onManageTags
 }: AttentionRailProps): JSX.Element {
+  // T-28 — "Show all tags" is renderer view-state, local like `collapsed`, and starts off.
+  const [showAllTags, setShowAllTags] = useState(false)
+  // A toggle for tags that do not exist would do nothing — render it only once there are some.
+  const hasTags = useTags((s) => s.tags.length > 0)
   // The PINNED session — the one whose terminal is on screen. A primitive `string | null`, so no
   // useShallow, and it re-renders the rail only when the operator actually switches terminals.
   // Each SECTION subscribes to its own ids separately (RailSection), which is why there is no
@@ -496,16 +692,31 @@ export function AttentionRail({
     >
       <div className={styles.header}>
         {!collapsed && <span className={styles.title}>Sessions</span>}
-        <button
-          type="button"
-          className={styles.collapseToggle}
-          data-testid="rail-collapse"
-          aria-label={collapsed ? 'Expand sessions rail' : 'Collapse sessions rail'}
-          aria-expanded={!collapsed}
-          onClick={() => setCollapsed((c) => !c)}
-        >
-          {collapsed ? '»' : '«'}
-        </button>
+        <span className={styles.headerTools}>
+          {!collapsed && hasTags && (
+            <button
+              type="button"
+              className={styles.collapseToggle}
+              data-testid="rail-show-tags"
+              aria-pressed={showAllTags}
+              aria-label="Show all tags"
+              title={showAllTags ? 'Hide tags' : 'Show all tags'}
+              onClick={() => setShowAllTags((v) => !v)}
+            >
+              <TagGlyphIcon size={13} />
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.collapseToggle}
+            data-testid="rail-collapse"
+            aria-label={collapsed ? 'Expand sessions rail' : 'Collapse sessions rail'}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((c) => !c)}
+          >
+            {collapsed ? '»' : '«'}
+          </button>
+        </span>
       </div>
       <LiveAnnouncer message={announcement} />
       {/* The PINNED row: the session currently on screen, ALWAYS first — above needs-you, above
@@ -528,8 +739,11 @@ export function AttentionRail({
               <RailRow
                 id={activeId}
                 collapsed={collapsed}
+                showAllTags={showAllTags}
                 onActivate={onActivateSession}
                 onRename={onRenameSession}
+                onSetTags={onSetSessionTags}
+                onManageTags={onManageTags}
               />
             </li>
           </ul>
@@ -543,8 +757,11 @@ export function AttentionRail({
             key={column}
             column={column}
             collapsed={collapsed}
+            showAllTags={showAllTags}
             onActivate={onActivateSession}
             onRename={onRenameSession}
+            onSetTags={onSetSessionTags}
+            onManageTags={onManageTags}
           />
         ))}
         {/* Story 5.6 (rail gap) — "Starting" group: calm, BELOW the session rows so it never
