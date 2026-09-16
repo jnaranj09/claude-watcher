@@ -183,14 +183,17 @@ describe('the text field is the only one', () => {
     expect(rule).not.toContain('var(--text-dim)')
   })
 
+  // TextInput owns `.input`/`.search`/`.textField`; its multi-line sibling TextArea owns
+  // `.textArea`. Every other module is an offender — a sixth copy-pasted box is how the first
+  // five drifted.
   it('is the only module that draws a text-field box', () => {
     const offenders: string[] = []
     for (const dir of readdirSync(componentsDir, { withFileTypes: true })) {
-      if (!dir.isDirectory() || dir.name === 'TextInput') continue
+      if (!dir.isDirectory() || dir.name === 'TextInput' || dir.name === 'TextArea') continue
       for (const file of readdirSync(join(componentsDir, dir.name))) {
         if (!file.endsWith('.module.css')) continue
         const css = readFileSync(join(componentsDir, dir.name, file), 'utf8')
-        for (const selector of ['.input', '.search', '.textField']) {
+        for (const selector of ['.input', '.search', '.textField', '.textArea']) {
           if (new RegExp(`^\\${selector}[\\s{:,\\[]`, 'm').test(css)) {
             offenders.push(`${dir.name}/${file} → ${selector}`)
           }

@@ -1,0 +1,37 @@
+/* TextInput's box, taller. Every declaration down to the focus ring is `.input`'s, so a text field
+   and a text area standing in the same form column are the same shape — and drift between the two
+   is a diff in ONE place, not a hunt through five dialogs (.claude/rules/design.md). */
+.textArea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body, 13px);
+  line-height: 1.4;
+  /* Vertical only: a horizontal drag would break the form column this sits in. `rows` sets the
+     height at rest; the floor keeps a dragged-flat box from collapsing to a single line. */
+  resize: vertical;
+  min-height: 4.5em;
+}
+/* --text-secondary, NOT --text-muted. Measured on --bg-surface: muted is 2.85:1, secondary is
+   6.08:1. A hint nobody can read is not a hint. */
+.textArea::placeholder {
+  color: var(--text-secondary);
+}
+.textArea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.textArea:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+/* Never the only signal — the dialog's error line says what is wrong (UX-DR29). */
+.textArea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
