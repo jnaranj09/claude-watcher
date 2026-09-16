@@ -191,6 +191,19 @@ function App(): React.JSX.Element {
     return off
   }, [smoke])
 
+  // Programmatic API — main asks for a terminal when an API call created a card. Same call the
+  // name prompt makes after its own launch (handleNameSubmit); the renderer invents nothing — the
+  // label and the workspace are main's, and opening the terminal is what spawns the pty.
+  // Guarded like `window.quit`: older App tests stub only the bridges they touch (AR-12).
+  useEffect(() => {
+    if (smoke !== false) return
+    if (typeof window.launch.onLaunchRequested !== 'function') return
+    const off = window.launch.onLaunchRequested(({ terminalId, label, workspaceId }) =>
+      boardStore.getState().openLaunchedTerminal(terminalId, label, workspaceId)
+    )
+    return off
+  }, [smoke])
+
   // Story 5.6 (AC-5) — subscribe to the terminal-exit push ONCE (non-smoke only).
   // Main emits `CH.terminalExit` when a PTY exits naturally; we remove its registry entry so
   // it leaves both `selectStartingTerminals` and `selectKeptAliveTerminalIds`. Mirrors the
