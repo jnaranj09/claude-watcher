@@ -145,9 +145,13 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     const next = Number(portValue)
     if (!Number.isInteger(next) || next < API_PORT_MIN || next > API_PORT_MAX) {
       setPortInvalid(true)
+      // `aria-invalid` is never the ONLY signal (design.md / UX-DR29): the block's one error line
+      // has to say what is wrong, and it names the range so the fix needs no guessing.
+      apiActions.setError(`Port must be between ${API_PORT_MIN} and ${API_PORT_MAX}.`)
       return
     }
     setPortInvalid(false)
+    apiActions.setError(null)
     // Back to "no edit in flight": the field follows the stored port again, which
     // `persistSettingsPatch` has already updated optimistically.
     setPortDraft(null)
@@ -156,11 +160,18 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
 
   // Main mints AND persists the new token; a rejection means the OLD one is still the live
   // credential, so the field must keep showing it rather than a token nothing accepts.
+  //
+  // `ManageDialog.Delete` never disarms ITSELF — a refused action stays armed so a second press
+  // retries it, and the host dialog disarms on the way out (the Manage dialogs do it via
+  // `select(null)`). This block has no such exit, so it disarms here, on the SUCCESS path only:
+  // without it the button keeps reading `Confirm regenerate` and the next single press mints
+  // another token with no arming step.
   async function regenerateToken(): Promise<void> {
     try {
       const result = await window.api.regenerateToken()
       setToken(result.token)
       apiActions.setError(null)
+      apiActions.disarm()
     } catch (error: unknown) {
       console.warn('[claude-watcher][api] code=token_regenerate_failed')
       apiActions.setError(tokenErrorCopy(error, 'Could not regenerate the API token.'))

@@ -419,6 +419,30 @@ describe('SettingsPanel — the local API block', () => {
     expect(port.getAttribute('aria-invalid')).toBe('true')
   })
 
+  // design.md (TextInput): `aria-invalid` is NEVER the only signal — the block's error line has
+  // to say what is wrong (UX-DR29). The copy names the range, so the operator can fix it without
+  // guessing. Asserted as a literal, not rebuilt from API_PORT_MIN/MAX: a test that composes the
+  // sentence the same way the component does cannot catch the sentence changing.
+  it('a refused port says why on the error line, and a good one clears it', async () => {
+    stubSettings()
+    stubApi()
+    const r = render()
+    await flush()
+    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
+
+    type(port, '80')
+    blur(port)
+    await flush()
+    const line = q(r, '[data-testid="settings-api-error"]')
+    expect(line.getAttribute('role')).toBe('alert')
+    expect(line.textContent).toBe('Port must be between 1024 and 65535.')
+
+    type(port, '9300')
+    blur(port)
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-api-error"]')).toBeNull()
+  })
+
   it('Copy writes the token to the clipboard', async () => {
     stubSettings()
     stubApi('c'.repeat(64))
@@ -445,6 +469,10 @@ describe('SettingsPanel — the local API block', () => {
     await flush()
     expect(regenerate).toHaveBeenCalledTimes(1)
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('b'.repeat(64))
+    // The flow is OVER: the button must fall back to its resting label. `ManageDialog.Delete`
+    // never disarms itself (a refused delete stays armed so a second press retries) — the host
+    // disarms it, and without that the next single press regenerates with no arming step.
+    expect(btn.textContent).toBe('Regenerate')
   })
 
   // Main rejects when it minted a token it could not persist (`token_write_failed`). Showing the
@@ -467,6 +495,9 @@ describe('SettingsPanel — the local API block', () => {
     expect(line.getAttribute('role')).toBe('alert')
     expect(line.textContent).toBe('Could not save the new token.')
     expect(r.container.textContent).not.toContain('EACCES')
+    // A REFUSED action stays armed, so one more press retries it — the component's own
+    // documented behaviour, and the opposite of the success path above.
+    expect(btn.textContent).toBe('Confirm regenerate')
   })
 
   it('a token read that fails shows mapped copy and does not crash the panel', async () => {
