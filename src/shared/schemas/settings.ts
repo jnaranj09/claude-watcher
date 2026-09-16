@@ -60,16 +60,23 @@ export function expanderChord(key: string): string {
   return `Ctrl+Alt+${key}`
 }
 
+/** Programmatic API — off by default; the listener binds 127.0.0.1:<apiPort>. */
+export const DEFAULT_API_PORT = 9280
+export const API_PORT_MIN = 1024
+export const API_PORT_MAX = 65535
+const ApiPortSchema = z.number().int().min(API_PORT_MIN).max(API_PORT_MAX)
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
- * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey`.
+ * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort`.
  *
  * - `version` is a `z.literal(SETTINGS_VERSION)` — a blob carrying a DIFFERENT version
  *   fails THIS schema (the store treats that as a no-known-migration → corrupt → fresh).
  * - `soundEnabled` defaults to `true` (sound default ON — UX-DR26).
  * - `terminalFontSize` is an integer clamped to [MIN, MAX]; out-of-range FAILS CLOSED.
- * - `reminderCount` / `reminderFirstDelayMinutes` are ADDITIVE on the v1 shape: they
- *   `.default()` so a v1 blob written before they existed still parses (see below).
+ * - `reminderCount` / `reminderFirstDelayMinutes` / `expanderKey` / `apiEnabled` / `apiPort`
+ *   are ADDITIVE on the v1 shape: they `.default()` so a v1 blob written before they existed
+ *   still parses (see below).
  *
  * NO `.passthrough()` (this is our shape — unknown keys are not silently kept). `.strict()`
  * is intentionally NOT used either: a future version may add fields, and the version gate
@@ -89,7 +96,11 @@ export const SettingsSchema = z.object({
   reminderCount: ReminderCountSchema.default(DEFAULT_REMINDER_COUNT),
   reminderFirstDelayMinutes: ReminderFirstDelaySchema.default(DEFAULT_REMINDER_FIRST_DELAY_MINUTES),
   // Shortcut expander. Same `.default()` reasoning as the reminder fields: additive on v1.
-  expanderKey: ExpanderKeySchema.default(DEFAULT_EXPANDER_KEY)
+  expanderKey: ExpanderKeySchema.default(DEFAULT_EXPANDER_KEY),
+  // Programmatic API. Same `.default()` reasoning again: additive on v1, so a file written
+  // before the API existed still parses (off, on the default port) instead of failing closed.
+  apiEnabled: z.boolean().default(false),
+  apiPort: ApiPortSchema.default(DEFAULT_API_PORT)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -112,7 +123,9 @@ export const SettingsPatchSchema = z
     // the reminder count to its default (verified on zod 4.4.3).
     reminderCount: ReminderCountSchema,
     reminderFirstDelayMinutes: ReminderFirstDelaySchema,
-    expanderKey: ExpanderKeySchema
+    expanderKey: ExpanderKeySchema,
+    apiEnabled: z.boolean(),
+    apiPort: ApiPortSchema
   })
   .partial()
 
@@ -128,7 +141,9 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
   reminderCount: DEFAULT_REMINDER_COUNT,
   reminderFirstDelayMinutes: DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
-  expanderKey: DEFAULT_EXPANDER_KEY
+  expanderKey: DEFAULT_EXPANDER_KEY,
+  apiEnabled: false,
+  apiPort: DEFAULT_API_PORT
 }
 
 /**

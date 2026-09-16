@@ -42,7 +42,9 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       terminalFontSize: 18,
       reminderCount: 3,
       reminderFirstDelayMinutes: 2,
-      expanderKey: 'X'
+      expanderKey: 'X',
+      apiEnabled: false,
+      apiPort: 9280
     })
     expect(get()).toEqual(result)
   })
