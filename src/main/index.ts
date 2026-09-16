@@ -2558,16 +2558,27 @@ app
         // The lifecycle CONTAINS a throwing `start` (logs `code=listen_failed`, stays stopped), so
         // this is a refusal to serve without a token, not a crash.
         if (store === null) throw new Error('api token store not initialized')
+        // `/openapi.json` is PUBLIC, and building the document runs six `z.toJSONSchema`
+        // conversions — work an unauthenticated caller could ask for in a loop. So it is built
+        // once and held, keyed by the port that ends up in `servers[0].url`.
+        //
+        // INVALIDATION is the key, not a hand-written reset: the port is the REQUESTED one until
+        // the bind reports and the BOUND one after (they differ whenever `apiPort` is 0), so the
+        // first request arriving inside that window cannot pin a stale URL — the key changes and
+        // the document is rebuilt exactly once more. A restart or a stop builds a NEW `start`
+        // closure, and with it a new empty cache, so there is nothing else to invalidate.
+        let openApiCache: { port: number; doc: Record<string, unknown> } | null = null
         const docs = createDocsRoutes({
-          // Per REQUEST, never captured: the document's `servers[0].url` must name the port the
-          // caller actually reached us on.
-          openapi: () =>
-            buildOpenApiDocument(apiCommands, {
-              // The BOUND port once the bind reports; until then (and if it never reports) the
-              // REQUESTED one — which is the only port a client could have reached anyway.
-              port: apiLifecycle?.port() ?? port,
-              version: app.getVersion()
-            }),
+          openapi: () => {
+            const docPort = apiLifecycle?.port() ?? port
+            if (openApiCache === null || openApiCache.port !== docPort) {
+              openApiCache = {
+                port: docPort,
+                doc: buildOpenApiDocument(apiCommands, { port: docPort, version: app.getVersion() })
+              }
+            }
+            return openApiCache.doc
+          },
           swaggerDistDir,
           log: apiLog
         })
