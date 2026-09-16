@@ -9,8 +9,10 @@ screenshots the window. It uses the same seams as `tests/e2e/native-engine.e2e.t
 ## Recipe
 
 1. **Free 127.0.0.1:9279.** Ask the operator to close the installed app and any `npm run dev`.
-   The driver refuses to start while the port is taken: the app tolerates EADDRINUSE silently, so
-   it would bind nothing and your hook POSTs would reach the OTHER instance.
+   The driver refuses to start while the port is taken: the app TOLERATES EADDRINUSE — it logs
+   `code=eaddrinuse` and keeps running rather than crashing (`hookServer.ts`) — so it would bind
+   nothing and your hook POSTs would reach the OTHER instance. The log line is the only sign, and
+   it is easy to miss in the driver's output, which is why the port is checked up front.
 2. **`npm run build`.** The driver runs `out/main/index.js`, not the dev server. Rebuild after
    every change.
 3. **Write a scenario in your scratchpad** (not the repo) and run it with `node <file>.mjs`.

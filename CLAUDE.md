@@ -211,7 +211,8 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
 - **A SECOND `node:http` listener on 127.0.0.1:`apiPort` (9280), OFF by default**
   (`settings.apiEnabled` / `settings.apiPort`, settings version stays 1). Loopback only — never
   `0.0.0.0`. Every `/v1/*` request carries a bearer token read from `claude-watcher-api-token` in
-  `app.getPath('userData')` (0600, chmod-ed on every read) — never in `settings.json` (the renderer
+  `app.getPath('userData')` (0600, chmod-ed once per process — on the first read that finds an
+  existing file; `current()` caches) — never in `settings.json` (the renderer
   reads that blob), never logged. `createApiLifecycle` starts/stops/restarts it from the settings
   store: first apply on the window's `did-finish-load`, `stop()` on `will-quit`.
 - **Every action is a registry entry** (`src/main/api/commands/`): ONE `defineCommand` object with

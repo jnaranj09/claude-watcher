@@ -70,8 +70,9 @@ beside `launchBoardSeams`. Its event side is fed from INSIDE `handleDelta`'s boa
 board and the SSE streams cannot diverge: a session the board never shows never reaches a client.
 No window ⇒ `no_window` (503, retryable), never an invented empty board.
 
-**The wire session is STATE ONLY** (`apiSession.ts` → `.strict()` `ApiSessionSchema`): id, name,
-status, column, `enteredColumnAt`, workspace, tags, `projectPath`, and `pendingToolName` (a tool's
+**The wire session is STATE ONLY** (`apiSession.ts` → `.strict()` `ApiSessionSchema`): `id`,
+`sessionName`, `status`, `column`, `enteredColumnAt`, `workspaceId`, `tagIds`, `projectPath` and
+`pendingToolName` (a tool's
 NAME is state; its INPUT is content and is not projected at all). Strict is what makes that a
 guarantee instead of a habit — add a field to `Session` and the projection DROPS
 (`code=session_projection_failed`) rather than leaking it.
@@ -94,8 +95,11 @@ Same rule as every other boundary here, with three extra things in scope:
 ## The token
 
 32 random bytes as 64 lowercase hex, in `claude-watcher-api-token` inside
-`app.getPath('userData')`, mode 0600 — forced on every READ, because `writeFileSync`'s `mode` does
-nothing to a file that already exists. A file that is not EXACTLY 64 hex chars is replaced, never
+`app.getPath('userData')`, mode 0600 — forced with a `chmodSync` ONCE PER PROCESS, on the first
+`current()` that finds an existing file (`current()` caches, so later calls never reach the disk),
+because `writeFileSync`'s `mode` does nothing to a file that already exists. A restored backup or a
+hand copy is therefore tightened at the first request of the run, not at every read. A file that is
+not EXACTLY 64 hex chars is replaced, never
 trusted. It is read through a GETTER on every request, so a regenerate takes effect with no restart,
 and compared with `timingSafeEqual` over sha256 of both sides (equal lengths without leaking the
 real token's length through a fast reject).
@@ -146,12 +150,30 @@ itself answers 200 without opening a file.
 
 ## Accepted risk (know it before you widen it)
 
-An operator-authored param `pattern` is compiled and run against CALLER input inside the main
-process. A catastrophically backtracking pattern would block main's event loop. It is bounded only
-by `maxLength ≤ 200` being checked FIRST, in `validateArgs`, so the input a bad pattern can chew on
-is short. That is accepted because this is a single-user desktop app and the pattern comes from the
-operator, not the caller — but the ORDER (count → length → regex) is load-bearing, and running a
-pattern against an unbounded value would turn an accepted risk into a real one.
+Three of them in v1. All three are accepted because the token holder is the operator's own
+automation on their own loopback interface — and all three stop being acceptable the moment that
+stops being true.
+
+**ReDoS on an operator-authored `pattern`.** It is compiled and run against CALLER input inside the
+main process, so a catastrophically backtracking pattern would block main's event loop. It is
+bounded only by `maxLength ≤ 200` being checked FIRST, in `validateArgs`, so the input a bad pattern
+can chew on is short. Accepted because the pattern comes from the operator, not the caller — but the
+ORDER (count → length → control chars → regex) is load-bearing, and running a pattern against an
+unbounded value would turn an accepted risk into a real one.
+
+**No rate limit.** A valid token may create sessions as fast as the loop allows. Each create that
+gets past the gates is a real `claude` process and a real card, and nothing throttles or caps them;
+the only backpressure is the 5 s `awaitSessionId`, which makes a flood SLOWER, not smaller. Accepted
+because a token holder could equally drive the app's own UI — the token IS the authority here — but
+a rate limit is the first thing to add if the token ever leaves this machine.
+
+**The `overrides` map grows on every create, 504s included.** `launchSession.ts` registers a spawn
+recipe per `terminalId` and never removes it — deliberately: the recipe is what a Reopen re-spawns
+`claude` from, so `forget()` drops only the correlation tracking and says so. An in-app launch pays
+the same cost, and the map is "bounded by the number of launches in a session"; what the API changes
+is who decides how many launches a session has. A create that 504s is the sharpest case — the caller
+has no id, so it retries, and every retry is another permanent entry — but the growth is not the
+timeout's doing. Fix it with the rate limit above, not by clearing recipes a Reopen still needs.
 
 ## Running it locally
 
