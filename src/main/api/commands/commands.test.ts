@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { sessionsListCommand } from './sessionsList'
 import { sessionsGetCommand } from './sessionsGet'
+import { sessionsCreateCommand } from './sessionsCreate'
+import { sessionsEventsCommand } from './sessionsEvents'
 import { apiCommands } from './index'
 import { makeFakeContext, makeFakeSeam } from '../testSupport'
 import type { ApiSession } from '../../../shared/schemas/api'
@@ -64,8 +66,19 @@ describe('GET /v1/sessions/{id}', () => {
 
 describe('apiCommands', () => {
   it('carries every command exactly once, in document order', () => {
-    expect(apiCommands.map((c) => c.id)).toEqual(['sessions.list', 'sessions.get'])
-    expect(apiCommands).toContain(sessionsListCommand)
-    expect(apiCommands).toContain(sessionsGetCommand)
+    expect(apiCommands.map((c) => c.id)).toEqual([
+      'sessions.create',
+      'sessions.list',
+      'sessions.get',
+      'sessions.events'
+    ])
+    for (const c of [
+      sessionsCreateCommand,
+      sessionsListCommand,
+      sessionsGetCommand,
+      sessionsEventsCommand
+    ]) {
+      expect(apiCommands).toContain(c)
+    }
   })
 })
