@@ -20,4 +20,10 @@ describe('the CH channel registry', () => {
     expect(CH.rulesDelete).toBe('rules:delete')
     expect(CH.rulesMove).toBe('rules:move')
   })
+
+  it('names the programmatic-API channels domain:action', () => {
+    expect(CH.launchRequested).toBe('launch:requested')
+    expect(CH.apiTokenGet).toBe('api:token-get')
+    expect(CH.apiTokenRegenerate).toBe('api:token-regenerate')
+  })
 })

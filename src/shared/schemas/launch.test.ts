@@ -13,7 +13,8 @@ import {
   LaunchCorrelatedSchema,
   SessionSeenSchema,
   SessionSetWorkspaceSchema,
-  SessionLaunchFromTemplateSchema
+  SessionLaunchFromTemplateSchema,
+  LaunchRequestedSchema
 } from './launch'
 import { CH } from '../ipc/contract'
 import type { LaunchCorrelatedEvent } from '../ipc/contract'
@@ -342,5 +343,33 @@ describe('SessionLaunchFromTemplateSchema — the launch-from-template IPC arg',
     expect(
       SessionLaunchFromTemplateSchema.parse({ templateId: 'tpl-1', name: 'api', cwd: '/x' })
     ).toEqual({ templateId: 'tpl-1', name: 'api' })
+  })
+})
+
+describe('LaunchRequestedSchema (main → renderer, validate at source)', () => {
+  it('accepts the three non-empty ids', () => {
+    expect(LaunchRequestedSchema.parse({ terminalId: 't', label: 'n', workspaceId: 'w' })).toEqual({
+      terminalId: 't',
+      label: 'n',
+      workspaceId: 'w'
+    })
+  })
+
+  it('fails closed on a blank field or a missing one', () => {
+    expect(
+      LaunchRequestedSchema.safeParse({ terminalId: '', label: 'n', workspaceId: 'w' }).success
+    ).toBe(false)
+    expect(LaunchRequestedSchema.safeParse({ terminalId: 't', label: 'n' }).success).toBe(false)
+  })
+
+  it('fails closed on an unknown extra key (strict — not merely stripped)', () => {
+    expect(
+      LaunchRequestedSchema.safeParse({
+        terminalId: 't',
+        label: 'n',
+        workspaceId: 'w',
+        sessionId: 's'
+      }).success
+    ).toBe(false)
   })
 })

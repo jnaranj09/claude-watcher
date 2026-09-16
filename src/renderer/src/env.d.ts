@@ -18,6 +18,8 @@ import type {
   SessionPickDirectoryResult,
   SessionLaunchResult,
   LaunchCorrelatedEvent,
+  LaunchRequestedEvent,
+  ApiTokenResult,
   PtyExitEvent,
   SmokeConfig,
   SmokeReport,
@@ -120,6 +122,10 @@ declare global {
       // resolves the template's flags from its own validated store; the renderer sends only
       // the templateId + operator-typed name.
       launchFromTemplate(templateId: string, name: string): Promise<SessionLaunchResult>
+      // Programmatic API — the `launch:requested` push subscription ({ terminalId, label,
+      // workspaceId }). Main registered the recipe; the renderer opens the terminal for the
+      // API-created card exactly as a UI launch does. Returns an unsubscribe fn.
+      onLaunchRequested(cb: (event: LaunchRequestedEvent) => void): () => void
     }
     // Session templates — mirrors src/preload/index.ts `templatesApi`.
     templates: {
@@ -179,6 +185,12 @@ declare global {
     clipboard: {
       readText(): Promise<string>
       writeText(text: string): Promise<void>
+    }
+    // Programmatic API — mirrors src/preload/index.ts `apiApi`. MAIN owns the bearer-token file;
+    // the Settings panel reads it and regenerates it ONLY through this typed bridge.
+    api: {
+      getToken(): Promise<ApiTokenResult>
+      regenerateToken(): Promise<ApiTokenResult>
     }
   }
 }

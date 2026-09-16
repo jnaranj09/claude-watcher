@@ -87,6 +87,13 @@ export const CH = {
   // show/hide of the kept-alive terminals (NO per-switch IPC). This is a SEPARATE channel, NOT a
   // new member of the FROZEN `AttentionEvent` union. See `LaunchCorrelatedEvent` below.
   launchCorrelated: 'launch:correlated',
+  // Programmatic API — `launch:requested` (main → renderer): the API asked for a card. Main has
+  // registered the launch recipe and pushes the terminalId; the renderer opens the terminal
+  // exactly like a UI launch (openLaunchedTerminal), which is what spawns the pty.
+  launchRequested: 'launch:requested',
+  // Programmatic API — the bearer token the Settings panel shows and regenerates.
+  apiTokenGet: 'api:token-get',
+  apiTokenRegenerate: 'api:token-regenerate',
   // Story 3.2 (FR-11) — the native KDE directory picker. An `invoke` that opens the OS
   // `dialog.showOpenDialog({ properties: ['openDirectory'] })` in MAIN and returns the chosen
   // path, or `null` on cancel. The dialog runs in MAIN (it is an OS dialog); the renderer
@@ -687,6 +694,18 @@ export type LaunchCorrelatedEvent = {
   /** The c9watch session id the launch correlated to (the stable UUID; NEVER a pid). */
   sessionId: string
 }
+
+/** Programmatic API — the `launch:requested` push. Validated at source (LaunchRequestedSchema). */
+export type LaunchRequestedEvent = {
+  terminalId: string
+  /** The session name the API caller gave; the Starting banner's label. */
+  label: string
+  /** The workspace main will stamp on the card (the template's, else the active one). */
+  workspaceId: string
+}
+
+/** Programmatic API — `api:token-get` / `api:token-regenerate` return value. */
+export type ApiTokenResult = { token: string }
 
 // ---------------------------------------------------------------------------
 // Story 3.1 (FR-10) — the embedded-terminal lifecycle payload types.

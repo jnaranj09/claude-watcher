@@ -19,6 +19,8 @@ import type {
   SessionSetWorkspaceRequest,
   SessionSeenRequest,
   LaunchCorrelatedEvent,
+  LaunchRequestedEvent,
+  ApiTokenResult,
   TelemetryAcknowledgeRequest,
   QuitGuardPayload,
   Template,
@@ -302,6 +304,13 @@ const launchApi = {
     const listener = (_evt: unknown, event: LaunchCorrelatedEvent): void => cb(event)
     ipcRenderer.on(CH.launchCorrelated, listener)
     return () => ipcRenderer.removeListener(CH.launchCorrelated, listener)
+  },
+  /** Programmatic API — subscribe to `launch:requested` (main asks the renderer to open a
+   *  terminal for an API-created card). Subscribe-returns-unsubscribe, like onCorrelated. */
+  onLaunchRequested(cb: (event: LaunchRequestedEvent) => void): () => void {
+    const listener = (_evt: unknown, event: LaunchRequestedEvent): void => cb(event)
+    ipcRenderer.on(CH.launchRequested, listener)
+    return () => ipcRenderer.removeListener(CH.launchRequested, listener)
   }
 }
 
@@ -476,6 +485,18 @@ const clipboardApi = {
 
 export type ClipboardApi = typeof clipboardApi
 
+// Programmatic API — the token bridge. Main owns the token file; the renderer only shows it.
+const apiApi = {
+  getToken(): Promise<ApiTokenResult> {
+    return ipcRenderer.invoke(CH.apiTokenGet)
+  },
+  regenerateToken(): Promise<ApiTokenResult> {
+    return ipcRenderer.invoke(CH.apiTokenRegenerate)
+  }
+}
+
+export type ApiApi = typeof apiApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -502,6 +523,9 @@ if (process.contextIsolated) {
     // Terminal clipboard feature — the OS clipboard text bridge (clipboard:read-text /
     // clipboard:write-text). The renderer reaches Electron clipboard ONLY via this bridge.
     contextBridge.exposeInMainWorld('clipboard', clipboardApi)
+    // Programmatic API — the bearer-token bridge (api:token-get / api:token-regenerate). Main
+    // owns the token file; the Settings panel only reads and regenerates it through here.
+    contextBridge.exposeInMainWorld('api', apiApi)
   } catch (error) {
     console.error(error)
   }
@@ -538,4 +562,6 @@ if (process.contextIsolated) {
   window.tags = tagsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.rules is in index.d.ts
   window.rules = rulesApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.api is in index.d.ts
+  window.api = apiApi
 }

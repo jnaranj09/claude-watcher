@@ -12,7 +12,8 @@ import type {
   RulesApi,
   TelemetryApi,
   QuitApi,
-  ClipboardApi
+  ClipboardApi,
+  ApiApi
 } from './index'
 
 declare global {
@@ -45,5 +46,7 @@ declare global {
     // Terminal clipboard feature — OS clipboard text bridge (read-text / write-text via MAIN).
     // Power stays in MAIN (Electron clipboard module; renderer never touches OS clipboard directly).
     clipboard: ClipboardApi
+    // Programmatic API — the bearer-token bridge (getToken / regenerateToken via CH.apiToken*).
+    api: ApiApi
   }
 }
