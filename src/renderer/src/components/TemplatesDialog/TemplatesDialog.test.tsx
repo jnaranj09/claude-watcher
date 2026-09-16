@@ -359,6 +359,25 @@ describe('TemplatesDialog', () => {
     typeArea('Work on $1')
     expect(r.container.querySelectorAll('[data-testid="template-param-row"]')).toHaveLength(1)
   })
+  it('a gapped prompt says which number is missing, right where Save is disabled', async () => {
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'tickets')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    act(() => {
+      setter?.call(prompt, 'Do $1 $3')
+      prompt.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(q(r, '[data-testid="template-hint"]').textContent).toBe(
+      'The prompt uses $3 but not $2. Number the placeholders from $1 with no gaps.'
+    )
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
+  })
   it('saves the prompt and its params; Save stays disabled until every row is filled', async () => {
     const { r } = render()
     type(q(r, '[data-testid="template-name"]'), 'tickets')

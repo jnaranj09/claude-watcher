@@ -295,6 +295,28 @@ describe('templateForm — initial prompt and params', () => {
       error: 'The prompt must not start with “-” and must not use $*.'
     })
   })
+  // Review round 1, Important — a GAP used to dead-end the operator: the form drew rows for
+  // `$1`/`$2` (the COUNT, not the numbers used) while the prompt said `$1`/`$3`, and the only
+  // refusal came from the schema's continuity refine, whose issue path is `initialPrompt` — so
+  // the hint read the length/control-character sentence and named nothing. The form names the
+  // missing number itself now. Dropping the gap loop turns this red.
+  it('a prompt that skips a number says which one is missing', () => {
+    const base = { ...emptyDraft(), name: 'n', cwd: '/w' }
+    expect(validateDraft({ ...base, initialPrompt: 'Do $1 $3' })).toEqual({
+      ok: false,
+      error: 'The prompt uses $3 but not $2. Number the placeholders from $1 with no gaps.'
+    })
+    expect(validateDraft({ ...base, initialPrompt: 'Do $2' })).toEqual({
+      ok: false,
+      error: 'The prompt uses $2 but not $1. Number the placeholders from $1 with no gaps.'
+    })
+    const rows = [
+      { label: 'A', pattern: 'x', maxLength: '10' },
+      { label: 'B', pattern: 'y', maxLength: '10' }
+    ]
+    const ok = validateDraft({ ...base, initialPrompt: 'Do $1 $2', params: rows })
+    expect(ok.ok && ok.request.initialPrompt).toBe('Do $1 $2')
+  })
   it('toDraft round-trips prompt and params as strings', () => {
     const d = toDraft({
       id: 'a',

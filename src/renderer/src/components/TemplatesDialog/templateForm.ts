@@ -69,10 +69,10 @@ export const EFFORT_LABELS: Record<EffortLevel, string> = {
   max: 'Max'
 }
 
-/** Programmatic API — ONE sentence for the four ways `InitialPromptSchema` refuses a prompt
- *  (blank, a control character, a leading `-`, a `$n` gap). The dialog has one error line, so
- *  the shape rules the form checks itself get their own sentence (PROMPT_SHAPE_ERROR) and this
- *  one covers what only the schema sees. */
+/** Programmatic API — the LAST-RESORT sentence for a prompt `InitialPromptSchema` refuses. The
+ *  form checks the three shape rules it can name itself (leading `-`, `$*`, a `$n` gap), so what
+ *  reaches this copy is a control character or the length cap — the two the sentence spells out.
+ *  It is also what `prompt_invalid` from main maps to, where the path is all we get. */
 const PROMPT_ERROR =
   'The prompt is 1–2000 characters, newlines allowed, no other control characters.'
 const PARAMS_ERROR = 'Each $n in the prompt needs one parameter row.'
@@ -156,8 +156,8 @@ export function toDraft(template: Template): TemplateDraft {
   }
 }
 
-/** The two prompt-shape rules the FORM checks itself, so the operator gets the reason instead of
- *  the schema's one-size sentence. */
+/** The prompt-shape rules the FORM checks itself, so the operator gets the reason instead of the
+ *  schema's one-size sentence. (The gap message names the number, so it is built inline.) */
 const PROMPT_SHAPE_ERROR = 'The prompt must not start with “-” and must not use $*.'
 
 export type DraftValidation =
@@ -177,12 +177,24 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
         ? draft.customModel.trim()
         : draft.modelChoice
   // Programmatic API — a blank box is NO prompt (null), never an empty string the schema would
-  // refuse. The two shape rules the form can explain itself are checked here, before the rows:
-  // a leading `-` would reach claude as a flag, and `$*` is an unconstrained rest with no rule
-  // to validate it against.
+  // refuse. Every prompt-shape rule the form can explain itself is checked here, before the
+  // rows: a leading `-` would reach claude as a flag, `$*` is an unconstrained rest with no rule
+  // to validate it against, and a GAP (`$1 $3`) is a dead end — the rows are drawn by COUNT, so
+  // the form would offer `$1`/`$2` for a prompt that says `$1`/`$3`, and the only refusal left
+  // would be the schema's continuity refine, whose issue path is `initialPrompt` (i.e. the
+  // length/control-character sentence, naming nothing). Say which number is missing instead.
   const prompt = draft.initialPrompt.trim().length === 0 ? null : draft.initialPrompt
-  if (prompt !== null && (prompt.startsWith('-') || scanPlaceholders(prompt).rest)) {
-    return { ok: false, error: PROMPT_SHAPE_ERROR }
+  const scan = prompt === null ? null : scanPlaceholders(prompt)
+  if (prompt !== null && scan !== null) {
+    if (prompt.startsWith('-') || scan.rest) return { ok: false, error: PROMPT_SHAPE_ERROR }
+    for (let n = 1; n <= scan.numbers.size; n++) {
+      if (scan.numbers.has(n)) continue
+      const highest = Math.max(...scan.numbers)
+      return {
+        ok: false,
+        error: `The prompt uses $${highest} but not $${n}. Number the placeholders from $1 with no gaps.`
+      }
+    }
   }
   const params: TemplateParam[] = []
   if (prompt !== null) {
