@@ -9,12 +9,14 @@
 //
 // The fakes are DUMB on purpose: they hold arrays and hand them back. A command test that has to
 // teach its double how to behave is testing the double.
+import { request as httpRequest } from 'node:http'
 import type { ApiSession } from '../../shared/schemas/api'
 import type { Template } from '../../shared/schemas/template'
 import type { Workspace } from '../../shared/schemas/workspace'
 import type { LaunchRequest } from '../pty/launchSession'
-import type { ApiContext } from './registry'
+import type { AnyApiCommand, ApiContext } from './registry'
 import { createApiEventHub, type ApiSeam, type ApiSessionEvent } from './apiSeam'
+import { createApiServer, type ApiServer, type ApiServerOptions } from './apiServer'
 
 export interface FakeSeam extends ApiSeam {
   sessions: ApiSession[]
@@ -96,4 +98,95 @@ export function makeFakeContext(over: Partial<FakeContextSeed> = {}): {
     log: (m) => log.push(m)
   }
   return { ctx, seam, log }
+}
+
+/** The bearer every test sends. 64 hex-ish chars, the shape `apiToken.ts` mints. */
+export const TEST_TOKEN = 'a'.repeat(64)
+
+export interface TestServerOverrides {
+  token?: string
+  log?: (m: string) => void
+  maxStreams?: number
+  pingMs?: number
+  publicRoutes?: ApiServerOptions['publicRoutes']
+}
+
+/**
+ * Start the REAL `createApiServer` on an ephemeral port (127.0.0.1), resolving once it is
+ * listening. Every server test drives the production listener — not a hand-copied handler — so
+ * reverting a guard in `apiServer.ts` turns a test red.
+ */
+export function startTestServer(
+  commands: readonly AnyApiCommand[],
+  ctx: ApiContext,
+  over: TestServerOverrides = {}
+): Promise<{ server: ApiServer; url: string }> {
+  return new Promise((resolve) => {
+    const server = createApiServer({
+      commands,
+      context: ctx,
+      // A GETTER, like production: a regenerate between two requests must be picked up by the
+      // second one without restarting the server.
+      token: () => over.token ?? TEST_TOKEN,
+      port: 0,
+      host: '127.0.0.1',
+      log: over.log ?? ((): void => {}),
+      ...(over.maxStreams !== undefined ? { maxStreams: over.maxStreams } : {}),
+      ...(over.pingMs !== undefined ? { pingMs: over.pingMs } : {}),
+      ...(over.publicRoutes !== undefined ? { publicRoutes: over.publicRoutes } : {}),
+      onListening: (port) => resolve({ server, url: `http://127.0.0.1:${port}` })
+    })
+  })
+}
+
+export interface Reply {
+  status: number
+  headers: Record<string, string | string[] | undefined>
+  text: string
+}
+
+export interface CallOptions {
+  body?: string
+  /** `undefined` ⇒ TEST_TOKEN; `null` ⇒ send no Authorization header at all. */
+  token?: string | null
+  rawBody?: Buffer
+  /** Sets `Authorization` VERBATIM, overriding the bearer built from `token`. The only way to
+   *  send another SCHEME — which is a branch of `bearerOk` a wrong token never reaches. */
+  rawAuthorization?: string
+}
+
+/** One request, resolved once the response has ENDED. Never use it on an SSE route: a stream
+ *  does not end (the SSE tests read the socket directly). */
+export function call(
+  url: string,
+  method: string,
+  path: string,
+  opts: CallOptions = {}
+): Promise<Reply> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    const headers: Record<string, string | number> = { 'content-type': 'application/json' }
+    const token = opts.token === undefined ? TEST_TOKEN : opts.token
+    if (token !== null) headers['authorization'] = `Bearer ${token}`
+    if (opts.rawAuthorization !== undefined) headers['authorization'] = opts.rawAuthorization
+    const payload = opts.rawBody ?? (opts.body !== undefined ? Buffer.from(opts.body) : undefined)
+    if (payload !== undefined) headers['content-length'] = payload.length
+    const req = httpRequest(
+      { hostname: u.hostname, port: Number(u.port), path, method, headers },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers,
+            text: Buffer.concat(chunks).toString('utf8')
+          })
+        )
+      }
+    )
+    req.on('error', reject)
+    if (payload !== undefined) req.write(payload)
+    req.end()
+  })
 }
