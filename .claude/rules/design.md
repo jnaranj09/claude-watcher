@@ -76,7 +76,11 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
   a centred panel taller than the window overflowed BOTH edges: the Templates form's API fields put
   Save at `rect.bottom` 747 against a 700px window, unclickable. A form that has grown past the cap
   is a form to shorten, not a reason to grow the panel. (`ManageDialog.styles.test.ts` pins all
-  three declarations; the Select popups inside a scrolled form scroll with it.)
+  three declarations; the Select popups inside a scrolled form scroll with it.) **`overflow-y: auto`
+  makes `overflow-x` compute to `auto` too, so the form clips on EVERY side**: it carries
+  `padding-left` AND `padding-right` (`--space-2`) plus `scroll-padding-block`, or the 3px
+  `:focus-visible` ring is cut off every full-width field in it. Any new scroll region owes the same
+  buffer.
 - **One error line per dialog**, `role="alert"`, shared by every flow in it. Never a
   second error surface per section, and never render a thrown `error.message` — map the
   code to operator copy first (see the `copyFor`/`templateErrorMessage` precedent).

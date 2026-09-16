@@ -147,6 +147,17 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.form')).toMatch(/overflow-y:\s*auto/)
   })
 
+  // `overflow-y: auto` makes overflow-x compute to `auto` too, so the form clips at its padding box
+  // on EVERY side — not just the one it scrolls. A field flush with that edge loses its
+  // `outline: 2px` + `outline-offset: 1px` focus ring (3px) to the clip. Both buffers, or the ring
+  // is cut on one side of every full-width field in the form: measured `left: 0` on
+  // `template-name` and `template-prompt` with `padding: 0px 8px 0px 0px`.
+  it('buffers the focus ring on BOTH horizontal edges of its clip box', () => {
+    const form = ruleBody(css, '.form')
+    expect(form).toMatch(/padding-left:\s*var\(--space-2\)/)
+    expect(form).toMatch(/padding-right:\s*var\(--space-2\)/)
+  })
+
   it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
     expect(ruleBody(css, '.rows')).toMatch(/overflow-y:\s*auto/)
     expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*360px/)

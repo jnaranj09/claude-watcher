@@ -193,15 +193,24 @@
    (with ✕) and the rail keep their own heights, so `.rows` still scrolls itself and `+ New` still
    sits at the bottom of the rail. The `[Delete] [Save]` footer scrolls WITH the form on purpose: a
    sticky footer would have to paint over the field under it, and the operator reads the object they
-   are about to save right above the button that saves it (design.md). `padding-right` keeps the
-   scrollbar off the fields' focus rings. */
+   are about to save right above the button that saves it (design.md).
+
+   The padding is NOT decoration: `overflow-y: auto` makes overflow-x compute to `auto` as well, so
+   this box clips at its padding edge on EVERY side, not only the one it scrolls. A field flush with
+   that edge loses its `outline: 2px` + `outline-offset: 1px` ring (3px) to the clip — with
+   `padding-right` alone, every full-width field in the form (TextInput, Select, TextArea) sat at
+   left 0 and had its ring cut down the left side. So both sides get the same buffer, and
+   `scroll-padding-block` gives the same 8px to a field the browser scrolls into view on Tab, which
+   would otherwise align its border box with the top or bottom edge and clip the ring there. */
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-height: 0;
   overflow-y: auto;
+  padding-left: var(--space-2);
   padding-right: var(--space-2);
+  scroll-padding-block: var(--space-2);
 }
 .label {
   font-size: var(--font-size-label);
