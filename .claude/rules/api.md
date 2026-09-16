@@ -185,6 +185,14 @@ the operator's machine 9280 belongs to `kubectl-radar`, a daemon they use every 
 ours to move. A drive scenario should still set its own port through Settings rather than assume the
 default is free.
 
+**claude's own folder-trust gate can park an API create.** On a folder it has never seen, claude
+opens on "Is this a project you trust?" and reads no prompt until someone answers it in the
+terminal. The create still returns 201 (the pty spawned and the id was minted); the card just sits in
+`Connecting` and the expanded prompt is never submitted. No HTTP caller can answer that dialog, so a
+template an automation points at must name a folder the operator has already opened in claude once.
+Seen 2026-09-16 on claude 2.1.273 in the drive run, on a `mkdtemp` folder. This is claude's
+behaviour, not the app's; the drive scenario answers the gate from the terminal before it waits.
+
 ## Don't
 
 - **Don't let a caller send prose.** A create takes a template id and a list of arg VALUES; the
