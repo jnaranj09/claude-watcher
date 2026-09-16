@@ -104,8 +104,14 @@ export function createDocsRoutes(opts: {
     }
     if (path.startsWith('/docs/')) {
       const name = path.slice('/docs/'.length)
+      // `Object.hasOwn`, never a bare lookup: `FILES` is an object, so `FILES['constructor']`
+      // (and `__proto__`, `toString`, …) resolves through the PROTOTYPE and is not `undefined`.
+      // A `=== undefined` membership test therefore let `/docs/constructor` through to
+      // `readFileSync`, which ENOENTs and logs `docs_read_failed` — on a route that needs NO
+      // token, so an unauthenticated caller could fill the operator's journal with it.
+      if (!Object.hasOwn(FILES, name) || opts.swaggerDistDir === null) return notFound
       const contentType = FILES[name]
-      if (contentType === undefined || opts.swaggerDistDir === null) return notFound
+      if (contentType === undefined) return notFound
       let body = cache.get(name)
       if (body === undefined) {
         try {

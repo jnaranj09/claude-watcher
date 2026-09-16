@@ -69,6 +69,27 @@ describe('docs routes', () => {
     )
   })
 
+  it('a prototype key is not an allow-listed name — 404, and NOTHING is read', async () => {
+    // `FILES` is an object, so `FILES['constructor']` is `Object.prototype.constructor` — not
+    // `undefined`. A plain `=== undefined` check therefore let `/docs/constructor`,
+    // `/docs/__proto__` and `/docs/toString` through to `readFileSync`, which ENOENTs and logs
+    // `docs_read_failed` — on a route that needs NO token, so an unauthenticated caller could
+    // fill the journal with it. The membership test must be an OWN-property one.
+    const lines: string[] = []
+    const routes = createDocsRoutes({
+      openapi: () => ({}),
+      swaggerDistDir: resolveSwaggerDistDir(),
+      log: (m) => lines.push(m)
+    })
+    const { ctx } = makeFakeContext()
+    const s = await startTestServer([], ctx, { publicRoutes: routes })
+    server = s.server
+    for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+      expect((await call(s.url, 'GET', `/docs/${name}`, { token: null })).status).toBe(404)
+    }
+    expect(lines).toEqual([])
+  })
+
   it('answers nothing for a non-GET, so /docs is never a write surface', async () => {
     const routes = createDocsRoutes({
       openapi: () => ({}),
