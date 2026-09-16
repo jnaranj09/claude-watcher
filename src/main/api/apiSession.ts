@@ -10,6 +10,14 @@
 // A session with no column yet projects to NULL rather than to a guessed position: the tracker
 // places a session, and a card at an invented column with an invented `enteredColumnAt` would
 // sort wrong on the client's board for as long as it lived.
+//
+// Both failures return null, but they are NOT the same event and a caller holding the null cannot
+// tell them apart — which is why the log lives here. "Not placed in a column yet" is benign and
+// transient (it happens on every launch, and the next delta fixes it), so it is SILENT: logging it
+// would bury the other one. A strict-parse rejection is the DRIFT the schema exists to catch — a
+// session that no longer fits the shape the wire promises — so it logs a `code=` and nothing else:
+// the rejected input carries a `projectPath` and a session name, and a ZodError stringifies its
+// input, so neither the error nor the issue path may be logged.
 // [src/shared/schemas/api.ts (why strict); .claude/rules/zod-boundaries.md]
 import type { Column, SessionUpdatedEvent } from '../../shared/ipc/contract'
 import type { Session } from '../../shared/schemas/session'
@@ -21,10 +29,18 @@ export interface ApiSessionSource {
   enteredColumnAt(id: string): number | undefined
 }
 
+/** The one fixed line either projection logs. No path, no value — see the file header. */
+const PROJECTION_FAILED = '[claude-watcher][api] code=session_projection_failed'
+
 /** STATE ONLY: no pendingToolInput / latestMessage / firstPrompt / pid. Null until the tracker
- *  has placed the session in a column. Validated with the strict schema so a new Session field
- *  can never leak by accident. */
-export function projectApiSession(session: Session, source: ApiSessionSource): ApiSession | null {
+ *  has placed the session in a column (silent), or when the strict parse rejects the session
+ *  (logged by code). Validated with the strict schema so a new Session field can never leak by
+ *  accident. `log` is optional so a caller that only wants the value need not pass one. */
+export function projectApiSession(
+  session: Session,
+  source: ApiSessionSource,
+  log?: (line: string) => void
+): ApiSession | null {
   const column = source.columnOf(session.id)
   const enteredColumnAt = source.enteredColumnAt(session.id)
   if (column === undefined || enteredColumnAt === undefined) return null
@@ -42,12 +58,20 @@ export function projectApiSession(session: Session, source: ApiSessionSource): A
     // strict schema.
     ...(session.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {})
   })
-  return r.success ? r.data : null
+  if (!r.success) {
+    log?.(PROJECTION_FAILED)
+    return null
+  }
+  return r.data
 }
 
 /** The same projection from an already-enriched delta: the event carries the tracker's column
- *  and `enteredColumnAt` itself, so no source is needed. */
-export function projectApiSessionFromEvent(event: SessionUpdatedEvent): ApiSession | null {
+ *  and `enteredColumnAt` itself, so no source is needed — which means its ONLY null is the
+ *  strict-parse rejection, and it is always logged. */
+export function projectApiSessionFromEvent(
+  event: SessionUpdatedEvent,
+  log?: (line: string) => void
+): ApiSession | null {
   const r = ApiSessionSchema.safeParse({
     id: event.id,
     sessionName: event.sessionName,
@@ -59,5 +83,9 @@ export function projectApiSessionFromEvent(event: SessionUpdatedEvent): ApiSessi
     projectPath: event.projectPath,
     ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
   })
-  return r.success ? r.data : null
+  if (!r.success) {
+    log?.(PROJECTION_FAILED)
+    return null
+  }
+  return r.data
 }

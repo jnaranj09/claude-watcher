@@ -5,7 +5,12 @@
 // happens, so these tests pin (a) that the content fields do not ride out, (b) that the pending
 // tool's NAME (state) does, and (c) that a session the tracker has not placed in a column yet
 // projects to null rather than to a card with an invented position.
-import { describe, it, expect } from 'vitest'
+//
+// They also pin the difference between the TWO nulls. "Not placed in a column yet" is benign and
+// transient — it happens on every launch — and is SILENT. "The strict parse rejected it" is the
+// drift the schema exists to catch, and is logged by CODE. A caller holding the null cannot tell
+// them apart, which is why the log lives in the projection and not upstream.
+import { describe, it, expect, vi } from 'vitest'
 import { projectApiSession, projectApiSessionFromEvent } from './apiSession'
 import type { Session } from '../../shared/schemas/session'
 
@@ -51,6 +56,21 @@ describe('projectApiSession', () => {
       })
     ).toBeNull()
   })
+
+  it('logs a code when the strict parse rejects the session, and returns null', () => {
+    const log = vi.fn()
+    // A blank workspaceId fails `z.string().min(1)` — session truth that drifted out of the
+    // shape the wire promises.
+    expect(projectApiSession({ ...session, workspaceId: '' }, source, log)).toBeNull()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith('[claude-watcher][api] code=session_projection_failed')
+  })
+
+  it('stays silent when the null is only "not placed in a column yet"', () => {
+    const log = vi.fn()
+    projectApiSession(session, { columnOf: () => undefined, enteredColumnAt: () => undefined }, log)
+    expect(log).not.toHaveBeenCalled()
+  })
 })
 
 describe('projectApiSessionFromEvent', () => {
@@ -78,5 +98,28 @@ describe('projectApiSessionFromEvent', () => {
       tagIds: [],
       projectPath: '/w'
     })
+  })
+
+  it('logs a code when the strict parse rejects the event, and returns null', () => {
+    const log = vi.fn()
+    expect(
+      projectApiSessionFromEvent(
+        {
+          type: 'session.updated',
+          id: 's1',
+          sessionName: 'HT-1',
+          projectPath: '/w',
+          status: 'Working',
+          column: 'working',
+          enteredColumnAt: 42,
+          pid: 1,
+          workspaceId: '',
+          tagIds: []
+        },
+        log
+      )
+    ).toBeNull()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith('[claude-watcher][api] code=session_projection_failed')
   })
 })
