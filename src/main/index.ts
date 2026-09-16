@@ -1125,10 +1125,21 @@ function registerPtyIpc(): void {
   ipcMain.on(CH.smokeReport, async (evt, report: SmokeReport) => {
     const term = ptys.get(evt.sender)
     // Programmatic API — the packaged-docs check. The listener was forced up on an ephemeral
-    // port at app-ready (SMOKE), so a 200 from both routes proves `swagger-ui-dist` resolves and
-    // the document builds from INSIDE the packaged asar, not just in dev.
+    // port at app-ready (SMOKE), so a 200 from these routes proves the docs serve from INSIDE
+    // the packaged asar, not just in dev.
+    //
+    // THREE routes, because they fail for three different reasons: `/openapi.json` builds the
+    // document, `/docs` only proves `swagger-ui-dist` RESOLVES (it answers 200 the moment
+    // `swaggerDistDir !== null` and reads nothing), and the ASSET is the only one that opens a
+    // packaged file — the case the electron-builder `files` negations could trim without
+    // anything else noticing.
     const port = apiLifecycle?.port() ?? null
-    let api: { docs: number; openapi: number; pass: boolean } = { docs: 0, openapi: 0, pass: false }
+    let api: { docs: number; openapi: number; asset: number; pass: boolean } = {
+      docs: 0,
+      openapi: 0,
+      asset: 0,
+      pass: false
+    }
     if (port !== null) {
       // TIMEBOXED. This runs inside the verdict path: the handler writes the verdict file and
       // then app.exit()s, and the runner's failure mode for a missing verdict file is exit 3.
@@ -1145,7 +1156,10 @@ function registerPtyIpc(): void {
       }
       const docs = await status('/docs')
       const openapi = await status('/openapi.json')
-      api = { docs, openapi, pass: docs === 200 && openapi === 200 }
+      // One of the three allow-listed names — the bundle, the biggest of them. A 404 here is a
+      // packaged read that failed (`code=docs_read_failed`), not a routing miss.
+      const asset = await status('/docs/swagger-ui-bundle.js')
+      api = { docs, openapi, asset, pass: docs === 200 && openapi === 200 && asset === 200 }
     }
     const full = {
       ...report,
