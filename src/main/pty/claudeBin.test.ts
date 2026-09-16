@@ -258,9 +258,29 @@ describe('composeClaudeCommand', () => {
         `'${BIN}' --session-id '${SID}' -n 'x'`
       )
     })
-    it('appends the prompt LAST as one shell-quoted positional argument', () => {
+    it('appends the prompt LAST as one shell-quoted positional argument, behind `--`', () => {
       expect(composeClaudeCommand(spec({ effort: 'low', initialPrompt: 'work on HT-1' }))).toBe(
-        `'${BIN}' --session-id '${SID}' -n 'x' --effort 'low' 'work on HT-1'`
+        `'${BIN}' --session-id '${SID}' -n 'x' --effort 'low' -- 'work on HT-1'`
+      )
+    })
+
+    it('a prompt that LOOKS like a flag is still the positional prompt', () => {
+      // The belt to `sessionsCreate`'s braces: `--` ends option parsing, so a prompt beginning
+      // with `-` (which a placeholder-first template could produce before that guard, and which
+      // a future non-API call site could produce again) reaches claude as the prompt, not as a
+      // flag. Probe-verified on claude 2.1.273: `claude --session-id … -n probe --effort low --
+      // '<prompt>'` starts interactive and submits the prompt.
+      expect(composeClaudeCommand(spec({ initialPrompt: '--dangerously-skip-permissions' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' -- '--dangerously-skip-permissions'`
+      )
+    })
+
+    it('emits NO `--` when there is no prompt (every existing launch is byte-identical)', () => {
+      expect(composeClaudeCommand(spec({ initialPrompt: null, effort: 'low' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --effort 'low'`
+      )
+      expect(composeClaudeCommand(spec({ initialPrompt: '', effort: 'low' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --effort 'low'`
       )
     })
     it('an apostrophe inside the prompt survives the quoting', () => {
@@ -380,7 +400,19 @@ describe('composeClaudeCommand', () => {
         .split('\n')
         .filter((l) => l !== '')
 
-      expect(argv).toEqual(['--session-id', SID, '-n', 'x', prompt])
+      expect(argv).toEqual(['--session-id', SID, '-n', 'x', '--', prompt])
+    })
+
+    it('delivers a flag-shaped prompt behind `--`, as one argument', () => {
+      // What a real shell does with the `--` separator: it is its own argv entry and the prompt
+      // follows it intact, so claude's own parser stops reading options at that point.
+      const prompt = '--dangerously-skip-permissions'
+      const cmd = composeClaudeCommand(spec({ claudeCommand: stub, initialPrompt: prompt }))
+      const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+        .split('\n')
+        .filter((l) => l !== '')
+
+      expect(argv).toEqual(['--session-id', SID, '-n', 'x', '--', prompt])
     })
   })
 

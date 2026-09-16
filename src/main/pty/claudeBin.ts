@@ -156,10 +156,11 @@ export interface ClaudeCommandSpec {
    *  is what the version gate is for. */
   effort: EffortLevel | null
   /** Programmatic API: the template's initial prompt with its params filled, or null. Appended
-   *  LAST as the positional `[prompt]` argument — seen in `claude --help` on 2.1.272, probed
-   *  end-to-end on 2.1.273 (an interactive session submitted the prompt with `--session-id` /
-   *  `-n` / `--effort` present) — so claude starts interactive AND submits it. `null` / ''
-   *  appends nothing, so every existing command composes byte-identical. Shell-quoted: the
+   *  LAST as the positional `[prompt]` argument, behind an END-OF-OPTIONS `--` — seen in
+   *  `claude --help` on 2.1.272, probed end-to-end on 2.1.273 (`claude --session-id … -n probe
+   *  --effort low -- '<prompt>'` started interactive and SUBMITTED the prompt: it answered
+   *  PONG), so claude's parser honours `--`. `null` / '' appends nothing — no `--` either — so
+   *  every existing command composes byte-identical. Shell-quoted: the
    *  template's prose is written in-app by a human, but the `$n` params filled into it come
    *  from an HTTP caller (regex- and length-constrained upstream), so the composed value is
    *  PARTLY caller-supplied and this quoting is the last line of defence. */
@@ -217,8 +218,15 @@ function flagArg(flag: string, value: string | null): string {
  *
  * `initialPrompt` (programmatic API) is NOT a flag: it is claude's positional `[prompt]`
  * argument, so it goes after every flag — `claude [options] [prompt]` — and claude starts
- * interactive AND submits it. Same REQUIRED-and-nullable contract; `null` (or '') appends
- * nothing, so every launch that does not carry a prompt composes byte-identically to before.
+ * interactive AND submits it. It is preceded by a bare `--`, the END-OF-OPTIONS marker, WHENEVER
+ * a prompt is present: the expansion is partly caller-supplied, and a value that lands at the
+ * FRONT of a placeholder-first template (`$1`) would otherwise reach claude's parser as an
+ * option (`--dangerously-skip-permissions`). `sessionsCreate.ts` refuses such an expansion with
+ * a 400 as well — two guards, because that one is the API's own posture while this one protects
+ * every call site that ever composes a prompt. Probe-verified on claude 2.1.273: with `--`
+ * present the prompt is still submitted. Same REQUIRED-and-nullable contract; `null` (or '')
+ * appends nothing — not the prompt and not the `--` — so every launch that does not carry a
+ * prompt composes byte-identically to before.
  * Shell-quoted for the same reason as `displayName`, only more so: the template's prose is
  * written in-app by a human, but the `$n` params filled into it are supplied by an HTTP caller
  * (regex- and length-constrained upstream), so the composed value is PARTLY caller-supplied and
@@ -227,7 +235,7 @@ function flagArg(flag: string, value: string | null): string {
 export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
   const prompt =
     spec.initialPrompt !== null && spec.initialPrompt.length > 0
-      ? ` ${shellQuote(spec.initialPrompt)}`
+      ? ` -- ${shellQuote(spec.initialPrompt)}`
       : ''
   return (
     `${shellQuote(spec.claudeCommand)} --session-id '${spec.sessionId}'` +
