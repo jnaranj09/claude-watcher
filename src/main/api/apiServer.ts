@@ -288,6 +288,9 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
     }
     const input = { params: parsedParams.data, query: parsedQuery.data, body: parsedBody.data }
 
+    // HOISTED out of the try on purpose: the catch below has to know whether a stream was already
+    // started, and the sink is the only thing that can end it. Null for every non-stream command.
+    let streamSink: SseSink | null = null
     try {
       // DISPATCH POLICY, stated once so an oddly-shaped command has exactly one answer:
       //   - `stream` WINS whenever it is present. A command declaring BOTH is served as SSE.
@@ -302,6 +305,7 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
           return
         }
         const sink = makeSink(res)
+        streamSink = sink
         const err = await command.stream(options.context, input, sink)
         if (err !== null) {
           if (res.headersSent) {
@@ -345,6 +349,18 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
     } catch {
       // The thrown value is DROPPED, never logged: an Error from a handler can carry a session
       // name, a path, or whatever the seam put in its message.
+      //
+      // A stream that THREW after `sink.start()` is the same containment case as the late-ApiErr
+      // branch above, reached through a different door: the headers are out, so `writeError`
+      // would append `{"error":…}` to the SSE body (unparseable to a client) AND leave the sink's
+      // `ended` flag false — so its ping interval would keep calling `res.write()` on a finished
+      // response, raising ERR_STREAM_WRITE_AFTER_END as an uncaught exception in Electron main,
+      // and the stream slot would never be freed. End the stream cleanly instead.
+      if (streamSink !== null && res.headersSent) {
+        log(`[claude-watcher][api] code=stream_threw_after_start route=${command.id}`)
+        streamSink.end()
+        return
+      }
       log(`[claude-watcher][api] code=handler_threw route=${command.id}`)
       if (!res.writableEnded) writeError(res, 500, 'internal')
     }

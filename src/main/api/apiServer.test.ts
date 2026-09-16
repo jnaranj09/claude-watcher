@@ -124,6 +124,44 @@ const lateError = defineCommand({
   }
 })
 
+/** Breaks the contract the other way: starts the stream, sends a frame, and then THROWS. The
+ *  throw lands in dispatch's outer catch, which has no response left to put JSON in — and a sink
+ *  it never ends keeps a ping interval writing to a finished response. */
+const lateThrow = defineCommand({
+  id: 'test.lateThrow',
+  method: 'GET',
+  path: '/v1/late-throw',
+  summary: 'lt',
+  params: EmptySchema,
+  query: EmptySchema,
+  body: null,
+  output: 'text/event-stream',
+  successStatus: 200,
+  errorStatuses: [],
+  async stream(_ctx, _input, sink) {
+    sink.start()
+    sink.send('hello', { n: 1 }, 1)
+    throw new Error('SECRET VALUE')
+  }
+})
+
+/** Throws BEFORE `start()` — nothing has been written, so this one still owes a JSON 500. */
+const earlyThrow = defineCommand({
+  id: 'test.earlyThrow',
+  method: 'GET',
+  path: '/v1/early-throw',
+  summary: 'et',
+  params: EmptySchema,
+  query: EmptySchema,
+  body: null,
+  output: 'text/event-stream',
+  successStatus: 200,
+  errorStatuses: [],
+  async stream() {
+    throw new Error('SECRET VALUE')
+  }
+})
+
 /** The sink is already ended when the command registers its cleanup (a fast disconnect). */
 const closeRan = { early: false }
 const earlyClose = defineCommand({
@@ -427,6 +465,51 @@ describe('createApiServer', () => {
     } finally {
       process.off('uncaughtException', uncaught)
     }
+  })
+
+  it('contains a stream that THROWS after start: no JSON appended, sink ended, no leaked ping', async () => {
+    const log = vi.fn()
+    const uncaught = vi.fn()
+    process.on('uncaughtException', uncaught)
+    try {
+      const { ctx } = makeFakeContext()
+      // Short pings so several would fire inside the wait below if the sink were left open.
+      const s = await startTestServer([lateThrow], ctx, { log, pingMs: 5 })
+      server = s.server
+      const r = await call(s.url, 'GET', '/v1/late-throw')
+      expect(r.status).toBe(200)
+      expect(r.headers['content-type']).toBe('text/event-stream')
+      // The stream simply ENDS. `{"error":…}` appended to an SSE body is unparseable to a client,
+      // and the thrown value is dropped, never logged.
+      expect(r.text).toBe('id: 1\nevent: hello\ndata: {"n":1}\n\n')
+      expect(r.text).not.toContain('SECRET VALUE')
+      expect(log).toHaveBeenCalledWith(
+        '[claude-watcher][api] code=stream_threw_after_start route=test.lateThrow'
+      )
+      expect(String(log.mock.calls)).not.toContain('SECRET VALUE')
+      expect(s.server.streams()).toBe(0)
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      expect(uncaught).not.toHaveBeenCalled()
+      expect(String(log.mock.calls)).not.toContain('response_error')
+    } finally {
+      process.off('uncaughtException', uncaught)
+    }
+  })
+
+  it('a stream that throws BEFORE start still answers a value-free JSON 500', async () => {
+    const log = vi.fn()
+    const { ctx } = makeFakeContext()
+    const s = await startTestServer([earlyThrow], ctx, { log })
+    server = s.server
+    const r = await call(s.url, 'GET', '/v1/early-throw')
+    expect(r.status).toBe(500)
+    expect(JSON.parse(r.text)).toEqual({ error: { code: 'internal' } })
+    expect(r.text).not.toContain('SECRET VALUE')
+    expect(String(log.mock.calls)).not.toContain('SECRET VALUE')
+    expect(log).toHaveBeenCalledWith(
+      '[claude-watcher][api] code=handler_threw route=test.earlyThrow'
+    )
+    expect(s.server.streams()).toBe(0)
   })
 
   it('keeps an idle stream alive with `: ping` comments at pingMs', async () => {
