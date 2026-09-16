@@ -1,10 +1,13 @@
 // Session templates — PURE helpers behind TemplateForm.tsx: the editable draft, its validation
 // into a TemplateSaveRequest, dirtiness, and the copy for IPC error codes. No React, no store.
+import { scanPlaceholders } from '../../../../shared/schemas/shortcut'
 import {
   MODEL_ALIASES,
   PERMISSION_MODES,
   EFFORT_LEVELS,
+  TEMPLATE_PARAM_VALUE_MAX_LENGTH,
   TemplateSaveSchema,
+  compileParamPattern,
   type ModelAlias,
   type PermissionMode,
   type EffortLevel,
@@ -19,6 +22,17 @@ export type PermissionChoice = 'default' | PermissionMode
 /** `'default'` ⇒ no `--effort` flag at all — claude keeps its own default. */
 export type EffortChoice = 'default' | EffortLevel
 
+/** One parameter row as the form holds it: every field a STRING, because that is what a text
+ *  box gives back. `maxLength` becomes a number only in `validateDraft`, where a value that is
+ *  not a whole number in range is refused with copy instead of silently becoming NaN. */
+export interface ParamDraft {
+  label: string
+  pattern: string
+  maxLength: string
+}
+/** What a fresh row starts at — long enough for a ticket key or a short branch name. */
+export const DEFAULT_PARAM_MAX = '50'
+
 export interface TemplateDraft {
   id: string | null
   name: string
@@ -30,12 +44,12 @@ export interface TemplateDraft {
   /** Workspaces — round-trips the template's scope through the draft UNCHANGED, so `toDraft` →
    *  `validateDraft` does not silently reset an existing scope to GLOBAL on every edit. */
   workspaceId: string | null
-  /** Programmatic API — round-tripped for the SAME reason as `workspaceId`, one field further on.
-   *  This form has no prompt editor yet, so these are carried, never shown: main's save() replaces
-   *  the whole row, so a draft that dropped them would wipe a template's prompt on any unrelated
-   *  edit. */
-  initialPrompt: string | null
-  params: TemplateParam[]
+  /** Programmatic API — the prompt an API launch starts claude with. `''` (not null) is "no
+   *  prompt": a textarea's value is always a string, and `validateDraft` is the ONE place that
+   *  turns a blank one back into null. */
+  initialPrompt: string
+  /** One row per `$n` in the prompt, kept in step with it by `syncParamRows`. */
+  params: ParamDraft[]
 }
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -55,16 +69,29 @@ export const EFFORT_LABELS: Record<EffortLevel, string> = {
   max: 'Max'
 }
 
+/** Programmatic API — ONE sentence for the four ways `InitialPromptSchema` refuses a prompt
+ *  (blank, a control character, a leading `-`, a `$n` gap). The dialog has one error line, so
+ *  the shape rules the form checks itself get their own sentence (PROMPT_SHAPE_ERROR) and this
+ *  one covers what only the schema sees. */
+const PROMPT_ERROR =
+  'The prompt is 1–2000 characters, newlines allowed, no other control characters.'
+const PARAMS_ERROR = 'Each $n in the prompt needs one parameter row.'
+
 const ERROR_COPY: Record<string, string> = {
   template_name_taken: 'A template with this name already exists.',
   template_not_found: 'This template no longer exists.',
-  template_in_use: 'A rule uses this template. Change or delete that rule first.'
+  template_in_use: 'A rule uses this template. Change or delete that rule first.',
+  prompt_invalid: PROMPT_ERROR,
+  param_pattern_invalid: 'A parameter pattern does not compile.',
+  params_mismatch: PARAMS_ERROR
 }
 const FALLBACK_ERROR = 'Could not save the template.'
 const FIELD_ERRORS: Record<string, string> = {
   name: 'Name must be 1–60 characters without control characters.',
   model: 'Model name must not contain spaces.',
-  cwd: 'Pick a folder.'
+  cwd: 'Pick a folder.',
+  initialPrompt: PROMPT_ERROR,
+  params: PARAMS_ERROR
 }
 
 function isAlias(model: string): model is ModelAlias {
@@ -81,9 +108,24 @@ export function emptyDraft(): TemplateDraft {
     permissionChoice: 'default',
     effortChoice: 'default',
     workspaceId: null,
-    initialPrompt: null,
+    initialPrompt: '',
     params: []
   }
+}
+
+/** How many parameter rows the prompt asks for. `$$` is an escaped `$` and never counts;
+ *  `scanPlaceholders` already knows that, so "what is a placeholder" stays asked in ONE place. */
+export function placeholderCount(prompt: string): number {
+  return scanPlaceholders(prompt).numbers.size
+}
+
+/** The rows the prompt asks for, keeping what the operator already typed: extra rows are
+ *  trimmed off the end, missing ones padded with an empty row. PURE — the form calls it on
+ *  every prompt keystroke. */
+export function syncParamRows(params: ParamDraft[], count: number): ParamDraft[] {
+  const out = params.slice(0, count)
+  while (out.length < count) out.push({ label: '', pattern: '', maxLength: DEFAULT_PARAM_MAX })
+  return out
 }
 
 export function modelChoiceOf(model: string | null): { choice: ModelChoice; custom: string } {
@@ -103,10 +145,20 @@ export function toDraft(template: Template): TemplateDraft {
     permissionChoice: template.permissionMode ?? 'default',
     effortChoice: template.effort ?? 'default',
     workspaceId: template.workspaceId,
-    initialPrompt: template.initialPrompt,
-    params: template.params
+    initialPrompt: template.initialPrompt ?? '',
+    // COPIED row by row, never aliased: the editor mutates these objects in place, and the
+    // template they came from is the one the store (and the board) still renders.
+    params: template.params.map((p) => ({
+      label: p.label,
+      pattern: p.pattern,
+      maxLength: String(p.maxLength)
+    }))
   }
 }
+
+/** The two prompt-shape rules the FORM checks itself, so the operator gets the reason instead of
+ *  the schema's one-size sentence. */
+const PROMPT_SHAPE_ERROR = 'The prompt must not start with “-” and must not use $*.'
 
 export type DraftValidation =
   | { ok: true; request: TemplateSaveRequest }
@@ -124,6 +176,37 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
       : draft.modelChoice === 'custom'
         ? draft.customModel.trim()
         : draft.modelChoice
+  // Programmatic API — a blank box is NO prompt (null), never an empty string the schema would
+  // refuse. The two shape rules the form can explain itself are checked here, before the rows:
+  // a leading `-` would reach claude as a flag, and `$*` is an unconstrained rest with no rule
+  // to validate it against.
+  const prompt = draft.initialPrompt.trim().length === 0 ? null : draft.initialPrompt
+  if (prompt !== null && (prompt.startsWith('-') || scanPlaceholders(prompt).rest)) {
+    return { ok: false, error: PROMPT_SHAPE_ERROR }
+  }
+  const params: TemplateParam[] = []
+  if (prompt !== null) {
+    // One row per `$n`, read in prompt order so the error names the placeholder the operator
+    // sees. A missing row (the prompt grew before the form re-rendered) reads as an empty one.
+    const count = placeholderCount(prompt)
+    for (let i = 0; i < count; i++) {
+      const row = draft.params[i] ?? { label: '', pattern: '', maxLength: '' }
+      if (row.label.trim().length === 0) {
+        return { ok: false, error: `Give parameter $${i + 1} a label.` }
+      }
+      if (row.pattern.length === 0 || compileParamPattern(row.pattern) === null) {
+        return { ok: false, error: `Parameter $${i + 1}: the pattern does not compile.` }
+      }
+      const max = Number(row.maxLength)
+      if (!Number.isInteger(max) || max < 1 || max > TEMPLATE_PARAM_VALUE_MAX_LENGTH) {
+        return {
+          ok: false,
+          error: `Parameter $${i + 1}: max length must be 1–${TEMPLATE_PARAM_VALUE_MAX_LENGTH}.`
+        }
+      }
+      params.push({ label: row.label.trim(), pattern: row.pattern, maxLength: max })
+    }
+  }
   const candidate: TemplateSaveRequest = {
     ...(draft.id !== null ? { id: draft.id } : {}),
     name: draft.name,
@@ -135,10 +218,10 @@ export function validateDraft(draft: TemplateDraft): DraftValidation {
     // NEW draft's is null, i.e. GLOBAL, via emptyDraft). main's save() has no partial-update
     // path, so this dialog must re-send the existing scope on every edit or lose it.
     workspaceId: draft.workspaceId,
-    // Programmatic API — carried, not edited (no prompt control in this form yet). Same
-    // no-partial-update reasoning as workspaceId: dropping them here wipes the prompt.
-    initialPrompt: draft.initialPrompt,
-    params: draft.params
+    // Programmatic API — built above from the prompt and its rows. Same no-partial-update
+    // reasoning as workspaceId: main's save() replaces the whole row, so these always ship.
+    initialPrompt: prompt,
+    params
   }
   const parsed = TemplateSaveSchema.safeParse(candidate)
   if (parsed.success) return { ok: true, request: parsed.data }
@@ -152,7 +235,9 @@ export function isDraftDirty(draft: TemplateDraft, base: Template | null): boole
 }
 // Task 11 — workspaceId IS part of this comparison now: the scope select is a real control, so
 // changing ONLY the scope must mark the draft dirty or the operator has no way to save the
-// change they just made (Save stays disabled forever).
+// change they just made (Save stays disabled forever). Task 19 — the prompt and its rows are
+// real controls for exactly the same reason; leave either out and editing ONLY the prompt
+// leaves Save disabled forever.
 function normalize(d: TemplateDraft): string {
   return JSON.stringify([
     d.id,
@@ -162,7 +247,9 @@ function normalize(d: TemplateDraft): string {
     d.customModel.trim(),
     d.permissionChoice,
     d.effortChoice,
-    d.workspaceId
+    d.workspaceId,
+    d.initialPrompt,
+    d.params
   ])
 }
 

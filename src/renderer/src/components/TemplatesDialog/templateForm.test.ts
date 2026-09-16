@@ -3,6 +3,8 @@ import {
   emptyDraft,
   toDraft,
   modelChoiceOf,
+  placeholderCount,
+  syncParamRows,
   validateDraft,
   isDraftDirty,
   templateErrorMessage,
@@ -36,7 +38,7 @@ describe('draft ⇄ template', () => {
       permissionChoice: 'default',
       effortChoice: 'default',
       workspaceId: null,
-      initialPrompt: null,
+      initialPrompt: '',
       params: []
     })
   })
@@ -55,7 +57,7 @@ describe('draft ⇄ template', () => {
       permissionChoice: 'default',
       effortChoice: 'default',
       workspaceId: null,
-      initialPrompt: null,
+      initialPrompt: '',
       params: []
     })
   })
@@ -236,5 +238,108 @@ describe('copy', () => {
     expect(describeTemplateFlags({ ...T, model: null, permissionMode: null, effort: null })).toBe(
       'default model · default permissions · default effort'
     )
+  })
+  // Programmatic API (Task 19) — the three codes main can now reject a save with. Without them
+  // every prompt/param refusal reads as the generic fallback and the operator learns nothing.
+  it('templateErrorMessage maps the prompt and param codes', () => {
+    expect(templateErrorMessage(new Error('prompt_invalid'))).toBe(
+      'The prompt is 1–2000 characters, newlines allowed, no other control characters.'
+    )
+    expect(templateErrorMessage(new Error('param_pattern_invalid'))).toBe(
+      'A parameter pattern does not compile.'
+    )
+    expect(templateErrorMessage(new Error('params_mismatch'))).toBe(
+      'Each $n in the prompt needs one parameter row.'
+    )
+  })
+})
+
+describe('templateForm — initial prompt and params', () => {
+  it('placeholderCount is the highest $n; $$ does not count', () => {
+    expect(placeholderCount('')).toBe(0)
+    expect(placeholderCount('a $1 b $$2')).toBe(1)
+    expect(placeholderCount('$2 then $1')).toBe(2)
+  })
+  it('syncParamRows pads with empty rows and trims extra ones, keeping existing values', () => {
+    const one = [{ label: 'Ticket', pattern: 'x', maxLength: '10' }]
+    expect(syncParamRows(one, 2)).toEqual([one[0], { label: '', pattern: '', maxLength: '50' }])
+    expect(syncParamRows(one, 0)).toEqual([])
+  })
+  it('a blank prompt saves as null with no params', () => {
+    const v = validateDraft({ ...emptyDraft(), name: 'n', cwd: '/w', initialPrompt: '   ' })
+    expect(v.ok && v.request.initialPrompt).toBeNull()
+    expect(v.ok && v.request.params).toEqual([])
+  })
+  it('a prompt with $1 needs a filled row; the errors name the field', () => {
+    const base = { ...emptyDraft(), name: 'n', cwd: '/w', initialPrompt: 'Do $1' }
+    expect(
+      validateDraft({ ...base, params: [{ label: '', pattern: 'x', maxLength: '10' }] })
+    ).toEqual({ ok: false, error: 'Give parameter $1 a label.' })
+    expect(
+      validateDraft({ ...base, params: [{ label: 'T', pattern: '(', maxLength: '10' }] })
+    ).toEqual({ ok: false, error: 'Parameter $1: the pattern does not compile.' })
+    expect(
+      validateDraft({ ...base, params: [{ label: 'T', pattern: 'x', maxLength: '0' }] })
+    ).toEqual({ ok: false, error: 'Parameter $1: max length must be 1–200.' })
+    const ok = validateDraft({ ...base, params: [{ label: 'T', pattern: 'x', maxLength: '10' }] })
+    expect(ok.ok && ok.request.params).toEqual([{ label: 'T', pattern: 'x', maxLength: 10 }])
+  })
+  it('a prompt starting with - or using $* is refused with copy', () => {
+    const base = { ...emptyDraft(), name: 'n', cwd: '/w' }
+    expect(validateDraft({ ...base, initialPrompt: '-x' })).toEqual({
+      ok: false,
+      error: 'The prompt must not start with “-” and must not use $*.'
+    })
+    expect(validateDraft({ ...base, initialPrompt: 'a $*' })).toEqual({
+      ok: false,
+      error: 'The prompt must not start with “-” and must not use $*.'
+    })
+  })
+  it('toDraft round-trips prompt and params as strings', () => {
+    const d = toDraft({
+      id: 'a',
+      name: 'n',
+      cwd: '/w',
+      model: null,
+      permissionMode: null,
+      effort: null,
+      workspaceId: null,
+      initialPrompt: 'Do $1',
+      params: [{ label: 'T', pattern: 'x', maxLength: 10 }]
+    })
+    expect(d.initialPrompt).toBe('Do $1')
+    expect(d.params).toEqual([{ label: 'T', pattern: 'x', maxLength: '10' }])
+  })
+  // Carry-over — normalize() is the dirtiness key. Leaving initialPrompt (or params) out of it
+  // means editing ONLY the prompt never enables Save: a silently dead field. Dropping either
+  // line from normalize() must turn this red.
+  it('changing only the prompt — or only a param row — makes the draft dirty', () => {
+    const withPrompt: Template = {
+      ...T,
+      initialPrompt: 'Do $1',
+      params: [{ label: 'T', pattern: 'x', maxLength: 10 }]
+    }
+    expect(isDraftDirty(toDraft(T), T)).toBe(false)
+    expect(isDraftDirty({ ...toDraft(T), initialPrompt: 'Do it' }, T)).toBe(true)
+    expect(isDraftDirty(toDraft(withPrompt), withPrompt)).toBe(false)
+    expect(
+      isDraftDirty(
+        { ...toDraft(withPrompt), params: [{ label: 'Ticket', pattern: 'x', maxLength: '10' }] },
+        withPrompt
+      )
+    ).toBe(true)
+  })
+  // Carry-over — toDraft must COPY the rows. Handing the editor the store's own param objects
+  // lets an in-place edit write into the template the board still renders.
+  it('toDraft copies the param rows instead of aliasing the template object', () => {
+    const template: Template = {
+      ...T,
+      initialPrompt: 'Do $1',
+      params: [{ label: 'T', pattern: 'x', maxLength: 10 }]
+    }
+    const row = toDraft(template).params[0]
+    if (row === undefined) throw new Error('expected one param row')
+    row.label = 'edited'
+    expect(template.params[0]?.label).toBe('T')
   })
 })

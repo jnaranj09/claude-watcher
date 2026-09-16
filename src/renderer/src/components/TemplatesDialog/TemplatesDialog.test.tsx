@@ -340,4 +340,51 @@ describe('TemplatesDialog', () => {
     )
     act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
   })
+
+  // --- Task 19: the initial prompt and its parameter rows -------------------------------------
+  it('typing $1 and $2 in the prompt shows two parameter rows; removing $2 drops the second', () => {
+    const { r } = render()
+    const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    const typeArea = (v: string): void =>
+      act(() => {
+        setter?.call(prompt, v)
+        prompt.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    typeArea('Work on $1 for $2')
+    expect(r.container.querySelectorAll('[data-testid="template-param-row"]')).toHaveLength(2)
+    typeArea('Work on $1')
+    expect(r.container.querySelectorAll('[data-testid="template-param-row"]')).toHaveLength(1)
+  })
+  it('saves the prompt and its params; Save stays disabled until every row is filled', async () => {
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'tickets')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    act(() => {
+      setter?.call(prompt, 'Work on $1')
+      prompt.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
+    type(q(r, '[data-testid="template-param-label-1"]'), 'Ticket')
+    type(q(r, '[data-testid="template-param-pattern-1"]'), '[A-Z]+-\\d+')
+    type(q(r, '[data-testid="template-param-max-1"]'), '12')
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(false)
+    click(q(r, '[data-testid="template-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialPrompt: 'Work on $1',
+        params: [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 12 }]
+      })
+    )
+  })
 })
