@@ -6,6 +6,9 @@
   "author": "Jose Naranjo",
   "homepage": "https://electron-vite.org",
   "desktopName": "com.claudewatcher.app.desktop",
+  "scarfSettings": {
+    "enabled": false
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
