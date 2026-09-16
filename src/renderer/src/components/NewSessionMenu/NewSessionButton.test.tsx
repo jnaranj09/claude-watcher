@@ -14,7 +14,9 @@ const T1: Template = {
   model: null,
   permissionMode: null,
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 let cleanup: (() => void) | undefined
 afterEach(() => {

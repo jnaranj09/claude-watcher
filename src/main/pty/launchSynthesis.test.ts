@@ -16,6 +16,8 @@ function minted(over: Partial<MintedLaunchSpawn> = {}): MintedLaunchSpawn {
     sessionId: 'sess-uuid-1',
     displayName: 'billing api',
     templateId: null,
+    initialPrompt: null,
+    workspaceId: null,
     spawn: {
       file: '/bin/bash',
       args: ['-l', '-c', "claude --session-id 'sess-uuid-1'"],

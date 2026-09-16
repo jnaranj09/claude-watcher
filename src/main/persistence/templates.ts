@@ -109,7 +109,9 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
       model: input.model,
       permissionMode: input.permissionMode,
       effort: input.effort,
-      workspaceId: input.workspaceId
+      workspaceId: input.workspaceId,
+      initialPrompt: input.initialPrompt,
+      params: input.params
     }
     byId.set(id, saved)
     persist()

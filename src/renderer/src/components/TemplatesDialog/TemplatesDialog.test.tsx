@@ -16,7 +16,9 @@ const T1: Template = {
   model: 'opus',
   permissionMode: 'plan',
   effort: 'high',
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 let cleanup: (() => void) | undefined
@@ -106,7 +108,9 @@ describe('TemplatesDialog', () => {
       model: 'claude-x',
       permissionMode: 'acceptEdits',
       effort: null,
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
   })
@@ -129,7 +133,9 @@ describe('TemplatesDialog', () => {
       model: 'opus',
       permissionMode: 'plan',
       effort: 'high',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
   })
   it('a chosen effort reaches window.templates.save; Default sends null', async () => {
@@ -146,7 +152,9 @@ describe('TemplatesDialog', () => {
       model: null,
       permissionMode: null,
       effort: 'xhigh',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
   })
   it('selecting a row preselects its effort, and changing only the effort enables Save', () => {
@@ -235,7 +243,9 @@ describe('TemplatesDialog', () => {
       model: null,
       permissionMode: null,
       effort: null,
-      workspaceId: 'w1'
+      workspaceId: 'w1',
+      initialPrompt: null,
+      params: []
     })
   })
 
@@ -251,7 +261,9 @@ describe('TemplatesDialog', () => {
             model: null,
             permissionMode: null,
             effort: null,
-            workspaceId: 'gone'
+            workspaceId: 'gone',
+            initialPrompt: null,
+            params: []
           }
         ],
         loaded: true
@@ -327,5 +339,71 @@ describe('TemplatesDialog', () => {
       'Used by 1 rule. Change or delete it first.'
     )
     act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
+  })
+
+  // --- Task 19: the initial prompt and its parameter rows -------------------------------------
+  it('typing $1 and $2 in the prompt shows two parameter rows; removing $2 drops the second', () => {
+    const { r } = render()
+    const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    const typeArea = (v: string): void =>
+      act(() => {
+        setter?.call(prompt, v)
+        prompt.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    typeArea('Work on $1 for $2')
+    expect(r.container.querySelectorAll('[data-testid="template-param-row"]')).toHaveLength(2)
+    typeArea('Work on $1')
+    expect(r.container.querySelectorAll('[data-testid="template-param-row"]')).toHaveLength(1)
+  })
+  it('a gapped prompt says which number is missing, right where Save is disabled', async () => {
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'tickets')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    act(() => {
+      setter?.call(prompt, 'Do $1 $3')
+      prompt.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(q(r, '[data-testid="template-hint"]').textContent).toBe(
+      'The prompt uses $3 but not $2. Number the placeholders from $1 with no gaps.'
+    )
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
+  })
+  it('saves the prompt and its params; Save stays disabled until every row is filled', async () => {
+    const { r } = render()
+    type(q(r, '[data-testid="template-name"]'), 'tickets')
+    click(q(r, '[data-testid="template-browse"]'))
+    await flush()
+    const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    act(() => {
+      setter?.call(prompt, 'Work on $1')
+      prompt.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
+    type(q(r, '[data-testid="template-param-label-1"]'), 'Ticket')
+    type(q(r, '[data-testid="template-param-pattern-1"]'), '[A-Z]+-\\d+')
+    type(q(r, '[data-testid="template-param-max-1"]'), '12')
+    expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(false)
+    click(q(r, '[data-testid="template-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialPrompt: 'Work on $1',
+        params: [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 12 }]
+      })
+    )
   })
 })

@@ -6,7 +6,10 @@ import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
 import {
   TEMPLATE_NAME_MAX_LENGTH,
-  MODEL_NAME_MAX_LENGTH
+  MODEL_NAME_MAX_LENGTH,
+  INITIAL_PROMPT_MAX_LENGTH,
+  TEMPLATE_PARAM_LABEL_MAX_LENGTH,
+  TEMPLATE_PARAM_PATTERN_MAX_LENGTH
 } from '../../../../shared/schemas/template'
 import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
 import { rulesLosingTemplate, rulesStore, rulesUsingTemplate } from '../../stores/rulesStore'
@@ -20,12 +23,16 @@ import {
   EFFORT_CHOICES,
   emptyDraft,
   isDraftDirty,
+  placeholderCount,
+  syncParamRows,
   templateErrorMessage,
   toDraft,
   validateDraft,
+  type ParamDraft,
   type TemplateDraft
 } from './templateForm'
 import { TextInput } from '../TextInput/TextInput'
+import { TextArea } from '../TextArea/TextArea'
 import styles from './TemplatesDialog.module.css'
 
 /** The `Workspace` dropdown's stand-in for "no workspace". A word, not '': it becomes part of
@@ -54,6 +61,10 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
     setDraft((d) => ({ ...d, ...p }))
     actions.setError(null)
   }
+  /** One parameter row's field. The rows are positional (`$1` is row 0), so a row is replaced in
+   *  place — never reordered, never keyed by anything but its position. */
+  const patchParam = (i: number, p: Partial<ParamDraft>): void =>
+    patch({ params: draft.params.map((row, j) => (j === i ? { ...row, ...p } : row)) })
 
   async function browse(): Promise<void> {
     try {
@@ -183,6 +194,70 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         ariaLabel="Workspace"
         testId="template-scope"
       />
+
+      {/* Programmatic API — the prompt an API launch starts claude with. A template WITHOUT one
+          still launches from the board; it just cannot be launched over the API. Each `$n` the
+          prompt uses grows its own row below, and the rows follow the prompt on every keystroke
+          (syncParamRows), so a placeholder can never be left without a rule. */}
+      <ManageDialog.Label htmlFor="template-prompt">
+        Initial prompt (API launches)
+      </ManageDialog.Label>
+      <TextArea
+        id="template-prompt"
+        testId="template-prompt"
+        placeholder="Work on ticket $1. Read it first, then plan."
+        maxLength={INITIAL_PROMPT_MAX_LENGTH}
+        value={draft.initialPrompt}
+        onChange={(initialPrompt) =>
+          patch({
+            initialPrompt,
+            params: syncParamRows(draft.params, placeholderCount(initialPrompt))
+          })
+        }
+      />
+      {draft.params.length > 0 && (
+        <>
+          <ManageDialog.Label>Parameters</ManageDialog.Label>
+          {draft.params.map((row, i) => (
+            // Keyed by INDEX on purpose: the rows ARE positional — row i is `$${i + 1}` — and
+            // they are never sorted or inserted into, only grown and trimmed at the end. The
+            // index IS the row's identity here.
+            <div key={i} className={styles.paramRow} data-testid="template-param-row">
+              <span className={styles.paramMarker}>${i + 1}</span>
+              <TextInput
+                testId={`template-param-label-${i + 1}`}
+                ariaLabel={`Parameter $${i + 1} label`}
+                placeholder="Label"
+                maxLength={TEMPLATE_PARAM_LABEL_MAX_LENGTH}
+                value={row.label}
+                onChange={(label) => patchParam(i, { label })}
+              />
+              <TextInput
+                testId={`template-param-pattern-${i + 1}`}
+                ariaLabel={`Parameter $${i + 1} pattern`}
+                placeholder="^[A-Z]+-\d+$"
+                maxLength={TEMPLATE_PARAM_PATTERN_MAX_LENGTH}
+                value={row.pattern}
+                onChange={(pattern) => patchParam(i, { pattern })}
+              />
+              <TextInput
+                testId={`template-param-max-${i + 1}`}
+                ariaLabel={`Parameter $${i + 1} max length`}
+                inputMode="numeric"
+                value={row.maxLength}
+                onChange={(maxLength) => patchParam(i, { maxLength })}
+              />
+            </div>
+          ))}
+          {/* The placeholder above shows `^…$` because that is how a pattern reads; the app
+              anchors it either way (compileParamPattern), and an already-anchored pattern still
+              compiles. */}
+          <ManageDialog.Hint testId="template-params-hint">
+            Each value an API caller sends must match its pattern (whole value) and stay under its
+            max length.
+          </ManageDialog.Hint>
+        </>
+      )}
 
       {/* Why Save is disabled, once the operator has actually edited something. Muted hint —
           NOT role=alert: the `template-error` line below stays reserved for IPC failures. */}

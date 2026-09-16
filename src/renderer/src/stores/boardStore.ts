@@ -327,6 +327,25 @@ export interface BoardState {
    *  Workspaces: also stamps the entry's `workspaceId` (from `SessionLaunchResult.workspaceId`)
    *  so a kept-alive frame can be hidden/shown by workspace before any session delta arrives. */
   openLaunchedTerminal: (terminalId: string, label: string, workspaceId: string) => void
+  /**
+   * Programmatic API — record a launched terminal in the registry WITHOUT touching the view.
+   *
+   * WHY IT EXISTS: an API create (`POST /v1/sessions`) is not the operator's own click. It arrives
+   * while they are typing in another terminal, and `openLaunchedTerminal` would yank the view to
+   * the new one — worse still into a template's OWN workspace, leaving the focused terminal outside
+   * the active one. So the API path registers only: `viewMode`, `focusedTerminalId` and the active
+   * workspace are all left EXACTLY as they were, and the operator opens the new card when they
+   * choose to.
+   *
+   * The terminal still MOUNTS and still spawns its pty: every registry key is folded into
+   * `selectKeptAliveTerminalIds`, and `App.tsx` mounts the focused layer (hidden, via
+   * `hasFocusableTerminal`) whenever that list is non-empty — which runs `EmbeddedTerminal`'s
+   * mount effect, and that is what opens the pty.
+   *
+   * Registers ONCE, keyed on terminalId, and NEVER restamps `launchedAt` (same rule as
+   * `openLaunchedTerminal`, which is now this action plus the view flip, so the two cannot drift).
+   */
+  registerLaunchedTerminal: (terminalId: string, label: string, workspaceId: string) => void
   /** Story 5.6 (AC-5) — remove a launched terminal from the registry when its PTY exits
    *  naturally (the `window.terminal.onExit` push). Idempotent: a terminalId not in the
    *  registry (e.g. a plain #terminals shell) is a no-op. Also removes it from
@@ -634,24 +653,31 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (state.selectedId !== id) set({ selectedId: id })
     },
 
+    registerLaunchedTerminal: (terminalId, label, workspaceId) => {
+      // Story 5.6 (AC-1): record the registry entry with label + launchedAt stamped from closure
+      // now(). Workspaces: also stamp workspaceId (from SessionLaunchResult) on the entry.
+      // Register the launch ONCE, keyed on terminalId — never restamp launchedAt on a re-open
+      // (the label is the stable cwd basename; a re-open must not re-sort the Starting list).
+      //
+      // Registry ONLY: this action touches NEITHER `viewMode` NOR `focusedTerminalId` NOR the
+      // active workspace, which is what lets an API launch mount its terminal (via
+      // selectKeptAliveTerminalIds → App's hidden focused layer → EmbeddedTerminal's mount effect,
+      // which spawns the pty) without stealing the view the operator is working in.
+      const state = get()
+      if (state.launchedTerminals[terminalId] !== undefined) return
+      const entry: LaunchedTerminal = { terminalId, launchedAt: now(), label, workspaceId }
+      set({ launchedTerminals: { ...state.launchedTerminals, [terminalId]: entry } })
+    },
+
     openLaunchedTerminal: (terminalId, label, workspaceId) => {
+      // REGISTER, then FOCUS — one path, so the API's register-only launch and the operator's own
+      // launch can never drift in what they record.
+      //
       // Optimistic drop-into-Focused-session the moment the launch returns its terminalId (UX-DR19).
       // The terminal renders + is typeable immediately; the session `id` (selectedId) reconciles
       // later. Single-window in-app VIEW-STATE only — no routing, no window raise.
-      // Story 5.6 (AC-1): record the registry entry with label + launchedAt stamped from closure now().
-      // Workspaces: also stamp workspaceId (from SessionLaunchResult) on the registry entry.
-      const state = get()
-      const existing = state.launchedTerminals[terminalId]
-      const entry: LaunchedTerminal = { terminalId, launchedAt: now(), label, workspaceId }
-      set({
-        viewMode: 'focused',
-        focusedTerminalId: terminalId,
-        // Register the launch ONCE, keyed on terminalId — never restamp launchedAt on a re-open
-        // (the label is the stable cwd basename; a re-open must not re-sort the Starting list).
-        ...(existing !== undefined
-          ? {}
-          : { launchedTerminals: { ...state.launchedTerminals, [terminalId]: entry } })
-      })
+      get().registerLaunchedTerminal(terminalId, label, workspaceId)
+      set({ viewMode: 'focused', focusedTerminalId: terminalId })
     },
 
     forgetLaunchedTerminal: (terminalId) => {

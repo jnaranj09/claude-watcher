@@ -87,6 +87,39 @@ describe('TextInput', () => {
     expect(field(r).disabled).toBe(true)
   })
 
+  // A value the operator reads and copies but must not edit (the API token). Read-only, not
+  // disabled: a disabled field is dimmed and cannot be selected, and a token you cannot select
+  // is a token you cannot copy by hand.
+  it('can be read-only while staying selectable', () => {
+    const editable = render()
+    expect(field(editable).readOnly).toBe(false)
+    cleanup?.()
+
+    const locked = render({ readOnly: true })
+    expect(field(locked).readOnly).toBe(true)
+    expect(field(locked).disabled).toBe(false)
+  })
+
+  it('forwards inputMode so a numeric field asks for digits', () => {
+    const r = render({ inputMode: 'numeric' })
+    expect(field(r).getAttribute('inputmode')).toBe('numeric')
+    cleanup?.()
+
+    const plain = render()
+    expect(plain.container.querySelector('[data-testid="field"]')?.hasAttribute('inputmode')).toBe(
+      false
+    )
+  })
+
+  it('reports a blur so the caller can commit a validated value', () => {
+    const onBlur = vi.fn()
+    const r = render({ onBlur })
+    act(() => {
+      field(r).dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+    expect(onBlur).toHaveBeenCalledTimes(1)
+  })
+
   it('hands the element back through inputRef so the opener can focus it', () => {
     const ref = { current: null as HTMLInputElement | null }
     const r = render({ inputRef: ref })
@@ -150,14 +183,17 @@ describe('the text field is the only one', () => {
     expect(rule).not.toContain('var(--text-dim)')
   })
 
+  // TextInput owns `.input`/`.search`/`.textField`; its multi-line sibling TextArea owns
+  // `.textArea`. Every other module is an offender — a sixth copy-pasted box is how the first
+  // five drifted.
   it('is the only module that draws a text-field box', () => {
     const offenders: string[] = []
     for (const dir of readdirSync(componentsDir, { withFileTypes: true })) {
-      if (!dir.isDirectory() || dir.name === 'TextInput') continue
+      if (!dir.isDirectory() || dir.name === 'TextInput' || dir.name === 'TextArea') continue
       for (const file of readdirSync(join(componentsDir, dir.name))) {
         if (!file.endsWith('.module.css')) continue
         const css = readFileSync(join(componentsDir, dir.name, file), 'utf8')
-        for (const selector of ['.input', '.search', '.textField']) {
+        for (const selector of ['.input', '.search', '.textField', '.textArea']) {
           if (new RegExp(`^\\${selector}[\\s{:,\\[]`, 'm').test(css)) {
             offenders.push(`${dir.name}/${file} → ${selector}`)
           }

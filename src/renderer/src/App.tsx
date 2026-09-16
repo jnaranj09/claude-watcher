@@ -191,6 +191,23 @@ function App(): React.JSX.Element {
     return off
   }, [smoke])
 
+  // Programmatic API — main asks for a terminal when an API call created a card. REGISTER-ONLY
+  // (`registerLaunchedTerminal`), never the name prompt's `openLaunchedTerminal`: an API create is
+  // not the operator's own click, so it must NOT move the view out of the terminal they are typing
+  // in (nor leave the focused terminal in a workspace that is not the active one, which it would
+  // whenever the template belongs elsewhere). The terminal still mounts hidden and spawns its pty —
+  // the registry key is what keeps it alive. The renderer invents nothing: the label and the
+  // workspace are main's.
+  // Guarded like `window.quit`: older App tests stub only the bridges they touch (AR-12).
+  useEffect(() => {
+    if (smoke !== false) return
+    if (typeof window.launch.onLaunchRequested !== 'function') return
+    const off = window.launch.onLaunchRequested(({ terminalId, label, workspaceId }) =>
+      boardStore.getState().registerLaunchedTerminal(terminalId, label, workspaceId)
+    )
+    return off
+  }, [smoke])
+
   // Story 5.6 (AC-5) — subscribe to the terminal-exit push ONCE (non-smoke only).
   // Main emits `CH.terminalExit` when a PTY exits naturally; we remove its registry entry so
   // it leaves both `selectStartingTerminals` and `selectKeptAliveTerminalIds`. Mirrors the

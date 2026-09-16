@@ -138,10 +138,22 @@ console.log('[smoke] verdict:', JSON.stringify(report, null, 2))
 
 const c = report.checks || {}
 const ok =
-  report.pass === true && c.typeEcho?.pass && c.resize?.pass && c.tui?.pass && c.webgl?.pass
+  report.pass === true &&
+  c.typeEcho?.pass &&
+  c.resize?.pass &&
+  c.tui?.pass &&
+  c.webgl?.pass &&
+  // Programmatic API — `/docs`, `/openapi.json` and one Swagger UI ASSET must answer 200 from
+  // inside the PACKAGED asar. Main binds the listener on an ephemeral port in smoke mode and
+  // fetches all three before writing this verdict; a 0 is a failed/timed-out fetch (or no
+  // listener at all), a 503 on `/docs` is `swagger-ui-dist` unresolvable inside the package, and
+  // a 404 on the asset is a packaged file the read could not open (the `files` allow-list trimmed
+  // it) — `/docs` itself would still answer 200 in that case, which is why the asset is fetched.
+  report.main?.api?.pass === true
 
 if (!ok) {
   console.error('[smoke] FAIL — exit gate not satisfied.')
+  console.error('[smoke] api:', JSON.stringify(report.main?.api ?? null))
   process.exit(1)
 }
 

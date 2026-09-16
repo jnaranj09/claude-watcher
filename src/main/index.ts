@@ -143,8 +143,22 @@ import {
   SessionLaunchSchema,
   SessionRenameSchema,
   SessionSeenSchema,
-  LaunchCorrelatedSchema
+  LaunchCorrelatedSchema,
+  LaunchRequestedSchema
 } from '../shared/schemas/launch'
+// Programmatic API — the localhost HTTP listener and everything behind it. Every decision in it
+// lives in one of these modules and is unit-tested there; this file only WIRES them (nothing can
+// import index.ts, so no logic may live here that a test would need to reach).
+import { createApiServer, type ApiServer } from './api/apiServer'
+import { createApiEventHub, type ApiEventHub, type ApiSeam } from './api/apiSeam'
+import { createApiTokenStore, type ApiTokenStore } from './api/apiToken'
+import { createApiLifecycle, type ApiLifecycle } from './api/apiLifecycle'
+import { buildOpenApiDocument } from './api/openapi'
+import { createDocsRoutes, resolveSwaggerDistDir } from './api/docs'
+import { apiCommands } from './api/commands'
+import { projectApiSession } from './api/apiSession'
+import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
+import type { ApiSession } from '../shared/schemas/api'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
 // launch synthesis CONSTRUCTS a valid Session from main-owned values (minted uuid, picked
 // cwd, pty pid) — it never re-runs SessionSchema over internal data.
@@ -352,6 +366,27 @@ interface LaunchBoardSeam {
 }
 const launchBoardSeams = new Map<Electron.WebContents, LaunchBoardSeam>()
 
+// Programmatic API — the per-window seam + its event hub, EXACTLY the lifetime of the board seam
+// above (set in registerWatchFeed, dropped in teardownWatchFeed). Session truth is per window; the
+// LISTENER is app-global and reads the single window's seam (`BrowserWindow.getAllWindows()[0]`),
+// answering `no_window` when there is none. The hub is held in its own map only so the teardown can
+// clear its subscribers — nothing else reads it.
+const apiSeams = new Map<Electron.WebContents, ApiSeam>()
+const apiHubs = new Map<Electron.WebContents, ApiEventHub>()
+
+// Programmatic API — the bearer token store (its own 0600 file in userData) and the listener's
+// lifecycle. Both built after app-ready; null until then. The lifecycle is the ONLY thing that
+// starts or stops the listener — settings drive it (`apply`), quit ends it (`stop`).
+let apiTokenStore: ApiTokenStore | null = null
+let apiLifecycle: ApiLifecycle | null = null
+
+/** The ONE log sink every API piece writes to — the context, the server, the docs routes, the
+ *  token store and the lifecycle. Each of those formats its own `[claude-watcher][api] code=…`
+ *  line and never passes a value, so there is nothing to redact here. */
+function apiLog(message: string): void {
+  console.warn(message)
+}
+
 // Story 4.2 (FR-14) — mutable quit-guard state (owned at app scope; one app, one guard).
 // Initialized here so the before-quit handler, quitConfirm, and quitCancel all share ONE state.
 // isQuitting flips true ONLY when a real quit proceeds (guard passed / nothing-live).
@@ -370,6 +405,14 @@ function registerWatchFeed(window: BrowserWindow): void {
   if (SMOKE) return
   const wc = window.webContents
   if (reducers.has(wc)) return
+
+  // Programmatic API — this window's event hub, declared FIRST because `handleDelta` (below)
+  // closes over it. The binding must exist before that function is DEFINED, not merely before it
+  // runs: today registerWatchFeed finishes before the first delta arrives, but that is an accident
+  // of ordering, not a guarantee, and a temporal-dead-zone capture would throw inside the one
+  // chokepoint every delta passes through.
+  const apiHub = createApiEventHub(apiLog)
+  apiHubs.set(wc, apiHub)
 
   const reducer = createReducer({
     now: () => Date.now(),
@@ -525,6 +568,19 @@ function registerWatchFeed(window: BrowserWindow): void {
         // stale card); if its id was never launched, there was no card to remove anyway.
         if (outbound !== null && shouldShipToBoard(outbound.event, (id) => launchedSet.has(id))) {
           wc.send(CH.watchEvents, outbound)
+          // Programmatic API — fan the SAME gated, enriched delta out to any open SSE stream, from
+          // inside the same `if` so the two consumers cannot diverge: a session the board never
+          // shows (an external, non-app-launched one) never reaches an API client either. The type
+          // check is the narrowing to `ApiSessionEvent` — `attention.raised` is an ALERT and is
+          // deliberately not on the wire (the status change that raised it rides the
+          // `session.updated` the client already gets). The hub never throws (it contains a
+          // subscriber that does), so this cannot break the delta path.
+          if (
+            outbound.event.type === 'session.updated' ||
+            outbound.event.type === 'session.removed'
+          ) {
+            apiHub.emit(outbound.event)
+          }
         }
         // Then any attention.raised for the SAME edge, framed with the SAME epoch.
         // Re-check the destroyed window per send: a late event after close is a no-op.
@@ -640,6 +696,63 @@ function registerWatchFeed(window: BrowserWindow): void {
       for (const edit of staleTagEdits(reducer.snapshotMap().values(), lookup)) {
         reducer.setTags(edit.sessionId, edit.tagIds).forEach(handleDelta)
       }
+    }
+  })
+
+  // Programmatic API — THIS window's seam, registered right after the board seam because it is
+  // the same stage of the same pipeline exposed sideways: the same reducer map, the same
+  // launched-set membership gate, the same tracker column, and the same launch service the
+  // `+ New session` popover uses. A card an HTTP client made is indistinguishable from one the
+  // operator made, and the API can neither invent session truth nor reach past this seam.
+  apiSeams.set(wc, {
+    listSessions: () => {
+      const out: ApiSession[] = []
+      for (const session of reducer.snapshotMap().values()) {
+        // The SAME membership gate the board ship uses — an external session is not listable.
+        if (!launchedSet.has(session.id)) continue
+        const projected = projectApiSession(session, tracker, apiLog)
+        // null = not placed in a column yet (benign, the next delta fixes it) or a strict-parse
+        // rejection (projectApiSession logged the code). Either way it is not on the wire.
+        if (projected !== null) out.push(projected)
+      }
+      return out
+    },
+    getSession: (id) => {
+      const session = reducer.snapshotMap().get(id)
+      if (session === undefined || !launchedSet.has(id)) return null
+      return projectApiSession(session, tracker, apiLog)
+    },
+    onEvent: (cb) => apiHub.onEvent(cb),
+    // Main REGISTERS the launch recipe and asks the renderer to open the terminal; the renderer's
+    // open is what actually spawns the pty and mints the session id. Nothing about the request is
+    // the renderer's own: the label and the workspace are main's.
+    requestLaunch: (req) => {
+      if (launchService === null) throw new Error('launch service not initialized')
+      const { terminalId } = launchService.launch(req)
+      // The template's own scope when it has one (resolved by the command), else main's active
+      // workspace — the same value `terminal:open` stamps on the synthesized card.
+      const workspaceId = req.workspaceId ?? requireWorkspacesStore().activeId()
+      // Validate AT SOURCE before the push (main→renderer delta; zod-boundaries.md). `label` is
+      // caller-supplied content, so a miss logs PATH + CODE only — never the value. The launch is
+      // already registered at this point: dropping the push loses the terminal, not the recipe,
+      // and the create then answers 504 rather than opening a terminal nobody asked for.
+      const r = LaunchRequestedSchema.safeParse({ terminalId, label: req.name, workspaceId })
+      if (!r.success) {
+        const issue = r.error.issues[0]
+        console.error(
+          `[claude-watcher][api] dropped launch:requested path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+        )
+      } else if (!wc.isDestroyed()) {
+        wc.send(CH.launchRequested, r.data)
+      }
+      return { terminalId, workspaceId }
+    },
+    // The bind lands when the renderer opens the terminal and `mintSpawn` runs. A missing launch
+    // service rejects with the SAME error the timeout uses, so the command answers 504 either way
+    // rather than leaking a second failure mode a caller cannot act on.
+    awaitSessionId: (terminalId, timeoutMs) => {
+      if (launchService === null) return Promise.reject(new Error('spawn_timeout'))
+      return launchService.awaitBinding(terminalId, timeoutMs)
     }
   })
 
@@ -903,6 +1016,16 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   // Story 6.2/6.3 — remove the per-window launch board seam (same lifetime as the feed).
   // A terminal:open/stop racing a window close finds no seam → graceful no-op.
   launchBoardSeams.delete(wc)
+  // Programmatic API — drop this window's seam (the listener then answers `no_window`) and clear
+  // its hub, so a subscriber can never be notified for a board that is gone. The open SSE streams
+  // themselves end when the server closes or when their client goes; clearing is what stops them
+  // hearing from a window that no longer exists in between.
+  apiSeams.delete(wc)
+  const apiHub = apiHubs.get(wc)
+  if (apiHub) {
+    apiHubs.delete(wc)
+    apiHub.clear()
+  }
   // Hook-status feature — close the per-window hook listener so a window close→reopen
   // ('activate') or dev HMR reload does not leak the listener and hit EADDRINUSE on the
   // next bind. Idempotent; close() never throws.
@@ -999,15 +1122,53 @@ function registerPtyIpc(): void {
     node: process.versions.node
   }))
 
-  ipcMain.on(CH.smokeReport, (evt, report: SmokeReport) => {
+  ipcMain.on(CH.smokeReport, async (evt, report: SmokeReport) => {
     const term = ptys.get(evt.sender)
+    // Programmatic API — the packaged-docs check. The listener was forced up on an ephemeral
+    // port at app-ready (SMOKE), so a 200 from these routes proves the docs serve from INSIDE
+    // the packaged asar, not just in dev.
+    //
+    // THREE routes, because they fail for three different reasons: `/openapi.json` builds the
+    // document, `/docs` only proves `swagger-ui-dist` RESOLVES (it answers 200 the moment
+    // `swaggerDistDir !== null` and reads nothing), and the ASSET is the only one that opens a
+    // packaged file — the case the electron-builder `files` negations could trim without
+    // anything else noticing.
+    const port = apiLifecycle?.port() ?? null
+    let api: { docs: number; openapi: number; asset: number; pass: boolean } = {
+      docs: 0,
+      openapi: 0,
+      asset: 0,
+      pass: false
+    }
+    if (port !== null) {
+      // TIMEBOXED. This runs inside the verdict path: the handler writes the verdict file and
+      // then app.exit()s, and the runner's failure mode for a missing verdict file is exit 3.
+      // A hung fetch would turn a passing smoke into "no verdict file written" — so a timeout
+      // is a FAILED CHECK (status 0 → pass false), never a hang.
+      const status = async (path: string): Promise<number> => {
+        try {
+          return (
+            await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2000) })
+          ).status
+        } catch {
+          return 0
+        }
+      }
+      const docs = await status('/docs')
+      const openapi = await status('/openapi.json')
+      // One of the three allow-listed names — the bundle, the biggest of them. A 404 here is a
+      // packaged read that failed (`code=docs_read_failed`), not a routing miss.
+      const asset = await status('/docs/swagger-ui-bundle.js')
+      api = { docs, openapi, asset, pass: docs === 200 && openapi === 200 && asset === 200 }
+    }
     const full = {
       ...report,
       main: {
         electron: process.versions.electron,
         abi: process.versions.modules,
         node: process.versions.node,
-        ptyPid: term?.pid ?? null
+        ptyPid: term?.pid ?? null,
+        api
       }
     }
     const json = JSON.stringify(full, null, 2)
@@ -1148,7 +1309,33 @@ function registerSettingsIpc(): void {
   ipcMain.handle(CH.settingsSet, (_evt, raw: unknown) => {
     if (settingsStore === null) throw new Error('settings store not initialized')
     const patch = SettingsPatchSchema.parse(raw)
-    return settingsStore.set(patch)
+    const next = settingsStore.set(patch)
+    // Programmatic API — the listener FOLLOWS the setting: start when it is switched on, stop when
+    // it is switched off, restart when the port moves. `apply` is idempotent, so the patches that
+    // changed only the font size start and stop nothing (a needless restart would drop every open
+    // SSE stream out from under its client). It never throws — a failed bind is logged by code and
+    // leaves the lifecycle stopped, so the settings write still returns.
+    apiLifecycle?.apply(next)
+    return next
+  })
+}
+
+// Programmatic API — the token bridge, registered ONCE (mirrors registerSettingsIpc). Read-only
+// for the renderer except Regenerate: the token is not in settings.json (the renderer reads that
+// whole blob) but in its own 0600 file, so this is the only way the Settings panel can show it.
+// NEITHER handler logs the token — it IS the secret.
+function registerApiIpc(): void {
+  ipcMain.handle(CH.apiTokenGet, () => {
+    if (apiTokenStore === null) throw new Error('api token store not initialized')
+    return { token: apiTokenStore.current() }
+  })
+  ipcMain.handle(CH.apiTokenRegenerate, () => {
+    if (apiTokenStore === null) throw new Error('api token store not initialized')
+    // A regenerate is a REVOCATION. When the write fails the store throws `token_write_failed` and
+    // keeps the previous token; that throw PROPAGATES to the renderer (which maps the code to
+    // operator copy) rather than being swallowed — handing back a token that exists only in this
+    // process would tell the operator a revocation happened that the next start undoes.
+    return { token: apiTokenStore.regenerate() }
   })
 }
 
@@ -1489,7 +1676,9 @@ function registerTerminalIpc(): void {
         // expression. Keep this a one-line call; put any synthesis logic in that module.
         // Workspaces — stamp main's OWN active-workspace pointer at synthesis time (never
         // derived in the extracted module, which must stay importable without Electron).
-        const workspaceId = requireWorkspacesStore().activeId()
+        // Programmatic API — a launch that names its workspace (a template's own scope) lands
+        // there; every other launch keeps landing in main's active workspace.
+        const workspaceId = minted.workspaceId ?? requireWorkspacesStore().activeId()
         launchBoardSeams.get(wc)?.upsertLaunched(
           buildLaunchedSession(
             minted,
@@ -1603,7 +1792,8 @@ function registerTerminalIpc(): void {
 function rawClaudeSpawn(
   sessionId: string,
   displayName: string,
-  flags: ClaudeLaunchFlags
+  flags: ClaudeLaunchFlags,
+  initialPrompt: string | null
 ): {
   file: string
   args: string[]
@@ -1651,7 +1841,11 @@ function rawClaudeSpawn(
         appendSystemPrompt: QUESTION_FORMAT_PROMPT,
         model: flags.model,
         permissionMode: flags.permissionMode,
-        effort: flags.effort
+        effort: flags.effort,
+        // The programmatic API threads the template's filled-in prompt through here (it rode
+        // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
+        // none, so for them the composed command stays byte-identical to before.
+        initialPrompt
       })
     ],
     env
@@ -2049,6 +2243,33 @@ function createWindow(): void {
     if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
   })
 
+  // Programmatic API — the FIRST apply of the persisted setting: here, not on app-ready.
+  //
+  // `POST /v1/sessions` needs the RENDERER. Main registers the launch recipe and pushes
+  // `launch:requested`; the renderer opening that terminal is what spawns the pty and mints the
+  // session id the caller is waiting on. The renderer subscribes to that push from an effect that
+  // runs after its startup smoke check resolves, so a listener bound at app-ready would open a
+  // window in which a create answers 504 `spawn_timeout` while the app is perfectly healthy.
+  // `did-finish-load` is the cheapest signal that the renderer's own code is running.
+  //
+  // It does NOT close the window entirely: the per-window API seam is built by registerWatchFeed
+  // on `ready-to-show`, which may land after this. A create in that gap answers `no_window` (503,
+  // retryable) — an honest, actionable answer, unlike a silent 504.
+  //
+  // `apply` is idempotent, so the `activate` path re-creating a window re-applies to no effect,
+  // and a null settings store (it is built before createWindow runs) simply skips the start.
+  //
+  // SMOKE owns the listener itself (app-ready applies `{ apiEnabled: true, apiPort: 0 }` so the
+  // verdict can fetch `/docs` and `/openapi.json` from inside the asar). The smoke settings store
+  // is in-memory with `apiEnabled: false`, so applying it HERE would stop that listener before the
+  // report is taken — verified: the packaged run logged `code=listening port=39545` and then
+  // `code=stopped`, and the verdict came back `api: { docs: 0, openapi: 0 }`.
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (SMOKE) return
+    if (settingsStore === null) return
+    apiLifecycle?.apply(settingsStore.get())
+  })
+
   // Story 4.2 (FR-14 / UX-DR25 / FROZEN #4 / Epic-4 DECISION #2) — minimize-to-taskbar.
   // A title-bar window-close MINIMIZES instead of quitting: `e.preventDefault()` + `minimize()`.
   // `isQuitting` (quitGuardState) flips true ONLY when a real quit PROCEEDS (guard passed /
@@ -2320,6 +2541,92 @@ app
     // clipboard:write-text). Power stays in MAIN; renderer reaches it via window.clipboard.*.
     registerClipboardIpc()
 
+    // Programmatic API — build the token store + the listener's lifecycle, and register the token
+    // IPC ONCE. NOTHING BINDS HERE: `apiLifecycle.apply` is the only thing that starts a listener,
+    // and the first apply rides the main window's `did-finish-load` (createWindow) — see the
+    // comment there for why it is not applied on this tick. The token file is not written until
+    // something asks for the token (a bind, or the Settings panel), so an app with the API off
+    // never mints one.
+    apiTokenStore = createApiTokenStore({ dir: app.getPath('userData'), log: apiLog })
+    // Resolved ONCE, not per request: `require.resolve` walks node_modules and `/docs` asks for its
+    // three assets on every load. Null (a pruned/broken install) degrades `/docs` to a 503 and
+    // leaves the rest of the API untouched.
+    const swaggerDistDir = resolveSwaggerDistDir()
+    apiLifecycle = createApiLifecycle({
+      start: (port, onListening) => {
+        const store = apiTokenStore
+        // The lifecycle CONTAINS a throwing `start` (logs `code=listen_failed`, stays stopped), so
+        // this is a refusal to serve without a token, not a crash.
+        if (store === null) throw new Error('api token store not initialized')
+        // `/openapi.json` is PUBLIC, and building the document runs six `z.toJSONSchema`
+        // conversions — work an unauthenticated caller could ask for in a loop. So it is built
+        // once and held, keyed by the port that ends up in `servers[0].url`.
+        //
+        // INVALIDATION is the key, not a hand-written reset: the port is the REQUESTED one until
+        // the bind reports and the BOUND one after (they differ whenever `apiPort` is 0), so the
+        // first request arriving inside that window cannot pin a stale URL — the key changes and
+        // the document is rebuilt exactly once more. A restart or a stop builds a NEW `start`
+        // closure, and with it a new empty cache, so there is nothing else to invalidate.
+        let openApiCache: { port: number; doc: Record<string, unknown> } | null = null
+        const docs = createDocsRoutes({
+          openapi: () => {
+            const docPort = apiLifecycle?.port() ?? port
+            if (openApiCache === null || openApiCache.port !== docPort) {
+              openApiCache = {
+                port: docPort,
+                doc: buildOpenApiDocument(apiCommands, { port: docPort, version: app.getVersion() })
+              }
+            }
+            return openApiCache.doc
+          },
+          swaggerDistDir,
+          log: apiLog
+        })
+        const server: ApiServer = createApiServer({
+          commands: apiCommands,
+          context: {
+            // Session truth is per WINDOW; the listener is app-global. It reads the single
+            // window's seam, and a window that is gone (or was never ready) answers `no_window`
+            // (503, retryable) instead of the API inventing a board of its own.
+            seam: () => {
+              const win = BrowserWindow.getAllWindows()[0]
+              if (win === undefined || win.webContents.isDestroyed()) return null
+              return apiSeams.get(win.webContents) ?? null
+            },
+            // NARROW on purpose (`Pick<…, 'get'>` / `'activeId' | 'get'`): the API reads the
+            // operator's own config, it is never a second write path into it.
+            templates: requireTemplatesStore(),
+            workspaces: requireWorkspacesStore(),
+            // The SAME version gate the in-app launch runs, so an API create cannot spawn a claude
+            // the `+ New session` popover would refuse.
+            claudeVersionAllowsLaunch,
+            now: Date.now,
+            spawnTimeoutMs: API_SPAWN_TIMEOUT_MS,
+            log: apiLog
+          },
+          // A GETTER, never the value: a Regenerate takes effect on the very next request, with no
+          // restart and without dropping the open streams.
+          token: () => store.current(),
+          publicRoutes: docs,
+          port,
+          onListening,
+          log: apiLog
+        })
+        return server
+      },
+      log: apiLog
+    })
+    // SMOKE — force the listener up on an EPHEMERAL port so the packaged binary proves that
+    // `/docs` and `/openapi.json` are reachable from inside the asar (the smoke-report handler
+    // fetches both and the runner gates on them). Port 0 is main-owned smoke input, not a
+    // settings write, so the settings schema's 1024 floor is not involved; the host is still
+    // 127.0.0.1. The smoke settings store is in-memory with `apiEnabled: false`, so this explicit
+    // apply is the only thing that binds here — and it is also why the first settings-driven
+    // apply (createWindow's `did-finish-load`) is skipped in SMOKE: applying a disabled setting
+    // would stop this listener before the verdict is taken.
+    if (SMOKE) apiLifecycle.apply({ apiEnabled: true, apiPort: 0 })
+    registerApiIpc()
+
     // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
     // handed to each spawned `claude` via `--settings` from the app's own data dir
     // (hookSettingsPathForSpawn). The app writes into no project and no user settings file.
@@ -2433,6 +2740,19 @@ app.on('before-quit', (e) => {
   if (showed) {
     e.preventDefault()
   }
+})
+
+// Programmatic API — close the listener when the quit is REAL, so the open SSE streams end with
+// the app instead of being cut by the process going away.
+//
+// `will-quit`, NOT `before-quit`: before-quit has THREE exits — nothing-live (proceeds), the
+// re-entrant call the Quit-guard's confirm makes (short-circuits at the top), and CANCEL (the
+// operator stays in the app, and a cancelled quit must change nothing — FROZEN #1). Electron emits
+// `will-quit` only once the quit is actually going ahead, which is exactly the condition, in one
+// place, with no duplication. `stop()` is idempotent and never throws (a `close` that throws is
+// contained and logged by code).
+app.on('will-quit', () => {
+  apiLifecycle?.stop()
 })
 
 // Quit when all windows are closed, except on macOS.

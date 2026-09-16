@@ -23,6 +23,7 @@ import {
   DEFAULT_REMINDER_COUNT,
   DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
   DEFAULT_EXPANDER_KEY,
+  DEFAULT_API_PORT,
   expanderChord,
   type Settings
 } from './settings'
@@ -35,7 +36,9 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       terminalFontSize: 16,
       reminderCount: 3,
       reminderFirstDelayMinutes: 2,
-      expanderKey: 'X'
+      expanderKey: 'X',
+      apiEnabled: false,
+      apiPort: 9281
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -276,5 +279,35 @@ describe('expanderKey — the one Ctrl+Alt letter that opens the shortcut box', 
 
   it('expanderChord renders the chord the terminal compares against', () => {
     expect(expanderChord('X')).toBe('Ctrl+Alt+X')
+  })
+})
+
+// The programmatic API's two settings. ADDITIVE on the v1 shape, same `.default()` reasoning as
+// the reminder fields: a file written before the API existed must not fail closed (that would
+// back it up and start fresh, losing every other setting). The port is range-gated because the
+// listener binds it — a privileged (<1024) or impossible (>65535) port is corrupt input, not a
+// preference, and the patch schema carries NO default so a sound-only patch cannot reset it.
+describe('settings — programmatic API fields', () => {
+  it('a v1 blob without the API keys parses with the API off on port 9281', () => {
+    // A real pre-API v1 file: the two keys are absent, not undefined. (Written with `delete`
+    // rather than a rest-destructure because the discarded bindings trip no-unused-vars.)
+    const old: Record<string, unknown> = { ...DEFAULT_SETTINGS }
+    delete old.apiEnabled
+    delete old.apiPort
+    expect(parseSettings(old)).toMatchObject({ apiEnabled: false, apiPort: DEFAULT_API_PORT })
+  })
+  it('rejects a port below 1024 or above 65535, or a non-integer', () => {
+    expect(() => parseSettings({ ...DEFAULT_SETTINGS, apiPort: 80 })).toThrow()
+    expect(() => parseSettings({ ...DEFAULT_SETTINGS, apiPort: 70000 })).toThrow()
+    expect(() => parseSettings({ ...DEFAULT_SETTINGS, apiPort: 9281.5 })).toThrow()
+  })
+  it('a patch without the API keys does not fill them (no default on the patch)', () => {
+    expect(SettingsPatchSchema.parse({ soundEnabled: false })).toEqual({ soundEnabled: false })
+  })
+  it('a patch can carry them', () => {
+    expect(SettingsPatchSchema.parse({ apiEnabled: true, apiPort: 9300 })).toEqual({
+      apiEnabled: true,
+      apiPort: 9300
+    })
   })
 })

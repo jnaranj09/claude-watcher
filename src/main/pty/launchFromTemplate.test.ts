@@ -11,7 +11,9 @@ describe('resolveTemplateLaunch — template id + name → LaunchRequest', () =>
       model: 'opus',
       permissionMode: 'acceptEdits',
       effort: 'max',
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
     return store
   }
@@ -31,7 +33,9 @@ describe('resolveTemplateLaunch — template id + name → LaunchRequest', () =>
       model: null,
       permissionMode: null,
       effort: null,
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
     expect(resolveTemplateLaunch(store, { templateId: 'tpl-2', name: 'x' }).flags).toEqual({
       model: null,

@@ -6,6 +6,9 @@
   "author": "Jose Naranjo",
   "homepage": "https://electron-vite.org",
   "desktopName": "com.claudewatcher.app.desktop",
+  "scarfSettings": {
+    "enabled": false
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -36,6 +39,7 @@
     "@xterm/xterm": "6.0.0",
     "electron-store": "^11.0.2",
     "node-pty": "^1.1.0",
+    "swagger-ui-dist": "5.32.15",
     "zod": "4.4.3",
     "zustand": "5.0.14"
   },

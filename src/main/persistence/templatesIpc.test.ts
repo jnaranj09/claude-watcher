@@ -8,7 +8,9 @@ const ROW = {
   model: null,
   permissionMode: null,
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 describe('templates IPC handler logic — parse-and-throw on the arg (untrusted cross-process input)', () => {

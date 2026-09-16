@@ -30,6 +30,10 @@ export interface SettingsState {
   reminderFirstDelayMinutes: ReminderFirstDelayMinutes
   /** Shortcut expander — the letter of the Ctrl+Alt chord that opens the box. */
   expanderKey: string
+  /** Programmatic API — whether the local HTTP listener is running (default OFF). */
+  apiEnabled: boolean
+  /** Programmatic API — the port the listener binds on 127.0.0.1. */
+  apiPort: number
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
@@ -54,6 +58,8 @@ export function createSettingsStore(): SettingsStoreApi {
     reminderCount: DEFAULT_SETTINGS.reminderCount,
     reminderFirstDelayMinutes: DEFAULT_SETTINGS.reminderFirstDelayMinutes,
     expanderKey: DEFAULT_SETTINGS.expanderKey,
+    apiEnabled: DEFAULT_SETTINGS.apiEnabled,
+    apiPort: DEFAULT_SETTINGS.apiPort,
     loaded: false,
 
     hydrate: (settings) => {
@@ -63,6 +69,8 @@ export function createSettingsStore(): SettingsStoreApi {
         reminderCount: settings.reminderCount,
         reminderFirstDelayMinutes: settings.reminderFirstDelayMinutes,
         expanderKey: settings.expanderKey,
+        apiEnabled: settings.apiEnabled,
+        apiPort: settings.apiPort,
         loaded: true
       })
     },
@@ -78,7 +86,9 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.reminderFirstDelayMinutes !== undefined
           ? { reminderFirstDelayMinutes: patch.reminderFirstDelayMinutes }
           : {}),
-        ...(patch.expanderKey !== undefined ? { expanderKey: patch.expanderKey } : {})
+        ...(patch.expanderKey !== undefined ? { expanderKey: patch.expanderKey } : {}),
+        ...(patch.apiEnabled !== undefined ? { apiEnabled: patch.apiEnabled } : {}),
+        ...(patch.apiPort !== undefined ? { apiPort: patch.apiPort } : {})
       })
     }
   }))
@@ -99,6 +109,10 @@ export const selectReminderFirstDelayMinutes = (state: SettingsState): ReminderF
   state.reminderFirstDelayMinutes
 /** Shortcut expander — the live open-chord letter (primitive). */
 export const selectExpanderKey = (state: SettingsState): string => state.expanderKey
+/** Programmatic API — whether the local HTTP listener is on (primitive). */
+export const selectApiEnabled = (state: SettingsState): boolean => state.apiEnabled
+/** Programmatic API — the port the listener binds (primitive). */
+export const selectApiPort = (state: SettingsState): number => state.apiPort
 /** Whether the initial load has completed (primitive). */
 export const selectLoaded = (state: SettingsState): boolean => state.loaded
 

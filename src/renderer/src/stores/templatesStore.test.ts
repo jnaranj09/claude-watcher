@@ -18,7 +18,9 @@ const T1: Template = {
   model: 'opus',
   permissionMode: null,
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 const T2: Template = {
   id: 'b',
@@ -27,7 +29,9 @@ const T2: Template = {
   model: null,
   permissionMode: 'plan',
   effort: null,
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 interface Bridge {
@@ -105,7 +109,9 @@ describe('templatesStore — bridge helpers', () => {
       model: 'opus',
       permissionMode: null,
       effort: null,
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
     expect(bridge.save).toHaveBeenCalledWith({
       name: 'api',
@@ -113,7 +119,9 @@ describe('templatesStore — bridge helpers', () => {
       model: 'opus',
       permissionMode: null,
       effort: null,
-      workspaceId: null
+      workspaceId: null,
+      initialPrompt: null,
+      params: []
     })
     expect(saved).toEqual(T1)
     expect(selectTemplates(templatesStore.getState())).toEqual([T1])
@@ -127,7 +135,9 @@ describe('templatesStore — bridge helpers', () => {
         model: null,
         permissionMode: null,
         effort: null,
-        workspaceId: null
+        workspaceId: null,
+        initialPrompt: null,
+        params: []
       })
     ).rejects.toThrow('template_name_taken')
   })

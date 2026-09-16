@@ -204,6 +204,51 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   instead). Adding a bridge method and updating only one of them typechecks in one program and
   fails in the other. Update both. (Bit the Workspaces implementation twice.)
 
+### Programmatic API (`src/main/api/`)
+
+Full rules: `.claude/rules/api.md`. The load-bearing shape:
+
+- **A SECOND `node:http` listener on 127.0.0.1:`apiPort` (9281), OFF by default**
+  (`settings.apiEnabled` / `settings.apiPort`, settings version stays 1). Loopback only — never
+  `0.0.0.0`. Every `/v1/*` request carries a bearer token read from `claude-watcher-api-token` in
+  `app.getPath('userData')` (0600, chmod-ed once per process — on the first read that finds an
+  existing file; `current()` caches) — never in `settings.json` (the renderer
+  reads that blob), never logged. `createApiLifecycle` starts/stops/restarts it from the settings
+  store: first apply on the window's `did-finish-load`, `stop()` on `will-quit`.
+- **Every action is a registry entry** (`src/main/api/commands/`): ONE `defineCommand` object with
+  separate Zod `params` / `query` / `body` / `output` schemas, a `handler` (or a `stream`), and the
+  error statuses it can answer. The router (`apiServer.ts`) AND `/openapi.json` (`openapi.ts`) are
+  both generated from the ordered `apiCommands` list in `commands/index.ts`, so a new action is one
+  file + one entry + a test and NEVER touches the server. Errors are `{ error: { code, path? } }`
+  and the codes ARE enum-locked (`API_ERROR_CODES` in `src/shared/schemas/api.ts`) — the opposite
+  call to `status` / `hook_event_name`, because we mint every one of them.
+- **The API sees exactly what the board sees.** `ApiSeam` (one per window, registered beside
+  `launchBoardSeams` in `src/main/index.ts`) fans the enriched delta out to open SSE streams from
+  INSIDE `handleDelta`'s board-ship gate, so an external (non-app-launched) session reaches no
+  client either. The wire session is a STATE-ONLY projection (`apiSession.ts` → the `.strict()`
+  `ApiSessionSchema`): no `firstPrompt`, no `latestMessage`, no `pendingToolInput`, no `pid`. Strict
+  is what makes that a guarantee — a new `Session` field shows up as a dropped frame
+  (`code=session_projection_failed`), never as content on the wire.
+- **An API launch IS a UI launch — except that it never takes the view.** Main registers the recipe
+  with the same launch service the `+ New session` popover uses and pushes `CH.launchRequested`
+  (validated at source); the renderer answers with `registerLaunchedTerminal` — REGISTRY ONLY, never
+  the popover's `openLaunchedTerminal`. That is enough to open the terminal (the registry key keeps
+  it in `selectKeptAliveTerminalIds`, so App mounts the focused layer hidden and `EmbeddedTerminal`
+  spawns the pty and mints the session id) while `viewMode`, `focusedTerminalId` and the active
+  workspace stay EXACTLY as the operator left them: the card appears in the TEMPLATE's workspace and
+  they open it when they choose. An external create must never yank someone out of the session they
+  are typing in. **The
+  prompt is NEVER the caller's**: it is the template's own `initialPrompt` with `$1..$n` filled from
+  `args` (`src/shared/prompt/expand.ts`), each value held to that param's `maxLength` and its
+  ANCHORED regex (`compileParamPattern`) — a miss is 400 `arg_invalid` naming `args.<i>`, never the
+  value. It reaches claude as the POSITIONAL `[prompt]` argument, last in `composeClaudeCommand`.
+  **In-app launches do NOT use the prompt in v1** (the field is labelled "Initial prompt (API
+  launches)"); `TEMPLATES_FILE_VERSION` stays 1 — `initialPrompt`/`params` are additive `.default()`s.
+- **Gate:** the `main-unit` tests drive the REAL server over loopback on an ephemeral port
+  (`testSupport.ts`, `port: 0`); the packaged smoke additionally fetches `/docs`, `/openapi.json`
+  and `/docs/swagger-ui-bundle.js` (SMOKE forces `{ apiEnabled: true, apiPort: 0 }` at app-ready),
+  which is the only check that opens a `swagger-ui-dist` file from inside the package.
+
 ### node-pty + packaging (a day-costing gotcha)
 
 node-pty is a native module. Keep it EXTERNALIZED in the electron-vite main config, rebuilt

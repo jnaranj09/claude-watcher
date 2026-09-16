@@ -25,6 +25,13 @@ export interface TextInputProps {
   /** Marks the current value as rejected. The dialog still owns the error LINE. */
   invalid?: boolean | undefined
   disabled?: boolean | undefined
+  /** A value the operator reads and copies but must not edit (the API token). NOT `disabled` —
+   *  a disabled field is dimmed and cannot be selected, so its value cannot be copied by hand. */
+  readOnly?: boolean | undefined
+  /** The on-screen keyboard/IME hint for a field that only takes digits (the API port). */
+  inputMode?: 'numeric' | undefined
+  /** Commit-on-blur, for a field the caller validates before it writes (the API port). */
+  onBlur?: (() => void) | undefined
   /** The caller keeps the ref — focus-on-open lives with whoever opens the surface. */
   inputRef?: Ref<HTMLInputElement> | undefined
   /** Joins the enclosing menu's roving focus (its `[data-menu-item]` query). */
@@ -51,11 +58,14 @@ export function TextInput({
   maxLength,
   invalid,
   disabled,
+  readOnly,
+  inputMode,
   inputRef,
   menuItem,
   variant = 'field',
   icon,
-  onKeyDown
+  onKeyDown,
+  onBlur
 }: TextInputProps): JSX.Element {
   const className = [
     styles.input,
@@ -77,9 +87,12 @@ export function TextInput({
       placeholder={placeholder}
       maxLength={maxLength}
       disabled={disabled === true}
+      readOnly={readOnly === true}
+      inputMode={inputMode}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
     />
   )
   if (icon === undefined) return input

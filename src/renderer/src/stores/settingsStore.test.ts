@@ -11,7 +11,9 @@ import {
   selectLoaded,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
-  selectExpanderKey
+  selectExpanderKey,
+  selectApiEnabled,
+  selectApiPort
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -33,7 +35,9 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       terminalFontSize: 22,
       reminderCount: 5,
       reminderFirstDelayMinutes: 10,
-      expanderKey: 'X'
+      expanderKey: 'X',
+      apiEnabled: false,
+      apiPort: DEFAULT_SETTINGS.apiPort
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -97,5 +101,30 @@ describe('expanderKey projection', () => {
     // A patch without the key leaves it alone.
     store.getState().applyPatch({ soundEnabled: false })
     expect(selectExpanderKey(store.getState())).toBe('Z')
+  })
+})
+
+describe('programmatic API projection', () => {
+  it('starts with the API off on the default port, and hydrates from main', () => {
+    const store = createSettingsStore()
+    expect(selectApiEnabled(store.getState())).toBe(false)
+    expect(selectApiPort(store.getState())).toBe(DEFAULT_SETTINGS.apiPort)
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true, apiPort: 9300 })
+    expect(selectApiEnabled(store.getState())).toBe(true)
+    expect(selectApiPort(store.getState())).toBe(9300)
+  })
+
+  it('applyPatch applies each field, and a patch without them leaves both alone', () => {
+    const store = createSettingsStore()
+    store.getState().applyPatch({ apiEnabled: true })
+    expect(selectApiEnabled(store.getState())).toBe(true)
+    expect(selectApiPort(store.getState())).toBe(DEFAULT_SETTINGS.apiPort)
+    store.getState().applyPatch({ apiPort: 9300 })
+    expect(selectApiPort(store.getState())).toBe(9300)
+    expect(selectApiEnabled(store.getState())).toBe(true)
+    // A patch that names neither key touches neither.
+    store.getState().applyPatch({ soundEnabled: false })
+    expect(selectApiEnabled(store.getState())).toBe(true)
+    expect(selectApiPort(store.getState())).toBe(9300)
   })
 })

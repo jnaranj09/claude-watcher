@@ -23,7 +23,14 @@ const DEFAULT_WS: Workspace = {
   defaultCwd: null
 }
 
-const base = { cwd: '/c', model: null, permissionMode: null, effort: null }
+const base = {
+  cwd: '/c',
+  model: null,
+  permissionMode: null,
+  effort: null,
+  initialPrompt: null,
+  params: []
+}
 const GLOBAL: Template = { ...base, id: 'g', name: 'global-one', workspaceId: null }
 const OWN: Template = { ...base, id: 'own', name: 'ops-one', workspaceId: 'w1' }
 const OTHER: Template = {

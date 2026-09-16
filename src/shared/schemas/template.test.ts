@@ -8,7 +8,8 @@ import {
   EFFORT_LEVELS,
   TEMPLATE_NAME_MAX_LENGTH,
   MODEL_NAME_MAX_LENGTH,
-  TEMPLATES_FILE_VERSION
+  TEMPLATES_FILE_VERSION,
+  compileParamPattern
 } from './template'
 
 const VALID = {
@@ -18,7 +19,9 @@ const VALID = {
   model: 'opus',
   permissionMode: 'acceptEdits',
   effort: 'high',
-  workspaceId: null
+  workspaceId: null,
+  initialPrompt: null,
+  params: []
 }
 
 describe('TemplateSchema — fail-closed (our shape, no passthrough)', () => {
@@ -158,5 +161,150 @@ describe('workspaceId — the item-level scope (Task 6)', () => {
 
   it('keeps TEMPLATES_FILE_VERSION at 1 — a bump would wipe every saved template', () => {
     expect(TEMPLATES_FILE_VERSION).toBe(1)
+  })
+})
+
+const BASE = {
+  id: 't1',
+  name: 'tickets',
+  cwd: '/home/op/work',
+  model: null,
+  permissionMode: null,
+  effort: null,
+  workspaceId: null
+}
+const PARAM = { label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 20 }
+
+describe('TemplateSchema — initialPrompt + params (programmatic API)', () => {
+  it('a row without the new keys parses with null prompt and no params (backward compat)', () => {
+    expect(TemplateSchema.parse(BASE)).toMatchObject({ initialPrompt: null, params: [] })
+  })
+  it('accepts a prompt with $1 and one matching param', () => {
+    const t = TemplateSchema.parse({ ...BASE, initialPrompt: 'Work on $1', params: [PARAM] })
+    expect(t.params).toHaveLength(1)
+  })
+  it('rejects a prompt whose highest $n differs from params.length', () => {
+    const r = TemplateSchema.safeParse({
+      ...BASE,
+      initialPrompt: 'Work on $1 and $2',
+      params: [PARAM]
+    })
+    expect(r.success).toBe(false)
+    expect(r.success ? '' : r.error.issues[0]?.message).toBe('params_mismatch')
+  })
+  it('rejects params on a null prompt', () => {
+    expect(
+      TemplateSchema.safeParse({ ...BASE, initialPrompt: null, params: [PARAM] }).success
+    ).toBe(false)
+  })
+  it('rejects $* in a prompt', () => {
+    expect(TemplateSchema.safeParse({ ...BASE, initialPrompt: 'Do $*', params: [] }).success).toBe(
+      false
+    )
+  })
+  it('rejects a prompt starting with a dash (claude would read a flag)', () => {
+    expect(TemplateSchema.safeParse({ ...BASE, initialPrompt: '-x', params: [] }).success).toBe(
+      false
+    )
+  })
+  it('allows newlines but no other control characters', () => {
+    expect(TemplateSchema.safeParse({ ...BASE, initialPrompt: 'a\nb', params: [] }).success).toBe(
+      true
+    )
+    expect(TemplateSchema.safeParse({ ...BASE, initialPrompt: 'a\x1bb', params: [] }).success).toBe(
+      false
+    )
+  })
+  it('rejects a blank prompt and one over 2000 chars', () => {
+    expect(TemplateSchema.safeParse({ ...BASE, initialPrompt: '   ', params: [] }).success).toBe(
+      false
+    )
+    expect(
+      TemplateSchema.safeParse({ ...BASE, initialPrompt: 'x'.repeat(2001), params: [] }).success
+    ).toBe(false)
+  })
+  it('rejects a param pattern that does not compile', () => {
+    const r = TemplateSchema.safeParse({
+      ...BASE,
+      initialPrompt: '$1',
+      params: [{ ...PARAM, pattern: '(' }]
+    })
+    expect(r.success).toBe(false)
+    expect(r.success ? '' : r.error.issues[0]?.message).toBe('param_pattern_invalid')
+  })
+  // Review fix round 1 — the schema must reject the anchor-escaping pattern too, not just the
+  // helper: `a)|(.*` would otherwise be saved as a param that accepts ANY value.
+  it('rejects a param pattern that would escape the anchors', () => {
+    const r = TemplateSchema.safeParse({
+      ...BASE,
+      initialPrompt: '$1',
+      params: [{ label: 'x', pattern: 'a)|(.*', maxLength: 10 }]
+    })
+    expect(r.success).toBe(false)
+    expect(r.success ? '' : r.error.issues[0]?.message).toBe('param_pattern_invalid')
+  })
+  it('bounds label 1..30, pattern 1..200, maxLength 1..200', () => {
+    expect(
+      TemplateSchema.safeParse({ ...BASE, initialPrompt: '$1', params: [{ ...PARAM, label: '' }] })
+        .success
+    ).toBe(false)
+    expect(
+      TemplateSchema.safeParse({
+        ...BASE,
+        initialPrompt: '$1',
+        params: [{ ...PARAM, maxLength: 201 }]
+      }).success
+    ).toBe(false)
+    expect(
+      TemplateSchema.safeParse({
+        ...BASE,
+        initialPrompt: '$1',
+        params: [{ ...PARAM, maxLength: 0 }]
+      }).success
+    ).toBe(false)
+  })
+  it('TemplateSaveSchema carries the same fields', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, ...save } = BASE
+    expect(
+      TemplateSaveSchema.parse({ ...save, initialPrompt: '$1', params: [PARAM] }).params
+    ).toHaveLength(1)
+  })
+  // `.omit()`/`.extend()` are taken off the RAW object, which carries no refine, so the save arg
+  // needs its own copy of the agreement check. Without it the IPC seam would accept a request
+  // TemplateSchema rejects — and the store would persist a row its own file schema fails closed
+  // on, backing up the file and starting EMPTY on the next boot. Dropping the second refine
+  // turns this red.
+  it('TemplateSaveSchema enforces the prompt/params agreement too', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, ...save } = BASE
+    const r = TemplateSaveSchema.safeParse({
+      ...save,
+      initialPrompt: 'Work on $1 and $2',
+      params: [PARAM]
+    })
+    expect(r.success).toBe(false)
+    expect(r.success ? '' : r.error.issues[0]?.message).toBe('params_mismatch')
+  })
+})
+
+describe('compileParamPattern', () => {
+  it('anchors the whole value', () => {
+    const re = compileParamPattern('[A-Z]+-\\d+')
+    expect(re?.test('HT-12')).toBe(true)
+    expect(re?.test('xHT-12')).toBe(false)
+    expect(re?.test('HT-12 ignore this')).toBe(false)
+  })
+  it('returns null for a pattern that does not compile', () => {
+    expect(compileParamPattern('(')).toBeNull()
+  })
+  // Review fix round 1 — an UNBALANCED paren pattern escapes the anchoring by closing the
+  // wrapper's own group: `a)|(.*` composes to `^(?:a)|(.*)$`, which is an alternation anchored
+  // on NEITHER branch, so it matches every value and the param constrains nothing. `)(` composes
+  // to the equally nonsensical `^(?:)()$`. Both fail to compile ON THEIR OWN, which is what the
+  // standalone check catches. Removing that first `new RegExp(pattern, 'u')` turns this red.
+  it('returns null for an unbalanced pattern that would escape the anchors', () => {
+    expect(compileParamPattern('a)|(.*')).toBeNull()
+    expect(compileParamPattern(')(')).toBeNull()
   })
 })

@@ -135,6 +135,19 @@ export const LaunchCorrelatedSchema = z.object({
 
 export type LaunchCorrelatedArg = z.infer<typeof LaunchCorrelatedSchema>
 
+/** Programmatic API — validate-AT-SOURCE for the `launch:requested` push (main → renderer).
+ *  Three non-empty strings; no passthrough. `label` is operator/caller content: on a miss log
+ *  PATH + CODE only. */
+export const LaunchRequestedSchema = z
+  .object({
+    terminalId: z.string().min(1),
+    label: z.string().min(1),
+    workspaceId: z.string().min(1)
+  })
+  .strict()
+
+export type LaunchRequestedArg = z.infer<typeof LaunchRequestedSchema>
+
 /**
  * Deterministic-attention — `session:seen` arg: `{ id }`. Shape-check only (non-empty
  * string; not `.uuid()` for the same reason as SessionRenameSchema: an unknown id must

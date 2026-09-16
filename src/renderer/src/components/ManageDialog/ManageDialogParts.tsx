@@ -172,6 +172,11 @@ export interface ManageDialogDeleteProps {
    *  (Workspaces: `workspace-delete-<id>` → `workspace-delete-confirm`). Defaults to `testId`. */
   armedTestId?: string
   disabled?: boolean
+  /** The resting label. Defaults to `Delete`. Rename it only for another DESTRUCTIVE two-press
+   *  action that is not itself a delete — Settings' `Regenerate` token is the one so far. */
+  label?: string | undefined
+  /** The armed label. Defaults to `Confirm delete`; pair it with `label`. */
+  confirmLabel?: string | undefined
 }
 
 /**
@@ -184,7 +189,9 @@ export function ManageDialogDelete({
   onConfirm,
   testId,
   armedTestId,
-  disabled = false
+  disabled = false,
+  label = 'Delete',
+  confirmLabel = 'Confirm delete'
 }: ManageDialogDeleteProps): JSX.Element {
   const { state, actions } = useManageDialogContext()
   const { armed } = state
@@ -211,7 +218,7 @@ export function ManageDialogDelete({
       onBlur={() => actions.disarm()}
       onKeyDown={handleKeyDown}
     >
-      {armed ? 'Confirm delete' : 'Delete'}
+      {armed ? confirmLabel : label}
     </button>
   )
 }

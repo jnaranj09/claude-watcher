@@ -29,10 +29,11 @@
 //   - never-crash: a fail-closed `/proc` read (gone/malformed) never throws + never adds a false
 //     membership; one bad session never aborts the others.
 //   - Linux gate: on a non-linux platform the correlation is skipped (launched-set stays empty).
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, type Mock } from 'vitest'
 import {
   createLaunchService,
   NO_LAUNCH_FLAGS,
+  type LaunchService,
   type LaunchTerminalManager,
   type ClaudeLaunchFlags
 } from './launchSession'
@@ -147,7 +148,9 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
       cwd: '/home/op/proj',
       name: 'proj',
       flags: NO_LAUNCH_FLAGS,
-      templateId: null
+      templateId: null,
+      initialPrompt: null,
+      workspaceId: null
     })
     // NON-CONSUMING (Story 5.4): a second peek returns the SAME recipe. The recipe is durable so
     // a StrictMode dev double-mount's surviving open AND a Reopen both still spawn claude (a
@@ -303,7 +306,9 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
       cwd: '/p',
       name: 'p',
       flags: NO_LAUNCH_FLAGS,
-      templateId: null
+      templateId: null,
+      initialPrompt: null,
+      workspaceId: null
     })
     const reopened = svc.mintSpawn('t-1')
     expect(reopened?.sessionId).toBe('sess-2')
@@ -660,14 +665,18 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       cwd: '/p',
       name: 'p',
       flags: NO_LAUNCH_FLAGS,
-      templateId: null
+      templateId: null,
+      initialPrompt: null,
+      workspaceId: null
     })
     svc.forget('t-1') // idempotent
     expect(svc.peekSpawnOverride('t-1')).toEqual({
       cwd: '/p',
       name: 'p',
       flags: NO_LAUNCH_FLAGS,
-      templateId: null
+      templateId: null,
+      initialPrompt: null,
+      workspaceId: null
     })
   })
 })
@@ -809,7 +818,9 @@ describe('session templates — launch flags reach spawn()', () => {
       cwd: '/p',
       name: 'p',
       flags: NO_LAUNCH_FLAGS,
-      templateId: null
+      templateId: null,
+      initialPrompt: null,
+      workspaceId: null
     })
   })
 
@@ -820,5 +831,115 @@ describe('session templates — launch flags reach spawn()', () => {
     svc.mintSpawn('t-1')
     svc.mintSpawn('t-1') // Reopen — the effort must survive a re-spawn of the same terminal
     expect(seen).toEqual([flags, flags])
+  })
+})
+
+// Programmatic API — the HTTP command that creates a card from a template supplies TWO values
+// the in-app flows never do: the expanded initial prompt claude must start with, and the
+// workspace the card must land in (the template's own scope, which need not be the workspace
+// the operator happens to be looking at). Both ride the DURABLE override beside `cwd` / `name` /
+// `flags`, for the same reason those do: they are per-terminal launch-recipe values, set once at
+// launch and read on EVERY spawn of that terminal — so a Reopen re-runs the same prompt in the
+// same workspace instead of degrading to a bare `claude` in whatever workspace is active now.
+/** A launch service whose spawn factory is a SPY, so a test can assert exactly what the recipe
+ *  handed it. Deterministic ids; the correlation seams are inert (pidOf null, empty /proc). */
+function makeService(): { svc: LaunchService; spawn: Mock } {
+  const spawn = vi.fn(() => ({ file: '/bin/bash', args: ['-l', '-c', 'claude'] }))
+  const svc = createLaunchService({
+    terminalManager: { pidOf: () => null } satisfies LaunchTerminalManager,
+    launchedSet: createLaunchedSet(),
+    spawn,
+    readStatus: readStatusFrom({}),
+    newTerminalId: () => 't-1',
+    newSessionId: () => 'sess-1',
+    platform: 'linux',
+    log: () => {}
+  })
+  return { svc, spawn }
+}
+
+describe('programmatic API — the initial prompt and the workspace ride the recipe', () => {
+  it('launch() without them stores null for both (UI launches unchanged)', () => {
+    const { svc } = makeService()
+    svc.launch({ cwd: '/w', name: 'n' })
+    expect(svc.peekSpawnOverride('t-1')).toMatchObject({ initialPrompt: null, workspaceId: null })
+  })
+
+  it('mintSpawn hands the prompt to the spawn factory as its 4th argument and echoes both back', () => {
+    const { svc, spawn } = makeService()
+    svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1', workspaceId: 'ws-9' })
+    const minted = svc.mintSpawn('t-1')
+    expect(spawn).toHaveBeenCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1')
+    expect(minted?.initialPrompt).toBe('do HT-1')
+    expect(minted?.workspaceId).toBe('ws-9')
+  })
+
+  it('a Reopen re-runs the same prompt (the override is the durable recipe)', () => {
+    const { svc, spawn } = makeService()
+    svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1' })
+    svc.mintSpawn('t-1')
+    svc.forget('t-1')
+    svc.mintSpawn('t-1')
+    expect(spawn).toHaveBeenLastCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1')
+  })
+})
+
+// Programmatic API — the HTTP command is synchronous to its caller but the spawn is NOT: main
+// registers the recipe and the RENDERER opens the terminal, which is what mints the session id.
+// `awaitBinding` is how the command waits for that id (the value the caller is told) without
+// polling, and how it gives up if the renderer never opens the terminal at all.
+describe('programmatic API — awaitBinding', () => {
+  it('resolves with the session id when mintSpawn binds the terminal', async () => {
+    const { svc } = makeService()
+    svc.launch({ cwd: '/w', name: 'n' })
+    const p = svc.awaitBinding('t-1', 1000)
+    svc.mintSpawn('t-1')
+    await expect(p).resolves.toBe('sess-1')
+  })
+
+  it('resolves at once when the binding already exists', async () => {
+    const { svc } = makeService()
+    svc.launch({ cwd: '/w', name: 'n' })
+    svc.mintSpawn('t-1')
+    await expect(svc.awaitBinding('t-1', 1000)).resolves.toBe('sess-1')
+  })
+
+  it('rejects with code spawn_timeout when nothing binds in time', async () => {
+    vi.useFakeTimers()
+    try {
+      const { svc } = makeService()
+      svc.launch({ cwd: '/w', name: 'n' })
+      const p = svc.awaitBinding('t-1', 50)
+      const assertion = expect(p).rejects.toThrow('spawn_timeout')
+      await vi.advanceTimersByTimeAsync(60)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a timed-out waiter is dropped: a later mint does not call it', async () => {
+    vi.useFakeTimers()
+    const cleared = vi.spyOn(globalThis, 'clearTimeout')
+    try {
+      const { svc } = makeService()
+      svc.launch({ cwd: '/w', name: 'n' })
+      const p = svc.awaitBinding('t-1', 50).catch(() => 'timed out')
+      await vi.advanceTimersByTimeAsync(60)
+
+      // NOT a vacuous assertion — and the outcome below cannot carry this on its own: a promise
+      // that has already rejected SWALLOWS a late resolve(), so "still rejected" holds whether
+      // the waiter was dropped or merely inert. The dropped-ness is observable through the dead
+      // waiter's FIRST act, clearTimeout(timer): if the mint can still reach it, this fires.
+      // (Verified by fault injection — deleting the drop in awaitBinding turns THIS red.)
+      cleared.mockClear()
+      svc.mintSpawn('t-1')
+      expect(cleared).not.toHaveBeenCalled()
+
+      await expect(p).resolves.toBe('timed out')
+    } finally {
+      cleared.mockRestore()
+      vi.useRealTimers()
+    }
   })
 })
