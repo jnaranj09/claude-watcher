@@ -1,7 +1,7 @@
 ---
 title: "Ideas board"
 description: "This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list"
-last_modified: 2026-09-15
+last_modified: 2026-09-16
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort]
 ---
@@ -19,5 +19,6 @@ allowed_efforts: [low_effort, medium_effort, high_effort]
 ***
 ## Bugs
 ***
+- **Workspace switch-back should return to the last FOCUSED terminal, not the last LAUNCHED one**: `focusWorkspace` (boardStore) re-points the pin at the workspace's most recently launched terminal. Reachable today by rail-clicking back to an older terminal after a second launch, and now more likely: an API create registers a terminal without focusing it, so leaving the workspace and coming back lands the operator in the API terminal they never opened instead of the one they were typing in. Track the last focused terminal per workspace and prefer it; fall back to most-recently-launched only when none. `pending_review` `low_effort`
 
 
