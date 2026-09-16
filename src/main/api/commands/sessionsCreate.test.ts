@@ -1,10 +1,18 @@
-// Programmatic API — `POST /v1/sessions`. The handler is driven DIRECTLY (not through the
-// listener): the router's own parse/route/output gates have their own tests in apiServer.test.ts,
-// and what matters here is the decision order — which error a bad request gets, and that nothing
-// is launched before every gate has passed.
-import { describe, it, expect } from 'vitest'
+// Programmatic API — `POST /v1/sessions`, tested at BOTH levels.
+//
+// Most of the file drives the handler DIRECTLY: what matters there is the decision order — which
+// error a bad request gets, and that nothing is launched before every gate has passed.
+//
+// The last block drives the SAME command over a real loopback listener (`startTestServer`),
+// because the handler never sees the request boundary: `.strict()` on the body, the `args`
+// `.default([])` when the key is omitted, and the output validated against
+// `SessionsCreateOutputSchema` before it is written all happen in the router. apiServer.test.ts
+// proves those gates on test-double commands; this proves they hold for the one WRITE route the
+// API actually ships.
+import { describe, it, expect, afterEach } from 'vitest'
 import { sessionsCreateCommand, validateArgs } from './sessionsCreate'
-import { makeFakeContext, makeFakeSeam } from '../testSupport'
+import { makeFakeContext, makeFakeSeam, startTestServer, call } from '../testSupport'
+import type { ApiServer } from '../apiServer'
 import type { ApiContext, ApiResult } from '../registry'
 import type { Template } from '../../../shared/schemas/template'
 import type { Workspace } from '../../../shared/schemas/workspace'
@@ -265,5 +273,78 @@ describe('POST /v1/sessions', () => {
     for (const secret of ['SECRETNAME', 'acme', 'HT-1', 'Work on']) {
       expect(joined).not.toContain(secret)
     }
+  })
+})
+
+// The ONE write route, driven over loopback through the REAL `createApiServer` with the REAL
+// command — the boundary the handler-level tests above cannot reach.
+describe('POST /v1/sessions through the real listener', () => {
+  let server: ApiServer | null = null
+  afterEach(() => {
+    server?.close()
+    server = null
+  })
+
+  const NO_PARAMS: Template = {
+    ...T,
+    id: 'nightly',
+    initialPrompt: 'Run the nightly check',
+    params: []
+  }
+
+  const start = async (
+    over: Parameters<typeof makeFakeContext>[0] = {}
+  ): Promise<{ url: string; seam: ReturnType<typeof makeFakeSeam>; log: string[] }> => {
+    const seam = makeFakeSeam()
+    const { ctx, log } = makeFakeContext({ seam, ...over })
+    const s = await startTestServer([sessionsCreateCommand], ctx)
+    server = s.server
+    return { url: s.url, seam, log }
+  }
+
+  it('201 with the output body, and the launch carries the expanded prompt', async () => {
+    const { url, seam } = await start({
+      templates: [{ ...T, workspaceId: 'ws2' }],
+      workspaces: [WS]
+    })
+    const r = await call(url, 'POST', '/v1/sessions', {
+      body: JSON.stringify({ templateId: 'tpl', name: 'HT-1', args: ['HT-1', 'acme'] })
+    })
+    expect(r.status).toBe(201)
+    expect(JSON.parse(r.text)).toEqual({
+      sessionId: 'sess-1',
+      terminalId: 'term-1',
+      workspaceId: 'ws2'
+    })
+    // The body was written only because it PARSED against `SessionsCreateOutputSchema`; the
+    // launch is what proves the request reached the real handler and not a route stub.
+    expect(seam.launches[0]?.initialPrompt).toBe('Work on HT-1 for acme')
+  })
+
+  it('400 invalid_request for an extra body key — `.strict()` at the wire', async () => {
+    const { url, seam, log } = await start({ templates: [NO_PARAMS] })
+    const r = await call(url, 'POST', '/v1/sessions', {
+      body: JSON.stringify({ templateId: 'nightly', name: 'n', prompt: 'do as I say' })
+    })
+    expect(r.status).toBe(400)
+    // The path is `(root)`, NOT the rejected key: zod reports `unrecognized_keys` at the object
+    // itself, and the key is CALLER-supplied text — echoing it into the error body and the log
+    // line would put caller input exactly where this API never puts it.
+    expect(JSON.parse(r.text)).toEqual({ error: { code: 'invalid_request', path: '(root)' } })
+    expect(seam.launches).toHaveLength(0)
+    expect(log.join('|')).not.toContain('do as I say')
+    expect(log.join('|')).not.toContain('prompt')
+  })
+
+  it('201 with `args` omitted entirely on a template that takes none', async () => {
+    // `args: z.array(z.string()).default([])` — the key is optional on the wire, and the
+    // OpenAPI document publishes it optional (`io: 'input'`) precisely so a generated client
+    // may leave it out. A 400 here would make the document a lie.
+    const { url, seam } = await start({ templates: [NO_PARAMS] })
+    const r = await call(url, 'POST', '/v1/sessions', {
+      body: JSON.stringify({ templateId: 'nightly', name: 'nightly' })
+    })
+    expect(r.status).toBe(201)
+    expect(seam.launches[0]?.initialPrompt).toBe('Run the nightly check')
   })
 })
