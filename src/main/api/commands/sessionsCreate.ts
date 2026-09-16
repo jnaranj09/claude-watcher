@@ -27,8 +27,8 @@ import { compileParamPattern, type Template } from '../../../shared/schemas/temp
 import { expand } from '../../../shared/prompt/expand'
 import { defineCommand, type ApiErr } from '../registry'
 
-/** Count, then length, then the anchored regex. `path` names the offending index. Values are
- *  never logged or echoed. */
+/** Count, then length, then control characters, then the anchored regex. `path` names the
+ *  offending index. Values are never logged or echoed. */
 export function validateArgs(
   template: Template,
   args: readonly string[]
@@ -39,6 +39,12 @@ export function validateArgs(
     const value = args[i]
     if (param === undefined || value === undefined) return { ok: false, path: `args.${i}` }
     if (value.length > param.maxLength) return { ok: false, path: `args.${i}` }
+    // Control characters are refused HERE, per index, even though `expand` refuses them too: an
+    // operator's pattern can happily admit one (`.` matches ESC, `[^\n]` matches BEL), and the
+    // expander reports an index only for a MISSING arg — so without this check the caller is
+    // told "something in `args`" and has to guess which value. `expand`'s check stays as the
+    // backstop; it also serves the renderer's expander box, which never runs `validateArgs`.
+    if (/\p{Cc}/u.test(value)) return { ok: false, path: `args.${i}` }
     const re = compileParamPattern(param.pattern)
     // A pattern that does not compile refuses EVERY value. The template schema already rejects
     // such a pattern on save, so this is the fail-closed backstop for a file edited by hand.
@@ -88,6 +94,17 @@ export const sessionsCreateCommand = defineCommand({
         ? err(400, 'prompt_too_long')
         : err(400, 'arg_invalid', 'args')
     }
+    // THE GUARD BELONGS ON THE RESULT, not on the template text. `InitialPromptSchema` refuses a
+    // prompt that STARTS with `-` (claude would parse it as a flag), but a placeholder-first
+    // template (`$1 …`, or just `$1`) passes that gate and the CALLER's value lands in front of
+    // it — so a free pattern (`.+`, a plausible "ticket title" param) would let
+    // `--dangerously-skip-permissions` reach claude as the last argv token. A flag is worse than
+    // a sentence, and "a caller fills a sentence, never hands claude one" is the whole posture of
+    // this route. The index of the leading placeholder is not cheaply knowable here (`$7` may be
+    // what sits first), so the path is the whole `args` field. `composeClaudeCommand` also emits
+    // ` -- ` before the positional prompt; that is the belt to this brace, and it covers every
+    // launch path rather than just this one.
+    if (/^\s*-/.test(expanded.value)) return err(400, 'arg_invalid', 'args')
     // 503s are RETRYABLE and come last among the refusals: a caller whose request is malformed
     // should learn that whether or not a window happens to be open right now.
     if (!ctx.claudeVersionAllowsLaunch()) return err(503, 'claude_version')

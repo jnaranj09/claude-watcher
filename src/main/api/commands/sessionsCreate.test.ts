@@ -43,6 +43,23 @@ describe('validateArgs', () => {
     expect(validateArgs(T, ['HT-1x', 'acme'])).toEqual({ ok: false, path: 'args.0' })
   })
 
+  it('names the INDEX of a value carrying a control character', () => {
+    // A free pattern (`.+`) matches a control char — `.` matches ESC — so the per-index check
+    // is what turns "something in `args` is wrong" into "arg 1 is wrong", which is the only
+    // form a caller can act on. `expand` still refuses it as the backstop.
+    const free: Template = {
+      ...T,
+      initialPrompt: 'Do $1 then $2',
+      params: [
+        { label: 'A', pattern: '.+', maxLength: 50 },
+        { label: 'B', pattern: '.+', maxLength: 50 }
+      ]
+    }
+    expect(validateArgs(free, ['ok', 'a\u001bb'])).toEqual({ ok: false, path: 'args.1' })
+    expect(validateArgs(free, ['a\u0007b', 'ok'])).toEqual({ ok: false, path: 'args.0' })
+    expect(validateArgs(free, ['ok', 'fine'])).toEqual({ ok: true })
+  })
+
   it('a pattern that does not compile refuses every value (fail closed)', () => {
     const broken: Template = {
       ...T,
@@ -106,10 +123,10 @@ describe('POST /v1/sessions', () => {
     expect(seam.launches).toHaveLength(0)
   })
 
-  it('400 arg_invalid at `args` when a value carries a control character', async () => {
-    // The regex can pass a control char (`.` matches BEL) — `expand` is the gate that stops it,
-    // and its non-`too_long` failure maps to `arg_invalid` at the whole `args` field, because
-    // the expander names an index only for a MISSING arg, not for a bad one.
+  it('400 arg_invalid at the INDEX when a value carries a control character', async () => {
+    // The regex can pass a control char (`.` matches BEL). `validateArgs` refuses it per index,
+    // so the caller is told WHICH value is wrong; `expand`'s own check remains the backstop for
+    // the renderer's expander box, which does not run `validateArgs` at all.
     const ctrl: Template = {
       ...T,
       initialPrompt: 'Do $1',
@@ -121,9 +138,39 @@ describe('POST /v1/sessions', () => {
       ok: false,
       status: 400,
       code: 'arg_invalid',
+      path: 'args.0'
+    })
+    expect(seam.launches).toHaveLength(0)
+  })
+
+  it('400 arg_invalid when the EXPANSION starts with `-` — a caller cannot hand claude a flag', async () => {
+    // THE HOLE THIS CLOSES: `InitialPromptSchema` refuses a template whose TEXT starts with `-`,
+    // but a placeholder-first template (`$1`) passes that gate and the caller's value lands in
+    // front of it. With a free pattern (a plausible "ticket title" param) the expansion becomes
+    // `--dangerously-skip-permissions`, and the expansion is claude's LAST argv token.
+    const first: Template = {
+      ...T,
+      initialPrompt: '$1',
+      params: [{ label: 'Anything', pattern: '.+', maxLength: 200 }]
+    }
+    const seam = makeFakeSeam()
+    const { ctx } = makeFakeContext({ seam, templates: [first] })
+    expect(
+      await run(ctx, { templateId: 'tpl', name: 'n', args: ['--dangerously-skip-permissions'] })
+    ).toEqual({ ok: false, status: 400, code: 'arg_invalid', path: 'args' })
+    expect(seam.launches).toHaveLength(0)
+    // Padding it with spaces is the same attempt, so the check skips leading whitespace.
+    expect(await run(ctx, { templateId: 'tpl', name: 'n', args: ['  -p'] })).toMatchObject({
+      status: 400,
+      code: 'arg_invalid',
       path: 'args'
     })
     expect(seam.launches).toHaveLength(0)
+    // A hyphen anywhere but the FRONT is ordinary prose and must still launch.
+    expect(
+      await run(ctx, { templateId: 'tpl', name: 'n', args: ['fix the co-op page'] })
+    ).toMatchObject({ ok: true, status: 201 })
+    expect(seam.launches).toHaveLength(1)
   })
 
   it('400 template_has_no_prompt', async () => {
