@@ -42,6 +42,28 @@ function selectorSegments(css: string): string[] {
   return segments
 }
 
+/** The declaration text of every rule whose selector list names `selector` (the same matcher
+ *  `declares` uses), comments stripped and joined. `''` when no such rule exists — so an assertion
+ *  on a property passes only when the rule IS there and carries it. */
+function ruleBody(css: string, selector: string): string {
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const pattern = new RegExp(`(^|[\\s,>+~(])\\${selector}(?![\\w-])`)
+  const bodies: string[] = []
+  let start = 0
+  let prelude = ''
+  for (let i = 0; i < stripped.length; i++) {
+    if (stripped[i] === '{') {
+      prelude = stripped.slice(start, i)
+      start = i + 1
+    } else if (stripped[i] === '}') {
+      if (pattern.test(prelude)) bodies.push(stripped.slice(start, i))
+      prelude = ''
+      start = i + 1
+    }
+  }
+  return bodies.join('\n')
+}
+
 /** Recurses — a `*.module.css` any number of directories under `baseDir` must still be seen (a
  *  sibling dialog one folder deeper is a real place for a copy of a guarded class to hide). */
 function componentModules(baseDir: string = componentsDir): { name: string; css: string }[] {
@@ -103,6 +125,35 @@ describe('ManageDialog owns the Manage-dialog styles', () => {
   })
 })
 
+// The panel is centred in a fixed overlay, so anything taller than the window overflows BOTH
+// edges: the ✕ goes off the top and `[Delete] [Save]` off the bottom, neither reachable by mouse.
+// That is exactly what the Templates form did once the API's `Initial prompt` + `Parameters` rows
+// grew it (~230px) against the app's default 1000×700 window — measured save rect.bottom 747 vs
+// innerHeight 700. These three declarations are the fix, and all three are load-bearing: without
+// the `minmax(0, 1fr)` row the grid sizes itself to the form's content and `overflow-y` never
+// engages.
+describe('the shell fits the window (the ✕ and the footer stay reachable)', () => {
+  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+
+  it('caps .panel to the viewport height', () => {
+    expect(ruleBody(css, '.panel')).toMatch(/max-height:\s*calc\(100vh/)
+  })
+
+  it('caps the body grid row so the form cannot size the panel past that cap', () => {
+    expect(ruleBody(css, '.columns')).toMatch(/grid-template-rows:\s*minmax\(0,\s*1fr\)/)
+  })
+
+  it('scrolls the form — the smallest region that leaves the rail and the header alone', () => {
+    expect(ruleBody(css, '.form')).toMatch(/overflow-y:\s*auto/)
+  })
+
+  it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
+    expect(ruleBody(css, '.rows')).toMatch(/overflow-y:\s*auto/)
+    expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*360px/)
+    expect(ruleBody(css, '.newButton')).toMatch(/margin-top:\s*auto/)
+  })
+})
+
 // The detector only ever saw a selector that starts a line — a descendant target, a selector
 // mid comma-list, an indented rule, or a module one directory deeper all slipped past it. These
 // feed it exactly those cases.
@@ -136,6 +187,25 @@ describe('declares() sees a selector anywhere a selector can name it', () => {
   it('does not flag a comment or a declaration value naming the class', () => {
     const css = '/* .deleteButton lives here once */\n.foo {\n  content: ".deleteButton";\n}\n'
     expect(declares(css, '.deleteButton')).toBe(false)
+  })
+})
+
+// Non-vacuity for the four guards above: a `ruleBody` that answered with the whole stylesheet, or
+// with a sibling's block, would pass them no matter what `.panel` says.
+describe('ruleBody() returns THAT rule`s declarations and nothing else', () => {
+  const css = '.panel {\n  max-height: 10px;\n}\n.panelWide {\n  max-height: 20px;\n}\n'
+
+  it('does not answer with a longer class sharing the prefix', () => {
+    expect(ruleBody(css, '.panel')).toContain('max-height: 10px')
+    expect(ruleBody(css, '.panel')).not.toContain('max-height: 20px')
+  })
+
+  it('is empty for a rule that is not there', () => {
+    expect(ruleBody(css, '.missing')).toBe('')
+  })
+
+  it('does not leak a neighbouring rule`s declarations', () => {
+    expect(ruleBody('.a {\n  color: red;\n}\n.b {\n  color: blue;\n}\n', '.b')).not.toContain('red')
   })
 })
 

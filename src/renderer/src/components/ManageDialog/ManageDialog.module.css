@@ -11,6 +11,12 @@
   justify-content: center;
   z-index: 60;
 }
+/* The panel is CENTRED in a fixed overlay, so a panel taller than the window overflows BOTH edges
+   at once — the ✕ above the top, `[Delete] [Save]` below the bottom, neither reachable by mouse and
+   neither hinting that it exists. The Templates form is what hit it first (its `Initial prompt` +
+   `Parameters` rows added ~230px against the app's default 1000×700 window: save rect.bottom 747 vs
+   innerHeight 700), but every dialog on this shell grows, so the cap lives here. `--space-6` is the
+   panel's own padding step, reused as the gutter the centring then splits top and bottom. */
 .panel {
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-strong);
@@ -19,6 +25,7 @@
   min-width: 640px;
   max-width: 760px;
   width: 100%;
+  max-height: calc(100vh - 2 * var(--space-6));
   color: var(--text-primary);
   box-shadow: var(--shadow-dialog);
   display: flex;
@@ -91,9 +98,14 @@
 }
 
 /* ── The list rail ─────────────────────────────────────────────────────────────────────────── */
+/* `minmax(0, 1fr)` on the row is what makes the panel's cap reach the form: an `auto` row sizes
+   itself to the form's full content and pushes straight through the cap, so the form's own
+   `overflow-y` would never engage. Under an indefinite panel height an `fr` row still sizes to its
+   content, so a short dialog is unchanged. */
 .columns {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-4);
   min-height: 320px;
 }
@@ -177,10 +189,19 @@
   margin-top: auto;
 }
 
+/* The form is the ONLY region that scrolls — the smallest one that fixes the overflow. The header
+   (with ✕) and the rail keep their own heights, so `.rows` still scrolls itself and `+ New` still
+   sits at the bottom of the rail. The `[Delete] [Save]` footer scrolls WITH the form on purpose: a
+   sticky footer would have to paint over the field under it, and the operator reads the object they
+   are about to save right above the button that saves it (design.md). `padding-right` keeps the
+   scrollbar off the fields' focus rings. */
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--space-2);
 }
 .label {
   font-size: var(--font-size-label);

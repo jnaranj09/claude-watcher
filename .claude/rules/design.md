@@ -69,6 +69,14 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
   `ManageDialog.module.css` and nowhere else: render `<ManageDialog.Delete>`, which owns
   the arm / blur / Escape behaviour once. `ManageDialog.styles.test.ts` fails if any other
   module declares either class.
+- **The panel is capped to the viewport and the FORM is what scrolls.** `.panel` is
+  `max-height: calc(100vh - 2 * var(--space-6))`, `.columns` carries
+  `grid-template-rows: minmax(0, 1fr)`, and `.form` is the one `overflow-y: auto` region — so the
+  header (with ✕) and the rail never move and `[Delete] [Save]` stays reachable by mouse. Before it,
+  a centred panel taller than the window overflowed BOTH edges: the Templates form's API fields put
+  Save at `rect.bottom` 747 against a 700px window, unclickable. A form that has grown past the cap
+  is a form to shorten, not a reason to grow the panel. (`ManageDialog.styles.test.ts` pins all
+  three declarations; the Select popups inside a scrolled form scroll with it.)
 - **One error line per dialog**, `role="alert"`, shared by every flow in it. Never a
   second error surface per section, and never render a thrown `error.message` — map the
   code to operator copy first (see the `copyFor`/`templateErrorMessage` precedent).
