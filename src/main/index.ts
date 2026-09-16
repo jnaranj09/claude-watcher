@@ -1122,15 +1122,39 @@ function registerPtyIpc(): void {
     node: process.versions.node
   }))
 
-  ipcMain.on(CH.smokeReport, (evt, report: SmokeReport) => {
+  ipcMain.on(CH.smokeReport, async (evt, report: SmokeReport) => {
     const term = ptys.get(evt.sender)
+    // Programmatic API — the packaged-docs check. The listener was forced up on an ephemeral
+    // port at app-ready (SMOKE), so a 200 from both routes proves `swagger-ui-dist` resolves and
+    // the document builds from INSIDE the packaged asar, not just in dev.
+    const port = apiLifecycle?.port() ?? null
+    let api: { docs: number; openapi: number; pass: boolean } = { docs: 0, openapi: 0, pass: false }
+    if (port !== null) {
+      // TIMEBOXED. This runs inside the verdict path: the handler writes the verdict file and
+      // then app.exit()s, and the runner's failure mode for a missing verdict file is exit 3.
+      // A hung fetch would turn a passing smoke into "no verdict file written" — so a timeout
+      // is a FAILED CHECK (status 0 → pass false), never a hang.
+      const status = async (path: string): Promise<number> => {
+        try {
+          return (
+            await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2000) })
+          ).status
+        } catch {
+          return 0
+        }
+      }
+      const docs = await status('/docs')
+      const openapi = await status('/openapi.json')
+      api = { docs, openapi, pass: docs === 200 && openapi === 200 }
+    }
     const full = {
       ...report,
       main: {
         electron: process.versions.electron,
         abi: process.versions.modules,
         node: process.versions.node,
-        ptyPid: term?.pid ?? null
+        ptyPid: term?.pid ?? null,
+        api
       }
     }
     const json = JSON.stringify(full, null, 2)
@@ -2220,7 +2244,14 @@ function createWindow(): void {
   //
   // `apply` is idempotent, so the `activate` path re-creating a window re-applies to no effect,
   // and a null settings store (it is built before createWindow runs) simply skips the start.
+  //
+  // SMOKE owns the listener itself (app-ready applies `{ apiEnabled: true, apiPort: 0 }` so the
+  // verdict can fetch `/docs` and `/openapi.json` from inside the asar). The smoke settings store
+  // is in-memory with `apiEnabled: false`, so applying it HERE would stop that listener before the
+  // report is taken — verified: the packaged run logged `code=listening port=39545` and then
+  // `code=stopped`, and the verdict came back `api: { docs: 0, openapi: 0 }`.
   mainWindow.webContents.once('did-finish-load', () => {
+    if (SMOKE) return
     if (settingsStore === null) return
     apiLifecycle?.apply(settingsStore.get())
   })
@@ -2560,6 +2591,15 @@ app
       },
       log: apiLog
     })
+    // SMOKE — force the listener up on an EPHEMERAL port so the packaged binary proves that
+    // `/docs` and `/openapi.json` are reachable from inside the asar (the smoke-report handler
+    // fetches both and the runner gates on them). Port 0 is main-owned smoke input, not a
+    // settings write, so the settings schema's 1024 floor is not involved; the host is still
+    // 127.0.0.1. The smoke settings store is in-memory with `apiEnabled: false`, so this explicit
+    // apply is the only thing that binds here — and it is also why the first settings-driven
+    // apply (createWindow's `did-finish-load`) is skipped in SMOKE: applying a disabled setting
+    // would stop this listener before the verdict is taken.
+    if (SMOKE) apiLifecycle.apply({ apiEnabled: true, apiPort: 0 })
     registerApiIpc()
 
     // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
