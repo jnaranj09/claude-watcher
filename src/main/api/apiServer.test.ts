@@ -104,6 +104,26 @@ const idle = defineCommand({
   }
 })
 
+/** Breaks the registry's contract: starts the stream, sends a frame, and THEN returns an ApiErr.
+ *  There is no longer a response to put JSON in — the server must contain it, not append it. */
+const lateError = defineCommand({
+  id: 'test.lateError',
+  method: 'GET',
+  path: '/v1/late-error',
+  summary: 'le',
+  params: EmptySchema,
+  query: EmptySchema,
+  body: null,
+  output: 'text/event-stream',
+  successStatus: 200,
+  errorStatuses: [404],
+  async stream(_ctx, _input, sink) {
+    sink.start()
+    sink.send('hello', { n: 1 }, 1)
+    return { ok: false, status: 404, code: 'session_not_found' } satisfies ApiErr
+  }
+})
+
 /** The sink is already ended when the command registers its cleanup (a fast disconnect). */
 const closeRan = { early: false }
 const earlyClose = defineCommand({
@@ -256,13 +276,22 @@ describe('createApiServer', () => {
   })
 
   it('routes params + query + body into the handler and validates the output', async () => {
+    const log = vi.fn()
     const { ctx } = makeFakeContext()
-    const s = await startTestServer([echo], ctx)
+    const s = await startTestServer([echo], ctx, { log })
     server = s.server
     const r = await call(s.url, 'POST', '/v1/echo/abc?q=hi', { body: '{"n":2}' })
     expect(r.status).toBe(201)
     expect(r.headers['content-type']).toContain('application/json')
     expect(JSON.parse(r.text)).toEqual({ id: 'abc', q: 'hi', n: 2 })
+    // The request line is the API's only trace of a served request: METHOD + route ID, never the
+    // URL. The URL carries the path param (`abc`) and the query value (`hi`), so neither of them
+    // — nor the raw path — may appear in ANY log line.
+    expect(log).toHaveBeenCalledWith('[claude-watcher][api] method=POST route=test.echo')
+    const logged = String(log.mock.calls)
+    expect(logged).not.toContain('/v1/echo')
+    expect(logged).not.toContain('abc')
+    expect(logged).not.toContain('q=hi')
   })
 
   it('400 invalid_request with the issue PATH, and the log never carries the value', async () => {
@@ -366,6 +395,38 @@ describe('createApiServer', () => {
     expect(r.type).toBe('text/event-stream')
     expect(r.text).toBe('id: 1\nevent: hello\ndata: {"id":"abc"}\n\n')
     await vi.waitFor(() => expect(s.server.streams()).toBe(0)) // destroy() → onClose → freed
+  })
+
+  it('contains a stream that errors AFTER start: no JSON appended, no write past the end', async () => {
+    const log = vi.fn()
+    // An uncaught 'error' on the response is what this guards against, so watch for one. The
+    // listener also keeps a regression from taking the whole worker down instead of this test.
+    const uncaught = vi.fn()
+    process.on('uncaughtException', uncaught)
+    try {
+      const { ctx } = makeFakeContext()
+      // Short enough that several pings fall inside the wait below: an un-disarmed interval
+      // writing to a finished response is exactly the failure being contained.
+      const s = await startTestServer([lateError], ctx, { log, pingMs: 5 })
+      server = s.server
+      const r = await call(s.url, 'GET', '/v1/late-error')
+      expect(r.status).toBe(200)
+      expect(r.headers['content-type']).toBe('text/event-stream')
+      // A well-formed SSE stream that simply ENDS. The ApiErr's JSON is never appended to it —
+      // half a frame of `{"error":…}` is not something an SSE client can parse.
+      expect(r.text).toBe('id: 1\nevent: hello\ndata: {"n":1}\n\n')
+      expect(log).toHaveBeenCalledWith(
+        '[claude-watcher][api] code=stream_error_after_start route=test.lateError'
+      )
+      // The sink was ENDED, so its ping interval is disarmed and the stream slot is freed.
+      expect(s.server.streams()).toBe(0)
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      expect(uncaught).not.toHaveBeenCalled()
+      // Nothing was written after the end, so the response's own error guard never fired either.
+      expect(String(log.mock.calls)).not.toContain('response_error')
+    } finally {
+      process.off('uncaughtException', uncaught)
+    }
   })
 
   it('keeps an idle stream alive with `: ping` comments at pingMs', async () => {

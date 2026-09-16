@@ -195,6 +195,11 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
       }
     }
     res.on('close', () => sink.end())
+    // A write that loses a race with the end of the response (ERR_STREAM_WRITE_AFTER_END) or a
+    // socket that dies mid-frame emits 'error' on `res`. With no listener that is an UNCAUGHT
+    // exception in the main process — one stream taking down the app. Code only: the error's
+    // message can quote the frame it failed to write.
+    res.on('error', () => log('[claude-watcher][api] code=response_error'))
     return sink
   }
 
@@ -298,7 +303,21 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
         }
         const sink = makeSink(res)
         const err = await command.stream(options.context, input, sink)
-        if (err !== null) writeErr(res, err)
+        if (err !== null) {
+          if (res.headersSent) {
+            // The command broke the contract: it started the stream and THEN returned an error.
+            // There is no response left to put JSON in — `writeErr` would append `{"error":…}`
+            // to the SSE body (unparseable to a client) AND leave the sink's `ended` flag false,
+            // so the ping interval would keep calling `res.write()` on a finished response. In
+            // the finished-but-not-destroyed window that raises ERR_STREAM_WRITE_AFTER_END as an
+            // 'error' event on `res` — an uncaught exception in Electron main. End the stream
+            // cleanly instead; the code goes to the log, never to the wire.
+            log(`[claude-watcher][api] code=stream_error_after_start route=${command.id}`)
+            sink.end()
+          } else {
+            writeErr(res, err)
+          }
+        }
         return
       }
       if (command.handler === undefined || command.output === 'text/event-stream') {
