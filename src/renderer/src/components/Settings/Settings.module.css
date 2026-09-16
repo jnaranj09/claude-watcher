@@ -72,6 +72,26 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  /* The API token row carries a field and two buttons; on the 320px panel they wrap instead of
+     pushing the row past its edge. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Programmatic API — the port is at most five digits, so the field does not need the row's whole
+   remaining width. TextInput's own box is `width: 100%`, so the wrapper sets the size. */
+.portField {
+  display: block;
+  width: 10ch;
+}
+
+/* Programmatic API — the token is 64 chars. It takes what the row has left (and no more: the
+   panel caps at 420px) and scrolls inside its own box rather than widening the panel. */
+.tokenField {
+  display: block;
+  flex: 1 1 16ch;
+  min-width: 0;
 }
 
 .fontSizeValue {

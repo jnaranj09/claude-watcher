@@ -210,6 +210,50 @@ describe('ManageDialog.Delete outside a Form — its own Escape guard', () => {
   })
 })
 
+// The armed-button classes live ONLY in ManageDialog.module.css (design.md), so a destructive
+// two-press action OUTSIDE a Manage dialog — the Settings panel's `Regenerate` — reuses this
+// component and renames it. The defaults must stay byte-identical for every existing dialog.
+function LabelledDeleteHarness(props: {
+  label?: string | undefined
+  confirmLabel?: string | undefined
+}): JSX.Element {
+  const dialog = useManageDialog({
+    title: 'Things',
+    testIdPrefix: 'things',
+    onClose: () => {}
+  })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Delete
+        testId="thing-delete"
+        onConfirm={() => {}}
+        label={props.label}
+        confirmLabel={props.confirmLabel}
+      />
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.Delete — its labels', () => {
+  it('reads "Delete" then "Confirm delete" when no labels are given', () => {
+    const r = renderComponent(<LabelledDeleteHarness />)
+    cleanup = r.unmount
+    expect(q(r, '[data-testid="thing-delete"]').textContent).toBe('Delete')
+    click(q(r, '[data-testid="thing-delete"]'))
+    expect(q(r, '[data-testid="thing-delete"]').textContent).toBe('Confirm delete')
+  })
+
+  it('takes a caller’s own label pair and arms with it', () => {
+    const r = renderComponent(
+      <LabelledDeleteHarness label="Regenerate" confirmLabel="Confirm regenerate" />
+    )
+    cleanup = r.unmount
+    expect(q(r, '[data-testid="thing-delete"]').textContent).toBe('Regenerate')
+    click(q(r, '[data-testid="thing-delete"]'))
+    expect(q(r, '[data-testid="thing-delete"]').textContent).toBe('Confirm regenerate')
+  })
+})
+
 describe('ManageDialog — the error line and the selection contract', () => {
   it('renders the ONE error line as role=alert, only while there is an error', () => {
     const { r } = render()

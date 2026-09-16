@@ -87,6 +87,39 @@ describe('TextInput', () => {
     expect(field(r).disabled).toBe(true)
   })
 
+  // A value the operator reads and copies but must not edit (the API token). Read-only, not
+  // disabled: a disabled field is dimmed and cannot be selected, and a token you cannot select
+  // is a token you cannot copy by hand.
+  it('can be read-only while staying selectable', () => {
+    const editable = render()
+    expect(field(editable).readOnly).toBe(false)
+    cleanup?.()
+
+    const locked = render({ readOnly: true })
+    expect(field(locked).readOnly).toBe(true)
+    expect(field(locked).disabled).toBe(false)
+  })
+
+  it('forwards inputMode so a numeric field asks for digits', () => {
+    const r = render({ inputMode: 'numeric' })
+    expect(field(r).getAttribute('inputmode')).toBe('numeric')
+    cleanup?.()
+
+    const plain = render()
+    expect(plain.container.querySelector('[data-testid="field"]')?.hasAttribute('inputmode')).toBe(
+      false
+    )
+  })
+
+  it('reports a blur so the caller can commit a validated value', () => {
+    const onBlur = vi.fn()
+    const r = render({ onBlur })
+    act(() => {
+      field(r).dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+    expect(onBlur).toHaveBeenCalledTimes(1)
+  })
+
   it('hands the element back through inputRef so the opener can focus it', () => {
     const ref = { current: null as HTMLInputElement | null }
     const r = render({ inputRef: ref })
