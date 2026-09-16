@@ -44,7 +44,7 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       reminderFirstDelayMinutes: 2,
       expanderKey: 'X',
       apiEnabled: false,
-      apiPort: 9280
+      apiPort: 9281
     })
     expect(get()).toEqual(result)
   })

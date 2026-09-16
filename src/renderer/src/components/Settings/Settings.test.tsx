@@ -356,7 +356,7 @@ describe('SettingsPanel — the local API block', () => {
     const r = render()
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-enabled"]').checked).toBe(false)
-    expect(q<HTMLInputElement>(r, '[data-testid="settings-api-port"]').value).toBe('9280')
+    expect(q<HTMLInputElement>(r, '[data-testid="settings-api-port"]').value).toBe('9281')
     expect(r.container.querySelector('[data-testid="settings-api-token"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="settings-api-copy"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="settings-api-regenerate"]')).toBeNull()
@@ -375,7 +375,7 @@ describe('SettingsPanel — the local API block', () => {
     expect(q(r, '[data-testid="settings-api-copy"]').textContent).toBe('Copy')
     expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Regenerate')
     expect(q(r, '[data-testid="settings-api-docs-url"]').textContent).toBe(
-      'http://127.0.0.1:9280/docs'
+      'http://127.0.0.1:9281/docs'
     )
   })
 

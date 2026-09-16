@@ -9,8 +9,10 @@
  *  every interface the machine has, behind a token the operator never chose to share. */
 export const API_HOST = '127.0.0.1'
 
-/** The API's default port — one above the hook ingest's 9279, so the two read as a pair. */
-export const API_DEFAULT_PORT = 9280
+/** The API's default port, near the hook ingest's 9279. It skips 9280 on purpose: that one is
+ *  held by an unrelated daemon (`kubectl-radar`) on the operator's own machine, and a default
+ *  that is taken on day one reads as a broken feature. */
+export const API_DEFAULT_PORT = 9281
 
 /** Hard cap on a request body. A create body is a template id, a name and a few args; anything
  *  larger is a mistake or an attack, and is refused (`body_too_large`) without being buffered. */

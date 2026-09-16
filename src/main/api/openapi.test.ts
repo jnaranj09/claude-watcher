@@ -31,13 +31,13 @@ interface Doc {
   security: unknown[]
 }
 
-const doc = buildOpenApiDocument(apiCommands, { port: 9280, version: '2.1.0' }) as unknown as Doc
+const doc = buildOpenApiDocument(apiCommands, { port: 9281, version: '2.1.0' }) as unknown as Doc
 
 describe('buildOpenApiDocument', () => {
   it('is OpenAPI 3.1 with the local server and the bearer scheme', () => {
     expect(doc.openapi).toBe('3.1.0')
     expect(doc.info.version).toBe('2.1.0')
-    expect(doc.servers).toEqual([{ url: 'http://127.0.0.1:9280' }])
+    expect(doc.servers).toEqual([{ url: 'http://127.0.0.1:9281' }])
     expect(doc.components.securitySchemes).toEqual({
       bearerAuth: { type: 'http', scheme: 'bearer' }
     })

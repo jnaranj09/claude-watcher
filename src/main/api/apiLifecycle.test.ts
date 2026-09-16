@@ -50,7 +50,7 @@ describe('createApiLifecycle', () => {
   it('disabled → nothing starts', () => {
     const { lc, starts } = harness()
 
-    lc.apply({ apiEnabled: false, apiPort: 9280 })
+    lc.apply({ apiEnabled: false, apiPort: 9281 })
 
     expect(starts).toEqual([])
     expect(lc.port()).toBeNull()
@@ -59,47 +59,47 @@ describe('createApiLifecycle', () => {
   it('enabled → starts once; a repeated apply with the same port does nothing', () => {
     const { lc, starts } = harness()
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
 
-    expect(starts).toEqual([9280])
-    expect(lc.port()).toBe(9280)
+    expect(starts).toEqual([9281])
+    expect(lc.port()).toBe(9281)
   })
 
   it('a port change restarts; disabling stops', () => {
     const { lc, starts, closes } = harness()
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     lc.apply({ apiEnabled: true, apiPort: 9300 })
 
-    expect(starts).toEqual([9280, 9300])
-    expect(closes).toEqual([9280])
+    expect(starts).toEqual([9281, 9300])
+    expect(closes).toEqual([9281])
 
     lc.apply({ apiEnabled: false, apiPort: 9300 })
 
-    expect(closes).toEqual([9280, 9300])
+    expect(closes).toEqual([9281, 9300])
     expect(lc.port()).toBeNull()
   })
 
   it('re-enabling after a stop starts again on the same port', () => {
     const { lc, starts } = harness()
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
-    lc.apply({ apiEnabled: false, apiPort: 9280 })
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    lc.apply({ apiEnabled: false, apiPort: 9281 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
 
-    expect(starts).toEqual([9280, 9280])
-    expect(lc.port()).toBe(9280)
+    expect(starts).toEqual([9281, 9281])
+    expect(lc.port()).toBe(9281)
   })
 
   it('stop() is idempotent', () => {
     const { lc, closes, logs } = harness()
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     lc.stop()
     lc.stop()
 
-    expect(closes).toEqual([9280])
+    expect(closes).toEqual([9281])
     // The second stop is a no-op all the way down — no second close, and no second log line.
     expect(logs.filter((l) => l.includes('code=stopped'))).toHaveLength(1)
     expect(lc.port()).toBeNull()
@@ -108,7 +108,7 @@ describe('createApiLifecycle', () => {
   it('apply() while disabled and not running closes nothing and logs nothing', () => {
     const { lc, closes, logs } = harness()
 
-    lc.apply({ apiEnabled: false, apiPort: 9280 })
+    lc.apply({ apiEnabled: false, apiPort: 9281 })
     lc.apply({ apiEnabled: false, apiPort: 9300 })
 
     expect(closes).toEqual([])
@@ -118,12 +118,12 @@ describe('createApiLifecycle', () => {
   it('port() is null until the listen reports, then reports the BOUND port', () => {
     const reports: Array<(port: number) => void> = []
     const { lc } = harness((port, onListening) => {
-      expect(port).toBe(9280)
+      expect(port).toBe(9281)
       reports.push(onListening)
       return { close: () => {} }
     })
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     expect(lc.port()).toBeNull()
     expect(reports).toHaveLength(1)
 
@@ -139,9 +139,9 @@ describe('createApiLifecycle', () => {
       return { close: () => {} }
     })
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     lc.stop()
-    reports[0]?.(9280)
+    reports[0]?.(9281)
 
     expect(lc.port()).toBeNull()
     expect(logs).toEqual(['[claude-watcher][api] code=stopped'])
@@ -151,22 +151,22 @@ describe('createApiLifecycle', () => {
     const closed: number[] = []
     const { lc } = harness((port) => ({ close: () => void closed.push(port) }))
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     expect(lc.port()).toBeNull()
 
-    lc.apply({ apiEnabled: false, apiPort: 9280 })
+    lc.apply({ apiEnabled: false, apiPort: 9281 })
 
-    expect(closed).toEqual([9280])
+    expect(closed).toEqual([9281])
   })
 
   it('logs a code line for the bind and for the stop, and nothing else', () => {
     const { lc, logs } = harness()
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
-    lc.apply({ apiEnabled: false, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    lc.apply({ apiEnabled: false, apiPort: 9281 })
 
     expect(logs).toEqual([
-      '[claude-watcher][api] code=listening port=9280',
+      '[claude-watcher][api] code=listening port=9281',
       '[claude-watcher][api] code=stopped'
     ])
   })
@@ -178,23 +178,23 @@ describe('createApiLifecycle', () => {
       return { close: () => {} }
     })
 
-    expect(() => lc.apply({ apiEnabled: true, apiPort: 9280 })).not.toThrow()
+    expect(() => lc.apply({ apiEnabled: true, apiPort: 9281 })).not.toThrow()
     expect(lc.port()).toBeNull()
     expect(logs).toEqual(['[claude-watcher][api] code=listen_failed'])
 
     fail = false
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
 
-    expect(starts).toEqual([9280, 9280])
+    expect(starts).toEqual([9281, 9281])
     expect(lc.port()).toBeNull()
   })
 
   it('never logs the thrown error, only the code', () => {
     const { lc, logs } = harness(() => {
-      throw new Error('listen EADDRINUSE: address already in use 127.0.0.1:9280')
+      throw new Error('listen EADDRINUSE: address already in use 127.0.0.1:9281')
     })
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
 
     expect(logs).toEqual(['[claude-watcher][api] code=listen_failed'])
     expect(logs.join('\n')).not.toMatch(/EADDRINUSE|address already in use/)
@@ -203,14 +203,14 @@ describe('createApiLifecycle', () => {
   it('a close that throws is contained: the restart still starts the new port', () => {
     const { lc, starts, logs } = harness((port) => ({
       close: () => {
-        if (port === 9280) throw new Error('close failed')
+        if (port === 9281) throw new Error('close failed')
       }
     }))
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     expect(() => lc.apply({ apiEnabled: true, apiPort: 9300 })).not.toThrow()
 
-    expect(starts).toEqual([9280, 9300])
+    expect(starts).toEqual([9281, 9300])
     expect(logs).toContain('[claude-watcher][api] code=close_failed')
   })
 
@@ -221,13 +221,13 @@ describe('createApiLifecycle', () => {
       }
     }))
 
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
     expect(() => lc.stop()).not.toThrow()
     expect(lc.port()).toBeNull()
 
     // Still stopped, so the next enable starts rather than short-circuiting on a stale entry.
-    lc.apply({ apiEnabled: true, apiPort: 9280 })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
 
-    expect(starts).toEqual([9280, 9280])
+    expect(starts).toEqual([9281, 9281])
   })
 })

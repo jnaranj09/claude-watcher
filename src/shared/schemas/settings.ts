@@ -61,7 +61,7 @@ export function expanderChord(key: string): string {
 }
 
 /** Programmatic API — off by default; the listener binds 127.0.0.1:<apiPort>. */
-export const DEFAULT_API_PORT = 9280
+export const DEFAULT_API_PORT = 9281
 export const API_PORT_MIN = 1024
 export const API_PORT_MAX = 65535
 const ApiPortSchema = z.number().int().min(API_PORT_MIN).max(API_PORT_MAX)

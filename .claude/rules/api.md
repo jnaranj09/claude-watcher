@@ -2,7 +2,7 @@
 
 A SECOND localhost listener, beside the :9279 hook ingest, so an external system (n8n, another
 claude session, a ticket webhook) can create a card and watch it move. It is OFF by default
-(`settings.apiEnabled`), binds 127.0.0.1:`apiPort` (9280), and every `/v1/*` request carries a
+(`settings.apiEnabled`), binds 127.0.0.1:`apiPort` (9281), and every `/v1/*` request carries a
 bearer token.
 
 It is a CONTROL surface, not a content one. The two halves of that sentence are the whole design:
@@ -180,9 +180,10 @@ timeout's doing. Fix it with the rate limit above, not by clearing recipes a Reo
 The API port must be FREE, like the hook ingest's 9279 (`.claude/rules/run-app.md`). They fail
 differently, though: the hook server TOLERATES `EADDRINUSE` (`code=eaddrinuse`, skip, keep running —
 so a second instance binds nothing and its hook POSTs reach the FIRST one), while the API logs
-`code=listen_failed errno=…` for ANY bind error and stays down. 9280 is not reliably free on this
-machine — a `kubectl-radar` process holds it — so a drive scenario should pick its own port through
-Settings rather than assume the default.
+`code=listen_failed errno=…` for ANY bind error and stays down. The default is 9281, not 9280: on
+the operator's machine 9280 belongs to `kubectl-radar`, a daemon they use every day and which is not
+ours to move. A drive scenario should still set its own port through Settings rather than assume the
+default is free.
 
 ## Don't
 

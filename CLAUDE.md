@@ -208,7 +208,7 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 
 Full rules: `.claude/rules/api.md`. The load-bearing shape:
 
-- **A SECOND `node:http` listener on 127.0.0.1:`apiPort` (9280), OFF by default**
+- **A SECOND `node:http` listener on 127.0.0.1:`apiPort` (9281), OFF by default**
   (`settings.apiEnabled` / `settings.apiPort`, settings version stays 1). Loopback only — never
   `0.0.0.0`. Every `/v1/*` request carries a bearer token read from `claude-watcher-api-token` in
   `app.getPath('userData')` (0600, chmod-ed once per process — on the first read that finds an
