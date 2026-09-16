@@ -1,13 +1,15 @@
 // Programmatic API — the renderer side of `launch:requested` (Task 7).
 //
 // Main's local HTTP API creates the card and then PUSHES `{ terminalId, label, workspaceId }` to
-// the renderer, which must react EXACTLY as a UI launch does: call
-// `boardStore.getState().openLaunchedTerminal(...)` — the same call `handleNameSubmit` makes after
-// its own launch. That call is what actually opens the terminal (the EmbeddedTerminal mounts and
-// spawns the pty over `terminal:open`), so without it an API-created card would have no terminal.
+// the renderer, which calls `boardStore.getState().registerLaunchedTerminal(...)`: REGISTER-ONLY,
+// deliberately NOT the name prompt's `openLaunchedTerminal`. Registering is enough to open the
+// terminal — the registry key keeps it in `selectKeptAliveTerminalIds`, App mounts the focused
+// layer (hidden) for it, and EmbeddedTerminal's mount effect spawns the pty over `terminal:open`.
+// What register-only leaves alone is the VIEW: an external create arrives while the operator is
+// typing in another terminal, and yanking them into the new one (possibly in another workspace)
+// is the defect these tests guard.
 //
-// The renderer INVENTS NOTHING here: the label and the workspace are main's (session truth), and
-// the only thing the renderer adds is the view-state flip into the Focused session.
+// The renderer INVENTS NOTHING here: the label and the workspace are main's (session truth).
 //
 // DO NOT MODIFY App.launch.test.tsx (the frozen B-1 guardrail, AR-12) — this file is a SIBLING
 // that mirrors its `window.*` stub block.
@@ -161,6 +163,13 @@ function deliver(event: LaunchRequestedEvent): void {
   })
 }
 
+/** Every mounted terminal frame's id, in DOM order (kept-alive frames included). */
+function terminalIds(r: RenderResult): (string | null)[] {
+  return [...r.container.querySelectorAll('[data-testid="embedded-terminal"]')].map((el) =>
+    el.getAttribute('data-terminal-id')
+  )
+}
+
 describe('programmatic API — launch:requested opens the terminal', () => {
   it('registers the launched terminal with the pushed label and workspace', async () => {
     await renderApp()
@@ -172,10 +181,53 @@ describe('programmatic API — launch:requested opens the terminal', () => {
       label: 'HT-1',
       workspaceId: 'default'
     })
-    // ...and the app drops into the Focused session for it, exactly like a UI launch (UX-DR19),
-    // which is what mounts the EmbeddedTerminal that spawns the pty.
-    expect(boardStore.getState().focusedTerminalId).toBe('api-t-1')
+  })
+
+  it('does NOT steal the view from the terminal the operator is typing in', async () => {
+    const r = await renderApp()
+    // The operator launched A through the UI and is inside it.
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('ui-a', 'projectA', 'default')
+    })
+    await flush()
+    expect(
+      r.container.querySelector('[data-testid="focused-layer"]')?.getAttribute('data-active')
+    ).toBe('true')
+
+    deliver({ terminalId: 'api-t-1', label: 'HT-1', workspaceId: 'w2' })
+    await flush()
+
+    // FAULT-INJECTION: put `openLaunchedTerminal` back in App's onLaunchRequested handler and
+    // these go red — the view jumps to api-t-1, in a workspace that is not even active.
+    expect(boardStore.getState().focusedTerminalId).toBe('ui-a')
     expect(boardStore.getState().viewMode).toBe('focused')
+    expect(
+      r.container.querySelector('[data-testid="focused-layer"]')?.getAttribute('data-active')
+    ).toBe('true')
+    // ...and the new terminal is still MOUNTED (hidden) beside A, so its pty spawns.
+    expect(terminalIds(r)).toEqual(expect.arrayContaining(['ui-a', 'api-t-1']))
+  })
+
+  it('does NOT pull the operator off the board', async () => {
+    const r = await renderApp()
+    expect(
+      r.container.querySelector('[data-testid="board-layer"]')?.getAttribute('data-active')
+    ).toBe('true')
+
+    deliver({ terminalId: 'api-t-1', label: 'HT-1', workspaceId: 'default' })
+    await flush()
+
+    expect(boardStore.getState().viewMode).toBe('board')
+    expect(boardStore.getState().focusedTerminalId).toBeNull()
+    expect(
+      r.container.querySelector('[data-testid="board-layer"]')?.getAttribute('data-active')
+    ).toBe('true')
+    // The focused layer mounts hidden purely to keep the new terminal alive (hasFocusableTerminal
+    // is true because the registry is non-empty) — that mount is what spawns the pty.
+    const focusedLayer = r.container.querySelector('[data-testid="focused-layer"]')
+    expect(focusedLayer).not.toBeNull()
+    expect(focusedLayer?.getAttribute('data-active')).toBe('false')
+    expect(terminalIds(r)).toEqual(['api-t-1'])
   })
 
   it('unsubscribes on unmount', async () => {

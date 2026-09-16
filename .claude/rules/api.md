@@ -70,6 +70,14 @@ beside `launchBoardSeams`. Its event side is fed from INSIDE `handleDelta`'s boa
 board and the SSE streams cannot diverge: a session the board never shows never reaches a client.
 No window ⇒ `no_window` (503, retryable), never an invented empty board.
 
+**A create NEVER takes the operator's view.** Main pushes `CH.launchRequested` exactly as before, but
+the renderer's listener calls `boardStore.registerLaunchedTerminal` — registry ONLY — and not the
+`+ New session` popover's `openLaunchedTerminal`. The terminal still mounts and still spawns its pty
+(the registry key keeps it in `selectKeptAliveTerminalIds`, which is what mounts App's focused layer,
+hidden), while `viewMode`, `focusedTerminalId` and the active workspace are left untouched: the card
+appears in the TEMPLATE's workspace and the operator opens it when they choose. An external caller
+must not be able to yank someone out of the session they are typing in.
+
 **The wire session is STATE ONLY** (`apiSession.ts` → `.strict()` `ApiSessionSchema`): `id`,
 `sessionName`, `status`, `column`, `enteredColumnAt`, `workspaceId`, `tagIds`, `projectPath` and
 `pendingToolName` (a tool's

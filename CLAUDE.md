@@ -229,9 +229,15 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   `ApiSessionSchema`): no `firstPrompt`, no `latestMessage`, no `pendingToolInput`, no `pid`. Strict
   is what makes that a guarantee — a new `Session` field shows up as a dropped frame
   (`code=session_projection_failed`), never as content on the wire.
-- **An API launch IS a UI launch.** Main registers the recipe with the same launch service the
-  `+ New session` popover uses and pushes `CH.launchRequested` (validated at source); the renderer's
-  `openLaunchedTerminal` opens the terminal, which spawns the pty and mints the session id. **The
+- **An API launch IS a UI launch — except that it never takes the view.** Main registers the recipe
+  with the same launch service the `+ New session` popover uses and pushes `CH.launchRequested`
+  (validated at source); the renderer answers with `registerLaunchedTerminal` — REGISTRY ONLY, never
+  the popover's `openLaunchedTerminal`. That is enough to open the terminal (the registry key keeps
+  it in `selectKeptAliveTerminalIds`, so App mounts the focused layer hidden and `EmbeddedTerminal`
+  spawns the pty and mints the session id) while `viewMode`, `focusedTerminalId` and the active
+  workspace stay EXACTLY as the operator left them: the card appears in the TEMPLATE's workspace and
+  they open it when they choose. An external create must never yank someone out of the session they
+  are typing in. **The
   prompt is NEVER the caller's**: it is the template's own `initialPrompt` with `$1..$n` filled from
   `args` (`src/shared/prompt/expand.ts`), each value held to that param's `maxLength` and its
   ANCHORED regex (`compileParamPattern`) — a miss is 400 `arg_invalid` naming `args.<i>`, never the

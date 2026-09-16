@@ -729,6 +729,80 @@ describe('boardStore — Story 5.6 launchedTerminals registry (AC-1)', () => {
   })
 })
 
+// ===========================================================================
+// Programmatic API — registerLaunchedTerminal must NOT steal the view
+// ===========================================================================
+describe('boardStore — registerLaunchedTerminal (an API launch must not steal focus)', () => {
+  it('records the registry entry exactly like openLaunchedTerminal does', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'w1')
+    const entry = store.getState().launchedTerminals['api-t']
+    expect(entry).toEqual({
+      terminalId: 'api-t',
+      label: 'HT-2',
+      launchedAt: FIXED_NOW,
+      workspaceId: 'w1'
+    })
+  })
+
+  it('leaves the view on the BOARD when the operator was on the board', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'default')
+    // FAULT-INJECTION: make this action set viewMode/focusedTerminalId (i.e. call
+    // openLaunchedTerminal) and these two go red.
+    expect(selectViewMode(store.getState())).toBe('board')
+    expect(selectFocusedTerminalId(store.getState())).toBeNull()
+  })
+
+  it('leaves terminal A focused when the operator is typing in A', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('A', 'projectA', 'default')
+    expect(selectFocusedTerminalId(store.getState())).toBe('A')
+
+    store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'w2')
+
+    // THE WHOLE POINT: an external create does not yank the operator out of A — not even when
+    // the new terminal belongs to a DIFFERENT workspace (which would leave the focused terminal
+    // outside the active workspace).
+    expect(selectFocusedTerminalId(store.getState())).toBe('A')
+    expect(selectViewMode(store.getState())).toBe('focused')
+  })
+
+  it('registers ONCE — a second call never restamps launchedAt', () => {
+    const clock = makeClock()
+    const store = createBoardStore({ now: clock.now })
+    store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'default')
+    clock.advance(5_000)
+    store.getState().registerLaunchedTerminal('api-t', 'HT-9', 'other')
+    expect(store.getState().launchedTerminals['api-t']).toEqual({
+      terminalId: 'api-t',
+      label: 'HT-2',
+      launchedAt: FIXED_NOW,
+      workspaceId: 'default'
+    })
+  })
+
+  it('the registered terminal IS kept alive, so its frame mounts and spawns the pty', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'default')
+    // This is the ONLY thing that makes an unfocused API launch reach a pty: App mounts the
+    // focused layer (hidden) whenever kept-alive is non-empty, and EmbeddedTerminal spawns on mount.
+    expect(selectKeptAliveTerminalIds(store.getState())).toContain('api-t')
+  })
+
+  it('openLaunchedTerminal is register-THEN-focus (same registry entry, plus the view flip)', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('ui-t', 'projectA', 'default')
+    expect(store.getState().launchedTerminals['ui-t']).toEqual({
+      terminalId: 'ui-t',
+      label: 'projectA',
+      launchedAt: FIXED_NOW,
+      workspaceId: 'default'
+    })
+    // (The focus half is covered by the Story-3.2/5.6 cases above — not duplicated here.)
+  })
+})
+
 describe('boardStore — Story 5.6 forgetLaunchedTerminal (AC-5)', () => {
   it('forgetLaunchedTerminal removes the entry on PTY exit', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
