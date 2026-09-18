@@ -10,6 +10,11 @@
   width: 100%;
   min-height: 0;
   min-width: 0;
+  /* The thin frame's breathing edge. It lives HERE, not on `.host`: FitAddon sizes rows from the
+     xterm parent's computed height, which under the global `box-sizing: border-box` INCLUDES that
+     parent's padding — so padding on `.host` bought up to one extra row that hung under the bottom
+     border (up to 8px past it; the last row of claude's prompt box came up cut in half). */
+  padding: var(--space-2);
   background: var(--bg-terminal);
   border: 1px solid var(--border-card);
   border-radius: var(--rounded-lg);
@@ -25,12 +30,11 @@
 }
 
 /* The xterm host. flex:1 + min-height:0 so it fills the frame and fit() sees a non-zero box.
-   padding gives the thin frame a breathing edge without chrome inside the terminal. */
+   NO padding here — fit() would count it as terminal space (see `.frame`). */
 .host {
   flex: 1;
   min-height: 0;
   min-width: 0;
-  padding: var(--space-2);
 }
 
 /* Kept-alive hidden terminals use visibility:hidden, NEVER display:none (display:none collapses

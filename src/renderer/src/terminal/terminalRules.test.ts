@@ -52,6 +52,22 @@ describe('terminal.md source invariants — frame token (UX-DR13)', () => {
   })
 })
 
+describe('terminal.md source invariants — fit() sees the real box', () => {
+  // FitAddon sizes rows from the xterm PARENT's computed height and subtracts only the padding of
+  // xterm's OWN element. Under the global `box-sizing: border-box` that height INCLUDES the
+  // parent's padding, so padding on `.host` bought up to one extra row that hung under the
+  // frame's bottom border (measured: up to 8px past it). The breathing edge lives on `.frame`.
+  it('the xterm parent (.host) carries no padding', () => {
+    const block = /\.host\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(block).not.toMatch(/padding/)
+  })
+
+  it('the frame carries the breathing edge instead', () => {
+    const block = /\.frame\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/padding:\s*var\(--space-2\)/)
+  })
+})
+
 describe('terminal.md source invariants — component (AC-1/2/5; F3)', () => {
   it('sets convertEol:false (the PTY owns newline semantics — the SmokeCockpit delta)', () => {
     expect(tsx).toMatch(/convertEol:\s*false/)
