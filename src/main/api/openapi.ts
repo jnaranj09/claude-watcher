@@ -23,6 +23,8 @@ import { z, type ZodType } from 'zod'
 import {
   ApiErrorBodySchema,
   ApiSessionSchema,
+  ApiTemplateSchema,
+  ApiWorkspaceSchema,
   SessionsCreateBodySchema,
   SessionsCreateOutputSchema
 } from '../../shared/schemas/api'
@@ -65,7 +67,9 @@ const NAMED: readonly NamedSchema[] = [
     io: 'input',
     notes: { name: NAME_RULES }
   },
-  { schema: SessionsCreateOutputSchema, name: 'SessionsCreateOutput', io: 'output', notes: {} }
+  { schema: SessionsCreateOutputSchema, name: 'SessionsCreateOutput', io: 'output', notes: {} },
+  { schema: ApiWorkspaceSchema, name: 'ApiWorkspace', io: 'output', notes: {} },
+  { schema: ApiTemplateSchema, name: 'ApiTemplate', io: 'output', notes: {} }
 ]
 
 function nameOf(schema: ZodType): string | null {

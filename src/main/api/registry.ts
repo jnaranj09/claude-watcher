@@ -27,12 +27,12 @@ export interface SseSink {
   onClose(cb: () => void): void
 }
 
-/** Everything a command may reach. Narrow on purpose: a command gets `get` on the template store,
- *  not `save` — the API is not a second write path into the operator's own config. */
+/** Everything a command may reach. Narrow on purpose: a command gets `get`/`list` on the template
+ *  store, not `save` — the API is not a second write path into the operator's own config. */
 export interface ApiContext {
   seam(): ApiSeam | null
-  templates: Pick<TemplatesStore, 'get'>
-  workspaces: Pick<WorkspacesStore, 'activeId' | 'get'>
+  templates: Pick<TemplatesStore, 'get' | 'list'>
+  workspaces: Pick<WorkspacesStore, 'activeId' | 'get' | 'list'>
   claudeVersionAllowsLaunch(): boolean
   now(): number
   spawnTimeoutMs: number

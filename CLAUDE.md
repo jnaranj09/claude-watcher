@@ -229,6 +229,10 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   `ApiSessionSchema`): no `firstPrompt`, no `latestMessage`, no `pendingToolInput`, no `pid`. Strict
   is what makes that a guarantee — a new `Session` field shows up as a dropped frame
   (`code=session_projection_failed`), never as content on the wire.
+- **Config is readable, session content is not.** `GET /v1/workspaces` (id, name, color, `active`)
+  and `GET /v1/templates` (the WHOLE template, `initialPrompt` included) read the stores, so they
+  need no window. `?scope=<workspaceId|global>` is STRICT (a workspace never pulls in the global
+  templates); an unknown id is 404 `workspace_not_found`.
 - **An API launch IS a UI launch — except that it never takes the view.** Main registers the recipe
   with the same launch service the `+ New session` popover uses and pushes `CH.launchRequested`
   (validated at source); the renderer answers with `registerLaunchedTerminal` — REGISTRY ONLY, never

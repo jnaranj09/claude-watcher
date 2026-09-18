@@ -16,11 +16,16 @@ import {
   ApiErrorBodySchema,
   ApiSessionListSchema,
   ApiSessionSchema,
+  ApiTemplateListSchema,
+  ApiTemplateSchema,
+  ApiWorkspaceListSchema,
+  ApiWorkspaceSchema,
   EmptySchema,
   SessionIdParamsSchema,
   SessionsCreateBodySchema,
   SessionsCreateOutputSchema,
-  SessionsListQuerySchema
+  SessionsListQuerySchema,
+  TemplatesListQuerySchema
 } from './api'
 import { COLUMNS } from '../ipc/contract'
 
@@ -126,7 +131,7 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       ApiErrorBodySchema.safeParse({ error: { code: 'internal', message: 'x' } }).success
     ).toBe(false)
   })
-  it('holds all 17 codes the API uses', () => {
+  it('holds all 18 codes the API uses', () => {
     expect([...API_ERROR_CODES]).toEqual([
       'unauthorized',
       'invalid_json',
@@ -138,6 +143,7 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       'template_workspace_gone',
       'not_found',
       'template_not_found',
+      'workspace_not_found',
       'session_not_found',
       'method_not_allowed',
       'claude_version',
@@ -146,5 +152,57 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       'spawn_timeout',
       'internal'
     ])
+  })
+})
+
+describe('ApiWorkspaceSchema', () => {
+  const WS = { id: 'default', name: 'Default', color: 'slate', active: true }
+  it('carries id, name, color and the active flag', () => {
+    expect(ApiWorkspaceSchema.parse(WS)).toEqual(WS)
+    expect(ApiWorkspaceListSchema.parse([WS])).toEqual([WS])
+  })
+  it('is strict: defaultCwd (the folder layout) is not part of the wire shape', () => {
+    expect(ApiWorkspaceSchema.safeParse({ ...WS, defaultCwd: '/w' }).success).toBe(false)
+  })
+  it('color is one of the workspace colors', () => {
+    expect(ApiWorkspaceSchema.safeParse({ ...WS, color: 'pink' }).success).toBe(false)
+  })
+})
+
+describe('ApiTemplateSchema', () => {
+  const TPL = {
+    id: 'tpl',
+    name: 'tickets',
+    cwd: '/w',
+    model: 'opus',
+    permissionMode: null,
+    effort: 'low',
+    workspaceId: null,
+    initialPrompt: 'Work on $1',
+    params: [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 10 }]
+  }
+  it('carries the whole template, nullable fields included', () => {
+    expect(ApiTemplateSchema.parse(TPL)).toEqual(TPL)
+    expect(ApiTemplateListSchema.parse([TPL])).toEqual([TPL])
+  })
+  it('is strict on the template AND on each param', () => {
+    expect(ApiTemplateSchema.safeParse({ ...TPL, extra: 1 }).success).toBe(false)
+    const badParam = { ...TPL, params: [{ ...TPL.params[0], extra: 1 }] }
+    expect(ApiTemplateSchema.safeParse(badParam).success).toBe(false)
+  })
+  it('permissionMode and effort are the enum-locked CLI values', () => {
+    expect(ApiTemplateSchema.safeParse({ ...TPL, permissionMode: 'yolo' }).success).toBe(false)
+    expect(ApiTemplateSchema.safeParse({ ...TPL, effort: 'huge' }).success).toBe(false)
+  })
+})
+
+describe('TemplatesListQuerySchema', () => {
+  it('scope is optional and must be non-empty when present', () => {
+    expect(TemplatesListQuerySchema.parse({})).toEqual({})
+    expect(TemplatesListQuerySchema.parse({ scope: 'global' })).toEqual({ scope: 'global' })
+    expect(TemplatesListQuerySchema.safeParse({ scope: '' }).success).toBe(false)
+  })
+  it('rejects an unknown query key', () => {
+    expect(TemplatesListQuerySchema.safeParse({ workspaceId: 'ws2' }).success).toBe(false)
   })
 })

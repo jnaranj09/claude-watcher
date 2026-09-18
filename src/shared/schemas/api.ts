@@ -24,6 +24,8 @@
 // [.claude/rules/zod-boundaries.md; src/shared/schemas/launch.ts (our-shape fail-closed)]
 import { z } from 'zod'
 import { SessionNameSchema } from './launch'
+import { EFFORT_LEVELS, PERMISSION_MODES } from './template'
+import { WORKSPACE_COLORS } from './workspace'
 import { COLUMNS } from '../ipc/contract'
 
 /**
@@ -46,6 +48,7 @@ export const API_ERROR_CODES = [
   'template_workspace_gone',
   'not_found',
   'template_not_found',
+  'workspace_not_found',
   'session_not_found',
   'method_not_allowed',
   'claude_version',
@@ -152,3 +155,76 @@ export const SessionsListQuerySchema = z
  *  a route always declares all four slots explicitly — an omitted slot would read as "unchecked",
  *  and `EmptySchema` reads as "checked, and must be empty". */
 export const EmptySchema = z.object({}).strict()
+
+/**
+ * `GET /workspaces` — one workspace as the API shows it: id, name, color, and whether it is the
+ * one the operator is looking at. `active` is what a caller needs to predict where a GLOBAL
+ * template's session lands (`POST /sessions` puts it in the active workspace).
+ *
+ * `defaultCwd` is deliberately NOT here: it is a folder-picker convenience, not something a
+ * caller acts on. `.strict()` keeps it that way.
+ */
+export const ApiWorkspaceSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    color: z.enum(WORKSPACE_COLORS),
+    active: z.boolean()
+  })
+  .strict()
+export type ApiWorkspace = z.infer<typeof ApiWorkspaceSchema>
+export const ApiWorkspaceListSchema = z.array(ApiWorkspaceSchema)
+
+/** One `$n` placeholder of a template, as stored: the caller needs `pattern` and `maxLength` to
+ *  build `args` the create will accept (the pattern is anchored by the server, not here). */
+export const ApiTemplateParamSchema = z
+  .object({ label: z.string(), pattern: z.string(), maxLength: z.number().int() })
+  .strict()
+
+/**
+ * `GET /templates` — the WHOLE template, `initialPrompt` included. This is the one place the API
+ * sends prose: a template is the operator's own CONFIG, readable by the same token that can
+ * already run it. Session content (prompts sent, assistant prose, tool input) still never
+ * reaches the wire — that is `ApiSessionSchema`'s job, and it is unchanged.
+ *
+ * Plain types rather than a reuse of `TemplateSchema`: that one trims, refines and defaults —
+ * rules for WRITING a template. This is a response shape, `.strict()` like every other one here,
+ * so a field added to `Template` fails the response closed instead of riding out unreviewed.
+ */
+export const ApiTemplateSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    cwd: z.string(),
+    model: z.string().nullable(),
+    permissionMode: z.enum(PERMISSION_MODES).nullable(),
+    effort: z.enum(EFFORT_LEVELS).nullable(),
+    /** null ⇒ GLOBAL (a create lands in the active workspace). */
+    workspaceId: z.string().min(1).nullable(),
+    /** null ⇒ the template cannot be launched through the API (`template_has_no_prompt`). */
+    initialPrompt: z.string().nullable(),
+    params: z.array(ApiTemplateParamSchema)
+  })
+  .strict()
+export type ApiTemplate = z.infer<typeof ApiTemplateSchema>
+export const ApiTemplateListSchema = z.array(ApiTemplateSchema)
+
+/** The `scope` value that means "templates in no workspace". A WORD, never `''` (an empty scope
+ *  is a caller bug, not a filter). It cannot collide with a workspace id: those are minted UUIDs
+ *  and the fixed `default`. */
+export const TEMPLATE_SCOPE_GLOBAL = 'global'
+
+/** The `GET /templates` query. Absent = every template; present = STRICT, like the Manage
+ *  dialog's scope filter — a workspace scope does NOT pull in the global templates. */
+export const TemplatesListQuerySchema = z
+  .object({
+    scope: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "`global` for the templates in no workspace, or a workspace id for that workspace's " +
+          'templates only (global ones are not included). Omit it for every template.'
+      )
+  })
+  .strict()
