@@ -9,6 +9,10 @@ It is a CONTROL surface, not a content one. The two halves of that sentence are 
 a caller can run a prompt the operator already wrote, and it can read STATE about the sessions the
 board shows — never the prompts, the assistant's prose or a tool's input.
 
+It can also read the operator's CONFIG: the workspaces and the templates, whole — a template's
+`initialPrompt` included, because it is the prompt a create would run and the token can already
+run it. Config is readable; SESSION content never is.
+
 ## Canonical example (do this)
 
 ```ts
@@ -84,6 +88,15 @@ must not be able to yank someone out of the session they are typing in.
 NAME is state; its INPUT is content and is not projected at all). Strict is what makes that a
 guarantee instead of a habit — add a field to `Session` and the projection DROPS
 (`code=session_projection_failed`) rather than leaking it.
+
+**The catalog reads** (`GET /v1/workspaces`, `GET /v1/templates`) read the stores, not the seam, so
+they answer with or without a window (no `no_window`). Both PICK their fields into a `.strict()`
+shape (`ApiWorkspace`, `ApiTemplate`) — a spread would fail closed the day `Workspace`/`Template`
+gains a field. `ApiWorkspace` drops `defaultCwd` and adds `active` (where a GLOBAL template's
+create lands). `?scope=` is STRICT like the Manage dialog's filter: a workspace id returns its own
+templates only, never the global ones (a global template created through the API lands in the
+ACTIVE workspace, not the filtered one); `global` returns the global ones; an unknown id is 404
+`workspace_not_found`, not `[]`.
 
 ## Never log the body, the values, or the token
 

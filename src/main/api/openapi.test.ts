@@ -88,7 +88,9 @@ describe('buildOpenApiDocument', () => {
         'ApiSession',
         'ApiError',
         'SessionsCreateBody',
-        'SessionsCreateOutput'
+        'SessionsCreateOutput',
+        'ApiWorkspace',
+        'ApiTemplate'
       ])
     )
     const notFound = doc.paths['/v1/sessions/{id}']?.get?.responses['404'] as {
@@ -113,6 +115,34 @@ describe('buildOpenApiDocument', () => {
     expect(one.content['application/json']?.schema).toEqual({
       $ref: '#/components/schemas/ApiSession'
     })
+  })
+
+  it('references the hoisted ApiWorkspace and ApiTemplate from the two catalog lists', () => {
+    const workspaces = doc.paths['/v1/workspaces']?.get?.responses['200'] as {
+      content: Record<string, { schema: unknown }>
+    }
+    expect(workspaces.content['application/json']?.schema).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/ApiWorkspace' }
+    })
+    const templates = doc.paths['/v1/templates']?.get?.responses['200'] as {
+      content: Record<string, { schema: unknown }>
+    }
+    expect(templates.content['application/json']?.schema).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/ApiTemplate' }
+    })
+  })
+
+  it('documents the templates scope as an optional query parameter that says what it takes', () => {
+    const params = doc.paths['/v1/templates']?.get?.parameters as Array<{
+      name: string
+      in: string
+      required: boolean
+      schema: { description?: string }
+    }>
+    expect(params.map((p) => [p.name, p.in, p.required])).toEqual([['scope', 'query', false]])
+    expect(params[0]?.schema.description).toContain('global')
   })
 
   it('publishes the create body with io:input, so the defaulted `args` is OPTIONAL', () => {

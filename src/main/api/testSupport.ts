@@ -87,10 +87,14 @@ export function makeFakeContext(over: Partial<FakeContextSeed> = {}): {
   const log: string[] = []
   const ctx: ApiContext = {
     seam: () => seam,
-    templates: { get: (id) => templates.find((t) => t.id === id) ?? null },
+    templates: {
+      get: (id) => templates.find((t) => t.id === id) ?? null,
+      list: () => [...templates]
+    },
     workspaces: {
       activeId: () => over.activeWorkspaceId ?? 'default',
-      get: (id) => workspaces.find((w) => w.id === id) ?? null
+      get: (id) => workspaces.find((w) => w.id === id) ?? null,
+      list: () => [...workspaces]
     },
     claudeVersionAllowsLaunch: () => over.claudeOk ?? true,
     now: () => 1000,

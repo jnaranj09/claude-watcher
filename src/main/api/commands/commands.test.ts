@@ -3,6 +3,8 @@ import { sessionsListCommand } from './sessionsList'
 import { sessionsGetCommand } from './sessionsGet'
 import { sessionsCreateCommand } from './sessionsCreate'
 import { sessionsEventsCommand } from './sessionsEvents'
+import { workspacesListCommand } from './workspacesList'
+import { templatesListCommand } from './templatesList'
 import { apiCommands } from './index'
 import { makeFakeContext, makeFakeSeam } from '../testSupport'
 import type { ApiSession } from '../../../shared/schemas/api'
@@ -70,13 +72,17 @@ describe('apiCommands', () => {
       'sessions.create',
       'sessions.list',
       'sessions.get',
-      'sessions.events'
+      'sessions.events',
+      'workspaces.list',
+      'templates.list'
     ])
     for (const c of [
       sessionsCreateCommand,
       sessionsListCommand,
       sessionsGetCommand,
-      sessionsEventsCommand
+      sessionsEventsCommand,
+      workspacesListCommand,
+      templatesListCommand
     ]) {
       expect(apiCommands).toContain(c)
     }
