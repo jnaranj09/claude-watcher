@@ -91,9 +91,9 @@
   align-items: center;
 }
 
-/* Story 4.3 (FR-15) — the ⏹ Stop session button. Ghost style (NOT danger — the danger
-   styling is on the Stop-confirm's confirm button per DESIGN.md). Right-aligned in the bar. */
-.stopButton {
+/* Past sessions (D-3) — the Archive button (was Story 4.3's ⏹ Stop session; same look, no
+   confirm). Ghost style — Archive is reversible, so it carries no danger treatment. */
+.archiveButton {
   display: inline-flex;
   align-items: center;
   padding: var(--space-1) var(--space-3);
@@ -109,15 +109,29 @@
   flex-shrink: 0;
 }
 
-.stopButton:hover {
+.archiveButton:hover {
   background: var(--bg-surface-raised);
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
 
-.stopButton:focus-visible {
+.archiveButton:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* Past sessions (D-5) — the Delete trigger. Danger treatment (design.md's Delete treatment,
+   NOT the ManageDialog `.deleteButton`/`.dangerButton` class names, which are reserved to
+   ManageDialog.module.css) so the risky exit reads differently from Archive at a glance, even
+   before the confirm opens. */
+.deleteButtonFocused {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.deleteButtonFocused:hover,
+.deleteButtonFocused:focus-visible {
+  background: var(--danger);
+  color: #fff;
 }
 
 /* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned

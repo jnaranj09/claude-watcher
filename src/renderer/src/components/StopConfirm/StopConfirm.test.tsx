@@ -1,19 +1,18 @@
-// Story 4.3 (FR-15) — StopConfirm modal jsdom unit tests (renderer / jsdom project).
+// Story 4.3 (FR-15) → Past sessions (D-5) — StopConfirm (the DELETE-confirm) jsdom unit tests.
 //
-// Proves (via jsdom render + fake window.terminal bridge):
-//   (a) Modal renders the session name verbatim in title + body (UX-DR22).
+// Proves (via jsdom render + a fake window.launch bridge):
+//   (a) Modal renders the D-5 copy: title "Delete session?", the body sentence, button "Delete".
 //   (b) `Cancel` is the FOCUSED element on mount (UX-DR14 default-focused).
-//   (c) `Stop` carries the danger styling (data-testid="stop-confirm-stop").
-//   (d) Clicking Cancel calls clearStopConfirm() and does NOT call window.terminal.stop.
-//   (e) Clicking Stop calls window.terminal.stop(terminalId) THEN clearStopConfirm + showBoard.
+//   (c) Clicking Cancel calls clearStopConfirm() and does NOT call window.launch.deleteSession.
+//   (d) Clicking Delete calls window.launch.deleteSession(terminalId, sessionId) THEN
+//       clearStopConfirm + showBoard.
 //       *** THIS IS THE LOAD-BEARING F1 ORDERING TEST (orchestrator FROZEN #1) ***
 //       Non-vacuous: the fault-injected reversed order (view-change-first) FAILS this test.
-//   (f) Pressing Enter while Cancel is focused triggers Cancel (default-focused = default action).
-//   (g) Pressing Esc while Cancel is focused triggers Cancel (Esc = Cancel for the topmost layer).
-//   (h) Role=dialog + aria-modal=true (accessibility).
+//   (e) Pressing Enter while Cancel is focused triggers Cancel (default-focused = default action).
+//   (f) Role=dialog + aria-modal=true (accessibility).
 //
-// [Source: story 4.3 Task 5; orchestrator FROZEN #1; UX-DR14/22; DESIGN.md `danger`;
-//  src/renderer/src/components/QuitGuard/QuitGuard.test.tsx (test pattern reference)]
+// [Source: story 4.3 Task 5; task-10-brief.md (D-5); orchestrator FROZEN #1; UX-DR14;
+//  ../../lib/sessionExit.ts (deleteTerminal owns the F1 ordering now)]
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
@@ -23,28 +22,20 @@ import { boardStore } from '../../stores/boardStore'
 import type { StopConfirmPayload } from '../../stores/boardStore'
 
 // ---------------------------------------------------------------------------
-// Fake window.terminal bridge
+// Fake window.launch bridge
 // ---------------------------------------------------------------------------
 
-interface TerminalBridge {
-  open: ReturnType<typeof vi.fn>
-  resize: ReturnType<typeof vi.fn>
-  stop: ReturnType<typeof vi.fn>
-  onExit: ReturnType<typeof vi.fn>
+interface LaunchBridge {
+  deleteSession: ReturnType<typeof vi.fn>
 }
 
-let stopSpy: ReturnType<typeof vi.fn>
+let deleteSpy: ReturnType<typeof vi.fn>
 let cleanup: (() => void) | undefined
 
-function stubTerminal(): TerminalBridge {
-  stopSpy = vi.fn().mockResolvedValue(undefined)
-  const bridge: TerminalBridge = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn().mockResolvedValue(undefined),
-    stop: stopSpy,
-    onExit: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { terminal: TerminalBridge }).terminal = bridge
+function stubLaunch(): LaunchBridge {
+  deleteSpy = vi.fn().mockResolvedValue(undefined)
+  const bridge: LaunchBridge = { deleteSession: deleteSpy }
+  ;(window as unknown as { launch: LaunchBridge }).launch = bridge
   return bridge
 }
 
@@ -55,6 +46,7 @@ function stubTerminal(): TerminalBridge {
 function makePayload(overrides?: Partial<StopConfirmPayload>): StopConfirmPayload {
   return {
     terminalId: 'term-abc123',
+    sessionId: 'sess-abc123',
     sessionName: 'deploy-prod-rose',
     ...overrides
   }
@@ -65,7 +57,7 @@ function makePayload(overrides?: Partial<StopConfirmPayload>): StopConfirmPayloa
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  stubTerminal()
+  stubLaunch()
   // Pre-set the stopConfirm store state so clearStopConfirm has something to clear.
   act(() => {
     boardStore.setState({
@@ -87,22 +79,24 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// (a) Content rendering — session name verbatim (UX-DR22)
+// (a) Content rendering — the D-5 copy (no session name interpolated)
 // ---------------------------------------------------------------------------
 
-describe('StopConfirm — content rendering (UX-DR22)', () => {
-  it('renders the session name verbatim in the title', () => {
+describe('StopConfirm — D-5 delete copy', () => {
+  it('renders "Delete session?" in the title', () => {
     const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
     cleanup = unmount
     const title = container.querySelector('[data-testid="stop-confirm-title"]')
-    expect(title?.textContent).toContain('Stop deploy-prod-rose?')
+    expect(title?.textContent).toBe('Delete session?')
   })
 
-  it('renders the body copy "Its agent process will exit."', () => {
+  it('renders the body copy naming Past sessions and that Claude’s files are untouched', () => {
     const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
     cleanup = unmount
     const body = container.querySelector('[data-testid="stop-confirm-body"]')
-    expect(body?.textContent).toContain('Its agent process will exit.')
+    expect(body?.textContent).toBe(
+      "The session is stopped and nothing is kept in Past sessions. Claude's own files are not touched."
+    )
   })
 
   it('renders "Cancel" button with stop-confirm-cancel testid', () => {
@@ -113,12 +107,12 @@ describe('StopConfirm — content rendering (UX-DR22)', () => {
     expect(cancelBtn?.textContent).toContain('Cancel')
   })
 
-  it('renders "Stop" button with stop-confirm-stop testid (danger styling)', () => {
+  it('renders "Delete" button with stop-confirm-stop testid (danger styling)', () => {
     const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
     cleanup = unmount
-    const stopBtn = container.querySelector('[data-testid="stop-confirm-stop"]')
-    expect(stopBtn).not.toBeNull()
-    expect(stopBtn?.textContent).toContain('Stop')
+    const deleteBtn = container.querySelector('[data-testid="stop-confirm-stop"]')
+    expect(deleteBtn).not.toBeNull()
+    expect(deleteBtn?.textContent).toBe('Delete')
   })
 })
 
@@ -138,7 +132,7 @@ describe('StopConfirm — Cancel is focused on mount (UX-DR14)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// (d) Click Cancel → clearStopConfirm called, window.terminal.stop NOT called
+// (c) Click Cancel → clearStopConfirm called, window.launch.deleteSession NOT called
 // ---------------------------------------------------------------------------
 
 describe('StopConfirm — clicking Cancel', () => {
@@ -156,7 +150,7 @@ describe('StopConfirm — clicking Cancel', () => {
     expect(boardStore.getState().stopConfirm).toBeNull()
   })
 
-  it('clicking Cancel does NOT call window.terminal.stop (session keeps running)', () => {
+  it('clicking Cancel does NOT call window.launch.deleteSession (session keeps running)', () => {
     const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
     cleanup = unmount
     const cancelBtn = container.querySelector<HTMLButtonElement>(
@@ -167,55 +161,72 @@ describe('StopConfirm — clicking Cancel', () => {
       cancelBtn?.click()
     })
 
-    expect(stopSpy).not.toHaveBeenCalled()
+    expect(deleteSpy).not.toHaveBeenCalled()
   })
 })
 
 // ---------------------------------------------------------------------------
-// (e) THE LOAD-BEARING F1 ORDERING TEST: Stop → explicit PTY kill FIRST, THEN view-state change
+// (d) THE LOAD-BEARING F1 ORDERING TEST: Delete → explicit stop FIRST, THEN view-state change
 //
-// This is the HEADLINE CORRECTNESS CONSTRAINT (orchestrator FROZEN #1):
-//   The explicit window.terminal.stop(terminalId) MUST be called BEFORE clearStopConfirm()
-//   and showBoard(). Stopping the last focused session (the only live terminal) empties
-//   focusedTerminalId + the kept-alive set → hasFocusableTerminal flips false → FocusedSession
-//   UNMOUNTS (App.tsx:240-244 M-2 mount-latch WARNING). An incidental unmount is the B-1
-//   PTY-killing path. The explicit stop GUARANTEES the kill; the unmount-stop is a safe no-op
-//   (terminalManager.stop is idempotent).
-//
-// NON-VACUITY PROOF (fault-inject the reversed order):
-//   If view-state changes BEFORE window.terminal.stop (e.g. clearStopConfirm() is called first),
-//   then the boardStore.viewMode transitions to 'board' BEFORE the stop spy fires, and this test
-//   FAILS on the order assertion. We verify this is non-vacuous below.
+// This is the HEADLINE CORRECTNESS CONSTRAINT (orchestrator FROZEN #1), carried over from the
+// Stop-confirm: the explicit window.launch.deleteSession(terminalId, sessionId) MUST be called
+// BEFORE clearStopConfirm() and showBoard(). Deleting the last focused session (the only live
+// terminal) empties focusedTerminalId + the kept-alive set → hasFocusableTerminal flips false →
+// FocusedSession UNMOUNTS (App.tsx M-2 mount-latch WARNING). An incidental unmount is the B-1
+// PTY-killing path. The explicit call GUARANTEES the kill; the unmount-stop is a safe no-op.
 // ---------------------------------------------------------------------------
 
-describe('StopConfirm — THE EXPLICIT-STOP-BEFORE-VIEW-CHANGE ordering (F1 / FROZEN #1)', () => {
-  it('(e) clicking Stop calls window.terminal.stop(terminalId) with the correct terminalId', () => {
-    const payload = makePayload({ terminalId: 'term-abc123' })
+describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / FROZEN #1)', () => {
+  it('(d) clicking Delete calls window.launch.deleteSession(terminalId, sessionId)', () => {
+    const payload = makePayload({ terminalId: 'term-abc123', sessionId: 'sess-abc123' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
 
-    const stopBtn = container.querySelector<HTMLButtonElement>('[data-testid="stop-confirm-stop"]')
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-stop"]'
+    )
     act(() => {
-      stopBtn?.click()
+      deleteBtn?.click()
     })
 
-    expect(stopSpy).toHaveBeenCalledTimes(1)
-    expect(stopSpy).toHaveBeenCalledWith('term-abc123')
+    expect(deleteSpy).toHaveBeenCalledTimes(1)
+    expect(deleteSpy).toHaveBeenCalledWith('term-abc123', 'sess-abc123')
   })
 
-  it('(e-ordering) window.terminal.stop is called BEFORE clearStopConfirm + showBoard (F1)', () => {
+  it('(d) clicking Delete passes a null sessionId through untouched (pre-correlation pane)', () => {
+    const payload = makePayload({ terminalId: 'term-abc123', sessionId: null })
+    const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
+    cleanup = unmount
+
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-stop"]'
+    )
+    act(() => {
+      deleteBtn?.click()
+    })
+
+    expect(deleteSpy).toHaveBeenCalledWith('term-abc123', null)
+  })
+
+  it('(d-ordering) window.launch.deleteSession is called BEFORE clearStopConfirm + showBoard (F1)', () => {
     // This is the load-bearing ordering pin. We record the call order by spying on all three
     // mutating operations in sequence and asserting the order.
     const callOrder: string[] = []
 
-    // Spy on window.terminal.stop
-    const origStopFn = stopSpy as unknown as (terminalId: string) => Promise<void>
-    const newStopFn = vi.fn().mockImplementation((terminalId: string) => {
-      callOrder.push('stop:' + terminalId)
-      return origStopFn(terminalId)
-    })
-    ;(window as unknown as { terminal: { stop: ReturnType<typeof vi.fn> } }).terminal.stop =
-      newStopFn
+    // Spy on window.launch.deleteSession
+    const origDeleteFn = deleteSpy as unknown as (
+      terminalId: string,
+      sessionId: string | null
+    ) => Promise<void>
+    const newDeleteFn = vi
+      .fn()
+      .mockImplementation((terminalId: string, sessionId: string | null) => {
+        callOrder.push('delete:' + terminalId)
+        return origDeleteFn(terminalId, sessionId)
+      })
+    ;(
+      window as unknown as { launch: { deleteSession: ReturnType<typeof vi.fn> } }
+    ).launch.deleteSession = newDeleteFn
 
     // Spy on boardStore.clearStopConfirm
     const clearSpy = vi.spyOn(boardStore.getState(), 'clearStopConfirm').mockImplementation(() => {
@@ -227,72 +238,71 @@ describe('StopConfirm — THE EXPLICIT-STOP-BEFORE-VIEW-CHANGE ordering (F1 / FR
       callOrder.push('showBoard')
     })
 
-    const payload = makePayload({ terminalId: 'term-order-test' })
+    const payload = makePayload({ terminalId: 'term-order-test', sessionId: 'sess-order-test' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
 
-    const stopBtn = container.querySelector<HTMLButtonElement>('[data-testid="stop-confirm-stop"]')
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-stop"]'
+    )
     act(() => {
-      stopBtn?.click()
+      deleteBtn?.click()
     })
 
-    // (a) stop MUST have been called.
-    expect(callOrder).toContain('stop:term-order-test')
+    // (a) delete MUST have been called.
+    expect(callOrder).toContain('delete:term-order-test')
 
-    // (b) THE ORDERING ASSERTION: stop must come BEFORE any view-state mutation.
-    //     The index of stop must be 0 (it fires first).
-    const stopIdx = callOrder.indexOf('stop:term-order-test')
+    // (b) THE ORDERING ASSERTION: delete must come BEFORE any view-state mutation.
+    const deleteIdx = callOrder.indexOf('delete:term-order-test')
     const clearIdx = callOrder.indexOf('clearStopConfirm')
     const showBoardIdx = callOrder.indexOf('showBoard')
 
-    expect(stopIdx).toBeGreaterThanOrEqual(0) // stop WAS called
-    expect(clearIdx).toBeGreaterThan(stopIdx) // clearStopConfirm fires AFTER stop
-    expect(showBoardIdx).toBeGreaterThan(stopIdx) // showBoard fires AFTER stop
+    expect(deleteIdx).toBeGreaterThanOrEqual(0) // delete WAS called
+    expect(clearIdx).toBeGreaterThan(deleteIdx) // clearStopConfirm fires AFTER delete
+    expect(showBoardIdx).toBeGreaterThan(deleteIdx) // showBoard fires AFTER delete
 
     // Cleanup spies
     clearSpy.mockRestore()
     showBoardSpy.mockRestore()
   })
 
-  it('(e-non-vacuity) fault-inject: if view-change happens first, the ordering test FAILS', () => {
+  it('(d-non-vacuity) fault-inject: if view-change happens first, the ordering test FAILS', () => {
     // NON-VACUITY SELF-CHECK (documented — the actual fault-inject is a manual verification).
     // This test proves the test above is not accidentally always-passing: if we register
-    // clearStopConfirm BEFORE stop in callOrder, the inequality clearIdx > stopIdx FAILS.
-    // We simulate the reversed implementation here to prove the pin is load-bearing.
-
+    // clearStopConfirm BEFORE delete in callOrder, the inequality clearIdx > deleteIdx FAILS.
     const callOrder: string[] = []
 
-    // Simulate the FAULT: view-state changes FIRST (before stop).
-    // This would be the bug if the component called clearStopConfirm() before window.terminal.stop.
+    // Simulate the FAULT: view-state changes FIRST (before delete).
     callOrder.push('clearStopConfirm') // view-state first (the BAD ordering)
     callOrder.push('showBoard') // view-state first (the BAD ordering)
-    callOrder.push('stop:term-fault') // stop AFTER (too late)
+    callOrder.push('delete:term-fault') // delete AFTER (too late)
 
-    const stopIdx = callOrder.indexOf('stop:term-fault')
+    const deleteIdx = callOrder.indexOf('delete:term-fault')
     const clearIdx = callOrder.indexOf('clearStopConfirm')
     const showBoardIdx = callOrder.indexOf('showBoard')
 
-    // With the reversed (buggy) order:
-    // stopIdx = 2, clearIdx = 0, showBoardIdx = 1
-    // → clearIdx > stopIdx is FALSE → the F1 ordering assertion FAILS → proves non-vacuity.
-    expect(clearIdx).not.toBeGreaterThan(stopIdx) // fault-injected: clear happened before stop
-    expect(showBoardIdx).not.toBeGreaterThan(stopIdx) // fault-injected: showBoard happened before stop
+    // With the reversed (buggy) order: clearIdx=0, showBoardIdx=1, deleteIdx=2
+    // → clearIdx > deleteIdx is FALSE → the F1 ordering assertion FAILS → proves non-vacuity.
+    expect(clearIdx).not.toBeGreaterThan(deleteIdx) // fault-injected: clear happened before delete
+    expect(showBoardIdx).not.toBeGreaterThan(deleteIdx) // fault-injected: showBoard happened first
   })
 
-  it('(e) clicking Stop eventually returns to the board (showBoard called)', async () => {
-    // After the explicit stop, the operator is returned to the board (cleaner UX — UX-DR18).
+  it('(d) clicking Delete eventually returns to the board (showBoard called)', async () => {
+    // After the explicit delete, the operator is returned to the board (cleaner UX — UX-DR18).
     const showBoardSpy = vi.spyOn(boardStore.getState(), 'showBoard')
 
     const payload = makePayload({ terminalId: 'term-abc123' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
 
-    const stopBtn = container.querySelector<HTMLButtonElement>('[data-testid="stop-confirm-stop"]')
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-stop"]'
+    )
     act(() => {
-      stopBtn?.click()
+      deleteBtn?.click()
     })
 
-    // Resolve the stop Promise so the view-state changes happen.
+    // Resolve the delete Promise so the view-state changes happen.
     await act(async () => {
       await Promise.resolve()
     })
@@ -301,14 +311,16 @@ describe('StopConfirm — THE EXPLICIT-STOP-BEFORE-VIEW-CHANGE ordering (F1 / FR
     showBoardSpy.mockRestore()
   })
 
-  it('(e) clicking Stop clears boardStore.stopConfirm', () => {
+  it('(d) clicking Delete clears boardStore.stopConfirm', () => {
     const payload = makePayload({ terminalId: 'term-abc123' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
 
-    const stopBtn = container.querySelector<HTMLButtonElement>('[data-testid="stop-confirm-stop"]')
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-stop"]'
+    )
     act(() => {
-      stopBtn?.click()
+      deleteBtn?.click()
     })
 
     expect(boardStore.getState().stopConfirm).toBeNull()
@@ -316,31 +328,26 @@ describe('StopConfirm — THE EXPLICIT-STOP-BEFORE-VIEW-CHANGE ordering (F1 / FR
 })
 
 // ---------------------------------------------------------------------------
-// (e-bug3) Bug #3 fix: clicking Stop calls forgetLaunchedTerminal(terminalId)
+// (d-registry) clicking Delete calls forgetLaunchedTerminal(terminalId)
 //
-// When the operator stops a session via the Stop button, the renderer-owned
-// launchedTerminals registry must be cleared — otherwise the "N starting" banner
-// persists forever. The natural-exit path (CH.terminalExit / onExit) is silent for
-// an explicit stop, so forgetLaunchedTerminal must be called here.
-//
-// forgetLaunchedTerminal is idempotent: if terminalId is not in the registry
-// (e.g. a plain #terminals shell), it is a no-op.
-//
-// NON-VACUITY: with the forgetLaunchedTerminal call removed from handleStop(),
-// the test below FAILS (spy never called). Restored → GREEN.
+// sessionExit.deleteTerminal (not this component) owns this call now, but the wiring through
+// this modal's Delete button must still reach it — otherwise the "N starting" banner would
+// persist forever for a pane that never got a natural-exit push.
 // ---------------------------------------------------------------------------
 
-describe('StopConfirm — Bug #3: forgetLaunchedTerminal called on explicit Stop', () => {
-  it('clicking Stop calls boardStore.getState().forgetLaunchedTerminal with the correct terminalId', () => {
+describe('StopConfirm — clicking Delete forgets the launched-terminal registry entry', () => {
+  it('clicking Delete calls boardStore.getState().forgetLaunchedTerminal with the correct terminalId', () => {
     const forgetSpy = vi.spyOn(boardStore.getState(), 'forgetLaunchedTerminal')
 
     const payload = makePayload({ terminalId: 'term-abc123' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
 
-    const stopBtn = container.querySelector<HTMLButtonElement>('[data-testid="stop-confirm-stop"]')
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="stop-confirm-stop"]'
+    )
     act(() => {
-      stopBtn?.click()
+      deleteBtn?.click()
     })
 
     expect(forgetSpy).toHaveBeenCalledTimes(1)
@@ -369,11 +376,11 @@ describe('StopConfirm — Bug #3: forgetLaunchedTerminal called on explicit Stop
 })
 
 // ---------------------------------------------------------------------------
-// (f) Enter while Cancel is focused → Cancel (default-focused = default action)
+// (e) Enter while Cancel is focused → Cancel (default-focused = default action)
 // ---------------------------------------------------------------------------
 
 describe('StopConfirm — Enter triggers Cancel (default-focused = reflexive Enter cancels)', () => {
-  it('pressing Enter while Cancel is focused calls clearStopConfirm (not stop)', () => {
+  it('pressing Enter while Cancel is focused calls clearStopConfirm (not delete)', () => {
     const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
     cleanup = unmount
     const cancelBtn = container.querySelector<HTMLButtonElement>(
@@ -387,13 +394,13 @@ describe('StopConfirm — Enter triggers Cancel (default-focused = reflexive Ent
       cancelBtn?.click() // Simulate Enter → click
     })
 
-    expect(stopSpy).not.toHaveBeenCalled()
+    expect(deleteSpy).not.toHaveBeenCalled()
     expect(boardStore.getState().stopConfirm).toBeNull()
   })
 })
 
 // ---------------------------------------------------------------------------
-// (h) Role=dialog + aria-modal=true
+// (f) Role=dialog + aria-modal=true
 // ---------------------------------------------------------------------------
 
 describe('StopConfirm — dialog accessibility', () => {
@@ -405,11 +412,11 @@ describe('StopConfirm — dialog accessibility', () => {
     expect(overlay?.getAttribute('aria-modal')).toBe('true')
   })
 
-  it('aria-label includes the session name', () => {
+  it('aria-label is the generic "Delete session?" (D-5: no name interpolated)', () => {
     const payload = makePayload({ sessionName: 'test-session' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
     const overlay = container.querySelector('[data-testid="stop-confirm-overlay"]')
-    expect(overlay?.getAttribute('aria-label')).toContain('test-session')
+    expect(overlay?.getAttribute('aria-label')).toBe('Delete session?')
   })
 })

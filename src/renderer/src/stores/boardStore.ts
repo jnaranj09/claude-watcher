@@ -40,15 +40,20 @@ import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
 import { effectiveTagFilter, useTags } from './tagsStore'
 
 /**
- * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
- * Non-null when the operator triggered the Stop-confirm for a focused session. Null when no
- * confirm is shown. The renderer renders `<StopConfirm/>` from this payload.
+ * Past sessions (D-5) — the DELETE confirm's payload (RENDERER VIEW-STATE; not session truth).
+ * The modal this drove WAS the Story-4.3 Stop confirm; Archive (D-3) needs no confirmation at
+ * all, so the ONE remaining confirm is Delete's. Non-null when the operator triggered it (the
+ * card's red Delete control, the focused bar's Delete button); null when no confirm is shown.
+ * The renderer renders `<StopConfirm/>` from this payload.
  * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
  * [state.md: modal open/closed = renderer view-state; session truth = main]
  */
 export interface StopConfirmPayload {
-  /** The opaque terminalId to stop (via window.terminal.stop(terminalId) — CH.terminalStop). */
+  /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
   terminalId: string
+  /** The session id the renderer has correlated for this terminal, or null before that binding
+   *  landed — a Delete on an already-exited pane still drops its record (sessionExit.ts). */
+  sessionId: string | null
   /** The session name to display verbatim in the confirm dialog (UX-DR22). */
   sessionName: string
 }
@@ -250,8 +255,9 @@ export interface BoardState {
    */
   quitGuard: QuitGuardPayload | null
   /**
-   * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
-   * Non-null when the operator triggered the Stop-confirm for a focused session. Null when no
+   * Past sessions (D-5) — the DELETE-CONFIRM modal payload (RENDERER VIEW-STATE; not session
+   * truth). The modal was Story 4.3's Stop confirm; Archive (D-3) has no confirm at all now, so
+   * this is the confirm for Delete only. Non-null when the operator triggered it. Null when no
    * confirm is shown. The renderer renders `<StopConfirm/>` from this payload.
    * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
    * Single-modal rule (UX-DR14): cannot co-exist with quitGuard.

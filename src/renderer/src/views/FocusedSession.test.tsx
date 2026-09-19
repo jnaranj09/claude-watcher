@@ -285,71 +285,70 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
 })
 
 // ---------------------------------------------------------------------------
-// Story 4.3 (FR-15) — the ⏹ Stop session header button tests
+// Past sessions (D-3/D-5) — the Archive + Delete focused-bar buttons (replaced Story 4.3's
+// single ⏹ Stop session button)
 // ---------------------------------------------------------------------------
 
-describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', () => {
-  it('renders the ⏹ Stop session button in the focused header', () => {
-    boardStore.getState().openLaunchedTerminal('launch-stop-test', 'stop-test', 'default')
-    const r = render()
-    const stopBtn = r.container.querySelector('[data-testid="focused-stop"]')
-    expect(stopBtn).not.toBeNull()
+describe('FocusedSession — Past sessions Archive + Delete header buttons (D-3, D-5)', () => {
+  beforeEach(() => {
+    ;(window as unknown as { launch: unknown }).launch = {
+      archiveSession: vi.fn(() => Promise.resolve()),
+      deleteSession: vi.fn(() => Promise.resolve())
+    }
   })
 
-  it('clicking ⏹ Stop session opens the Stop-confirm with the focused terminalId', () => {
-    boardStore.getState().openLaunchedTerminal('launch-stop-click', 'stop-click', 'default')
+  it('renders both the Archive and the Delete button in the focused header', () => {
+    boardStore.getState().openLaunchedTerminal('launch-exit-test', 'exit-test', 'default')
     const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    expect(stopBtn).not.toBeNull()
-
-    stopBtn?.click()
-
-    // The Stop-confirm should be open with the correct terminalId.
-    expect(boardStore.getState().stopConfirm).not.toBeNull()
-    expect(boardStore.getState().stopConfirm?.terminalId).toBe('launch-stop-click')
+    expect(r.container.querySelector('[data-testid="focused-archive"]')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="focused-delete"]')).not.toBeNull()
   })
 
-  it('clicking ⏹ Stop session includes a sessionName in the payload (verbatim name or terminalId fallback)', () => {
-    // When correlated, the sessionName should be the c9watch name.
+  it('clicking Archive calls window.launch.archiveSession(focusedTerminalId) and does NOT open the confirm', () => {
+    boardStore.getState().openLaunchedTerminal('launch-archive-click', 'archive-click', 'default')
+    const r = render()
+    const archiveBtn = r.container.querySelector<HTMLButtonElement>(
+      '[data-testid="focused-archive"]'
+    )
+    expect(archiveBtn).not.toBeNull()
+
+    archiveBtn?.click()
+
+    expect(window.launch.archiveSession).toHaveBeenCalledWith('launch-archive-click')
+    expect(boardStore.getState().stopConfirm).toBeNull()
+  })
+
+  it('clicking Delete opens the confirm with { terminalId, sessionId, sessionName } and calls nothing on the bridge', () => {
+    // Correlated: sessionId + sessionName come off the bound session.
     boardStore.getState().applyWatchEvent(updated(1, 'sess-corr', 'working', 100))
     boardStore.getState().addCorrelation('sess-corr', 'launch-corr-term')
     boardStore.getState().switchTerminal('launch-corr-term')
     const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    stopBtn?.click()
+    const deleteBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-delete"]')
+    deleteBtn?.click()
 
     const payload = boardStore.getState().stopConfirm
-    expect(payload).not.toBeNull()
-    expect(payload?.terminalId).toBe('launch-corr-term')
-    // The session name should be the c9watch name (s-sess-corr from the `updated` helper).
-    expect(payload?.sessionName).toBe('s-sess-corr')
+    expect(payload).toEqual({
+      terminalId: 'launch-corr-term',
+      sessionId: 'sess-corr',
+      sessionName: 's-sess-corr'
+    })
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
+    expect(window.launch.deleteSession).not.toHaveBeenCalled()
   })
 
-  it('clicking ⏹ Stop session degrades gracefully to terminalId when no correlation exists', () => {
-    // Pre-correlation: no session bound to this terminal yet → fall back to bare terminalId.
+  it('clicking Delete degrades gracefully to a null sessionId + the bare terminalId name when pre-correlation', () => {
     boardStore.getState().openLaunchedTerminal('launch-pre-corr', 'pre-corr', 'default')
     const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    stopBtn?.click()
+    const deleteBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-delete"]')
+    deleteBtn?.click()
 
     const payload = boardStore.getState().stopConfirm
-    expect(payload).not.toBeNull()
-    // No session correlated → sessionName falls back to bare terminalId (never crashes).
-    expect(payload?.sessionName).toBe('launch-pre-corr')
-  })
-
-  it('the ⏹ Stop session button is rendered and focusedTerminalId is wired to the payload', () => {
-    // The null-guard in handleStopSession is internal; verify the button correctly passes
-    // the focused terminalId from the store into the payload (not a hardcoded value).
-    boardStore.getState().openLaunchedTerminal('launch-id-wire-check', 'id-wire-check', 'default')
-    const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    expect(stopBtn).not.toBeNull()
-    stopBtn?.click()
-    // The payload terminalId must match the store's focusedTerminalId exactly.
-    expect(boardStore.getState().stopConfirm?.terminalId).toBe(
-      boardStore.getState().focusedTerminalId ?? 'launch-id-wire-check'
-    )
+    expect(payload).toEqual({
+      terminalId: 'launch-pre-corr',
+      sessionId: null,
+      sessionName: 'launch-pre-corr'
+    })
   })
 })
 

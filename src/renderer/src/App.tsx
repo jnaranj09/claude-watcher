@@ -73,6 +73,10 @@ import { QuitGuard } from './components/QuitGuard/QuitGuard'
 // is non-null). Rendered as a stacked overlay (same z-60 family as the QuitGuard; they never co-exist
 // — single-modal rule UX-DR14). The Stop-confirm never co-exists with the Quit-guard.
 import { StopConfirm } from './components/StopConfirm/StopConfirm'
+// Past sessions (D-3/D-5) — the ONE place the card, the focused bar, Ctrl+W and the Delete
+// confirm call through, so the explicit main-side stop-and-record/drop FIRST, then the
+// renderer's own view-state ordering (F1) cannot drift between callers.
+import { archiveTerminal } from './lib/sessionExit'
 // Session-naming — the create-time name prompt (renderer view-state; shown when
 // boardStore.sessionNamePrompt is non-null, i.e. after the directory picker and BEFORE the
 // launch). Same z-60 overlay family; it never co-exists with the other two modals.
@@ -416,6 +420,29 @@ function App(): React.JSX.Element {
     void window.launch.setWorkspace(sessionId, workspaceId)
   }, [])
 
+  // Past sessions (D-3) — Archive a card (the Board onArchiveCard seam). Resolves the session's
+  // terminalId (Column only wires the control once the binding is known, but re-check here too —
+  // a race between the click and a removal is a no-op, not a crash) and fires the SAME
+  // sessionExit.archiveTerminal the focused bar and Ctrl+W use.
+  const handleArchiveCard = useCallback((id: string): void => {
+    const terminalId = boardStore.getState().terminalIdBySessionId[id]
+    if (terminalId !== undefined) archiveTerminal(terminalId)
+  }, [])
+
+  // Past sessions (D-5) — Delete a card (the Board onDeleteCard seam): open the SAME confirm the
+  // focused bar's Delete button opens. Single-modal / no-double-open guard mirrors every other
+  // showStopConfirm call site (App's Ctrl+W handler, isModalOpen()).
+  const handleDeleteCard = useCallback((id: string): void => {
+    const state = boardStore.getState()
+    const terminalId = state.terminalIdBySessionId[id]
+    if (terminalId === undefined || isModalOpen() || state.stopConfirm !== null) return
+    state.showStopConfirm({
+      terminalId,
+      sessionId: id,
+      sessionName: state.sessionsById[id]?.sessionName ?? terminalId
+    })
+  }, [])
+
   // Story 3.2 (FR-11 / F6) — focus a card (the Board onActivateCard seam). ONE selection
   // (reconciled with the Story-2.2 selectedId). View-state only — no window raise.
   // Story 3.5 (SM-2): two consequences at this call site (FROZEN-5): the board view-state
@@ -483,15 +510,16 @@ function App(): React.JSX.Element {
         if (window.quit) void window.quit.requestQuit()
         return
       }
-      // Story 4.3 (FR-15 / UX-DR21) — Ctrl+W → show the Stop-confirm for the focused session.
+      // D-3/D-5 — the chord ARCHIVES, no confirm; Delete is a button that opens the confirm.
+      // (Was Story 4.3's Ctrl+W → Stop-confirm; Archive needs no confirmation at all — it is
+      // reversible through `Past sessions…` — so the chord now fires archiveTerminal directly.)
       // MUST e.preventDefault() to NEVER close the window (UX-DR21).
       // Only acts when a session is focused (viewMode==='focused' AND focusedTerminalId!==null).
       // No-op on the board (preventDefault still fires to suppress Electron/browser default close).
-      // Single-modal guard: do NOT open if ANY modal is already open (UX-DR14) — including the
-      // session-naming prompt, which CAN be open over a focused session (naming a NEW session
-      // while an existing one runs). Without that term, Ctrl+W stacked StopConfirm at the same
-      // z-index under the name prompt: StopConfirm's mount effect steals focus out of the name
-      // input, so the visible dialog and the keyboard focus disagree.
+      // Guard: do NOT act if ANY modal is already open (UX-DR14) — including the session-naming
+      // prompt, which CAN be open over a focused session (naming a NEW session while an existing
+      // one runs), and the quit-guard / Delete-confirm (quitGuard / stopConfirm), so Ctrl+W can
+      // never archive out from under an open dialog.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault()
         const state = boardStore.getState()
@@ -502,15 +530,7 @@ function App(): React.JSX.Element {
           state.stopConfirm === null &&
           !isModalOpen()
         ) {
-          // Resolve the session name for the dialog (degrade gracefully if not yet correlated).
-          const terminalId = state.focusedTerminalId
-          const sessionId = Object.entries(state.terminalIdBySessionId).find(
-            ([, tid]) => tid === terminalId
-          )?.[0]
-          const sessionName =
-            (sessionId !== undefined ? state.sessionsById[sessionId]?.sessionName : undefined) ??
-            terminalId
-          state.showStopConfirm({ terminalId, sessionName })
+          archiveTerminal(state.focusedTerminalId)
         }
         return
       }
@@ -664,6 +684,8 @@ function App(): React.JSX.Element {
               onMoveCardToWorkspace={handleMoveCardToWorkspace}
               onSetCardTags={handleSetSessionTags}
               onManageTags={handleManageTags}
+              onArchiveCard={handleArchiveCard}
+              onDeleteCard={handleDeleteCard}
             />
           </div>
           {hasFocusableTerminal && (
@@ -694,13 +716,14 @@ function App(): React.JSX.Element {
           The Quit-guard modal does NOT teardown on close (FROZEN #1 — no teardown-via-unmount).
           Cancel → clearQuitGuard() + window.quit.cancel(). Esc = Cancel (guarded in keydown). */}
       {quitGuard !== null && <QuitGuard payload={quitGuard} />}
-      {/* Story 4.3 (FR-15) — the Stop-confirm modal (renderer view-state; non-null when the
-          operator triggered per-session stop via ⏹ Stop session button or Ctrl+W). Rendered
-          as a stacked overlay (z-60, same layer as QuitGuard — they never co-exist per the
-          single-modal rule UX-DR14). The Stop-confirm does NOT teardown on open (FROZEN F1 —
-          the explicit stop runs INSIDE the modal's confirm handler, not on mount/unmount).
-          Cancel → clearStopConfirm(). Stop → window.terminal.stop THEN clearStopConfirm + showBoard.
-          Esc = Cancel (guarded in keydown above). */}
+      {/* Past sessions (D-5) — the Delete-confirm modal (was Story 4.3's Stop-confirm; renderer
+          view-state, non-null when the operator triggered Delete from a card, the focused bar's
+          Delete button, or App's onDeleteCard seam — never from Archive/Ctrl+W, which have no
+          confirm). Rendered as a stacked overlay (z-60, same layer as QuitGuard — they never
+          co-exist per the single-modal rule UX-DR14). Does NOT teardown on open (FROZEN F1 — the
+          explicit delete runs INSIDE the modal's confirm handler, not on mount/unmount).
+          Cancel → clearStopConfirm(). Delete → sessionExit.deleteTerminal (window.launch.deleteSession
+          THEN clearStopConfirm + showBoard). Esc = Cancel (guarded in keydown above). */}
       {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
       {/* Session templates — the Manage-templates modal (renderer view-state; UX-DR14 single-modal
           rule enforced by isModalOpen() at every open call site + the quit-guard listener above). */}

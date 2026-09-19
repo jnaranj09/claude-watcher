@@ -317,6 +317,20 @@
   flex: none;
 }
 
+/* D-5 — Delete is red at rest, filled on hover/focus (design.md's Delete treatment, drawn here
+   because the ManageDialog danger-button class names are reserved to ManageDialog.module.css —
+   see SessionCard.test.tsx's "never uses the ManageDialog class names" guard). Inherits
+   `.renameButton`'s reveal-on-hover; the colour is the only difference. */
+.cardDelete {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.cardDelete:hover,
+.cardDelete:focus-visible {
+  background: var(--danger);
+  color: #fff;
+}
+
 /* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised
  * panel (design.md: never --text-muted there). */
 .moveWarning {

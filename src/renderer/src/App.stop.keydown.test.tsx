@@ -1,24 +1,30 @@
-// Story 4.3 (FR-15) — App-level Ctrl+W keydown tests + Esc-Stop-confirm disambiguation.
+// Story 4.3 (FR-15) → Past sessions (D-3/D-5) — App-level Ctrl+W keydown tests + Esc-confirm
+// disambiguation.
 //
 // A NEW test file (rather than extending App.keydown.test.tsx) to avoid touching the green 4-2
 // guardrail tests. The 4-2 App.keydown.test.tsx assertions STAY UNCHANGED.
 //
+// D-3/D-5 changed WHAT Ctrl+W does: it used to open the Stop-confirm; it now ARCHIVES directly
+// (no confirm — Archive is reversible through `Past sessions…`). Delete is reached only through
+// the card's/focused bar's own button, which opens this same confirm modal (boardStore.stopConfirm)
+// for the ONE exit that is NOT reversible.
+//
 // Asserts:
-//   (a) Ctrl+W while a session is focused opens the Stop-confirm (showStopConfirm called /
-//       boardStore.stopConfirm is non-null) AND e.preventDefault() fired (window does NOT close).
-//   (b) Ctrl+W on the board (viewMode='board') is a no-op (stopConfirm stays null) but
+//   (a) Ctrl+W while a session is focused calls window.launch.archiveSession(focusedTerminalId)
+//       and leaves stopConfirm null, AND e.preventDefault() fired (window does NOT close).
+//   (b) Ctrl+W on the board (viewMode='board') is a no-op (archiveSession NOT called) but
 //       preventDefault() still fires (the window does NOT close in any case).
-//   (c) Ctrl+W while the Quit-guard is open does NOT open a second modal (single-modal rule
-//       UX-DR14; stopConfirm stays null).
-//   (d) Ctrl+W while a Stop-confirm is already open does NOT open a second one (single-modal).
-//   (e) Esc-while-Stop-confirm-open cancels the Stop-confirm (clearStopConfirm) and does NOT
-//       also call showBoard (the Stop-confirm is the topmost layer; Esc disambiguates).
-//   (f) Esc-with-Stop-confirm-open does NOT call window.quit.cancel.
+//   (c) Ctrl+W while the Quit-guard is open does NOT archive (single-modal rule UX-DR14).
+//   (d) Ctrl+W while a Delete-confirm (stopConfirm) is already open does NOT archive either
+//       (single-modal).
+//   (e) Esc-while-Delete-confirm-open cancels it (clearStopConfirm) and does NOT also call
+//       showBoard (the confirm is the topmost layer; Esc disambiguates).
+//   (f) Esc-with-Delete-confirm-open does NOT call window.quit.cancel.
 //
 // Does NOT modify App.keydown.test.tsx (the B-1 guardrail for 4-2 must stay unchanged — F6).
 //
-// [Source: story 4.3 Task 5; UX-DR14/21; src/renderer/src/App.tsx keydown effect;
-//  src/renderer/src/App.keydown.test.tsx (pattern reference — DO NOT MODIFY)]
+// [Source: story 4.3 Task 5; task-10-brief.md (D-3/D-5); UX-DR14/21; src/renderer/src/App.tsx
+//  keydown effect; src/renderer/src/App.keydown.test.tsx (pattern reference — DO NOT MODIFY)]
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
@@ -156,7 +162,10 @@ beforeEach(() => {
       Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })
     ),
     onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
+    markSeen: vi.fn(() => Promise.resolve(undefined)),
+    // Past sessions (D-3/D-5) — Ctrl+W now archives directly (sessionExit.archiveTerminal).
+    archiveSession: vi.fn(() => Promise.resolve(undefined)),
+    deleteSession: vi.fn(() => Promise.resolve(undefined))
   }
   // Session templates: loadTemplates() now runs on every App mount — stub it so it never
   // console.warns a code (App.templates.test.tsx amendment #2).
@@ -187,11 +196,11 @@ async function renderApp(): Promise<RenderResult> {
 }
 
 // ---------------------------------------------------------------------------
-// (a) Ctrl+W while focused opens the Stop-confirm + preventDefault fires
+// (a) Ctrl+W while focused ARCHIVES the focused terminal + preventDefault fires
 // ---------------------------------------------------------------------------
 
-describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
-  it('(a) Ctrl+W while focused opens the Stop-confirm (stopConfirm !== null)', async () => {
+describe('App keydown — Ctrl+W archives (D-3/D-5 Task 10)', () => {
+  it('(a) Ctrl+W while focused calls window.launch.archiveSession(focusedTerminalId), leaves stopConfirm null', async () => {
     await renderApp()
     // Enter the focused view with a known terminal.
     act(() => {
@@ -212,13 +221,12 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
     })
 
     expect(preventDefaultCalled).toBe(true)
-    expect(boardStore.getState().stopConfirm).not.toBeNull()
-    expect(boardStore.getState().stopConfirm?.terminalId).toBe('term-ctrl-w')
+    expect(window.launch.archiveSession).toHaveBeenCalledWith('term-ctrl-w')
+    expect(boardStore.getState().stopConfirm).toBeNull()
   })
 
-  // Hazard 1 again: Ctrl+Alt+W must not open the Stop-confirm now that Ctrl+Alt is the
-  // phrase-shortcut namespace.
-  it('(a) Ctrl+Alt+W does NOT open the Stop-confirm', async () => {
+  // Hazard 1 again: Ctrl+Alt+W must not archive now that Ctrl+Alt is the phrase-shortcut namespace.
+  it('(a) Ctrl+Alt+W does NOT archive', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-ctrl-alt-w' })
@@ -229,10 +237,10 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
       await Promise.resolve()
     })
 
-    expect(boardStore.getState().stopConfirm).toBeNull()
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
   })
 
-  it('(a) Ctrl+W (uppercase W) also opens the Stop-confirm', async () => {
+  it('(a) Ctrl+W (uppercase W) also archives', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-w-upper' })
@@ -243,10 +251,10 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
       await Promise.resolve()
     })
 
-    expect(boardStore.getState().stopConfirm).not.toBeNull()
+    expect(window.launch.archiveSession).toHaveBeenCalledWith('term-w-upper')
   })
 
-  it('(a) Ctrl+W includes the focused terminalId in the Stop-confirm payload', async () => {
+  it('(a) Ctrl+W archives the CURRENTLY focused terminal, not a stale one', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-payload-check' })
@@ -257,14 +265,14 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
       await Promise.resolve()
     })
 
-    expect(boardStore.getState().stopConfirm?.terminalId).toBe('term-payload-check')
+    expect(window.launch.archiveSession).toHaveBeenCalledWith('term-payload-check')
   })
 
   // ---------------------------------------------------------------------------
-  // (b) Ctrl+W on the board = no-op (stopConfirm stays null), but preventDefault fires
+  // (b) Ctrl+W on the board = no-op (archiveSession NOT called), but preventDefault fires
   // ---------------------------------------------------------------------------
 
-  it('(b) Ctrl+W on the board does NOT open the Stop-confirm (no-op)', async () => {
+  it('(b) Ctrl+W on the board does NOT archive (no-op)', async () => {
     await renderApp()
     // Ensure we are on the board.
     expect(boardStore.getState().viewMode).toBe('board')
@@ -284,15 +292,15 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
 
     // preventDefault still fires (window NEVER closes on Ctrl+W — UX-DR21).
     expect(preventDefaultCalled).toBe(true)
-    // But the modal does NOT open.
-    expect(boardStore.getState().stopConfirm).toBeNull()
+    // But nothing was archived.
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
   })
 
   // ---------------------------------------------------------------------------
-  // (c) Ctrl+W while Quit-guard is open = single-modal rule (stopConfirm stays null)
+  // (c) Ctrl+W while Quit-guard is open = single-modal rule (no archive)
   // ---------------------------------------------------------------------------
 
-  it('(c) Ctrl+W while Quit-guard is open does NOT open Stop-confirm (single-modal)', async () => {
+  it('(c) Ctrl+W while Quit-guard is open does NOT archive (single-modal)', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-guard-open' })
@@ -305,23 +313,25 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
       await Promise.resolve()
     })
 
-    // Stop-confirm must NOT open while the Quit-guard is open.
-    expect(boardStore.getState().stopConfirm).toBeNull()
+    // Nothing archived while the Quit-guard is open.
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
     // The Quit-guard stays open.
     expect(boardStore.getState().quitGuard).not.toBeNull()
   })
 
   // ---------------------------------------------------------------------------
-  // (d) Ctrl+W while Stop-confirm already open = no second modal
+  // (d) Ctrl+W while a Delete-confirm (stopConfirm) is already open = no archive either
   // ---------------------------------------------------------------------------
 
-  it('(d) Ctrl+W while Stop-confirm is already open does NOT open a second one', async () => {
+  it('(d) Ctrl+W while the Delete-confirm is already open does NOT archive', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-already-open' })
-      boardStore
-        .getState()
-        .showStopConfirm({ terminalId: 'term-already-open', sessionName: 'test' })
+      boardStore.getState().showStopConfirm({
+        terminalId: 'term-already-open',
+        sessionId: 'sess-already-open',
+        sessionName: 'test'
+      })
     })
     const firstConfirm = boardStore.getState().stopConfirm
 
@@ -330,21 +340,26 @@ describe('App keydown — Ctrl+W (Story 4.3 Task 5)', () => {
       await Promise.resolve()
     })
 
-    // The stopConfirm payload must be unchanged (no second modal).
+    // Nothing archived, and the confirm payload is unchanged (no second modal).
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
     expect(boardStore.getState().stopConfirm).toBe(firstConfirm)
   })
 })
 
 // ---------------------------------------------------------------------------
-// (e) Esc-while-Stop-confirm-open cancels it (clearStopConfirm) + does NOT call showBoard
+// (e) Esc-while-Delete-confirm-open cancels it (clearStopConfirm) + does NOT call showBoard
 // ---------------------------------------------------------------------------
 
-describe('App keydown — Esc with Stop-confirm open (Story 4.3)', () => {
-  it('(e) Esc with stopConfirm open clears the Stop-confirm', async () => {
+describe('App keydown — Esc with the Delete-confirm open (D-5)', () => {
+  it('(e) Esc with stopConfirm open clears it', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-esc-test' })
-      boardStore.getState().showStopConfirm({ terminalId: 'term-esc-test', sessionName: 'test' })
+      boardStore.getState().showStopConfirm({
+        terminalId: 'term-esc-test',
+        sessionId: 'sess-esc-test',
+        sessionName: 'test'
+      })
     })
     expect(boardStore.getState().stopConfirm).not.toBeNull()
 
@@ -356,12 +371,13 @@ describe('App keydown — Esc with Stop-confirm open (Story 4.3)', () => {
     expect(boardStore.getState().stopConfirm).toBeNull()
   })
 
-  it('(e) Esc with stopConfirm open does NOT call showBoard (Stop-confirm is topmost)', async () => {
+  it('(e) Esc with stopConfirm open does NOT call showBoard (the confirm is topmost)', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-esc-no-board' })
       boardStore.getState().showStopConfirm({
         terminalId: 'term-esc-no-board',
+        sessionId: 'sess-esc-no-board',
         sessionName: 'test'
       })
     })
@@ -373,14 +389,14 @@ describe('App keydown — Esc with Stop-confirm open (Story 4.3)', () => {
       await Promise.resolve()
     })
 
-    // Stop-confirm Esc intercepts before showBoard — showBoard must NOT be called.
+    // The confirm's Esc intercepts before showBoard — showBoard must NOT be called.
     expect(showBoardSpy).not.toHaveBeenCalled()
-    // Still in focused view (the Stop-confirm was dismissed, not the session).
+    // Still in focused view (the confirm was dismissed, not the session).
     expect(boardStore.getState().viewMode).toBe('focused')
   })
 
   // ---------------------------------------------------------------------------
-  // (f) Esc-with-Stop-confirm-open does NOT call window.quit.cancel
+  // (f) Esc-with-Delete-confirm-open does NOT call window.quit.cancel
   // ---------------------------------------------------------------------------
 
   it('(f) Esc with stopConfirm open does NOT call window.quit.cancel', async () => {
@@ -389,6 +405,7 @@ describe('App keydown — Esc with Stop-confirm open (Story 4.3)', () => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-esc-no-quit' })
       boardStore.getState().showStopConfirm({
         terminalId: 'term-esc-no-quit',
+        sessionId: 'sess-esc-no-quit',
         sessionName: 'test'
       })
     })

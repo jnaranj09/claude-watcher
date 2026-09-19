@@ -705,6 +705,39 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
   })
 })
 
+describe('Archive / Delete (D-3, D-5)', () => {
+  it('renders Archive (no confirm) and a red Delete only when handlers are wired, and neither activates the card', () => {
+    const onActivate = vi.fn()
+    const onArchive = vi.fn()
+    const onDelete = vi.fn()
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ onActivate, onArchive, onDelete })} />
+    )
+    cleanup = unmount
+    const archive = container.querySelector<HTMLElement>('[data-testid="card-archive"]')
+    const del = container.querySelector<HTMLElement>('[data-testid="card-delete"]')
+    expect(archive?.getAttribute('aria-label')).toBe('Archive deploy-prod')
+    expect(del?.getAttribute('aria-label')).toBe('Delete deploy-prod')
+    act(() => archive?.click())
+    act(() => del?.click())
+    expect(onArchive).toHaveBeenCalledTimes(1)
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+  it('renders neither control without handlers', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)
+    cleanup = unmount
+    expect(container.querySelector('[data-testid="card-archive"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-delete"]')).toBeNull()
+  })
+  it('the Delete control is red at rest (--danger) and never uses the ManageDialog class names', async () => {
+    const css = await readCss()
+    expect(css).toMatch(/\.cardDelete\s*\{[^}]*var\(--danger\)/)
+    expect(css).not.toContain('.deleteButton')
+    expect(css).not.toContain('.dangerButton')
+  })
+})
+
 describe('the ⟳ name-sync mark (D-11)', () => {
   it('draws the mark with the explaining title only while nameSyncPending', () => {
     const on = renderComponent(<SessionCard {...baseProps({ nameSyncPending: true })} />)

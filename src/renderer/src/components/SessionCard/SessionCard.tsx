@@ -112,6 +112,12 @@ export interface SessionCardProps {
   /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt: a `⟳` mark
    *  sits after the name, titled so the operator learns the rule where it applies. */
   nameSyncPending?: boolean
+  /** Past sessions (D-3) — Archive: stop and keep a record; no confirmation. Omitted ⇒ not
+   *  rendered (a card whose terminal binding has not landed cannot be exited yet). Same
+   *  stopPropagation rule as `onRename`. */
+  onArchive?: () => void
+  /** Past sessions (D-5) — Delete: opens the confirm. Red at rest. Omitted ⇒ not rendered. */
+  onDelete?: () => void
 }
 
 export const NAME_SYNC_PENDING_TITLE = 'Claude applies this name on your next prompt'
@@ -164,7 +170,9 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     onManageTags,
     selected = false,
     emphasized = false,
-    nameSyncPending
+    nameSyncPending,
+    onArchive,
+    onDelete
   } = props
 
   // Workspaces (Task 12) — local, presentational toggle for the move-target list. Ephemeral UI
@@ -238,6 +246,33 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     if (e.key === 'Enter' || e.key === ' ') {
       // Do NOT preventDefault: that would suppress the button's own native click, which is what
       // actually invokes onRename. Only stop the bubble to the card.
+      e.stopPropagation()
+    }
+  }
+
+  // Past sessions (D-3/D-5) — the SAME LOAD-BEARING guard pair as the rename pencil above,
+  // copied verbatim (click + keydown) for the SAME reason: both controls are DOM children of the
+  // card's own `role="button"` onClick/onKeyDown.
+  const handleArchiveClick = (e: MouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation()
+    onArchive?.()
+  }
+
+  const handleArchiveKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Do NOT preventDefault — see handleRenameKeyDown above.
+      e.stopPropagation()
+    }
+  }
+
+  const handleDeleteClick = (e: MouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation()
+    onDelete?.()
+  }
+
+  const handleDeleteKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Do NOT preventDefault — see handleRenameKeyDown above.
       e.stopPropagation()
     }
   }
@@ -483,6 +518,66 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
               />
             )}
           </div>
+        )}
+        {/* Past sessions (D-3) — Archive. Same reveal-on-hover + always-tab-reachable treatment
+            as the pencil/move/tags controls, and the same optional-seam rule: rendered only when
+            wired (a card whose terminal binding has not landed cannot be exited yet). */}
+        {onArchive !== undefined && (
+          <button
+            type="button"
+            className={styles.renameButton}
+            data-testid="card-archive"
+            aria-label={`Archive ${sessionName}`}
+            title={`Archive ${sessionName} (keeps it in Past sessions)`}
+            onClick={handleArchiveClick}
+            onKeyDown={handleArchiveKeyDown}
+          >
+            {/* Inline SVG archive-box glyph: no icon dependency, currentColor inherits the
+                card's text ramp like the other controls'. aria-hidden — the button's
+                aria-label is the accessible name. */}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M2 4h12v2H2zM3 6v7h10V6M6.5 9h3" />
+            </svg>
+          </button>
+        )}
+        {/* Past sessions (D-5) — Delete. Red at rest (design.md's Delete treatment, drawn in
+            `.cardDelete` because `.deleteButton`/`.dangerButton` are reserved to
+            ManageDialog.module.css). Opens the confirm; the confirm itself deletes. */}
+        {onDelete !== undefined && (
+          <button
+            type="button"
+            className={`${styles.renameButton} ${styles.cardDelete}`}
+            data-testid="card-delete"
+            aria-label={`Delete ${sessionName}`}
+            title={`Delete ${sessionName}`}
+            onClick={handleDeleteClick}
+            onKeyDown={handleDeleteKeyDown}
+          >
+            {/* Inline SVG trash glyph. */}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" />
+            </svg>
+          </button>
         )}
         <StatusDot status={status} labelHidden />
       </div>
