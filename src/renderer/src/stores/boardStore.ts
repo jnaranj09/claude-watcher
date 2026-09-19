@@ -429,16 +429,17 @@ export interface BoardState {
    */
   clearQuitGuard: () => void
   /**
-   * Story 4.3 (FR-15) — open the Stop-confirm modal for a specific session.
-   * Sets `stopConfirm = payload`. Pure, small, no side effects. No IPC here —
-   * the explicit `window.terminal.stop` call happens at the component call site
-   * BEFORE view-state changes (FROZEN F1; state.md: no IPC inside store actions).
+   * Past sessions (D-5) — open the DELETE confirm for a specific session (the modal that was
+   * Story 4.3's Stop confirm; the action keeps its name). Sets `stopConfirm = payload`. Pure,
+   * small, no side effects. No IPC here — the explicit delete (`window.launch.deleteSession`,
+   * via `sessionExit.deleteTerminal`) happens at the confirm's call site BEFORE view-state
+   * changes (FROZEN F1; state.md: no IPC inside store actions).
    * Single-modal rule (UX-DR14): do NOT show when quitGuard is open.
    */
   showStopConfirm: (payload: StopConfirmPayload) => void
   /**
-   * Story 4.3 (FR-15) — close the Stop-confirm modal (operator cancelled OR stop completed).
-   * Sets `stopConfirm = null`. No teardown here — the explicit stop happens at the call site
+   * Past sessions (D-5) — close the Delete confirm (operator cancelled OR the delete was sent).
+   * Sets `stopConfirm = null`. No teardown here — the explicit delete happens at the call site
    * BEFORE this (FROZEN F1).
    */
   clearStopConfirm: () => void
@@ -553,7 +554,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     terminalIdBySessionId: {},
     // Story 4.2 (FR-14) — no quit guard shown until main pushes the guard payload.
     quitGuard: null,
-    // Story 4.3 (FR-15) — no stop confirm shown until the operator triggers it.
+    // Past sessions (D-5) — no Delete confirm shown until the operator triggers it.
     stopConfirm: null,
     // Session-naming — no name prompt shown until the directory picker returns a path.
     sessionNamePrompt: null,
@@ -815,16 +816,17 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
 
     showStopConfirm: (payload) => {
-      // Story 4.3 (FR-15) — open the Stop-confirm modal. Pure, small, no side effects.
-      // The explicit window.terminal.stop MUST happen at the component call site BEFORE
-      // clearing view-state (FROZEN F1; the modal's Stop button handles this ordering).
+      // Past sessions (D-5) — open the Delete confirm. Pure, small, no side effects.
+      // The explicit delete (window.launch.deleteSession) MUST happen at the component call site
+      // BEFORE clearing view-state (FROZEN F1; the confirm's Delete button handles this ordering
+      // through sessionExit.deleteTerminal).
       // [state.md: modal open/closed = view-state; no IPC inside store actions]
       set({ stopConfirm: payload })
     },
 
     clearStopConfirm: () => {
-      // Story 4.3 (FR-15) — close the Stop-confirm modal (cancelled or stop completed).
-      // No PTY teardown here — the explicit window.terminal.stop runs BEFORE this at the
+      // Past sessions (D-5) — close the Delete confirm (cancelled or the delete was sent).
+      // No PTY teardown here — the explicit window.launch.deleteSession runs BEFORE this at the
       // call site (FROZEN F1).
       const state = get()
       if (state.stopConfirm !== null) set({ stopConfirm: null })
@@ -1026,8 +1028,8 @@ export const selectTerminalIdForSession = (state: BoardState, id: string): strin
 export const selectQuitGuard = (state: BoardState): QuitGuardPayload | null => state.quitGuard
 
 /**
- * Story 4.3 (FR-15) — the Stop-confirm modal payload (RENDERER VIEW-STATE; null = no confirm shown).
- * Non-null when the operator triggered the Stop-confirm for a focused session.
+ * Past sessions (D-5) — the Delete-confirm payload (RENDERER VIEW-STATE; null = no confirm shown).
+ * Non-null when the operator pressed Delete on a card or in the focused bar.
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null => state.stopConfirm
