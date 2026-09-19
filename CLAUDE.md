@@ -145,9 +145,20 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
   `hookStatus.ts` is the ONLY event→status mapping.
-- **Removal is stop/exit-driven:** in-app Stop and PTY exit remove the bound session's
-  card immediately (Story 6.3); the `SessionEnd` hook removal is belt-and-suspenders
-  (idempotent — removing an already-gone id emits nothing, logs nothing).
+- **Removal is stop/exit-driven, and every exit names its REASON (past sessions):** in-app
+  Archive, `Ctrl+W`, `Ctrl+C` twice, `/exit`, a pty exit and the belt-and-suspenders `SessionEnd`
+  all remove the card with reason `archive` — main snapshots the card into
+  `claude-watcher-past-sessions.json` (`src/main/persistence/pastSessions.ts`, state only, v1,
+  cap 200, cascades on workspace delete) BEFORE the reducer drops it. `Delete` (after the confirm)
+  removes with reason `delete`: no record, and any earlier record for that id is dropped. Delete
+  never touches claude's own files. `Past sessions…` (last ☰ row) reopens a record as a live card
+  with `claude --resume <id>` (the launch service's `resumeSessionId`; the minted id IS the
+  record's id — probe-verified 2026-09-18 on claude 2.1.277 that `--resume` keeps it). The
+  `session.removed` from a late `SessionEnd` stays idempotent (no card ⇒ no record, no log).
+- **A rename waits for the next prompt, and the card says so:** `Session.nameSyncPending` (set by
+  an in-app rename, cleared when the hook server takes the pending title) draws the `⟳` mark;
+  `pendingTitles.rebind` moves a pending rename with the card on `/clear` (`adoptCard`), which is
+  what fixed "rename, then /clear, then the card reverts".
 - **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
   card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate).
 - **Claude changes its own session id mid-run (`/clear`) and the card must follow**
@@ -190,6 +201,9 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   Bumping either WITHOUT a migration makes every existing file fail closed → backed up → started
   EMPTY, losing every saved template and shortcut — the warning still stands for templates, and
   for any future shortcuts bump that skips the migration step.
+- **`PastSession.workspaceId` is REQUIRED and the workspaces cascade deletes the records** (a
+  record never names a missing workspace; one that does, from a hand-edited file, is dropped on
+  load by code). `PAST_SESSIONS_FILE_VERSION` stays 1; new fields are additive `.default()`s.
 - **Shortcuts are reached by ALIAS, not by a chord of their own.** One chord
   (`settings.expanderKey`, `Ctrl+Alt+X` by default) opens `ExpanderBox` inside the focused
   terminal; `<alias> <values…>` expands `$1..$9` / `$*` / `$$` (`src/renderer/src/shortcuts/expand.ts`,
