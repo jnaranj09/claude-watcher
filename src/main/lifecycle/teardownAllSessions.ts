@@ -6,6 +6,11 @@
 // and `enrichDelta.ts` as the extract-for-unit-coverage precedent.
 //
 // What it does:
+//   0. `archiveLiveSessions()` — Past sessions (D-3): a quit is a pty exit the operator caused,
+//      so every live launched session is ARCHIVED. It runs FIRST because step 1 disposes each
+//      pty's exit listener before the kill (no onExit, so the pty-exit archive never runs), and
+//      step 2 drops the routing each archive needs. Contained: a throw logs a code, the quit
+//      goes on.
 //   1. `terminalManager.destroyAll()` — tears down EVERY owned terminal via the
 //      EXISTING `terminalManager.teardown` ordering (port.close() THEN pty.kill(),
 //      idempotent + never-throws; architecture.md:554). REUSE, do NOT reimplement.
@@ -39,6 +44,12 @@ import type { TerminalManager } from '../pty/terminalManager'
 
 /** Minimal seam so the unit test can inject + assert without importing Electron. */
 export interface TeardownDeps {
+  /**
+   * Past sessions (D-3) — archive every bound launched session (index.ts → `archiveBoundSessions`,
+   * launchRemoval.ts). Called FIRST, before the terminals are destroyed and before the owners
+   * are cleared. Required, so neither quit path can forget to wire it.
+   */
+  archiveLiveSessions: () => void
   /** The ONE app-global terminal manager (null if never constructed — quit early). */
   terminalManager: TerminalManager | null
   /**
@@ -65,6 +76,15 @@ export interface TeardownDeps {
  * @param deps Injectable seam (production: live registries; tests: fakes/spies).
  */
 export function teardownAllSessions(deps: TeardownDeps): void {
+  // 0. Past sessions (D-3) — archive every live session while its pty, its card and its owner
+  //    routing all still exist. NEVER let it cost the quit: a throw is contained and logged by
+  //    CODE only (the error can quote a path or a name), and the teardown below always runs.
+  try {
+    deps.archiveLiveSessions()
+  } catch {
+    console.warn('[claude-watcher][quit] code=quit_archive_failed')
+  }
+
   // 1. Stop every owned terminal. port.close() THEN pty.kill() ordering is INSIDE
   //    terminalManager.destroyAll() → teardown() — REUSE it, do NOT reimplement.
   //    B-1/M-2: this is the explicit-main-stop; it runs BEFORE any renderer unmount.

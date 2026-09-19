@@ -18,14 +18,18 @@
 //     of the new session.
 import { describe, it, expect, vi } from 'vitest'
 import {
+  archiveBoundSessions,
   removeBoundSession,
   stopTerminalAndRemoveBound,
+  type RemovalReason,
   type StoppableTerminalManager
 } from './launchRemoval'
 import { createLaunchService, type LaunchService } from './launchSession'
 import { buildLaunchedSession } from './launchSynthesis'
 import { createLaunchedSet } from './launchedSet'
 import { createReducer, type Reducer, type SessionDelta } from '../c9watch/reducer'
+import { applyRemovalReason } from '../persistence/pastSessionRecord'
+import { createPastSessionsStore, type PastSessionsStore } from '../persistence/pastSessions'
 
 const FIXED_NOW = 1_750_000_000_000
 const CWD = '/home/op/proj'
@@ -326,5 +330,146 @@ describe('Story 6.3 — Reopen after exit: fresh binding, no stale removal', () 
       .map((d) => d.event.id)
     expect(removedIds).toEqual(['sess-1', 'sess-2']) // each removed exactly once
     expect(reducer.snapshotMap().size).toBe(0)
+  })
+})
+
+// Past sessions (D-3) — a QUIT or a WINDOW CLOSE ends every live session without an onExit:
+// `terminalManager.destroyAll()` / `stop()` dispose the exit listener BEFORE the kill, so the pty
+// exit path that archives never runs. `archiveBoundSessions` is the step every such path runs
+// FIRST. These tests run it over the REAL launch service, the REAL reducer and the REAL
+// past-sessions store, with `historySeam` mirroring index.ts `removeLaunchedSession` exactly
+// (applyRemovalReason → applyHookStatus removed).
+describe('Past sessions — archiveBoundSessions (quit / window close archive every live session)', () => {
+  const ENDED = FIXED_NOW + 60_000
+
+  function multiLaunchService(): LaunchService {
+    let t = 0
+    let s = 0
+    return createLaunchService({
+      terminalManager: { pidOf: () => null },
+      launchedSet: createLaunchedSet(),
+      spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
+      readStatus: () => {
+        throw new Error('ENOENT')
+      },
+      newTerminalId: () => `t-${++t}`,
+      newSessionId: () => `sess-${++s}`,
+      now: () => FIXED_NOW,
+      platform: 'linux'
+    })
+  }
+
+  function historySeam(
+    reducer: Reducer,
+    store: PastSessionsStore
+  ): { removeLaunched: (sessionId: string, reason: RemovalReason) => void } {
+    return {
+      removeLaunched: (sessionId, reason) => {
+        applyRemovalReason(reason, sessionId, reducer.snapshotMap().get(sessionId), store, ENDED)
+        reducer.applyHookStatus(sessionId, { kind: 'removed' })
+      }
+    }
+  }
+
+  function twoLiveSessions(): {
+    svc: LaunchService
+    reducer: Reducer
+    store: PastSessionsStore
+    seam: ReturnType<typeof historySeam>
+  } {
+    const svc = multiLaunchService()
+    const reducer = createReducer({ now: () => FIXED_NOW })
+    const store = createPastSessionsStore({ log: () => {} })
+    for (const name of ['api', 'web']) {
+      const { terminalId } = svc.launch({ cwd: `/home/op/${name}`, name })
+      const minted = svc.mintSpawn(terminalId)
+      if (minted === null) throw new Error('unreachable — a launch terminalId always mints')
+      reducer.upsertLaunched(buildLaunchedSession(minted, 51234, 'default', []))
+    }
+    return { svc, reducer, store, seam: historySeam(reducer, store) }
+  }
+
+  it('archives EVERY bound session: one record each, cards gone, bindings consumed', () => {
+    const { svc, reducer, store, seam } = twoLiveSessions()
+    const log = vi.fn()
+
+    const archived = archiveBoundSessions(
+      svc,
+      (_terminalId, sessionId) => seam.removeLaunched(sessionId, 'archive'),
+      log
+    )
+
+    expect(archived).toEqual(['sess-1', 'sess-2'])
+    expect(store.list().map((r) => [r.id, r.name, r.cwd, r.endedAt])).toEqual([
+      ['sess-1', 'api', '/home/op/api', ENDED],
+      ['sess-2', 'web', '/home/op/web', ENDED]
+    ])
+    expect(reducer.snapshotMap().size).toBe(0)
+    expect(svc.bindings()).toEqual([])
+    expect(log).not.toHaveBeenCalled()
+  })
+
+  it('is idempotent: a second run archives nothing and the history keeps ONE record per session', () => {
+    const { svc, store, seam } = twoLiveSessions()
+    const archive = (_terminalId: string, sessionId: string): void =>
+      seam.removeLaunched(sessionId, 'archive')
+
+    archiveBoundSessions(svc, archive, vi.fn())
+    const again = archiveBoundSessions(svc, archive, vi.fn())
+
+    expect(again).toEqual([])
+    expect(store.list().map((r) => r.id)).toEqual(['sess-1', 'sess-2'])
+  })
+
+  it('`include` narrows it to one window: the other terminal stays bound and on the board', () => {
+    const { svc, reducer, store, seam } = twoLiveSessions()
+
+    const archived = archiveBoundSessions(
+      svc,
+      (_terminalId, sessionId) => seam.removeLaunched(sessionId, 'archive'),
+      vi.fn(),
+      (terminalId) => terminalId === 't-2'
+    )
+
+    expect(archived).toEqual(['sess-2'])
+    expect(store.list().map((r) => r.id)).toEqual(['sess-2'])
+    expect(reducer.snapshotMap().has('sess-1')).toBe(true)
+    expect(svc.sessionIdFor('t-1')).toBe('sess-1')
+  })
+
+  it('a failure on one session is contained: logs a code (no value), the rest still archive, never throws', () => {
+    const { svc, store, seam } = twoLiveSessions()
+    const log = vi.fn()
+
+    const archived = archiveBoundSessions(
+      svc,
+      (_terminalId, sessionId) => {
+        if (sessionId === 'sess-1') throw new Error('/home/op/api disk full')
+        seam.removeLaunched(sessionId, 'archive')
+      },
+      log
+    )
+
+    expect(archived).toEqual(['sess-2'])
+    expect(store.list().map((r) => r.id)).toEqual(['sess-2'])
+    expect(log).toHaveBeenCalledTimes(1)
+    const line = String(log.mock.calls[0]?.[0])
+    expect(line).toMatch(/code=teardown_archive_failed$/)
+    expect(line).not.toContain('/home/op')
+    expect(line).not.toContain('sess-1')
+  })
+
+  it('a bindings() read that throws is contained too, and a null launch service is a no-op', () => {
+    const log = vi.fn()
+    const broken = {
+      bindings: (): never => {
+        throw new Error('boom')
+      },
+      sessionIdFor: (): null => null,
+      unbind: (): void => {}
+    }
+    expect(archiveBoundSessions(broken, vi.fn(), log)).toEqual([])
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(archiveBoundSessions(null, vi.fn(), log)).toEqual([])
   })
 })

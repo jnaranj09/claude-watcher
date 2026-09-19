@@ -137,8 +137,10 @@ import { createLaunchService, type LaunchService } from './pty/launchSession'
 // launchRemoval.test.ts). Stop and PTY-exit resolve the exact spawn-time terminalId →
 // sessionId binding, clear it, and route the bound session's removal through the owning
 // window's reducer → the SAME handleDelta chokepoint (session.removed → card gone NOW,
-// no SessionEnd hook / feed event needed).
+// no SessionEnd hook / feed event needed). Past sessions: `archiveBoundSessions` is the same
+// removal for the paths that fire NO onExit (quit, window close).
 import {
+  archiveBoundSessions,
   removeBoundSession,
   stopTerminalAndRemoveBound,
   type RemovalReason
@@ -1096,7 +1098,12 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
 // in MAIN, never incidental via a renderer unmount (B-1/M-2 hard constraint).
 // Idempotent: after teardownAllSessions runs (on `before-quit`) the terminalOwners map
 // is already clear, so this loop is a safe no-op on a normal app-quit close.
+//
+// Past sessions (D-3) — the window's live sessions are ARCHIVED first: `stop()` fires no onExit,
+// so nothing else would. That needs this window's board seam, which `teardownWatchFeed` drops —
+// so the `closed` handler runs THIS before teardownWatchFeed.
 function teardownWindowTerminals(wc: Electron.WebContents): void {
+  archiveLiveSessions(wc)
   for (const [terminalId, owner] of [...terminalOwners.entries()]) {
     if (owner === wc) {
       terminalOwners.delete(terminalId)
@@ -1106,6 +1113,23 @@ function teardownWindowTerminals(wc: Electron.WebContents): void {
       terminalManager?.stop(terminalId)
     }
   }
+}
+
+/** Past sessions (D-3) — archive every live launched session, or only the ones `only` owns, for
+ *  the paths that end sessions WITHOUT an onExit (quit: `teardownAllSessions`; window close:
+ *  `teardownWindowTerminals`). Each one leaves through its window's `removeLaunched(…, 'archive')`,
+ *  the SAME chokepoint as a pty exit. The decision is `archiveBoundSessions` (launchRemoval.ts,
+ *  unit-tested): idempotent, and it never throws (a failure logs a code; the quit goes on). */
+function archiveLiveSessions(only?: Electron.WebContents): void {
+  archiveBoundSessions(
+    launchService,
+    (terminalId, sessionId) => {
+      const wc = terminalOwners.get(terminalId)
+      if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, 'archive')
+    },
+    (message) => console.warn(message),
+    only === undefined ? undefined : (terminalId) => terminalOwners.get(terminalId) === only
+  )
 }
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
@@ -2331,6 +2355,8 @@ function registerQuitIpc(): void {
     handleQuitConfirm(quitGuardState, {
       teardownAllSessions,
       teardownDeps: {
+        // Past sessions (D-3) — "Quit anyway" archives every live session before the kill.
+        archiveLiveSessions: () => archiveLiveSessions(),
         terminalManager,
         clearTerminalOwners: () => terminalOwners.clear()
       },
@@ -2453,9 +2479,6 @@ function createWindow(): void {
     const wc = closedWc
     ptys.get(wc)?.kill()
     ptys.delete(wc)
-    // Drop this window's session-engine registries + close its hook listener.
-    // Independent of the PTY teardown below.
-    teardownWatchFeed(wc)
     // Story 3.1 / Story 4.1 — tear down every embedded terminal this window owned via the
     // shared teardownWindowTerminals helper (explicit MAIN stop: port.close() THEN pty.kill(),
     // inside terminalManager.stop). B-1/M-2 hard constraint: NEVER rely on an incidental
@@ -2463,7 +2486,13 @@ function createWindow(): void {
     // app-quit, teardownAllSessions (before-quit) already ran and cleared terminalOwners →
     // this loop is a safe idempotent no-op. On a direct window close (4-2 will flip this to
     // minimize instead), it tears down this window's terminals cleanly.
+    //
+    // BEFORE teardownWatchFeed (Past sessions, D-3): it first ARCHIVES this window's live
+    // sessions through the window's board seam, and teardownWatchFeed is what drops that seam.
+    // The stops themselves fire no onExit, so they never reach the feed torn down below.
     teardownWindowTerminals(wc)
+    // Drop this window's session-engine registries + close its hook listener.
+    teardownWatchFeed(wc)
   })
 
   // Story 6.4 — start the native session engine for this window once it is ready to
@@ -2855,6 +2884,9 @@ app.on('before-quit', (e) => {
   const showed = handleBeforeQuit(quitGuardState, {
     teardownAllSessions,
     teardownDeps: {
+      // Past sessions (D-3) — the nothing-live quit archives too (a bound session the guard's
+      // count did not see still gets its record). Runs only when this quit goes ahead.
+      archiveLiveSessions: () => archiveLiveSessions(),
       terminalManager,
       clearTerminalOwners: () => terminalOwners.clear()
     },

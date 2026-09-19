@@ -146,10 +146,15 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
   `hookStatus.ts` is the ONLY event→status mapping.
 - **Removal is stop/exit-driven, and every exit names its REASON (past sessions):** in-app
-  Archive, `Ctrl+W`, `Ctrl+C` twice, `/exit`, a pty exit and the belt-and-suspenders `SessionEnd`
-  all remove the card with reason `archive` — main snapshots the card into
-  `claude-watcher-past-sessions.json` (`src/main/persistence/pastSessions.ts`, state only, v1,
-  cap 200, cascades on workspace delete) BEFORE the reducer drops it. `Delete` (after the confirm)
+  Archive, `Ctrl+W`, `Ctrl+C` twice, `/exit`, a pty exit, the belt-and-suspenders `SessionEnd`,
+  an app QUIT and a WINDOW CLOSE all remove the card with reason `archive` — main snapshots the
+  card into `claude-watcher-past-sessions.json` (`src/main/persistence/pastSessions.ts`, state
+  only, v1, cap 200, cascades on workspace delete) BEFORE the reducer drops it. Quit and window
+  close fire NO pty onExit (`destroyAll`/`stop` dispose the exit listener before the kill), so
+  they run `archiveBoundSessions` (`src/main/pty/launchRemoval.ts`) FIRST — in
+  `teardownAllSessions` before `destroyAll`, and in `teardownWindowTerminals`, which the `closed`
+  handler runs BEFORE `teardownWatchFeed` drops the window's seam. It never throws (a failure logs
+  `code=teardown_archive_failed` and the quit goes on). `Delete` (after the confirm)
   removes with reason `delete`: no record, and any earlier record for that id is dropped. Delete
   never touches claude's own files. `Past sessions…` (last ☰ row) reopens a record as a live card
   with `claude --resume <id>` (the launch service's `resumeSessionId`; the minted id IS the

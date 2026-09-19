@@ -11,9 +11,11 @@
 //   (c) After teardown, terminalManager.has(id) is false for every prior id (0 orphans).
 //   (d) A terminal that already exited (pty onExit fired) is NOT double-killed.
 //   (e) After teardown, clearTerminalOwners is called.
+//   (f) Past sessions (D-3): every live session is archived FIRST, and a failing archive never
+//       stops the teardown.
 //
 // The teardown ORDER is:
-//   terminalManager.destroyAll() → clearTerminalOwners()
+//   archiveLiveSessions() → terminalManager.destroyAll() → clearTerminalOwners()
 //
 // Mirrors terminalManager.test.ts's destroy-ordering assertion.
 // [Source: story 4.1 Tasks 3; AC #1/#3/#5; SM-3; AR-11; FROZEN #2]
@@ -123,6 +125,7 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
 
     const clearOwners = vi.fn()
     const deps: TeardownDeps = {
+      archiveLiveSessions: vi.fn(),
       terminalManager: mgr,
       clearTerminalOwners: clearOwners
     }
@@ -161,7 +164,11 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
     mgr.open('t1', makeFakePort(callLog, 't1'), 80, 24)
 
     const clearOwners = vi.fn()
-    const deps: TeardownDeps = { terminalManager: mgr, clearTerminalOwners: clearOwners }
+    const deps: TeardownDeps = {
+      archiveLiveSessions: vi.fn(),
+      terminalManager: mgr,
+      clearTerminalOwners: clearOwners
+    }
 
     // First call tears everything down.
     expect(() => teardownAllSessions(deps)).not.toThrow()
@@ -193,7 +200,11 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
 
     // Now run teardownAllSessions — 't1' is no longer in the manager, so nothing new fires.
     const clearOwners = vi.fn()
-    const deps: TeardownDeps = { terminalManager: mgr, clearTerminalOwners: clearOwners }
+    const deps: TeardownDeps = {
+      archiveLiveSessions: vi.fn(),
+      terminalManager: mgr,
+      clearTerminalOwners: clearOwners
+    }
     expect(() => teardownAllSessions(deps)).not.toThrow()
 
     // pty.kill count must not have grown — no double-kill.
@@ -204,6 +215,7 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
   it('teardownAllSessions with null terminalManager is a safe no-op (handles pre-ready quit)', () => {
     const clearOwners = vi.fn()
     const deps: TeardownDeps = {
+      archiveLiveSessions: vi.fn(),
       terminalManager: null,
       clearTerminalOwners: clearOwners
     }
@@ -218,7 +230,73 @@ describe('teardownAllSessions — SM-3 = 0 orphans (AC #1/#3/#5)', () => {
 describe('teardownAllSessions — clearTerminalOwners called after destroyAll (AC #3)', () => {
   it('clearTerminalOwners is invoked once per teardown call', () => {
     const clear = vi.fn()
-    teardownAllSessions({ terminalManager: null, clearTerminalOwners: clear })
+    teardownAllSessions({
+      archiveLiveSessions: vi.fn(),
+      terminalManager: null,
+      clearTerminalOwners: clear
+    })
     expect(clear).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// (f) Past sessions (D-3) — a quit is a pty exit the operator caused, so every live session is
+// ARCHIVED. destroyAll() disposes each exit listener before the kill (no onExit, so the pty-exit
+// archive never runs), so the archive must come FIRST — while the ptys are live, the reducer still
+// holds the cards and terminalOwners still routes each terminal to its window's seam.
+// ---------------------------------------------------------------------------
+describe('teardownAllSessions — past sessions: archive BEFORE the ptys go (D-3)', () => {
+  it('archives first, while every terminal is still live, then kills, then clears the owners', () => {
+    const callLog: string[] = []
+    const fakePty = makeFakePtyWithLog(callLog, 't1')
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn()
+    })
+    mgr.open('t1', makeFakePort(callLog, 't1'), 80, 24)
+    let liveWhenArchived: boolean | null = null
+
+    teardownAllSessions({
+      archiveLiveSessions: () => {
+        liveWhenArchived = mgr.has('t1')
+        callLog.push('archive')
+      },
+      terminalManager: mgr,
+      clearTerminalOwners: () => callLog.push('clear-owners')
+    })
+
+    expect(liveWhenArchived).toBe(true)
+    expect(callLog).toEqual(['archive', 'port.close:t1', 'pty.kill:t1', 'clear-owners'])
+  })
+
+  it('a throwing archive never stops the quit: the ptys still die, the owners still clear, a code is logged', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const callLog: string[] = []
+    const fakePty = makeFakePtyWithLog(callLog, 't1')
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit: vi.fn()
+    })
+    mgr.open('t1', makeFakePort(callLog, 't1'), 80, 24)
+    const clear = vi.fn()
+
+    expect(() =>
+      teardownAllSessions({
+        archiveLiveSessions: () => {
+          throw new Error('/home/op/secret disk full')
+        },
+        terminalManager: mgr,
+        clearTerminalOwners: clear
+      })
+    ).not.toThrow()
+
+    expect(mgr.has('t1')).toBe(false)
+    expect(callLog).toContain('pty.kill:t1')
+    expect(clear).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith('[claude-watcher][quit] code=quit_archive_failed')
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('/home/op')
+    warn.mockRestore()
   })
 })

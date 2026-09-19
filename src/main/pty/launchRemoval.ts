@@ -87,3 +87,54 @@ export function stopTerminalAndRemoveBound(
   if (launch === null) return null
   return removeBoundSession(terminalId, launch, removeSession)
 }
+
+/** The launch-service surface `archiveBoundSessions` needs: the binding pair plus the snapshot of
+ *  every live binding (structurally satisfied by `LaunchService`). */
+export interface BoundSessionsSource extends LaunchBindingSource {
+  bindings(): ReadonlyArray<{ terminalId: string; sessionId: string }>
+}
+
+/**
+ * Past sessions (D-3) — ARCHIVE every bound launched session, for the paths that end sessions
+ * WITHOUT an onExit: the app quit (`teardownAllSessions` → `terminalManager.destroyAll()`) and a
+ * window close (`teardownWindowTerminals` → `terminalManager.stop()`). Both tear the pty down
+ * with its exit listener already disposed, so the pty-exit archive never runs; this step runs
+ * FIRST, while the reducer still holds each card and `terminalOwners` still routes to its seam.
+ *
+ * Each binding goes through `removeBoundSession` (unbind FIRST, then `archiveSession`), so it is
+ * idempotent: a second run finds nothing bound and archives nothing, and the store upserts by id
+ * anyway. `include` narrows it to one window's terminals (the window-close path).
+ *
+ * NEVER THROWS — it sits on the quit path, which must always go ahead. A failure on one session is
+ * logged by CODE only (never the session id, a name or a path) and the others still archive.
+ * Returns the archived session ids.
+ */
+export function archiveBoundSessions(
+  launch: BoundSessionsSource | null,
+  archiveSession: (terminalId: string, sessionId: string) => void,
+  log: (message: string) => void,
+  include: (terminalId: string) => boolean = () => true
+): string[] {
+  if (launch === null) return []
+  const failed = (): void => log('[claude-watcher][past-sessions] code=teardown_archive_failed')
+  let bound: ReadonlyArray<{ terminalId: string }>
+  try {
+    bound = launch.bindings()
+  } catch {
+    failed()
+    return []
+  }
+  const archived: string[] = []
+  for (const { terminalId } of bound) {
+    try {
+      if (!include(terminalId)) continue
+      const id = removeBoundSession(terminalId, launch, (sessionId) =>
+        archiveSession(terminalId, sessionId)
+      )
+      if (id !== null) archived.push(id)
+    } catch {
+      failed()
+    }
+  }
+  return archived
+}
