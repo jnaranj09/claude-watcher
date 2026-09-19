@@ -78,14 +78,15 @@
 }
 
 /* Name-sync (D-11) — the focused session's own name in the bar, ellipsised like every other
-   operator-typed name (design.md), with the ⟳ mark (SessionCard's NameSyncMark) trailing it. */
+   operator-typed name (design.md), with the ⟳ mark (SessionCard's NameSyncMark) trailing it.
+   No margin-left: .bar already sets `gap: var(--space-3)` between every child, so one here would
+   double the gap in front of the name. */
 .title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-primary);
-  margin-left: var(--space-3);
   display: inline-flex;
   align-items: center;
 }

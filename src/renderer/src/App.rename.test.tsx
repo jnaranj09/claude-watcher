@@ -308,13 +308,36 @@ describe('App — rename an existing session (session-naming A2)', () => {
   })
 
   it('the rename dialog carries the one helper line; the create dialog does not', async () => {
-    const { pencil } = await renderWithCard('sess-1', 'project')
+    const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
     await flush()
 
     expect(document.querySelector('[data-testid="session-name-helper"]')?.textContent).toBe(
       'Applies in Claude on your next prompt.'
     )
+
+    // Cancel the rename prompt (a complete no-op — see the case above) before opening create mode:
+    // the two prompts share the single-modal z-60 layer and can never co-exist.
+    const cancel = [...r.container.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Cancel'
+    )
+    act(() => cancel?.click())
+    await flush()
+    expect(boardStore.getState().sessionNamePrompt).toBeNull()
+
+    // Now open the CREATE dialog the same way App.launch.test.tsx does: the header's `+ New
+    // session` popover → `Pick a folder…`, which resolves window.launch.pickDirectory and opens
+    // the prompt in create mode.
+    act(() =>
+      (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
+    )
+    act(() =>
+      (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    )
+    await flush()
+
+    expect(boardStore.getState().sessionNamePrompt?.mode).toBe('create')
+    expect(r.container.querySelector('[data-testid="session-name-helper"]')).toBeNull()
   })
 
   it('refuses to re-enter while a prompt is already open (no payload swap under the dialog)', async () => {
