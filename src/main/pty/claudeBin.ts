@@ -165,6 +165,12 @@ export interface ClaudeCommandSpec {
    *  from an HTTP caller (regex- and length-constrained upstream), so the composed value is
    *  PARTLY caller-supplied and this quoting is the last line of defence. */
   initialPrompt: string | null
+  /** Past sessions (D-1): `claude --resume <sessionId>` instead of `--session-id <sessionId>`.
+   *  Claude already holds the custom title and the conversation, so `-n`, the template flags and
+   *  the positional prompt are DROPPED; `--settings` (hooks) and `--append-system-prompt` stay,
+   *  they are per-spawn app concerns. Probe-verified 2026-09-18: the resumed session keeps
+   *  the same id, so the minted identity IS `sessionId`. */
+  resume: boolean
 }
 
 function flagArg(flag: string, value: string | null): string {
@@ -233,6 +239,13 @@ function flagArg(flag: string, value: string | null): string {
  * `shellQuote` is the last line of defence — which is what the real-shell argv test pins.
  */
 export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
+  if (spec.resume) {
+    return (
+      `${shellQuote(spec.claudeCommand)} --resume '${spec.sessionId}'` +
+      flagArg('--settings', spec.hookSettingsPath) +
+      flagArg('--append-system-prompt', spec.appendSystemPrompt)
+    )
+  }
   const prompt =
     spec.initialPrompt !== null && spec.initialPrompt.length > 0
       ? ` -- ${shellQuote(spec.initialPrompt)}`

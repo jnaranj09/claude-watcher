@@ -46,22 +46,20 @@ export const CH = {
   // --- Named in the architecture, wired in later epics ---
   // Story 3.2 (FR-11) — `session:launch` is now WIRED (was reserved-but-unwired): the
   // renderer asks main to launch a raw `claude` under node-pty in a picked cwd. Returns the
-  // opaque `terminalId` the renderer's EmbeddedTerminal opens against. `session:stop` stays
-  // RESERVED (the Epic-4 FR-15 per-session stop — NOT this story). See SessionLaunchRequest /
+  // opaque `terminalId` the renderer's EmbeddedTerminal opens against. See SessionLaunchRequest /
   // SessionLaunchResult below.
   sessionLaunch: 'session:launch',
-  // Story 4.3 (FR-15) — `session:stop` stays RESERVED (superseded-by-reuse).
-  // The Story-4.3 per-session Stop action REUSES `terminal:stop` (`CH.terminalStop`) on the
-  // focused `terminalId` via `window.terminal.stop(focusedTerminalId)` — the proven SM-3 path
-  // (Story 3.1; `terminalManager.stop` = port.close() THEN pty.kill() + `launchService.forget`).
-  // The renderer already holds `focusedTerminalId`; a session-level alias would only add a thin
-  // session→terminal indirection that re-derives what the renderer already has — no gain, more
-  // blast radius. Leave reserved; do NOT wire or add a handler for `session:stop`.
-  sessionStop: 'session:stop',
+  // Past sessions (D-3) — the two exits from the board, keyed by terminalId like `terminal:stop`
+  // (the renderer holds the terminalId from the first frame; the session id lands later).
+  // `session:archive` (was the reserved `session:stop`): stop the pty, write the archive record,
+  // remove the card. No confirmation. `session:delete`: stop the pty, remove any record, remove
+  // the card — after the Delete confirm. Both return void; the card leaves as `session.removed`.
+  sessionArchive: 'session:archive',
+  sessionDelete: 'session:delete',
   // Session-naming A2 — `session:rename`: retitle an EXISTING session by its stable id. A REAL
-  // new channel, unlike `session:stop` above: there is nothing existing to reuse (a rename is not
-  // a terminal operation, and `terminal:*` is keyed by terminalId while the reducer's map is keyed
-  // by session id). Renderer → main invoke returning void; the retitled card comes back the normal
+  // new channel: there is nothing existing to reuse (a rename is not a terminal operation, and
+  // `terminal:*` is keyed by terminalId while the reducer's map is keyed by session id).
+  // Renderer → main invoke returning void; the retitled card comes back the normal
   // way, as a `session.updated` delta over CH.watchEvents. See SessionRenameRequest below.
   sessionRename: 'session:rename',
   // Deterministic-attention — `session:seen`: renderer → main VIEW INTENT ("the operator is
@@ -130,6 +128,13 @@ export const CH = {
   tagsSave: 'tags:save',
   tagsDelete: 'tags:delete',
   sessionSetTags: 'session:set-tags',
+  // Past sessions — the history's invokes (main-owned file; the renderer holds a projection in
+  // pastSessionsStore.ts). `past-sessions:open` resumes a record as a live card and returns the
+  // same shape as `session:launch` plus the record's name, so the renderer opens the terminal
+  // through the popover's own path (D-12: Open takes the view).
+  pastSessionsList: 'past-sessions:list',
+  pastSessionsForget: 'past-sessions:forget',
+  pastSessionOpen: 'past-sessions:open',
   // Rules — the rule list's invokes (main-owned, run-ordered file; the renderer holds a projection
   // in rulesStore.ts). `rules:move` is the only reorder: list order IS run order (spec T-14).
   rulesList: 'rules:list',
@@ -348,6 +353,9 @@ export type SessionUpdatedEvent = {
   tagIds: string[]
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
+  /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt (the card
+   *  draws the ⟳ mark). Absent = false. */
+  nameSyncPending?: boolean
 }
 
 /**
@@ -657,6 +665,23 @@ export type SessionRenameRequest = {
    *  definition the create-time prompt uses, so both paths agree on what a legal name is. */
   name: string
 }
+
+/** Past sessions — `session:archive` arg. The terminalId of the pane to stop and archive. */
+export type SessionArchiveRequest = { terminalId: string }
+/** Past sessions — `session:delete` arg. MAIN decides which record goes: the terminal's bound
+ *  session and, on a pane whose claude already exited (no binding left; its exit archived the
+ *  card), the id the launch override last bound it to (`LaunchOverride.lastSessionId`).
+ *  `sessionId` is only a HINT — the id the renderer knows for this terminal, null before
+ *  correlation and null again once the card is gone; main drops that record too (idempotent). */
+export type SessionDeleteRequest = { terminalId: string; sessionId: string | null }
+/** Past sessions — `past-sessions:open` result: the launch the renderer opens (like
+ *  SessionLaunchResult) plus the record's name for the Starting banner. */
+export type PastSessionOpenResult = { terminalId: string; workspaceId: string; name: string }
+export type {
+  PastSession,
+  PastSessionForgetRequest,
+  PastSessionOpenRequest
+} from '../schemas/pastSession'
 
 // Workspaces — `session:set-workspace` request. Defined (via z.infer) at
 // `../schemas/launch.ts#SessionSetWorkspaceSchema`; re-exported here so preload/main import the

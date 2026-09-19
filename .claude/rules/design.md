@@ -104,6 +104,9 @@ such dialog, so they all offer the same entries in the same order.
 - **Entries, in this order:** the unfiltered entry, `Global`, one per workspace, then
   `(no workspace)` — and that last one ONLY when a row's workspace is actually gone
   (`hasOrphans`). Offering it always advertises a state that normally cannot happen.
+- **The `Past sessions` dialog is the one scoped list with NO `Global` entry and no
+  `(no workspace)` entry** (`ScopeFilter showGlobal={false} showOrphans={false}`): every record
+  has a workspace, and the workspaces cascade keeps it that way.
 - **The unfiltered entry is named after the LIST, not the workspaces:** `All templates`,
   `All shortcuts` — passed in per dialog as `allLabel`. It was `All workspaces` first, and beside
   `Global` the two read as siblings, so the honest question came back: _aren't these two the
@@ -158,9 +161,11 @@ scope dropdown.
 
 ## Naming a tag in the UI
 
-`components/TagChip/TagChip.tsx` is the ONE drawing of a tag's name — board card footers, rail rows
-(peek and "Show all tags"), the tag filter, the `Tags…` picker and the Tags dialog.
-`components/TagIndicator/TagIndicator.tsx` is its compact form, used only by the rail's default view.
+`components/TagChip/TagChip.tsx` is the ONE drawing of a tag as a CHIP — board card footers, rail
+rows (peek and "Show all tags"), the tag filter's pill and its tag list, the past-sessions rows, and
+the Tags dialog's colour-preview swatch. `components/TagIndicator/TagIndicator.tsx` is its compact
+form, used only by the rail's default view. A tag named in a LIST OF SIBLINGS — the Tags dialog
+rail, the `TagPicker` rows — is drawn by `TagPathLabel` instead, never a chip (below).
 
 - **A tag is a label pill, never a dot.** A rounded rectangle with a tinted fill and the name in it.
   The workspace dot and the status dot are circles; the rail's tag indicator is a tag OUTLINE.
@@ -194,6 +199,10 @@ scope dropdown.
   `overflow: hidden` + `line-height: 1` cut every `p`/`g`/`y` tail flat and sat the text ~1px low.
 - **A trigger that opens `TagPicker` uses `aria-expanded` + `aria-controls`** (pointed at the
   picker's own id), **never `aria-haspopup`** — the popup is a checkbox `group`, not a menu.
+- **In a list of siblings (the Tags dialog rail, the `TagPicker` rows) a tag's name is
+  `TagPathLabel`**: `acme/` in `--text-secondary`, `prod` in `--text-primary`, indented
+  `depth × --space-3`, accessible name = the full name. Display only — nothing filters or matches
+  by the path. Chips keep the full name.
 - **A card and an untagged rail row can always reach tagging, even before a tag exists.** With no
   tag to offer, the same button (`Create tags`) opens the Tags dialog instead of an empty picker,
   so it carries `aria-haspopup="dialog"` and no `aria-expanded`. It is hidden only when there is
@@ -259,8 +268,9 @@ match “dep” here.` The aria-live summary does the same (`1 hidden by the sea
 icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
 
 - **Rows, in this order:** `Settings…`, `Shortcuts…`, then `Tags` — a SUBMENU holding
-  `Manage tags…` / `Manage rules…`. The tag rows stay grouped under `Tags`; do not flatten them
-  into the top level.
+  `Manage tags…` / `Manage rules…` — and `Past sessions…` (a clock icon) ALWAYS LAST. New rows go
+  before `Past sessions…`, never after it. The tag rows stay grouped under `Tags`; do not flatten
+  them into the top level.
 - **Every row keeps its icon** — ⚙ `Settings…`, ⌨ `Shortcuts…`, the tag glyph on `Tags` — the icons
   the three header buttons had, so they are still found by shape. The icon sits in a fixed-width
   slot so every label starts at the same x; the submenu chevron `‹` sits at the row's right edge.
@@ -273,6 +283,22 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
   through (Focused → Board still works).
 - **Every row opens a dialog under the single-modal rule** — Settings included (`settingsDialogOpen`
   in `boardStore`), so it joins `isModalOpen()`, the Escape closer and the quit-guard closer.
+
+## The Past sessions dialog and session exits
+
+- **One error line, same rule as every Manage dialog:** a failed history load sets it to
+  `Could not load past sessions` (`ManageDialog.Error`, `role="alert"`) — never a thrown
+  `error.message` — and the load-failed state suppresses the empty-list sentence so the two never
+  show at once.
+- **Every exit is Archive or Delete, never a bare Stop.** The card (hover-revealed, always
+  tab-reachable) and the focused bar each carry an Archive button — no confirm; it is reversible
+  through `Past sessions…` — and a red-at-rest Delete button. Delete alone opens the reworded
+  confirm (`StopConfirm`, its component/test-ids unrenamed): "Delete session? The session is
+  stopped and nothing is kept in Past sessions. Claude's own files are not touched." — Cancel
+  default-focused, Delete the danger button.
+- **A pending rename draws `⟳` after the name**, in `--text-secondary`, titled "Claude applies
+  this name on your next prompt" (`NameSyncMark`, on `SessionCard` and `FocusedSession`) — it
+  clears itself the moment the hook server pushes the name to claude.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 

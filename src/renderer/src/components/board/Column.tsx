@@ -102,6 +102,12 @@ function EmphasizedSessionCard(props: {
   onSetCardTags?: ((id: string, tagIds: string[]) => void) | undefined
   /** Tags — opens the Tags dialog; the card's Tags… button uses it while no tag exists yet. */
   onManageTags?: (() => void) | undefined
+  /** Past sessions (D-3) — Archive seam, threaded straight through to the card's Archive
+   *  control. Omitted OR the session's terminal binding is not yet known ⇒ no control. */
+  onArchiveCard?: ((id: string) => void) | undefined
+  /** Past sessions (D-5) — Delete seam, threaded straight through to the card's Delete control.
+   *  Same "terminal binding known" gate as Archive. */
+  onDeleteCard?: ((id: string) => void) | undefined
 }): JSX.Element {
   const {
     session,
@@ -114,9 +120,15 @@ function EmphasizedSessionCard(props: {
     workspaces,
     onMoveCardToWorkspace,
     onSetCardTags,
-    onManageTags
+    onManageTags,
+    onArchiveCard,
+    onDeleteCard
   } = props
   const emphasized = useBoard((s) => selectRailEmphasis(s, session.id)) === 'needs-you'
+  // Past sessions (D-3/D-5) — Archive/Delete render ONLY once the session's terminal binding is
+  // known (a card whose binding has not landed cannot be exited yet — sessionExit.ts needs the
+  // terminalId, not the session id).
+  const terminalId = useBoard((s) => s.terminalIdBySessionId[session.id])
   // Tags — this card's chips (tag-list order) and what its Tags… menu may offer (T-11). Arrays →
   // useShallow, so an unrelated catalog change does not re-render the card.
   const tags = useTags(useShallow((s: TagsState) => tagsForIds(s.tags, session.tagIds)))
@@ -139,6 +151,7 @@ function EmphasizedSessionCard(props: {
       {...(session.pendingToolName !== undefined
         ? { pendingToolName: session.pendingToolName }
         : {})}
+      {...(session.nameSyncPending === true ? { nameSyncPending: true } : {})}
       {...(onActivateCard ? { onActivate: () => onActivateCard(session.id) } : {})}
       {...(onRenameCard ? { onRename: () => onRenameCard(session.id) } : {})}
       {...(onMoveCardToWorkspace
@@ -155,6 +168,12 @@ function EmphasizedSessionCard(props: {
             onSetTags: (tagIds: string[]) => onSetCardTags(session.id, tagIds),
             ...(onManageTags ? { onManageTags } : {})
           }
+        : {})}
+      {...(onArchiveCard && terminalId !== undefined
+        ? { onArchive: () => onArchiveCard(session.id) }
+        : {})}
+      {...(onDeleteCard && terminalId !== undefined
+        ? { onDelete: () => onDeleteCard(session.id) }
         : {})}
     />
   )
@@ -180,6 +199,12 @@ export interface ColumnProps {
   /** Story 2.2 (FR-9) — the SELECTED card's id (renderer view-state). The card with this id
    *  renders the locate-and-highlight affordance; null/absent when nothing is selected. */
   selectedId?: string | null
+  /** Past sessions (D-3) — called when a card's Archive control is activated. Omitted ⇒ no
+   *  Archive control on any card in this column. */
+  onArchiveCard?: (id: string) => void
+  /** Past sessions (D-5) — called when a card's Delete control is activated (opens the confirm).
+   *  Omitted ⇒ no Delete control on any card in this column. */
+  onDeleteCard?: (id: string) => void
 }
 
 export function Column({
@@ -190,7 +215,9 @@ export function Column({
   onMoveCardToWorkspace,
   onSetCardTags,
   onManageTags,
-  selectedId = null
+  selectedId = null,
+  onArchiveCard,
+  onDeleteCard
 }: ColumnProps): JSX.Element {
   const sessions = useColumnSessions(column)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
@@ -254,6 +281,8 @@ export function Column({
               onMoveCardToWorkspace={onMoveCardToWorkspace}
               onSetCardTags={onSetCardTags}
               onManageTags={onManageTags}
+              onArchiveCard={onArchiveCard}
+              onDeleteCard={onDeleteCard}
             />
           ))}
         </div>

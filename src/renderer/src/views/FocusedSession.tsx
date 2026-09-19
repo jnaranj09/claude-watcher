@@ -22,11 +22,15 @@ import type { Template } from '../../../shared/ipc/contract'
 import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
 import { AttentionRail } from '../components/attention/AttentionRail'
+import { NameSyncMark } from '../components/SessionCard/SessionCard'
+import { archiveTerminal, sessionIdForTerminal } from '../lib/sessionExit'
 import {
   boardStore,
   useBoard,
   selectFocusedTerminalId,
-  selectKeptAliveTerminalIds
+  selectKeptAliveTerminalIds,
+  type BoardState,
+  type BoardSession
 } from '../stores/boardStore'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal).
 // The two consequences are paired in ONE place (FROZEN-5); boardStore stays pure view-state.
@@ -51,6 +55,17 @@ function resolveSessionName(terminalId: string): string {
   }
   // Pre-correlation or no card yet: degrade gracefully to the bare terminalId (never crash).
   return terminalId
+}
+
+/** Name-sync (D-11) — the focused terminal's own BoardSession, so the bar can draw its name +
+ *  the ⟳ mark. Reverse-looks-up the session bound to the focused terminal; null pre-correlation
+ *  (no card yet) or with no terminal focused — the title falls back to an empty string, never a
+ *  crash. */
+const selectFocusedSession = (s: BoardState): BoardSession | null => {
+  const sid = Object.entries(s.terminalIdBySessionId).find(
+    ([, t]) => t === s.focusedTerminalId
+  )?.[0]
+  return sid === undefined ? null : (s.sessionsById[sid] ?? null)
 }
 
 export interface FocusedSessionProps {
@@ -89,6 +104,8 @@ export function FocusedSession({
   // The set of terminals to keep ALIVE (correlated ∪ focused). useShallow so an equal set does not
   // remount the terminals (a remount would tear down + respawn the PTY — terminal.md forbids it).
   const keptAlive = useBoard(useShallow(selectKeptAliveTerminalIds))
+  // Name-sync (D-11) — the focused terminal's session, for the bar's title + ⟳ mark.
+  const focusedSession = useBoard(selectFocusedSession)
 
   // A rail row click: switch the visible terminal to that session's terminal (if its binding is
   // known) AND acknowledge it. PURE view-state — no input is sent (alert-only). A session whose
@@ -103,13 +120,25 @@ export function FocusedSession({
     if (terminalId !== undefined) state.switchTerminal(terminalId)
   }, [])
 
-  // Story 4.3 (FR-15) — open the Stop-confirm for the currently-focused terminal.
-  // Does NOT stop directly; raises the confirm (UX-DR14: destructive action needs confirm).
-  // No-op guard: if focusedTerminalId is null (should not happen in the focused view, but guard).
-  const handleStopSession = useCallback((): void => {
+  // Past sessions (D-3) — Archive the currently-focused terminal's session. No confirmation
+  // (reversible through Past sessions…) — fires straight through sessionExit.archiveTerminal,
+  // the SAME helper the card and Ctrl+W call. No-op guard: focusedTerminalId should never be
+  // null in the focused view, but guard anyway (degrade gracefully, never crash).
+  const handleArchive = useCallback((): void => {
     if (focusedTerminalId === null) return
-    const sessionName = resolveSessionName(focusedTerminalId)
-    boardStore.getState().showStopConfirm({ terminalId: focusedTerminalId, sessionName })
+    archiveTerminal(focusedTerminalId)
+  }, [focusedTerminalId])
+
+  // Past sessions (D-5) — Delete needs a confirm (it is the one exit that is NOT reversible — no
+  // record is kept). Raises the SAME confirm modal Story 4.3 built (UX-DR14: destructive action
+  // needs confirm); the confirm's own Delete button does the actual delete.
+  const handleDelete = useCallback((): void => {
+    if (focusedTerminalId === null) return
+    boardStore.getState().showStopConfirm({
+      terminalId: focusedTerminalId,
+      sessionId: sessionIdForTerminal(focusedTerminalId),
+      sessionName: resolveSessionName(focusedTerminalId)
+    })
   }, [focusedTerminalId])
 
   return (
@@ -132,16 +161,40 @@ export function FocusedSession({
             ← Board
           </button>
           <span className={styles.hint}>Esc to return</span>
-          {/* Story 4.3 (FR-15) — the ⏹ Stop session affordance (UX-DR14: opens a confirm,
-              does NOT stop directly; danger styling is on the confirm's Stop button). */}
+          {/* Name-sync (D-11) — the focused session's own name + ⟳ mark while a rename is
+              pending. A separate element from the stop button on purpose: Task 10 replaces the
+              stop button with Archive/Delete affordances, and this title must not depend on it. */}
+          <span
+            className={styles.title}
+            data-testid="focused-title"
+            title={focusedSession?.sessionName}
+          >
+            {focusedSession?.sessionName ?? ''}
+            {focusedSession?.nameSyncPending === true && <NameSyncMark />}
+          </span>
+          {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. Same
+              chord as Ctrl+W (App.tsx), which archives directly without opening this bar. */}
           <button
             type="button"
-            className={styles.stopButton}
-            data-testid="focused-stop"
-            onClick={handleStopSession}
-            aria-label="Stop this session"
+            className={styles.archiveButton}
+            data-testid="focused-archive"
+            onClick={handleArchive}
+            aria-label="Archive this session (Ctrl+W)"
+            title="Archive — keeps it in Past sessions"
           >
-            ⏹ Stop session
+            Archive
+          </button>
+          {/* Past sessions (D-5) — Delete: opens the confirm (UX-DR14: the one exit that is NOT
+              reversible needs a confirm; danger styling is on the confirm's Delete button, and
+              this trigger carries the danger treatment too so it reads as the risky one). */}
+          <button
+            type="button"
+            className={`${styles.archiveButton} ${styles.deleteButtonFocused}`}
+            data-testid="focused-delete"
+            onClick={handleDelete}
+            aria-label="Delete this session"
+          >
+            Delete
           </button>
         </div>
         <div className={styles.terminalWrap}>

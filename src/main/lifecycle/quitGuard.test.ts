@@ -42,6 +42,7 @@ function freshState(): QuitGuardState {
 /** Build a fake TeardownDeps (spies; no real terminals). */
 function fakeTeardownDeps(): TeardownDeps {
   return {
+    archiveLiveSessions: vi.fn(),
     terminalManager: null,
     clearTerminalOwners: vi.fn()
   }

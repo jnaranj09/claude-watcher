@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { projectApiSession, projectApiSessionFromEvent } from './apiSession'
 import type { Session } from '../../shared/schemas/session'
+import { ApiSessionSchema } from '../../shared/schemas/api'
 
 const session: Session = {
   id: 's1',
@@ -70,6 +71,24 @@ describe('projectApiSession', () => {
     const log = vi.fn()
     projectApiSession(session, { columnOf: () => undefined, enteredColumnAt: () => undefined }, log)
     expect(log).not.toHaveBeenCalled()
+  })
+
+  it('projects nameSyncPending when true and omits it otherwise (state, not content)', () => {
+    expect(projectApiSession({ ...session, nameSyncPending: true }, source)?.nameSyncPending).toBe(
+      true
+    )
+    expect(projectApiSession(session, source)).not.toHaveProperty('nameSyncPending')
+  })
+
+  it('still drops an unknown Session field (strict) — launchedAt never reaches the wire', () => {
+    // launchedAt is on Session but NOT picked: the projection builds the object field by field,
+    // so it never appears; and an extra key handed to the strict schema is a rejection.
+    expect(projectApiSession({ ...session, launchedAt: 5 }, source)).not.toHaveProperty(
+      'launchedAt'
+    )
+    expect(
+      ApiSessionSchema.safeParse({ ...projectApiSession(session, source), extra: 1 }).success
+    ).toBe(false)
   })
 })
 

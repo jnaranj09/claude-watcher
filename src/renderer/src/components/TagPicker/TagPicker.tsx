@@ -3,6 +3,10 @@
 // passes that list), in tag-list order. Every tick applies at once through `onChange`; there is no
 // Save, because the card itself shows the result.
 //
+// D-13: each row draws `TagPathLabel`, not `TagChip` — a picker lists a tag among its siblings,
+// where the parent name is visible right above it, so the row shows the hierarchy. The card's own
+// chips (TagChip / TagChipRow / TagIndicator) are untouched and keep the full name.
+//
 // Checkboxes are allowed: design.md scopes the TextInput rule to TEXT fields.
 //
 // Mechanics mirror the card's move menu and WorkspaceSwitcher: Escape closes and STOPS (it must not
@@ -11,7 +15,7 @@
 // card's own role="button" — without that, ticking a tag would also open the session.
 import { useEffect, type JSX, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
-import { TagChip } from '../TagChip/TagChip'
+import { TagPathLabel } from '../TagChip/TagPathLabel'
 import styles from './TagPicker.module.css'
 
 export interface TagPickerProps {
@@ -95,7 +99,7 @@ export function TagPicker({
               checked={selected.has(t.id)}
               onChange={() => toggle(t.id)}
             />
-            <TagChip tag={t} />
+            <TagPathLabel tag={t} />
           </label>
         ))
       )}

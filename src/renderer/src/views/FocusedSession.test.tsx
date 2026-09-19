@@ -13,16 +13,18 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { FocusedSession } from './FocusedSession'
 import { boardStore } from '../stores/boardStore'
-import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
+import type { Column, SessionUpdatedEvent, WatchEventsPayload } from '../../../shared/ipc/contract'
 
 let cleanup: (() => void) | undefined
 
-/** A validated session.updated delta to seed the store (the rail's source). */
+/** A validated session.updated delta to seed the store (the rail's source). `extra` spreads onto
+ *  the event, so a test can seed fields (e.g. `nameSyncPending`) beyond this helper's defaults. */
 function updated(
   epoch: number,
   id: string,
   column: Column,
-  enteredColumnAt: number
+  enteredColumnAt: number,
+  extra: Partial<SessionUpdatedEvent> = {}
 ): WatchEventsPayload {
   return {
     epoch,
@@ -36,7 +38,8 @@ function updated(
       enteredColumnAt,
       pid: 1000,
       workspaceId: 'default',
-      tagIds: []
+      tagIds: [],
+      ...extra
     }
   }
 }
@@ -249,6 +252,25 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(onManageTemplates).toHaveBeenCalledTimes(1)
   })
 
+  it('shows the focused session name in the bar with the ⟳ mark while a rename is pending', () => {
+    act(() => {
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'a', 'working', 10, { nameSyncPending: true }))
+      boardStore.setState({
+        terminalIdBySessionId: { a: 'term-a' },
+        focusedTerminalId: 'term-a',
+        launchedTerminals: {
+          'term-a': { terminalId: 'term-a', launchedAt: 1, label: 's-a', workspaceId: 'default' }
+        }
+      })
+    })
+    const r = renderComponent(<FocusedSession onBack={vi.fn()} onNewSession={vi.fn()} />)
+    cleanup = r.unmount
+    expect(r.container.querySelector('[data-testid="focused-title"]')?.textContent).toContain('s-a')
+    expect(r.container.querySelector('[data-testid="name-sync-pending"]')).not.toBeNull()
+  })
+
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
     boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
     boardStore.getState().openLaunchedTerminal('launch-other', 'other', 'default') // focused = some other terminal
@@ -263,71 +285,70 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
 })
 
 // ---------------------------------------------------------------------------
-// Story 4.3 (FR-15) — the ⏹ Stop session header button tests
+// Past sessions (D-3/D-5) — the Archive + Delete focused-bar buttons (replaced Story 4.3's
+// single ⏹ Stop session button)
 // ---------------------------------------------------------------------------
 
-describe('FocusedSession — Story 4.3 ⏹ Stop session header button (FR-15)', () => {
-  it('renders the ⏹ Stop session button in the focused header', () => {
-    boardStore.getState().openLaunchedTerminal('launch-stop-test', 'stop-test', 'default')
-    const r = render()
-    const stopBtn = r.container.querySelector('[data-testid="focused-stop"]')
-    expect(stopBtn).not.toBeNull()
+describe('FocusedSession — Past sessions Archive + Delete header buttons (D-3, D-5)', () => {
+  beforeEach(() => {
+    ;(window as unknown as { launch: unknown }).launch = {
+      archiveSession: vi.fn(() => Promise.resolve()),
+      deleteSession: vi.fn(() => Promise.resolve())
+    }
   })
 
-  it('clicking ⏹ Stop session opens the Stop-confirm with the focused terminalId', () => {
-    boardStore.getState().openLaunchedTerminal('launch-stop-click', 'stop-click', 'default')
+  it('renders both the Archive and the Delete button in the focused header', () => {
+    boardStore.getState().openLaunchedTerminal('launch-exit-test', 'exit-test', 'default')
     const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    expect(stopBtn).not.toBeNull()
-
-    stopBtn?.click()
-
-    // The Stop-confirm should be open with the correct terminalId.
-    expect(boardStore.getState().stopConfirm).not.toBeNull()
-    expect(boardStore.getState().stopConfirm?.terminalId).toBe('launch-stop-click')
+    expect(r.container.querySelector('[data-testid="focused-archive"]')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="focused-delete"]')).not.toBeNull()
   })
 
-  it('clicking ⏹ Stop session includes a sessionName in the payload (verbatim name or terminalId fallback)', () => {
-    // When correlated, the sessionName should be the c9watch name.
+  it('clicking Archive calls window.launch.archiveSession(focusedTerminalId) and does NOT open the confirm', () => {
+    boardStore.getState().openLaunchedTerminal('launch-archive-click', 'archive-click', 'default')
+    const r = render()
+    const archiveBtn = r.container.querySelector<HTMLButtonElement>(
+      '[data-testid="focused-archive"]'
+    )
+    expect(archiveBtn).not.toBeNull()
+
+    archiveBtn?.click()
+
+    expect(window.launch.archiveSession).toHaveBeenCalledWith('launch-archive-click')
+    expect(boardStore.getState().stopConfirm).toBeNull()
+  })
+
+  it('clicking Delete opens the confirm with { terminalId, sessionId, sessionName } and calls nothing on the bridge', () => {
+    // Correlated: sessionId + sessionName come off the bound session.
     boardStore.getState().applyWatchEvent(updated(1, 'sess-corr', 'working', 100))
     boardStore.getState().addCorrelation('sess-corr', 'launch-corr-term')
     boardStore.getState().switchTerminal('launch-corr-term')
     const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    stopBtn?.click()
+    const deleteBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-delete"]')
+    deleteBtn?.click()
 
     const payload = boardStore.getState().stopConfirm
-    expect(payload).not.toBeNull()
-    expect(payload?.terminalId).toBe('launch-corr-term')
-    // The session name should be the c9watch name (s-sess-corr from the `updated` helper).
-    expect(payload?.sessionName).toBe('s-sess-corr')
+    expect(payload).toEqual({
+      terminalId: 'launch-corr-term',
+      sessionId: 'sess-corr',
+      sessionName: 's-sess-corr'
+    })
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
+    expect(window.launch.deleteSession).not.toHaveBeenCalled()
   })
 
-  it('clicking ⏹ Stop session degrades gracefully to terminalId when no correlation exists', () => {
-    // Pre-correlation: no session bound to this terminal yet → fall back to bare terminalId.
+  it('clicking Delete degrades gracefully to a null sessionId + the bare terminalId name when pre-correlation', () => {
     boardStore.getState().openLaunchedTerminal('launch-pre-corr', 'pre-corr', 'default')
     const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    stopBtn?.click()
+    const deleteBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-delete"]')
+    deleteBtn?.click()
 
     const payload = boardStore.getState().stopConfirm
-    expect(payload).not.toBeNull()
-    // No session correlated → sessionName falls back to bare terminalId (never crashes).
-    expect(payload?.sessionName).toBe('launch-pre-corr')
-  })
-
-  it('the ⏹ Stop session button is rendered and focusedTerminalId is wired to the payload', () => {
-    // The null-guard in handleStopSession is internal; verify the button correctly passes
-    // the focused terminalId from the store into the payload (not a hardcoded value).
-    boardStore.getState().openLaunchedTerminal('launch-id-wire-check', 'id-wire-check', 'default')
-    const r = render()
-    const stopBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-stop"]')
-    expect(stopBtn).not.toBeNull()
-    stopBtn?.click()
-    // The payload terminalId must match the store's focusedTerminalId exactly.
-    expect(boardStore.getState().stopConfirm?.terminalId).toBe(
-      boardStore.getState().focusedTerminalId ?? 'launch-id-wire-check'
-    )
+    expect(payload).toEqual({
+      terminalId: 'launch-pre-corr',
+      sessionId: null,
+      sessionName: 'launch-pre-corr'
+    })
   })
 })
 
@@ -417,6 +438,28 @@ describe('FocusedSession — the rail header and the Board bar end on the same l
     // Same token on both sides is the whole point — pin the equality itself, not just the values,
     // so swapping one for a literal that happens to match today still fails here.
     expect(railHeader).toBe(bar)
+  })
+})
+
+// The focused bar's Delete wears BOTH classes (`archiveButton deleteButtonFocused`: Archive's box,
+// the danger colours). `.archiveButton:hover` and `.deleteButtonFocused:hover` have EQUAL
+// specificity, so any property the Delete's hover/focus block leaves out falls through to Archive's
+// hover — its grey `--border-strong` border drew round the red fill. The Delete block must name the
+// border itself, and must come after Archive's hover so it wins the tie.
+describe('FocusedSession — Delete keeps its danger border on hover and focus', () => {
+  const css = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), './FocusedSession.module.css'),
+    'utf8'
+  )
+
+  it('the Delete hover/focus block sets a --danger border and follows the Archive hover rule', () => {
+    const deleteHover =
+      /^\.deleteButtonFocused:hover,\s*\.deleteButtonFocused:focus-visible\s*\{([^}]*)\}/m.exec(css)
+    const archiveHoverAt = css.search(/^\.archiveButton:hover\s*\{/m)
+
+    expect(deleteHover?.[1]).toMatch(/^\s*border-color:\s*var\(--danger\);/m)
+    expect(archiveHoverAt).toBeGreaterThanOrEqual(0)
+    expect(deleteHover?.index).toBeGreaterThan(archiveHoverAt)
   })
 })
 

@@ -1,6 +1,7 @@
 // The scope dropdown that sits in a Manage dialog's header (.claude/rules/design.md). ONE
 // component for Templates and Shortcuts — the two dialogs list the same scopes and must offer
-// the same choices in the same order.
+// the same choices in the same order. Past sessions drops the `Global` entry (`showGlobal={false}`):
+// every record there has a workspace.
 //
 // Built on the project's `Select`, never a native <select>: this control is the reason that rule
 // exists. Chromium draws a native popup from the desktop's GTK theme, so on a light desktop it
@@ -24,6 +25,8 @@ export interface ScopeFilterProps {
   allLabel: string
   /** Adds `(no workspace)`. Pass `hasOrphans(rows, known)` — never `true` unconditionally. */
   showOrphans: boolean
+  /** Past sessions: every record has a workspace, so there is no Global entry to offer. Default true. */
+  showGlobal?: boolean
   onChange: (next: ScopeFilterValue) => void
   testId: string
   ariaLabel: string
@@ -34,6 +37,7 @@ export function ScopeFilter({
   workspaces,
   allLabel,
   showOrphans,
+  showGlobal = true,
   onChange,
   testId,
   ariaLabel
@@ -42,7 +46,15 @@ export function ScopeFilter({
   // is now colour-coded, not just the closed trigger.
   const options: SelectOption<ScopeFilterValue>[] = [
     { value: 'all', label: allLabel },
-    { value: 'global', label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+    ...(showGlobal
+      ? [
+          {
+            value: 'global' as ScopeFilterValue,
+            label: 'Global',
+            adornment: <WorkspaceDot tone="global" />
+          }
+        ]
+      : []),
     ...workspaces.map((w) => ({
       value: workspaceScope(w.id),
       label: w.name,

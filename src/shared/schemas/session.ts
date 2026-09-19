@@ -80,6 +80,15 @@ export const SessionSchema = z
      *  read only by the rules engine's `template` condition (Phase 2). It never crosses the seam —
      *  `enrichDelta` does not copy it. */
     templateId: z.string().min(1).nullable(),
+    /** Name-sync (D-11) — true while an in-app rename waits to be pushed on the next
+     *  `UserPromptSubmit`. Session truth: set by `renameSession(id, name, true)`, cleared when the
+     *  hook server takes the pending title. OPTIONAL, absent = false: a required boolean would
+     *  force every Session literal to carry it, and the wire spreads it only when true. */
+    nameSyncPending: z.boolean().optional(),
+    /** Past sessions — epoch millis the launch recipe was registered (stamped by the launch
+     *  service, copied onto the card at synthesis). Never shipped to the renderer; read by the
+     *  archive record. Optional: an older stored session has none. */
+    launchedAt: z.number().int().nonnegative().optional(),
     // --- full shape (safe to mark optional) ---
     firstPrompt: z.string().optional(),
     latestMessage: z.string().optional(),

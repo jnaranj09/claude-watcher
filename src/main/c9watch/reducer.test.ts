@@ -13,6 +13,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { createReducer, type SessionDelta } from './reducer'
 import { launchedSession } from '../../__fixtures__/fakeSessions'
 import { createAttentionTracker } from './attention'
+import type { Session } from '../../shared/schemas/session'
 
 const FIXED_NOW = 1_750_000_000_000
 
@@ -477,5 +478,45 @@ describe('reducer — determinism + map hygiene', () => {
     for (const d of [...a, ...b, ...c]) {
       expect(d.epoch).toBe(r.epoch())
     }
+  })
+})
+
+describe('nameSyncPending — a rename waiting for claude', () => {
+  const base: Session = {
+    id: 's1',
+    status: 'Working',
+    projectPath: '/w',
+    pid: 1,
+    sessionName: 'old',
+    workspaceId: 'default',
+    tagIds: [],
+    templateId: null
+  }
+
+  it('renameSession(id, name, true) marks the session pending and ships one delta', () => {
+    const r = createReducer()
+    r.upsertLaunched(base)
+    const deltas = r.renameSession('s1', 'new', true)
+    expect(deltas).toHaveLength(1)
+    expect(r.snapshotMap().get('s1')?.sessionName).toBe('new')
+    expect(r.snapshotMap().get('s1')?.nameSyncPending).toBe(true)
+  })
+
+  it('renameSession without the flag (the read-back) clears it', () => {
+    const r = createReducer()
+    r.upsertLaunched(base)
+    r.renameSession('s1', 'new', true)
+    r.renameSession('s1', 'claude said so')
+    expect(r.snapshotMap().get('s1')?.nameSyncPending).toBe(false)
+  })
+
+  it('clearNameSyncPending ships a delta only when something was pending', () => {
+    const r = createReducer()
+    r.upsertLaunched(base)
+    expect(r.clearNameSyncPending('s1')).toEqual([])
+    r.renameSession('s1', 'new', true)
+    expect(r.clearNameSyncPending('s1')).toHaveLength(1)
+    expect(r.snapshotMap().get('s1')?.nameSyncPending).toBe(false)
+    expect(r.clearNameSyncPending('unknown')).toEqual([])
   })
 })

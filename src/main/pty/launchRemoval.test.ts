@@ -18,14 +18,19 @@
 //     of the new session.
 import { describe, it, expect, vi } from 'vitest'
 import {
+  archiveBoundSessions,
+  deleteTerminalSession,
   removeBoundSession,
   stopTerminalAndRemoveBound,
+  type RemovalReason,
   type StoppableTerminalManager
 } from './launchRemoval'
 import { createLaunchService, type LaunchService } from './launchSession'
 import { buildLaunchedSession } from './launchSynthesis'
 import { createLaunchedSet } from './launchedSet'
 import { createReducer, type Reducer, type SessionDelta } from '../c9watch/reducer'
+import { applyRemovalReason } from '../persistence/pastSessionRecord'
+import { createPastSessionsStore, type PastSessionsStore } from '../persistence/pastSessions'
 
 const FIXED_NOW = 1_750_000_000_000
 const CWD = '/home/op/proj'
@@ -326,5 +331,268 @@ describe('Story 6.3 — Reopen after exit: fresh binding, no stale removal', () 
       .map((d) => d.event.id)
     expect(removedIds).toEqual(['sess-1', 'sess-2']) // each removed exactly once
     expect(reducer.snapshotMap().size).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// Past sessions — the removal seam WITH the history. `historySeam` mirrors index.ts
+// `removeLaunchedSession` exactly (applyRemovalReason → applyHookStatus removed), over the REAL
+// launch service, the REAL reducer and the REAL past-sessions store.
+// ---------------------------------------------------------------------------------------------
+const ENDED = FIXED_NOW + 60_000
+
+function multiLaunchService(): LaunchService {
+  let t = 0
+  let s = 0
+  return createLaunchService({
+    terminalManager: { pidOf: () => null },
+    launchedSet: createLaunchedSet(),
+    spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
+    readStatus: () => {
+      throw new Error('ENOENT')
+    },
+    newTerminalId: () => `t-${++t}`,
+    newSessionId: () => `sess-${++s}`,
+    now: () => FIXED_NOW,
+    platform: 'linux'
+  })
+}
+
+function historySeam(
+  reducer: Reducer,
+  store: PastSessionsStore
+): { removeLaunched: (sessionId: string, reason: RemovalReason) => void } {
+  return {
+    removeLaunched: (sessionId, reason) => {
+      applyRemovalReason(reason, sessionId, reducer.snapshotMap().get(sessionId), store, ENDED)
+      reducer.applyHookStatus(sessionId, { kind: 'removed' })
+    }
+  }
+}
+
+// Past sessions (D-3) — a QUIT or a WINDOW CLOSE ends every live session without an onExit:
+// `terminalManager.destroyAll()` / `stop()` dispose the exit listener BEFORE the kill, so the pty
+// exit path that archives never runs. `archiveBoundSessions` is the step every such path runs
+// FIRST.
+describe('Past sessions — archiveBoundSessions (quit / window close archive every live session)', () => {
+  function twoLiveSessions(): {
+    svc: LaunchService
+    reducer: Reducer
+    store: PastSessionsStore
+    seam: ReturnType<typeof historySeam>
+  } {
+    const svc = multiLaunchService()
+    const reducer = createReducer({ now: () => FIXED_NOW })
+    const store = createPastSessionsStore({ log: () => {} })
+    for (const name of ['api', 'web']) {
+      const { terminalId } = svc.launch({ cwd: `/home/op/${name}`, name })
+      const minted = svc.mintSpawn(terminalId)
+      if (minted === null) throw new Error('unreachable — a launch terminalId always mints')
+      reducer.upsertLaunched(buildLaunchedSession(minted, 51234, 'default', []))
+    }
+    return { svc, reducer, store, seam: historySeam(reducer, store) }
+  }
+
+  it('archives EVERY bound session: one record each, cards gone, bindings consumed', () => {
+    const { svc, reducer, store, seam } = twoLiveSessions()
+    const log = vi.fn()
+
+    const archived = archiveBoundSessions(
+      svc,
+      (_terminalId, sessionId) => seam.removeLaunched(sessionId, 'archive'),
+      log
+    )
+
+    expect(archived).toEqual(['sess-1', 'sess-2'])
+    expect(store.list().map((r) => [r.id, r.name, r.cwd, r.endedAt])).toEqual([
+      ['sess-1', 'api', '/home/op/api', ENDED],
+      ['sess-2', 'web', '/home/op/web', ENDED]
+    ])
+    expect(reducer.snapshotMap().size).toBe(0)
+    expect(svc.bindings()).toEqual([])
+    expect(log).not.toHaveBeenCalled()
+  })
+
+  it('is idempotent: a second run archives nothing and the history keeps ONE record per session', () => {
+    const { svc, store, seam } = twoLiveSessions()
+    const archive = (_terminalId: string, sessionId: string): void =>
+      seam.removeLaunched(sessionId, 'archive')
+
+    archiveBoundSessions(svc, archive, vi.fn())
+    const again = archiveBoundSessions(svc, archive, vi.fn())
+
+    expect(again).toEqual([])
+    expect(store.list().map((r) => r.id)).toEqual(['sess-1', 'sess-2'])
+  })
+
+  it('`include` narrows it to one window: the other terminal stays bound and on the board', () => {
+    const { svc, reducer, store, seam } = twoLiveSessions()
+
+    const archived = archiveBoundSessions(
+      svc,
+      (_terminalId, sessionId) => seam.removeLaunched(sessionId, 'archive'),
+      vi.fn(),
+      (terminalId) => terminalId === 't-2'
+    )
+
+    expect(archived).toEqual(['sess-2'])
+    expect(store.list().map((r) => r.id)).toEqual(['sess-2'])
+    expect(reducer.snapshotMap().has('sess-1')).toBe(true)
+    expect(svc.sessionIdFor('t-1')).toBe('sess-1')
+  })
+
+  it('a failure on one session is contained: logs a code (no value), the rest still archive, never throws', () => {
+    const { svc, store, seam } = twoLiveSessions()
+    const log = vi.fn()
+
+    const archived = archiveBoundSessions(
+      svc,
+      (_terminalId, sessionId) => {
+        if (sessionId === 'sess-1') throw new Error('/home/op/api disk full')
+        seam.removeLaunched(sessionId, 'archive')
+      },
+      log
+    )
+
+    expect(archived).toEqual(['sess-2'])
+    expect(store.list().map((r) => r.id)).toEqual(['sess-2'])
+    expect(log).toHaveBeenCalledTimes(1)
+    const line = String(log.mock.calls[0]?.[0])
+    expect(line).toMatch(/code=teardown_archive_failed$/)
+    expect(line).not.toContain('/home/op')
+    expect(line).not.toContain('sess-1')
+  })
+
+  it('a bindings() read that throws is contained too, and a null launch service is a no-op', () => {
+    const log = vi.fn()
+    const broken = {
+      bindings: (): never => {
+        throw new Error('boom')
+      },
+      sessionIdFor: (): null => null,
+      unbind: (): void => {}
+    }
+    expect(archiveBoundSessions(broken, vi.fn(), log)).toEqual([])
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(archiveBoundSessions(null, vi.fn(), log)).toEqual([])
+  })
+})
+
+// Past sessions (D-3/D-4) — CH.sessionDelete. A Delete pressed on a pane whose claude already
+// exited finds NO binding (the exit archived the card and consumed it) and the renderer knows no
+// id for it either (the card is gone), yet the record that exit wrote must go. Main owns the
+// answer: the launch override remembers the id the terminal was LAST bound to.
+describe('Past sessions — deleteTerminalSession (Delete drops the record, dead pane included)', () => {
+  function sessions(names: readonly string[]): {
+    svc: LaunchService
+    reducer: Reducer
+    store: PastSessionsStore
+    manager: StoppableTerminalManager
+    /** index.ts onExit for `terminalId`: forget, then the ARCHIVE via removeBoundSession. */
+    exitPty: (terminalId: string) => void
+    /** index.ts CH.sessionDelete for `terminalId`, with the renderer's hint. */
+    del: (terminalId: string, hint: string | null) => void
+  } {
+    const svc = multiLaunchService()
+    const reducer = createReducer({ now: () => FIXED_NOW })
+    const store = createPastSessionsStore({ log: () => {} })
+    const seam = historySeam(reducer, store)
+    const { manager, spawn, exit } = fakeStoppableManager()
+    for (const name of names) {
+      const { terminalId } = svc.launch({ cwd: `/home/op/${name}`, name })
+      const minted = svc.mintSpawn(terminalId)
+      if (minted === null) throw new Error('unreachable — a launch terminalId always mints')
+      reducer.upsertLaunched(buildLaunchedSession(minted, 51234, 'default', []))
+      spawn(terminalId)
+    }
+    return {
+      svc,
+      reducer,
+      store,
+      manager,
+      exitPty: (terminalId) => {
+        exit(terminalId)
+        svc.forget(terminalId)
+        removeBoundSession(terminalId, svc, (id) => seam.removeLaunched(id, 'archive'))
+      },
+      del: (terminalId, hint) =>
+        deleteTerminalSession(
+          terminalId,
+          hint,
+          manager,
+          svc,
+          (id) => seam.removeLaunched(id, 'delete'),
+          (id) => {
+            store.remove(id)
+          }
+        )
+    }
+  }
+
+  it('Delete on a pane whose claude already EXITED drops the record the exit archived', () => {
+    const s = sessions(['api'])
+    s.exitPty('t-1')
+    expect(s.store.get('sess-1')).not.toBeNull() // the exit archived it
+
+    s.del('t-1', null) // the card is gone, so the renderer's hint is null
+
+    expect(s.store.list()).toEqual([])
+  })
+
+  it('after /clear, the dead-pane Delete drops the record under the NEW id', () => {
+    const s = sessions(['api'])
+    // index.ts adoptCard: re-key the card, move the binding, remove the old id.
+    const stored = s.reducer.snapshotMap().get('sess-1')
+    if (stored === undefined) throw new Error('unreachable — the card was synthesized')
+    s.reducer.upsertLaunched({ ...stored, id: 'sess-cleared' })
+    s.svc.rebind('t-1', 'sess-cleared')
+    s.reducer.applyHookStatus('sess-1', { kind: 'removed' })
+    s.exitPty('t-1')
+    expect(s.store.list().map((r) => r.id)).toEqual(['sess-cleared'])
+
+    s.del('t-1', null)
+
+    expect(s.store.list()).toEqual([])
+  })
+
+  it('touches only THIS terminal: another pane’s record stays', () => {
+    const s = sessions(['api', 'web'])
+    s.exitPty('t-1')
+    s.exitPty('t-2')
+
+    s.del('t-1', null)
+
+    expect(s.store.list().map((r) => r.id)).toEqual(['sess-2'])
+  })
+
+  it('Delete on a LIVE pane stops it, removes the card and drops any record for its id', () => {
+    const s = sessions(['api'])
+    // A record for a live id: a dead-pane Reopen of a resumed session re-runs a listed id.
+    s.store.archive({
+      id: 'sess-1',
+      name: 'api',
+      cwd: '/home/op/api',
+      workspaceId: 'default',
+      tagIds: [],
+      launchedAt: FIXED_NOW,
+      endedAt: FIXED_NOW
+    })
+
+    s.del('t-1', 'sess-1')
+
+    expect(s.manager.has('t-1')).toBe(false)
+    expect(s.reducer.snapshotMap().has('sess-1')).toBe(false)
+    expect(s.store.list()).toEqual([])
+  })
+
+  it('a terminal with no launch recipe (a plain shell) drops nothing but the renderer’s own hint', () => {
+    const s = sessions(['api'])
+    s.exitPty('t-1')
+
+    s.del('host-term-0', null)
+    expect(s.store.list().map((r) => r.id)).toEqual(['sess-1'])
+
+    s.del('host-term-0', 'sess-1')
+    expect(s.store.list()).toEqual([])
   })
 })

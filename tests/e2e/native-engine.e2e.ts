@@ -17,8 +17,9 @@
 //         a `Notification`+`permission_prompt` POST moves it to NEEDS-YOU. This exercises the
 //         REAL boundary chain: HTTP listener → HookEventSchema → hookStatus → reducer →
 //         handleDelta → CH.watchEvents → board store → column.
-//     (3) FAST REMOVAL — the existing UI Stop flow (⏹ Stop session → confirm) removes the
-//         card within 2 SECONDS (the Story-6.3 AC; no multi-second c9watch linger).
+//     (3) FAST REMOVAL — the Archive flow (Past sessions D-3: the card's Stop control's
+//         successor, same place, same chord, no confirmation) removes the card within
+//         2 SECONDS (the Story-6.3 AC; no multi-second c9watch linger).
 //
 //   Test 2 (the Story-6.1 dead pane): SIGKILL the launched claude → the PTY exits → the pane
 //     shows EXACTLY ONE `New session` button → clicking it re-runs the launch flow (picker
@@ -266,7 +267,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // =========================================================================================
 // Test 1 — the native-engine journey: instant card → hook-driven columns → 2s stop removal.
 // =========================================================================================
-test('native engine: instant card at launch, hook POSTs drive columns, UI stop removes in ≤2s', async () => {
+test('native engine: instant card at launch, hook POSTs drive columns, UI archive removes in ≤2s', async () => {
   // PORT GUARD — must run BEFORE the app launches (see header comment).
   test.skip(await portInUse(HOOK_PORT, HOOK_HOST), PORT_GUARD_SKIP_MESSAGE)
 
@@ -377,26 +378,26 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI stop r
 
     await screenshot(page, 'native-engine-e2e-needs-you.png')
 
-    // ── (3) FAST REMOVAL via the EXISTING UI Stop flow ───────────────────────────────
+    // ── (3) FAST REMOVAL via the Archive flow ─────────────────────────────────────────
+    // Past sessions (D-3) — Archive is the Stop control's successor: same place, same chord,
+    // but NO confirmation (it is reversible through `Past sessions…`, so the modal this used
+    // to open is gone from this path — see StopConfirm.tsx, now the DELETE-only confirm).
     // Card click → activateCard → the focused view (the terminal is still focused-bound);
-    // ⏹ Stop session → the StopConfirm modal → Stop. The confirm handler stops the PTY
-    // FIRST (CH.terminalStop → main removes the bound session synchronously) then returns
-    // to the board — the card must be GONE within 2 SECONDS (the Story-6.3 AC).
+    // Archive → sessionExit.archiveTerminal stops the PTY FIRST (window.launch.archiveSession
+    // → main removes the bound session synchronously) then returns to the board — the card
+    // must be GONE within 2 SECONDS (the Story-6.3 AC).
     //
     // force:true — the needs-you card runs the INFINITE emphasis pulse (emphasis.module.css
     // animates transform:scale 1↔1.015 forever), so Playwright's "stable" actionability
     // check can never pass on it. A human clicks a pulsing card fine; nothing overlays
     // board cards, so skipping the hit-test masks no occlusion here.
     await page.locator(`[data-column] [data-session-id="${sessionId}"]`).click({ force: true })
-    const stopBtn = page.locator('[data-testid="focused-stop"]')
-    await stopBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await stopBtn.click()
-    const confirmStop = page.locator('[data-testid="stop-confirm-stop"]')
-    await confirmStop.waitFor({ state: 'visible', timeout: 5000 })
-    await confirmStop.click()
+    const archiveBtn = page.locator('[data-testid="focused-archive"]')
+    await archiveBtn.waitFor({ state: 'visible', timeout: 5000 })
+    await archiveBtn.click()
     await expect(
       page.locator(`[data-column] [data-session-id="${sessionId}"]`),
-      'stopping the session must remove its card within 2s (no linger)'
+      'archiving the session must remove its card within 2s (no linger)'
     ).toHaveCount(0, { timeout: 2000 })
   } finally {
     await teardownApp(app)

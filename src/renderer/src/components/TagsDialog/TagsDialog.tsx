@@ -19,6 +19,7 @@ import {
 } from '../ScopeFilter/scope'
 import { Select } from '../Select/Select'
 import { TagChip } from '../TagChip/TagChip'
+import { TagPathLabel } from '../TagChip/TagPathLabel'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import { removeTag, saveTag, selectTags, useTags } from '../../stores/tagsStore'
@@ -103,7 +104,7 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
                   testId="tag-row"
                   selectTestId={`tag-select-${t.id}`}
                 >
-                  <TagChip tag={t} />
+                  <TagPathLabel tag={t} />
                 </ManageDialog.Row>
               ))}
               {listed.length === 0 && (

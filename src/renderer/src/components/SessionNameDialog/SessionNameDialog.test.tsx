@@ -202,4 +202,14 @@ describe('SessionNameDialog — reusable by the deferred rename pass', () => {
       '/home/op/project'
     )
   })
+
+  it('renders the helper line under the field only when given', () => {
+    const { r } = render({ helper: 'Applies in Claude on your next prompt.' })
+    expect(r.container.querySelector('[data-testid="session-name-helper"]')?.textContent).toBe(
+      'Applies in Claude on your next prompt.'
+    )
+    r.unmount()
+    const { r: r2 } = render()
+    expect(r2.container.querySelector('[data-testid="session-name-helper"]')).toBeNull()
+  })
 })

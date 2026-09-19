@@ -38,7 +38,9 @@ import type {
   TagsSaveResult,
   RuleSaveRequest,
   RulesListResult,
-  RulesSaveResult
+  RulesSaveResult,
+  PastSession,
+  PastSessionOpenResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -126,12 +128,25 @@ declare global {
       // workspaceId }). Main registered the recipe; the renderer opens the terminal for the
       // API-created card exactly as a UI launch does. Returns an unsubscribe fn.
       onLaunchRequested(cb: (event: LaunchRequestedEvent) => void): () => void
+      // Past sessions (D-3) — archive this terminal's session (stop + record + remove the card;
+      // no confirmation). Resolves void; the card leaves as a normal `session.removed` delta.
+      archiveSession(terminalId: string): Promise<void>
+      // Past sessions (D-3/D-4) — delete: stop the pty, remove any record, remove the card, after
+      // the Delete confirm. `sessionId` is only a hint: null before the renderer correlated the pane
+      // and once its card is gone — main finds an exited pane's record itself (its last bound id).
+      deleteSession(terminalId: string, sessionId: string | null): Promise<void>
     }
     // Session templates — mirrors src/preload/index.ts `templatesApi`.
     templates: {
       list(): Promise<Template[]>
       save(req: TemplateSaveRequest): Promise<TemplatesSaveResult>
       remove(id: string): Promise<Template[]>
+    }
+    // Past sessions — mirrors src/preload/index.ts `pastSessionsApi`.
+    pastSessions: {
+      list(): Promise<PastSession[]>
+      forget(id: string): Promise<PastSession[]>
+      open(id: string): Promise<PastSessionOpenResult>
     }
     // Phrase shortcuts — mirrors src/preload/index.ts `shortcutsApi`. The renderer reaches the
     // shortcuts store ONLY through this typed bridge (never electron-store, never ipcRenderer).

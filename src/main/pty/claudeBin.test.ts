@@ -208,6 +208,7 @@ describe('composeClaudeCommand', () => {
       permissionMode: null,
       effort: null,
       initialPrompt: null,
+      resume: false,
       ...overrides
     }
   }
@@ -413,6 +414,46 @@ describe('composeClaudeCommand', () => {
         .filter((l) => l !== '')
 
       expect(argv).toEqual(['--session-id', SID, '-n', 'x', '--', prompt])
+    })
+
+    describe('the --resume form (past sessions, D-1)', () => {
+      it('composes `claude --resume <id>` with NO --session-id, NO -n and NO prompt', () => {
+        const cmd = composeClaudeCommand(
+          spec({
+            resume: true,
+            displayName: 'ignored on resume',
+            hookSettingsPath: '/h/hooks.json',
+            appendSystemPrompt: 'nudge',
+            model: 'opus',
+            permissionMode: 'acceptEdits',
+            effort: 'high',
+            initialPrompt: 'never on resume'
+          })
+        )
+        expect(cmd).toBe(
+          `'${BIN}' --resume '${SID}' --settings '/h/hooks.json' --append-system-prompt 'nudge'`
+        )
+        expect(cmd).not.toContain('--session-id')
+        expect(cmd).not.toContain(' -n ')
+        expect(cmd).not.toContain('--model')
+        expect(cmd).not.toContain(' -- ')
+      })
+
+      it('under a real shell hands claude exactly [--resume, <id>, --settings, <path>]', () => {
+        const cmd = composeClaudeCommand(
+          spec({ resume: true, claudeCommand: stub, hookSettingsPath: '/tmp/a b/hooks.json' })
+        )
+        const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+          .split('\n')
+          .filter((l) => l !== '')
+        expect(argv).toEqual(['--resume', SID, '--settings', '/tmp/a b/hooks.json'])
+      })
+
+      it('resume: false composes byte-identically to before (no regression)', () => {
+        expect(composeClaudeCommand(spec({ displayName: 'billing api' }))).toBe(
+          `'${BIN}' --session-id '${SID}' -n 'billing api'`
+        )
+      })
     })
   })
 

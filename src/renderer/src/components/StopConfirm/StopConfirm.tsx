@@ -1,93 +1,90 @@
-// Story 4.3 (FR-15) — the Stop-confirm modal (renderer view-state).
+// Story 4.3 (FR-15) → Past sessions (D-5) — the DELETE-confirm modal (renderer view-state).
 //
-// Rendered when `boardStore.stopConfirm` is non-null (the operator triggered the per-session
-// stop via the ⏹ Stop session header button or Ctrl+W while in the focused view).
+// This component WAS the Stop-confirm (Story 4.3): the operator's ⏹ Stop session button / Ctrl+W
+// raised it before killing the pty. Task 10 (D-3/D-5) splits the single exit into two: Archive
+// (D-3) needs no confirmation at all (it is reversible through `Past sessions…`) and fires
+// straight from `sessionExit.archiveTerminal` — the card, the focused bar and Ctrl+W all call it
+// directly, never through this modal. DELETE is the one exit that is NOT reversible (no record is
+// kept), so it is the only one still gated behind a confirm — this component, unrenamed (the
+// test ids and the component name stay `StopConfirm`/`stop-confirm-*` — only its copy and its
+// confirm action changed).
 //
 // Design: UX-DR14 / DESIGN.md Dialogs (mirrors QuitGuard.tsx):
 //   - Centered overlay over a `--scrim`, `bg-surface-raised`, `--rounded-lg`, `shadow-dialog`.
 //   - `Cancel` is DEFAULT-FOCUSED on mount (reflexive Enter cancels; Esc = Cancel — guarded
 //     in App.tsx keydown; see App.tsx integration note).
-//   - `Stop` is the danger button (`--danger` red `#db4b4b`).
+//   - `Delete` is the danger button (`--danger` red `#db4b4b`).
 //   - `role="dialog"` + `aria-modal="true"` (mirrors Settings.tsx / QuitGuard.tsx).
 //   - NEVER logs session values — sessionName/terminalId data stays off logs.
 //
-// Microcopy (UX-DR22 — terse, operator-to-operator):
-//   Title: "Stop {sessionName}?"
-//   Body:  "Its agent process will exit."
-//   Buttons: Cancel / Stop
+// Microcopy (D-5 — terse, operator-to-operator; no session name interpolated, unlike the old
+// Stop-confirm's "Stop {sessionName}?" — the copy is now generic to every delete):
+//   Title: "Delete session?"
+//   Body:  "The session is stopped and nothing is kept in Past sessions. Claude's own files are
+//           not touched."
+//   Buttons: Cancel / Delete
 //
-// THE FROZEN ORDERING (F1 / HEADLINE CORRECTNESS CONSTRAINT):
-//   Stop → (1) window.terminal.stop(terminalId) FIRST (explicit PTY kill, CH.terminalStop path),
-//          THEN (2) change view-state: clearStopConfirm() + showBoard().
+// THE FROZEN ORDERING (F1 / HEADLINE CORRECTNESS CONSTRAINT) — UNCHANGED by D-5, only its target
+// changed from `window.terminal.stop` to the DELETE ipc:
+//   Delete → sessionExit.deleteTerminal(terminalId, sessionId), which itself
+//            (1) calls window.launch.deleteSession FIRST (explicit stop + drop-record, the
+//                CH.sessionDelete path), THEN
+//            (2) forgets the launched-terminal registry entry, clears the confirm, and returns
+//                to the board.
 //   NEVER clear focusedTerminalId first and let the FocusedSession unmount do the stop —
-//   that is the B-1 PTY-killing path (App.tsx:240-244 M-2 mount-latch WARNING).
-//   terminalManager.stop is idempotent, so the later unmount-stop is a safe no-op.
+//   that is the B-1 PTY-killing path (App.tsx M-2 mount-latch WARNING).
+//   The main-side stop is idempotent, so a later unmount-stop is a safe no-op.
 //   This ordering GUARANTEES the kill regardless of what unmounts subsequently.
 //
 // State: `stopConfirm: StopConfirmPayload | null` in boardStore (RENDERER VIEW-STATE).
 //        The modal renders the payload verbatim — it does NOT re-derive session truth.
 //        [.claude/rules/state.md]
 //
-// Wire (App.tsx):
-//   - `Ctrl+W` keydown → compute payload + `boardStore.getState().showStopConfirm(payload)`.
-//   - Esc-while-stop-confirm-open → clearStopConfirm (cancel; guard is the topmost layer).
+// Wire:
+//   - The card's red Delete control / the focused bar's Delete button →
+//     `boardStore.getState().showStopConfirm(payload)`.
+//   - Esc-while-confirm-open → clearStopConfirm (cancel; guard is the topmost layer, App.tsx).
 //   - Render `<StopConfirm/>` when `selectStopConfirm !== null`.
 //
-// [Source: story 4.3 Task 3; UX-DR14/22; DESIGN.md Dialogs; QuitGuard.tsx (mirror);
-//  .claude/rules/state.md; src/renderer/src/terminal/EmbeddedTerminal.tsx:185-189/:232-237
-//  (the window.terminal.stop catch pattern — REUSE); orchestrator FROZEN #1]
+// [Source: story 4.3 Task 3; task-10-brief.md (D-3/D-5); UX-DR14/22; DESIGN.md Dialogs;
+//  QuitGuard.tsx (mirror); .claude/rules/state.md; ../../lib/sessionExit.ts]
 
 import { useEffect, useRef, type JSX } from 'react'
 import type { StopConfirmPayload } from '../../stores/boardStore'
 import { boardStore } from '../../stores/boardStore'
+import { deleteTerminal } from '../../lib/sessionExit'
 import styles from './StopConfirm.module.css'
 
 interface StopConfirmProps {
-  /** The payload (terminalId + sessionName) for the session being stopped. */
+  /** The payload (terminalId + sessionId + sessionName) for the session being deleted. */
   payload: StopConfirmPayload
 }
 
 /**
- * The Stop-confirm modal. Rendered when boardStore.stopConfirm is non-null.
+ * The Delete-confirm modal (D-5). Rendered when boardStore.stopConfirm is non-null.
  * Cancel → `boardStore.getState().clearStopConfirm()` (session keeps running).
- * Stop → (1) window.terminal.stop(terminalId) FIRST, THEN (2) clearStopConfirm() + showBoard().
- *
- * This ordering is FROZEN (F1 / orchestrator FROZEN #1): explicit PTY kill before view-state
- * change — stopping the focused session when it is the last terminal empties focusedTerminalId +
- * the kept-alive set → hasFocusableTerminal flips false → FocusedSession UNMOUNTS (App.tsx:240-244
- * M-2 mount-latch WARNING). The explicit stop guarantees the kill; the unmount-stop is a safe
- * idempotent no-op (terminalManager.stop is idempotent).
+ * Delete → `sessionExit.deleteTerminal(terminalId, sessionId)`, which stops the pty + drops any
+ * record FIRST, then clears the confirm and returns to the board (the F1 ordering — see the
+ * header comment).
  */
 export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
   const cancelRef = useRef<HTMLButtonElement | null>(null)
-  const { terminalId, sessionName } = payload
+  const { terminalId, sessionId } = payload
 
-  // Cancel is DEFAULT-FOCUSED on mount (UX-DR14: reflexive Enter cancels, not stops).
+  // Cancel is DEFAULT-FOCUSED on mount (UX-DR14: reflexive Enter cancels, not deletes).
   useEffect(() => {
     cancelRef.current?.focus()
   }, [])
 
   function handleCancel(): void {
-    // Cancel: clear renderer view-state. The session keeps running — no stop.
+    // Cancel: clear renderer view-state. The session keeps running — nothing is deleted.
     boardStore.getState().clearStopConfirm()
   }
 
-  function handleStop(): void {
-    // THE FROZEN ORDERING (F1): explicit PTY kill FIRST, THEN view-state change.
-    // (1) Stop the PTY explicitly in main via the wired CH.terminalStop path.
-    //     fire-and-forget with code-only catch (never the session value/path — zod-boundaries.md).
-    void window.terminal.stop(terminalId).catch(() => {
-      console.warn('[c9watch][stop] code=stop_failed')
-    })
-    // (2) Drop the launched-terminal registry entry so the "N starting" banner clears.
-    //     Idempotent: no-op for non-registry terminalIds (e.g. plain #terminals shells).
-    //     Natural-exit path (CH.terminalExit / onExit) is silent for an explicit stop, so we
-    //     must remove the entry here. [Bug #3 — Story 5.6 AC-5 only wired the natural-exit path]
-    boardStore.getState().forgetLaunchedTerminal(terminalId)
-    // (3) THEN change the renderer view-state: clear the confirm + return to the board.
-    //     The explicit stop above GUARANTEES the kill; any subsequent unmount-stop is a safe no-op.
-    boardStore.getState().clearStopConfirm()
-    boardStore.getState().showBoard()
+  function handleDelete(): void {
+    // D-5 — the ONE call site. sessionExit.deleteTerminal owns the F1 ordering (explicit
+    // main-side delete FIRST, then the registry/confirm/board view-state teardown).
+    deleteTerminal(terminalId, sessionId)
   }
 
   return (
@@ -96,22 +93,23 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
       data-testid="stop-confirm-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label={`Stop ${sessionName}?`}
+      aria-label="Delete session?"
     >
       <div className={styles.panel} data-testid="stop-confirm-panel">
         {/* Header */}
         <div className={styles.header}>
           <span className={styles.title} data-testid="stop-confirm-title">
-            Stop {sessionName}?
+            Delete session?
           </span>
         </div>
 
-        {/* Body (UX-DR22 microcopy) */}
+        {/* Body (D-5 microcopy) */}
         <p className={styles.body} data-testid="stop-confirm-body">
-          Its agent process will exit.
+          The session is stopped and nothing is kept in Past sessions. Claude&apos;s own files are
+          not touched.
         </p>
 
-        {/* Button row: Cancel (default-focused) + Stop (danger) */}
+        {/* Button row: Cancel (default-focused) + Delete (danger) */}
         <div className={styles.actions}>
           <button
             type="button"
@@ -127,9 +125,9 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
             type="button"
             className={styles.confirmButton}
             data-testid="stop-confirm-stop"
-            onClick={handleStop}
+            onClick={handleDelete}
           >
-            Stop
+            Delete
           </button>
         </div>
       </div>

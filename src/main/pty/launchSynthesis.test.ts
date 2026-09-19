@@ -18,6 +18,8 @@ function minted(over: Partial<MintedLaunchSpawn> = {}): MintedLaunchSpawn {
     templateId: null,
     initialPrompt: null,
     workspaceId: null,
+    launchedAt: 4242,
+    resume: null,
     spawn: {
       file: '/bin/bash',
       args: ['-l', '-c', "claude --session-id 'sess-uuid-1'"],
@@ -103,5 +105,12 @@ describe('buildLaunchedSession — the operator name becomes card truth', () => 
   // FAULT INJECTION: hardcoding `tagIds: []` in launchSynthesis.ts must turn this red.
   it('is born with the tags it is given', () => {
     expect(buildLaunchedSession(minted(), 1, 'default', ['t1', 't2']).tagIds).toEqual(['t1', 't2'])
+  })
+
+  // Past sessions (D-1) — the archive record reads `launchedAt` off the card, because the
+  // pty-exit path unbinds the terminal before the removal runs.
+  it('stamps launchedAt off the mint', () => {
+    const m = minted()
+    expect(buildLaunchedSession(m, 1, 'default', []).launchedAt).toBe(m.launchedAt)
   })
 })

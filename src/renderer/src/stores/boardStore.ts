@@ -40,15 +40,22 @@ import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
 import { effectiveTagFilter, useTags } from './tagsStore'
 
 /**
- * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
- * Non-null when the operator triggered the Stop-confirm for a focused session. Null when no
- * confirm is shown. The renderer renders `<StopConfirm/>` from this payload.
+ * Past sessions (D-5) — the DELETE confirm's payload (RENDERER VIEW-STATE; not session truth).
+ * The modal this drove WAS the Story-4.3 Stop confirm; Archive (D-3) needs no confirmation at
+ * all, so the ONE remaining confirm is Delete's. Non-null when the operator triggered it (the
+ * card's red Delete control, the focused bar's Delete button); null when no confirm is shown.
+ * The renderer renders `<StopConfirm/>` from this payload.
  * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
  * [state.md: modal open/closed = renderer view-state; session truth = main]
  */
 export interface StopConfirmPayload {
-  /** The opaque terminalId to stop (via window.terminal.stop(terminalId) — CH.terminalStop). */
+  /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
   terminalId: string
+  /** The session id the renderer has correlated for this terminal — null before that binding
+   *  landed, and null on an already-exited pane (`session.removed` drops the binding). Only a
+   *  HINT: main finds that pane's record itself, through the terminal's last bound id
+   *  (`deleteTerminalSession`, src/main/pty/launchRemoval.ts). */
+  sessionId: string | null
   /** The session name to display verbatim in the confirm dialog (UX-DR22). */
   sessionName: string
 }
@@ -139,6 +146,8 @@ export interface BoardSession {
   workspaceId: string
   /** Tags — the card's tag ids (session truth, read off the delta). The store never writes them. */
   tagIds: string[]
+  /** Name-sync — a rename waiting for the next prompt; read off the delta, absent = false. */
+  nameSyncPending?: boolean
 }
 
 /** The two columns that were ever HERO-ELIGIBLE. Idle is NEVER the hero (FROZEN-1 / AC-2) —
@@ -248,8 +257,9 @@ export interface BoardState {
    */
   quitGuard: QuitGuardPayload | null
   /**
-   * Story 4.3 (FR-15) — the STOP-CONFIRM modal payload (RENDERER VIEW-STATE; not session truth).
-   * Non-null when the operator triggered the Stop-confirm for a focused session. Null when no
+   * Past sessions (D-5) — the DELETE-CONFIRM modal payload (RENDERER VIEW-STATE; not session
+   * truth). The modal was Story 4.3's Stop confirm; Archive (D-3) has no confirm at all now, so
+   * this is the confirm for Delete only. Non-null when the operator triggered it. Null when no
    * confirm is shown. The renderer renders `<StopConfirm/>` from this payload.
    * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
    * Single-modal rule (UX-DR14): cannot co-exist with quitGuard.
@@ -294,6 +304,12 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   settingsDialogOpen: boolean
+  /**
+   * Past sessions (D-6) — whether the Past-sessions dialog is open (RENDERER VIEW-STATE). Opened
+   * from the header ☰ menu's last row; joins the single-modal rule like every other dialog.
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  pastSessionsDialogOpen: boolean
   /**
    * The filter bar's search box — the text VERBATIM, as typed (RENDERER VIEW-STATE, never
    * persisted). `useBoardFilter` hands it to the board and rail selectors, which match it against
@@ -413,16 +429,17 @@ export interface BoardState {
    */
   clearQuitGuard: () => void
   /**
-   * Story 4.3 (FR-15) — open the Stop-confirm modal for a specific session.
-   * Sets `stopConfirm = payload`. Pure, small, no side effects. No IPC here —
-   * the explicit `window.terminal.stop` call happens at the component call site
-   * BEFORE view-state changes (FROZEN F1; state.md: no IPC inside store actions).
+   * Past sessions (D-5) — open the DELETE confirm for a specific session (the modal that was
+   * Story 4.3's Stop confirm; the action keeps its name). Sets `stopConfirm = payload`. Pure,
+   * small, no side effects. No IPC here — the explicit delete (`window.launch.deleteSession`,
+   * via `sessionExit.deleteTerminal`) happens at the confirm's call site BEFORE view-state
+   * changes (FROZEN F1; state.md: no IPC inside store actions).
    * Single-modal rule (UX-DR14): do NOT show when quitGuard is open.
    */
   showStopConfirm: (payload: StopConfirmPayload) => void
   /**
-   * Story 4.3 (FR-15) — close the Stop-confirm modal (operator cancelled OR stop completed).
-   * Sets `stopConfirm = null`. No teardown here — the explicit stop happens at the call site
+   * Past sessions (D-5) — close the Delete confirm (operator cancelled OR the delete was sent).
+   * Sets `stopConfirm = null`. No teardown here — the explicit delete happens at the call site
    * BEFORE this (FROZEN F1).
    */
   clearStopConfirm: () => void
@@ -475,6 +492,10 @@ export interface BoardState {
   openSettingsDialog: () => void
   /** Settings — close the Settings dialog. No-op if already closed. */
   closeSettingsDialog: () => void
+  /** Past sessions — open the Past-sessions dialog. No-op if already open. */
+  openPastSessionsDialog: () => void
+  /** Past sessions — close the Past-sessions dialog. No-op if already closed. */
+  closePastSessionsDialog: () => void
   /** The filter bar's search box — store the text as typed (the selectors trim it). */
   setSearchQuery: (query: string) => void
 }
@@ -533,7 +554,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     terminalIdBySessionId: {},
     // Story 4.2 (FR-14) — no quit guard shown until main pushes the guard payload.
     quitGuard: null,
-    // Story 4.3 (FR-15) — no stop confirm shown until the operator triggers it.
+    // Past sessions (D-5) — no Delete confirm shown until the operator triggers it.
     stopConfirm: null,
     // Session-naming — no name prompt shown until the directory picker returns a path.
     sessionNamePrompt: null,
@@ -549,6 +570,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     rulesDialogOpen: false,
     // Settings — the Settings dialog starts closed.
     settingsDialogOpen: false,
+    // Past sessions — the Past-sessions dialog starts closed.
+    pastSessionsDialogOpen: false,
     // The filter bar's search box starts empty: nothing hidden.
     searchQuery: '',
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
@@ -576,7 +599,10 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           enteredColumnAt: event.enteredColumnAt,
           workspaceId: event.workspaceId,
           tagIds: event.tagIds,
-          ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
+          ...(event.pendingToolName !== undefined
+            ? { pendingToolName: event.pendingToolName }
+            : {}),
+          ...(event.nameSyncPending === true ? { nameSyncPending: true } : {})
         }
         const sessionsById = { ...state.sessionsById, [event.id]: next }
         // Story 3.4 (FR-16 / AC-4) — reconcile the ack state with c9watch truth: when a session
@@ -790,16 +816,17 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
 
     showStopConfirm: (payload) => {
-      // Story 4.3 (FR-15) — open the Stop-confirm modal. Pure, small, no side effects.
-      // The explicit window.terminal.stop MUST happen at the component call site BEFORE
-      // clearing view-state (FROZEN F1; the modal's Stop button handles this ordering).
+      // Past sessions (D-5) — open the Delete confirm. Pure, small, no side effects.
+      // The explicit delete (window.launch.deleteSession) MUST happen at the component call site
+      // BEFORE clearing view-state (FROZEN F1; the confirm's Delete button handles this ordering
+      // through sessionExit.deleteTerminal).
       // [state.md: modal open/closed = view-state; no IPC inside store actions]
       set({ stopConfirm: payload })
     },
 
     clearStopConfirm: () => {
-      // Story 4.3 (FR-15) — close the Stop-confirm modal (cancelled or stop completed).
-      // No PTY teardown here — the explicit window.terminal.stop runs BEFORE this at the
+      // Past sessions (D-5) — close the Delete confirm (cancelled or the delete was sent).
+      // No PTY teardown here — the explicit window.launch.deleteSession runs BEFORE this at the
       // call site (FROZEN F1).
       const state = get()
       if (state.stopConfirm !== null) set({ stopConfirm: null })
@@ -858,6 +885,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeSettingsDialog: () => {
       if (get().settingsDialogOpen) set({ settingsDialogOpen: false })
+    },
+
+    openPastSessionsDialog: () => {
+      if (!get().pastSessionsDialogOpen) set({ pastSessionsDialogOpen: true })
+    },
+    closePastSessionsDialog: () => {
+      if (get().pastSessionsDialogOpen) set({ pastSessionsDialogOpen: false })
     },
     setSearchQuery: (query) => {
       if (get().searchQuery !== query) set({ searchQuery: query })
@@ -994,8 +1028,8 @@ export const selectTerminalIdForSession = (state: BoardState, id: string): strin
 export const selectQuitGuard = (state: BoardState): QuitGuardPayload | null => state.quitGuard
 
 /**
- * Story 4.3 (FR-15) — the Stop-confirm modal payload (RENDERER VIEW-STATE; null = no confirm shown).
- * Non-null when the operator triggered the Stop-confirm for a focused session.
+ * Past sessions (D-5) — the Delete-confirm payload (RENDERER VIEW-STATE; null = no confirm shown).
+ * Non-null when the operator pressed Delete on a card or in the focused bar.
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null => state.stopConfirm
@@ -1046,6 +1080,13 @@ export const selectSearchQuery = (state: BoardState): string => state.searchQuer
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectRulesDialogOpen = (state: BoardState): boolean => state.rulesDialogOpen
+
+/**
+ * Past sessions — whether the Past-sessions dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectPastSessionsDialogOpen = (state: BoardState): boolean =>
+  state.pastSessionsDialogOpen
 
 /**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.

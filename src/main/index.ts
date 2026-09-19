@@ -11,6 +11,7 @@ import {
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
+import { statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -25,7 +26,8 @@ import type {
   SmokeReport,
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
-  ReducerWatchEventsPayload
+  ReducerWatchEventsPayload,
+  PastSessionOpenResult
 } from '../shared/ipc/contract'
 // Story 3.1 (FR-10) — the embedded-terminal transport: the MAIN-side terminal manager (one
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
@@ -100,6 +102,14 @@ import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
 import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcuts'
 import { createElectronShortcutsBlobStore } from './persistence/electronShortcutsBlobStore'
 import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
+// Past sessions — the main-owned archive of ended app-launched sessions (its own file; a
+// corrupt history can never reset settings/templates/workspaces).
+import { createPastSessionsStore, type PastSessionsStore } from './persistence/pastSessions'
+import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
+import { createPastSessionsIpcHandlers } from './persistence/pastSessionsIpc'
+// Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
+// record via buildPastSessionRecord; delete removes any earlier one; a null store no-ops).
+import { applyRemovalReason } from './persistence/pastSessionRecord'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 import { keepVisibleTags } from '../shared/tags/tagScope'
@@ -127,8 +137,15 @@ import { createLaunchService, type LaunchService } from './pty/launchSession'
 // launchRemoval.test.ts). Stop and PTY-exit resolve the exact spawn-time terminalId →
 // sessionId binding, clear it, and route the bound session's removal through the owning
 // window's reducer → the SAME handleDelta chokepoint (session.removed → card gone NOW,
-// no SessionEnd hook / feed event needed).
-import { removeBoundSession, stopTerminalAndRemoveBound } from './pty/launchRemoval'
+// no SessionEnd hook / feed event needed). Past sessions: `archiveBoundSessions` is the same
+// removal for the paths that fire NO onExit (quit, window close).
+import {
+  archiveBoundSessions,
+  deleteTerminalSession,
+  removeBoundSession,
+  stopTerminalAndRemoveBound,
+  type RemovalReason
+} from './pty/launchRemoval'
 // Story 6.2 — the extracted "should this open MINT?" decision (unit-tested in
 // launchMint.test.ts, mirroring the launchRemoval extraction): mint ONLY when an ACTUAL
 // pty spawn is about to happen — a re-attach to a LIVE terminal must never mint a second
@@ -137,6 +154,9 @@ import { mintForOpen } from './pty/launchMint'
 // Session-naming — the extracted, unit-tested launch-card synthesis (see launchSynthesis.ts).
 import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
+// Past sessions (D-1) — the extracted "can this record be reopened?" decision
+// (unit-tested in pastSessionOpen.test.ts, mirroring the launchMint/launchRemoval extraction).
+import { openPastSession } from './pty/pastSessionOpen'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { createProcessSessionSourceFromFs } from './pty/claudeSessionFile'
 import {
@@ -144,7 +164,9 @@ import {
   SessionRenameSchema,
   SessionSeenSchema,
   LaunchCorrelatedSchema,
-  LaunchRequestedSchema
+  LaunchRequestedSchema,
+  SessionArchiveSchema,
+  SessionDeleteSchema
 } from '../shared/schemas/launch'
 // Programmatic API — the localhost HTTP listener and everything behind it. Every decision in it
 // lives in one of these modules and is unit-tested there; this file only WIRES them (nothing can
@@ -337,8 +359,11 @@ interface LaunchBoardSeam {
   /** Workspaces — the live-session guard (spec W-6): true when THIS window's board has any
    *  card in `workspaceId`. Read-only scan of the reducer snapshot; no handleDelta involved. */
   hasSessionsInWorkspace(workspaceId: string): boolean
-  /** Story 6.3 — immediate stop/exit removal (applyHookStatus removed → handleDelta). */
-  removeLaunched(sessionId: string): void
+  /** Past sessions — is this id a live card on THIS window's board? Read-only. */
+  hasSession(sessionId: string): boolean
+  /** Story 6.3 removal, now with the exit's REASON (D-3): `archive` snapshots the card into the
+   *  past-sessions store BEFORE it goes; `delete` drops any record. Idempotent either way. */
+  removeLaunched(sessionId: string, reason: RemovalReason): void
   /** ESCAPE-INTERRUPT — demote a session to idle because the operator pressed Escape.
    *  Interrupting fires no hook and (when interrupted early) leaves no transcript trace,
    *  so the keystroke is the only evidence. A session already idle is a quiet no-op. */
@@ -626,6 +651,21 @@ function registerWatchFeed(window: BrowserWindow): void {
   // by the hook server's response builder.
   const pendingTitles = createPendingTitles()
 
+  /** D-3 — the ONE removal chokepoint for this window. Reads the card BEFORE the reducer drops
+   *  it, then hands the reason → history decision to the PURE, unit-tested
+   *  `applyRemovalReason` (pastSessionRecord.ts): `archive` snapshots it into the past-sessions
+   *  store (a card that already left is a quiet no-op — no record, no log); `delete` drops any
+   *  record for the id instead. Rides the SAME hook-removal reducer path as Story 6.3
+   *  (applyHookStatus removed → handleDelta), so the card-removal delta is unchanged — only the
+   *  store side-effect is new. */
+  function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
+    const stored = reducer.snapshotMap().get(sessionId)
+    applyRemovalReason(reason, sessionId, stored, pastSessionsStore, Date.now())
+    // A removed card can have no pending rename to push.
+    pendingTitles.forget(sessionId)
+    reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
+  }
+
   launchBoardSeams.set(wc, {
     upsertLaunched: (session) => {
       reducer.upsertLaunched(session).forEach(handleDelta)
@@ -636,6 +676,7 @@ function registerWatchFeed(window: BrowserWindow): void {
       }
       return false
     },
+    hasSession: (sessionId) => reducer.snapshotMap().has(sessionId),
     // Story 6.3 — the fast stop/exit removal rides the HOOK-REMOVAL reducer path (REUSE,
     // not a new reducer API): applyHookStatus(id, removed) deletes the session + emits
     // `session.removed`, and the delta takes the SAME handleDelta chokepoint (tracker →
@@ -644,9 +685,7 @@ function registerWatchFeed(window: BrowserWindow): void {
     // synthesized id emits [] SILENTLY (the reducer's removed-path treats unknown-id as
     // the applyStop-style already-gone no-op), so the belt-and-suspenders SessionEnd hook
     // arriving later is quiet.
-    removeLaunched: (sessionId) => {
-      reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
-    },
+    removeLaunched: (sessionId, reason) => removeLaunchedSession(sessionId, reason),
     // ESCAPE-INTERRUPT — the operator pressed Escape, so claude stopped and is sitting at
     // its prompt. Rides the SAME applyHookStatus → handleDelta chokepoint as every other
     // status change. Guarded on an ACTUAL change so a stray Escape (dismissing an
@@ -661,7 +700,8 @@ function registerWatchFeed(window: BrowserWindow): void {
     // status is unchanged (attention.ts stamps on a COLUMN change only) — the board keeps its
     // order, which is the behavior confirmed during A1 planning.
     renameLaunched: (sessionId, name) => {
-      reducer.renameSession(sessionId, name).forEach(handleDelta)
+      // true = the ⟳ mark until the push is taken
+      reducer.renameSession(sessionId, name, true).forEach(handleDelta)
       // Name-sync — the card is renamed above; claude is renamed by ANSWERING its next
       // `UserPromptSubmit` POST with this name (the app cannot rename a running session any
       // other way). Recorded here, pushed once by the hook server, then cleared. Until the
@@ -811,6 +851,9 @@ function registerWatchFeed(window: BrowserWindow): void {
     launchedSet.add(newSessionId)
     reducer.upsertLaunched({ ...stored, id: newSessionId }).forEach(handleDelta)
     launchService.rebind(terminalId, newSessionId)
+    // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
+    // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
+    pendingTitles.rebind(oldSessionId, newSessionId)
     sendLaunchCorrelated(wc, terminalId, newSessionId)
     reducer.applyHookStatus(oldSessionId, { kind: 'removed' }).forEach(handleDelta)
     orphanRegistry.clear(terminalId)
@@ -930,16 +973,24 @@ function registerWatchFeed(window: BrowserWindow): void {
         adoptOrphanedCard(evt.cwd ?? '', evt.session_id)
       }
 
-      // A removed card can have no pending rename to push — drop it so a rename that raced a
-      // stop/exit is never delivered to a session that is gone.
-      if (change.kind === 'removed') pendingTitles.forget(evt.session_id)
-
+      // Past sessions (D-3) — a SessionEnd that reaches here (the pty-alive guard above did NOT
+      // keep the card) is a real removal: archive it, belt-and-suspenders behind Stop/exit. Rides
+      // the SAME removeLaunchedSession chokepoint as terminal:stop/onExit/the explicit exits.
+      if (change.kind === 'removed') {
+        removeLaunchedSession(evt.session_id, 'archive') // belt-and-suspenders, idempotent
+        return
+      }
       reducer.applyHookStatus(evt.session_id, change).forEach(handleDelta)
     },
     // Name-sync WRITE — read-and-clear, so the name is pushed to claude exactly ONCE. Pushing
     // it every prompt would fight claude's collision rule and re-suffix the name forever
     // (see pendingTitles.ts).
-    takePendingTitle: (sessionId) => pendingTitles.take(sessionId),
+    takePendingTitle: (sessionId) => {
+      const name = pendingTitles.take(sessionId)
+      // D-11 — the push is on its way in this response; the ⟳ mark comes off the card now.
+      if (name !== null) reducer.clearNameSyncPending(sessionId).forEach(handleDelta)
+      return name
+    },
     log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
   })
   hookServers.set(wc, hookServer)
@@ -1048,7 +1099,12 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
 // in MAIN, never incidental via a renderer unmount (B-1/M-2 hard constraint).
 // Idempotent: after teardownAllSessions runs (on `before-quit`) the terminalOwners map
 // is already clear, so this loop is a safe no-op on a normal app-quit close.
+//
+// Past sessions (D-3) — the window's live sessions are ARCHIVED first: `stop()` fires no onExit,
+// so nothing else would. That needs this window's board seam, which `teardownWatchFeed` drops —
+// so the `closed` handler runs THIS before teardownWatchFeed.
 function teardownWindowTerminals(wc: Electron.WebContents): void {
+  archiveLiveSessions(wc)
   for (const [terminalId, owner] of [...terminalOwners.entries()]) {
     if (owner === wc) {
       terminalOwners.delete(terminalId)
@@ -1058,6 +1114,23 @@ function teardownWindowTerminals(wc: Electron.WebContents): void {
       terminalManager?.stop(terminalId)
     }
   }
+}
+
+/** Past sessions (D-3) — archive every live launched session, or only the ones `only` owns, for
+ *  the paths that end sessions WITHOUT an onExit (quit: `teardownAllSessions`; window close:
+ *  `teardownWindowTerminals`). Each one leaves through its window's `removeLaunched(…, 'archive')`,
+ *  the SAME chokepoint as a pty exit. The decision is `archiveBoundSessions` (launchRemoval.ts,
+ *  unit-tested): idempotent, and it never throws (a failure logs a code; the quit goes on). */
+function archiveLiveSessions(only?: Electron.WebContents): void {
+  archiveBoundSessions(
+    launchService,
+    (terminalId, sessionId) => {
+      const wc = terminalOwners.get(terminalId)
+      if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, 'archive')
+    },
+    (message) => console.warn(message),
+    only === undefined ? undefined : (terminalId) => terminalOwners.get(terminalId) === only
+  )
 }
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
@@ -1222,6 +1295,12 @@ function hasLiveSessions(workspaceId: string): boolean {
   return false
 }
 
+/** Past sessions — a live card in ANY window blocks a second Open of the same id. */
+function isSessionLive(sessionId: string): boolean {
+  for (const seam of launchBoardSeams.values()) if (seam.hasSession(sessionId)) return true
+  return false
+}
+
 /** Workspaces — the scoped-config cascade. Runs ONLY after a delete was allowed and committed.
  *  Late-bound on purpose: the workspaces store is constructed before templates, shortcuts, tags
  *  and rules exist. */
@@ -1230,6 +1309,7 @@ function cascade(workspaceId: string): void {
   shortcutsStore?.removeByWorkspace(workspaceId)
   tagsStore?.removeByWorkspace(workspaceId)
   rulesStore?.removeByWorkspace(workspaceId)
+  pastSessionsStore?.removeByWorkspace(workspaceId) // D-9 — records are tied by workspace id
   // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
   // timers honest if that guard ever loosens.
   for (const engine of ruleEngines.values()) engine.onRulesRemoved()
@@ -1240,6 +1320,13 @@ let templatesStore: TemplatesStore | null = null
 function requireTemplatesStore(): TemplatesStore {
   if (templatesStore === null) throw new Error('templates store not initialized')
   return templatesStore
+}
+
+// Past sessions — same lifecycle as templatesStore (needs app-ready for electron-store).
+let pastSessionsStore: PastSessionsStore | null = null
+function requirePastSessionsStore(): PastSessionsStore {
+  if (pastSessionsStore === null) throw new Error('past_sessions_store_not_initialized')
+  return pastSessionsStore
 }
 
 // Phrase shortcuts — same lifecycle as templatesStore (needs app-ready for electron-store).
@@ -1348,6 +1435,17 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Past sessions — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/pastSessionsIpc.ts (unit-tested); this only binds `list`/`forget` to CH.* channels.
+// `session:archive`, `session:delete` and `past-sessions:open` get their bridges now but their
+// main handlers are wired later — they need the launch service and the reducer.
+function registerPastSessionsIpc(): void {
+  const handlers = createPastSessionsIpcHandlers(requirePastSessionsStore())
+  ipcMain.handle(CH.pastSessionsList, () => handlers.list())
+  ipcMain.handle(CH.pastSessionsForget, (_evt, raw: unknown) => handlers.forget(raw))
+  // CH.pastSessionOpen is bound in registerLaunchIpc (it needs the launch service) — Task 9.
 }
 
 // Tags — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1588,8 +1686,10 @@ function registerTerminalIpc(): void {
       // lookup is then a graceful no-op). Idempotent: no binding (plain shell / spawn-fail
       // dust / already removed) → no-op; a late SessionEnd for the removed id emits [].
       if (launchService !== null) {
+        // Ctrl+C twice / `/exit` / a crash — all ARCHIVE (D-3): the pty is really gone, and the
+        // card's history is worth keeping unless the operator explicitly deletes it.
         removeBoundSession(terminalId, launchService, (sessionId) => {
-          if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId)
+          if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, 'archive')
         })
       }
     },
@@ -1687,7 +1787,11 @@ function registerTerminalIpc(): void {
             // Rules (spec §2.1, T-21) — the launch rules run HERE, at spawn, so the card is
             // born tagged: one delta, no flash. Never on "first seen" — /clear re-upserts
             // under a new id and must not run them again.
-            launchTags(rulesSnapshot(), minted, workspaceId)
+            // Past sessions — a resume is born with the record's surviving tags; the launch
+            // rules run for NEW launches only (a resume is not one).
+            minted.resume !== null
+              ? minted.resume.tagIds
+              : launchTags(rulesSnapshot(), minted, workspaceId)
           )
         )
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
@@ -1731,8 +1835,10 @@ function registerTerminalIpc(): void {
       terminalManager,
       launchService,
       (sessionId) => {
+        // An unmount-stop that really kills the pty is ARCHIVE too (D-3) — CH.terminalStop is
+        // not the operator's Delete; that is the explicit CH.sessionDelete exit below.
         const wc = terminalOwners.get(terminalId)
-        if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId)
+        if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, 'archive')
       }
     )
     // Story 5.4 — do NOT forget the launch here. This handler fires on EVERY EmbeddedTerminal
@@ -1793,7 +1899,8 @@ function rawClaudeSpawn(
   sessionId: string,
   displayName: string,
   flags: ClaudeLaunchFlags,
-  initialPrompt: string | null
+  initialPrompt: string | null,
+  resume: boolean
 ): {
   file: string
   args: string[]
@@ -1845,7 +1952,10 @@ function rawClaudeSpawn(
         // The programmatic API threads the template's filled-in prompt through here (it rode
         // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
         // none, so for them the composed command stays byte-identical to before.
-        initialPrompt
+        initialPrompt,
+        // Past sessions (D-1) — a resume composes `claude --resume <id>` instead (claudeBin.ts
+        // drops `-n`, the template flags and the positional prompt for that form).
+        resume
       })
     ],
     env
@@ -2108,6 +2218,81 @@ function registerLaunchIpc(): void {
     launchBoardSeams.get(event.sender)?.renameLaunched(id, name)
   })
 
+  // Past sessions (D-3) — the two explicit exits. Same stop as `terminal:stop` (the manager's
+  // token-less kill), then the bound card leaves with the REASON. Keyed by terminalId: the
+  // renderer holds it from the first frame. This routes the removal to the owning window's seam.
+  function removeOwnedSession(
+    terminalId: string,
+    reason: RemovalReason
+  ): (sessionId: string) => void {
+    return (sessionId) => {
+      const wc = terminalOwners.get(terminalId)
+      if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, reason)
+    }
+  }
+  // session:archive — UNTRUSTED cross-process input; parse-and-throw at THIS boundary (a blank
+  // terminalId rejects the invoke). Explicit "Archive"/Stop from the board: stop the pty, archive
+  // the card.
+  ipcMain.handle(CH.sessionArchive, (_event, raw: unknown) => {
+    const { terminalId } = SessionArchiveSchema.parse(raw)
+    if (terminalManager === null) throw new Error('terminal manager not initialized')
+    stopTerminalAndRemoveBound(
+      terminalId,
+      undefined,
+      terminalManager,
+      launchService,
+      removeOwnedSession(terminalId, 'archive')
+    )
+  })
+  // session:delete — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Explicit
+  // Delete: stop the pty, drop the card AND any history record for it. The decision is
+  // `deleteTerminalSession` (launchRemoval.ts, unit-tested): on a pane whose claude already
+  // EXITED there is no binding and the renderer's `sessionId` is null (its card is gone), so the
+  // record that exit archived is found through the launch override's `lastSessionId`. The
+  // renderer's id is only a hint, removed too (idempotent).
+  ipcMain.handle(CH.sessionDelete, (_event, raw: unknown) => {
+    const { terminalId, sessionId } = SessionDeleteSchema.parse(raw)
+    if (terminalManager === null) throw new Error('terminal manager not initialized')
+    deleteTerminalSession(
+      terminalId,
+      sessionId,
+      terminalManager,
+      launchService,
+      removeOwnedSession(terminalId, 'delete'),
+      (id) => {
+        pastSessionsStore?.remove(id)
+      }
+    )
+  })
+
+  // past-sessions:open — UNTRUSTED arg (parse-and-throw inside openPastSession). The decision is
+  // the extracted module; this binds the real seams. A refusal THROWS its code (the templates
+  // precedent: `template_not_found`), which the dialog maps to copy. The same version gate as
+  // session:launch runs first: `--resume` is no older than the flags the gate already covers.
+  ipcMain.handle(CH.pastSessionOpen, (_event, raw: unknown): PastSessionOpenResult => {
+    if (launchService === null) throw new Error('launch service not initialized')
+    if (!claudeVersionAllowsLaunch()) throw new Error('claude version below the supported minimum')
+    const service = launchService
+    const out = openPastSession(raw, {
+      get: (id) => requirePastSessionsStore().get(id),
+      isDirectory: (path) => {
+        try {
+          return statSync(path).isDirectory()
+        } catch {
+          return false // missing / unreadable — never throws, never logs the path
+        }
+      },
+      isLive: isSessionLive,
+      tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
+      launch: (req) => service.launch(req),
+      remove: (id) => {
+        requirePastSessionsStore().remove(id)
+      }
+    })
+    if (!out.ok) throw new Error(out.code)
+    return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
+  })
+
   // session:set-workspace — UNTRUSTED cross-process input; parse-and-throw at THIS boundary.
   // The WORKSPACE is validated against main's own store: moving a card into a workspace that
   // does not exist would strand it where no view can show it, so that fails closed with a code
@@ -2185,6 +2370,8 @@ function registerQuitIpc(): void {
     handleQuitConfirm(quitGuardState, {
       teardownAllSessions,
       teardownDeps: {
+        // Past sessions (D-3) — "Quit anyway" archives every live session before the kill.
+        archiveLiveSessions: () => archiveLiveSessions(),
         terminalManager,
         clearTerminalOwners: () => terminalOwners.clear()
       },
@@ -2307,9 +2494,6 @@ function createWindow(): void {
     const wc = closedWc
     ptys.get(wc)?.kill()
     ptys.delete(wc)
-    // Drop this window's session-engine registries + close its hook listener.
-    // Independent of the PTY teardown below.
-    teardownWatchFeed(wc)
     // Story 3.1 / Story 4.1 — tear down every embedded terminal this window owned via the
     // shared teardownWindowTerminals helper (explicit MAIN stop: port.close() THEN pty.kill(),
     // inside terminalManager.stop). B-1/M-2 hard constraint: NEVER rely on an incidental
@@ -2317,7 +2501,13 @@ function createWindow(): void {
     // app-quit, teardownAllSessions (before-quit) already ran and cleared terminalOwners →
     // this loop is a safe idempotent no-op. On a direct window close (4-2 will flip this to
     // minimize instead), it tears down this window's terminals cleanly.
+    //
+    // BEFORE teardownWatchFeed (Past sessions, D-3): it first ARCHIVES this window's live
+    // sessions through the window's board seam, and teardownWatchFeed is what drops that seam.
+    // The stops themselves fire no onExit, so they never reach the feed torn down below.
     teardownWindowTerminals(wc)
+    // Drop this window's session-engine registries + close its hook listener.
+    teardownWatchFeed(wc)
   })
 
   // Story 6.4 — start the native session engine for this window once it is ready to
@@ -2500,6 +2690,25 @@ app
       shortcutsStore = createShortcutsStore()
     }
     registerShortcutsIpc()
+
+    // Past sessions — after the workspaces store: a record may only name a workspace that exists.
+    const workspaceExists = (id: string): boolean => workspacesStore?.get(id) !== null
+    try {
+      pastSessionsStore = SMOKE
+        ? createPastSessionsStore({ workspaceExists })
+        : createPastSessionsStore({
+            blobStore: createElectronPastSessionsBlobStore(),
+            workspaceExists
+          })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a record
+      // carries operator names and cwds.
+      console.error(
+        '[claude-watcher][past-sessions] code=past_sessions_store_init_failed (in-memory)'
+      )
+      pastSessionsStore = createPastSessionsStore({ workspaceExists })
+    }
+    registerPastSessionsIpc()
 
     // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
     // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.
@@ -2690,6 +2899,9 @@ app.on('before-quit', (e) => {
   const showed = handleBeforeQuit(quitGuardState, {
     teardownAllSessions,
     teardownDeps: {
+      // Past sessions (D-3) — the nothing-live quit archives too (a bound session the guard's
+      // count did not see still gets its record). Runs only when this quit goes ahead.
+      archiveLiveSessions: () => archiveLiveSessions(),
       terminalManager,
       clearTerminalOwners: () => terminalOwners.clear()
     },

@@ -134,6 +134,7 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => `t-${++n}`,
+      now: () => 0,
       platform: 'linux'
     })
 
@@ -150,7 +151,10 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
       flags: NO_LAUNCH_FLAGS,
       templateId: null,
       initialPrompt: null,
-      workspaceId: null
+      workspaceId: null,
+      launchedAt: 0,
+      resume: null,
+      lastSessionId: null
     })
     // NON-CONSUMING (Story 5.4): a second peek returns the SAME recipe. The recipe is durable so
     // a StrictMode dev double-mount's surviving open AND a Reopen both still spawn claude (a
@@ -187,6 +191,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => `t-${++n}`,
       ...(overrides.newSessionId !== undefined ? { newSessionId: overrides.newSessionId } : {}),
+      now: () => 0,
       platform: 'linux',
       onCorrelated
     })
@@ -301,14 +306,18 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
     expect(svc.sessionIdFor('t-1')).toBeNull()
 
     // The durable spawn-override is untouched: a later Reopen still finds its recipe and
-    // mints a FRESH identity + binding (never the default $SHELL, never a stale id).
+    // mints a FRESH identity + binding (never the default $SHELL, never a stale id). It still
+    // remembers the id it last ran (a dead-pane Delete drops that record).
     expect(svc.peekSpawnOverride('t-1')).toEqual({
       cwd: '/p',
       name: 'p',
       flags: NO_LAUNCH_FLAGS,
       templateId: null,
       initialPrompt: null,
-      workspaceId: null
+      workspaceId: null,
+      launchedAt: 0,
+      resume: null,
+      lastSessionId: 'sess-1'
     })
     const reopened = svc.mintSpawn('t-1')
     expect(reopened?.sessionId).toBe('sess-2')
@@ -651,6 +660,7 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't-1',
+      now: () => 0,
       platform: 'linux'
     })
     svc.launch({ cwd: '/p', name: 'p' })
@@ -667,7 +677,10 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       flags: NO_LAUNCH_FLAGS,
       templateId: null,
       initialPrompt: null,
-      workspaceId: null
+      workspaceId: null,
+      launchedAt: 0,
+      resume: null,
+      lastSessionId: null
     })
     svc.forget('t-1') // idempotent
     expect(svc.peekSpawnOverride('t-1')).toEqual({
@@ -676,7 +689,10 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       flags: NO_LAUNCH_FLAGS,
       templateId: null,
       initialPrompt: null,
-      workspaceId: null
+      workspaceId: null,
+      launchedAt: 0,
+      resume: null,
+      lastSessionId: null
     })
   })
 })
@@ -742,6 +758,27 @@ describe('Session-rebind — terminalIdFor / rebind (claude changes its own id m
     expect(svc.sessionIdFor('t-1')).toBeNull()
     expect(svc.terminalIdFor('sess-new')).toBeNull()
   })
+
+  // Past sessions (D-3) — a Delete on a pane whose claude already exited has no binding left (the
+  // exit ARCHIVED the card and consumed it), yet it must still drop that record. The durable
+  // override remembers the id the terminal was LAST bound to, which the removal never clears.
+  it('the override remembers the LAST bound id: set by a mint, kept by unbind, moved by rebind', () => {
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' })
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBeNull() // nothing spawned yet
+
+    svc.mintSpawn('t-1')
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-1')
+    svc.rebind('t-1', 'sess-cleared') // /clear — claude moved to a new id
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-cleared')
+    svc.unbind('t-1') // the pty exit consumed the binding...
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-cleared') // ...not the memory
+    svc.rebind('t-1', 'sess-stray') // no binding ⇒ rebind moves nothing, the memory included
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-cleared')
+
+    svc.mintSpawn('t-1') // a Reopen binds a fresh id, and that is now the last one
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-2')
+  })
 })
 
 describe('Session-rebind — bindings() lists every live terminal → session binding', () => {
@@ -804,6 +841,7 @@ describe('session templates — launch flags reach spawn()', () => {
       },
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => `t-${++n}`,
+      now: () => 0,
       platform: 'linux'
     })
     return { svc, seen }
@@ -820,7 +858,10 @@ describe('session templates — launch flags reach spawn()', () => {
       flags: NO_LAUNCH_FLAGS,
       templateId: null,
       initialPrompt: null,
-      workspaceId: null
+      workspaceId: null,
+      launchedAt: 0,
+      resume: null,
+      lastSessionId: expect.any(String) // the default randomUUID mint
     })
   })
 
@@ -869,7 +910,7 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
     const { svc, spawn } = makeService()
     svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1', workspaceId: 'ws-9' })
     const minted = svc.mintSpawn('t-1')
-    expect(spawn).toHaveBeenCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1')
+    expect(spawn).toHaveBeenCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false)
     expect(minted?.initialPrompt).toBe('do HT-1')
     expect(minted?.workspaceId).toBe('ws-9')
   })
@@ -880,7 +921,7 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
     svc.mintSpawn('t-1')
     svc.forget('t-1')
     svc.mintSpawn('t-1')
-    expect(spawn).toHaveBeenLastCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1')
+    expect(spawn).toHaveBeenLastCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false)
   })
 })
 
@@ -941,5 +982,119 @@ describe('programmatic API — awaitBinding', () => {
       cleared.mockRestore()
       vi.useRealTimers()
     }
+  })
+})
+
+// Past sessions (D-1) — a LaunchRequest carrying `resumeSessionId` mints THAT id instead of a
+// fresh one, spawns with `resume: true` (claudeBin.ts composes the `--resume <id>` form, dropping
+// `-n`/the template flags/the positional prompt), and is born with the archive record's surviving
+// tags rather than running the launch rules. `launchedAt` (epoch millis at `launch()`) rides every
+// mint — a normal launch too — so `launchSynthesis.ts` can stamp the card with it.
+describe('past sessions — resume and launchedAt', () => {
+  it('a resume launch mints THAT id, spawns with resume=true, and keeps it for a Reopen', () => {
+    const { manager: tm } = fakeTerminalManager({ t1: 100 })
+    const launchedSet = createLaunchedSet()
+    const spawn = vi.fn(() => ({ file: 'sh' }))
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet,
+      spawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't1',
+      newSessionId: () => 'fresh',
+      now: () => 777,
+      platform: 'linux'
+    })
+    const { terminalId } = svc.launch({
+      cwd: '/c',
+      name: 'old name',
+      resumeSessionId: 'sess-A',
+      tagIds: ['t1']
+    })
+    const first = svc.mintSpawn(terminalId)
+    expect(first?.sessionId).toBe('sess-A')
+    expect(first?.resume).toEqual({ sessionId: 'sess-A', tagIds: ['t1'] })
+    expect(first?.launchedAt).toBe(777)
+    expect(spawn).toHaveBeenLastCalledWith('sess-A', 'old name', NO_LAUNCH_FLAGS, null, true)
+    expect(launchedSet.has('sess-A')).toBe(true)
+    // A dead-pane Reopen re-resumes the SAME conversation, never a fresh id.
+    expect(svc.mintSpawn(terminalId)?.sessionId).toBe('sess-A')
+  })
+
+  // `/clear` inside a resumed session moves claude to a NEW id; the card follows (adoptCard →
+  // rebind) and is archived under it. A Reopen that still resumed the pre-clear id would put a
+  // second id on one conversation and bring back the conversation from before the clear.
+  it('a /clear rebind moves the resume id too, so a dead-pane Reopen resumes the NEW id', () => {
+    const { manager: tm } = fakeTerminalManager({ t1: 100 })
+    const spawn = vi.fn(() => ({ file: 'sh' }))
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet: createLaunchedSet(),
+      spawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't1',
+      newSessionId: () => 'fresh',
+      now: () => 777,
+      platform: 'linux'
+    })
+    const { terminalId } = svc.launch({
+      cwd: '/c',
+      name: 'old name',
+      resumeSessionId: 'sess-A',
+      tagIds: ['t1']
+    })
+    svc.mintSpawn(terminalId)
+
+    svc.rebind(terminalId, 'sess-B') // /clear
+    svc.unbind(terminalId) // the pty exits (the card is archived under sess-B)
+    const reopened = svc.mintSpawn(terminalId)
+
+    expect(reopened?.sessionId).toBe('sess-B')
+    expect(reopened?.resume).toEqual({ sessionId: 'sess-B', tagIds: ['t1'] })
+    expect(spawn).toHaveBeenLastCalledWith('sess-B', 'old name', NO_LAUNCH_FLAGS, null, true)
+  })
+
+  it('a /clear rebind never turns a FRESH launch into a resume', () => {
+    const { manager: tm } = fakeTerminalManager({ t2: 100 })
+    let s = 0
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet: createLaunchedSet(),
+      spawn: vi.fn(() => ({ file: 'sh' })),
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't2',
+      newSessionId: () => `fresh-${++s}`,
+      now: () => 5,
+      platform: 'linux'
+    })
+    const { terminalId } = svc.launch({ cwd: '/c', name: 'n' })
+    svc.mintSpawn(terminalId)
+    svc.rebind(terminalId, 'sess-B')
+
+    expect(svc.peekSpawnOverride(terminalId)?.resume).toBeNull()
+    expect(svc.mintSpawn(terminalId)?.sessionId).toBe('fresh-2')
+  })
+
+  it('a normal launch is unchanged: fresh id, resume=false, resume null on the mint', () => {
+    const { manager: tm } = fakeTerminalManager({ t2: 100 })
+    const launchedSet = createLaunchedSet()
+    const spawn = vi.fn(() => ({ file: 'sh' }))
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet,
+      spawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't2',
+      newSessionId: () => 'fresh',
+      now: () => 5,
+      platform: 'linux'
+    })
+    const { terminalId } = svc.launch({ cwd: '/c', name: 'n' })
+    const minted = svc.mintSpawn(terminalId)
+    expect(minted?.sessionId).toBe('fresh')
+    expect(minted?.resume).toBeNull()
+    expect(minted?.launchedAt).toBe(5)
+    expect(spawn).toHaveBeenLastCalledWith('fresh', 'n', NO_LAUNCH_FLAGS, null, false)
+    expect(svc.peekSpawnOverride(terminalId)?.launchedAt).toBe(5)
   })
 })

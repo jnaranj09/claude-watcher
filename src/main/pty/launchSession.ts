@@ -105,6 +105,13 @@ export interface LaunchRequest {
   /** Programmatic API — the workspace the card must land in (a template's own scope);
    *  omitted/null ⇒ main's active workspace at spawn (today's behaviour). */
   workspaceId?: string | null
+  /** Past sessions (D-1) — resume claude's session `<id>` instead of minting a fresh one. The
+   *  minted identity IS this id (probe-verified: `--resume` keeps it), the spawn is the
+   *  `--resume` form, and a dead-pane Reopen resumes it again. Omitted/null ⇒ a fresh launch. */
+  resumeSessionId?: string | null
+  /** Past sessions — the record's tags that still exist; the card is born with them instead of
+   *  running the launch rules (a resume is not a new launch). Ignored without `resumeSessionId`. */
+  tagIds?: readonly string[]
 }
 
 /** The per-terminal launch recipe, set once at launch and read on EVERY spawn of that terminal. */
@@ -117,6 +124,19 @@ export interface LaunchOverride {
   initialPrompt: string | null
   /** Programmatic API — the workspace this launch names, or null for "active at spawn". */
   workspaceId: string | null
+  /** Epoch millis `launch()` registered this recipe — the archive record's `launchedAt`. */
+  launchedAt: number
+  /** Past sessions — set iff this launch resumes an archived record: the exact session id to
+   *  resume + the record's surviving tags. Null for a normal (fresh) launch. `rebind` moves the
+   *  id on `/clear`, so a dead-pane Reopen resumes the conversation the card last showed. */
+  resume: { sessionId: string; tagIds: string[] } | null
+  /** Past sessions (D-3) — the session id this terminal was LAST bound to: written by every
+   *  `mintSpawn`, moved by `rebind` (`/clear`), and — unlike the binding — never cleared by
+   *  `unbind`. It is what a Delete on a pane whose claude already exited reaches: that exit
+   *  archived the card and consumed the binding, yet its record must still go (`CH.sessionDelete`
+   *  → `deleteTerminalSession`, launchRemoval.ts). Null until the first spawn. NOT part of the
+   *  spawn recipe — no spawn reads it. */
+  lastSessionId: string | null
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -154,6 +174,12 @@ export interface MintedLaunchSpawn {
   initialPrompt: string | null
   /** Programmatic API — the override's workspace, or null for "active at spawn". */
   workspaceId: string | null
+  /** Epoch millis `launch()` registered this recipe — read back off the override so
+   *  `buildLaunchedSession` can stamp the card with it. */
+  launchedAt: number
+  /** Past sessions — the override's resume decision, read back verbatim. Null for a normal
+   *  launch; set for a resume (the exact session id + the record's surviving tags). */
+  resume: { sessionId: string; tagIds: string[] } | null
 }
 
 export interface LaunchServiceOptions {
@@ -180,12 +206,18 @@ export interface LaunchServiceOptions {
    *  Programmatic API: `initialPrompt` is the expanded prompt this launch was registered with
    *  (null for every in-app flow), read off the same override for the same reason — a Reopen
    *  must re-run the prompt the launch was created with, not a bare `claude`. The factory
-   *  appends it as claude's positional `[prompt]` argument; quoting it is the factory's job. */
+   *  appends it as claude's positional `[prompt]` argument; quoting it is the factory's job.
+   *
+   *  Past sessions (D-1): `resume` is true iff this launch's override carries a `resume`
+   *  decision — the factory composes `claude --resume <sessionId>` instead of
+   *  `--session-id <sessionId>` (claudeBin.ts `ClaudeCommandSpec.resume`), dropping `-n`, the
+   *  template flags and the positional prompt. */
   spawn: (
     sessionId: string,
     displayName: string,
     flags: ClaudeLaunchFlags,
-    initialPrompt: string | null
+    initialPrompt: string | null,
+    resume: boolean
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
    *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
@@ -278,15 +310,18 @@ export interface LaunchService {
    *  Bindings are 1:1 (mintSpawn overwrites per terminal), so the first match is the match. */
   terminalIdFor(sessionId: string): string | null
   /** Session-rebind — repoint a LIVE terminal's binding at a new session id, after claude
-   *  changed its own id mid-run. Unlike `mintSpawn` this does NOT spawn, mint, or touch the
-   *  durable spawn-override; it only moves the exact binding so a later stop/exit removes the
-   *  session the board is actually showing. A no-op for an unknown terminalId (never invents
-   *  a binding for a terminal that was never launched — the ship gate). */
+   *  changed its own id mid-run. Unlike `mintSpawn` this does NOT spawn or mint; it moves the
+   *  exact binding so a later stop/exit removes the session the board is actually showing, and
+   *  the override's `lastSessionId` with it (a dead-pane Delete drops the NEW id's record) — plus
+   *  a resume recipe's id (a dead-pane Reopen resumes the NEW id, never the pre-clear one). A
+   *  no-op for an unknown terminalId (never invents a binding for a terminal that was never
+   *  launched — the ship gate). */
   rebind(terminalId: string, sessionId: string): void
   /** Story 6.3 — clear the `terminalId → sessionId` binding after a stop/exit REMOVAL
    *  consumed it (the card is gone; the binding no longer names a live launched session).
    *  Idempotent. The durable spawn-override is NOT touched — a later Reopen still finds its
-   *  recipe and `mintSpawn` writes a FRESH binding. Clearing here keeps the lifecycle
+   *  recipe and `mintSpawn` writes a FRESH binding, and its `lastSessionId` still names the id
+   *  this removal consumed (a dead-pane Delete needs it). Clearing here keeps the lifecycle
    *  coherent: a second stop/exit trigger for the same terminal resolves `sessionIdFor` to
    *  null and no-ops (removal is idempotent by construction). */
   unbind(terminalId: string): void
@@ -359,13 +394,21 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // Programmatic API: the expanded initial prompt and the named workspace sit beside them —
     // same key, same lifetime, same "read on every spawn" contract, so a Reopen re-runs the
     // same prompt and lands the card in the same workspace. Omitted (every in-app flow) ⇒ null.
+    // Past sessions: `resumeSessionId` set ⇒ the recipe carries the exact id to resume + the
+    // record's surviving tags — read on every spawn (a Reopen resumes the SAME conversation).
     overrides.set(terminalId, {
       cwd: req.cwd,
       name: req.name,
       flags: req.flags ?? NO_LAUNCH_FLAGS,
       templateId: req.templateId ?? null,
       initialPrompt: req.initialPrompt ?? null,
-      workspaceId: req.workspaceId ?? null
+      workspaceId: req.workspaceId ?? null,
+      launchedAt: now(),
+      resume:
+        req.resumeSessionId != null
+          ? { sessionId: req.resumeSessionId, tagIds: [...(req.tagIds ?? [])] }
+          : null,
+      lastSessionId: null // nothing spawned yet — mintSpawn writes it
     })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
@@ -384,12 +427,21 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     if (override === undefined) return null // non-launch terminalId — the Story-3.1 shell path
 
     // Fresh identity PER ACTUAL SPAWN (first open AND Reopen alike): claude consumes the
-    // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error.
-    const sessionId = newSessionId()
+    // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error. Past
+    // sessions: a resume launch mints THAT id instead — claude already holds it, and a
+    // dead-pane Reopen must resume the SAME conversation, never a fresh one.
+    const sessionId = override.resume?.sessionId ?? newSessionId()
     // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
     // generating its own title that would then disagree with the board card. Session templates:
-    // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them.
-    const base = options.spawn(sessionId, override.name, override.flags, override.initialPrompt)
+    // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them. The
+    // resume flag tells the factory to compose `claude --resume <id>` instead.
+    const base = options.spawn(
+      sessionId,
+      override.name,
+      override.flags,
+      override.initialPrompt,
+      override.resume !== null
+    )
     const spawn: LaunchSpawnConfig = {
       file: base.file,
       ...(base.args !== undefined ? { args: base.args } : {}),
@@ -398,8 +450,10 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     }
 
     // (c) Record the EXACT binding — a Reopen OVERWRITES with the new id (the old session is
-    // gone; the frame now hosts the fresh one). Story 6.3 reads this for removal.
+    // gone; the frame now hosts the fresh one). Story 6.3 reads this for removal. Past sessions:
+    // the override remembers it too, past the removal that will clear the binding.
     bindings.set(terminalId, sessionId)
+    overrides.set(terminalId, { ...override, lastSessionId: sessionId })
     // Programmatic API — wake anything waiting on THIS terminal's binding (awaitBinding). The
     // waiter set is deleted FIRST so each waiter is one-shot: a Reopen's second mint has
     // nobody left to call, and a waiter can never be resolved twice.
@@ -428,7 +482,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
       displayName: override.name,
       templateId: override.templateId,
       initialPrompt: override.initialPrompt,
-      workspaceId: override.workspaceId
+      workspaceId: override.workspaceId,
+      launchedAt: override.launchedAt,
+      resume: override.resume
     }
   }
 
@@ -472,6 +528,18 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // would let an external session reach the board (Story 3.3 ship gate).
     if (!bindings.has(terminalId)) return
     bindings.set(terminalId, sessionId)
+    // Past sessions — the terminal's LAST id moves with it: the card now lives (and will be
+    // archived) under the new id, so that is the record a dead-pane Delete must drop. A RESUME
+    // recipe moves too, or a dead-pane Reopen would `--resume` the conversation from before the
+    // `/clear` while its card (and record) carry the new id. A fresh launch stays fresh.
+    const override = overrides.get(terminalId)
+    if (override !== undefined) {
+      overrides.set(terminalId, {
+        ...override,
+        lastSessionId: sessionId,
+        resume: override.resume === null ? null : { ...override.resume, sessionId }
+      })
+    }
   }
 
   function unbind(terminalId: string): void {

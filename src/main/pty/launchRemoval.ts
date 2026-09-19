@@ -17,6 +17,11 @@
 // (the reducer's removed-path treats an unknown id as "already gone", mirroring applyStop).
 // [Source: spec-native-session-engine.md Story 6.3; .claude/rules/state.md one-way flow]
 
+/** Past sessions (D-3) — why a card leaves the board. `archive` writes a history record (the
+ *  default: Stop/Archive, Ctrl+C twice, `/exit`, a pty exit, a late SessionEnd); `delete` writes
+ *  none and removes any earlier record for that id (after the Delete confirm). */
+export type RemovalReason = 'archive' | 'delete'
+
 /** The minimal launch-service surface the removal needs (structurally satisfied by
  *  `LaunchService` — see launchSession.ts `sessionIdFor`/`unbind`). */
 export interface LaunchBindingSource {
@@ -81,4 +86,92 @@ export function stopTerminalAndRemoveBound(
   if (!wasLive || manager.has(terminalId)) return null // already-dead OR stale-token no-op
   if (launch === null) return null
   return removeBoundSession(terminalId, launch, removeSession)
+}
+
+/** The launch-service surface the Delete needs: the binding pair plus the durable override's
+ *  memory of the id the terminal was LAST bound to (structurally satisfied by `LaunchService` —
+ *  `LaunchOverride.lastSessionId`, which `unbind` never clears). */
+export interface LastSessionSource extends LaunchBindingSource {
+  peekSpawnOverride(terminalId: string): { lastSessionId: string | null } | null
+}
+
+/**
+ * Past sessions (D-3/D-4) — the `CH.sessionDelete` path. Stop the terminal and remove its bound
+ * card with the `delete` reason (`removeSession` → the owning window's
+ * `removeLaunched(…, 'delete')`, which drops any record for that id), exactly like an Archive but
+ * for the reason. THEN drop the history record of the id this terminal last ran, via
+ * `removeRecord`.
+ *
+ * That second step is the only thing that reaches a pane whose claude already EXITED: its exit
+ * archived the card and consumed the binding, so `removeSession` never fires, and the renderer —
+ * whose card is gone — no longer knows the id either. The launch override does
+ * (`lastSessionId`, moved by `rebind` on `/clear`). `hintSessionId` is the renderer's own id for
+ * the pane, removed too; every removal here is idempotent, so a live pane that already dropped
+ * its record through `removeSession` loses nothing twice.
+ */
+export function deleteTerminalSession(
+  terminalId: string,
+  hintSessionId: string | null,
+  manager: StoppableTerminalManager,
+  launch: LastSessionSource | null,
+  removeSession: (sessionId: string) => void,
+  removeRecord: (sessionId: string) => void
+): void {
+  stopTerminalAndRemoveBound(terminalId, undefined, manager, launch, removeSession)
+  const recordIds = new Set<string>()
+  const last = launch?.peekSpawnOverride(terminalId)?.lastSessionId ?? null
+  if (last !== null) recordIds.add(last)
+  if (hintSessionId !== null) recordIds.add(hintSessionId)
+  for (const id of recordIds) removeRecord(id)
+}
+
+/** The launch-service surface `archiveBoundSessions` needs: the binding pair plus the snapshot of
+ *  every live binding (structurally satisfied by `LaunchService`). */
+export interface BoundSessionsSource extends LaunchBindingSource {
+  bindings(): ReadonlyArray<{ terminalId: string; sessionId: string }>
+}
+
+/**
+ * Past sessions (D-3) — ARCHIVE every bound launched session, for the paths that end sessions
+ * WITHOUT an onExit: the app quit (`teardownAllSessions` → `terminalManager.destroyAll()`) and a
+ * window close (`teardownWindowTerminals` → `terminalManager.stop()`). Both tear the pty down
+ * with its exit listener already disposed, so the pty-exit archive never runs; this step runs
+ * FIRST, while the reducer still holds each card and `terminalOwners` still routes to its seam.
+ *
+ * Each binding goes through `removeBoundSession` (unbind FIRST, then `archiveSession`), so it is
+ * idempotent: a second run finds nothing bound and archives nothing, and the store upserts by id
+ * anyway. `include` narrows it to one window's terminals (the window-close path).
+ *
+ * NEVER THROWS — it sits on the quit path, which must always go ahead. A failure on one session is
+ * logged by CODE only (never the session id, a name or a path) and the others still archive.
+ * Returns the archived session ids.
+ */
+export function archiveBoundSessions(
+  launch: BoundSessionsSource | null,
+  archiveSession: (terminalId: string, sessionId: string) => void,
+  log: (message: string) => void,
+  include: (terminalId: string) => boolean = () => true
+): string[] {
+  if (launch === null) return []
+  const failed = (): void => log('[claude-watcher][past-sessions] code=teardown_archive_failed')
+  let bound: ReadonlyArray<{ terminalId: string }>
+  try {
+    bound = launch.bindings()
+  } catch {
+    failed()
+    return []
+  }
+  const archived: string[] = []
+  for (const { terminalId } of bound) {
+    try {
+      if (!include(terminalId)) continue
+      const id = removeBoundSession(terminalId, launch, (sessionId) =>
+        archiveSession(terminalId, sessionId)
+      )
+      if (id !== null) archived.push(id)
+    } catch {
+      failed()
+    }
+  }
+  return archived
 }

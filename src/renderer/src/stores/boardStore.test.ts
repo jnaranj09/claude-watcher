@@ -32,6 +32,7 @@ import {
   selectCardCountByWorkspace,
   selectTagsDialogOpen,
   selectRulesDialogOpen,
+  selectPastSessionsDialogOpen,
   selectSearchQuery,
   HERO_COLUMN,
   NO_FILTER,
@@ -1479,5 +1480,18 @@ describe('the Rules dialog flag', () => {
     expect(selectRulesDialogOpen(store.getState())).toBe(true)
     store.getState().closeRulesDialog()
     expect(selectRulesDialogOpen(store.getState())).toBe(false)
+  })
+})
+
+describe('the Past sessions dialog flag', () => {
+  it('starts closed, opens and closes, idempotently', () => {
+    const store = createBoardStore()
+    expect(selectPastSessionsDialogOpen(store.getState())).toBe(false)
+    store.getState().openPastSessionsDialog()
+    store.getState().openPastSessionsDialog()
+    expect(selectPastSessionsDialogOpen(store.getState())).toBe(true)
+    store.getState().closePastSessionsDialog()
+    store.getState().closePastSessionsDialog()
+    expect(selectPastSessionsDialogOpen(store.getState())).toBe(false)
   })
 })

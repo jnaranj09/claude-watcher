@@ -18,6 +18,8 @@ import type {
   SessionRenameRequest,
   SessionSetWorkspaceRequest,
   SessionSeenRequest,
+  SessionArchiveRequest,
+  SessionDeleteRequest,
   LaunchCorrelatedEvent,
   LaunchRequestedEvent,
   ApiTokenResult,
@@ -46,7 +48,11 @@ import type {
   RuleDeleteRequest,
   RuleMoveRequest,
   RulesListResult,
-  RulesSaveResult
+  RulesSaveResult,
+  PastSession,
+  PastSessionForgetRequest,
+  PastSessionOpenRequest,
+  PastSessionOpenResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -311,6 +317,20 @@ const launchApi = {
     const listener = (_evt: unknown, event: LaunchRequestedEvent): void => cb(event)
     ipcRenderer.on(CH.launchRequested, listener)
     return () => ipcRenderer.removeListener(CH.launchRequested, listener)
+  },
+  /** Past sessions (D-3) — ARCHIVE this terminal's session: stop the pty, keep a record in the
+   *  history, remove the card. No confirmation; reversible through `Past sessions…`. */
+  archiveSession(terminalId: string): Promise<void> {
+    const req: SessionArchiveRequest = { terminalId }
+    return ipcRenderer.invoke(CH.sessionArchive, req)
+  },
+  /** Past sessions (D-3/D-4) — DELETE: stop the pty, remove any record, remove the card. Claude's
+   *  own files are never touched. Main finds the record itself, an already-exited pane's included
+   *  (the terminal's last bound id); `sessionId` is only the renderer's hint for the pane (null
+   *  before correlation and once the card is gone). */
+  deleteSession(terminalId: string, sessionId: string | null): Promise<void> {
+    const req: SessionDeleteRequest = { terminalId, sessionId }
+    return ipcRenderer.invoke(CH.sessionDelete, req)
   }
 }
 
@@ -331,6 +351,26 @@ const templatesApi = {
   }
 }
 export type TemplatesApi = typeof templatesApi
+
+// Past sessions — typed invoke wrappers over CH.pastSessions*. `forget`, not `delete`
+// (reserved word and a different act: Delete is the card's exit; Forget drops a record).
+const pastSessionsApi = {
+  list(): Promise<PastSession[]> {
+    return ipcRenderer.invoke(CH.pastSessionsList)
+  },
+  forget(id: string): Promise<PastSession[]> {
+    const req: PastSessionForgetRequest = { id }
+    return ipcRenderer.invoke(CH.pastSessionsForget, req)
+  },
+  /** Resume a record as a live card. Rejects with `not_found` / `folder_missing` /
+   *  `already_open` (mapped to copy in the dialog; `already_open` first takes the view to the live
+   *  card when the renderer knows it). Resolves with the launch to open. */
+  open(id: string): Promise<PastSessionOpenResult> {
+    const req: PastSessionOpenRequest = { id }
+    return ipcRenderer.invoke(CH.pastSessionOpen, req)
+  }
+}
+export type PastSessionsApi = typeof pastSessionsApi
 
 // Phrase shortcuts — typed invoke wrappers over CH.shortcuts*. `remove`, not `delete`
 // (reserved word), so the store and the bridge share one verb — same as templatesApi.
@@ -507,6 +547,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('launch', launchApi)
     // Session templates — the templates CRUD bridge (templates:list/save/delete).
     contextBridge.exposeInMainWorld('templates', templatesApi)
+    // Past sessions — the history bridge (list/forget/open via CH.pastSessions*).
+    contextBridge.exposeInMainWorld('pastSessions', pastSessionsApi)
     // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete). The phrase
     // itself never crosses here: a matched chord posts it on the terminal's existing port.
     contextBridge.exposeInMainWorld('shortcuts', shortcutsApi)
@@ -554,6 +596,8 @@ if (process.contextIsolated) {
   window.clipboard = clipboardApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.templates is in index.d.ts
   window.templates = templatesApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.pastSessions is in index.d.ts
+  window.pastSessions = pastSessionsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.shortcuts is in index.d.ts
   window.shortcuts = shortcutsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.workspaces is in index.d.ts

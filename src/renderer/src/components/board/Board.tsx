@@ -94,6 +94,10 @@ export interface BoardProps {
   onSetCardTags?: (id: string, tagIds: string[]) => void
   /** Tags — opens the Tags dialog; a card's Tags… button uses it while no tag exists yet. */
   onManageTags?: () => void
+  /** Past sessions (D-3) — card Archive seam. Omitted ⇒ no Archive control on any card. */
+  onArchiveCard?: (id: string) => void
+  /** Past sessions (D-5) — card Delete seam. Omitted ⇒ no Delete control on any card. */
+  onDeleteCard?: (id: string) => void
 }
 
 export function Board({
@@ -104,7 +108,9 @@ export function Board({
   onRenameCard,
   onMoveCardToWorkspace,
   onSetCardTags,
-  onManageTags
+  onManageTags,
+  onArchiveCard,
+  onDeleteCard
 }: BoardProps): JSX.Element {
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
@@ -281,6 +287,8 @@ export function Board({
               {...(onMoveCardToWorkspace ? { onMoveCardToWorkspace } : {})}
               {...(onSetCardTags ? { onSetCardTags } : {})}
               {...(onManageTags ? { onManageTags } : {})}
+              {...(onArchiveCard ? { onArchiveCard } : {})}
+              {...(onDeleteCard ? { onDeleteCard } : {})}
             />
           ))}
         </div>

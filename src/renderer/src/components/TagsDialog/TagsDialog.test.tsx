@@ -167,6 +167,30 @@ describe('TagsDialog', () => {
     )
   })
 
+  it('D-13: a slash name draws as parent/ muted + leaf, indented, and its row is named by the full name', () => {
+    act(() => {
+      tagsStore.setState({
+        tags: [
+          { id: 't-acme', name: 'acme', color: 'blue', workspaceId: null },
+          { id: 't-acme-prod', name: 'acme/prod', color: 'blue', workspaceId: null }
+        ],
+        loaded: true,
+        activeTagId: null
+      })
+    })
+    const { r } = render()
+    // Both seeded tags are global (workspaceId: null); the dialog opens on the active workspace's
+    // OWN scope (strict filtering — design.md), so switch to Global to see them.
+    chooseOption(r.container, 'tag-scope-filter', 'global')
+    // Target the row by its own stable id, not row position — `tag-row` is shared by every row.
+    const child = r.container.querySelector<HTMLElement>(
+      '[data-testid="tag-select-t-acme-prod"] [data-testid="tag-path"]'
+    )
+    expect(child?.getAttribute('aria-label')).toBe('acme/prod')
+    expect(child?.querySelector('[data-testid="tag-path-parent"]')?.textContent).toBe('acme/')
+    expect(child?.style.paddingLeft).toBe('calc(1 * var(--space-3))')
+  })
+
   it('closes on Escape', () => {
     const { r, onClose } = render()
     act(() => {
