@@ -132,7 +132,8 @@ declare global {
       // no confirmation). Resolves void; the card leaves as a normal `session.removed` delta.
       archiveSession(terminalId: string): Promise<void>
       // Past sessions (D-3/D-4) — delete: stop the pty, remove any record, remove the card, after
-      // the Delete confirm. `sessionId` is null when the renderer has not yet correlated the pane.
+      // the Delete confirm. `sessionId` is only a hint: null before the renderer correlated the pane
+      // and once its card is gone — main finds an exited pane's record itself (its last bound id).
       deleteSession(terminalId: string, sessionId: string | null): Promise<void>
     }
     // Session templates — mirrors src/preload/index.ts `templatesApi`.
