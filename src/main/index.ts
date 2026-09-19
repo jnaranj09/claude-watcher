@@ -11,6 +11,7 @@ import {
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
+import { statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -25,7 +26,8 @@ import type {
   SmokeReport,
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
-  ReducerWatchEventsPayload
+  ReducerWatchEventsPayload,
+  PastSessionOpenResult
 } from '../shared/ipc/contract'
 // Story 3.1 (FR-10) — the embedded-terminal transport: the MAIN-side terminal manager (one
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
@@ -149,6 +151,9 @@ import { mintForOpen } from './pty/launchMint'
 // Session-naming — the extracted, unit-tested launch-card synthesis (see launchSynthesis.ts).
 import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
+// Past sessions (D-1) — the extracted "can this record be reopened?" decision
+// (unit-tested in pastSessionOpen.test.ts, mirroring the launchMint/launchRemoval extraction).
+import { openPastSession } from './pty/pastSessionOpen'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { createProcessSessionSourceFromFs } from './pty/claudeSessionFile'
 import {
@@ -351,6 +356,8 @@ interface LaunchBoardSeam {
   /** Workspaces — the live-session guard (spec W-6): true when THIS window's board has any
    *  card in `workspaceId`. Read-only scan of the reducer snapshot; no handleDelta involved. */
   hasSessionsInWorkspace(workspaceId: string): boolean
+  /** Past sessions — is this id a live card on THIS window's board? Read-only. */
+  hasSession(sessionId: string): boolean
   /** Story 6.3 removal, now with the exit's REASON (D-3): `archive` snapshots the card into the
    *  past-sessions store BEFORE it goes; `delete` drops any record. Idempotent either way. */
   removeLaunched(sessionId: string, reason: RemovalReason): void
@@ -666,6 +673,7 @@ function registerWatchFeed(window: BrowserWindow): void {
       }
       return false
     },
+    hasSession: (sessionId) => reducer.snapshotMap().has(sessionId),
     // Story 6.3 — the fast stop/exit removal rides the HOOK-REMOVAL reducer path (REUSE,
     // not a new reducer API): applyHookStatus(id, removed) deletes the session + emits
     // `session.removed`, and the delta takes the SAME handleDelta chokepoint (tracker →
@@ -1259,6 +1267,12 @@ function hasLiveSessions(workspaceId: string): boolean {
   for (const seam of launchBoardSeams.values()) {
     if (seam.hasSessionsInWorkspace(workspaceId)) return true
   }
+  return false
+}
+
+/** Past sessions — a live card in ANY window blocks a second Open of the same id. */
+function isSessionLive(sessionId: string): boolean {
+  for (const seam of launchBoardSeams.values()) if (seam.hasSession(sessionId)) return true
   return false
 }
 
@@ -2210,6 +2224,34 @@ function registerLaunchIpc(): void {
     // The pane may already be dead (its exit ARCHIVED the card): the binding is gone, so the
     // renderer's own id is what drops that record. Idempotent when the stop above did it.
     if (sessionId !== null) pastSessionsStore?.remove(sessionId)
+  })
+
+  // past-sessions:open — UNTRUSTED arg (parse-and-throw inside openPastSession). The decision is
+  // the extracted module; this binds the real seams. A refusal THROWS its code (the templates
+  // precedent: `template_not_found`), which the dialog maps to copy. The same version gate as
+  // session:launch runs first: `--resume` is no older than the flags the gate already covers.
+  ipcMain.handle(CH.pastSessionOpen, (_event, raw: unknown): PastSessionOpenResult => {
+    if (launchService === null) throw new Error('launch service not initialized')
+    if (!claudeVersionAllowsLaunch()) throw new Error('claude version below the supported minimum')
+    const service = launchService
+    const out = openPastSession(raw, {
+      get: (id) => requirePastSessionsStore().get(id),
+      isDirectory: (path) => {
+        try {
+          return statSync(path).isDirectory()
+        } catch {
+          return false // missing / unreadable — never throws, never logs the path
+        }
+      },
+      isLive: isSessionLive,
+      tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
+      launch: (req) => service.launch(req),
+      remove: (id) => {
+        requirePastSessionsStore().remove(id)
+      }
+    })
+    if (!out.ok) throw new Error(out.code)
+    return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
   })
 
   // session:set-workspace — UNTRUSTED cross-process input; parse-and-throw at THIS boundary.
