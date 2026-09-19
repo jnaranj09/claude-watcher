@@ -1021,6 +1021,60 @@ describe('past sessions — resume and launchedAt', () => {
     expect(svc.mintSpawn(terminalId)?.sessionId).toBe('sess-A')
   })
 
+  // `/clear` inside a resumed session moves claude to a NEW id; the card follows (adoptCard →
+  // rebind) and is archived under it. A Reopen that still resumed the pre-clear id would put a
+  // second id on one conversation and bring back the conversation from before the clear.
+  it('a /clear rebind moves the resume id too, so a dead-pane Reopen resumes the NEW id', () => {
+    const { manager: tm } = fakeTerminalManager({ t1: 100 })
+    const spawn = vi.fn(() => ({ file: 'sh' }))
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet: createLaunchedSet(),
+      spawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't1',
+      newSessionId: () => 'fresh',
+      now: () => 777,
+      platform: 'linux'
+    })
+    const { terminalId } = svc.launch({
+      cwd: '/c',
+      name: 'old name',
+      resumeSessionId: 'sess-A',
+      tagIds: ['t1']
+    })
+    svc.mintSpawn(terminalId)
+
+    svc.rebind(terminalId, 'sess-B') // /clear
+    svc.unbind(terminalId) // the pty exits (the card is archived under sess-B)
+    const reopened = svc.mintSpawn(terminalId)
+
+    expect(reopened?.sessionId).toBe('sess-B')
+    expect(reopened?.resume).toEqual({ sessionId: 'sess-B', tagIds: ['t1'] })
+    expect(spawn).toHaveBeenLastCalledWith('sess-B', 'old name', NO_LAUNCH_FLAGS, null, true)
+  })
+
+  it('a /clear rebind never turns a FRESH launch into a resume', () => {
+    const { manager: tm } = fakeTerminalManager({ t2: 100 })
+    let s = 0
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet: createLaunchedSet(),
+      spawn: vi.fn(() => ({ file: 'sh' })),
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't2',
+      newSessionId: () => `fresh-${++s}`,
+      now: () => 5,
+      platform: 'linux'
+    })
+    const { terminalId } = svc.launch({ cwd: '/c', name: 'n' })
+    svc.mintSpawn(terminalId)
+    svc.rebind(terminalId, 'sess-B')
+
+    expect(svc.peekSpawnOverride(terminalId)?.resume).toBeNull()
+    expect(svc.mintSpawn(terminalId)?.sessionId).toBe('fresh-2')
+  })
+
   it('a normal launch is unchanged: fresh id, resume=false, resume null on the mint', () => {
     const { manager: tm } = fakeTerminalManager({ t2: 100 })
     const launchedSet = createLaunchedSet()

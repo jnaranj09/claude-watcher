@@ -127,7 +127,8 @@ export interface LaunchOverride {
   /** Epoch millis `launch()` registered this recipe — the archive record's `launchedAt`. */
   launchedAt: number
   /** Past sessions — set iff this launch resumes an archived record: the exact session id to
-   *  resume + the record's surviving tags. Null for a normal (fresh) launch. */
+   *  resume + the record's surviving tags. Null for a normal (fresh) launch. `rebind` moves the
+   *  id on `/clear`, so a dead-pane Reopen resumes the conversation the card last showed. */
   resume: { sessionId: string; tagIds: string[] } | null
   /** Past sessions (D-3) — the session id this terminal was LAST bound to: written by every
    *  `mintSpawn`, moved by `rebind` (`/clear`), and — unlike the binding — never cleared by
@@ -311,7 +312,8 @@ export interface LaunchService {
   /** Session-rebind — repoint a LIVE terminal's binding at a new session id, after claude
    *  changed its own id mid-run. Unlike `mintSpawn` this does NOT spawn or mint; it moves the
    *  exact binding so a later stop/exit removes the session the board is actually showing, and
-   *  the override's `lastSessionId` with it (a dead-pane Delete drops the NEW id's record). A
+   *  the override's `lastSessionId` with it (a dead-pane Delete drops the NEW id's record) — plus
+   *  a resume recipe's id (a dead-pane Reopen resumes the NEW id, never the pre-clear one). A
    *  no-op for an unknown terminalId (never invents a binding for a terminal that was never
    *  launched — the ship gate). */
   rebind(terminalId: string, sessionId: string): void
@@ -527,9 +529,17 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     if (!bindings.has(terminalId)) return
     bindings.set(terminalId, sessionId)
     // Past sessions — the terminal's LAST id moves with it: the card now lives (and will be
-    // archived) under the new id, so that is the record a dead-pane Delete must drop.
+    // archived) under the new id, so that is the record a dead-pane Delete must drop. A RESUME
+    // recipe moves too, or a dead-pane Reopen would `--resume` the conversation from before the
+    // `/clear` while its card (and record) carry the new id. A fresh launch stays fresh.
     const override = overrides.get(terminalId)
-    if (override !== undefined) overrides.set(terminalId, { ...override, lastSessionId: sessionId })
+    if (override !== undefined) {
+      overrides.set(terminalId, {
+        ...override,
+        lastSessionId: sessionId,
+        resume: override.resume === null ? null : { ...override.resume, sessionId }
+      })
+    }
   }
 
   function unbind(terminalId: string): void {
