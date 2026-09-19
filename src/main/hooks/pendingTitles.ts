@@ -32,6 +32,12 @@ export interface PendingTitles {
   /** Drop a session's pending name without pushing it — for stop/exit removal, so a rename
    *  that raced a stop cannot be pushed to a session that no longer exists. Idempotent. */
   forget(sessionId: string): void
+  /** Session-rebind — the card was re-keyed from `oldSessionId` to `newSessionId` (a `/clear`:
+   *  same process, new id). Move the pending name with it, or the next prompt's read-back
+   *  believes claude's stale title and reverts the rename. No-op when nothing is pending under
+   *  the old id. A name pending under the old id wins over one under the new id: it is the
+   *  operator's later act. */
+  rebind(oldSessionId: string, newSessionId: string): void
   /** Current pending count (diagnostics / tests). */
   size(): number
 }
@@ -63,6 +69,13 @@ export function createPendingTitles(): PendingTitles {
 
     forget(sessionId: string): void {
       pending.delete(sessionId)
+    },
+
+    rebind(oldSessionId: string, newSessionId: string): void {
+      const name = pending.get(oldSessionId)
+      if (name === undefined) return
+      pending.delete(oldSessionId)
+      pending.set(newSessionId, name)
     },
 
     size(): number {

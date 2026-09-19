@@ -811,6 +811,9 @@ function registerWatchFeed(window: BrowserWindow): void {
     launchedSet.add(newSessionId)
     reducer.upsertLaunched({ ...stored, id: newSessionId }).forEach(handleDelta)
     launchService.rebind(terminalId, newSessionId)
+    // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
+    // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
+    pendingTitles.rebind(oldSessionId, newSessionId)
     sendLaunchCorrelated(wc, terminalId, newSessionId)
     reducer.applyHookStatus(oldSessionId, { kind: 'removed' }).forEach(handleDelta)
     orphanRegistry.clear(terminalId)
