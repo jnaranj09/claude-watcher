@@ -32,11 +32,16 @@ export const selectPastSessionsLoaded = (s: PastSessionsState): boolean => s.loa
 
 const LOG_PREFIX = '[claude-watcher][past-sessions]'
 
-export async function loadPastSessions(): Promise<void> {
+/** Resolves `false` on a failed load (logged by code; the list already held is kept) so the dialog
+ *  can say so on its error line — a swallowed failure left `loaded` false and the rail blank,
+ *  indistinguishable from a load still in flight. Never rejects. */
+export async function loadPastSessions(): Promise<boolean> {
   try {
     pastSessionsStore.getState().hydrate(await window.pastSessions.list())
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=past_sessions_load_failed`)
+    return false
   }
 }
 

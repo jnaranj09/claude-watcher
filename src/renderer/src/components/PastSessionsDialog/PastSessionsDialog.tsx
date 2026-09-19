@@ -4,7 +4,7 @@
 // READ-ONLY form, and a [Forget] [Open] footer. No `+ New` (there is nothing to create) and no
 // RowActions. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
 // guard. Never logs a record value.
-import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
@@ -61,13 +61,31 @@ export function PastSessionsDialog({
   )
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
+  // THIS open's load failed. The store keeps the list it already held, but no empty sentence may
+  // stand beside the error line: "No past sessions yet." is exactly what could not be checked.
+  const [loadFailed, setLoadFailed] = useState(false)
   const searchRef = useRef<HTMLInputElement | null>(null)
 
+  // An Effect Event, so the mount effect below never re-runs: `dialog.actions` changes identity
+  // whenever App re-renders (its `onClose` is an inline arrow), and a re-run would reload the list
+  // and pull focus back to the search box.
+  const reportLoadFailed = useEffectEvent((): void => {
+    setLoadFailed(true)
+    dialog.actions.setError('Could not load past sessions')
+  })
+
   // Always fresh: the history changes with every exit, and this is the one place it is read. An
-  // aria-modal dialog must also take focus on mount (TemplateList precedent).
+  // aria-modal dialog must also take focus on mount (TemplateList precedent). `alive` drops a load
+  // that resolves after the dialog closed (the Settings token-read precedent).
   useEffect(() => {
-    void loadPastSessions()
+    let alive = true
+    void loadPastSessions().then((ok) => {
+      if (alive && !ok) reportLoadFailed()
+    })
     searchRef.current?.focus()
+    return () => {
+      alive = false
+    }
   }, [])
 
   const scoped = filterPastByScope(sessions, scope)
@@ -162,8 +180,9 @@ export function PastSessionsDialog({
                 </ManageDialog.Row>
               ))}
               {/* Nothing is said until the list has loaded: the first open of a run would otherwise
-                  claim "No past sessions yet." while the history is still in flight. */}
-              {loaded && listed.length === 0 && (
+                  claim "No past sessions yet." while the history is still in flight. A failed load
+                  says so on the error line instead. */}
+              {loaded && !loadFailed && listed.length === 0 && (
                 <p className={styles.empty} data-testid="past-sessions-empty">
                   {pastSessionsEmptyCopy(sessions.length, scoped.length, query)}
                 </p>

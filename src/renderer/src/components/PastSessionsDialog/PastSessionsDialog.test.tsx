@@ -124,6 +124,54 @@ describe('PastSessionsDialog', () => {
     expect(q(r, '[data-testid="past-sessions-empty"]')?.textContent).toBe('No past sessions yet.')
   })
 
+  // A failed load must not look like a load still in flight: it goes on the ONE error line, as
+  // copy — never the thrown message — and no empty sentence claims the history is empty.
+  it('a failed load says so on the error line, and no empty sentence is shown', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    list.mockRejectedValueOnce(new Error('/home/op/secret leaked'))
+    const { r } = render()
+    await flush()
+    const error = q(r, '[data-testid="past-session-error"]')
+    expect(error?.textContent).toBe('Could not load past sessions')
+    expect(error?.getAttribute('role')).toBe('alert')
+    expect(q(r, '[data-testid="past-sessions-empty"]')).toBeNull()
+    expect(warn).toHaveBeenCalledWith(
+      '[claude-watcher][past-sessions] code=past_sessions_load_failed'
+    )
+  })
+
+  // A re-open: the store still holds an earlier (empty) load. A failed refresh must not claim
+  // "No past sessions yet." beside the error — that is exactly what could not be checked.
+  it('a failed refresh over an earlier empty load shows the error, not an empty sentence', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    act(() => pastSessionsStore.setState({ sessions: [], loaded: true }))
+    list.mockRejectedValueOnce(new Error('x'))
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
+      'Could not load past sessions'
+    )
+    expect(q(r, '[data-testid="past-sessions-empty"]')).toBeNull()
+  })
+
+  // App passes an inline `onClose`, so every App render hands the dialog a new one. That must not
+  // re-run the mount effect: no second load, and focus stays where the operator put it.
+  it('a re-render with a new onClose neither reloads the list nor steals focus', async () => {
+    const { r } = render()
+    await flush()
+    act(() => q(r, '[data-testid="past-session-select-sa"]')?.focus())
+    act(() => r.root.render(<PastSessionsDialog onClose={vi.fn()} />))
+    await flush()
+    expect(list).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(q(r, '[data-testid="past-session-select-sa"]'))
+  })
+
+  it('a successful load leaves the error line empty', async () => {
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="past-session-error"]')).toBeNull()
+  })
+
   it('All sessions shows every workspace; the search narrows by name; empty sentences differ', async () => {
     const { r } = render()
     await flush()
