@@ -63,6 +63,9 @@ export function buildLaunchedSession(
     // Tags — the launch rules' output (spec §2.1); Phase 1 passes [] (no rules yet).
     tagIds: [...tagIds],
     // The template rides the launch override, exactly like the operator's name.
-    templateId: minted.templateId
+    templateId: minted.templateId,
+    // Past sessions — the archive record reads it off the card, because the pty-exit path
+    // unbinds the terminal before the removal runs.
+    launchedAt: minted.launchedAt
   }
 }

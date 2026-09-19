@@ -105,6 +105,13 @@ export interface LaunchRequest {
   /** Programmatic API — the workspace the card must land in (a template's own scope);
    *  omitted/null ⇒ main's active workspace at spawn (today's behaviour). */
   workspaceId?: string | null
+  /** Past sessions (D-1) — resume claude's session `<id>` instead of minting a fresh one. The
+   *  minted identity IS this id (probe-verified: `--resume` keeps it), the spawn is the
+   *  `--resume` form, and a dead-pane Reopen resumes it again. Omitted/null ⇒ a fresh launch. */
+  resumeSessionId?: string | null
+  /** Past sessions — the record's tags that still exist; the card is born with them instead of
+   *  running the launch rules (a resume is not a new launch). Ignored without `resumeSessionId`. */
+  tagIds?: readonly string[]
 }
 
 /** The per-terminal launch recipe, set once at launch and read on EVERY spawn of that terminal. */
@@ -117,6 +124,11 @@ export interface LaunchOverride {
   initialPrompt: string | null
   /** Programmatic API — the workspace this launch names, or null for "active at spawn". */
   workspaceId: string | null
+  /** Epoch millis `launch()` registered this recipe — the archive record's `launchedAt`. */
+  launchedAt: number
+  /** Past sessions — set iff this launch resumes an archived record: the exact session id to
+   *  resume + the record's surviving tags. Null for a normal (fresh) launch. */
+  resume: { sessionId: string; tagIds: string[] } | null
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -154,6 +166,12 @@ export interface MintedLaunchSpawn {
   initialPrompt: string | null
   /** Programmatic API — the override's workspace, or null for "active at spawn". */
   workspaceId: string | null
+  /** Epoch millis `launch()` registered this recipe — read back off the override so
+   *  `buildLaunchedSession` can stamp the card with it. */
+  launchedAt: number
+  /** Past sessions — the override's resume decision, read back verbatim. Null for a normal
+   *  launch; set for a resume (the exact session id + the record's surviving tags). */
+  resume: { sessionId: string; tagIds: string[] } | null
 }
 
 export interface LaunchServiceOptions {
@@ -180,12 +198,18 @@ export interface LaunchServiceOptions {
    *  Programmatic API: `initialPrompt` is the expanded prompt this launch was registered with
    *  (null for every in-app flow), read off the same override for the same reason — a Reopen
    *  must re-run the prompt the launch was created with, not a bare `claude`. The factory
-   *  appends it as claude's positional `[prompt]` argument; quoting it is the factory's job. */
+   *  appends it as claude's positional `[prompt]` argument; quoting it is the factory's job.
+   *
+   *  Past sessions (D-1): `resume` is true iff this launch's override carries a `resume`
+   *  decision — the factory composes `claude --resume <sessionId>` instead of
+   *  `--session-id <sessionId>` (claudeBin.ts `ClaudeCommandSpec.resume`), dropping `-n`, the
+   *  template flags and the positional prompt. */
   spawn: (
     sessionId: string,
     displayName: string,
     flags: ClaudeLaunchFlags,
-    initialPrompt: string | null
+    initialPrompt: string | null,
+    resume: boolean
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** The `/proc` status reader seam (pidCorrelation.ts). Inject a fake in unit tests (no live
    *  claude); main injects the production `readStatusFromProc`. Story 5.5 uses it to resolve a
@@ -359,13 +383,20 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // Programmatic API: the expanded initial prompt and the named workspace sit beside them —
     // same key, same lifetime, same "read on every spawn" contract, so a Reopen re-runs the
     // same prompt and lands the card in the same workspace. Omitted (every in-app flow) ⇒ null.
+    // Past sessions: `resumeSessionId` set ⇒ the recipe carries the exact id to resume + the
+    // record's surviving tags — read on every spawn (a Reopen resumes the SAME conversation).
     overrides.set(terminalId, {
       cwd: req.cwd,
       name: req.name,
       flags: req.flags ?? NO_LAUNCH_FLAGS,
       templateId: req.templateId ?? null,
       initialPrompt: req.initialPrompt ?? null,
-      workspaceId: req.workspaceId ?? null
+      workspaceId: req.workspaceId ?? null,
+      launchedAt: now(),
+      resume:
+        req.resumeSessionId != null
+          ? { sessionId: req.resumeSessionId, tagIds: [...(req.tagIds ?? [])] }
+          : null
     })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
@@ -384,12 +415,21 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     if (override === undefined) return null // non-launch terminalId — the Story-3.1 shell path
 
     // Fresh identity PER ACTUAL SPAWN (first open AND Reopen alike): claude consumes the
-    // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error.
-    const sessionId = newSessionId()
+    // `--session-id` uuid — re-using one risks a claude-side duplicate/resume error. Past
+    // sessions: a resume launch mints THAT id instead — claude already holds it, and a
+    // dead-pane Reopen must resume the SAME conversation, never a fresh one.
+    const sessionId = override.resume?.sessionId ?? newSessionId()
     // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
     // generating its own title that would then disagree with the board card. Session templates:
-    // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them.
-    const base = options.spawn(sessionId, override.name, override.flags, override.initialPrompt)
+    // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them. The
+    // resume flag tells the factory to compose `claude --resume <id>` instead.
+    const base = options.spawn(
+      sessionId,
+      override.name,
+      override.flags,
+      override.initialPrompt,
+      override.resume !== null
+    )
     const spawn: LaunchSpawnConfig = {
       file: base.file,
       ...(base.args !== undefined ? { args: base.args } : {}),
@@ -428,7 +468,9 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
       displayName: override.name,
       templateId: override.templateId,
       initialPrompt: override.initialPrompt,
-      workspaceId: override.workspaceId
+      workspaceId: override.workspaceId,
+      launchedAt: override.launchedAt,
+      resume: override.resume
     }
   }
 

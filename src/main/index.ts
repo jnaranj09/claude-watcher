@@ -1720,7 +1720,11 @@ function registerTerminalIpc(): void {
             // Rules (spec §2.1, T-21) — the launch rules run HERE, at spawn, so the card is
             // born tagged: one delta, no flash. Never on "first seen" — /clear re-upserts
             // under a new id and must not run them again.
-            launchTags(rulesSnapshot(), minted, workspaceId)
+            // Past sessions — a resume is born with the record's surviving tags; the launch
+            // rules run for NEW launches only (a resume is not one).
+            minted.resume !== null
+              ? minted.resume.tagIds
+              : launchTags(rulesSnapshot(), minted, workspaceId)
           )
         )
         // (d) Push the exact terminalId ↔ sessionId binding to the owning window IMMEDIATELY —
@@ -1826,7 +1830,8 @@ function rawClaudeSpawn(
   sessionId: string,
   displayName: string,
   flags: ClaudeLaunchFlags,
-  initialPrompt: string | null
+  initialPrompt: string | null,
+  resume: boolean
 ): {
   file: string
   args: string[]
@@ -1878,7 +1883,10 @@ function rawClaudeSpawn(
         // The programmatic API threads the template's filled-in prompt through here (it rode
         // the durable launch recipe from `launchService.launch`); the in-app launch flows carry
         // none, so for them the composed command stays byte-identical to before.
-        initialPrompt
+        initialPrompt,
+        // Past sessions (D-1) — a resume composes `claude --resume <id>` instead (claudeBin.ts
+        // drops `-n`, the template flags and the positional prompt for that form).
+        resume
       })
     ],
     env
