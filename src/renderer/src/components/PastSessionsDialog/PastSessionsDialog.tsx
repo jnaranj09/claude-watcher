@@ -20,6 +20,7 @@ import {
   useWorkspaces
 } from '../../stores/workspacesStore'
 import {
+  focusLiveSession,
   forgetPastSession,
   loadPastSessions,
   openPastSession,
@@ -31,6 +32,7 @@ import {
   filterPastByName,
   filterPastByScope,
   folderBasename,
+  isAlreadyOpenError,
   pastSessionErrorMessage,
   pastSessionsEmptyCopy,
   relativeEnded,
@@ -99,7 +101,8 @@ export function PastSessionsDialog({
     dialog.actions.select(null) // design.md — changing the scope closes whatever was open
   }
 
-  /** `Open` — D-12: resume in the app and take the view. A refusal stays in the dialog. */
+  /** `Open` — D-12: resume in the app and take the view. A refusal stays in the dialog — except
+   *  `already_open` for a card the renderer knows, which takes the view to that live card. */
   async function resume(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     if (selected === null || busy) return
@@ -108,6 +111,11 @@ export function PastSessionsDialog({
       await openPastSession(selected.id)
       dialog.actions.close()
     } catch (err) {
+      // Spec Open step 3: the session is already live, so go to it rather than report it.
+      if (isAlreadyOpenError(err) && (await focusLiveSession(selected.id))) {
+        dialog.actions.close()
+        return
+      }
       dialog.actions.setError(pastSessionErrorMessage(err))
       setBusy(false)
     }

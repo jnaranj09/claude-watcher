@@ -57,6 +57,13 @@ export function pastSessionErrorMessage(err: unknown): string {
   return 'Could not open the session'
 }
 
+/** Open's `already_open` refusal — the session is live on the board (spec Open step 3: the
+ *  dialog takes the operator to its card). Matched like `pastSessionErrorMessage`, for the same
+ *  Electron-wrapping reason. */
+export function isAlreadyOpenError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('already_open')
+}
+
 export function folderBasename(cwd: string): string {
   const trimmed = cwd.replace(/\/+$/, '')
   if (trimmed.length === 0) return '/'

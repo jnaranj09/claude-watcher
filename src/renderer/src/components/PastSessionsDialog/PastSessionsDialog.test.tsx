@@ -277,6 +277,112 @@ describe('PastSessionsDialog', () => {
     expect((q(r, '[data-testid="past-session-open"]') as HTMLButtonElement).disabled).toBe(false)
   })
 
+  // Spec, Open step 3: `already_open` → "the renderer focuses the live card". The record can still
+  // be listed while its session runs (a dead-pane Reopen of a resumed session re-runs a listed id).
+  describe('Open on a session that is already LIVE', () => {
+    // Electron's wrapping of a main-side throw, verbatim shape.
+    const ALREADY_OPEN = new Error(
+      "Error invoking remote method 'past-sessions:open': Error: already_open"
+    )
+    const liveCard = {
+      id: 'sa',
+      sessionName: 'billing api',
+      projectPath: '/home/op/api',
+      status: 'WaitingForInput',
+      pid: 4242,
+      column: 'idle' as const,
+      enteredColumnAt: 1,
+      // The live card sits in Default while the operator browses from Ops (w1): moved since.
+      workspaceId: 'default',
+      tagIds: []
+    }
+
+    afterEach(() => {
+      act(() =>
+        boardStore.setState({ sessionsById: {}, terminalIdBySessionId: {}, selectedId: null })
+      )
+    })
+
+    it('takes the view to the live card — switching to its workspace — and closes the dialog', async () => {
+      open.mockRejectedValueOnce(ALREADY_OPEN)
+      const setActive = vi.fn(() => Promise.resolve({ activeId: 'default', workspaces: WS }))
+      ;(window as unknown as { workspaces: unknown }).workspaces = { setActive }
+      act(() =>
+        boardStore.setState({
+          sessionsById: { sa: liveCard },
+          terminalIdBySessionId: { sa: 'term-live' }
+        })
+      )
+      const { r, onClose } = render()
+      await flush()
+      act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+      act(() => q(r, '[data-testid="past-session-open"]')?.click())
+      await flush()
+
+      expect(setActive).toHaveBeenCalledWith('default')
+      expect(workspacesStore.getState().activeId).toBe('default')
+      expect(boardStore.getState().viewMode).toBe('focused')
+      expect(boardStore.getState().focusedTerminalId).toBe('term-live')
+      expect(boardStore.getState().selectedId).toBe('sa')
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('stays in the workspace when the live card is already in the active one', async () => {
+      open.mockRejectedValueOnce(ALREADY_OPEN)
+      const setActive = vi.fn(() => Promise.resolve({ activeId: 'w1', workspaces: WS }))
+      ;(window as unknown as { workspaces: unknown }).workspaces = { setActive }
+      act(() =>
+        boardStore.setState({
+          sessionsById: { sa: { ...liveCard, workspaceId: 'w1' } },
+          terminalIdBySessionId: { sa: 'term-live' }
+        })
+      )
+      const { r, onClose } = render()
+      await flush()
+      act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+      act(() => q(r, '[data-testid="past-session-open"]')?.click())
+      await flush()
+
+      expect(setActive).not.toHaveBeenCalled()
+      expect(boardStore.getState().focusedTerminalId).toBe('term-live')
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('without a known terminal for it, keeps the dialog and says so on the error line', async () => {
+      open.mockRejectedValueOnce(ALREADY_OPEN)
+      const { r, onClose } = render()
+      await flush()
+      act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+      act(() => q(r, '[data-testid="past-session-open"]')?.click())
+      await flush()
+
+      expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
+        'That session is already open'
+      )
+      expect(boardStore.getState().viewMode).toBe('board')
+      expect(boardStore.getState().focusedTerminalId).toBeNull()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('another refusal never focuses a live card, even one the renderer knows', async () => {
+      open.mockRejectedValueOnce(new Error('folder_missing'))
+      act(() =>
+        boardStore.setState({
+          sessionsById: { sa: liveCard },
+          terminalIdBySessionId: { sa: 'term-live' }
+        })
+      )
+      const { r, onClose } = render()
+      await flush()
+      act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+      act(() => q(r, '[data-testid="past-session-open"]')?.click())
+      await flush()
+
+      expect(boardStore.getState().focusedTerminalId).toBeNull()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+  })
+
   it('Forget arms in place (Forget → Confirm forget), then removes the record and returns to the empty form', async () => {
     const { r } = render()
     await flush()

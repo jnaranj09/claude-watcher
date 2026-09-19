@@ -363,7 +363,8 @@ const pastSessionsApi = {
     return ipcRenderer.invoke(CH.pastSessionsForget, req)
   },
   /** Resume a record as a live card. Rejects with `not_found` / `folder_missing` /
-   *  `already_open` (mapped to copy in the dialog). Resolves with the launch to open. */
+   *  `already_open` (mapped to copy in the dialog; `already_open` first takes the view to the live
+   *  card when the renderer knows it). Resolves with the launch to open. */
   open(id: string): Promise<PastSessionOpenResult> {
     const req: PastSessionOpenRequest = { id }
     return ipcRenderer.invoke(CH.pastSessionOpen, req)
