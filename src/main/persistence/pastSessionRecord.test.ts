@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { buildPastSessionRecord } from './pastSessionRecord'
+import { describe, it, expect, vi } from 'vitest'
+import { buildPastSessionRecord, applyRemovalReason } from './pastSessionRecord'
 import { PastSessionSchema } from '../../shared/schemas/pastSession'
 import type { Session } from '../../shared/schemas/session'
 
@@ -40,5 +40,33 @@ describe('buildPastSessionRecord', () => {
   it('D-8: a card re-keyed by /clear (adoptCard spreads the stored session) keeps its launch time', () => {
     const rebound: Session = { ...session, id: 'sess-2' }
     expect(buildPastSessionRecord(rebound, 600)).toMatchObject({ id: 'sess-2', launchedAt: 100 })
+  })
+})
+
+describe('applyRemovalReason', () => {
+  it('archive with a card writes the record built by buildPastSessionRecord, and never removes', () => {
+    const store = { archive: vi.fn(), remove: vi.fn() }
+    applyRemovalReason('archive', session.id, session, store, 500)
+    expect(store.archive).toHaveBeenCalledWith(buildPastSessionRecord(session, 500))
+    expect(store.remove).not.toHaveBeenCalled()
+  })
+
+  it('archive with no card (a late SessionEnd for an already-gone id) does nothing', () => {
+    const store = { archive: vi.fn(), remove: vi.fn() }
+    applyRemovalReason('archive', session.id, undefined, store, 500)
+    expect(store.archive).not.toHaveBeenCalled()
+    expect(store.remove).not.toHaveBeenCalled()
+  })
+
+  it('delete removes the id and writes no record', () => {
+    const store = { archive: vi.fn(), remove: vi.fn() }
+    applyRemovalReason('delete', session.id, session, store, 500)
+    expect(store.remove).toHaveBeenCalledWith(session.id)
+    expect(store.archive).not.toHaveBeenCalled()
+  })
+
+  it('a null store is a no-op for either reason', () => {
+    expect(() => applyRemovalReason('archive', session.id, session, null, 500)).not.toThrow()
+    expect(() => applyRemovalReason('delete', session.id, session, null, 500)).not.toThrow()
   })
 })

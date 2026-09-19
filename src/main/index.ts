@@ -105,8 +105,9 @@ import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
 import { createPastSessionsStore, type PastSessionsStore } from './persistence/pastSessions'
 import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
 import { createPastSessionsIpcHandlers } from './persistence/pastSessionsIpc'
-// Past sessions (D-3/D-7) — the ONE archive-record builder (field-by-field, never a spread).
-import { buildPastSessionRecord } from './persistence/pastSessionRecord'
+// Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
+// record via buildPastSessionRecord; delete removes any earlier one; a null store no-ops).
+import { applyRemovalReason } from './persistence/pastSessionRecord'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 import { keepVisibleTags } from '../shared/tags/tagScope'
@@ -641,18 +642,15 @@ function registerWatchFeed(window: BrowserWindow): void {
   const pendingTitles = createPendingTitles()
 
   /** D-3 — the ONE removal chokepoint for this window. Reads the card BEFORE the reducer drops
-   *  it: `archive` snapshots it into the past-sessions store (a card that already left is a
-   *  quiet no-op — no record, no log); `delete` drops any record for the id instead. Rides the
-   *  SAME hook-removal reducer path as Story 6.3 (applyHookStatus removed → handleDelta), so the
-   *  card-removal delta is unchanged — only the store side-effect is new. */
+   *  it, then hands the reason → history decision to the PURE, unit-tested
+   *  `applyRemovalReason` (pastSessionRecord.ts): `archive` snapshots it into the past-sessions
+   *  store (a card that already left is a quiet no-op — no record, no log); `delete` drops any
+   *  record for the id instead. Rides the SAME hook-removal reducer path as Story 6.3
+   *  (applyHookStatus removed → handleDelta), so the card-removal delta is unchanged — only the
+   *  store side-effect is new. */
   function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
     const stored = reducer.snapshotMap().get(sessionId)
-    if (reason === 'archive') {
-      if (stored !== undefined)
-        pastSessionsStore?.archive(buildPastSessionRecord(stored, Date.now()))
-    } else {
-      pastSessionsStore?.remove(sessionId) // D-4: the app's record only, never claude's files
-    }
+    applyRemovalReason(reason, sessionId, stored, pastSessionsStore, Date.now())
     // A removed card can have no pending rename to push.
     pendingTitles.forget(sessionId)
     reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
