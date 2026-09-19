@@ -58,12 +58,12 @@ const check = (r: RenderResult, id: string): HTMLInputElement => {
 }
 
 describe('TagPicker', () => {
-  it('one checkbox per offered tag, ticked when the card carries it, drawn with its chip', () => {
+  it('one checkbox per offered tag, ticked when the card carries it, drawn with its path label', () => {
     const { r } = render()
     expect(check(r, 't-deploy').checked).toBe(false)
     expect(check(r, 't-prod').checked).toBe(true)
     expect(
-      r.container.querySelector('[data-testid="picker-row-t-deploy"] [data-testid="tag-chip"]')
+      r.container.querySelector('[data-testid="picker-row-t-deploy"] [data-testid="tag-path"]')
         ?.textContent
     ).toBe('deploy')
     expect(r.container.querySelector('[data-testid="picker"]')?.getAttribute('aria-label')).toBe(
@@ -108,5 +108,14 @@ describe('TagPicker', () => {
     expect(r.container.querySelector('[data-testid="picker-empty"]')?.textContent).toMatch(
       /no tags/i
     )
+  })
+
+  it('D-13: rows draw the path label (full name accessible), chips elsewhere are unaffected', () => {
+    const { r } = render({ tags: [DEPLOY, { ...PROD, name: 'deploy/prod' }] })
+    const row = r.container.querySelector<HTMLElement>(
+      '[data-testid="picker-row-t-prod"] [data-testid="tag-path"]'
+    )
+    expect(row?.getAttribute('aria-label')).toBe('deploy/prod')
+    expect(row?.querySelector('[data-testid="tag-path-leaf"]')?.textContent).toBe('prod')
   })
 })

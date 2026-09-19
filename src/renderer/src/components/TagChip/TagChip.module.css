@@ -99,3 +99,19 @@
   gap: var(--space-1);
   min-width: 0;
 }
+
+/* D-13 — the path drawing (dialog rail + picker rows). Chips above are untouched. */
+.path {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pathParent {
+  color: var(--text-secondary);
+}
+.pathLeaf {
+  color: var(--text-primary);
+}
