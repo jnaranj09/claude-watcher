@@ -77,6 +77,19 @@
   flex: 1 1 auto;
 }
 
+/* Name-sync (D-11) — the focused session's own name in the bar, ellipsised like every other
+   operator-typed name (design.md), with the ⟳ mark (SessionCard's NameSyncMark) trailing it. */
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  margin-left: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+}
+
 /* Story 4.3 (FR-15) — the ⏹ Stop session button. Ghost style (NOT danger — the danger
    styling is on the Stop-confirm's confirm button per DESIGN.md). Right-aligned in the bar. */
 .stopButton {

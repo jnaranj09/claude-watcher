@@ -109,6 +109,26 @@ export interface SessionCardProps {
    *  fallback + gold token) — CONSUMED, not re-authored. Orthogonal to `selected` (which card is
    *  being viewed) — this is "which card still needs you." Default false. */
   emphasized?: boolean
+  /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt: a `⟳` mark
+   *  sits after the name, titled so the operator learns the rule where it applies. */
+  nameSyncPending?: boolean
+}
+
+export const NAME_SYNC_PENDING_TITLE = 'Claude applies this name on your next prompt'
+
+/** The ONE drawing of the pending-rename mark: the card and the focused view's title use it. */
+export function NameSyncMark({ className }: { className?: string }): JSX.Element {
+  return (
+    <span
+      className={`${styles.nameSyncMark} ${className ?? ''}`}
+      data-testid="name-sync-pending"
+      role="img"
+      aria-label={NAME_SYNC_PENDING_TITLE}
+      title={NAME_SYNC_PENDING_TITLE}
+    >
+      ⟳
+    </span>
+  )
 }
 
 const VARIANT_CLASS: Record<SessionCardVariant, string> = {
@@ -143,7 +163,8 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     onSetTags,
     onManageTags,
     selected = false,
-    emphasized = false
+    emphasized = false,
+    nameSyncPending
   } = props
 
   // Workspaces (Task 12) — local, presentational toggle for the move-target list. Ephemeral UI
@@ -313,6 +334,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
         <span className={styles.sessionName} data-testid="session-name">
           {sessionName}
         </span>
+        {nameSyncPending === true && <NameSyncMark />}
         {/* A2 — rename affordance. Revealed on card hover/focus-within (CSS) but ALWAYS in the
             accessibility tree and ALWAYS tab-reachable: a hover-only control is unreachable by
             keyboard, and this card is already a keyboard-activatable role="button".

@@ -307,6 +307,16 @@ describe('App — rename an existing session (session-naming A2)', () => {
     expect(boardStore.getState().selectedId).toBeNull()
   })
 
+  it('the rename dialog carries the one helper line; the create dialog does not', async () => {
+    const { pencil } = await renderWithCard('sess-1', 'project')
+    act(() => pencil.click())
+    await flush()
+
+    expect(document.querySelector('[data-testid="session-name-helper"]')?.textContent).toBe(
+      'Applies in Claude on your next prompt.'
+    )
+  })
+
   it('refuses to re-enter while a prompt is already open (no payload swap under the dialog)', async () => {
     const r = await renderApp()
     act(() => {

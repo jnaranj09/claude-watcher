@@ -22,11 +22,14 @@ import type { Template } from '../../../shared/ipc/contract'
 import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
 import { AttentionRail } from '../components/attention/AttentionRail'
+import { NameSyncMark } from '../components/SessionCard/SessionCard'
 import {
   boardStore,
   useBoard,
   selectFocusedTerminalId,
-  selectKeptAliveTerminalIds
+  selectKeptAliveTerminalIds,
+  type BoardState,
+  type BoardSession
 } from '../stores/boardStore'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal).
 // The two consequences are paired in ONE place (FROZEN-5); boardStore stays pure view-state.
@@ -51,6 +54,17 @@ function resolveSessionName(terminalId: string): string {
   }
   // Pre-correlation or no card yet: degrade gracefully to the bare terminalId (never crash).
   return terminalId
+}
+
+/** Name-sync (D-11) — the focused terminal's own BoardSession, so the bar can draw its name +
+ *  the ⟳ mark. Reverse-looks-up the session bound to the focused terminal; null pre-correlation
+ *  (no card yet) or with no terminal focused — the title falls back to an empty string, never a
+ *  crash. */
+const selectFocusedSession = (s: BoardState): BoardSession | null => {
+  const sid = Object.entries(s.terminalIdBySessionId).find(
+    ([, t]) => t === s.focusedTerminalId
+  )?.[0]
+  return sid === undefined ? null : (s.sessionsById[sid] ?? null)
 }
 
 export interface FocusedSessionProps {
@@ -89,6 +103,8 @@ export function FocusedSession({
   // The set of terminals to keep ALIVE (correlated ∪ focused). useShallow so an equal set does not
   // remount the terminals (a remount would tear down + respawn the PTY — terminal.md forbids it).
   const keptAlive = useBoard(useShallow(selectKeptAliveTerminalIds))
+  // Name-sync (D-11) — the focused terminal's session, for the bar's title + ⟳ mark.
+  const focusedSession = useBoard(selectFocusedSession)
 
   // A rail row click: switch the visible terminal to that session's terminal (if its binding is
   // known) AND acknowledge it. PURE view-state — no input is sent (alert-only). A session whose
@@ -132,6 +148,17 @@ export function FocusedSession({
             ← Board
           </button>
           <span className={styles.hint}>Esc to return</span>
+          {/* Name-sync (D-11) — the focused session's own name + ⟳ mark while a rename is
+              pending. A separate element from the stop button on purpose: Task 10 replaces the
+              stop button with Archive/Delete affordances, and this title must not depend on it. */}
+          <span
+            className={styles.title}
+            data-testid="focused-title"
+            title={focusedSession?.sessionName}
+          >
+            {focusedSession?.sessionName ?? ''}
+            {focusedSession?.nameSyncPending === true && <NameSyncMark />}
+          </span>
           {/* Story 4.3 (FR-15) — the ⏹ Stop session affordance (UX-DR14: opens a confirm,
               does NOT stop directly; danger styling is on the confirm's Stop button). */}
           <button

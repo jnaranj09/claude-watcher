@@ -754,6 +754,7 @@ function App(): React.JSX.Element {
             initialName={sessionNamePrompt.initialName}
             title="Rename session"
             confirmLabel="Rename"
+            helper="Applies in Claude on your next prompt."
             onSubmit={(name) => void handleRenameSubmit(sessionNamePrompt.sessionId, name)}
             onCancel={() => boardStore.getState().clearSessionNamePrompt()}
           />

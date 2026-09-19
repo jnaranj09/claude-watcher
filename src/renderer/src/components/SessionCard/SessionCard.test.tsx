@@ -704,3 +704,18 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     expect(/\.footer\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/min-height:\s*18px/)
   })
 })
+
+describe('the ⟳ name-sync mark (D-11)', () => {
+  it('draws the mark with the explaining title only while nameSyncPending', () => {
+    const on = renderComponent(<SessionCard {...baseProps({ nameSyncPending: true })} />)
+    const mark = on.container.querySelector('[data-testid="name-sync-pending"]')
+    expect(mark?.textContent).toBe('⟳')
+    expect(mark?.getAttribute('title')).toBe('Claude applies this name on your next prompt')
+    expect(mark?.getAttribute('aria-label')).toBe('Claude applies this name on your next prompt')
+    on.unmount()
+
+    const off = renderComponent(<SessionCard {...baseProps()} />)
+    cleanup = off.unmount
+    expect(off.container.querySelector('[data-testid="name-sync-pending"]')).toBeNull()
+  })
+})

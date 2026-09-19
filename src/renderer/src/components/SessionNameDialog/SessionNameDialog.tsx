@@ -36,6 +36,9 @@ export interface SessionNameDialogProps {
   onCancel: () => void
   /** Secondary line under the title — the picked directory on create. Omitted → not rendered. */
   hint?: string
+  /** One line under the field: the rename dialog says when the name reaches claude. Omitted →
+   *  not rendered. */
+  helper?: string
   /** Dialog title. Defaults to the create-time wording. */
   title?: string
   /** Primary button label. Defaults to the create-time wording. */
@@ -47,6 +50,7 @@ export function SessionNameDialog({
   onSubmit,
   onCancel,
   hint,
+  helper,
   title = 'Name this session',
   confirmLabel = 'Create'
 }: SessionNameDialogProps): JSX.Element {
@@ -113,6 +117,12 @@ export function SessionNameDialog({
           maxLength={SESSION_NAME_MAX_LENGTH}
           onChange={setValue}
         />
+
+        {helper !== undefined && (
+          <p className={styles.helper} data-testid="session-name-helper">
+            {helper}
+          </p>
+        )}
 
         {/* Only reachable via an over-long PREFILL (typing is capped by maxLength). Without this
             the Create button would sit disabled with no stated reason. */}

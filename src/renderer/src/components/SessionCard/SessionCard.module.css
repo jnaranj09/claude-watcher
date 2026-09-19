@@ -308,6 +308,15 @@
   justify-content: flex-end;
 }
 
+/* D-11 — the pending-rename mark. Secondary ink (never muted on a raised surface), a step smaller
+   than the name so it reads as a status glyph, not a character of the title. */
+.nameSyncMark {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+  margin-left: 0.3em;
+  flex: none;
+}
+
 /* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised
  * panel (design.md: never --text-muted there). */
 .moveWarning {

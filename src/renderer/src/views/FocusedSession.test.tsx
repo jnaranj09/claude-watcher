@@ -13,16 +13,18 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { FocusedSession } from './FocusedSession'
 import { boardStore } from '../stores/boardStore'
-import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
+import type { Column, SessionUpdatedEvent, WatchEventsPayload } from '../../../shared/ipc/contract'
 
 let cleanup: (() => void) | undefined
 
-/** A validated session.updated delta to seed the store (the rail's source). */
+/** A validated session.updated delta to seed the store (the rail's source). `extra` spreads onto
+ *  the event, so a test can seed fields (e.g. `nameSyncPending`) beyond this helper's defaults. */
 function updated(
   epoch: number,
   id: string,
   column: Column,
-  enteredColumnAt: number
+  enteredColumnAt: number,
+  extra: Partial<SessionUpdatedEvent> = {}
 ): WatchEventsPayload {
   return {
     epoch,
@@ -36,7 +38,8 @@ function updated(
       enteredColumnAt,
       pid: 1000,
       workspaceId: 'default',
-      tagIds: []
+      tagIds: [],
+      ...extra
     }
   }
 }
@@ -247,6 +250,25 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
       (document.body.querySelector('[data-testid="menu-manage"]') as HTMLButtonElement).click()
     )
     expect(onManageTemplates).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the focused session name in the bar with the ⟳ mark while a rename is pending', () => {
+    act(() => {
+      boardStore
+        .getState()
+        .applyWatchEvent(updated(1, 'a', 'working', 10, { nameSyncPending: true }))
+      boardStore.setState({
+        terminalIdBySessionId: { a: 'term-a' },
+        focusedTerminalId: 'term-a',
+        launchedTerminals: {
+          'term-a': { terminalId: 'term-a', launchedAt: 1, label: 's-a', workspaceId: 'default' }
+        }
+      })
+    })
+    const r = renderComponent(<FocusedSession onBack={vi.fn()} onNewSession={vi.fn()} />)
+    cleanup = r.unmount
+    expect(r.container.querySelector('[data-testid="focused-title"]')?.textContent).toContain('s-a')
+    expect(r.container.querySelector('[data-testid="name-sync-pending"]')).not.toBeNull()
   })
 
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
