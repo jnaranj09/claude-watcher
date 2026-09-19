@@ -441,6 +441,28 @@ describe('FocusedSession — the rail header and the Board bar end on the same l
   })
 })
 
+// The focused bar's Delete wears BOTH classes (`archiveButton deleteButtonFocused`: Archive's box,
+// the danger colours). `.archiveButton:hover` and `.deleteButtonFocused:hover` have EQUAL
+// specificity, so any property the Delete's hover/focus block leaves out falls through to Archive's
+// hover — its grey `--border-strong` border drew round the red fill. The Delete block must name the
+// border itself, and must come after Archive's hover so it wins the tie.
+describe('FocusedSession — Delete keeps its danger border on hover and focus', () => {
+  const css = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), './FocusedSession.module.css'),
+    'utf8'
+  )
+
+  it('the Delete hover/focus block sets a --danger border and follows the Archive hover rule', () => {
+    const deleteHover =
+      /^\.deleteButtonFocused:hover,\s*\.deleteButtonFocused:focus-visible\s*\{([^}]*)\}/m.exec(css)
+    const archiveHoverAt = css.search(/^\.archiveButton:hover\s*\{/m)
+
+    expect(deleteHover?.[1]).toMatch(/^\s*border-color:\s*var\(--danger\);/m)
+    expect(archiveHoverAt).toBeGreaterThanOrEqual(0)
+    expect(deleteHover?.index).toBeGreaterThan(archiveHoverAt)
+  })
+})
+
 // The active tab is a NOTCH cut through the rail, showing the ground the terminal floats on. Two
 // separate declarations in two different modules make that work, and each looks individually
 // tidy-uppable — which is how a notch quietly gets a wall built back across it.

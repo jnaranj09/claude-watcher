@@ -128,10 +128,13 @@
   color: var(--danger);
   border-color: var(--danger);
 }
+/* border-color is load-bearing: this element also carries .archiveButton, whose :hover has the SAME
+   specificity and sets a grey --border-strong border. Naming it here (and after that rule) wins. */
 .deleteButtonFocused:hover,
 .deleteButtonFocused:focus-visible {
   background: var(--danger);
   color: #fff;
+  border-color: var(--danger);
 }
 
 /* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned
