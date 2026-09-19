@@ -668,9 +668,11 @@ export type SessionRenameRequest = {
 
 /** Past sessions — `session:archive` arg. The terminalId of the pane to stop and archive. */
 export type SessionArchiveRequest = { terminalId: string }
-/** Past sessions — `session:delete` arg. `sessionId` is the id the renderer knows for this
- *  terminal (null before correlation): a Delete on a pane whose claude already exited has no
- *  binding left, and the record it archived must still go. */
+/** Past sessions — `session:delete` arg. MAIN decides which record goes: the terminal's bound
+ *  session and, on a pane whose claude already exited (no binding left; its exit archived the
+ *  card), the id the launch override last bound it to (`LaunchOverride.lastSessionId`).
+ *  `sessionId` is only a HINT — the id the renderer knows for this terminal, null before
+ *  correlation and null again once the card is gone; main drops that record too (idempotent). */
 export type SessionDeleteRequest = { terminalId: string; sessionId: string | null }
 /** Past sessions — `past-sessions:open` result: the launch the renderer opens (like
  *  SessionLaunchResult) plus the record's name for the Starting banner. */

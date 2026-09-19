@@ -153,7 +153,8 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
       initialPrompt: null,
       workspaceId: null,
       launchedAt: 0,
-      resume: null
+      resume: null,
+      lastSessionId: null
     })
     // NON-CONSUMING (Story 5.4): a second peek returns the SAME recipe. The recipe is durable so
     // a StrictMode dev double-mount's surviving open AND a Reopen both still spawn claude (a
@@ -305,7 +306,8 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
     expect(svc.sessionIdFor('t-1')).toBeNull()
 
     // The durable spawn-override is untouched: a later Reopen still finds its recipe and
-    // mints a FRESH identity + binding (never the default $SHELL, never a stale id).
+    // mints a FRESH identity + binding (never the default $SHELL, never a stale id). It still
+    // remembers the id it last ran (a dead-pane Delete drops that record).
     expect(svc.peekSpawnOverride('t-1')).toEqual({
       cwd: '/p',
       name: 'p',
@@ -314,7 +316,8 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
       initialPrompt: null,
       workspaceId: null,
       launchedAt: 0,
-      resume: null
+      resume: null,
+      lastSessionId: 'sess-1'
     })
     const reopened = svc.mintSpawn('t-1')
     expect(reopened?.sessionId).toBe('sess-2')
@@ -676,7 +679,8 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       initialPrompt: null,
       workspaceId: null,
       launchedAt: 0,
-      resume: null
+      resume: null,
+      lastSessionId: null
     })
     svc.forget('t-1') // idempotent
     expect(svc.peekSpawnOverride('t-1')).toEqual({
@@ -687,7 +691,8 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
       initialPrompt: null,
       workspaceId: null,
       launchedAt: 0,
-      resume: null
+      resume: null,
+      lastSessionId: null
     })
   })
 })
@@ -752,6 +757,27 @@ describe('Session-rebind — terminalIdFor / rebind (claude changes its own id m
     svc.unbind('t-1')
     expect(svc.sessionIdFor('t-1')).toBeNull()
     expect(svc.terminalIdFor('sess-new')).toBeNull()
+  })
+
+  // Past sessions (D-3) — a Delete on a pane whose claude already exited has no binding left (the
+  // exit ARCHIVED the card and consumed it), yet it must still drop that record. The durable
+  // override remembers the id the terminal was LAST bound to, which the removal never clears.
+  it('the override remembers the LAST bound id: set by a mint, kept by unbind, moved by rebind', () => {
+    const svc = reboundService()
+    svc.launch({ cwd: '/p', name: 'p' })
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBeNull() // nothing spawned yet
+
+    svc.mintSpawn('t-1')
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-1')
+    svc.rebind('t-1', 'sess-cleared') // /clear — claude moved to a new id
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-cleared')
+    svc.unbind('t-1') // the pty exit consumed the binding...
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-cleared') // ...not the memory
+    svc.rebind('t-1', 'sess-stray') // no binding ⇒ rebind moves nothing, the memory included
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-cleared')
+
+    svc.mintSpawn('t-1') // a Reopen binds a fresh id, and that is now the last one
+    expect(svc.peekSpawnOverride('t-1')?.lastSessionId).toBe('sess-2')
   })
 })
 
@@ -834,7 +860,8 @@ describe('session templates — launch flags reach spawn()', () => {
       initialPrompt: null,
       workspaceId: null,
       launchedAt: 0,
-      resume: null
+      resume: null,
+      lastSessionId: expect.any(String) // the default randomUUID mint
     })
   })
 

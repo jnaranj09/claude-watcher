@@ -141,6 +141,7 @@ import { createLaunchService, type LaunchService } from './pty/launchSession'
 // removal for the paths that fire NO onExit (quit, window close).
 import {
   archiveBoundSessions,
+  deleteTerminalSession,
   removeBoundSession,
   stopTerminalAndRemoveBound,
   type RemovalReason
@@ -2219,35 +2220,49 @@ function registerLaunchIpc(): void {
 
   // Past sessions (D-3) — the two explicit exits. Same stop as `terminal:stop` (the manager's
   // token-less kill), then the bound card leaves with the REASON. Keyed by terminalId: the
-  // renderer holds it from the first frame.
-  function exitTerminal(terminalId: string, reason: RemovalReason): void {
-    if (terminalManager === null) throw new Error('terminal manager not initialized')
-    stopTerminalAndRemoveBound(
-      terminalId,
-      undefined,
-      terminalManager,
-      launchService,
-      (sessionId) => {
-        const wc = terminalOwners.get(terminalId)
-        if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, reason)
-      }
-    )
+  // renderer holds it from the first frame. This routes the removal to the owning window's seam.
+  function removeOwnedSession(
+    terminalId: string,
+    reason: RemovalReason
+  ): (sessionId: string) => void {
+    return (sessionId) => {
+      const wc = terminalOwners.get(terminalId)
+      if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, reason)
+    }
   }
   // session:archive — UNTRUSTED cross-process input; parse-and-throw at THIS boundary (a blank
   // terminalId rejects the invoke). Explicit "Archive"/Stop from the board: stop the pty, archive
   // the card.
   ipcMain.handle(CH.sessionArchive, (_event, raw: unknown) => {
     const { terminalId } = SessionArchiveSchema.parse(raw)
-    exitTerminal(terminalId, 'archive')
+    if (terminalManager === null) throw new Error('terminal manager not initialized')
+    stopTerminalAndRemoveBound(
+      terminalId,
+      undefined,
+      terminalManager,
+      launchService,
+      removeOwnedSession(terminalId, 'archive')
+    )
   })
   // session:delete — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Explicit
-  // Delete: stop the pty, drop the card AND any history record for it.
+  // Delete: stop the pty, drop the card AND any history record for it. The decision is
+  // `deleteTerminalSession` (launchRemoval.ts, unit-tested): on a pane whose claude already
+  // EXITED there is no binding and the renderer's `sessionId` is null (its card is gone), so the
+  // record that exit archived is found through the launch override's `lastSessionId`. The
+  // renderer's id is only a hint, removed too (idempotent).
   ipcMain.handle(CH.sessionDelete, (_event, raw: unknown) => {
     const { terminalId, sessionId } = SessionDeleteSchema.parse(raw)
-    exitTerminal(terminalId, 'delete')
-    // The pane may already be dead (its exit ARCHIVED the card): the binding is gone, so the
-    // renderer's own id is what drops that record. Idempotent when the stop above did it.
-    if (sessionId !== null) pastSessionsStore?.remove(sessionId)
+    if (terminalManager === null) throw new Error('terminal manager not initialized')
+    deleteTerminalSession(
+      terminalId,
+      sessionId,
+      terminalManager,
+      launchService,
+      removeOwnedSession(terminalId, 'delete'),
+      (id) => {
+        pastSessionsStore?.remove(id)
+      }
+    )
   })
 
   // past-sessions:open — UNTRUSTED arg (parse-and-throw inside openPastSession). The decision is

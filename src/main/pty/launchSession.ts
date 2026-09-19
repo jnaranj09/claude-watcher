@@ -129,6 +129,13 @@ export interface LaunchOverride {
   /** Past sessions — set iff this launch resumes an archived record: the exact session id to
    *  resume + the record's surviving tags. Null for a normal (fresh) launch. */
   resume: { sessionId: string; tagIds: string[] } | null
+  /** Past sessions (D-3) — the session id this terminal was LAST bound to: written by every
+   *  `mintSpawn`, moved by `rebind` (`/clear`), and — unlike the binding — never cleared by
+   *  `unbind`. It is what a Delete on a pane whose claude already exited reaches: that exit
+   *  archived the card and consumed the binding, yet its record must still go (`CH.sessionDelete`
+   *  → `deleteTerminalSession`, launchRemoval.ts). Null until the first spawn. NOT part of the
+   *  spawn recipe — no spawn reads it. */
+  lastSessionId: string | null
 }
 
 /** The launch outcome — the opaque terminalId the renderer's EmbeddedTerminal opens against. */
@@ -302,15 +309,17 @@ export interface LaunchService {
    *  Bindings are 1:1 (mintSpawn overwrites per terminal), so the first match is the match. */
   terminalIdFor(sessionId: string): string | null
   /** Session-rebind — repoint a LIVE terminal's binding at a new session id, after claude
-   *  changed its own id mid-run. Unlike `mintSpawn` this does NOT spawn, mint, or touch the
-   *  durable spawn-override; it only moves the exact binding so a later stop/exit removes the
-   *  session the board is actually showing. A no-op for an unknown terminalId (never invents
-   *  a binding for a terminal that was never launched — the ship gate). */
+   *  changed its own id mid-run. Unlike `mintSpawn` this does NOT spawn or mint; it moves the
+   *  exact binding so a later stop/exit removes the session the board is actually showing, and
+   *  the override's `lastSessionId` with it (a dead-pane Delete drops the NEW id's record). A
+   *  no-op for an unknown terminalId (never invents a binding for a terminal that was never
+   *  launched — the ship gate). */
   rebind(terminalId: string, sessionId: string): void
   /** Story 6.3 — clear the `terminalId → sessionId` binding after a stop/exit REMOVAL
    *  consumed it (the card is gone; the binding no longer names a live launched session).
    *  Idempotent. The durable spawn-override is NOT touched — a later Reopen still finds its
-   *  recipe and `mintSpawn` writes a FRESH binding. Clearing here keeps the lifecycle
+   *  recipe and `mintSpawn` writes a FRESH binding, and its `lastSessionId` still names the id
+   *  this removal consumed (a dead-pane Delete needs it). Clearing here keeps the lifecycle
    *  coherent: a second stop/exit trigger for the same terminal resolves `sessionIdFor` to
    *  null and no-ops (removal is idempotent by construction). */
   unbind(terminalId: string): void
@@ -396,7 +405,8 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
       resume:
         req.resumeSessionId != null
           ? { sessionId: req.resumeSessionId, tagIds: [...(req.tagIds ?? [])] }
-          : null
+          : null,
+      lastSessionId: null // nothing spawned yet — mintSpawn writes it
     })
     launches.set(terminalId, { terminalId, launchedAt: now(), correlatedId: null })
     return { terminalId }
@@ -438,8 +448,10 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     }
 
     // (c) Record the EXACT binding — a Reopen OVERWRITES with the new id (the old session is
-    // gone; the frame now hosts the fresh one). Story 6.3 reads this for removal.
+    // gone; the frame now hosts the fresh one). Story 6.3 reads this for removal. Past sessions:
+    // the override remembers it too, past the removal that will clear the binding.
     bindings.set(terminalId, sessionId)
+    overrides.set(terminalId, { ...override, lastSessionId: sessionId })
     // Programmatic API — wake anything waiting on THIS terminal's binding (awaitBinding). The
     // waiter set is deleted FIRST so each waiter is one-shot: a Reopen's second mint has
     // nobody left to call, and a waiter can never be resolved twice.
@@ -514,6 +526,10 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // would let an external session reach the board (Story 3.3 ship gate).
     if (!bindings.has(terminalId)) return
     bindings.set(terminalId, sessionId)
+    // Past sessions — the terminal's LAST id moves with it: the card now lives (and will be
+    // archived) under the new id, so that is the record a dead-pane Delete must drop.
+    const override = overrides.get(terminalId)
+    if (override !== undefined) overrides.set(terminalId, { ...override, lastSessionId: sessionId })
   }
 
   function unbind(terminalId: string): void {

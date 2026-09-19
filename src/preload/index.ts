@@ -325,8 +325,9 @@ const launchApi = {
     return ipcRenderer.invoke(CH.sessionArchive, req)
   },
   /** Past sessions (D-3/D-4) — DELETE: stop the pty, remove any record, remove the card. Claude's
-   *  own files are never touched. `sessionId` is what the renderer knows for the pane (null before
-   *  correlation) so a Delete on an already-exited pane still drops its record. */
+   *  own files are never touched. Main finds the record itself, an already-exited pane's included
+   *  (the terminal's last bound id); `sessionId` is only the renderer's hint for the pane (null
+   *  before correlation and once the card is gone). */
   deleteSession(terminalId: string, sessionId: string | null): Promise<void> {
     const req: SessionDeleteRequest = { terminalId, sessionId }
     return ipcRenderer.invoke(CH.sessionDelete, req)

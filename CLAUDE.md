@@ -155,7 +155,10 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   `teardownAllSessions` before `destroyAll`, and in `teardownWindowTerminals`, which the `closed`
   handler runs BEFORE `teardownWatchFeed` drops the window's seam. It never throws (a failure logs
   `code=teardown_archive_failed` and the quit goes on). `Delete` (after the confirm)
-  removes with reason `delete`: no record, and any earlier record for that id is dropped. Delete
+  removes with reason `delete`: no record, and any earlier record for that id is dropped — on a
+  pane whose claude already exited too: the launch override keeps the terminal's LAST bound id
+  (`LaunchOverride.lastSessionId`, moved by `rebind` on `/clear`), and `CH.sessionDelete` drops
+  that record (`deleteTerminalSession`; the renderer's `sessionId` is only a hint). Delete
   never touches claude's own files. `Past sessions…` (last ☰ row) reopens a record as a live card
   with `claude --resume <id>` (the launch service's `resumeSessionId`; the minted id IS the
   record's id — probe-verified 2026-09-18 on claude 2.1.277 that `--resume` keeps it). The

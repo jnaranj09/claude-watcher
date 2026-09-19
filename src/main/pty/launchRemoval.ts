@@ -88,6 +88,43 @@ export function stopTerminalAndRemoveBound(
   return removeBoundSession(terminalId, launch, removeSession)
 }
 
+/** The launch-service surface the Delete needs: the binding pair plus the durable override's
+ *  memory of the id the terminal was LAST bound to (structurally satisfied by `LaunchService` —
+ *  `LaunchOverride.lastSessionId`, which `unbind` never clears). */
+export interface LastSessionSource extends LaunchBindingSource {
+  peekSpawnOverride(terminalId: string): { lastSessionId: string | null } | null
+}
+
+/**
+ * Past sessions (D-3/D-4) — the `CH.sessionDelete` path. Stop the terminal and remove its bound
+ * card with the `delete` reason (`removeSession` → the owning window's
+ * `removeLaunched(…, 'delete')`, which drops any record for that id), exactly like an Archive but
+ * for the reason. THEN drop the history record of the id this terminal last ran, via
+ * `removeRecord`.
+ *
+ * That second step is the only thing that reaches a pane whose claude already EXITED: its exit
+ * archived the card and consumed the binding, so `removeSession` never fires, and the renderer —
+ * whose card is gone — no longer knows the id either. The launch override does
+ * (`lastSessionId`, moved by `rebind` on `/clear`). `hintSessionId` is the renderer's own id for
+ * the pane, removed too; every removal here is idempotent, so a live pane that already dropped
+ * its record through `removeSession` loses nothing twice.
+ */
+export function deleteTerminalSession(
+  terminalId: string,
+  hintSessionId: string | null,
+  manager: StoppableTerminalManager,
+  launch: LastSessionSource | null,
+  removeSession: (sessionId: string) => void,
+  removeRecord: (sessionId: string) => void
+): void {
+  stopTerminalAndRemoveBound(terminalId, undefined, manager, launch, removeSession)
+  const recordIds = new Set<string>()
+  const last = launch?.peekSpawnOverride(terminalId)?.lastSessionId ?? null
+  if (last !== null) recordIds.add(last)
+  if (hintSessionId !== null) recordIds.add(hintSessionId)
+  for (const id of recordIds) removeRecord(id)
+}
+
 /** The launch-service surface `archiveBoundSessions` needs: the binding pair plus the snapshot of
  *  every live binding (structurally satisfied by `LaunchService`). */
 export interface BoundSessionsSource extends LaunchBindingSource {

@@ -51,8 +51,10 @@ import { effectiveTagFilter, useTags } from './tagsStore'
 export interface StopConfirmPayload {
   /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
   terminalId: string
-  /** The session id the renderer has correlated for this terminal, or null before that binding
-   *  landed — a Delete on an already-exited pane still drops its record (sessionExit.ts). */
+  /** The session id the renderer has correlated for this terminal — null before that binding
+   *  landed, and null on an already-exited pane (`session.removed` drops the binding). Only a
+   *  HINT: main finds that pane's record itself, through the terminal's last bound id
+   *  (`deleteTerminalSession`, src/main/pty/launchRemoval.ts). */
   sessionId: string | null
   /** The session name to display verbatim in the confirm dialog (UX-DR22). */
   sessionName: string
