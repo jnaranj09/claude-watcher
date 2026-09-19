@@ -168,3 +168,13 @@ export const SessionLaunchFromTemplateSchema = z.object({
   name: SessionNameSchema
 })
 export type SessionLaunchFromTemplateArg = z.infer<typeof SessionLaunchFromTemplateSchema>
+
+/** Past sessions — `session:archive` arg. UNTRUSTED; a blank terminalId fails closed. */
+export const SessionArchiveSchema = z.object({ terminalId: z.string().min(1) })
+export type SessionArchiveArg = z.infer<typeof SessionArchiveSchema>
+/** Past sessions — `session:delete` arg. `sessionId` null = not yet known to the renderer. */
+export const SessionDeleteSchema = z.object({
+  terminalId: z.string().min(1),
+  sessionId: z.string().min(1).nullable()
+})
+export type SessionDeleteArg = z.infer<typeof SessionDeleteSchema>

@@ -100,6 +100,11 @@ import { createTemplatesIpcHandlers } from './persistence/templatesIpc'
 import { createShortcutsStore, type ShortcutsStore } from './persistence/shortcuts'
 import { createElectronShortcutsBlobStore } from './persistence/electronShortcutsBlobStore'
 import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
+// Past sessions — the main-owned archive of ended app-launched sessions (its own file; a
+// corrupt history can never reset settings/templates/workspaces).
+import { createPastSessionsStore, type PastSessionsStore } from './persistence/pastSessions'
+import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
+import { createPastSessionsIpcHandlers } from './persistence/pastSessionsIpc'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 import { keepVisibleTags } from '../shared/tags/tagScope'
@@ -1239,6 +1244,7 @@ function cascade(workspaceId: string): void {
   shortcutsStore?.removeByWorkspace(workspaceId)
   tagsStore?.removeByWorkspace(workspaceId)
   rulesStore?.removeByWorkspace(workspaceId)
+  pastSessionsStore?.removeByWorkspace(workspaceId) // D-9 — records are tied by workspace id
   // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
   // timers honest if that guard ever loosens.
   for (const engine of ruleEngines.values()) engine.onRulesRemoved()
@@ -1249,6 +1255,13 @@ let templatesStore: TemplatesStore | null = null
 function requireTemplatesStore(): TemplatesStore {
   if (templatesStore === null) throw new Error('templates store not initialized')
   return templatesStore
+}
+
+// Past sessions — same lifecycle as templatesStore (needs app-ready for electron-store).
+let pastSessionsStore: PastSessionsStore | null = null
+function requirePastSessionsStore(): PastSessionsStore {
+  if (pastSessionsStore === null) throw new Error('past_sessions_store_not_initialized')
+  return pastSessionsStore
 }
 
 // Phrase shortcuts — same lifecycle as templatesStore (needs app-ready for electron-store).
@@ -1357,6 +1370,17 @@ function registerTemplatesIpc(): void {
   ipcMain.handle(CH.templatesList, () => handlers.list())
   ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
   ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+}
+
+// Past sessions — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
+// persistence/pastSessionsIpc.ts (unit-tested); this only binds `list`/`forget` to CH.* channels.
+// `session:archive`, `session:delete` and `past-sessions:open` get their bridges now but their
+// main handlers are wired later — they need the launch service and the reducer.
+function registerPastSessionsIpc(): void {
+  const handlers = createPastSessionsIpcHandlers(requirePastSessionsStore())
+  ipcMain.handle(CH.pastSessionsList, () => handlers.list())
+  ipcMain.handle(CH.pastSessionsForget, (_evt, raw: unknown) => handlers.forget(raw))
+  // CH.pastSessionOpen is bound in registerLaunchIpc (it needs the launch service) — Task 9.
 }
 
 // Tags — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -2509,6 +2533,25 @@ app
       shortcutsStore = createShortcutsStore()
     }
     registerShortcutsIpc()
+
+    // Past sessions — after the workspaces store: a record may only name a workspace that exists.
+    const workspaceExists = (id: string): boolean => workspacesStore?.get(id) !== null
+    try {
+      pastSessionsStore = SMOKE
+        ? createPastSessionsStore({ workspaceExists })
+        : createPastSessionsStore({
+            blobStore: createElectronPastSessionsBlobStore(),
+            workspaceExists
+          })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a record
+      // carries operator names and cwds.
+      console.error(
+        '[claude-watcher][past-sessions] code=past_sessions_store_init_failed (in-memory)'
+      )
+      pastSessionsStore = createPastSessionsStore({ workspaceExists })
+    }
+    registerPastSessionsIpc()
 
     // Story 3.5 (SM-2) — build the ONE app-global telemetry store AFTER app-ready
     // (app.getPath('userData') needs ready) and register the telemetry IPC ONCE.

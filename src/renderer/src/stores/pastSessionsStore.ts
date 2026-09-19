@@ -1,0 +1,62 @@
+// Past sessions — the renderer PROJECTION of main's history (state.md: main is truth; this is a
+// hydrated copy replaced wholesale from every IPC result). Loaded when the dialog opens.
+import { createStore, type StoreApi } from 'zustand/vanilla'
+import { useStore } from 'zustand'
+import type { PastSession, PastSessionOpenResult } from '../../../shared/ipc/contract'
+import { boardStore } from './boardStore'
+import { setActiveWorkspace, workspacesStore } from './workspacesStore'
+
+export interface PastSessionsState {
+  sessions: PastSession[]
+  loaded: boolean
+  hydrate: (sessions: PastSession[]) => void
+}
+export type PastSessionsStoreApi = StoreApi<PastSessionsState>
+
+export function createPastSessionsViewStore(): PastSessionsStoreApi {
+  return createStore<PastSessionsState>((set) => ({
+    sessions: [],
+    loaded: false,
+    hydrate: (sessions) => set({ sessions, loaded: true })
+  }))
+}
+
+export const pastSessionsStore = createPastSessionsViewStore()
+
+export function usePastSessions<T>(selector: (state: PastSessionsState) => T): T {
+  return useStore(pastSessionsStore, selector)
+}
+
+export const selectPastSessions = (s: PastSessionsState): PastSession[] => s.sessions
+export const selectPastSessionsLoaded = (s: PastSessionsState): boolean => s.loaded
+
+const LOG_PREFIX = '[claude-watcher][past-sessions]'
+
+export async function loadPastSessions(): Promise<void> {
+  try {
+    pastSessionsStore.getState().hydrate(await window.pastSessions.list())
+  } catch {
+    console.warn(`${LOG_PREFIX} code=past_sessions_load_failed`)
+  }
+}
+
+/** Rethrows: the dialog maps the code to copy. */
+export async function forgetPastSession(id: string): Promise<void> {
+  pastSessionsStore.getState().hydrate(await window.pastSessions.forget(id))
+}
+
+/**
+ * D-1 / D-12 — resume a record IN THE APP and take the view. Main registers the `--resume`
+ * recipe and answers with the terminal to open; this opens it exactly like the `+ New session`
+ * popover does (`openLaunchedTerminal`: registry + focus). The record's workspace becomes the
+ * active one first, or the focused terminal would sit hidden under another workspace's board.
+ * Rethrows the code (`not_found` / `folder_missing` / `already_open`) for the dialog's error line.
+ */
+export async function openPastSession(id: string): Promise<PastSessionOpenResult> {
+  const result = await window.pastSessions.open(id)
+  if (workspacesStore.getState().activeId !== result.workspaceId) {
+    await setActiveWorkspace(result.workspaceId)
+  }
+  boardStore.getState().openLaunchedTerminal(result.terminalId, result.name, result.workspaceId)
+  return result
+}
