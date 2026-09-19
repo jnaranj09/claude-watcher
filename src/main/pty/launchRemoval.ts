@@ -17,6 +17,11 @@
 // (the reducer's removed-path treats an unknown id as "already gone", mirroring applyStop).
 // [Source: spec-native-session-engine.md Story 6.3; .claude/rules/state.md one-way flow]
 
+/** Past sessions (D-3) — why a card leaves the board. `archive` writes a history record (the
+ *  default: Stop/Archive, Ctrl+C twice, `/exit`, a pty exit, a late SessionEnd); `delete` writes
+ *  none and removes any earlier record for that id (after the Delete confirm). */
+export type RemovalReason = 'archive' | 'delete'
+
 /** The minimal launch-service surface the removal needs (structurally satisfied by
  *  `LaunchService` — see launchSession.ts `sessionIdFor`/`unbind`). */
 export interface LaunchBindingSource {
