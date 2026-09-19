@@ -139,6 +139,8 @@ export interface BoardSession {
   workspaceId: string
   /** Tags — the card's tag ids (session truth, read off the delta). The store never writes them. */
   tagIds: string[]
+  /** Name-sync — a rename waiting for the next prompt; read off the delta, absent = false. */
+  nameSyncPending?: boolean
 }
 
 /** The two columns that were ever HERO-ELIGIBLE. Idle is NEVER the hero (FROZEN-1 / AC-2) —
@@ -576,7 +578,10 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           enteredColumnAt: event.enteredColumnAt,
           workspaceId: event.workspaceId,
           tagIds: event.tagIds,
-          ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
+          ...(event.pendingToolName !== undefined
+            ? { pendingToolName: event.pendingToolName }
+            : {}),
+          ...(event.nameSyncPending === true ? { nameSyncPending: true } : {})
         }
         const sessionsById = { ...state.sessionsById, [event.id]: next }
         // Story 3.4 (FR-16 / AC-4) — reconcile the ack state with c9watch truth: when a session

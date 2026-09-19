@@ -661,7 +661,8 @@ function registerWatchFeed(window: BrowserWindow): void {
     // status is unchanged (attention.ts stamps on a COLUMN change only) — the board keeps its
     // order, which is the behavior confirmed during A1 planning.
     renameLaunched: (sessionId, name) => {
-      reducer.renameSession(sessionId, name).forEach(handleDelta)
+      // true = the ⟳ mark until the push is taken
+      reducer.renameSession(sessionId, name, true).forEach(handleDelta)
       // Name-sync — the card is renamed above; claude is renamed by ANSWERING its next
       // `UserPromptSubmit` POST with this name (the app cannot rename a running session any
       // other way). Recorded here, pushed once by the hook server, then cleared. Until the
@@ -942,7 +943,12 @@ function registerWatchFeed(window: BrowserWindow): void {
     // Name-sync WRITE — read-and-clear, so the name is pushed to claude exactly ONCE. Pushing
     // it every prompt would fight claude's collision rule and re-suffix the name forever
     // (see pendingTitles.ts).
-    takePendingTitle: (sessionId) => pendingTitles.take(sessionId),
+    takePendingTitle: (sessionId) => {
+      const name = pendingTitles.take(sessionId)
+      // D-11 — the push is on its way in this response; the ⟳ mark comes off the card now.
+      if (name !== null) reducer.clearNameSyncPending(sessionId).forEach(handleDelta)
+      return name
+    },
     log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
   })
   hookServers.set(wc, hookServer)

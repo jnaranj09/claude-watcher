@@ -56,7 +56,8 @@ export function projectApiSession(
     // `exactOptionalPropertyTypes`: spread the key in only when it exists — an explicit
     // `pendingToolName: undefined` is a different thing from an absent one to both TS and the
     // strict schema.
-    ...(session.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {})
+    ...(session.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {}),
+    ...(session.nameSyncPending === true ? { nameSyncPending: true } : {})
   })
   if (!r.success) {
     log?.(PROJECTION_FAILED)
@@ -81,7 +82,8 @@ export function projectApiSessionFromEvent(
     workspaceId: event.workspaceId,
     tagIds: event.tagIds,
     projectPath: event.projectPath,
-    ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {})
+    ...(event.pendingToolName !== undefined ? { pendingToolName: event.pendingToolName } : {}),
+    ...(event.nameSyncPending === true ? { nameSyncPending: true } : {})
   })
   if (!r.success) {
     log?.(PROJECTION_FAILED)

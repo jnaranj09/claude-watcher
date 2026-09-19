@@ -348,6 +348,9 @@ export type SessionUpdatedEvent = {
   tagIds: string[]
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
+  /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt (the card
+   *  draws the ⟳ mark). Absent = false. */
+  nameSyncPending?: boolean
 }
 
 /**

@@ -107,8 +107,15 @@ export interface Reducer {
    *
    * `name` arrives already validated + trimmed by `SessionNameSchema` at the IPC boundary. It is
    * OPERATOR CONTENT — never logged (the unknown-id log above carries a marker path, no value).
+   *
+   * Session-naming A2 — swap an existing session's `sessionName`. `nameSyncPending` marks the
+   * rename as waiting for claude (an in-app rename: true; the read-back of claude's own title:
+   * omitted ⇒ false). Unknown id → [] + log rename_unknown_id.
    */
-  renameSession(id: string, name: string): SessionDelta[]
+  renameSession(id: string, name: string, nameSyncPending?: boolean): SessionDelta[]
+  /** Name-sync — the pending push was taken by the hook server; drop the mark. [] when the
+   *  session is unknown or nothing was pending (no redundant delta). */
+  clearNameSyncPending(id: string): SessionDelta[]
   /**
    * Workspaces — move an EXISTING session to another workspace. Swaps `workspaceId` and
    * NOTHING else.
@@ -245,7 +252,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
    * Session-naming A2 — swap an existing session's `sessionName` (see the interface doc).
    * Unknown id → [] + log rename_unknown_id (never synthesize a card from a rename).
    */
-  function renameSession(id: string, name: string): SessionDelta[] {
+  function renameSession(id: string, name: string, nameSyncPending = false): SessionDelta[] {
     const stored = map.get(id)
     if (stored === undefined) {
       // Path = '(rename)' marks the boundary; the NAME is operator content and never logged.
@@ -253,12 +260,23 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       return []
     }
 
-    // `sessionName` ONLY. Spreading `stored` keeps status/projectPath/pid untouched, which is what
-    // makes this safe to emit through `toUpdated` without disturbing the column or the sort key.
-    const renamed: Session = { ...stored, sessionName: name }
+    // `sessionName` (+ `nameSyncPending`) ONLY. Spreading `stored` keeps status/projectPath/pid
+    // untouched, which is what makes this safe to emit through `toUpdated` without disturbing the
+    // column or the sort key.
+    const renamed: Session = { ...stored, sessionName: name, nameSyncPending }
     map.set(id, renamed)
     lastApplied = now()
     return [frame(toUpdated(renamed))]
+  }
+
+  /** Name-sync — the pending push was taken; drop the mark (see the interface doc). */
+  function clearNameSyncPending(id: string): SessionDelta[] {
+    const stored = map.get(id)
+    if (stored === undefined || stored.nameSyncPending !== true) return []
+    const cleared: Session = { ...stored, nameSyncPending: false }
+    map.set(id, cleared)
+    lastApplied = now()
+    return [frame(toUpdated(cleared))]
   }
 
   /**
@@ -315,6 +333,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     applyHookStatus,
     upsertLaunched,
     renameSession,
+    clearNameSyncPending,
     setWorkspace,
     setTags,
     markSeen,

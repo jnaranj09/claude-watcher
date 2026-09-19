@@ -100,7 +100,10 @@ export const ApiSessionSchema = z
     projectPath: z.string(),
     /** The pending tool's NAME (`Bash`, `Agent`, …) — state. Its INPUT is content and is not
      *  projected here at all. */
-    pendingToolName: z.string().optional()
+    pendingToolName: z.string().optional(),
+    /** Name-sync — true while an in-app rename waits for claude's next prompt. State, not
+     *  content. Absent = false. */
+    nameSyncPending: z.boolean().optional()
   })
   .strict()
 export type ApiSession = z.infer<typeof ApiSessionSchema>

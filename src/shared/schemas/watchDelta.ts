@@ -47,7 +47,9 @@ export const EnrichedSessionUpdatedSchema = z.object({
   /** Tags — required. A missing one means the session map had no entry (or an older session
    *  shape), which is exactly the half-formed delta this guard exists to drop. */
   tagIds: z.array(z.string().min(1)),
-  pendingToolName: z.string().optional()
+  pendingToolName: z.string().optional(),
+  /** Name-sync (D-11) — present and true only while a rename waits for the next prompt. */
+  nameSyncPending: z.boolean().optional()
 })
 
 /**

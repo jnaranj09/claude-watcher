@@ -235,6 +235,16 @@ describe('enrichDelta — tags ride the enriched delta (spec §3)', () => {
     expect(out).toBeNull()
     expect(log).toHaveBeenCalledWith({ path: 'tagIds', code: 'invalid_type' })
   })
+
+  it('carries nameSyncPending only when the stored session has it true', () => {
+    const withPending: Session = { ...session, nameSyncPending: true }
+    const out = enrichDelta(bare, tracker, new Map([[withPending.id, withPending]]))
+    expect(out?.event).toMatchObject({ type: 'session.updated', nameSyncPending: true })
+
+    const quiet: Session = { ...session, nameSyncPending: false }
+    const out2 = enrichDelta(bare, tracker, new Map([[quiet.id, quiet]]))
+    expect(out2?.event).not.toHaveProperty('nameSyncPending')
+  })
 })
 
 describe('enrichDelta — fail-closed when the tracker has no column (Tasks 7.3/7.4)', () => {
