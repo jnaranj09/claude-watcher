@@ -161,9 +161,11 @@ scope dropdown.
 
 ## Naming a tag in the UI
 
-`components/TagChip/TagChip.tsx` is the ONE drawing of a tag's name — board card footers, rail rows
-(peek and "Show all tags"), the tag filter, the `Tags…` picker and the Tags dialog.
-`components/TagIndicator/TagIndicator.tsx` is its compact form, used only by the rail's default view.
+`components/TagChip/TagChip.tsx` is the ONE drawing of a tag as a CHIP — board card footers, rail
+rows (peek and "Show all tags"), the tag filter's pill and its tag list, the past-sessions rows, and
+the Tags dialog's colour-preview swatch. `components/TagIndicator/TagIndicator.tsx` is its compact
+form, used only by the rail's default view. A tag named in a LIST OF SIBLINGS — the Tags dialog
+rail, the `TagPicker` rows — is drawn by `TagPathLabel` instead, never a chip (below).
 
 - **A tag is a label pill, never a dot.** A rounded rectangle with a tinted fill and the name in it.
   The workspace dot and the status dot are circles; the rail's tag indicator is a tag OUTLINE.
