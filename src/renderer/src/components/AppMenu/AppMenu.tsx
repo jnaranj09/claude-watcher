@@ -1,9 +1,9 @@
 // The header ☰ MENU (2026-09-14): the ONE header control besides `+ New session`. It replaced three
-// icon buttons (⚙ settings, ⌨ shortcuts, the tag icon). Rows: `Settings…`, `Shortcuts…`, and
-// `Tags`, a SUBMENU holding the tag icon's own two rows unchanged (`Manage tags…` /
-// `Manage rules…`). The submenu opens to the LEFT: the menu sits at the window's right edge.
-// Each row keeps the icon its old header button had (⚙, ⌨, the tag glyph), so it is still found by
-// shape.
+// icon buttons (⚙ settings, ⌨ shortcuts, the tag icon). Rows: `Settings…`, `Shortcuts…`, `Tags`, a
+// SUBMENU holding the tag icon's own two rows unchanged (`Manage tags…` / `Manage rules…`), and
+// `Past sessions…` — ALWAYS the last row, after `Tags` (D-6). The submenu opens to the LEFT: the
+// menu sits at the window's right edge. Each row keeps the icon its old header button had (⚙, ⌨, the
+// tag glyph), so it is still found by shape; `Past sessions…` carries a clock.
 //
 // Escape peels ONE layer: the submenu first, then the menu, and never the app's own Escape
 // (Focused → Board) while either is open. It listens on the whole anchor, so it also works while
@@ -18,6 +18,8 @@ export interface AppMenuProps {
   onManageTags: () => void
   /** Rules — the `Manage rules…` row. Omitted ⇒ no row (a control nobody handles is not rendered). */
   onManageRules?: () => void
+  /** Past sessions (D-6) — ALWAYS the last row, after Tags. Omitted ⇒ no row. */
+  onOpenPastSessions?: () => void
 }
 
 function MenuIcon(): JSX.Element {
@@ -33,11 +35,32 @@ function MenuIcon(): JSX.Element {
   )
 }
 
+/** Past sessions — a clock face, on the tag glyph's 14px grid and 1.5 stroke. */
+function ClockIcon(): JSX.Element {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+    >
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 4.5V8l2.5 1.5" />
+    </svg>
+  )
+}
+
 export function AppMenu({
   onOpenSettings,
   onOpenShortcuts,
   onManageTags,
-  onManageRules
+  onManageRules,
+  onOpenPastSessions
 }: AppMenuProps): JSX.Element {
   const [open, setOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -199,6 +222,21 @@ export function AppMenu({
               </div>
             )}
           </div>
+          {onOpenPastSessions !== undefined && (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.item}
+              data-testid="app-menu-past-sessions"
+              onClick={() => choose(onOpenPastSessions)}
+              onMouseEnter={() => setTagsOpen(false)}
+            >
+              <span className={styles.icon} aria-hidden="true">
+                <ClockIcon />
+              </span>
+              Past sessions…
+            </button>
+          )}
         </div>
       )}
     </div>

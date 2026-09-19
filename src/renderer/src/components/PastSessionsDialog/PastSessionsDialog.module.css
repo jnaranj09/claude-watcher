@@ -1,0 +1,67 @@
+/* Past sessions — what is this dialog's own in the Manage shell: the three-line rail row, the empty
+   sentence and the read-only form's values. The shell, rail, form, footer and every button are
+   ManageDialog.module.css (.claude/rules/design.md). Text on the raised panel is --text-secondary,
+   never --text-muted. */
+
+/* name / folder · ended / tags. `min-width: 0` on every flex level, or the ellipsis never engages. */
+.rowMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowMeta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+.empty {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+
+/* The read-only form. Label + value, with the form's own gap between them — TemplateForm's rhythm,
+   so no margin of its own. A value is operator-typed and unbounded: one line, ellipsis, `title`. */
+.value {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+/* A value that holds a swatch or chips beside its text (workspace, tags). */
+.valueRow {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+}
+.workspaceName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.none {
+  color: var(--text-secondary);
+}

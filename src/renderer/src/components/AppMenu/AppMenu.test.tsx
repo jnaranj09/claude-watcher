@@ -1,5 +1,6 @@
 // The header ☰ menu (2026-09-14): the ONE header control besides + New session. Settings…,
-// Shortcuts…, and a Tags ▸ submenu holding Manage tags… / Manage rules…. jsdom `unit`.
+// Shortcuts…, a Tags ▸ submenu holding Manage tags… / Manage rules…, and Past sessions… — ALWAYS
+// the last row (D-6). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
@@ -18,6 +19,7 @@ function render(props: Partial<AppMenuProps> = {}): RenderResult {
       onOpenShortcuts={vi.fn()}
       onManageTags={vi.fn()}
       onManageRules={vi.fn()}
+      onOpenPastSessions={vi.fn()}
       {...props}
     />
   )
@@ -62,11 +64,11 @@ describe('AppMenu', () => {
     expect(button?.querySelector('svg')).not.toBeNull()
   })
 
-  it('opens Settings…, Shortcuts… and Tags, with Tags as a closed submenu', () => {
+  it('opens Settings…, Shortcuts…, Tags and Past sessions…, with Tags as a closed submenu', () => {
     const r = render()
     click(q(r, 'app-menu'))
     expect(q(r, 'app-menu')?.getAttribute('aria-expanded')).toBe('true')
-    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags'])
+    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags', 'Past sessions…'])
     const tags = q(r, 'app-menu-tags')
     expect(tags?.getAttribute('aria-haspopup')).toBe('menu')
     expect(tags?.getAttribute('aria-expanded')).toBe('false')
@@ -99,6 +101,39 @@ describe('AppMenu', () => {
     click(q(r, 'app-menu-shortcuts'))
     expect(onOpenShortcuts).toHaveBeenCalledTimes(1)
     expect(mainMenu(r)).toBeNull()
+  })
+
+  it('Past sessions… is the LAST row, has a clock icon, closes the menu and calls its handler', () => {
+    const onOpenPastSessions = vi.fn()
+    const r = render({ onOpenPastSessions })
+    click(q(r, 'app-menu'))
+    const all = labels(mainMenu(r))
+    expect(all[all.length - 1]).toBe('Past sessions…')
+    expect(
+      q(r, 'app-menu-past-sessions')?.querySelector(':scope > [aria-hidden="true"] svg')
+    ).not.toBeNull()
+    click(q(r, 'app-menu-past-sessions'))
+    expect(onOpenPastSessions).toHaveBeenCalledTimes(1)
+    expect(mainMenu(r)).toBeNull()
+  })
+
+  it('offers no Past sessions… row when nobody handles it', () => {
+    const r = renderComponent(
+      <AppMenu onOpenSettings={vi.fn()} onOpenShortcuts={vi.fn()} onManageTags={vi.fn()} />
+    )
+    cleanup = r.unmount
+    click(q(r, 'app-menu'))
+    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags'])
+  })
+
+  // It sits outside the Tags submenu: pointing at it must close that submenu like any other row.
+  it('pointing at Past sessions… closes the Tags submenu', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    hover(q(r, 'app-menu-tags'))
+    expect(subMenu(r)).not.toBeNull()
+    hover(q(r, 'app-menu-past-sessions'))
+    expect(subMenu(r)).toBeNull()
   })
 
   it('Tags opens the tags submenu: Manage tags… and Manage rules…', () => {

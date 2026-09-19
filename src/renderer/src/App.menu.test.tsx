@@ -1,6 +1,7 @@
 // The header ☰ menu — App-level wiring (2026-09-14): it is the ONE header control besides
-// `+ New session`, and its Settings… row opens the Settings dialog under the single-modal rule
-// (UX-DR14). FAKE window bridges, the real App — the same harness as App.tags.test.tsx.
+// `+ New session`, and its Settings… and Past sessions… rows open their dialogs under the
+// single-modal rule (UX-DR14). FAKE window bridges, the real App — the same harness as
+// App.tags.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
@@ -33,6 +34,7 @@ beforeEach(() => {
     tagsDialogOpen: false,
     rulesDialogOpen: false,
     settingsDialogOpen: false,
+    pastSessionsDialogOpen: false,
     quitGuard: null
   })
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -108,6 +110,11 @@ beforeEach(() => {
     save: vi.fn(),
     remove: vi.fn(),
     move: vi.fn()
+  }
+  ;(window as unknown as { pastSessions: unknown }).pastSessions = {
+    list: vi.fn(() => Promise.resolve([])),
+    forget: vi.fn(() => Promise.resolve([])),
+    open: vi.fn()
   }
   ;(window as unknown as { quit: unknown }).quit = {
     onGuardShow: vi.fn((cb: (payload: QuitGuardPayload) => void) => {
@@ -202,5 +209,66 @@ describe('App — the header ☰ menu', () => {
     expect(boardStore.getState().settingsDialogOpen).toBe(true)
     act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
     expect(boardStore.getState().settingsDialogOpen).toBe(false)
+  })
+
+  describe('Past sessions…', () => {
+    const panel = (r: RenderResult): Element | null =>
+      r.container.querySelector('[data-testid="past-sessions-panel"]')
+
+    function openPastSessions(r: RenderResult): void {
+      click(q(r, '[data-testid="app-menu"]'))
+      click(q(r, '[data-testid="app-menu-past-sessions"]'))
+    }
+
+    it('is the last ☰ row and opens the Past sessions dialog, which loads the history', async () => {
+      const r = await renderApp()
+      expect(panel(r)).toBeNull()
+      openPastSessions(r)
+      await flush()
+      expect(panel(r)).not.toBeNull()
+      expect(window.pastSessions.list).toHaveBeenCalledTimes(1)
+      expect(q(r, '[data-testid="app-header"]').hasAttribute('inert')).toBe(true)
+    })
+
+    it('counts as a modal: Ctrl+N and the other openers do nothing while it is open', async () => {
+      const r = await renderApp()
+      openPastSessions(r)
+      act(() => {
+        window.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true })
+        )
+      })
+      await flush()
+      expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+      openSettings(r)
+      expect(boardStore.getState().settingsDialogOpen).toBe(false)
+    })
+
+    it('does nothing while another dialog is open', async () => {
+      const r = await renderApp()
+      act(() => boardStore.getState().openTemplatesDialog())
+      openPastSessions(r)
+      expect(boardStore.getState().pastSessionsDialogOpen).toBe(false)
+    })
+
+    it('Escape from the page body closes it; ✕ closes it too', async () => {
+      const r = await renderApp()
+      openPastSessions(r)
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+      expect(panel(r)).toBeNull()
+      openPastSessions(r)
+      click(q(r, '[data-testid="past-sessions-close"]'))
+      expect(panel(r)).toBeNull()
+    })
+
+    it('the quit guard closes it (never two modals stacked)', async () => {
+      const r = await renderApp()
+      openPastSessions(r)
+      expect(boardStore.getState().pastSessionsDialogOpen).toBe(true)
+      act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
+      expect(boardStore.getState().pastSessionsDialogOpen).toBe(false)
+    })
   })
 })

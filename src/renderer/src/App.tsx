@@ -35,6 +35,9 @@ import { loadTags, setSessionTags } from './stores/tagsStore'
 // Rules — the Manage-rules modal (+ the startup rules load).
 import { RulesDialog } from './components/RulesDialog/RulesDialog'
 import { loadRules } from './stores/rulesStore'
+// Past sessions (D-6) — the history modal (☰ menu → Past sessions…, always the last row). It loads
+// the history itself on open; nothing loads at startup.
+import { PastSessionsDialog } from './components/PastSessionsDialog/PastSessionsDialog'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (☰ menu → Settings…; the `#terminals` proof view keeps
 // its own ⚙ gear) + the startup settings load.
@@ -64,7 +67,8 @@ import {
   selectWorkspacesDialogOpen,
   selectTagsDialogOpen,
   selectRulesDialogOpen,
-  selectSettingsDialogOpen
+  selectSettingsDialogOpen,
+  selectPastSessionsDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -94,8 +98,8 @@ import { useSessionSeen } from './hooks/useSessionSeen'
 import styles from './App.module.css'
 
 /** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces/Tags/Rules/
- *  Settings dialogs never co-exist. A MODULE-LEVEL function (not a component-body const) so the `[]`-deps
- *  useCallbacks that call it stay free of exhaustive-deps warnings. */
+ *  Settings/Past-sessions dialogs never co-exist. A MODULE-LEVEL function (not a component-body
+ *  const) so the `[]`-deps useCallbacks that call it stay free of exhaustive-deps warnings. */
 function isModalOpen(): boolean {
   const s = boardStore.getState()
   return (
@@ -105,7 +109,8 @@ function isModalOpen(): boolean {
     s.workspacesDialogOpen ||
     s.tagsDialogOpen ||
     s.rulesDialogOpen ||
-    s.settingsDialogOpen
+    s.settingsDialogOpen ||
+    s.pastSessionsDialogOpen
   )
 }
 
@@ -176,6 +181,8 @@ function App(): React.JSX.Element {
   const rulesDialogOpen = useBoard(selectRulesDialogOpen)
   // Settings — whether the Settings dialog is open.
   const settingsDialogOpen = useBoard(selectSettingsDialogOpen)
+  // Past sessions — whether the Past-sessions dialog is open.
+  const pastSessionsDialogOpen = useBoard(selectPastSessionsDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -251,6 +258,7 @@ function App(): React.JSX.Element {
       boardStore.getState().closeTagsDialog()
       boardStore.getState().closeRulesDialog()
       boardStore.getState().closeSettingsDialog()
+      boardStore.getState().closePastSessionsDialog()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -339,6 +347,12 @@ function App(): React.JSX.Element {
   const handleOpenShortcuts = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openShortcutsDialog()
+  }, [])
+
+  // Past sessions (D-6) — "Past sessions…" from the ☰ menu. Same single-modal guard as every opener.
+  const handleOpenPastSessions = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openPastSessionsDialog()
   }, [])
 
   // Tags — a card's Tags… menu or a rail peek changed a session's tags. Never optimistic: the
@@ -552,6 +566,7 @@ function App(): React.JSX.Element {
           boardStore.getState().closeTagsDialog()
           boardStore.getState().closeRulesDialog()
           boardStore.getState().closeSettingsDialog()
+          boardStore.getState().closePastSessionsDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -635,7 +650,8 @@ function App(): React.JSX.Element {
     workspacesDialogOpen ||
     tagsDialogOpen ||
     rulesDialogOpen ||
-    settingsDialogOpen
+    settingsDialogOpen ||
+    pastSessionsDialogOpen
 
   return (
     <div className={styles.app}>
@@ -652,13 +668,15 @@ function App(): React.JSX.Element {
             onPickTemplate={handleTemplateSession}
             onManage={handleManageTemplates}
           />
-          {/* The ONE header control besides + New session: Settings…, Shortcuts…, and the Tags
-              submenu. It filters nothing: the tag filter is the board's FilterBar. */}
+          {/* The ONE header control besides + New session: Settings…, Shortcuts…, the Tags
+              submenu and Past sessions… (last). It filters nothing: the tag filter is the board's
+              FilterBar. */}
           <AppMenu
             onOpenSettings={handleOpenSettings}
             onOpenShortcuts={handleOpenShortcuts}
             onManageTags={handleManageTags}
             onManageRules={handleManageRules}
+            onOpenPastSessions={handleOpenPastSessions}
           />
         </div>
       </header>
@@ -747,6 +765,11 @@ function App(): React.JSX.Element {
       {/* Settings — the Settings dialog (☰ menu → Settings…; same single-modal rule). */}
       {settingsDialogOpen && (
         <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />
+      )}
+      {/* Past sessions (D-6) — the history dialog (☰ menu → Past sessions…; same z-60 layer and
+          single-modal rule). Its Open takes the view itself (pastSessionsStore.openPastSession). */}
+      {pastSessionsDialogOpen && (
+        <PastSessionsDialog onClose={() => boardStore.getState().closePastSessionsDialog()} />
       )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and the operator submitting or cancelling). NOTHING is

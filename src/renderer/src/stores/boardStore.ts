@@ -303,6 +303,12 @@ export interface BoardState {
    */
   settingsDialogOpen: boolean
   /**
+   * Past sessions (D-6) — whether the Past-sessions dialog is open (RENDERER VIEW-STATE). Opened
+   * from the header ☰ menu's last row; joins the single-modal rule like every other dialog.
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  pastSessionsDialogOpen: boolean
+  /**
    * The filter bar's search box — the text VERBATIM, as typed (RENDERER VIEW-STATE, never
    * persisted). `useBoardFilter` hands it to the board and rail selectors, which match it against
    * the card NAME only. It survives a workspace switch: the box shows it, so nothing is hidden
@@ -483,6 +489,10 @@ export interface BoardState {
   openSettingsDialog: () => void
   /** Settings — close the Settings dialog. No-op if already closed. */
   closeSettingsDialog: () => void
+  /** Past sessions — open the Past-sessions dialog. No-op if already open. */
+  openPastSessionsDialog: () => void
+  /** Past sessions — close the Past-sessions dialog. No-op if already closed. */
+  closePastSessionsDialog: () => void
   /** The filter bar's search box — store the text as typed (the selectors trim it). */
   setSearchQuery: (query: string) => void
 }
@@ -557,6 +567,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     rulesDialogOpen: false,
     // Settings — the Settings dialog starts closed.
     settingsDialogOpen: false,
+    // Past sessions — the Past-sessions dialog starts closed.
+    pastSessionsDialogOpen: false,
     // The filter bar's search box starts empty: nothing hidden.
     searchQuery: '',
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
@@ -870,6 +882,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     closeSettingsDialog: () => {
       if (get().settingsDialogOpen) set({ settingsDialogOpen: false })
     },
+
+    openPastSessionsDialog: () => {
+      if (!get().pastSessionsDialogOpen) set({ pastSessionsDialogOpen: true })
+    },
+    closePastSessionsDialog: () => {
+      if (get().pastSessionsDialogOpen) set({ pastSessionsDialogOpen: false })
+    },
     setSearchQuery: (query) => {
       if (get().searchQuery !== query) set({ searchQuery: query })
     }
@@ -1057,6 +1076,13 @@ export const selectSearchQuery = (state: BoardState): string => state.searchQuer
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectRulesDialogOpen = (state: BoardState): boolean => state.rulesDialogOpen
+
+/**
+ * Past sessions — whether the Past-sessions dialog is open (RENDERER VIEW-STATE).
+ * [state.md: modal open/closed = renderer view-state]
+ */
+export const selectPastSessionsDialogOpen = (state: BoardState): boolean =>
+  state.pastSessionsDialogOpen
 
 /**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.
