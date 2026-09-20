@@ -275,6 +275,35 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   and `/docs/swagger-ui-bundle.js` (SMOKE forces `{ apiEnabled: true, apiPort: 0 }` at app-ready),
   which is the only check that opens a `swagger-ui-dist` file from inside the package.
 
+### Custom themes (`src/main/themes/`, spec `docs/superpowers/specs/2026-09-20-custom-themes-design.md`)
+
+- **A theme is a folder in `<userData>/themes/<id>/` with a `theme.json`** (`src/shared/schemas/theme.ts`,
+  `.strict()`: unknown manifest key, unknown token name or unknown terminal key FAILS THE WHOLE
+  THEME closed — a typo is never a silent no-op), an optional CSS file and local assets. Main
+  composes ONE stylesheet (`:root` tokens block, then the raw CSS with every `url()` inlined as a
+  `data:` URI — allow-listed extensions, 5 MB total) and pushes a `ThemeBundle` over
+  `CH.themeApplied`, validated at source. No custom protocol, no file served to the renderer.
+- **Fail closed, fall back to Default, KEEP the setting.** `settings.themeId` (additive, v1) is the
+  operator's choice; a theme that does not load logs `code=theme_load_failed id=<id> reason=<code>`,
+  the DEFAULT bundle is pushed, and Settings shows the error line. Recovery is always "fix or remove
+  the folder, Reload themes (or restart)". Logs carry `code=` and the zod `path=` only — never a
+  manifest value, CSS text or a file path.
+- **`nativeTheme.themeSource` and the root `color-scheme` FOLLOW THE THEME** (`colorScheme: dark|light`,
+  `themeLifecycle.ts` + `hooks/useApplyTheme.ts`). The old fixed `:root { color-scheme: dark }` is
+  gone from `main.css`; the pre-window `nativeTheme.themeSource = 'dark'` in index.ts is only the
+  default before the first apply.
+- **Every renderer colour is a token.** `styles/noHexLiterals.test.ts` fails on a hex literal outside
+  `tokens.css` / `tokens.ts` / `xtermTheme.ts` / `WorkspaceDot.module.css` / `SmokeCockpit.tsx`. Ink
+  on filled buttons is `--text-on-accent` / `--text-on-danger`. `TOKENS` lives in
+  `src/shared/theme/tokens.ts` (main validates against it); the renderer path re-exports it.
+- **xterm re-themes live, but `allowTransparency` is read at creation only** (xterm requires it
+  before `open()`); Settings says so while the applied theme sets it.
+- **The SDK is generated and drift-tested:** `docs/themes/THEMES.md` (token table from
+  `TOKEN_DOCS`), `docs/themes/theme.schema.json` (`z.toJSONSchema`), `examples/builtin-dark`
+  (asserted equal to `TOKENS` + `xtermTheme`). Regenerate with `npm run gen:theme-docs`; the test
+  fails while the committed files differ. Rescan is on start, on Settings open and on `Reload
+  themes` — there is no file watcher (IdeasBoard).
+
 ### node-pty + packaging (a day-costing gotcha)
 
 node-pty is a native module. Keep it EXTERNALIZED in the electron-vite main config, rebuilt

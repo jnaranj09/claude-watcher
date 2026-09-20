@@ -16,6 +16,19 @@
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
+  /* Its own stacking context, ABOVE the board (FilterBar/AppMenu/NewSessionMenu/Settings/
+     WorkspaceSwitcher popovers all sit at z-index 50), so the header — and everything painted
+     inside it — always wins over <main>, no matter what a theme's CSS does to .header's own
+     stacking. Without this, an ordinary in-flow .header has NO stacking context of its own, so
+     the AppMenu popover's z-index: 50 escapes upward and competes directly with FilterBar's
+     z-index: 50 at the root — a tie normally broken in the header's favor by paint order, but
+     a theme that puts backdrop-filter/filter/transform/etc. on [data-testid='app-header'] (e.g.
+     docs/themes/examples/liquid-glass) creates a stacking context ON THE HEADER ITSELF, which
+     traps the menu's z-index inside it — the whole header then paints as one unit, in DOM order,
+     BEFORE <main>, so the board's filter row (z-index 50, painted after) covers the menu. Below
+     ManageDialog/QuitGuard/StopConfirm's z-index: 60 — a header must never out-rank a modal. */
+  position: relative;
+  z-index: 55;
 }
 
 .brand {

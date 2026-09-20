@@ -109,6 +109,15 @@
   font-size: 13px;
 }
 
+/* Custom themes — the two ghost buttons under the Theme picker sit in their own row, right-aligned
+   like every control group, so the picker row stays a label + one control. */
+.themeActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: 0 0 var(--space-3);
+}
+
 /* The header gear that opens the surface. */
 .openButton {
   background: transparent;

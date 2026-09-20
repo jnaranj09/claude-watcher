@@ -80,6 +80,12 @@ beforeEach(() => {
     get: vi.fn(() => Promise.resolve(settings)),
     set: vi.fn(() => Promise.resolve(settings))
   }
+  ;(window as unknown as { themes: unknown }).themes = {
+    list: vi.fn(() => Promise.resolve([])),
+    reload: vi.fn(() => Promise.resolve({ ok: true as const, id: 'default' })),
+    openFolder: vi.fn(() => Promise.resolve()),
+    onApplied: vi.fn(() => () => {})
+  }
   ;(window as unknown as { terminal: unknown }).terminal = {
     open: vi.fn(() => () => {}),
     resize: vi.fn(() => Promise.resolve()),

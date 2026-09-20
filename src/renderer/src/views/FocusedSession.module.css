@@ -133,7 +133,7 @@
 .deleteButtonFocused:hover,
 .deleteButtonFocused:focus-visible {
   background: var(--danger);
-  color: #fff;
+  color: var(--text-on-danger);
   border-color: var(--danger);
 }
 

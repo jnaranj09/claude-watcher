@@ -34,6 +34,9 @@ export interface SettingsState {
   apiEnabled: boolean
   /** Programmatic API — the port the listener binds on 127.0.0.1. */
   apiPort: number
+  /** Custom themes — the CHOSEN theme id (`default` or a folder id). The APPLIED bundle lives
+   *  in themeStore. */
+  themeId: string
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
@@ -60,6 +63,7 @@ export function createSettingsStore(): SettingsStoreApi {
     expanderKey: DEFAULT_SETTINGS.expanderKey,
     apiEnabled: DEFAULT_SETTINGS.apiEnabled,
     apiPort: DEFAULT_SETTINGS.apiPort,
+    themeId: DEFAULT_SETTINGS.themeId,
     loaded: false,
 
     hydrate: (settings) => {
@@ -71,6 +75,7 @@ export function createSettingsStore(): SettingsStoreApi {
         expanderKey: settings.expanderKey,
         apiEnabled: settings.apiEnabled,
         apiPort: settings.apiPort,
+        themeId: settings.themeId,
         loaded: true
       })
     },
@@ -88,7 +93,8 @@ export function createSettingsStore(): SettingsStoreApi {
           : {}),
         ...(patch.expanderKey !== undefined ? { expanderKey: patch.expanderKey } : {}),
         ...(patch.apiEnabled !== undefined ? { apiEnabled: patch.apiEnabled } : {}),
-        ...(patch.apiPort !== undefined ? { apiPort: patch.apiPort } : {})
+        ...(patch.apiPort !== undefined ? { apiPort: patch.apiPort } : {}),
+        ...(patch.themeId !== undefined ? { themeId: patch.themeId } : {})
       })
     }
   }))
@@ -113,6 +119,8 @@ export const selectExpanderKey = (state: SettingsState): string => state.expande
 export const selectApiEnabled = (state: SettingsState): boolean => state.apiEnabled
 /** Programmatic API — the port the listener binds (primitive). */
 export const selectApiPort = (state: SettingsState): number => state.apiPort
+/** Custom themes — the live chosen theme id (primitive). */
+export const selectThemeId = (state: SettingsState): string => state.themeId
 /** Whether the initial load has completed (primitive). */
 export const selectLoaded = (state: SettingsState): boolean => state.loaded
 

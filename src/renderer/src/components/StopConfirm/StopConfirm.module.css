@@ -90,7 +90,7 @@
   border: 1px solid var(--danger);
   border-radius: var(--rounded-md);
   background: var(--danger);
-  color: #ffffff;
+  color: var(--text-on-danger);
   font-size: var(--font-size-body, 13px);
   font-weight: 600;
   cursor: pointer;

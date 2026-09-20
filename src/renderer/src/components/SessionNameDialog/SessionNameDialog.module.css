@@ -115,7 +115,7 @@
   border: 1px solid var(--working);
   border-radius: var(--rounded-md);
   background: var(--working);
-  color: #11111b;
+  color: var(--text-on-accent);
   font-size: var(--font-size-body, 13px);
   font-weight: 600;
   cursor: pointer;

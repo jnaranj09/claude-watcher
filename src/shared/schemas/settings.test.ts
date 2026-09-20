@@ -38,7 +38,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       reminderFirstDelayMinutes: 2,
       expanderKey: 'X',
       apiEnabled: false,
-      apiPort: 9281
+      apiPort: 9281,
+      themeId: 'default'
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -309,5 +310,26 @@ describe('settings — programmatic API fields', () => {
       apiEnabled: true,
       apiPort: 9300
     })
+  })
+})
+
+describe('settings.themeId (custom themes, additive on v1)', () => {
+  it('defaults to "default" on a v1 blob written before themes existed', () => {
+    const r = SettingsSchema.safeParse({ version: 1, soundEnabled: true, terminalFontSize: 14 })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.themeId).toBe('default')
+  })
+  it('accepts a folder id and fails closed on one that is not an id', () => {
+    const base = { version: 1, soundEnabled: true, terminalFontSize: 14 }
+    expect(SettingsSchema.safeParse({ ...base, themeId: 'liquid-glass' }).success).toBe(true)
+    expect(SettingsSchema.safeParse({ ...base, themeId: 'Liquid Glass' }).success).toBe(false)
+    expect(SettingsSchema.safeParse({ ...base, themeId: '../x' }).success).toBe(false)
+  })
+  it('the patch accepts themeId and a themeId-only patch fills nothing else', () => {
+    expect(SettingsPatchSchema.parse({ themeId: 'paper' })).toEqual({ themeId: 'paper' })
+    expect(SettingsPatchSchema.safeParse({ themeId: 'Bad' }).success).toBe(false)
+  })
+  it('DEFAULT_SETTINGS.themeId is default', () => {
+    expect(DEFAULT_SETTINGS.themeId).toBe('default')
   })
 })

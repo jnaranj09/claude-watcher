@@ -262,7 +262,7 @@
   border: 1px solid var(--working);
   border-radius: var(--rounded-md);
   background: var(--working);
-  color: #11111b;
+  color: var(--text-on-accent);
   font-size: var(--font-size-body, 13px);
   font-weight: 600;
   cursor: pointer;
@@ -297,7 +297,7 @@
 .deleteButton:hover:not(:disabled),
 .deleteButton:focus-visible {
   background: var(--danger);
-  color: #ffffff;
+  color: var(--text-on-danger);
 }
 .deleteButton:disabled {
   opacity: 0.6;
@@ -308,7 +308,7 @@
   border: 1px solid var(--danger);
   border-radius: var(--rounded-md);
   background: var(--danger);
-  color: #ffffff;
+  color: var(--text-on-danger);
   font-size: var(--font-size-body, 13px);
   font-weight: 600;
   cursor: pointer;

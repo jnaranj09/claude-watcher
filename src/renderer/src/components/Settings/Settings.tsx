@@ -1,10 +1,12 @@
 // Story 2.4 — the minimal Settings surface (AC-4).
 //
-// FIVE controls, IN ORDER: a SOUND on/off toggle, then (spec 2026-09-10) two ATTENTION-REMINDER
+// SIX controls, IN ORDER: a SOUND on/off toggle, then (spec 2026-09-10) two ATTENTION-REMINDER
 // dropdowns — how many times a still-blocked session is re-notified, and the first reminder's
-// delay — then a TERMINAL FONT-SIZE control, then (spec 2026-09-15) the PROGRAMMATIC API block:
-// an on/off toggle, the listener's port, and — only while it is on — the bearer token with Copy
-// and an arm-in-place Regenerate, plus the Swagger docs URL. The reminder rows sit after Attention
+// delay — then a TERMINAL FONT-SIZE control, then (spec 2026-09-20) the THEME group: a picker,
+// Reload themes, Open themes folder, a broken-themes helper line and a transparency hint — then
+// (spec 2026-09-15) the PROGRAMMATIC API block: an on/off toggle, the listener's port, and — only
+// while it is on — the bearer token with Copy and an arm-in-place Regenerate, plus the Swagger
+// docs URL. The reminder rows sit after Attention
 // sound (spec §4): sound and reminders are both attention settings, so they read together;
 // font-size is unrelated and comes last. Story 2.4 froze this panel at exactly two (F3 /
 // UX-DR30); a third "background work gives up after" window was added with the background-work
@@ -37,6 +39,7 @@ import {
   selectReminderFirstDelayMinutes,
   selectApiEnabled,
   selectApiPort,
+  selectThemeId,
   persistSettingsPatch
 } from '../../stores/settingsStore'
 import {
@@ -47,6 +50,10 @@ import {
   API_PORT_MIN,
   API_PORT_MAX
 } from '../../../../shared/schemas/settings'
+import { useTheme, selectThemeBundle } from '../../stores/themeStore'
+import type { ThemeSummary } from '../../../../shared/schemas/theme'
+import { DEFAULT_THEME_ID } from '../../../../shared/schemas/theme'
+import { brokenThemesLine, themeErrorCopy } from '../../lib/themeCopy'
 import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
@@ -107,6 +114,90 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const [portInvalid, setPortInvalid] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const portValue = portDraft ?? String(apiPort)
+
+  // ── Custom themes (spec 2026-09-20) ───────────────────────────────────────────────────────
+  const themeId = useSettings(selectThemeId)
+  const bundle = useTheme(selectThemeBundle)
+  const [summaries, setSummaries] = useState<ThemeSummary[]>([])
+  // Bumped by Reload to re-run the listing effect below — the effect itself owns the ONE
+  // fetch-then-setState call site (react-hooks/set-state-in-effect: setState must land inside a
+  // `.then()`/`.catch()` literally in the effect body, never via a named async helper called
+  // from it — the Settings token-read effect above is the precedent).
+  const [themeListGeneration, setThemeListGeneration] = useState(0)
+
+  // Rescan on open (D-3) and after a Reload (bumps `themeListGeneration`). Never throws past
+  // here: a failed list keeps Default selectable and puts mapped copy on the one error line.
+  useEffect(() => {
+    let alive = true
+    window.themes
+      .list()
+      .then((result) => {
+        if (alive) setSummaries(result)
+      })
+      .catch(() => {
+        console.warn('[claude-watcher][themes] code=list_failed')
+        if (alive) apiActions.setError('Could not read the themes folder.')
+      })
+    return () => {
+      alive = false
+    }
+  }, [apiActions, themeListGeneration])
+
+  // Default first, then the loadable ones ordered by NAME (the picker's own label).
+  const loadable = summaries
+    .filter((s) => s.error === undefined)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const themeOptions: SelectOption<string>[] = [
+    { value: DEFAULT_THEME_ID, label: 'Default' },
+    ...loadable.map((s) => ({ value: s.id, label: s.name }))
+  ]
+  // The picker never sits on a value it does not offer (design.md): a chosen theme that is
+  // broken or gone stays listed under its own id so the operator sees what is set.
+  if (!themeOptions.some((o) => o.value === themeId)) {
+    themeOptions.push({ value: themeId, label: themeId })
+  }
+  const brokenLine = brokenThemesLine(summaries)
+  const chosenSummary = summaries.find((s) => s.id === themeId)
+  const chosenName = chosenSummary?.name ?? themeId
+  // D-7: the setting is kept; the bundle's id says what actually landed. Finding 1(b): name the
+  // REASON too, not just "could not be loaded" — the chosen theme's own summary now carries the
+  // same code a full package validation (manifest + CSS + assets, themeScanner.ts scan()) would
+  // have found, whether the mismatch was discovered at startup or after a Reload.
+  const chosenReason = chosenSummary?.error !== undefined ? themeErrorCopy(chosenSummary) : null
+  const themeError =
+    bundle.id !== themeId
+      ? `Theme "${chosenName}" could not be loaded, using Default${chosenReason !== null ? ` — ${chosenReason}` : ''}`
+      : null
+  // Derived → the shared error line, adjusted DURING RENDER against the previous value (the React
+  // docs' "adjusting state when a prop changes" pattern EmbeddedTerminal already uses), not in an
+  // effect (react-hooks/set-state-in-effect).
+  const [prevThemeError, setPrevThemeError] = useState<string | null>(null)
+  if (prevThemeError !== themeError) {
+    setPrevThemeError(themeError)
+    apiActions.setError(themeError)
+  }
+
+  async function reloadThemes(): Promise<void> {
+    try {
+      await window.themes.reload()
+    } catch {
+      console.warn('[claude-watcher][themes] code=reload_failed')
+      apiActions.setError('Could not reload themes.')
+    }
+    setThemeListGeneration((g) => g + 1)
+  }
+
+  // Never rendered thrown (design.md): a failed open is mapped copy on the shared error line,
+  // same treatment as `reloadThemes` and every other async call in this file — never a silent
+  // unhandled rejection.
+  async function openThemesFolder(): Promise<void> {
+    try {
+      await window.themes.openFolder()
+    } catch {
+      console.warn('[claude-watcher][themes] code=open_folder_failed')
+      apiActions.setError('Could not open the themes folder.')
+    }
+  }
 
   // The token is MAIN's — read it whenever the block is on. Turning the block OFF clears it in
   // the toggle's own handler, not here: an effect must not setState synchronously.
@@ -294,16 +385,57 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
           </div>
         </div>
 
-        {/* Control 5 — the PROGRAMMATIC API, off by default. The token, its buttons and the docs
-            URL are only rendered while it is on (design.md: a control the operator must not use
-            is not rendered). The Provider wraps ONLY this block: `ManageDialog.Delete` and
-            `.Error` read the ManageDialog context and THROW without one, and SettingsPanel is
-            not a Manage dialog. The Provider itself renders `<ManageDialogContext>` and nothing
-            else — no overlay, no role=dialog, no Escape handler — so the panel is still the only
-            dialog here, and `title`/`testIdPrefix` are inert (only Frame/Header/Close read them).
-            `state.armed` is ONE flag per Provider and Regenerate is the block's only armable
-            control; a second one would need its own Provider. */}
+        {/* The Provider wraps the Theme and API groups: both feed the panel's ONE error line.
+            `ManageDialog.Delete` and `.Error` read the ManageDialog context and THROW without
+            one, and SettingsPanel is not a Manage dialog. The Provider itself renders
+            `<ManageDialogContext>` and nothing else — no overlay, no role=dialog, no Escape
+            handler — so the panel is still the only dialog here, and `title`/`testIdPrefix` are
+            inert (only Frame/Header/Close read them). `state.armed` is ONE flag per Provider and
+            Regenerate is the block's only armable control; a second one would need its own
+            Provider. */}
         <ManageDialog.Provider {...apiDialog}>
+          {/* Custom themes — the picker (a Select; never a native <select>), the two actions, the
+              broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
+          <div className={styles.row}>
+            <span className={styles.label}>Theme</span>
+            <div className={styles.controlGroup}>
+              <Select
+                value={themeId}
+                options={themeOptions}
+                onChange={(next) => void persistSettingsPatch({ themeId: next })}
+                ariaLabel="Theme"
+                testId="settings-theme"
+              />
+            </div>
+          </div>
+          <div className={styles.themeActions}>
+            <ManageDialog.GhostButton
+              testId="settings-theme-reload"
+              onClick={() => void reloadThemes()}
+            >
+              Reload themes
+            </ManageDialog.GhostButton>
+            <ManageDialog.GhostButton
+              testId="settings-theme-open-folder"
+              onClick={() => void openThemesFolder()}
+            >
+              Open themes folder
+            </ManageDialog.GhostButton>
+          </div>
+          {brokenLine !== null && (
+            <p className={styles.hint} data-testid="settings-theme-broken">
+              {brokenLine}
+            </p>
+          )}
+          {bundle.terminal.allowTransparency === true && (
+            <p className={styles.hint} data-testid="settings-theme-transparency">
+              Transparency applies to terminals opened from now on.
+            </p>
+          )}
+
+          {/* Control 5 — the PROGRAMMATIC API, off by default. The token, its buttons and the docs
+              URL are only rendered while it is on (design.md: a control the operator must not use
+              is not rendered). */}
           <div className={styles.row}>
             <label className={styles.label} htmlFor="settings-api-enabled">
               Local API
@@ -383,7 +515,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
               </p>
             </>
           )}
-          <ManageDialog.Error testId="settings-api-error" />
+          <ManageDialog.Error testId="settings-error" />
         </ManageDialog.Provider>
       </div>
     </div>
