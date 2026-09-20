@@ -26,4 +26,11 @@ describe('the CH channel registry', () => {
     expect(CH.apiTokenGet).toBe('api:token-get')
     expect(CH.apiTokenRegenerate).toBe('api:token-regenerate')
   })
+
+  it('names the theme channels domain:action', () => {
+    expect(CH.themesList).toBe('themes:list')
+    expect(CH.themeReload).toBe('theme:reload')
+    expect(CH.themesOpenFolder).toBe('themes:open-folder')
+    expect(CH.themeApplied).toBe('theme:applied')
+  })
 })

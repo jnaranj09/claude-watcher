@@ -14,7 +14,8 @@ import type {
   TelemetryApi,
   QuitApi,
   ClipboardApi,
-  ApiApi
+  ApiApi,
+  ThemesApi
 } from './index'
 
 declare global {
@@ -51,5 +52,7 @@ declare global {
     clipboard: ClipboardApi
     // Programmatic API — the bearer-token bridge (getToken / regenerateToken via CH.apiToken*).
     api: ApiApi
+    // Custom themes — the theme bridge (list / reload / openFolder / onApplied via CH.theme*).
+    themes: ThemesApi
   }
 }
