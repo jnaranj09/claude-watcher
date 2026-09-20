@@ -50,6 +50,8 @@ themes/
 | `terminal`    | no       | xterm palette keys → value, plus `allowTransparency`. Unknown keys fail the theme.                 |
 | `css`         | no       | A file NAME in the theme folder ending in `.css`. No folders, no `..`.                             |
 
+`theme.json` itself is capped at 64 KB; over that the theme fails to load.
+
 Unknown fields fail the theme. Every rule fails the WHOLE theme: nothing partial is ever applied.
 
 ### Values
@@ -216,8 +218,9 @@ Why: CSS lets an escape sequence like `\75 rl(https://…)` be read by the brows
 would otherwise smuggle a remote reference past the check above, and `@import` / `image-set(` are
 separate constructs that can reach a network address without ever spelling `url(` at all. The
 practical cost: a legitimate CSS escape (e.g. `content: "\201C"`) is refused too — write the
-literal character instead of escaping it. Remote fonts are additionally blocked by the app's
-content-security policy.
+literal character instead of escaping it. (The app's content-security policy also refuses a
+remote fetch if one ever slipped past this scan — a backstop, not a second rule an author needs
+to reason about: the scan above is what actually decides whether your theme loads.)
 
 ## Light themes
 

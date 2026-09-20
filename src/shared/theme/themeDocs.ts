@@ -32,7 +32,7 @@ export function renderThemeJsonSchema(): string {
     $id: THEME_SCHEMA_URL,
     title: 'claude-watcher theme manifest',
     description:
-      'theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain "..".',
+      'theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain ".."; name is trimmed before its length is checked, so a whitespace-only name (e.g. " ") satisfies this schema but is rejected by the app.',
     ...schema
   }
   return JSON.stringify(out, null, 2) + '\n'
