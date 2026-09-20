@@ -1,7 +1,7 @@
 ---
 title: "Ideas board"
 description: "This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list"
-last_modified: 2026-09-18
+last_modified: 2026-09-20
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort]
 ---
@@ -17,6 +17,10 @@ allowed_efforts: [low_effort, medium_effort, high_effort]
 - **A ⋯ menu in the board filter bar**: The toolbar mockup ends in a `⋯` button after Sort. No rows are defined yet; decide what belongs there, and what stays in the header ☰ menu, before building it (a control with nothing behind it is not rendered). `pending_review` `low_effort`
 - **More filter types (folder, …)**: The board search matches the card NAME only, on purpose; folder and the other card fields belong to filter TYPES in the chip row. The second type brings the `+ Add filter` type step (`Tag ▸`, `Folder ▸`) that design.md defers until then, and likely more than one filter at a time (the number on the `Filter` button). `pending_review` `medium_effort`
 - **Instant name sync from claude's session records**: `~/.claude/sessions/<pid>.json` carries `name` / `nameSource` and updates within ~1 s of a hook push or `/rename`, and survives `/clear`. A watcher on that directory would rename the card at once instead of on the next prompt, and would rebind a `/clear` without waiting for a hook. Investigated 2026-09-18 (probe on claude 2.1.276); deferred in favour of keeping the next-prompt design and making it visible. Fallback stays the `UserPromptSubmit` read-back. `pending_review` `medium_effort`
+- **Live theme reload while authoring**: A watcher on `<userData>/themes/<chosen id>/` that re-applies the theme on save, so an author sees each edit without pressing `Reload themes`. Rejected for v1 (spec 2026-09-20 D-3: rescan + button). Decide debounce, what happens on a half-written file (the loader already fails closed), and whether the watcher runs only while Settings is open. `pending_review` `low_effort`
+- **`scan()` reads every theme in full, synchronously, on main's event loop**: Since the final review, `scan()` validates the whole package rather than just the manifest, so a theme's CSS and assets are read on every scan. Bounded by the existing caps (64 KB manifest, 1 MB CSS, 5 MB assets per theme) but worst case is roughly 6 MB per theme, so ~20 installed themes is ~120 MB of synchronous I/O. It runs only on app start, on Settings open and on Reload — never a hot path — so it was accepted rather than fixed. A future fix would validate the CSS and assets without fully inlining them during a scan, or move the scan off the synchronous path. `pending_review` `medium_effort`
+- **Per-workspace themes**: Considered and explicitly out of scope for custom themes v1 — the operator did not ask for it. Noted here so it is not re-proposed without knowing it was already declined. `pending_review` `low_effort`
+- **A theme marketplace / installer**: Considered and explicitly out of scope for custom themes v1 — the operator did not ask for it. Noted here so it is not re-proposed without knowing it was already declined. `pending_review` `low_effort`
 ***
 ## Bugs
 ***
