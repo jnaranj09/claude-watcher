@@ -18,6 +18,17 @@ describe('themeCopy', () => {
       'invalid value for "terminal.red"'
     )
   })
+  it('returns the empty string when there is no error', () => {
+    expect(themeErrorCopy({})).toBe('')
+  })
+  it('ignores a path on a code that does not interpolate it', () => {
+    expect(themeErrorCopy({ error: 'theme_css_missing', path: 'terminal.background' })).toBe(
+      'missing theme.css'
+    )
+    expect(themeErrorCopy({ error: 'theme_manifest_invalid', path: 'tokens.bg-base' })).toBe(
+      'theme.json is not valid'
+    )
+  })
   it('builds the helper line only from broken summaries', () => {
     expect(brokenThemesLine([{ id: 'ok', name: 'Ok', colorScheme: 'dark' }])).toBeNull()
     expect(
@@ -38,5 +49,17 @@ describe('themeCopy', () => {
         }
       ])
     ).toBe('Could not load: liquid-glass (missing theme.css), paper (unknown token "bg-bas")')
+  })
+  it('builds the helper line for exactly one broken theme', () => {
+    expect(
+      brokenThemesLine([
+        {
+          id: 'liquid-glass',
+          name: 'liquid-glass',
+          colorScheme: 'dark',
+          error: 'theme_css_missing'
+        }
+      ])
+    ).toBe('Could not load: liquid-glass (missing theme.css)')
   })
 })
