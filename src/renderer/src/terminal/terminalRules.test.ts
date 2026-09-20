@@ -73,9 +73,15 @@ describe('terminal.md source invariants — component (AC-1/2/5; F3)', () => {
     expect(tsx).toMatch(/convertEol:\s*false/)
   })
 
-  it('consumes the Story-1.3 xtermTheme token object (NOT a hand-authored ANSI palette)', () => {
-    expect(tsx).toMatch(/import\s*\{\s*xtermTheme\s*\}\s*from\s*['"]\.\.\/styles\/xtermTheme['"]/)
-    expect(tsx).toMatch(/theme:\s*xtermTheme/)
+  it('themes through xtermThemeFor (the token default + the applied theme), NOT a hand-authored palette', () => {
+    expect(tsx).toMatch(/from\s*['"]\.\.\/styles\/xtermTheme['"]/)
+    expect(tsx).toMatch(/theme:\s*xtermThemeFor\(/)
+    // Custom themes (D-10): allowTransparency is read at creation, from the theme store ref.
+    expect(tsx).toMatch(
+      /allowTransparency:\s*themeTerminalRef\.current\.allowTransparency === true/
+    )
+    // A theme change re-applies on the ref — never a recreate (terminal.md).
+    expect(tsx).toMatch(/term\.options\.theme\s*=\s*xtermThemeFor\(/)
     // It must NOT copy SmokeCockpit's hardcoded theme.
     expect(tsx).not.toMatch(/#1e1e2e/)
     expect(tsx).not.toMatch(/#cdd6f4/)

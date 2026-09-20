@@ -41,7 +41,8 @@ import type {
   TerminalPortRendererMessage,
   TerminalExitEvent
 } from '../../../shared/ipc/contract'
-import { xtermTheme } from '../styles/xtermTheme'
+import { xtermThemeFor } from '../styles/xtermTheme'
+import { useTheme, selectThemeTerminal } from '../stores/themeStore'
 import { useSettings, selectTerminalFontSize, selectExpanderKey } from '../stores/settingsStore'
 import { expanderChord } from '../../../shared/schemas/settings'
 import { chordFromEvent } from '../shortcuts/chord'
@@ -131,6 +132,13 @@ export function EmbeddedTerminal({
   // live font-size effect below keeps it current on every change. Never written during render.
   const fontSizeRef = useRef(fontSize)
 
+  // Custom themes — the applied theme's terminal keys, via a NARROW selector (the object is the
+  // same reference until the next push). Read through a REF at creation so the theme is NOT a
+  // recreate dependency; the effect below re-applies a change on the live terminal. Same pattern
+  // as fontSizeRef. `allowTransparency` is creation-only (xterm needs it before open(); D-10).
+  const themeTerminal = useTheme(selectThemeTerminal)
+  const themeTerminalRef = useRef(themeTerminal)
+
   // Shortcut expander — the operator's alias→phrase list, subscribed via a NARROW selector. It
   // is handed straight to the ExpanderBox (which owns its own matching), so the shortcut list is
   // NOT a dependency of the create-effect: editing a shortcut must never tear down + recreate
@@ -193,8 +201,10 @@ export function EmbeddedTerminal({
       // Read the INITIAL font size via the ref so fontSize is not a recreate dependency (a live
       // change re-applies in the second effect, never recreates — F3).
       fontSize: fontSizeRef.current,
-      // ONE theme source of truth (UX-DR2): the Story-1.3 token-derived ITheme. NO hand-authored ANSI.
-      theme: xtermTheme
+      // ONE theme source (UX-DR2): the token default with the applied custom theme on top.
+      theme: xtermThemeFor(themeTerminalRef.current),
+      // Creation-only (D-10): a theme that turns it on reaches terminals opened from now on.
+      allowTransparency: themeTerminalRef.current.allowTransparency === true
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -466,6 +476,14 @@ export function EmbeddedTerminal({
       .resize(terminalId, term.cols, term.rows)
       .catch(() => console.warn('[c9watch][term] code=resize_failed'))
   }, [fontSize, terminalId])
+
+  // --- Apply a LIVE theme change WITHOUT recreating the terminal (custom themes). ------------
+  useEffect(() => {
+    themeTerminalRef.current = themeTerminal
+    const term = termRef.current
+    if (!term) return
+    term.options.theme = xtermThemeFor(themeTerminal)
+  }, [themeTerminal])
 
   // --- Keep the expander chord current for the key handler WITHOUT touching the terminal. ---
   useEffect(() => {
