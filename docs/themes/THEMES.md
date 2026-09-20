@@ -167,8 +167,8 @@ The keys of xterm's `ITheme`, plus `allowTransparency`. Set any subset.
 | `cursor` | `#d6d3ca` |
 | `cursorAccent` | `#141312` |
 | `selectionBackground` | `rgba(60,58,48,0.85)` |
-| `selectionForeground` | `` |
-| `selectionInactiveBackground` | `` |
+| `selectionForeground` | unset |
+| `selectionInactiveBackground` | unset |
 | `black` | `#1a1a18` |
 | `red` | `#f38ba8` |
 | `green` | `#a6e3a1` |

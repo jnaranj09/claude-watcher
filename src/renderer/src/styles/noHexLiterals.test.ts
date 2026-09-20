@@ -6,6 +6,13 @@ import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
+// This walk covers src/renderer/src ONLY — deliberately, not an oversight. Custom themes put
+// hex literals in `src/shared/theme/` too (tokens.ts, xtermTheme.ts, themeDocs.ts's generated
+// examples), which nothing here guards. That is correct TODAY: `src/shared/` has no components
+// to leak a hand-typed color into a dialog, and those files ARE the token source everything
+// else (main's validation, the generated SDK docs) transcribes FROM — the whole reason a hex
+// literal is allowed to originate there. If a component ever moves into `src/shared/`, this
+// boundary needs revisiting.
 const root = resolve(here, '..') // src/renderer/src
 
 /** The documented exceptions, as paths relative to src/renderer/src. */

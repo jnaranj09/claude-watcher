@@ -1,15 +1,24 @@
 // Story 1.3 — the design-token source of truth (AC-1).
 //
 // These values are a 1:1 TRANSCRIPTION of the DESIGN.md frontmatter token set
-// (`_bmad-output/planning-artifacts/ux-designs/ux-c9watch-webapp-2026-06-18/DESIGN.md`).
+// (`_bmad-output/planning-artifacts/ux-designs/ux-c9watch-webapp-2026-06-18/DESIGN.md`, an
+// internal planning doc — not shipped, and not part of the theme-authoring contract below).
 // The companion sheet is src/renderer/src/styles/tokens.css; tokens.test.ts beside it
 // asserts the sheet matches this map.
 //
 // NOTE on the 3-state model (FROZEN DECISION in the story): the `done` color token
 // is LEFT DEFINED here so the sheet stays 1:1 with the frontmatter, but NO component
 // consumes it for a live state (StatusDot/ColumnHeader use working/needs-you/idle
-// only — see `src/main/c9watch/columns.ts` `Column`). Generating the harmless token
-// keeps the 1:1 guarantee intact; the components follow the contract §4 3-state model.
+// only — see `src/main/c9watch/columns.ts` `Column`, an internal main-process detail, not
+// a theme-authoring one). Generating the harmless token keeps the 1:1 guarantee intact; the
+// components follow the contract §4 3-state model.
+//
+// Custom themes (spec 2026-09-20): this map is now ALSO the canonical token source —
+// `TOKEN_NAMES` (`src/shared/schemas/theme.ts`) is exactly `Object.keys(TOKENS)`, so main
+// validates every theme package's `tokens` against these key names, and `docs/themes/THEMES.md`'s
+// token table (`npm run gen:theme-docs`) is generated from this map + `tokenDocs.ts`. A theme
+// author reaches this contract through the generated docs, never this file or the two internal
+// breadcrumbs above.
 //
 // [Source: DESIGN.md frontmatter (colors/typography/rounded/spacing/elevation);
 //  .claude/rules — CSS Modules + CSS custom properties, no component library]
