@@ -649,6 +649,22 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(themes.openFolder).toHaveBeenCalledTimes(1)
   })
 
+  it('a refused Open themes folder shows mapped copy on the one error line', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes()
+    themes.openFolder.mockImplementation(() => Promise.reject(new Error('ENOENT: no such file')))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    click(q(r, '[data-testid="settings-theme-open-folder"]'))
+    await flush()
+    const line = q(r, '[data-testid="settings-error"]')
+    expect(line.getAttribute('role')).toBe('alert')
+    expect(line.textContent).toBe('Could not open the themes folder.')
+    expect(r.container.textContent).not.toContain('ENOENT')
+  })
+
   it('when the chosen theme is not the applied one, the error line says so and the picker keeps the choice', async () => {
     stubSettings()
     stubApi()

@@ -1,6 +1,6 @@
 // Story 2.4 — the minimal Settings surface (AC-4).
 //
-// FIVE controls, IN ORDER: a SOUND on/off toggle, then (spec 2026-09-10) two ATTENTION-REMINDER
+// SIX controls, IN ORDER: a SOUND on/off toggle, then (spec 2026-09-10) two ATTENTION-REMINDER
 // dropdowns — how many times a still-blocked session is re-notified, and the first reminder's
 // delay — then a TERMINAL FONT-SIZE control, then (spec 2026-09-20) the THEME group: a picker,
 // Reload themes, Open themes folder, a broken-themes helper line and a transparency hint — then
@@ -175,8 +175,21 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
       await window.themes.reload()
     } catch {
       console.warn('[claude-watcher][themes] code=reload_failed')
+      apiActions.setError('Could not reload themes.')
     }
     setThemeListGeneration((g) => g + 1)
+  }
+
+  // Never rendered thrown (design.md): a failed open is mapped copy on the shared error line,
+  // same treatment as `reloadThemes` and every other async call in this file — never a silent
+  // unhandled rejection.
+  async function openThemesFolder(): Promise<void> {
+    try {
+      await window.themes.openFolder()
+    } catch {
+      console.warn('[claude-watcher][themes] code=open_folder_failed')
+      apiActions.setError('Could not open the themes folder.')
+    }
   }
 
   // The token is MAIN's — read it whenever the block is on. Turning the block OFF clears it in
@@ -397,7 +410,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             </ManageDialog.GhostButton>
             <ManageDialog.GhostButton
               testId="settings-theme-open-folder"
-              onClick={() => void window.themes.openFolder()}
+              onClick={() => void openThemesFolder()}
             >
               Open themes folder
             </ManageDialog.GhostButton>
