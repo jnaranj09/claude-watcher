@@ -28,6 +28,9 @@ describe('themeCopy', () => {
     expect(themeErrorCopy({ error: 'theme_manifest_invalid', path: 'tokens.bg-base' })).toBe(
       'theme.json is not valid'
     )
+    expect(themeErrorCopy({ error: 'theme_css_url_invalid', path: 'tokens.bg-base' })).toBe(
+      'a disallowed url(), @import, image-set() or escape in the CSS'
+    )
   })
   it('builds the helper line only from broken summaries', () => {
     expect(brokenThemesLine([{ id: 'ok', name: 'Ok', colorScheme: 'dark' }])).toBeNull()
