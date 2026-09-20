@@ -700,11 +700,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     await flush()
     // (1) not among the loadable options — only the chosen-but-broken id is pinned in, kept so
     // the picker never sits on a value it does not offer (design.md).
-    expect(optionValues(r.container, 'settings-theme')).toEqual([
-      'default',
-      'paper',
-      'remote-css'
-    ])
+    expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'paper', 'remote-css'])
     // (2) listed in the broken-themes helper line with its reason.
     expect(q(r, '[data-testid="settings-theme-broken"]').textContent).toBe(
       'Could not load: remote-css (a disallowed url(), @import, image-set() or escape in the CSS)'
