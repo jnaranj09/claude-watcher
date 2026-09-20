@@ -1,31 +1,7 @@
-/* Liquid Glass — the raw-CSS proof. Everything the tokens cannot say lives here.
- *
- * THE FLARE FIX (read docs/themes/THEMES.md, "Composited surfaces", for the general rule):
- * `--bg-base`, `--bg-surface`, `--bg-surface-raised`, `--border` and `--bg-row-rest` are OPAQUE
- * now (theme.json). Those five are what the sessions rail's active-row "tab" shoulders are
- * PAINTED with (AttentionRail.module.css `.active::before`/`::after`) — a radial-gradient that
- * fakes the concave corner `border-radius` cannot draw by drawing `--bg-surface` / `--border` /
- * `--bg-base` directly, on the assumption that those three flat colors are exactly what is
- * already behind those pixels. A translucent value there doesn't approximate that — it
- * composites AGAIN, on top of whatever the rail already painted with the same token, and the
- * corner reads as a lighter smear with a stray arc. No alpha value fixes a shape like that; only
- * opacity does, so this theme stopped asking those five tokens to carry the glass.
- *
- * The tradeoff: with `--bg-base` opaque, the app's own shell now covers the window edge to edge,
- * so nothing shows through to the nebula below by ACCIDENT the way it used to when every token
- * was translucent. The rail and the board read as solid panels now, not glass. What follows is
- * how the glass comes back everywhere it safely can: the gradient is painted on the one shell
- * layer that sits behind the header, and every panel that wants to look like glass gets its OWN
- * translucent paint + blur, written here directly — never by leaning on a token's alpha again. */
+/* Liquid Glass — the raw-CSS proof. Everything the tokens cannot say lives here. */
 
-/* The ground: a fixed gradient. Painted on the app SHELL, not `body` — `body` is never visible
- * once `--bg-base` is opaque (the shell paints over it edge to edge), so a `body`-only rule
- * would be dead CSS. `:has()` is how this theme reaches that shell div without a `data-testid`
- * of its own: it is the one `div` that is the header's direct parent, and nothing else matches
- * that shape. (`body` keeps the same rule too, harmlessly, for the sliver of paint time before
- * the shell mounts.) */
-body,
-div:has(> [data-testid='app-header']) {
+/* Something behind the panels to blur: a fixed gradient on the ground. */
+body {
   background:
     radial-gradient(1200px 800px at 15% 10%, rgba(120, 90, 255, 0.35), transparent 60%),
     radial-gradient(900px 700px at 85% 90%, rgba(0, 190, 255, 0.28), transparent 60%),
@@ -33,23 +9,10 @@ div:has(> [data-testid='app-header']) {
   background-attachment: fixed;
 }
 
-/* The header sits directly on that gradient — it is a normal, non-overlapping flex row, not an
- * overlay — so blurring it shows the nebula genuinely softened behind it. Its own token
- * (`--bg-surface`, via App.module.css) is opaque now, so the translucency is repainted here
- * instead, in the theme's own CSS, the same way every other glass surface below gets it. */
-[data-testid='app-header'] {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Glass panels: every dialog body and the settings panel blur what is behind them — mostly the
- * board/rail's own opaque ground, the header's gradient where a dialog's top edge reaches that
- * high — and carry a 1px inner highlight on the top edge. Same reason as the header: the token
- * behind them (`--bg-surface-raised`) is opaque now, so this repaints the translucency directly. */
+/* Glass panels: every dialog body and the settings panel blur what is behind them and carry a
+   1px inner highlight on the top edge. */
 [role='dialog'] > div,
 [data-testid='settings-panel'] {
-  background: rgba(255, 255, 255, 0.09);
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow:
@@ -57,18 +20,16 @@ div:has(> [data-testid='app-header']) {
     var(--shadow-dialog);
 }
 
-/* The terminal frame keeps its glass for free: `--bg-terminal` was never one of the tokens the
- * rail's painted shoulders read, so it is still the original translucent value (theme.json) and
- * this blur reads it as-is — no override needed here, unlike everything else on this page. */
+/* The header and the terminal frame get a lighter blur. */
+[data-testid='app-header'],
 [data-testid='embedded-terminal'] {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Menus and dropdown lists float as glass too — the same repaint as the dialogs, one step lighter. */
+/* Menus and dropdown lists float as glass too. */
 [role='menu'],
 [role='listbox'] {
-  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   box-shadow:
