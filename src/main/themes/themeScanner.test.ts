@@ -217,6 +217,12 @@ describe('load(id)', () => {
       expect(r.path?.length).toBeLessThanOrEqual(200)
     }
   })
+  it('theme_not_found when a regular file occupies <dir>/<id> (not a directory)', () => {
+    const dir = themesDir()
+    writeFileSync(join(dir, 'notadir'), 'not a theme folder')
+    const r = createThemeScanner({ dir, log }).load('notadir')
+    expect(r).toEqual({ ok: false, code: 'theme_not_found' })
+  })
 })
 
 describe('codeForIssue', () => {

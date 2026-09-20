@@ -62,17 +62,24 @@ describe('ThemeManifestSchema — our shape, strict, fail-closed', () => {
     expect(ThemeManifestSchema.safeParse({ ...minimal, tokens }).success).toBe(true)
   })
 
-  it.each(['url(x.png)', 'URL(x.png)', 'a;b', 'a{', '}', '/* c */', 'a\nb', 'a\rb'])(
-    'rejects the token value %j (an injection point, not a value)',
-    (bad) => {
-      expect(
-        ThemeManifestSchema.safeParse({ ...minimal, tokens: { 'bg-base': bad } }).success
-      ).toBe(false)
-      expect(ThemeManifestSchema.safeParse({ ...minimal, terminal: { red: bad } }).success).toBe(
-        false
-      )
-    }
-  )
+  it.each([
+    'url(x.png)',
+    'URL(x.png)',
+    'a;b',
+    'a{',
+    '}',
+    '/* c */',
+    'a\nb',
+    'a\rb',
+    '\\75 rl(x.png)'
+  ])('rejects the token value %j (an injection point, not a value)', (bad) => {
+    expect(ThemeManifestSchema.safeParse({ ...minimal, tokens: { 'bg-base': bad } }).success).toBe(
+      false
+    )
+    expect(ThemeManifestSchema.safeParse({ ...minimal, terminal: { red: bad } }).success).toBe(
+      false
+    )
+  })
 
   it('accepts rgba() and gradients as token values', () => {
     expect(isSafeCssValue('rgba(0,0,0,0.5)')).toBe(true)

@@ -198,4 +198,21 @@ describe('composeTheme', () => {
       code: 'theme_read_failed'
     })
   })
+  it.each([
+    'body{background:\\75 rl(https://evil.com/x.png)}',
+    'u\\72 l(https://evil.com/x.png)',
+    '\\000075rl(https://evil.com/x.png)',
+    '@import "https://evil.com/x.css";',
+    'a{b:image-set("https://evil.com/x.png" 1x)}'
+  ])(
+    'fails closed on the CSS-escape/@import/image-set bypass %j (theme_css_url_invalid)',
+    (bad) => {
+      const r = composeTheme(
+        't',
+        manifest({ css: 'theme.css' }),
+        createMapReader({ 'theme.css': bad })
+      )
+      expect(r).toEqual({ ok: false, code: 'theme_css_url_invalid' })
+    }
+  )
 })

@@ -110,6 +110,16 @@ export function rewriteCssUrls(
   return { ok: true, css: out }
 }
 
+// A backstop, not more whack-a-mole: the CSS Syntax spec lets an ident sequence like `\75 rl`
+// or `\000075rl` consume to `url` before a `(`, producing a url-token our literal-text matching
+// above cannot see — and `@import "..."` / `image-set("..." )` are separate constructs that
+// reach a network address without ever spelling `url(` at all. A theme CSS file containing a
+// backslash, `@import`, or `image-set(` (the latter two case-insensitively — CSS keywords are
+// ASCII case-insensitive) is refused wholesale under the same code, rather than chasing every
+// individual escape form. Accepted cost: a theme using a legitimate CSS escape (e.g.
+// `content: "\201C"`) is refused too.
+const CSS_ESCAPE_OR_IMPORT = /\\|@import|image-set\(/i
+
 export function composeTheme(
   id: string,
   manifest: ThemeManifest,
@@ -127,6 +137,9 @@ export function composeTheme(
     if (bytes.byteLength > THEME_CSS_MAX_BYTES) return { ok: false, code: 'theme_css_too_large' }
     const rewritten = rewriteCssUrls(new TextDecoder().decode(bytes), reader)
     if (!rewritten.ok) return rewritten
+    if (CSS_ESCAPE_OR_IMPORT.test(rewritten.css)) {
+      return { ok: false, code: 'theme_css_url_invalid' }
+    }
     css += rewritten.css
   }
   return {

@@ -70,8 +70,10 @@ export const TERMINAL_THEME_KEYS = [
 export type TerminalThemeKey = (typeof TERMINAL_THEME_KEYS)[number]
 
 // CSS function names are ASCII case-insensitive (`URL(...)` is valid CSS), so this carries
-// the `i` flag — an uppercase URL(...) must not slip past the value guard.
-const FORBIDDEN_IN_VALUE = /url\(|[;{}\r\n]|\/\*/i
+// the `i` flag — an uppercase URL(...) must not slip past the value guard. A backslash is
+// forbidden too: CSS lets an ident sequence like `\75 rl` consume to `url` before a `(`, so
+// an escaped form would otherwise reach `--x: <value>;` untouched by the literal `url\(` check.
+const FORBIDDEN_IN_VALUE = /url\(|[;{}\r\n\\]|\/\*/i
 /** True when a string can sit as the VALUE of a `--x: <value>;` declaration. */
 export function isSafeCssValue(value: string): boolean {
   return !FORBIDDEN_IN_VALUE.test(value)
