@@ -2620,14 +2620,20 @@ function createWindow(): void {
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('disable-software-rasterizer')
 
-// The app is dark-only, and Chromium draws some widgets ITSELF — the `<select>` popup list above
-// all — from the NATIVE theme, not from the page. `:root { color-scheme: dark }` in main.css is
-// necessary but NOT sufficient on Linux: with the desktop on a light GTK theme the popup still
-// came up white with a blue highlight, floating over a dark dialog. `themeSource = 'dark'` is
-// what tells Chromium to draw its own surfaces dark (and makes `prefers-color-scheme: dark`
-// true in the renderer). Set before `ready`, so the first window never paints a light popup.
-// Custom themes: this is only the value before the first window loads; themeLifecycle
-// re-sets it from the applied theme's colorScheme on every apply.
+// Chromium draws some widgets ITSELF — the `<select>` popup list above all — from the NATIVE
+// theme, not from the page, and on Linux that popup reads the DESKTOP's GTK theme: on a light
+// desktop it came up white with a blue highlight, floating over a dark dialog, no matter what the
+// page's own CSS said. `themeSource = 'dark'` is what tells Chromium to draw its own surfaces
+// dark (and makes `prefers-color-scheme: dark` true in the renderer). Set before `ready`, so the
+// first window never paints a light popup.
+// Changed 2026-09-20 — this comment used to also cite a fixed `:root { color-scheme: dark }` in
+// main.css as "necessary but not sufficient". That declaration is GONE: custom themes
+// (`src/main/themes/`) can be light, so a color-scheme fixed to `dark` would pin a light theme's
+// page to dark scrollbars/form controls. `hooks/useApplyTheme.ts` now sets
+// `documentElement.style.colorScheme` from the APPLIED theme's own `colorScheme` on every apply
+// instead. This line is now ONLY the pre-window default — `nativeTheme.themeSource` is re-set the
+// same way, by `themeLifecycle`, from the applied theme's `colorScheme` on every apply (start,
+// theme change, and Reload themes).
 nativeTheme.themeSource = 'dark'
 
 // This method will be called when Electron has finished

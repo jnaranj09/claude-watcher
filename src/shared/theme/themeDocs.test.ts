@@ -61,6 +61,18 @@ describe('the rendered pieces', () => {
     expect(table).toContain('`#1a1a18`')
     expect(table.trim().split('\n')).toHaveLength(2 + Object.keys(TOKENS).length) // header, divider, one row per token
   })
+
+  // Finding 6 — xtermTheme has no default for `selectionForeground` /
+  // `selectionInactiveBackground` (xterm treats an absent key as "derive it"), so
+  // `xtermTheme[k] ?? ''` rendered those two rows' Default cell as an EMPTY string — a bare
+  // `` `` `` pair of backticks with nothing between them in the generated table, reading as a
+  // broken table rather than "unset".
+  it('a terminal key with no xtermTheme default renders "unset", never an empty cell', () => {
+    const list = renderTerminalKeyList()
+    expect(list).toContain('| `selectionForeground` | unset |')
+    expect(list).toContain('| `selectionInactiveBackground` | unset |')
+    expect(list).not.toMatch(/\|\s*``\s*\|/)
+  })
   it('the JSON schema names every token as a property and forbids extras', () => {
     const schema = JSON.parse(renderThemeJsonSchema()) as {
       properties: { tokens: { properties: Record<string, unknown>; additionalProperties: boolean } }

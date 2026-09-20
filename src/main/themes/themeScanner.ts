@@ -154,15 +154,9 @@ export function createThemeScanner(opts: {
         log(`${LOG_PREFIX} code=theme_id_invalid`)
         continue
       }
-      const m = readManifest(join(opts.dir, id))
-      if (m.ok) {
-        out.push({
-          id,
-          name: m.manifest.name,
-          ...(m.manifest.author !== undefined ? { author: m.manifest.author } : {}),
-          colorScheme: m.manifest.colorScheme
-        })
-      } else {
+      const folder = join(opts.dir, id)
+      const m = readManifest(folder)
+      if (!m.ok) {
         log(`${LOG_PREFIX} code=${m.code} id=${id}${m.path !== undefined ? ` path=${m.path}` : ''}`)
         out.push({
           id,
@@ -170,6 +164,32 @@ export function createThemeScanner(opts: {
           colorScheme: 'dark',
           error: m.code,
           ...(m.path !== undefined ? { path: m.path } : {})
+        })
+        continue
+      }
+      // Finding 1(a): the manifest alone is not the whole theme. Go through composeTheme the
+      // same way `load()` does, so a theme broken only in its CSS/assets is caught HERE too and
+      // never offered as loadable (Settings keys the picker + the broken-themes line off
+      // `error === undefined`). Discard the composed bundle — scan() returns summaries, not
+      // bundles. Settings is opened rarely, so the extra CSS/asset read per theme (bounded by
+      // the existing 1 MB / 5 MB caps) is worth it over silently offering a broken theme.
+      const composed = composeTheme(id, m.manifest, folderReader(folder))
+      const base = {
+        id,
+        name: m.manifest.name,
+        ...(m.manifest.author !== undefined ? { author: m.manifest.author } : {}),
+        colorScheme: m.manifest.colorScheme
+      }
+      if (composed.ok) {
+        out.push(base)
+      } else {
+        log(
+          `${LOG_PREFIX} code=${composed.code} id=${id}${composed.path !== undefined ? ` path=${composed.path}` : ''}`
+        )
+        out.push({
+          ...base,
+          error: composed.code,
+          ...(composed.path !== undefined ? { path: composed.path } : {})
         })
       }
     }

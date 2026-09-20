@@ -310,9 +310,15 @@ theme, not from the page. On a light desktop it drops a white list with a blue h
 this dark app. Three fixes were tried and all three failed — styling the `<select>` and its
 `<option>`s, `:root { color-scheme: dark }` in `main.css`, and
 `nativeTheme.themeSource = 'dark'` in the main process. The popup stayed light through all of
-them. A popup we render ourselves is the only one we can style. (Both the `color-scheme` and
-`themeSource` declarations were KEPT — they do fix Chromium's other surfaces, scrollbars included
-— they just never reach that popup.)
+them. A popup we render ourselves is the only one we can style. (`nativeTheme.themeSource = 'dark'`
+in the main process was KEPT — it still fixes Chromium's other surfaces, scrollbars included, it
+just never reaches that popup. Changed 2026-09-20 — this bullet used to say the fixed
+`:root { color-scheme: dark }` in `main.css` was kept too; that declaration is GONE. Custom themes
+(`src/main/themes/`) can be light, so a color-scheme fixed to `dark` would pin a light theme's page
+to dark scrollbars/form controls. `hooks/useApplyTheme.ts` now sets
+`documentElement.style.colorScheme` from the APPLIED theme's own `colorScheme` on every apply, and
+`nativeTheme.themeSource` is re-set the same way by `themeLifecycle` — the `'dark'` in `index.ts` is
+only the value before the first apply.)
 
 What the component owes you, because a native select gave it for free:
 

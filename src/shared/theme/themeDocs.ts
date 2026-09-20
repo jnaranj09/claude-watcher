@@ -17,7 +17,13 @@ export function renderTokenTable(): string {
 }
 
 export function renderTerminalKeyList(): string {
-  const rows = TERMINAL_THEME_KEYS.map((k) => `| \`${k}\` | \`${xtermTheme[k] ?? ''}\` |`)
+  // xterm treats an absent key as "derive it" (e.g. selectionForeground / selectionInactive-
+  // Background have no xtermTheme default) — render that as the WORD "unset", never an empty
+  // `` `` `` cell, which reads as a broken table rather than "there is no default".
+  const rows = TERMINAL_THEME_KEYS.map((k) => {
+    const v = xtermTheme[k]
+    return `| \`${k}\` | ${v === undefined ? 'unset' : `\`${v}\``} |`
+  })
   return (
     ['| Key | Default |', '| --- | --- |', ...rows, '| `allowTransparency` | `false` |'].join(
       '\n'

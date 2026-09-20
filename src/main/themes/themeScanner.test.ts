@@ -103,6 +103,79 @@ describe('scan()', () => {
     createThemeScanner({ dir, log }).scan()
     expect(logs).toEqual(['[claude-watcher][themes] code=theme_manifest_invalid id=rootissue'])
   })
+
+  // Finding 1(a) — scan() must validate the WHOLE package (manifest + CSS + assets), not just
+  // the manifest, so a theme broken only in its CSS/assets is caught here too and never offered
+  // as loadable. Before this fix `readManifest` alone decided `ThemeSummary.error`, so all three
+  // of these came back with NO error and were offered in the picker.
+  it('a theme whose CSS file is missing is listed BROKEN with theme_css_missing (manifest is fine)', () => {
+    const dir = themesDir()
+    theme(dir, 'no-css', { version: 1, name: 'No CSS', css: 'theme.css' })
+    logs.length = 0
+    expect(createThemeScanner({ dir, log }).scan()).toEqual([
+      { id: 'no-css', name: 'No CSS', colorScheme: 'dark', error: 'theme_css_missing' }
+    ])
+    expect(logs).toEqual(['[claude-watcher][themes] code=theme_css_missing id=no-css'])
+  })
+
+  it('a theme whose CSS references a remote url() is listed BROKEN with theme_css_url_invalid', () => {
+    const dir = themesDir()
+    theme(
+      dir,
+      'remote-css',
+      { version: 1, name: 'Remote CSS', css: 'theme.css' },
+      { 'theme.css': 'a{b:url(https://evil.example/x.png)}' }
+    )
+    logs.length = 0
+    expect(createThemeScanner({ dir, log }).scan()).toEqual([
+      { id: 'remote-css', name: 'Remote CSS', colorScheme: 'dark', error: 'theme_css_url_invalid' }
+    ])
+    expect(logs).toEqual(['[claude-watcher][themes] code=theme_css_url_invalid id=remote-css'])
+  })
+
+  it('a theme whose CSS references a disallowed asset extension is listed BROKEN with theme_asset_type_invalid', () => {
+    const dir = themesDir()
+    theme(
+      dir,
+      'bad-asset',
+      { version: 1, name: 'Bad Asset', css: 'theme.css' },
+      { 'theme.css': 'a{b:url(bg.exe)}', 'bg.exe': 'x' }
+    )
+    logs.length = 0
+    expect(createThemeScanner({ dir, log }).scan()).toEqual([
+      {
+        id: 'bad-asset',
+        name: 'Bad Asset',
+        colorScheme: 'dark',
+        error: 'theme_asset_type_invalid'
+      }
+    ])
+    expect(logs).toEqual(['[claude-watcher][themes] code=theme_asset_type_invalid id=bad-asset'])
+  })
+
+  it('a broken-CSS theme never reaches the loadable list even sorted among healthy ones', () => {
+    const dir = themesDir()
+    theme(dir, 'zzz-healthy', { version: 1, name: 'Healthy' })
+    theme(dir, 'aaa-broken', { version: 1, name: 'Broken CSS', css: 'theme.css' })
+    const result = createThemeScanner({ dir, log }).scan()
+    expect(result.filter((s) => s.error === undefined)).toEqual([
+      { id: 'zzz-healthy', name: 'Healthy', colorScheme: 'dark' }
+    ])
+    expect(result.find((s) => s.id === 'aaa-broken')?.error).toBe('theme_css_missing')
+  })
+
+  it('a full theme (manifest + CSS + inlined asset) still composes clean and loadable', () => {
+    const dir = themesDir()
+    theme(
+      dir,
+      'glass',
+      { version: 1, name: 'Glass', css: 'theme.css' },
+      { 'theme.css': 'body{background:url(bg.png)}', 'bg.png': new Uint8Array([1, 2, 3]) }
+    )
+    expect(createThemeScanner({ dir, log }).scan()).toEqual([
+      { id: 'glass', name: 'Glass', colorScheme: 'dark' }
+    ])
+  })
 })
 
 describe('load(id)', () => {

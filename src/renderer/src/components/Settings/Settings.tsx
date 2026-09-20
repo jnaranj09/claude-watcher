@@ -53,7 +53,7 @@ import {
 import { useTheme, selectThemeBundle } from '../../stores/themeStore'
 import type { ThemeSummary } from '../../../../shared/schemas/theme'
 import { DEFAULT_THEME_ID } from '../../../../shared/schemas/theme'
-import { brokenThemesLine } from '../../lib/themeCopy'
+import { brokenThemesLine, themeErrorCopy } from '../../lib/themeCopy'
 import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
@@ -157,10 +157,17 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     themeOptions.push({ value: themeId, label: themeId })
   }
   const brokenLine = brokenThemesLine(summaries)
-  const chosenName = summaries.find((s) => s.id === themeId)?.name ?? themeId
-  // D-7: the setting is kept; the bundle's id says what actually landed.
+  const chosenSummary = summaries.find((s) => s.id === themeId)
+  const chosenName = chosenSummary?.name ?? themeId
+  // D-7: the setting is kept; the bundle's id says what actually landed. Finding 1(b): name the
+  // REASON too, not just "could not be loaded" — the chosen theme's own summary now carries the
+  // same code a full package validation (manifest + CSS + assets, themeScanner.ts scan()) would
+  // have found, whether the mismatch was discovered at startup or after a Reload.
+  const chosenReason = chosenSummary?.error !== undefined ? themeErrorCopy(chosenSummary) : null
   const themeError =
-    bundle.id !== themeId ? `Theme "${chosenName}" could not be loaded, using Default` : null
+    bundle.id !== themeId
+      ? `Theme "${chosenName}" could not be loaded, using Default${chosenReason !== null ? ` — ${chosenReason}` : ''}`
+      : null
   // Derived → the shared error line, adjusted DURING RENDER against the previous value (the React
   // docs' "adjusting state when a prop changes" pattern EmbeddedTerminal already uses), not in an
   // effect (react-hooks/set-state-in-effect).
