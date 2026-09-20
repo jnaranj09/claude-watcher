@@ -20,6 +20,9 @@ import {
   type Settings,
   type SettingsPatch
 } from '../../../../shared/schemas/settings'
+import type { ThemeSummary } from '../../../../shared/schemas/theme'
+import { themeStore } from '../../stores/themeStore'
+import { DEFAULT_THEME_BUNDLE } from '../../../../shared/schemas/theme'
 
 interface SettingsBridge {
   get(): Promise<Settings>
@@ -34,6 +37,7 @@ afterEach(() => {
   // Reset the singleton store between tests.
   act(() => {
     settingsStore.getState().hydrate(DEFAULT_SETTINGS)
+    themeStore.getState().setBundle(DEFAULT_THEME_BUNDLE)
   })
 })
 
@@ -86,6 +90,24 @@ function stubApi(
   return { regenerate }
 }
 
+/** Stub window.themes. `list` answers `summaries`; `reload` answers ok on the default id. */
+function stubThemes(summaries: ThemeSummary[] = []): {
+  list: ReturnType<typeof vi.fn>
+  reload: ReturnType<typeof vi.fn>
+  openFolder: ReturnType<typeof vi.fn>
+} {
+  const list = vi.fn(() => Promise.resolve(summaries))
+  const reload = vi.fn(() => Promise.resolve({ ok: true as const, id: 'default' }))
+  const openFolder = vi.fn(() => Promise.resolve())
+  ;(window as unknown as { themes: unknown }).themes = {
+    list,
+    reload,
+    openFolder,
+    onApplied: () => () => {}
+  }
+  return { list, reload, openFolder }
+}
+
 /** Stub window.clipboard — the ONE OS-clipboard seam (env.d.ts: never navigator.clipboard). */
 function stubClipboard(): ReturnType<typeof vi.fn> {
   const writeText = vi.fn(() => Promise.resolve())
@@ -135,6 +157,7 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
   it('renders the sound toggle, the font-size range, the two reminder dropdowns and the API pair — nothing else', () => {
     stubSettings()
     stubApi()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
 
@@ -144,21 +167,23 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
       'settings-reminder-count',
       'settings-reminder-first-delay',
       'settings-api-enabled',
-      'settings-api-port'
+      'settings-api-port',
+      'settings-theme'
     ]) {
       expect(container.querySelector(`[data-testid="${testId}"]`)).not.toBeNull()
     }
     const panel = container.querySelector('[data-testid="settings-panel"]')
-    // SIX while the API is off: four <input>s (sound, font size, the API toggle, the API port)
-    // plus the two reminder `Select`s, which are `[aria-haspopup="listbox"]` buttons. The token
-    // field and its buttons only exist while the API is ON.
-    expect(panel?.querySelectorAll('input, select, [aria-haspopup="listbox"]').length).toBe(6)
+    // SEVEN while the API is off: four <input>s (sound, font size, the API toggle, the API port)
+    // plus the two reminder `Select`s and the Theme Select, which are `[aria-haspopup="listbox"]`
+    // buttons. The token field and its buttons only exist while the API is ON.
+    expect(panel?.querySelectorAll('input, select, [aria-haspopup="listbox"]').length).toBe(7)
     // design.md: a native <select> is banned.
     expect(panel?.querySelectorAll('select').length).toBe(0)
   })
 
   it('has NO hotkey/keybinding control (FR-8 row CUT)', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     const text = container.textContent?.toLowerCase() ?? ''
@@ -170,6 +195,7 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
   it('every control is labeled (accessibility floor — label + control)', () => {
     stubSettings()
     stubApi()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     expect(container.querySelector('label[for="settings-sound-enabled"]')).not.toBeNull()
@@ -214,6 +240,7 @@ function setReactRange(el: HTMLInputElement, value: string): void {
 describe('SettingsPanel — controls persist via window.settings.set (AC-4/5)', () => {
   it('toggling sound calls window.settings.set({ soundEnabled })', () => {
     const stub = stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
 
@@ -227,6 +254,7 @@ describe('SettingsPanel — controls persist via window.settings.set (AC-4/5)', 
 
   it('changing font-size calls window.settings.set({ terminalFontSize })', () => {
     const stub = stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
 
@@ -245,6 +273,7 @@ describe('SettingsPanel — controls persist via window.settings.set (AC-4/5)', 
 describe('SettingsPanel — the retired background-work window is not rendered', () => {
   it('renders no background-timeout control', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
 
@@ -255,6 +284,7 @@ describe('SettingsPanel — the retired background-work window is not rendered',
 describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
   it('shows the stored values: 3 reminders, first after 2 min', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     expect(selectedValue(container, 'settings-reminder-count')).toBe('3')
@@ -263,6 +293,7 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
 
   it('offers Off and 1–5 reminders', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     expect(optionValues(container, 'settings-reminder-count')).toEqual([
@@ -278,6 +309,7 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
 
   it('offers first delays of exactly 1, 2, 5, 10, 15 min', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     expect(optionValues(container, 'settings-reminder-first-delay')).toEqual([
@@ -292,6 +324,7 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
 
   it('the helper line reads the reminder times for the current values', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     expect(container.querySelector('[data-testid="settings-reminder-summary"]')?.textContent).toBe(
@@ -301,6 +334,7 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
 
   it('choosing Off persists { reminderCount: 0 }, hides the delay row, and says Off', () => {
     const stub = stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     chooseOption(container, 'settings-reminder-count', '0')
@@ -313,6 +347,7 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
 
   it('choosing 5 min persists { reminderFirstDelayMinutes: 5 }', () => {
     const stub = stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     chooseOption(container, 'settings-reminder-first-delay', '5')
@@ -323,6 +358,7 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
   // Attention sound — sound and reminders are both attention settings, so they belong together.
   it('the rows appear in order: sound, reminders, first delay, then font size (spec §4)', () => {
     stubSettings()
+    stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     const orderedIds = [
@@ -354,6 +390,7 @@ describe('SettingsPanel — the local API block', () => {
   it('shows the toggle off with the port, and hides the token while off', async () => {
     stubSettings()
     stubApi()
+    stubThemes()
     const r = render()
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-enabled"]').checked).toBe(false)
@@ -367,6 +404,7 @@ describe('SettingsPanel — the local API block', () => {
   it('turning it on patches apiEnabled and reveals the token, Copy, Regenerate and the docs URL', async () => {
     const { setCalls } = stubSettings()
     stubApi('a'.repeat(64))
+    stubThemes()
     const r = render()
     await flush()
     click(q(r, '[data-testid="settings-api-enabled"]'))
@@ -384,6 +422,7 @@ describe('SettingsPanel — the local API block', () => {
     stubSettings()
     stubApi('c'.repeat(64))
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    stubThemes()
     const r = render()
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').readOnly).toBe(true)
@@ -392,6 +431,7 @@ describe('SettingsPanel — the local API block', () => {
   it('the port is committed on blur only when it is a valid integer in range', async () => {
     const { setCalls } = stubSettings()
     stubApi()
+    stubThemes()
     const r = render()
     await flush()
     const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
@@ -410,6 +450,7 @@ describe('SettingsPanel — the local API block', () => {
   it('a port above the range is refused too', async () => {
     const { setCalls } = stubSettings()
     stubApi()
+    stubThemes()
     const r = render()
     await flush()
     const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
@@ -427,6 +468,7 @@ describe('SettingsPanel — the local API block', () => {
   it('a refused port says why on the error line, and a good one clears it', async () => {
     stubSettings()
     stubApi()
+    stubThemes()
     const r = render()
     await flush()
     const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
@@ -434,14 +476,14 @@ describe('SettingsPanel — the local API block', () => {
     type(port, '80')
     blur(port)
     await flush()
-    const line = q(r, '[data-testid="settings-api-error"]')
+    const line = q(r, '[data-testid="settings-error"]')
     expect(line.getAttribute('role')).toBe('alert')
     expect(line.textContent).toBe('Port must be between 1024 and 65535.')
 
     type(port, '9300')
     blur(port)
     await flush()
-    expect(r.container.querySelector('[data-testid="settings-api-error"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
   })
 
   it('Copy writes the token to the clipboard', async () => {
@@ -449,6 +491,7 @@ describe('SettingsPanel — the local API block', () => {
     stubApi('c'.repeat(64))
     const writeText = stubClipboard()
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    stubThemes()
     const r = render()
     await flush()
     click(q(r, '[data-testid="settings-api-copy"]'))
@@ -460,6 +503,7 @@ describe('SettingsPanel — the local API block', () => {
     stubSettings()
     const { regenerate } = stubApi('a'.repeat(64))
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    stubThemes()
     const r = render()
     await flush()
     const btn = q<HTMLButtonElement>(r, '[data-testid="settings-api-regenerate"]')
@@ -485,6 +529,7 @@ describe('SettingsPanel — the local API block', () => {
       regenerateToken: () => Promise.reject(new Error('token_write_failed: EACCES'))
     })
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    stubThemes()
     const r = render()
     await flush()
     const btn = q<HTMLButtonElement>(r, '[data-testid="settings-api-regenerate"]')
@@ -492,7 +537,7 @@ describe('SettingsPanel — the local API block', () => {
     click(btn)
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('a'.repeat(64))
-    const line = q(r, '[data-testid="settings-api-error"]')
+    const line = q(r, '[data-testid="settings-error"]')
     expect(line.getAttribute('role')).toBe('alert')
     expect(line.textContent).toBe('Could not save the new token.')
     expect(r.container.textContent).not.toContain('EACCES')
@@ -507,12 +552,11 @@ describe('SettingsPanel — the local API block', () => {
       getToken: () => Promise.reject(new Error('no handler for api:token-get'))
     })
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    stubThemes()
     const r = render()
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('')
-    expect(q(r, '[data-testid="settings-api-error"]').textContent).toBe(
-      'Could not read the API token.'
-    )
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not read the API token.')
     expect(r.container.textContent).not.toContain('no handler')
   })
 
@@ -522,10 +566,152 @@ describe('SettingsPanel — the local API block', () => {
     stubSettings()
     stubApi()
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    stubThemes()
     const r = render()
     await flush()
     expect(r.container.querySelectorAll('[role="dialog"]').length).toBe(1)
     expect(r.container.querySelector('[data-testid="settings-api-overlay"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="settings-api-panel"]')).toBeNull()
+  })
+})
+
+describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
+  const glass: ThemeSummary = { id: 'liquid-glass', name: 'Liquid Glass', colorScheme: 'dark' }
+  const paper: ThemeSummary = { id: 'paper', name: 'Paper', colorScheme: 'light' }
+  const broken: ThemeSummary = {
+    id: 'broken',
+    name: 'broken',
+    colorScheme: 'dark',
+    error: 'theme_css_missing'
+  }
+
+  it('lists themes on open: Default first, then the loadable ones by name; broken ones in the helper line only', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes([paper, glass, broken])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    expect(themes.list).toHaveBeenCalledTimes(1)
+    expect(optionValues(r.container, 'settings-theme')).toEqual([
+      'default',
+      'liquid-glass',
+      'paper'
+    ])
+    expect(selectedValue(r.container, 'settings-theme')).toBe('default')
+    expect(q(r, '[data-testid="settings-theme-broken"]').textContent).toBe(
+      'Could not load: broken (missing theme.css)'
+    )
+  })
+
+  it('hides the helper line when nothing is broken', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([paper])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-theme-broken"]')).toBeNull()
+  })
+
+  it('choosing a theme persists { themeId }', async () => {
+    const { setCalls } = stubSettings()
+    stubApi()
+    stubThemes([paper])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    chooseOption(r.container, 'settings-theme', 'paper')
+    expect(setCalls).toEqual([{ themeId: 'paper' }])
+  })
+
+  it('Reload themes reloads, then re-lists', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes([paper])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    click(q(r, '[data-testid="settings-theme-reload"]'))
+    await flush()
+    expect(themes.reload).toHaveBeenCalledTimes(1)
+    expect(themes.list).toHaveBeenCalledTimes(2)
+  })
+
+  it('Open themes folder asks main', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes()
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    click(q(r, '[data-testid="settings-theme-open-folder"]'))
+    expect(themes.openFolder).toHaveBeenCalledTimes(1)
+  })
+
+  it('when the chosen theme is not the applied one, the error line says so and the picker keeps the choice', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([broken])
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Theme "broken" could not be loaded, using Default'
+    )
+    expect(selectedValue(r.container, 'settings-theme')).toBe('broken')
+    expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'broken'])
+  })
+
+  it('no error line when the chosen theme is the applied one', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([paper])
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'paper' }))
+    act(() =>
+      themeStore
+        .getState()
+        .setBundle({ ...DEFAULT_THEME_BUNDLE, id: 'paper', name: 'Paper', colorScheme: 'light' })
+    )
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+  })
+
+  it('shows the transparency hint only while the applied theme sets allowTransparency', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([glass])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-theme-transparency"]')).toBeNull()
+    act(() =>
+      themeStore.getState().setBundle({
+        ...DEFAULT_THEME_BUNDLE,
+        id: 'liquid-glass',
+        name: 'Liquid Glass',
+        terminal: { allowTransparency: true }
+      })
+    )
+    expect(q(r, '[data-testid="settings-theme-transparency"]').textContent).toBe(
+      'Transparency applies to terminals opened from now on.'
+    )
+  })
+
+  it('a list that fails shows mapped copy on the one error line and keeps Default selectable', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes()
+    themes.list.mockImplementation(() => Promise.reject(new Error('boom')))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Could not read the themes folder.'
+    )
+    expect(optionValues(r.container, 'settings-theme')).toEqual(['default'])
   })
 })
