@@ -13,7 +13,8 @@ import {
   selectReminderFirstDelayMinutes,
   selectExpanderKey,
   selectApiEnabled,
-  selectApiPort
+  selectApiPort,
+  selectThemeId
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -37,7 +38,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       reminderFirstDelayMinutes: 10,
       expanderKey: 'X',
       apiEnabled: false,
-      apiPort: DEFAULT_SETTINGS.apiPort
+      apiPort: DEFAULT_SETTINGS.apiPort,
+      themeId: 'default'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -126,5 +128,18 @@ describe('programmatic API projection', () => {
     store.getState().applyPatch({ soundEnabled: false })
     expect(selectApiEnabled(store.getState())).toBe(true)
     expect(selectApiPort(store.getState())).toBe(9300)
+  })
+})
+
+describe('themeId', () => {
+  it('starts as default, hydrates and patches', () => {
+    const store = createSettingsStore()
+    expect(selectThemeId(store.getState())).toBe('default')
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'paper' })
+    expect(selectThemeId(store.getState())).toBe('paper')
+    store.getState().applyPatch({ themeId: 'liquid-glass' })
+    expect(selectThemeId(store.getState())).toBe('liquid-glass')
+    store.getState().applyPatch({ soundEnabled: false })
+    expect(selectThemeId(store.getState())).toBe('liquid-glass')
   })
 })
