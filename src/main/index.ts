@@ -11,7 +11,7 @@ import {
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
-import { statSync } from 'node:fs'
+import { statSync, mkdirSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -181,6 +181,9 @@ import { apiCommands } from './api/commands'
 import { projectApiSession } from './api/apiSession'
 import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
 import type { ApiSession } from '../shared/schemas/api'
+// Custom themes — the folder scanner (T5) and the apply lifecycle (T11), wired below.
+import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
+import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
 // launch synthesis CONSTRUCTS a valid Session from main-owned values (minted uuid, picked
 // cwd, pty pid) — it never re-runs SessionSchema over internal data.
@@ -404,6 +407,10 @@ const apiHubs = new Map<Electron.WebContents, ApiEventHub>()
 // starts or stops the listener — settings drive it (`apply`), quit ends it (`stop`).
 let apiTokenStore: ApiTokenStore | null = null
 let apiLifecycle: ApiLifecycle | null = null
+
+// Custom themes — the folder scanner and the apply lifecycle, built after app-ready (userData).
+let themeScanner: ThemeScanner | null = null
+let themeLifecycle: ThemeLifecycle | null = null
 
 /** The ONE log sink every API piece writes to — the context, the server, the docs routes, the
  *  token store and the lifecycle. Each of those formats its own `[claude-watcher][api] code=…`
@@ -1396,6 +1403,7 @@ function registerSettingsIpc(): void {
   ipcMain.handle(CH.settingsSet, (_evt, raw: unknown) => {
     if (settingsStore === null) throw new Error('settings store not initialized')
     const patch = SettingsPatchSchema.parse(raw)
+    const before = settingsStore.get().themeId
     const next = settingsStore.set(patch)
     // Programmatic API — the listener FOLLOWS the setting: start when it is switched on, stop when
     // it is switched off, restart when the port moves. `apply` is idempotent, so the patches that
@@ -1403,7 +1411,35 @@ function registerSettingsIpc(): void {
     // SSE stream out from under its client). It never throws — a failed bind is logged by code and
     // leaves the lifecycle stopped, so the settings write still returns.
     apiLifecycle?.apply(next)
+    // Custom themes — persist FIRST (the setting is the operator's choice), then apply. The
+    // outcome reaches the renderer as the pushed bundle, whose id says whether the chosen theme
+    // or Default landed. Only a CHANGED id applies: a font-size patch must not re-read the disk.
+    if (next.themeId !== before) themeLifecycle?.apply(next.themeId)
     return next
+  })
+}
+
+// Custom themes — register ONCE. `themes:list` rescans on every call (D-3: no watcher);
+// `theme:reload` re-applies the CHOSEN id; `themes:open-folder` opens the folder after a
+// `mkdir -p` so there is always something to open. Handler bodies are one line each; the logic
+// lives in themes/themeScanner.ts + themes/themeLifecycle.ts (unit-tested).
+function registerThemesIpc(): void {
+  ipcMain.handle(CH.themesList, () => {
+    if (themeScanner === null) throw new Error('theme scanner not initialized')
+    return themeScanner.scan()
+  })
+  ipcMain.handle(CH.themeReload, () => {
+    if (themeLifecycle === null || settingsStore === null)
+      throw new Error('theme lifecycle not initialized')
+    return themeLifecycle.apply(settingsStore.get().themeId)
+  })
+  ipcMain.handle(CH.themesOpenFolder, async () => {
+    if (themeScanner === null) throw new Error('theme scanner not initialized')
+    const dir = themeScanner.dir()
+    mkdirSync(dir, { recursive: true })
+    // `openPath` resolves to '' on success or a message that quotes the path: log a code only.
+    const problem = await shell.openPath(dir)
+    if (problem !== '') console.warn('[claude-watcher][themes] code=themes_open_folder_failed')
   })
 }
 
@@ -2457,6 +2493,15 @@ function createWindow(): void {
     apiLifecycle?.apply(settingsStore.get())
   })
 
+  // Custom themes — the FIRST apply of the persisted theme, here for the same reason as the API
+  // above: the renderer must be running to receive the push. The renderer also asks for a reload
+  // once its subscription is up (App.tsx), so a push that lands before the effect subscribed is
+  // not lost. Runs in SMOKE too: the in-memory store's themeId is `default`, no disk is read.
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (settingsStore === null) return
+    themeLifecycle?.apply(settingsStore.get().themeId)
+  })
+
   // Story 4.2 (FR-14 / UX-DR25 / FROZEN #4 / Epic-4 DECISION #2) — minimize-to-taskbar.
   // A title-bar window-close MINIMIZES instead of quitting: `e.preventDefault()` + `minimize()`.
   // `isQuitting` (quitGuardState) flips true ONLY when a real quit PROCEEDS (guard passed /
@@ -2571,6 +2616,8 @@ app.commandLine.appendSwitch('disable-software-rasterizer')
 // came up white with a blue highlight, floating over a dark dialog. `themeSource = 'dark'` is
 // what tells Chromium to draw its own surfaces dark (and makes `prefers-color-scheme: dark`
 // true in the renderer). Set before `ready`, so the first window never paints a light popup.
+// Custom themes: this is only the value before the first window loads; themeLifecycle
+// re-sets it from the applied theme's colorScheme on every apply.
 nativeTheme.themeSource = 'dark'
 
 // This method will be called when Electron has finished
@@ -2612,6 +2659,22 @@ app
       settingsStore = createSettingsStore()
     }
     registerSettingsIpc()
+
+    // Custom themes — the scanner over <userData>/themes and the apply lifecycle. The push goes to
+    // every window (a single window today); `nativeTheme.themeSource` follows the bundle.
+    themeScanner = createThemeScanner({ dir: join(app.getPath('userData'), 'themes') })
+    themeLifecycle = createThemeLifecycle({
+      load: (id) => (themeScanner as ThemeScanner).load(id),
+      push: (bundle) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.webContents.isDestroyed()) win.webContents.send(CH.themeApplied, bundle)
+        }
+      },
+      setNativeTheme: (scheme) => {
+        nativeTheme.themeSource = scheme
+      }
+    })
+    registerThemesIpc()
 
     try {
       workspacesStore = SMOKE
