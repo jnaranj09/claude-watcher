@@ -130,6 +130,21 @@ say — the rows that named it aren't lost: they stop appearing in the `+ New se
 the shortcut list everywhere, and show up in their Manage dialog under a **(no workspace)** group
 so you can re-scope or remove them.
 
+## Themes
+
+The whole look — every colour, radius, font and spacing token, the terminal palette, and anything a
+stylesheet can do on top — is a **theme package**: one folder in `~/.config/claude-watcher/themes/`
+(the app's data folder) holding a `theme.json`, an optional CSS file and the images or fonts that
+CSS uses. Pick it in **☰ → Settings… → Theme**. **Reload themes** re-reads the folder; **Open themes
+folder** opens it in your file manager. Light themes are a package with `"colorScheme": "light"`.
+
+A broken package is never applied and never crashes the app: it is listed under the picker with the
+reason, and if it was the chosen one the app falls back to Default and keeps your choice so you can
+fix the file and reload. The package format, every token, the load rules and three example themes
+(the built-in look, a liquid-glass look, a light `paper` theme) are in
+[`docs/themes/THEMES.md`](docs/themes/THEMES.md); `docs/themes/theme.schema.json` gives your editor
+autocomplete for `theme.json`.
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
