@@ -238,6 +238,36 @@ If you need the effect, put it on a `::before`/background layer, or on a LEAF el
 with no floating children of its own — a card, a panel) rather than a container that hosts a menu
 or dropdown.
 
+### Composited surfaces — keep these tokens opaque
+
+A few places in the app don't read `--bg-base`, `--bg-surface` and `--border` as a plain fill —
+they PAINT a small shape out of them, on the assumption that each token's rendered color is
+exactly what is already behind those pixels. The clearest case is the sessions rail's active row:
+where the highlighted "tab" meets the rail wall it needs a concave corner, which `border-radius`
+cannot draw, so `AttentionRail.module.css` fakes it with a tiny radial-gradient that draws
+`--bg-surface` inside the curve, `--border` on the curve, and `--bg-base` outside it — three flat
+values standing in for "the rail continuing," "the arc," and "the tab's own ground."
+
+That only reads correctly while those three tokens are OPAQUE, because the painted shape and the
+real surface around it are then the same color and the seam disappears. Give any of the three a
+translucent value and the shape stops matching what's behind it: the "inside the curve" region
+composites your fill ON TOP OF the rail's own fill of the same token (two translucent layers of
+the same color are not one layer of that color), while the "outside the curve" region paints your
+alpha over whatever happens to be back there instead of the tab's real surface. The result is a
+visible lighter patch with a stray arc at the row's corners — not a rendering bug, just the theme
+asking a flat paint to behave like a composite. **No alpha value fixes this**: painting a
+translucent color over itself is never equal to one solid layer of it, so there is no clever
+opacity that makes the shape disappear again.
+
+The practical rule: keep `--bg-base`, `--bg-surface`, `--bg-surface-raised`, `--border` and
+`--bg-row-rest` opaque. If the theme wants a see-through look, get it from `backdrop-filter` in
+the theme's own CSS file, applied to the specific panels that should look like glass (dialogs, the
+settings panel, the header, the terminal frame, menus, listboxes — see the stacking-context trap
+above), with their OWN translucent `background` written directly in the CSS rather than inherited
+from a token's alpha. `examples/liquid-glass` does exactly this: its tokens are opaque, sampled
+from its background gradient, and every glass-looking surface gets its translucency and blur from
+`theme.css`, not from the token set.
+
 ## Light themes
 
 `"colorScheme": "light"` plus a light token set. The app's own widgets follow it. See
@@ -258,8 +288,9 @@ path=<field>`. Never the values.
 
 - [`examples/builtin-dark`](examples/builtin-dark/) — the built-in look as a package: every token and
   terminal key at its default. Generated; copy it and change values.
-- [`examples/liquid-glass`](examples/liquid-glass/) — what the CSS file makes possible: translucent
-  panels, `backdrop-filter`, a gradient behind everything, a transparent terminal.
+- [`examples/liquid-glass`](examples/liquid-glass/) — what the CSS file makes possible: opaque,
+  gradient-sampled tokens (see "Composited surfaces" above) plus `backdrop-filter`-blurred panels,
+  a gradient behind the header, and a transparent terminal.
 - [`examples/paper`](examples/paper/) — a light theme, tokens only.
 
 ## Editor support
