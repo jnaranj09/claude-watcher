@@ -665,7 +665,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(r.container.textContent).not.toContain('ENOENT')
   })
 
-  it('when the chosen theme is not the applied one, the error line says so and the picker keeps the choice', async () => {
+  it('when the chosen theme is not the applied one, the error line names the reason and the picker keeps the choice', async () => {
     stubSettings()
     stubApi()
     stubThemes([broken])
@@ -674,10 +674,60 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     cleanup = r.unmount
     await flush()
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Theme "broken" could not be loaded, using Default'
+      'Theme "broken" could not be loaded, using Default — missing theme.css'
     )
     expect(selectedValue(r.container, 'settings-theme')).toBe('broken')
     expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'broken'])
+  })
+
+  // Finding 1(b) end-to-end: a theme whose MANIFEST is fine but whose CSS is broken (here, a
+  // remote url()) must (1) be absent from the picker's loadable options, (2) appear in the
+  // broken-themes line with its reason, and (3) — if it is the CHOSEN theme (e.g. it broke after
+  // it was picked) — the error line names the SAME reason, not just "could not be loaded".
+  it('a CSS-level broken theme (fine manifest, bad CSS) is unpickable, listed broken, and named when chosen', async () => {
+    const remoteCss: ThemeSummary = {
+      id: 'remote-css',
+      name: 'Remote CSS',
+      colorScheme: 'dark',
+      error: 'theme_css_url_invalid'
+    }
+    stubSettings()
+    stubApi()
+    stubThemes([paper, remoteCss])
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'remote-css' }))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    // (1) not among the loadable options — only the chosen-but-broken id is pinned in, kept so
+    // the picker never sits on a value it does not offer (design.md).
+    expect(optionValues(r.container, 'settings-theme')).toEqual([
+      'default',
+      'paper',
+      'remote-css'
+    ])
+    // (2) listed in the broken-themes helper line with its reason.
+    expect(q(r, '[data-testid="settings-theme-broken"]').textContent).toBe(
+      'Could not load: remote-css (a disallowed url(), @import, image-set() or escape in the CSS)'
+    )
+    // (3) the chosen-theme error line names the same reason.
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Theme "Remote CSS" could not be loaded, using Default — a disallowed url(), @import, image-set() or escape in the CSS'
+    )
+  })
+
+  it('a reload() that rejects sets mapped copy on the one error line, never the raw error', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes([paper])
+    themes.reload.mockImplementation(() => Promise.reject(new Error('ECONNREFUSED')))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    click(q(r, '[data-testid="settings-theme-reload"]'))
+    await flush()
+    const line = q(r, '[data-testid="settings-error"]')
+    expect(line.textContent).toBe('Could not reload themes.')
+    expect(r.container.textContent).not.toContain('ECONNREFUSED')
   })
 
   it('no error line when the chosen theme is the applied one', async () => {
