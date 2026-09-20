@@ -42,7 +42,15 @@ export function renderTokensBlock(tokens: ThemeTokens): string {
 
 /** A plain file name with an allow-listed extension: `name.ext`, nothing else. */
 const ASSET_NAME = /^([A-Za-z0-9_.-]+)\.([A-Za-z0-9]+)$/
-const URL_CALL = /url\(\s*(['"]?)([^'")]*)\1\s*\)/g
+// CSS function names are ASCII case-insensitive (`URL(...)`, `Url(...)` are valid CSS), so this
+// carries the `i` flag. A quoted url() may legally contain `)` and the OPPOSITE quote character
+// (`url("a).png")`, `url('a".png')`), which a single optional-quote backreference cannot express —
+// so the double-quoted, single-quoted and unquoted forms are three separate alternatives, each
+// captured on its own group.
+const URL_CALL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi
+/** Matches exactly the `url("data:...")` calls THIS function emits, so the residual scan below
+ *  does not trip over its own successful substitutions. */
+const OWN_DATA_URI_CALL = /url\("data:[^"]*"\)/g
 
 export function rewriteCssUrls(
   css: string,
@@ -52,43 +60,54 @@ export function rewriteCssUrls(
   let total = 0
   let failure = null as ThemeErrorCode | null
 
-  const out = css.replace(URL_CALL, (whole, _q: string, raw: string) => {
-    if (failure !== null) return whole
-    const name = raw.trim()
-    const m = ASSET_NAME.exec(name)
-    if (m === null || name.includes('..')) {
-      failure = 'theme_css_url_invalid'
-      return whole
-    }
-    const mime = THEME_ASSET_MIME[(m[2] ?? '').toLowerCase()]
-    if (mime === undefined) {
-      failure = 'theme_asset_type_invalid'
-      return whole
-    }
-    let data = inlined.get(name)
-    if (data === undefined) {
-      let bytes: Uint8Array | null
-      try {
-        bytes = reader.read(name)
-      } catch {
-        failure = 'theme_read_failed'
+  const out = css.replace(
+    URL_CALL,
+    (whole: string, dq: string | undefined, sq: string | undefined, uq: string | undefined) => {
+      if (failure !== null) return whole
+      const name = (dq ?? sq ?? uq ?? '').trim()
+      const m = ASSET_NAME.exec(name)
+      if (m === null || name.includes('..')) {
+        failure = 'theme_css_url_invalid'
         return whole
       }
-      if (bytes === null) {
-        failure = 'theme_asset_missing'
+      const mime = THEME_ASSET_MIME[(m[2] ?? '').toLowerCase()]
+      if (mime === undefined) {
+        failure = 'theme_asset_type_invalid'
         return whole
       }
-      total += bytes.byteLength
-      if (total > THEME_ASSETS_MAX_BYTES) {
-        failure = 'theme_asset_too_large'
-        return whole
+      let data = inlined.get(name)
+      if (data === undefined) {
+        let bytes: Uint8Array | null
+        try {
+          bytes = reader.read(name)
+        } catch {
+          failure = 'theme_read_failed'
+          return whole
+        }
+        if (bytes === null) {
+          failure = 'theme_asset_missing'
+          return whole
+        }
+        total += bytes.byteLength
+        if (total > THEME_ASSETS_MAX_BYTES) {
+          failure = 'theme_asset_too_large'
+          return whole
+        }
+        data = `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`
+        inlined.set(name, data)
       }
-      data = `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`
-      inlined.set(name, data)
+      return `url("${data}")`
     }
-    return `url("${data}")`
-  })
-  return failure === null ? { ok: true, css: out } : { ok: false, code: failure }
+  )
+  if (failure !== null) return { ok: false, code: failure }
+
+  // Fail closed on any `url(` form the pattern above could not fully consume — an unterminated
+  // call, or any other shape nobody anticipated. Strip our OWN inlined data: URIs first, so the
+  // check does not trip over the very substitutions it made.
+  const residual = out.replace(OWN_DATA_URI_CALL, '')
+  if (/url\(/i.test(residual)) return { ok: false, code: 'theme_css_url_invalid' }
+
+  return { ok: true, css: out }
 }
 
 export function composeTheme(

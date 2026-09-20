@@ -74,6 +74,43 @@ describe('rewriteCssUrls', () => {
       code: 'theme_asset_missing'
     })
   })
+  it.each([
+    'URL(https://evil.com/x.png)',
+    'Url("https://evil.com/x.png")',
+    'url("https://evil.com/a).png")',
+    `url('https://evil.com/a".png')`
+  ])('fails closed on the case/quote bypass %j (theme_css_url_invalid)', (bad) => {
+    expect(rewriteCssUrls(bad, reader)).toEqual({ ok: false, code: 'theme_css_url_invalid' })
+  })
+  it('inlines URL(...) case-insensitively, not just lowercase url(...)', () => {
+    const r = rewriteCssUrls('URL(bg.png)', reader)
+    expect(r).toEqual({ ok: true, css: `url("data:image/png;base64,${b64}")` })
+  })
+  it('fails closed on an unterminated url( the pattern cannot fully match (residual check)', () => {
+    expect(rewriteCssUrls('a{b:url(bg.png}', reader)).toEqual({
+      ok: false,
+      code: 'theme_css_url_invalid'
+    })
+  })
+  it('fails closed on ..png — matched by the character class, caught by the explicit .. check', () => {
+    expect(rewriteCssUrls('url(..png)', reader)).toEqual({
+      ok: false,
+      code: 'theme_css_url_invalid'
+    })
+  })
+  it('first failure wins: a later url() is never read once one has already failed', () => {
+    const calls: string[] = []
+    const base = createMapReader({ 'b.png': png })
+    const spyReader: ThemeReader = {
+      read: (name) => {
+        calls.push(name)
+        return base.read(name)
+      }
+    }
+    const r = rewriteCssUrls('url(missing.png) url(b.png)', spyReader)
+    expect(r).toEqual({ ok: false, code: 'theme_asset_missing' })
+    expect(calls).toEqual(['missing.png'])
+  })
   it('fails closed one byte over the 5 MB cap and passes at the cap', () => {
     const at = new Uint8Array(THEME_ASSETS_MAX_BYTES)
     const over = new Uint8Array(THEME_ASSETS_MAX_BYTES - 3)

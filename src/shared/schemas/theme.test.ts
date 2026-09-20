@@ -62,7 +62,7 @@ describe('ThemeManifestSchema — our shape, strict, fail-closed', () => {
     expect(ThemeManifestSchema.safeParse({ ...minimal, tokens }).success).toBe(true)
   })
 
-  it.each(['url(x.png)', 'a;b', 'a{', '}', '/* c */', 'a\nb', 'a\rb'])(
+  it.each(['url(x.png)', 'URL(x.png)', 'a;b', 'a{', '}', '/* c */', 'a\nb', 'a\rb'])(
     'rejects the token value %j (an injection point, not a value)',
     (bad) => {
       expect(

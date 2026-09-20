@@ -2,7 +2,7 @@
 // ONE Zod boundary's issues to theme codes, and hands composeTheme a reader rooted in the
 // theme folder. Logs `code=` (+ `path=`, a zod path) only — never a manifest value, never a
 // folder name that failed the id pattern, never an errno message.
-import { mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   DEFAULT_THEME_BUNDLE,
@@ -71,13 +71,19 @@ export function readManifest(
     const issue = r.error.issues[0]
     if (issue === undefined) return { ok: false, code: 'theme_manifest_invalid' }
     // `unrecognized_keys` carries the offending keys; name the first so the helper line can.
+    // The manifest cap is 64 KB, so an author-typed key can itself be huge — truncate to 64
+    // chars before it goes anywhere near a log line or `ThemeSummary.path` (which is capped
+    // at 200 chars by its own schema; naming the misspelled token is still useful truncated).
     const keys = 'keys' in issue && Array.isArray(issue.keys) ? issue.keys : []
     const mapped = codeForIssue(issue)
+    const firstKey = keys[0]
     const path =
-      mapped.code === 'theme_unknown_token' && keys[0] !== undefined
-        ? `${mapped.path}.${String(keys[0])}`
+      mapped.code === 'theme_unknown_token' && firstKey !== undefined
+        ? `${mapped.path}.${String(firstKey).slice(0, 64)}`
         : mapped.path
-    return { ok: false, code: mapped.code, path }
+    // A root-level issue (e.g. an unknown top-level key) has an empty zod path — omit it
+    // rather than ship/log a bare trailing `path=`.
+    return { ok: false, code: mapped.code, ...(path !== '' ? { path } : {}) }
   }
   return { ok: true, manifest: r.data }
 }
@@ -89,11 +95,14 @@ function folderReader(folder: string): ThemeReader {
       const file = join(folder, name)
       let st
       try {
-        st = statSync(file)
+        // lstat, NOT stat — lstat reports the path ITSELF, never resolving a symlink. A
+        // shared theme package's asset must never be a link out of its own folder (e.g. an
+        // author-crafted `bg.png -> ~/.ssh/id_rsa`, base64-inlined straight into the bundle).
+        st = lstatSync(file)
       } catch {
         return null
       }
-      if (!st.isFile()) return null
+      if (st.isSymbolicLink() || !st.isFile()) return null
       return readFileSync(file)
     }
   }
@@ -120,9 +129,21 @@ export function createThemeScanner(opts: {
   }
 
   function scan(): ThemeSummary[] {
-    mkdirSync(opts.dir, { recursive: true })
+    let entries
+    try {
+      // Both calls can throw past this boundary — a regular FILE sitting at the themes path
+      // (ENOTDIR/EEXIST), a read-only or permission-denied userData dir, or the dir removed
+      // between the two calls. `scan()` must never throw (Global Constraints), so both are
+      // inside the same try; on any failure it logs a code (never an errno message, which
+      // quotes the absolute path) and reports no themes rather than crashing main.
+      mkdirSync(opts.dir, { recursive: true })
+      entries = readdirSync(opts.dir, { withFileTypes: true })
+    } catch {
+      log(`${LOG_PREFIX} code=theme_read_failed`)
+      return []
+    }
     const out: ThemeSummary[] = []
-    for (const entry of readdirSync(opts.dir, { withFileTypes: true })) {
+    for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const id = entry.name
       if (id === DEFAULT_THEME_ID) {

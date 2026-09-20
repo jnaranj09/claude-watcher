@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, expect, afterEach } from 'vitest'
@@ -75,6 +75,33 @@ describe('scan()', () => {
     expect(logs).toContain('[claude-watcher][themes] code=theme_id_reserved id=default')
     expect(logs).toContain('[claude-watcher][themes] code=theme_id_invalid')
     expect(logs.join('\n')).not.toContain('Bad_Name') // never the value
+  })
+  it('never throws — a regular file occupying the themes path returns [] instead', () => {
+    const dir = themesDir()
+    const filePath = join(dir, 'occupied')
+    writeFileSync(filePath, 'not a directory')
+    const scanner = createThemeScanner({ dir: filePath, log })
+    let result: unknown
+    expect(() => {
+      result = scanner.scan()
+    }).not.toThrow()
+    expect(result).toEqual([])
+  })
+  it('the broken-theme log line carries only the code and the bounded path', () => {
+    const dir = themesDir()
+    theme(dir, 'broken2', { version: 1, name: 'B', tokens: { 'bg-bas': '#000' } })
+    logs.length = 0
+    createThemeScanner({ dir, log }).scan()
+    expect(logs).toEqual([
+      '[claude-watcher][themes] code=theme_unknown_token id=broken2 path=tokens.bg-bas'
+    ])
+  })
+  it('omits a bare path= for a root-level issue', () => {
+    const dir = themesDir()
+    theme(dir, 'rootissue', { version: 1, name: 'X', extra: 1 })
+    logs.length = 0
+    createThemeScanner({ dir, log }).scan()
+    expect(logs).toEqual(['[claude-watcher][themes] code=theme_manifest_invalid id=rootissue'])
   })
 })
 
@@ -164,6 +191,31 @@ describe('load(id)', () => {
     mkdirSync(join(dir, 'weird', 'theme.json'), { recursive: true })
     const r = createThemeScanner({ dir, log }).load('weird')
     expect(r).toEqual({ ok: false, code: 'theme_read_failed' })
+  })
+  it('refuses a symlinked asset — never follows a link out of the theme folder', () => {
+    const dir = themesDir()
+    const outsideFile = join(dir, 'outside.png')
+    writeFileSync(outsideFile, 'secret')
+    theme(
+      dir,
+      'linked',
+      { version: 1, name: 'X', css: 'theme.css' },
+      { 'theme.css': 'a{b:url(bg.png)}' }
+    )
+    symlinkSync(outsideFile, join(dir, 'linked', 'bg.png'))
+    const r = createThemeScanner({ dir, log }).load('linked')
+    expect(r).toEqual({ ok: false, code: 'theme_asset_missing' })
+  })
+  it('truncates an unrecognized token key to 64 chars in the reported path', () => {
+    const dir = themesDir()
+    const longKey = 'x'.repeat(100)
+    theme(dir, 'longkey', { version: 1, name: 'X', tokens: { [longKey]: '#000' } })
+    const r = createThemeScanner({ dir, log }).load('longkey')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.path).toBe(`tokens.${longKey.slice(0, 64)}`)
+      expect(r.path?.length).toBeLessThanOrEqual(200)
+    }
   })
 })
 
