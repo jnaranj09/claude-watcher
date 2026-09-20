@@ -98,4 +98,28 @@ describe('terminal.md source invariants — component (AC-1/2/5; F3)', () => {
     // boundary so `window.terminal.resize` / `fitRef` etc. don't false-positive.
     expect(tsx).not.toMatch(/\bterm\s*\.\s*resize\(/)
   })
+
+  // Custom themes (spec 2026-09-20) added a SECOND store subscription (`useTheme`) to this
+  // component, which is exactly what makes "add themeTerminal to the create effect's deps" a
+  // plausible next edit — and that edit would dispose + respawn every pty (killing every running
+  // claude session) on a theme switch. `themeTerminal` is read via `themeTerminalRef` INSIDE the
+  // effect (creation-only, terminal.md) precisely so it never has to be a dep. Pin the create
+  // effect's own dependency array so a future edit that widens it turns this test red, not a
+  // packaged-only incident.
+  it('the create effect deps are EXACTLY [terminalId, openNonce] — no theme value belongs here', () => {
+    const createIdx = tsx.indexOf('new Terminal(')
+    expect(createIdx).toBeGreaterThan(-1)
+    const effectStart = tsx.lastIndexOf('useEffect(() => {', createIdx)
+    expect(effectStart).toBeGreaterThan(-1)
+    // The first `}, [...])` after the effect's opening is ITS OWN closing deps array — nothing
+    // nested inside the create effect uses that `}, [` hook-call shape (no useCallback/useEffect
+    // inside it).
+    const closeMatch = /\}\s*,\s*\[([^\]]*)\]\)/.exec(tsx.slice(effectStart))
+    expect(closeMatch).not.toBeNull()
+    const deps = (closeMatch?.[1] ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    expect(deps).toEqual(['terminalId', 'openNonce'])
+  })
 })
