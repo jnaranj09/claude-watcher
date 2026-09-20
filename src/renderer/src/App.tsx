@@ -95,6 +95,9 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 // focused view's active YourTurn session with the window focused, marks it seen via main
 // (window.launch.markSeen). Mounted once here — see useSessionSeen.ts for the full rule.
 import { useSessionSeen } from './hooks/useSessionSeen'
+// Custom themes — writes the applied bundle into <head> and the root color-scheme (T13).
+import { useApplyTheme } from './hooks/useApplyTheme'
+import { themeStore } from './stores/themeStore'
 import styles from './App.module.css'
 
 /** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces/Tags/Rules/
@@ -117,6 +120,9 @@ function isModalOpen(): boolean {
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
   useSessionSeen()
+
+  // Custom themes — write the applied bundle into <head> and the root color-scheme.
+  useApplyTheme()
 
   // null = smoke-config not resolved yet; true/false once known.
   const [smoke, setSmoke] = useState<boolean | null>(null)
@@ -216,6 +222,18 @@ function App(): React.JSX.Element {
     const off = window.launch.onLaunchRequested(({ terminalId, label, workspaceId }) =>
       boardStore.getState().registerLaunchedTerminal(terminalId, label, workspaceId)
     )
+    return off
+  }, [smoke])
+
+  // Custom themes — subscribe to the applied-bundle push, then ask main for the current theme
+  // once: main's did-finish-load push may land before this effect subscribed (the same race the
+  // API lifecycle comment in createWindow describes), and a reload is a cheap re-read.
+  // Guarded like `window.launch.onLaunchRequested`: older App tests stub only what they touch.
+  useEffect(() => {
+    if (smoke !== false) return
+    if (typeof window.themes !== 'object') return
+    const off = window.themes.onApplied((bundle) => themeStore.getState().setBundle(bundle))
+    window.themes.reload().catch(() => console.warn('[claude-watcher][themes] code=reload_failed'))
     return off
   }, [smoke])
 
