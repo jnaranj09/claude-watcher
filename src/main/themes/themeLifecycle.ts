@@ -16,7 +16,10 @@ const LOG_PREFIX = '[claude-watcher][themes]'
 
 export interface ThemeLifecycle {
   apply(id: string): ThemeApplyResult
-  /** The last bundle pushed (Default until the first apply). */
+  /** The bundle `apply` last resolved to (Default until the first apply) — i.e. the theme
+   *  main CONSIDERS active, regardless of whether `push` or `setNativeTheme` went on to
+   *  succeed. `send()` sets it before either of those (each independently try/caught), so a
+   *  reporting failure never leaves `current()` out of sync with the id `apply()` returned. */
   current(): ThemeBundle
 }
 

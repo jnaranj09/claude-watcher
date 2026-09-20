@@ -1436,7 +1436,17 @@ function registerThemesIpc(): void {
   ipcMain.handle(CH.themesOpenFolder, async () => {
     if (themeScanner === null) throw new Error('theme scanner not initialized')
     const dir = themeScanner.dir()
-    mkdirSync(dir, { recursive: true })
+    try {
+      // Mirrors themeScanner.scan()'s handling of this same call: `mkdirSync` can throw
+      // (ENOTDIR/EACCES/a race on the folder), and an uncontained throw here would reach the
+      // renderer as the rejected invoke() promise — whose `.message` QUOTES THE ABSOLUTE PATH.
+      // Log a code only, never the errno message, and never let the raw error cross the IPC
+      // boundary.
+      mkdirSync(dir, { recursive: true })
+    } catch {
+      console.warn('[claude-watcher][themes] code=themes_open_folder_mkdir_failed')
+      return
+    }
     // `openPath` resolves to '' on success or a message that quotes the path: log a code only.
     const problem = await shell.openPath(dir)
     if (problem !== '') console.warn('[claude-watcher][themes] code=themes_open_folder_failed')

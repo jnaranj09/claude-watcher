@@ -70,4 +70,19 @@ describe('createThemeLifecycle.apply', () => {
     expect(() => h2.apply('paper')).not.toThrow()
     expect(h.logs.join('\n')).toContain('code=theme_push_failed')
   })
+  it('a throwing setNativeTheme is contained and logged, and push still runs', () => {
+    const logs: string[] = []
+    const push = vi.fn()
+    const lc = createThemeLifecycle({
+      load: () => ({ ok: true, bundle: paper }),
+      push,
+      setNativeTheme: () => {
+        throw new Error('theme source unavailable')
+      },
+      log: (m) => logs.push(m)
+    })
+    expect(() => lc.apply('paper')).not.toThrow()
+    expect(push).toHaveBeenCalledWith(paper)
+    expect(logs).toEqual(['[claude-watcher][themes] code=theme_native_theme_failed'])
+  })
 })
