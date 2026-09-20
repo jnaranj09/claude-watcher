@@ -1,0 +1,484 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jnaranj09/claude-watcher/main/docs/themes/theme.schema.json",
+  "title": "claude-watcher theme manifest",
+  "description": "theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain \"..\".",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "colorScheme": {
+      "default": "dark",
+      "type": "string",
+      "enum": [
+        "dark",
+        "light"
+      ]
+    },
+    "tokens": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "bg-base": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-surface": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-surface-raised": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-col-hero": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-col-calm": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-card-hero": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-card-calm": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-row-rest": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bg-terminal": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "scrim": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "border-strong": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "border-card": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-primary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-secondary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-muted": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-dim": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-on-accent": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-on-danger": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "working": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "needs-you": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "done": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "idle": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "danger": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "focus-ring": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-slate-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-slate-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-slate-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-blue-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-blue-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-blue-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-green-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-green-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-green-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-amber-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-amber-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-amber-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-violet-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-violet-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-violet-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-rose-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-rose-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-rose-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-ui": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-mono": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-size-display": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-weight-display": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "line-height-display": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-size-heading": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-weight-heading": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "line-height-heading": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "letter-spacing-heading": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-size-body": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-weight-body": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "line-height-body": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-size-label": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-weight-label": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "line-height-label": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-size-meta": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-weight-meta": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "line-height-meta": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-size-mono": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "font-weight-mono": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "line-height-mono": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rounded-sm": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rounded-md": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rounded-lg": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rounded-full": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-1": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-2": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-3": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-4": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-5": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-6": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "space-8": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "topbar-height": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rail-width": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "rail-width-collapsed": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "card-min-height": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gutter": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "card-gap": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "shadow-dialog": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "shadow-pop": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false
+    },
+    "terminal": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "background": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "foreground": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "cursorAccent": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "selectionBackground": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "selectionForeground": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "selectionInactiveBackground": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "black": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "red": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "green": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "yellow": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "blue": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "magenta": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "cyan": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "white": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightBlack": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightRed": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightGreen": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightYellow": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightBlue": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightMagenta": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightCyan": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "brightWhite": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "allowTransparency": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "css": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+\\.css$"
+    }
+  },
+  "required": [
+    "version",
+    "name"
+  ],
+  "additionalProperties": false
+}
