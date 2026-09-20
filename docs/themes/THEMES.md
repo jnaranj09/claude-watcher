@@ -222,6 +222,22 @@ literal character instead of escaping it. (The app's content-security policy als
 remote fetch if one ever slipped past this scan — a backstop, not a second rule an author needs
 to reason about: the scan above is what actually decides whether your theme loads.)
 
+### The stacking-context trap
+
+`backdrop-filter`, `filter`, `transform`, `perspective`, `contain` and `will-change` each create a
+new stacking context on the element they're applied to — not just a visual effect. Put one of
+these on a CONTAINER (`[data-testid="app-header"]`, `body`, a wrapping element) and every popover
+that lives inside it — a menu, a dropdown, a tooltip — gets trapped at that container's paint
+position, no matter how high its own `z-index` is. `liquid-glass`'s header blur
+(`[data-testid="app-header"] { backdrop-filter: blur(12px) }`) is exactly this: the app's own CSS
+already accounts for it, so the example still works, but a theme that puts one of these six
+properties on a container the app does NOT already harden could bury a popup under the board
+again.
+
+If you need the effect, put it on a `::before`/background layer, or on a LEAF element (something
+with no floating children of its own — a card, a panel) rather than a container that hosts a menu
+or dropdown.
+
 ## Light themes
 
 `"colorScheme": "light"` plus a light token set. The app's own widgets follow it. See
