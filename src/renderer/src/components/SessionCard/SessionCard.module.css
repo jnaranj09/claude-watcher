@@ -328,7 +328,7 @@
 .cardDelete:hover,
 .cardDelete:focus-visible {
   background: var(--danger);
-  color: #fff;
+  color: var(--text-on-danger);
 }
 
 /* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised

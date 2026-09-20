@@ -49,6 +49,12 @@ export const TOKENS = {
   'text-muted': '#6b685e',
   'text-dim': '#47453d',
 
+  /* Ink ON a filled button. `text-on-accent` sits on `--working` (the primary Save/Create
+   * button): the app's darkest neutral, not `--bg-base`, so it stays readable when a theme
+   * lightens the ground. `text-on-danger` sits on `--danger` (armed Delete, Quit anyway). */
+  'text-on-accent': '#11111b',
+  'text-on-danger': '#ffffff',
+
   // ── Status / accent (Catppuccin Mocha + one custom gold) ───────────────────
   working: '#89b4fa',
   'needs-you': '#ffcf29',
