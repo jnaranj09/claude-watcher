@@ -17,6 +17,7 @@
 // the value. The store + IPC handlers below follow this.
 
 import { z } from 'zod'
+import { ThemeIdSchema, DEFAULT_THEME_ID } from './theme'
 
 /** The current persisted-settings schema version. Bumping this is how a future
  *  migration is introduced (the store reads `version` and migrates older blobs).
@@ -68,7 +69,8 @@ const ApiPortSchema = z.number().int().min(API_PORT_MIN).max(API_PORT_MAX)
 
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
- * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort`.
+ * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort` +
+ * `themeId`.
  *
  * - `version` is a `z.literal(SETTINGS_VERSION)` — a blob carrying a DIFFERENT version
  *   fails THIS schema (the store treats that as a no-known-migration → corrupt → fresh).
@@ -100,7 +102,12 @@ export const SettingsSchema = z.object({
   // Programmatic API. Same `.default()` reasoning again: additive on v1, so a file written
   // before the API existed still parses (off, on the default port) instead of failing closed.
   apiEnabled: z.boolean().default(false),
-  apiPort: ApiPortSchema.default(DEFAULT_API_PORT)
+  apiPort: ApiPortSchema.default(DEFAULT_API_PORT),
+  // Custom themes (spec 2026-09-20). Additive on v1 like the rows above. The folder id the
+  // operator chose, or `default`. A stored value that is not an id fails closed (backup +
+  // fresh), like every other field. A chosen theme that no longer LOADS is not a schema
+  // matter: main falls back to Default and keeps this value (D-7).
+  themeId: ThemeIdSchema.default(DEFAULT_THEME_ID)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -125,7 +132,8 @@ export const SettingsPatchSchema = z
     reminderFirstDelayMinutes: ReminderFirstDelaySchema,
     expanderKey: ExpanderKeySchema,
     apiEnabled: z.boolean(),
-    apiPort: ApiPortSchema
+    apiPort: ApiPortSchema,
+    themeId: ThemeIdSchema
   })
   .partial()
 
@@ -143,7 +151,8 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderFirstDelayMinutes: DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
   expanderKey: DEFAULT_EXPANDER_KEY,
   apiEnabled: false,
-  apiPort: DEFAULT_API_PORT
+  apiPort: DEFAULT_API_PORT,
+  themeId: DEFAULT_THEME_ID
 }
 
 /**

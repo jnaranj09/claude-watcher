@@ -55,7 +55,8 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
           patch.reminderFirstDelayMinutes ?? DEFAULT_SETTINGS.reminderFirstDelayMinutes,
         expanderKey: patch.expanderKey ?? DEFAULT_SETTINGS.expanderKey,
         apiEnabled: patch.apiEnabled ?? DEFAULT_SETTINGS.apiEnabled,
-        apiPort: patch.apiPort ?? DEFAULT_SETTINGS.apiPort
+        apiPort: patch.apiPort ?? DEFAULT_SETTINGS.apiPort,
+        themeId: patch.themeId ?? DEFAULT_SETTINGS.themeId
       }
       return merged
     }
