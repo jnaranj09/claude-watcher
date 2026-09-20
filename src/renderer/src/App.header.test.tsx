@@ -6,6 +6,7 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
 import App from './App'
 import { boardStore } from './stores/boardStore'
+import type { ThemeBundle } from '../../shared/schemas/theme'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
 async function flush(): Promise<void> {
@@ -150,5 +151,50 @@ describe('App — header layout', () => {
     const group = headerGroupOf(header, q(r, '[data-testid="workspace-switcher"]'))
     expect(group.textContent).toContain('Claude Watcher')
     expect(group.contains(q(r, '[data-testid="header-new-session"]'))).toBe(false)
+  })
+})
+
+describe('custom themes — App wiring', () => {
+  it('subscribes to theme:applied, asks for a reload once, and writes the bundle into <head>', async () => {
+    const listeners: Array<(b: ThemeBundle) => void> = []
+    const reload = vi.fn(() => Promise.resolve({ ok: true, id: 'default' }))
+    ;(window as unknown as { themes: unknown }).themes = {
+      list: () => Promise.resolve([]),
+      reload,
+      openFolder: () => Promise.resolve(),
+      onApplied: (cb: (b: ThemeBundle) => void) => {
+        listeners.push(cb)
+        return () => {}
+      }
+    }
+    const r = await renderApp()
+    expect(reload).toHaveBeenCalledTimes(1)
+    act(() =>
+      listeners[0]?.({
+        id: 'paper',
+        name: 'Paper',
+        colorScheme: 'light',
+        css: 'body{}',
+        terminal: {}
+      })
+    )
+    expect(document.getElementById('claude-watcher-theme')?.textContent).toBe('body{}')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+    r.unmount()
+  })
+
+  it('unsubscribes from theme:applied on unmount', async () => {
+    const unsubscribe = vi.fn()
+    ;(window as unknown as { themes: unknown }).themes = {
+      list: () => Promise.resolve([]),
+      reload: () => Promise.resolve({ ok: true, id: 'default' }),
+      openFolder: () => Promise.resolve(),
+      onApplied: () => unsubscribe
+    }
+    const r = await renderApp()
+    expect(unsubscribe).not.toHaveBeenCalled()
+    r.unmount()
+    cleanup = undefined // already unmounted above; afterEach must not unmount twice
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })
