@@ -572,15 +572,37 @@
  *
  * So each flare is a `--rounded-md` square sitting just outside the tab's corner, filled with a
  * radial gradient centred on the corner FURTHEST from the tab:
- *   inside the radius  → `--bg-surface`, the rail continuing over the top of the flare;
+ *   inside the radius  → `transparent` — see below;
  *   ON the radius      → 1px of `--border`, the arc itself;
  *   outside the radius → `--bg-base`, the tab's own surface, flared out to the wall.
  * The arc is tangent to the horizontal at its inner end and to the vertical at its outer end, so it
  * leaves the tab's straight top border and arrives at the wall without a kink at either join.
  *
+ * INSIDE THE RADIUS IS `transparent`, NOT `--bg-surface`. It used to paint `--bg-surface`
+ * explicitly, reasoning "the rail continues over the top of the flare" — true for an OPAQUE
+ * theme, but it re-paints a surface that is already there: `.pinnedSlot`'s own `--space-3`
+ * padding is what actually occupies this quarter-disc (12px of empty padding is more than the
+ * 6px the disc reaches), so this pixel is already showing `.rail`'s own `--bg-surface`
+ * underneath. Painting it a second time is invisible on an opaque theme and WRONG on a
+ * translucent one (`liquid-glass`'s `--bg-surface: rgba(255,255,255,.06)`): the two 6% layers
+ * compound, so the disc reads as a visibly lighter square with its own edge — confirmed with a
+ * zoomed screenshot of both variants side by side, pixel-identical on an opaque theme and
+ * artifact-free on glass. `transparent` lets the rail's own (possibly translucent) surface show
+ * through ONCE, which is what "the rail continues" actually means.
+ *
+ * The arc and the outside band stay literal `--border` / `--bg-base` — do NOT make those
+ * transparent too. They are the layer doing the real work below (the border-stub cover, next
+ * paragraph); the inside disc never touches that geometry, so it is the only stop safe to hollow
+ * out. Verified by construction, not by eye: the disc's radius (`--rounded-md - 1px`) is smaller
+ * than its center's distance to the row's own top/bottom edge (`--rounded-md`) everywhere in the
+ * pseudo-element's box, so the disc can never reach a row pixel — only the arc and the outside
+ * band do.
+ *
  * The extra `+ 1px` of height (and the matching offset) is what lets each flare paint OVER the last
  * few pixels of the tab's own straight border, which CSS would otherwise draw all the way to the
- * wall and leave as a stub crossing under the arc.
+ * wall and leave as a stub crossing under the arc. That cover is the `--border`/`--bg-base` bands
+ * above, painted as literal colors on purpose: whatever is under the stub does not matter, the tab's
+ * own surface must win there regardless of theme, opaque or not.
  *
  * `pointer-events: none` — these are paint, not surface. The row's hit area must not change.
  *
@@ -602,7 +624,7 @@
   top: calc(-1 * var(--rounded-md));
   background: radial-gradient(
     circle at 0 0,
-    var(--bg-surface) calc(var(--rounded-md) - 1px),
+    transparent calc(var(--rounded-md) - 1px),
     var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
     var(--bg-base) var(--rounded-md)
   );
@@ -612,7 +634,7 @@
   bottom: calc(-1 * var(--rounded-md));
   background: radial-gradient(
     circle at 0 100%,
-    var(--bg-surface) calc(var(--rounded-md) - 1px),
+    transparent calc(var(--rounded-md) - 1px),
     var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
     var(--bg-base) var(--rounded-md)
   );
