@@ -141,6 +141,16 @@ export const CH = {
   rulesSave: 'rules:save',
   rulesDelete: 'rules:delete',
   rulesMove: 'rules:move',
+  // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
+  // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN
+  // theme id (settings.themeId) and pushes the result. `themes:open-folder` opens the folder in
+  // the file manager (main; the renderer never touches `shell`). `theme:applied` is the ONE
+  // main → renderer push carrying the composed ThemeBundle, validated at source. The apply on a
+  // themeId CHANGE rides `settings:set` — no channel of its own.
+  themesList: 'themes:list',
+  themeReload: 'theme:reload',
+  themesOpenFolder: 'themes:open-folder',
+  themeApplied: 'theme:applied',
   watchSnapshot: 'watch:snapshot',
   watchEvents: 'watch:events',
   // Story 1.4 fix — the watch CONNECTION-state push (separate from the session
@@ -536,6 +546,9 @@ export type AttentionReminderPayload = {
  * [Source: story 2.4 Task 3; AC-5/7; src/shared/schemas/settings.ts; .claude/rules/ipc.md]
  */
 export type { Settings, SettingsPatch } from '../schemas/settings'
+
+// Custom themes — the theme seam's payload types (schema-inferred; never a hand-written copy).
+export type { ThemeSummary, ThemeBundle, ThemeApplyResult } from '../schemas/theme'
 
 // Session templates — main-owned; the renderer holds a projection (templatesStore.ts).
 export type {

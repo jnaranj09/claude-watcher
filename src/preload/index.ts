@@ -52,7 +52,10 @@ import type {
   PastSession,
   PastSessionForgetRequest,
   PastSessionOpenRequest,
-  PastSessionOpenResult
+  PastSessionOpenResult,
+  ThemeSummary,
+  ThemeBundle,
+  ThemeApplyResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -537,6 +540,28 @@ const apiApi = {
 
 export type ApiApi = typeof apiApi
 
+// Custom themes — the theme bridge. Main owns the folder, the load and the push; the renderer
+// lists, reloads, opens the folder, and subscribes to the applied bundle. CH.* consts only.
+const themesApi = {
+  list(): Promise<ThemeSummary[]> {
+    return ipcRenderer.invoke(CH.themesList)
+  },
+  reload(): Promise<ThemeApplyResult> {
+    return ipcRenderer.invoke(CH.themeReload)
+  },
+  openFolder(): Promise<void> {
+    return ipcRenderer.invoke(CH.themesOpenFolder)
+  },
+  /** Subscribe to the composed bundle push (start, a themeId change, a reload). Returns unsubscribe. */
+  onApplied(cb: (bundle: ThemeBundle) => void): () => void {
+    const listener = (_evt: unknown, bundle: ThemeBundle): void => cb(bundle)
+    ipcRenderer.on(CH.themeApplied, listener)
+    return () => ipcRenderer.removeListener(CH.themeApplied, listener)
+  }
+}
+
+export type ThemesApi = typeof themesApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -568,6 +593,8 @@ if (process.contextIsolated) {
     // Programmatic API — the bearer-token bridge (api:token-get / api:token-regenerate). Main
     // owns the token file; the Settings panel only reads and regenerates it through here.
     contextBridge.exposeInMainWorld('api', apiApi)
+    // Custom themes — the theme bridge (themes:list / theme:reload / themes:open-folder / theme:applied).
+    contextBridge.exposeInMainWorld('themes', themesApi)
   } catch (error) {
     console.error(error)
   }
@@ -608,4 +635,6 @@ if (process.contextIsolated) {
   window.rules = rulesApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.api is in index.d.ts
   window.api = apiApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.themes is in index.d.ts
+  window.themes = themesApi
 }

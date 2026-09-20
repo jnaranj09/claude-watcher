@@ -40,7 +40,10 @@ import type {
   RulesListResult,
   RulesSaveResult,
   PastSession,
-  PastSessionOpenResult
+  PastSessionOpenResult,
+  ThemeSummary,
+  ThemeBundle,
+  ThemeApplyResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -206,6 +209,14 @@ declare global {
     api: {
       getToken(): Promise<ApiTokenResult>
       regenerateToken(): Promise<ApiTokenResult>
+    }
+    // Custom themes — mirrors src/preload/index.ts `themesApi`. MAIN owns the folder and the
+    // composed bundle; the renderer only lists, reloads, opens the folder and subscribes.
+    themes: {
+      list(): Promise<ThemeSummary[]>
+      reload(): Promise<ThemeApplyResult>
+      openFolder(): Promise<void>
+      onApplied(cb: (bundle: ThemeBundle) => void): () => void
     }
   }
 }
