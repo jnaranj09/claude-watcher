@@ -13,8 +13,7 @@ export const THEME_ERROR_COPY: Record<ThemeErrorCode, string> = {
   theme_token_value_invalid: 'invalid value',
   theme_css_missing: 'missing theme.css',
   theme_css_too_large: 'CSS file is over 1 MB',
-  theme_css_url_invalid:
-    'a url(), backslash escape, @import, or image-set( in the CSS is not a plain local file',
+  theme_css_url_invalid: 'a disallowed url(), @import, image-set() or escape in the CSS',
   theme_asset_missing: 'an asset named in the CSS is missing',
   theme_asset_type_invalid: 'an asset has a file type that is not allowed',
   theme_asset_too_large: 'assets are over 5 MB in total',

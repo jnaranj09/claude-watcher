@@ -29,7 +29,7 @@ describe('themeCopy', () => {
       'theme.json is not valid'
     )
     expect(themeErrorCopy({ error: 'theme_css_url_invalid', path: 'tokens.bg-base' })).toBe(
-      'a url(), backslash escape, @import, or image-set( in the CSS is not a plain local file'
+      'a disallowed url(), @import, image-set() or escape in the CSS'
     )
   })
   it('builds the helper line only from broken summaries', () => {
