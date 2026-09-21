@@ -38,18 +38,57 @@
   flex: 0 0 var(--rail-width);
   height: 100%;
   box-sizing: border-box;
-  background: var(--bg-surface);
-  /* The rail's WALL. It runs the full height EXCEPT across the active tab, which paints over it
-   * (see `.active`). The tab is a notch cut THROUGH this wall, not a chip sitting against it, so
-   * the wall has to be interruptible.
+  /* NO background and NO border on the element itself. The rail's surface and its WALL (the 1px
+   * line on its right edge) are painted by three layers, each for its own vertical span:
+   * `.rail::before` above the pinned slot, `.pinnedSlot::before` for the slot, `.rail::after`
+   * below it. They tile the rail with no gap, so with no active row the wall reads as one
+   * unbroken line. The slot's layer is the one with the NOTCH cut out of it (a mask), which is
+   * how the active tab breaks the wall without painting over anything — so no token has to be
+   * opaque for the break to hold. A background put on THIS element (by a theme, say) would show
+   * through that notch.
    *
-   * `overflow: visible` is what allows that. `overflow: hidden` clips descendants to the PADDING
-   * box — inside this border — so the tab could never reach the 1px the wall occupies and the line
-   * would run straight across it. `.scroll` still clips its own content; the only thing that
-   * escapes is the pinned slot, which is why that slot lives OUTSIDE `.scroll` (see
-   * `.pinnedSlot`). */
-  border-right: 1px solid var(--border);
+   * `overflow: visible` stays: the tab's hit strip and the slot's shoulders reach the wall's
+   * column, and `overflow: hidden` would clip them to the padding box. */
   overflow: visible;
+  /* Containing block and STACKING CONTEXT for the two chrome layers below: they sit at
+   * `z-index: -1`, and without a context of the rail's own a negative z-index would fall through
+   * to the root and paint UNDER the app's ground. `isolation` traps every z-index inside the rail
+   * (the tag picker's 10 included); nothing in the rail overlaps a sibling of the rail, so that
+   * changes no paint order that matters. */
+  position: relative;
+  isolation: isolate;
+  /* Where the tab's left edge sits inside the slot; the notch mask is positioned from it. The
+   * expanded list has `--space-2` of horizontal padding; the collapsed tab starts at the square's
+   * left edge (`--rail-tab-inset`, below). */
+  --rail-tab-left: var(--space-2);
+}
+
+/* The rail's surface and wall ABOVE and BELOW the pinned slot — two layers under everything in
+ * the rail, split around the slot so the slot's own masked copy (`.pinnedSlot::before`) can carry
+ * the notch. Each is anchored to the slot: the top one ends where the slot begins, the bottom
+ * one begins where it ends, whatever the tab's height. With NO active row there is no slot and
+ * no anchor: the fallbacks make the top layer full-height and the bottom one empty, so the wall
+ * is one unbroken line. `pointer-events: none`: chrome, not surface. */
+.rail::before,
+.rail::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.rail::before {
+  top: 0;
+  bottom: anchor(--rail-pinned top, 0);
+}
+
+.rail::after {
+  top: anchor(--rail-pinned bottom, 100%);
+  bottom: 0;
 }
 
 .rail.collapsed {
@@ -60,6 +99,7 @@
    * keeps the square's left edge and runs from there onto the wall, and its right padding gives
    * back exactly what it swallowed. Retune `--rail-width-collapsed` and the tab follows. */
   --rail-tab-inset: calc((var(--rail-width-collapsed) - 1px - 44px) / 2);
+  --rail-tab-left: var(--rail-tab-inset);
 }
 
 /* `--topbar-height`, NOT a local `min-height`. This header and the focused view's Board bar are
@@ -75,12 +115,18 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
+  /* `+ 1px` on the right reserves the wall's column, so the content box is what it was under the
+   * rail's own border. Padding, not a transparent border: a border-right, even a transparent
+   * one, changes how the bottom border's end is joined at the corner, and that one pixel came
+   * out different. The wall itself is `.rail::before`, behind this box (see `.rail`). */
+  padding-right: calc(var(--space-3) + 1px);
   height: var(--topbar-height);
 }
 
 .collapsed .header {
   justify-content: center;
-  padding: var(--space-2) 0;
+  /* The same 1px reservation for the wall's column (see `.header`). */
+  padding: var(--space-2) 1px var(--space-2) 0;
 }
 
 .title {
@@ -155,6 +201,13 @@
   padding: var(--space-2) 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Reserves the wall's column so every row keeps the width it had under the rail's own border;
+   * the wall itself is drawn by `.rail::after` behind this box (see `.rail`). NOT a background
+   * here: an opaque background on a scroll container promotes it to its own composited layer,
+   * whose raster tiles no longer line up with the page's, and antialiased row corners that land
+   * on a tile edge came out a few levels different from today. Transparent, it composites as it
+   * always has. */
+  border-right: 1px solid transparent;
 }
 
 /* The pinned active row's own slot, a SIBLING of `.scroll` rather than a child of it.
@@ -172,7 +225,105 @@
  * `--space-2` reproduces the `--space-5` group gap this slot used to get from `.scroll`'s `gap`. */
 .pinnedSlot {
   flex: 0 0 auto;
-  padding: var(--space-3) 0;
+  /* The 1px on the right is the WALL's column, reserved so the list inside keeps the width it
+   * had under the rail's own border. The chrome layer below covers it. */
+  padding: var(--space-3) 1px var(--space-3) 0;
+  /* Containing block for the chrome layer. */
+  position: relative;
+  /* The rail's two chrome layers are anchored to this box (see `.rail::before`). */
+  anchor-name: --rail-pinned;
+}
+
+/* The pinned slot's chrome: the rail's surface, its wall, and the tab's two SHOULDERS, on one
+ * layer with the tab's silhouette CUT OUT of it. This is what makes the tab a notch instead of a
+ * paint-over: nothing here is opaque by requirement, because nothing here erases anything.
+ *
+ * It is a pseudo-element, not a mask on `.pinnedSlot` itself, because a mask applies to the
+ * element AND everything inside it — on the slot it would cut the row's text out along with the
+ * chrome. The layer is `position: absolute; inset: 0`, has no z-index, and is the slot's FIRST
+ * box, so it paints before the row (`position: relative`, later in the tree) in the positioned
+ * phase. Nothing in between paints a background.
+ *
+ * GEOMETRY. The shoulder box is `--rounded-md` wide by `--rounded-md + 1px` tall, and its circle
+ * is centred on its outer corner. The flares this replaces were positioned from the row's
+ * PADDING box, 1px inside the row's top/bottom border, so their circle sat `--rounded-md - 1px`
+ * above the row's border-box edge and the ring's foot landed ON the border row; that is the
+ * shape that ships, so it is reproduced exactly: every `+ 1px` below is that offset. The arc's
+ * foot covers the first two pixels of the border row past where the row's straight border now
+ * ends (the row's box stops `--rounded-md` short of the wall — see `.active`).
+ *
+ * BACKGROUND, top to bottom:
+ *   1–2. the WALL, as two stubs: from the slot's top edge down to the shoulder box, and from
+ *        the shoulder box down to the slot's bottom edge. `.rail::before` and `.rail::after`
+ *        continue them above and below.
+ *   3–4. the SHOULDERS: a 1px ring of `--border` between radius `--rounded-md - 1px` and
+ *        `--rounded-md`, centred on the corner FURTHEST from the tab — the same gradient the
+ *        old flares used, minus the fills. Tangent to the wall at its outer end and to the
+ *        tab's straight border at its inner end.
+ *   5.   the SURFACE.
+ *
+ * MASK (alpha; what is KEPT): everything, minus —
+ *   a. the tab's body: from `--rounded-md + 1px` right of the tab's left edge to the far edge,
+ *      from the row inside its top border to the row inside its bottom border (the border
+ *      rows themselves keep the surface under them, as every other line in the rail has);
+ *   b. the tab's left strip: from its left edge, between its two rounded corners. Together (a)
+ *      and (b) are the tab's rectangle with two `(--rounded-md + 1px)` corner squares LEFT IN.
+ *      The cut has straight, aliased edges; the row's rounded corners are antialiased. Keeping
+ *      the surface under those two squares means the row's own `border-radius` edge blends over
+ *      the surface exactly as it always has, and the row's fill covers the squares' interior.
+ *      (That fill also covers the hole — a second coat of `--bg-base` on the ground, invisible
+ *      when the token is opaque or fully transparent, a slightly denser notch when it is
+ *      semi-transparent.)
+ *   c–d. the two shoulder boxes OUTSIDE the arc (radius `--rounded-md` from the outer corner).
+ *      Inside the arc the surface stays and the ring above paints on it; outside is hole. The
+ *      ring and this cut share one box and one radius, so a pixel is never both.
+ * `mask-composite: subtract` on the first layer takes the union of the others out of it. */
+.pinnedSlot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--border), var(--border)) right 0 top 0 / 1px
+      calc(var(--space-3) - var(--rounded-md) + 1px) no-repeat,
+    linear-gradient(var(--border), var(--border)) right 0 bottom 0 / 1px
+      calc(var(--space-3) - var(--rounded-md) + 1px) no-repeat,
+    radial-gradient(
+        circle at 0 0,
+        transparent calc(var(--rounded-md) - 1px),
+        var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
+        transparent var(--rounded-md)
+      )
+      right 0 top calc(var(--space-3) - var(--rounded-md) + 1px) / var(--rounded-md)
+      calc(var(--rounded-md) + 1px) no-repeat,
+    radial-gradient(
+        circle at 0 100%,
+        transparent calc(var(--rounded-md) - 1px),
+        var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
+        transparent var(--rounded-md)
+      )
+      right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px) / var(--rounded-md)
+      calc(var(--rounded-md) + 1px) no-repeat,
+    var(--bg-surface);
+  mask-image:
+    linear-gradient(black, black), linear-gradient(black, black), linear-gradient(black, black),
+    radial-gradient(circle at 0 0, transparent var(--rounded-md), black var(--rounded-md)),
+    radial-gradient(circle at 0 100%, transparent var(--rounded-md), black var(--rounded-md));
+  mask-position:
+    0 0,
+    left calc(var(--rail-tab-left) + var(--rounded-md) + 1px) top calc(var(--space-3) + 1px),
+    left var(--rail-tab-left) top calc(var(--space-3) + var(--rounded-md) + 1px),
+    right 0 top calc(var(--space-3) - var(--rounded-md) + 1px),
+    right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px);
+  mask-size:
+    100% 100%,
+    calc(100% - var(--rail-tab-left) - var(--rounded-md) - 1px)
+      calc(100% - 2 * var(--space-3) - 2px),
+    calc(var(--rounded-md) + 1px) calc(100% - 2 * (var(--space-3) + var(--rounded-md) + 1px)),
+    var(--rounded-md) calc(var(--rounded-md) + 1px),
+    var(--rounded-md) calc(var(--rounded-md) + 1px);
+  mask-repeat: no-repeat;
+  mask-composite: subtract, add, add, add, add;
 }
 
 .list {
@@ -511,12 +662,18 @@
  * Starting group alike — with no per-list class and no change to the markup. */
 .active {
   background: var(--bg-base);
-  /* `+ --space-2` cancels `.list`'s own right padding; the `+ 1px` is the rail's WALL, which this
-   * row paints over so the line is broken for exactly this tab's height. */
-  width: calc(100% + var(--space-2) + 1px);
+  /* `+ --space-2` cancels `.list`'s own right padding; `+ 1px` reaches the rail's WALL column;
+   * `- --rounded-md` stops the box where the shoulder ARC begins. The tab's straight top and
+   * bottom borders must end there — the arc leaves them tangentially — and a border cannot be
+   * told to stop early, so the BOX stops. The strip it gives up is the hole's anyway (the slot's
+   * chrome layer cuts it; nothing needs painting there), and `.row.active::after` keeps it
+   * hit-testable. `padding-right` below gives the same amount back, so the content box — and
+   * with it where a long name ellipsizes — is exactly where it was. */
+  width: calc(100% + var(--space-2) + 1px - var(--rounded-md));
+  padding-right: calc(var(--space-3) - var(--rounded-md));
   /* Right corners SQUARE. The curve at that end is not a corner radius — it flares OUTWARD, and an
-   * outward (concave) corner is not something `border-radius` can draw. `::before` / `::after`
-   * below do it. */
+   * outward (concave) corner is not something `border-radius` can draw. The pinned slot's chrome
+   * layer draws it (`.pinnedSlot::before`). */
   border-radius: var(--rounded-md) 0 0 var(--rounded-md);
   /* Containing block for those two flares. */
   position: relative;
@@ -562,7 +719,14 @@
   background: var(--bg-base);
 }
 
-/* The OUTWARD flares — the tab's shoulders, where its top and bottom borders sweep away from the
+/* The STARTING row's flares — the PAINT-OVER shoulders the pinned row used to have, kept for the
+ * one row that still needs them. A Starting row lives inside `.scroll`, so it has no masked
+ * chrome layer of its own; its tab is flattened against the wall and these flares are CLIPPED
+ * (see `.startingRow.active`). They paint `--bg-base` over the wall's column and over the row's
+ * own border stub, which only erases those when the token is opaque — the state is transient
+ * (until the launch correlates and the row moves to the pinned slot), and it is left as it was.
+ *
+ * The OUTWARD flares — the tab's shoulders, where its top and bottom borders sweep away from the
  * row and turn into the rail's wall. This is the shape a browser tab makes against its toolbar.
  *
  * `border-radius` cannot do it. A radius rounds a corner INWARD, biting a curve out of the box;
@@ -610,8 +774,8 @@
  * active row was a centred square with rail on both sides and no wall to flare into. The collapsed
  * row is a tab against the wall now (see `.collapsed .row.active`), so the shoulders belong there
  * too — and `right: 0` already puts them on the tab's right edge whichever width it has. */
-.active::before,
-.active::after {
+.startingRow.active::before,
+.startingRow.active::after {
   content: '';
   position: absolute;
   right: 0;
@@ -620,7 +784,7 @@
   pointer-events: none;
 }
 
-.active::before {
+.startingRow.active::before {
   top: calc(-1 * var(--rounded-md));
   background: radial-gradient(
     circle at 0 0,
@@ -630,7 +794,7 @@
   );
 }
 
-.active::after {
+.startingRow.active::after {
   bottom: calc(-1 * var(--rounded-md));
   background: radial-gradient(
     circle at 0 100%,
@@ -687,10 +851,38 @@
   border-bottom-color: var(--border);
 }
 
+/* The PINNED collapsed tab ends `--rounded-md` before the wall, like the expanded one (see
+ * `.active`): the width loses it, the right margin takes it (so `margin-left: auto` still lands
+ * the left edge on the square's), and the right padding gives it back so the dot stays centred
+ * over the square. The starting row above keeps the full width — its shoulders are still the old
+ * clipped flares. */
+.collapsed .row.active {
+  width: calc(100% - var(--rail-tab-inset) + 1px - var(--rounded-md));
+  margin-right: calc(var(--rounded-md) - 1px);
+  padding-right: calc(var(--rail-tab-inset) + 2px - var(--rounded-md));
+}
+
 /* The active row is not clickable, so it must not claim to be. The pointer stays an arrow over the
  * row and only turns into a hand over the pencil (which sets its own `cursor: pointer`). */
 .row.active {
   cursor: default;
+}
+
+/* The pinned row's shoulders are drawn by the slot's chrome layer (`.pinnedSlot::before`), so
+ * the row has no flares of its own. Its `::after` is the HIT STRIP instead: the row's border box
+ * ends `--rounded-md` short of the wall (see `.active`), and this transparent strip covers
+ * exactly the strip it gave up — full border-box height (`top`/`bottom: -1px` reach past the
+ * row's 1px top and bottom borders), out to the wall — with `pointer-events: auto`, so hovering
+ * there still hovers the row (and `.rowWrap`, which reveals the pencil). It paints nothing; it
+ * exists only to keep the hit area what it was. */
+.row.active::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  right: calc(-1 * var(--rounded-md));
+  width: var(--rounded-md);
+  pointer-events: auto;
 }
 
 /* ---------------------------------------------------------------------------
@@ -749,7 +941,7 @@
    * content box by 1px, which pushed the collapsed tab's glyph half a pixel out of the column of
    * circles. Restated here, where the two-class selector wins, so both states measure the same. */
   border-right-width: 0;
-  /* NOTE: this row's shoulders (`.active::before` / `::after`) are CLIPPED. Unlike the pinned row,
+  /* NOTE: this row's shoulders (`.startingRow.active::before` / `::after`) are CLIPPED. Unlike the pinned row,
    * a Starting row lives inside a status group and therefore inside `.scroll`, which is
    * `overflow-y: auto` and so clips horizontally too. Its tab is flattened against the wall instead
    * of flaring through it — collapsed as well as expanded, where the same clip takes the tab's last
@@ -844,6 +1036,12 @@
  * it. Padding only — the row's HEIGHT never follows its tags (TWO ROW SIZES, top of this file). */
 .row[data-has-tags] {
   padding-right: calc(var(--space-3) + 28px);
+}
+
+/* The active row's box ends `--rounded-md` early (see `.active`); its padding must give that
+ * back here too, at this rule's specificity, or the tagged tab's content box would shrink. */
+.row.active[data-has-tags] {
+  padding-right: calc(var(--space-3) + 28px - var(--rounded-md));
 }
 
 .peekButton {
