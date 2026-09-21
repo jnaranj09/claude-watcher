@@ -474,19 +474,33 @@ describe('FocusedSession — the wall stops at the active tab', () => {
 
   it('the rail draws a wall, and the tab is wide enough to break it', () => {
     const rail = readCss('../components/attention/AttentionRail.module.css')
-    const railBlock = block(rail, /^\.rail\s*\{([^}]*)/m)
+    // The wall no longer lives on `.rail` itself — it is painted by three tiled layers
+    // (`.rail::before`/`.rail::after` above/below the pinned slot, `.pinnedSlot::before` for the
+    // slot) so the active tab can be a genuine NOTCH cut out of it (a mask) rather than a
+    // paint-over. `.rail` keeps no background/border of its own — see its comment.
+    const railChrome = block(rail, /^\.rail::before,\s*\n\.rail::after\s*\{([^}]*)/m)
+    const pinnedChrome = block(rail, /^\.pinnedSlot::before\s*\{([^}]*)/m)
     const active = block(rail, /^\.active\s*\{([^}]*)/m)
 
-    // The wall exists...
-    expect(railBlock).toMatch(/^\s*border-right:\s*1px solid var\(--border\)/m)
+    // The wall exists, on the tiling layers...
+    expect(railChrome).toMatch(/background:\s*var\(--bg-surface\)/)
+    expect(railChrome).toMatch(/border-right:\s*1px solid var\(--border\)/)
+    // ...continued through the slot's own span by two wall stubs (the linear-gradient layers), one
+    // above the shoulders and one below.
+    expect(pinnedChrome.match(/linear-gradient\(var\(--border\), var\(--border\)\)/g)?.length).toBe(
+      2
+    )
     // ...and the rail must not clip, or the tab can never reach the pixel the wall occupies:
     // `overflow: hidden` clips descendants to the PADDING box, which stops short of the border.
-    expect(railBlock).toMatch(/^\s*overflow:\s*visible/m)
+    expect(block(rail, /^\.rail\s*\{([^}]*)/m)).toMatch(/^\s*overflow:\s*visible/m)
     // The tab carries no right border of its own — it stays open toward the terminal...
     expect(active).toMatch(/border-right-width:\s*0/)
-    // ...and is widened by the list padding PLUS the wall's 1px, which is what breaks the line.
-    expect(active).toMatch(/width:\s*calc\(100% \+ var\(--space-2\) \+ 1px\)/)
-    // Right corners SQUARE — the curve there flares OUTWARD and is painted by the flares below.
+    // ...and is widened by the list padding PLUS the wall's 1px, MINUS `--rounded-md`: the box now
+    // stops where the shoulder ARC begins (the arc is painted by `.pinnedSlot::before`, not by this
+    // row), which is what breaks the line for exactly this tab's height.
+    expect(active).toMatch(/width:\s*calc\(100% \+ var\(--space-2\) \+ 1px - var\(--rounded-md\)\)/)
+    // Right corners SQUARE — the curve there flares OUTWARD and is painted by the slot's chrome
+    // layer, not by the row.
     expect(active).toMatch(/border-radius:\s*var\(--rounded-md\) 0 0 var\(--rounded-md\)/)
     // ...which need this row to be their containing block.
     expect(active).toMatch(/position:\s*relative/)
@@ -515,17 +529,18 @@ describe('FocusedSession — the wall stops at the active tab', () => {
 
   it('draws the header/bar seam ONCE — the rail owns it, the bar must not double it', () => {
     // The rail header and the Board bar are both `--bg-surface`, so the seam between them has to be
-    // drawn — but by exactly ONE side. The rail's `border-right` runs the full height and already
-    // covers this strip. A `border-left` on the bar does not overlap it: the rail's line is the last
-    // pixel INSIDE its `--rail-width` box, the bar's the first pixel outside, so the two stack into
-    // a 2px seam across the top strip that thins to 1px below the bar. The bar legitimately carried
-    // this border while the rail had no wall; the wall's return turned it into a duplicate, and the
+    // drawn — but by exactly ONE side. The rail's wall runs the full height (now painted by the
+    // three tiled chrome layers, not a `.rail` border — see the previous test) and already covers
+    // this strip. A `border-left` on the bar does not overlap it: the rail's line is the last pixel
+    // INSIDE its `--rail-width` box, the bar's the first pixel outside, so the two stack into a 2px
+    // seam across the top strip that thins to 1px below the bar. The bar legitimately carried this
+    // border while the rail had no wall; the wall's return turned it into a duplicate, and the
     // widening is most visible exactly where the eye crosses from the rail into the terminal.
-    const railBlock = block(
+    const railChrome = block(
       readCss('../components/attention/AttentionRail.module.css'),
-      /^\.rail\s*\{([^}]*)/m
+      /^\.rail::before,\s*\n\.rail::after\s*\{([^}]*)/m
     )
-    expect(railBlock).toMatch(/^\s*border-right:\s*1px solid var\(--border\)/m)
+    expect(railChrome).toMatch(/border-right:\s*1px solid var\(--border\)/)
 
     // Declaration form, not a bare substring — the bar's own comment explains why it has no
     // border-left, and a naive /border-left/ would match that prose and pass on a real regression.
@@ -537,41 +552,79 @@ describe('FocusedSession — the wall stops at the active tab', () => {
 // The tab's SHOULDERS: where its top and bottom borders sweep away from the row and turn into the
 // rail's wall, the way a browser tab meets its toolbar. This is a CONCAVE corner — the tab's
 // surface bulging outward while the rail curves in to meet it — and `border-radius` cannot draw
-// one: a radius bites into a box, it does not bulge out of it. So each shoulder is painted, by a
-// radial gradient on a pseudo-element parked just outside the corner.
+// one: a radius bites into a box, it does not bulge out of it. So each shoulder is painted.
 //
-// Nothing about that is guessable from the declarations alone, which is exactly why it needs a
-// test: the obvious "simplification" is to delete the pseudo-elements and put a radius on the
-// right-hand corners, which silently turns the flare inward.
+// The PINNED row's shoulders moved off the row entirely (Story: rail-wall) — they are now two
+// `radial-gradient` RING layers on `.pinnedSlot::before`, the slot's own masked chrome (see that
+// rule's long comment), painted UNDER the mask that cuts the tab's silhouette out. The STARTING
+// row still has no chrome layer of its own (it lives inside `.scroll`, which clips it anyway), so
+// it keeps the OLD paint-over pseudo-elements, renamed `.startingRow.active::before/::after`.
+//
+// Nothing about either mechanism is guessable from the declarations alone, which is exactly why
+// it needs a test: the obvious "simplification" for the ring is to delete it and put a
+// corner-radius on the row's own right-hand corners (which silently turns the shape inward); for
+// the starting row it is to "tidy" the flares away now the pinned tab has a mask, which would
+// leave that row's shoulders unpainted for the whole time it exists.
 describe('FocusedSession — the active tab flares outward into the wall', () => {
   const readCss = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
   const rail = (): string => readCss('../components/attention/AttentionRail.module.css')
 
-  it('paints both shoulders as gradient arcs, not as corner radii', () => {
+  it('the PINNED tab: paints both shoulders as ring gradients on the slot chrome layer, not corner radii', () => {
     const css = rail()
-    const shared = /\.active::before,\s*\.active::after\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    const chrome = /^\.pinnedSlot::before\s*\{([^}]*)/m.exec(css)?.[1] ?? ''
+    expect(chrome, '.pinnedSlot::before must exist').not.toBe('')
+    // A corner-radius cut would not need — or produce — this three-stop ring shape; there is no
+    // `border-radius` anywhere in the slot's chrome layer.
+    expect(chrome).not.toMatch(/border-radius/)
+
+    // Two shoulders — the corner FURTHEST from the tab, top (`circle at 0 0`) and bottom
+    // (`circle at 0 100%`) — each a 1px `--border` ring between `--rounded-md - 1px` and
+    // `--rounded-md`, `transparent` on both sides: inside is the surface the row's own rounded
+    // corner blends over (kept by the mask), outside is the hole the mask cuts away.
+    for (const at of ['circle at 0 0', 'circle at 0 100%']) {
+      const start = chrome.indexOf(at)
+      expect(start, at).toBeGreaterThan(-1)
+      const ring = chrome.slice(start, start + 200)
+      expect(ring).toMatch(/transparent\s+calc\(var\(--rounded-md\) - 1px\)/)
+      expect(ring).toMatch(
+        /var\(--border\)\s+calc\(var\(--rounded-md\) - 1px\)\s+var\(--rounded-md\)/
+      )
+      expect(ring).toMatch(/transparent\s+var\(--rounded-md\)/)
+    }
+  })
+
+  it('the STARTING row keeps its OLD paint-over shoulders, renamed but otherwise unchanged', () => {
+    const css = rail()
+    const shared =
+      /\.startingRow\.active::before,\s*\.startingRow\.active::after\s*\{([^}]*)\}/.exec(
+        css
+      )?.[1] ?? ''
 
     // Parked outside the tab's right edge, and decorative only — the row's hit area must not grow.
     expect(shared).toMatch(/position:\s*absolute/)
     expect(shared).toMatch(/right:\s*0/)
     expect(shared).toMatch(/pointer-events:\s*none/)
 
-    // Selectors matched EXACTLY. A loose `/\.active::after\s*\{/` also matches the shared rule
-    // above, whose second selector line begins with the same text — and then reads the wrong body.
+    // Selectors matched EXACTLY. A loose `/\.startingRow\.active::after\s*\{/` also matches the
+    // shared rule above, whose second selector line begins with the same text — and then reads
+    // the wrong body.
     const ruleFor = (selector: string): string => {
       for (const [, sel, body] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
         if ((sel ?? '').trim() === selector) return body ?? ''
       }
       return ''
     }
-    for (const selector of ['.active::before', '.active::after']) {
+    for (const selector of ['.startingRow.active::before', '.startingRow.active::after']) {
       const block = ruleFor(selector)
       expect(block, `${selector} must exist as its own rule`).not.toBe('')
       expect(block).toMatch(/radial-gradient/)
       // Three bands, in this order: the rail continuing over the flare, the 1px arc, then the
-      // tab's own surface flared out to the wall. Get the order wrong and the curve inverts.
+      // tab's own surface flared out to the wall. Get the order wrong and the curve inverts. This
+      // row still paints `--bg-base` as a literal cover — it is the ONE place that is still true
+      // (see the rule's own comment: it is transient, inside `.scroll`, and has no mask of its
+      // own).
       const stops = block.indexOf('--bg-surface') < block.indexOf('--border')
       expect(stops, 'rail band must precede the arc band').toBe(true)
       expect(block.indexOf('--border')).toBeLessThan(block.indexOf('--bg-base'))
@@ -586,7 +639,7 @@ describe('FocusedSession — the active tab flares outward into the wall', () =>
     // and the reset with it. This asserts the reset stays gone — re-adding it is a one-line change
     // that silently drops half the shape in one of the two states.
     expect(css).not.toMatch(
-      /\.collapsed \.active::before,\s*\.collapsed \.active::after\s*\{[^}]*content:\s*none/s
+      /\.collapsed \.startingRow\.active::before,\s*\.collapsed \.startingRow\.active::after\s*\{[^}]*content:\s*none/s
     )
     // The shoulders only mean anything if the collapsed tab actually reaches the wall: the flares
     // sit at the tab's right edge (`right: 0`), so a tab that stopped in the gutter would park them
