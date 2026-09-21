@@ -5,7 +5,7 @@
   "author": "claude-watcher",
   "colorScheme": "dark",
   "tokens": {
-    "bg-base": "#141a2c",
+    "bg-base": "transparent",
     "bg-surface": "rgba(255,255,255,0.06)",
     "bg-surface-raised": "rgba(255,255,255,0.10)",
     "bg-col-hero": "rgba(255,207,41,0.06)",
