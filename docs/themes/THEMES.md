@@ -238,34 +238,36 @@ If you need the effect, put it on a `::before`/background layer, or on a LEAF el
 with no floating children of its own — a card, a panel) rather than a container that hosts a menu
 or dropdown.
 
-### Composited surfaces — no longer a constraint
+### `--bg-base` must be opaque
 
-One place in the app used to read `--bg-base`, `--bg-surface` and `--border` as if they were
-paint, not a fill — it PAINTED a small shape out of them, on the assumption that each token's
-rendered color was exactly what was already behind those pixels. The sessions rail's active row is
-the case: where the highlighted "tab" meets the rail wall it needs a concave corner, which
-`border-radius` cannot draw, so `AttentionRail.module.css` fakes it with a tiny radial-gradient —
-an arc of `--border`, with `--bg-base` outside it standing in for "the tab's own ground."
+The sessions rail draws the highlighted row as a tab cut THROUGH the rail's right-hand wall. There
+is no CSS that interrupts a border, so the app does it by painting over: the tab overruns the wall
+and fills those pixels with `--bg-base`, and two small radial-gradient "flares" carry that fill
+around the concave corner at each shoulder.
 
-That gradient used to paint `--bg-surface` INSIDE the arc too, reasoning "the rail continues over
-the top of the flare." On a translucent `--bg-surface` that inside region composited a second
-layer of the same token on top of the rail's own already-`--bg-surface` background sitting right
-behind it — two translucent layers of one color are not one layer of it — and showed up as a
-visibly lighter patch with a stray arc at the row's corners. That inside region never actually
-needed a color: by construction it can only ever fall on rail chrome that is already painted
-`--bg-surface` underneath (the corner disc's radius is strictly smaller than its distance to any
-row pixel), so it is now `transparent` and lets that one real layer show through once instead of
-painting a redundant second one. The arc and the outside band keep their literal `--border` /
-`--bg-base` colors — they cover the tab's own border corner, a DIFFERENT token underneath, so
-painting over it once is correct at any alpha, opaque or not.
+Painting over a line only erases it if the paint is opaque. Give `--bg-base` any alpha and the wall
+shows straight through the tab: instead of one edge sweeping from the wall into the row's own
+border, you get the wall running unbroken top to bottom with a faint arc stranded inside it — a
+right-angled corner where the design has a curve. It is subtle at a glance and obvious once seen.
 
-The practical result: `--bg-base`, `--bg-surface`, `--bg-surface-raised`, `--border` and
-`--bg-row-rest` can all be fully translucent now — none of them is painted twice anywhere in the
-app. `examples/liquid-glass` is back to its original translucent tokens (`bg-base: transparent`,
-`bg-surface: rgba(255,255,255,0.06)`, …) for exactly this reason. A theme still reaches for
-`backdrop-filter` in its own CSS file for a blur effect (dialogs, the settings panel, the header,
-the terminal frame, menus, listboxes — see the stacking-context trap above); that has nothing to
-do with token alpha and never did.
+So: **keep `--bg-base` opaque.** It is the ground the terminal sits on, and the app treats it as
+real paint rather than as a tint.
+
+Everything else may be as translucent as you like — `--bg-surface`, `--bg-surface-raised`,
+`--bg-row-rest`, the card and column fills, `--border`, `--bg-terminal`, `--scrim`. Those are
+composited once over the base, never painted twice. `examples/liquid-glass` is built exactly that
+way: an opaque base with translucent surfaces layered on it.
+
+The cost is that a theme cannot put a gradient or an image behind the whole app — whatever
+`--bg-base` names is what shows in the tab's notch, so it has to be one flat colour. Use
+`backdrop-filter` in your CSS for depth instead (see the stacking-context trap above).
+
+(The inside of each flare used to paint `--bg-surface` as well, to imitate the rail behind it. That
+one was redundant — it could only ever land on rail chrome already painted the same token — and a
+translucent theme showed it as a lighter square, two layers of one colour where there should be
+one. It is `transparent` now, which is why only the base is still constrained. Interrupting the
+wall properly, so no token has to be opaque at all, is on the IdeasBoard.)
+
 
 ## Light themes
 
