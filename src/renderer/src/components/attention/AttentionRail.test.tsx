@@ -511,12 +511,27 @@ describe('AttentionRail — the active row is NOT a control', () => {
     const css = readCss('./AttentionRail.module.css')
     // Both anchored to LINE START: unanchored, `.startingRow.active` also matches inside the
     // `.collapsed .startingRow.active` reset above it, and the test would read that block instead.
-    for (const sel of [/^\.active\s*\{([^}]*)/m, /^\.startingRow\.active\s*\{([^}]*)/m]) {
+    //
+    // The two rows no longer share ONE width. `.active` (the PINNED row) now stops its box
+    // `--rounded-md` SHORT of the wall — the shoulder ARC that used to be its own `::before`/
+    // `::after` moved to the slot's masked chrome layer (`.pinnedSlot::before`), and that arc
+    // starts where the row's straight border must end, so the box gives up the strip the arc
+    // owns (`.row.active::after` keeps it hit-testable; `padding-right` keeps the content box
+    // where it was). `.startingRow.active` still paints its own paint-over shoulders and so
+    // keeps the OLD width, reaching the wall itself.
+    for (const [sel, widthRe] of [
+      [
+        /^\.active\s*\{([^}]*)/m,
+        /width:\s*calc\(100% \+ var\(--space-2\) \+ 1px - var\(--rounded-md\)\)/
+      ],
+      [/^\.startingRow\.active\s*\{([^}]*)/m, /width:\s*calc\(100% \+ var\(--space-2\) \+ 1px\)/]
+    ] as const) {
       const block = sel.exec(css)?.[1] ?? ''
-      expect(block).toMatch(/width:\s*calc\(100% \+ var\(--space-2\) \+ 1px\)/)
+      expect(block).toMatch(widthRe)
       // RIGHT corners SQUARE. The curve at that end flares OUTWARD, which `border-radius` cannot
-      // draw — a radius bites INTO the box, and this bulges out of it. The `::before` / `::after`
-      // flares below own that shape; a right-hand radius here would fight them.
+      // draw — a radius bites INTO the box, and this bulges out of it. The slot's chrome layer (for
+      // `.active`) / the `::before` / `::after` flares (for `.startingRow.active`) own that shape;
+      // a right-hand radius here would fight them.
       expect(block).toMatch(/border-radius:\s*var\(--rounded-md\) 0 0 var\(--rounded-md\)/)
       // ...and the right edge stays OPEN on both, so the tab runs off toward the terminal instead
       // of closing into a box. `.startingRow`'s own `border: 1px solid transparent` shorthand is
@@ -525,6 +540,11 @@ describe('AttentionRail — the active row is NOT a control', () => {
       // narrows the content box, which knocks the collapsed glyph out of the column of circles.
       expect(block).toMatch(/border-right-width:\s*0/)
     }
+    // `.active`'s box gives up `--rounded-md` of width and gets it straight back as padding, so a
+    // long name still ellipsizes at the same point it always has.
+    expect(/^\.active\s*\{([^}]*)/m.exec(css)?.[1] ?? '').toMatch(
+      /padding-right:\s*calc\(var\(--space-3\) - var\(--rounded-md\)\)/
+    )
     // `.rowWrap` is `display: flex`, so the row is a FLEX ITEM and the default `flex-shrink: 1`
     // silently undoes the width above — the row rendered 8px short of the rail edge, still
     // floating. The width and the shrink guard are ONE fix; neither is meaningful alone.
@@ -545,6 +565,11 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // Each is individually deletable-looking, and dropping any one of them leaves the tab visibly
   // wrong rather than broken: no stretch and the tab centres itself mid-rail; no negative margin
   // and the wall runs unbroken across it; no right padding and the dot slides out of the column.
+  //
+  // This SHARED rule is unchanged by the rail-wall change and stays exactly what it was — but it
+  // now describes the STARTING row's geometry only. The PINNED row (`.collapsed .row.active`) is
+  // overridden below it, at equal specificity, so source order hands `.row.active` the later
+  // values — see the next test.
   it('grows the collapsed square rightward ONTO the wall, and keeps the dot in the column', () => {
     const css = readCss('./AttentionRail.module.css')
 
@@ -586,6 +611,25 @@ describe('AttentionRail — the active row is NOT a control', () => {
     expect(tab).toMatch(/border-bottom-color:\s*var\(--border\)/)
     expect(css.indexOf(".collapsed .row[data-status='needs-you']")).toBeLessThan(
       css.indexOf('.collapsed .row.active,')
+    )
+  })
+
+  // The PINNED collapsed tab (`.collapsed .row.active` alone, declared AFTER the shared rule
+  // above) ends `--rounded-md` before the wall, same as the expanded `.active` — the shoulder
+  // ARC lives on the slot's masked chrome layer now, not on this row, so the row's own box stops
+  // where the arc begins. Width loses it, the right margin takes it (so `margin-left: auto` still
+  // lands the left edge on the square's), and the right padding gives it straight back so the dot
+  // stays centred over the 44px square.
+  it('the PINNED collapsed tab ends short of the wall by --rounded-md, and gives the dot its centring back', () => {
+    const css = readCss('./AttentionRail.module.css')
+    const pinnedCollapsed = /^\.collapsed \.row\.active\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
+    expect(pinnedCollapsed, 'the pinned collapsed override must exist').not.toBe('')
+    expect(pinnedCollapsed).toMatch(
+      /width:\s*calc\(100% - var\(--rail-tab-inset\) \+ 1px - var\(--rounded-md\)\)/
+    )
+    expect(pinnedCollapsed).toMatch(/margin-right:\s*calc\(var\(--rounded-md\) - 1px\)/)
+    expect(pinnedCollapsed).toMatch(
+      /padding-right:\s*calc\(var\(--rail-tab-inset\) \+ 2px - var\(--rounded-md\)\)/
     )
   })
 

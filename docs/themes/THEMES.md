@@ -238,6 +238,37 @@ If you need the effect, put it on a `::before`/background layer, or on a LEAF el
 with no floating children of its own — a card, a panel) rather than a container that hosts a menu
 or dropdown.
 
+### No token needs to be opaque — the rail's wall is a genuine hole, not paint
+
+This used to say the opposite: **`--bg-base` must be opaque.** That constraint is gone as of
+2026-09-20 and nothing in this file replaces it — no token in a theme's `tokens` block has to be
+one flat, opaque colour any more.
+
+The sessions rail draws the highlighted row as a tab cut THROUGH the rail's right-hand wall. It
+used to do that by painting over the wall: the tab overran it and filled those pixels with
+`--bg-base`, plus two small radial-gradient "flares" to carry that fill around the concave corner
+at each shoulder. Painting over a line only erases it if the paint is opaque, so a translucent
+`--bg-base` showed the wall straight through the tab — the wall ran unbroken top to bottom with a
+faint arc stranded inside it, a right-angled corner where the design has a curve. That is why this
+section used to tell you to keep `--bg-base` opaque.
+
+The rail no longer paints a wall on itself at all, and the active tab no longer paints over
+anything. The rail's surface and its wall are drawn by three tiled layers instead, and the middle
+one — the layer for the pinned active row's own slot — has the tab's silhouette, its shoulders and
+the wall's column **cut out of it with a CSS mask**. A mask makes a hole; there is nothing under a
+hole to be opaque or translucent, so the interruption holds regardless of what any token names.
+
+**Everything may be as translucent as you like, `--bg-base` included** — `rgba()`, `transparent`,
+whatever your design wants. `examples/liquid-glass` is built that way now: `"bg-base": "transparent"`,
+with its `body` gradient (`theme.css`) showing straight through every panel that sits on it,
+including the rail's own notch.
+
+That is also the practical payoff: because `--bg-base` no longer has to be flat, **a theme may put
+a gradient or an image behind the whole app** (a fixed `background` on `body` in your CSS file,
+as `examples/liquid-glass/theme.css` does) instead of reaching for `backdrop-filter` alone (see
+the stacking-context trap above, which still applies to any blur you layer on top).
+
+
 ## Light themes
 
 `"colorScheme": "light"` plus a light token set. The app's own widgets follow it. See
