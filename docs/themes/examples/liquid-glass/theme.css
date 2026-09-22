@@ -1,38 +1,221 @@
 /* Liquid Glass — the raw-CSS proof. Everything the tokens cannot say lives here. */
 
-/* Something behind the panels to blur: a fixed gradient on the ground. */
+/* Something behind the panels to blur. The ground is NEUTRAL GREY on purpose: it is the only
+   thing the glass has to work with, so it carries DEPTH — a light bloom top-left, a shadow
+   bottom-right — without carrying HUE. The pair of saturated radials this replaced (purple +
+   cyan) tinted every panel in the app, because a white glass panel shows whatever is behind it;
+   the board, the header and the dialogs all came out blue. Brightness gives the blur something
+   to chew on; colour was never what made it read as glass. */
 body {
   background:
-    radial-gradient(1200px 800px at 15% 10%, rgba(120, 90, 255, 0.35), transparent 60%),
-    radial-gradient(900px 700px at 85% 90%, rgba(0, 190, 255, 0.28), transparent 60%),
-    linear-gradient(160deg, #0b0f1a 0%, #141a2c 100%);
+    url("noise.svg"),
+    radial-gradient(1150px 820px at 14% 4%, rgba(255, 255, 255, 0.075), transparent 60%),
+    radial-gradient(1000px 800px at 88% 96%, rgba(0, 0, 0, 0.4), transparent 62%),
+    linear-gradient(160deg, #050507 0%, #0d0e10 100%);
   background-attachment: fixed;
+}
+
+/* The grain. `noise.svg` is a 160px tile of TWO turbulence layers — white at 0.05 over black at
+   0.19, on different seeds — and the pairing is the whole point. A white-only speckle does not
+   just add texture to a dark surface, it LIFTS it: measured on the real dialog panel, white at
+   0.11 alone moved the mean from 43 to 60 (about #2b2b2b to #3c3c3c) — visibly paler glass. The
+   black layer pays that back, at roughly 3.8x the white layer's opacity, because a dark surface
+   has far more headroom above it than below. Measured on the shipped pair: panel mean 41.3
+   against a 42.9 no-grain baseline, with stddev 1.7 against 0.3. Texture, no tone shift.
+   Darkening the GROUND cannot do this job — it bought only 5.5 of the 17 levels, because the
+   lift comes from a film painted ON the panel, not from what is behind it.
+   Keep the two opacities in that ratio if you retune: raising white alone re-introduces the lift.
+
+   Both opacities are baked into the FILE, not applied in CSS — which is what lets the tile be an
+   ordinary background LAYER. That matters: every surface below is positioned by the app
+   (`[role='menu']` and `[role='listbox']` are popups), so a `::after { position: absolute }`
+   would need `position: relative` on them and would move the popups. A background image needs
+   nothing, composites over the token's background-colour, and stays BEHIND the element's text
+   rather than painting over it.
+
+   Two things it fixes at once: the acrylic texture, and the banding a 1150px flat gradient
+   shows on an 8-bit panel.
+
+   On a popup it is the element's own background layer (below). On a CONTAINER it rides on the
+   `::before` blur layer instead — a background painted under that layer would be blurred away.
+
+   NOT on the terminal — grain over xterm's glyphs costs readability for nothing. */
+[role='menu'],
+[role='listbox'],
+[data-testid='new-session-menu'],
+[data-testid$='tag-picker'],
+[data-testid='expander-box'] {
+  background-image: url("noise.svg");
+}
+
+/* CONTAINERS blur from a `::before` layer, never from their own `backdrop-filter`.
+   An element with `backdrop-filter` is a BACKDROP ROOT: a blurred element INSIDE it can only
+   blur what that container itself painted, never the page behind it. Every popover is glass and
+   lives inside a container — the workspace and ☰ menus in the header, a dropdown in a dialog,
+   the shortcut expander in the terminal — and when the containers blurred from themselves, the
+   popovers' blur saw almost nothing: the header's border and the dialog's buttons showed
+   through them sharp. A pseudo-element is not an ancestor of anything, so it can blur without
+   blinding what sits inside the container.
+   `isolation: isolate` keeps the `z-index: -1` layer inside the element (above its own
+   background, below its content) without being a backdrop root itself. The layer is the
+   PADDING box (`inset: 0`), so the border stays sharp; the top-edge highlight and the grain
+   move onto it because anything under it is blurred. The dialog panels are the one container
+   the app leaves unpositioned, hence their `position: relative` (no offsets, so it does not
+   move them). A dialog here is a MODAL (`aria-modal`): `+ New session` is a `role="dialog"`
+   popover, and a bare `[role='dialog'] > div` made its template list a square glass slab under
+   rounded rows — it is styled as the popover it is, below. The panel is the modal's ONLY child,
+   matched by `> *`, not `> div`: "Name this session" is a <form>, and `> div` left it clear. */
+[role='dialog'][aria-modal='true'] > *,
+[data-testid='settings-panel'],
+[data-testid='app-header'],
+[data-testid='embedded-terminal'] {
+  isolation: isolate;
+}
+[role='dialog'][aria-modal='true'] > * {
+  position: relative;
+}
+[role='dialog'][aria-modal='true'] > *::before,
+[data-testid='settings-panel']::before,
+[data-testid='app-header']::before,
+[data-testid='embedded-terminal']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 /* Glass panels: every dialog body and the settings panel blur what is behind them and carry a
    1px inner highlight on the top edge. */
-[role='dialog'] > div,
+[role='dialog'][aria-modal='true'] > *,
 [data-testid='settings-panel'] {
+  box-shadow: var(--shadow-dialog);
+}
+[role='dialog'][aria-modal='true'] > *::before,
+[data-testid='settings-panel']::before {
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    var(--shadow-dialog);
+  background-image: url("noise.svg");
+  /* The top-edge highlight, drawn at the edge of the MASKED box (the bleed rule below): an inset
+     shadow sits at the layer's outer edge, which the mask hides, so its spread pulls it in by
+     exactly the bleed. */
+  box-shadow: inset 0 1px 0 var(--bleed) rgba(255, 255, 255, 0.35);
+}
+
+/* The header floats as a BUBBLE, not a bar welded to the window edge. `.app` is a flex column
+   (header, then `.main` at flex:1), so a margin here simply insets the header and `.main` takes
+   what is left — no grid rows to fight. `border` replaces `.header`'s `border-bottom`, because a
+   bottom-only rule on a rounded, detached box reads as a stray underline.
+   The side margin is `--gutter`, not `--space-2`: that is the board's own padding, so the bubble's
+   left and right edges line up with the columns under it. An 8px inset looked like a mistake next
+   to a 16px column. */
+[data-testid='app-header'] {
+  margin: var(--space-2) var(--gutter);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-lg);
+}
+
+/* The focused view's BODY — the rail and the terminal column — floats as the header's twin: one
+   bubble, inset by the same `--gutter` at the sides and `--space-2` from the bottom, with the
+   same border and radius. ONE bubble, not two: the rail's open row is a tab cut through the
+   rail's wall toward the terminal, and a gap between two bubbles would leave it pointing at
+   nothing. The inset goes on the LAYER (absolute, `inset: 0`) as padding, because the body is
+   `height: 100%` of it — a margin on the body would push its bottom edge out of the window.
+   `overflow: clip` rounds the rail's surface and the terminal bar into the corners; it makes no
+   scroll container and no backdrop root. */
+[data-testid='focused-layer'] {
+  box-sizing: border-box;
+  padding: 0 var(--gutter) var(--space-2);
+}
+[data-testid='focused-session'] {
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-lg);
+  overflow: clip;
 }
 
 /* The header and the terminal frame get a lighter blur. */
-[data-testid='app-header'],
-[data-testid='embedded-terminal'] {
+[data-testid='app-header']::before,
+[data-testid='embedded-terminal']::before {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+[data-testid='app-header']::before {
+  background-image: url("noise.svg");
+}
+
+/* "Terminal exited." lies over the dead terminal's last output. Its tint alone (`--bg-terminal`,
+   0.58) left that output readable behind the message, so it frosts it like a dialog panel. The
+   pane sits at `z-index: 12`, so it is a stacking context already and the `z-index: -1` layer
+   stays inside it — no `isolation` needed. */
+[data-testid='dead-terminal']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Menus and dropdown lists float as glass too. */
+/* A glass panel that lies OVER content must blur evenly out to its edge — and at its own size it
+   cannot when Chromium composites in SOFTWARE (the app ran with the GPU off from 2026-08-03 to
+   2026-09-22, and a machine without a usable GPU still does). There a backdrop blur reads only
+   from inside the layer and "nothing" past its edge, so the part of the blur that falls outside the box is lost and the
+   sharp page shows through near every edge: "+ New session" stayed readable under the bottom
+   edge of "Name this session". Measured over a text pattern (luminance stddev of 8px bands): 11.7
+   at the bottom edge against 3.3 at 32px in. With GPU compositing the edges blur evenly on their
+   own (2026-09-22, NVIDIA card: 2.3 at the bottom edge, 2.4 in the middle); the bleed stays for
+   the software path.
+   So the layer BLEEDS past the box by `--bleed` on every side, which gives the blur real pixels
+   to read there, and a mask cuts it back to the box. 56px covers 3 sigma of the 18px blur (the
+   CSS radius IS the standard deviation). The `content-box` mask is the box itself: padding =
+   bleed, and a radius of `--rounded-lg` + bleed leaves exactly `--rounded-lg` on the content
+   box. It must be a MASK, not a clip-path: a clip-path also shrinks the area the blur reads
+   (tried on a menu, no change). Measured with it: 3.6 at the edge, 3.2 at 32px in.
+   Not on "Terminal exited.": the terminal frame is `overflow: clip`, which cuts the bleed off and
+   the blur's reach with it — measured, the pane rendered identically with and without it. */
+[role='dialog'][aria-modal='true'] > *::before,
+[data-testid='settings-panel']::before {
+  --bleed: 56px;
+  inset: calc(-1 * var(--bleed));
+  padding: var(--bleed);
+  border-radius: calc(var(--rounded-lg) + var(--bleed));
+  mask: linear-gradient(#000 0 0) content-box;
+  -webkit-mask: linear-gradient(#000 0 0) content-box;
+}
+
+/* Popovers are GLASS: menus, dropdown lists, the `+ New session` popover, the tag picker and the
+   shortcut expander over a terminal. Each keeps its own translucent token background and blurs
+   what is behind it.
+   They were OPAQUE (#323235) from the GPU-off days (2026-08-03 to 2026-09-22): Chromium's
+   software compositor fades a backdrop blur out toward an element's edges, and at popover size
+   that is most of the element — "2 min" stayed readable under a small dropdown even at a 0.82
+   tint, and the dialogs' bleed + mask did nothing for a menu. With GPU compositing the blur is
+   even out to the very edge, so the glass is back.
+   A popover blurs from ITSELF, not from a `::before` layer: it is a leaf. Nothing inside it
+   blurs, so being a backdrop root costs nothing — except the expander's inline list, below.
+   Its CONTAINER must not be a backdrop root, which is what the `::before` layers above are for:
+   the header holds the workspace and ☰ menus, a dialog holds its dropdowns, the terminal frame
+   holds the expander. */
 [role='menu'],
-[role='listbox'] {
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+[role='listbox'],
+[data-testid='new-session-menu'],
+[data-testid$='tag-picker'],
+[data-testid='expander-box'] {
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     var(--shadow-pop);
+}
+
+/* The expander's list is INLINE in its box, not a popover: without this it would draw a second
+   card (its own shadow, highlight and grain) inside the one the box already is, and its own
+   blur would read only what the box painted. */
+[data-testid='expander-box'] [role='listbox'] {
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
