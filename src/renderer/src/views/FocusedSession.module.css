@@ -19,7 +19,6 @@
   min-width: 0;
   height: 100%;
   box-sizing: border-box;
-  --terminal-tools-h: 40px; /* reserved bottom strip; tunable */
 }
 
 /* `--topbar-height` is SHARED with the rail's own header (AttentionRail.module.css `.header`).
@@ -163,12 +162,4 @@
      in TerminalHost, which this child-scoped override leaves untouched.) */
   width: auto;
   height: auto;
-}
-
-/* Reserved bottom strip — breathing room now, toolbar mount point later.
-   Fixed height (no grow/shrink) so the terminal lifts off the window edge.
-   No bg / no border for now (see Ask-First: optional faint divider). */
-.toolStrip {
-  flex: 0 0 var(--terminal-tools-h);
-  box-sizing: border-box;
 }
