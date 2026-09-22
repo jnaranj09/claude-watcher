@@ -2467,7 +2467,8 @@ function createWindow(): void {
   })
 
   // Fallback show (2026-08-03). `ready-to-show` fires off the renderer's FIRST PAINTED FRAME.
-  // With hardware acceleration disabled it never fired at all on this KWin/Wayland host, so
+  // With hardware acceleration disabled (2026-08-03 to 2026-09-22; see the GPU block below
+  // createWindow()) it never fired at all on this KWin/Wayland host, so
   // `show()` was never called and the app ran headless: process alive, window never mapped, no
   // error anywhere. `did-finish-load` fires off the DOM/load lifecycle instead, so it is
   // independent of whether a frame ever reached the compositor. `show()` is idempotent, and
@@ -2583,42 +2584,26 @@ function createWindow(): void {
   }
 }
 
-// ── GPU OFF (2026-08-03 incident) ────────────────────────────────────────────────────────────
+// ── GPU ON (re-enabled 2026-09-22) ─────────────────────────────────────────────────────────────
 //
-// This app renders on the CPU. Not a preference — the GPU path was killing live terminals.
+// Hardware acceleration is ON. From 2026-08-03 to 2026-09-22 this block called
+// `app.disableHardwareAcceleration()` + `disable-software-rasterizer`, because an `amdgpu` shader
+// page fault inside our own GPU process hung the graphics ring, and the ring reset killed every
+// live WebGL context at once — every open terminal went blank while its PTY stayed healthy
+// (2026-07-31 and 2026-08-03; faulting device: the AMD integrated GPU, 05:00.0).
 //
-// Evidence (kernel log, 2026-08-03 13:22:27, and the same signature on 2026-07-31):
-//   amdgpu 0000:05:00.0: [gfxhub] page fault (src_id:0 ring:24 vmid:7 pasid:86)
-//   amdgpu 0000:05:00.0:  Process claude-watcher pid 8544 thread claude-wat:cs0 pid 8580
-//   amdgpu: Faulty UTCL2 client ID: SQC (data)   PERMISSION_FAULTS: 0x3
-//   amdgpu: ring gfx_0.0.0 timeout → Starting gfx_0.0.0 ring reset → reset succeeded
-// A shader in OUR GPU process read memory it was not allowed to read, the graphics ring hung,
-// and the driver reset it. Every live WebGL context died at once, so every open terminal went
-// blank while its PTY was perfectly healthy. `coredumpctl` shows NO coredump — the app never
-// crashed; only the GPU context did. The host is a hybrid laptop and the faulting device is the
-// AMD integrated GPU (05:00.0), not the NVIDIA dGPU.
+// Why it is back: the host is now pinned to the NVIDIA dGPU, and the GPU process renders there —
+// checked 2026-09-22 from the GPU process's open files (`/dev/nvidia0` + renderD128, the NVIDIA
+// node) with the driver working (615.71, kernel 6.18.52). Do not trust `getGPUInfo()`'s
+// `active` flag for this: it named the AMD card while the NVIDIA one did the rendering.
+// The software compositor also had a visible cost: a backdrop blur there reads only inside its
+// own box, so the sharp page showed through near every edge of a glass panel.
 //
-// The real defect is below us (a userspace app must not be able to page-fault the GPU — mesa
-// 26.1.6 / kernel 7.1.5-cachyos). What WE control is whether we keep handing it shader work.
-// `EmbeddedTerminal`'s onContextLoss recovery is still there and still tested, but recovery is
-// not prevention: every NEW terminal armed a fresh WebGL context, so the fault kept coming back.
-//
-// disableHardwareAcceleration() alone is not enough: with the GPU off, Chromium falls back to
-// SwiftShader for WebGL, so `new WebglAddon()` would still SUCCEED and xterm would render
-// through a SOFTWARE GL stack — slower than xterm's own canvas/dom renderer, and for no gain.
-// `disable-software-rasterizer` removes that fallback, so WebGL is genuinely absent, the
-// existing try/catch in EmbeddedTerminal takes the canvas branch, and the renderer is honest
-// about what it is. Both calls MUST happen before the `ready` event. [.claude/rules/terminal.md]
-//
-// GOTCHA (2026-08-03, cost an afternoon): turning the GPU off makes `ready-to-show` never fire
-// on this KWin/Wayland host, because that event rides the renderer's first PAINTED FRAME. The
-// window was created but never shown — the app looked like it "failed to start" while the
-// process sat there healthy and silent. The `did-finish-load` fallback next to the
-// `ready-to-show` handler in createWindow() is what keeps the window appearing. Do not remove
-// it while these switches are here. The packaged smoke gate does NOT cover this: it drives the
-// renderer's data model, never the compositor, so it passed green while the window was invisible.
-app.disableHardwareAcceleration()
-app.commandLine.appendSwitch('disable-software-rasterizer')
+// If the terminals start blanking again, read the kernel log first
+// (`journalctl -k | grep -E "amdgpu|NVRM"`): a GPU fault named `claude-watcher` means the GPU
+// process landed on a card that faults, and the switches above are the known workaround.
+// EmbeddedTerminal's onContextLoss recovery (dispose → re-fit → full redraw) is the net.
+// [.claude/rules/terminal.md]
 
 // Chromium draws some widgets ITSELF — the `<select>` popup list above all — from the NATIVE
 // theme, not from the page, and on Linux that popup reads the DESKTOP's GTK theme: on a light
