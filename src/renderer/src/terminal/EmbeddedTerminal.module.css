@@ -37,6 +37,17 @@
   min-width: 0;
 }
 
+/* xterm's stock stylesheet gives `.xterm-viewport` a SOLID `#000` background, and xterm 6 no
+   longer overrides it: the theme colour now goes on its scrollable element instead, which sits
+   over the viewport. With an opaque terminal theme that element covers the black, so nobody saw
+   it. With a see-through one (`allowTransparency`, e.g. liquid-glass) the scrollable element is
+   transparent and the black viewport under it hid the frame's glass entirely — the terminal
+   measured pure rgb(0,0,0). Transparent here is safe for every theme: the scrollable element
+   still paints the theme's own background above it. */
+.host :global(.xterm .xterm-viewport) {
+  background-color: transparent;
+}
+
 /* Kept-alive hidden terminals use visibility:hidden, NEVER display:none (display:none collapses
    the box to 0×0 and breaks the next fit() — terminal.md). The element keeps its layout box. */
 .hidden {

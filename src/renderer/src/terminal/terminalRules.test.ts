@@ -50,6 +50,12 @@ describe('terminal.md source invariants — frame token (UX-DR13)', () => {
     // No raw hex color anywhere in the module (tokens only).
     expect(css).not.toMatch(/#[0-9a-fA-F]{6}/)
   })
+  // xterm.css paints `.xterm-viewport` solid #000 and xterm 6 no longer overrides it with the
+  // theme colour, so a see-through terminal theme came up pure black over the frame's glass.
+  it('the xterm viewport is transparent, so a see-through theme shows the frame', () => {
+    const block = /\.host :global\(\.xterm \.xterm-viewport\)\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/background-color:\s*transparent;/)
+  })
 })
 
 describe('terminal.md source invariants — fit() sees the real box', () => {

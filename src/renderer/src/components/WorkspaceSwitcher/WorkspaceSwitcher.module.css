@@ -205,11 +205,17 @@
   flex: none;
 }
 
+/* The line above `Manage workspaces…` is its own element, as in NewSessionMenu — never the
+   button's `border-top`. A border there forced `border-radius: 0` on the button (a rounded box
+   bends its top border up at the corners), so its hover fill was the one square row in a rounded
+   menu. */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
+}
+
 .manage {
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  margin-top: var(--space-1);
-  padding-top: var(--space-2);
   color: var(--text-secondary);
 }
 

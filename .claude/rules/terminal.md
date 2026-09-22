@@ -58,25 +58,24 @@ useEffect(() => {
   the layout box so the inner host stays sized for `fit()`. (This was the blank-2nd-
   terminal bug — see `.claude/rules/troubleshooting.md` worked example.)
 - **`convertEol: false`** — let the PTY own newline semantics.
-- **The GPU is OFF app-wide — canvas/dom is THE renderer, not a fallback.** (Changed
-  2026-08-03; this bullet used to say the opposite.) `src/main/index.ts` calls
-  `app.disableHardwareAcceleration()` + `app.commandLine.appendSwitch('disable-software-rasterizer')`
-  before `ready`, so WebGL2 is genuinely absent, `new WebglAddon()` throws, and the
-  existing try/catch lands on canvas/dom. Do NOT "restore" WebGL as an optimization —
-  the packaged smoke gate now FAILS if `webglActive` is true (`SmokeCockpit.tsx`).
-  Why: an `amdgpu` **shader page fault inside our own GPU process** (`[gfxhub] page
-fault ... Process claude-watcher ... Faulty UTCL2 client ID: SQC (data)`) hung the
-  graphics ring, the driver reset it, and every live WebGL context died at once —
-  blanking every open terminal while its PTY was healthy. Twice: 2026-07-31 and
-  2026-08-03. `coredumpctl` shows no coredump — the app never crashed, only the GPU
-  context did. The underlying defect is in the driver stack (mesa 26.1.6 / kernel
-  7.1.5-cachyos, AMD integrated GPU on a hybrid laptop), but recovery is not
-  prevention: every new terminal armed a fresh context and the fault kept returning.
-  Two seconds of a terminal cockpit's paint budget is not worth that.
-- **Keep the context-loss recovery anyway.** The `onContextLoss` handler (dispose →
+- **The GPU is ON — WebGL is the active renderer, canvas/dom the fallback.** (Changed
+  2026-09-22. From 2026-08-03 to that day it was the opposite: `src/main/index.ts` called
+  `app.disableHardwareAcceleration()` + `disable-software-rasterizer`, and canvas/dom was THE
+  renderer.) The packaged smoke gate requires `webglActive` true again (`SmokeCockpit.tsx`).
+  Why it was off: an `amdgpu` **shader page fault inside our own GPU process** (`[gfxhub] page
+fault ... Process claude-watcher ... Faulty UTCL2 client ID: SQC (data)`) hung the graphics
+  ring, the driver reset it, and every live WebGL context died at once — blanking every open
+  terminal while its PTY was healthy. Twice: 2026-07-31 and 2026-08-03, on the AMD integrated
+  GPU of a hybrid laptop. Why it is back: the host is pinned to the NVIDIA dGPU and the GPU
+  process renders there (checked from its open files: `/dev/nvidia0` + the NVIDIA render node;
+  `getGPUInfo()`'s `active` flag named the AMD card and was wrong). The software compositor had
+  a visible cost too: a backdrop blur there fades out toward its own edges. **If terminals start
+  blanking again, read the kernel log first** (`journalctl -k | grep -E "amdgpu|NVRM"`): a GPU
+  fault that names `claude-watcher` means the GPU process is on a card that faults, and the two
+  switches are the known workaround.
+- **Keep the context-loss recovery.** The `onContextLoss` handler (dispose →
   `doFit()` → `clearTextureAtlas()` → `refresh(0, rows-1)`) and
-  `EmbeddedTerminal.webgl.test.tsx` stay. They are unreachable while the GPU is off,
-  and they are the safety net the moment anyone turns it back on.
+  `EmbeddedTerminal.webgl.test.tsx` stay. They are the safety net for exactly the failure above.
 - **Force a full redraw after the fallback swap** — `term.clearTextureAtlas()` +
   `term.refresh(0, term.rows - 1)`. The fallback renderer paints only DIRTY cells, so
   every row already on screen stays black and the terminal looks dead while the PTY is

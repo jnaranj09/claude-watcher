@@ -228,14 +228,12 @@ export function EmbeddedTerminal({
         .catch(() => console.warn('[c9watch][term] code=resize_failed'))
     }
 
-    // GPU OFF (2026-08-03) — in practice this construction now THROWS and we take the canvas
-    // branch: main disables hardware acceleration + the software rasterizer because an amdgpu
-    // shader page fault in our own GPU process kept resetting the graphics ring and blanking
-    // every live terminal (the full evidence is above `app.whenReady()` in src/main/index.ts).
-    // The block is kept, not deleted: it is the recovery net if anyone re-enables the GPU, and
-    // the packaged smoke gate fails if WebGL ever comes back silently. On context loss: dispose
-    // the addon → xterm falls back to canvas automatically → surface it (don't keep claiming
-    // WebGL). Loaded AFTER doFit is defined so the loss handler can re-fit (see below) —
+    // WebGL is the ACTIVE renderer; canvas/dom is fallback only (terminal.md). The GPU was off
+    // app-wide from 2026-08-03 to 2026-09-22 (an amdgpu shader page fault kept blanking every live
+    // terminal — the story is in the GPU block of src/main/index.ts), so this recovery path is
+    // not theoretical. On context loss: dispose the addon → xterm falls back to canvas
+    // automatically → surface it (don't keep claiming WebGL). A construction failure also falls
+    // back. Loaded AFTER doFit is defined so the loss handler can re-fit (see below) —
     // loadAddon order is irrelevant to the addon itself. [.claude/rules/terminal.md]
     try {
       const webgl = new WebglAddon()

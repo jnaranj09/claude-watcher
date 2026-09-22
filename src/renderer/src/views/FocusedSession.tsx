@@ -209,10 +209,6 @@ export function FocusedSession({
             />
           ))}
         </div>
-        {/* Reserved bottom strip: breathing room today, future toolbar mount point.
-            Sibling of .terminalWrap (NOT a child) so it stays out of the terminal
-            stacking context. Empty + aria-hidden until a later story populates it. */}
-        <div className={styles.toolStrip} aria-hidden="true" />
       </div>
     </div>
   )
