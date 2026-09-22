@@ -204,6 +204,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
               </button>
             )
           })}
+          <div className={styles.divider} role="separator" />
           <button
             type="button"
             role="menuitem"

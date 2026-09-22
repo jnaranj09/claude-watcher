@@ -8,6 +8,8 @@
 // which fails to resolve in this tree — verified with `npx vitest run` before writing this
 // file. Same six cases, same assertions and testids, adapted to the existing
 // `renderComponent` + native-DOM-event harness instead.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
@@ -348,6 +350,31 @@ describe('WorkspaceSwitcher', () => {
     click(q(r, '[data-testid="workspace-switcher"]'))
     click(q(r, '[data-testid="workspace-manage"]'))
     expect(onManage).toHaveBeenCalled()
+  })
+
+  // `Manage workspaces…` is a row like the others, so its hover fill is rounded like theirs. The
+  // line above it used to be the button's own `border-top`, which forced `border-radius: 0` (a
+  // rounded box bends its top border up at the corners) and drew a SQUARE hover under a rounded
+  // menu. The line is its own element now, as in NewSessionMenu.
+  it('draws the line above Manage workspaces… as its own separator, so the row stays rounded', () => {
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    const manage = q(r, '[data-testid="workspace-manage"]')
+    expect(manage.previousElementSibling?.getAttribute('role')).toBe('separator')
+    // Read from the repo root — `import.meta.url` is not a file: URL under the vite transform.
+    const css = readFileSync(
+      join(
+        process.cwd(),
+        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
+      ),
+      'utf8'
+    ).replace(/\/\*[\s\S]*?\*\//g, '')
+    const manageRules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, sel = '']) => /\.manage\b/.test(sel))
+      .map(([, , body = '']) => body)
+      .join('\n')
+    expect(manageRules).not.toMatch(/border-radius:\s*0\b/)
+    expect(manageRules).not.toMatch(/border-top/)
   })
 
   // The swatch colors moved to WorkspaceDot.module.css (ONE definition app-wide); the
