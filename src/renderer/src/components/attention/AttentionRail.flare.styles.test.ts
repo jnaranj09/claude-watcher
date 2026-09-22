@@ -57,6 +57,30 @@ describe('AttentionRail — the notch is a genuine hole (mask), not a paint-over
     expect(chrome).toMatch(/mask-composite:\s*subtract,/)
   })
 
+  // The hole follows the tab's ROUNDED left corners. A square cut there left two corner squares
+  // of surface that only the row's fill covered, and with a transparent `--bg-base` (liquid-glass)
+  // they showed as two lighter squares at the tab's left corners.
+  it("the hole includes the tab's rounded left corners — one disc per corner, on its centre", () => {
+    const chrome = block(/^\.pinnedSlot::before\s*\{([^}]*)/m)
+    expect(chrome).toMatch(
+      /circle at var\(--rounded-md\) calc\(var\(--rounded-md\) - 1px\),\s*\n\s*black calc\(var\(--rounded-md\) - 1px\)/
+    )
+    expect(chrome).toMatch(
+      /circle at var\(--rounded-md\) 1px,\s*\n\s*black calc\(var\(--rounded-md\) - 1px\)/
+    )
+    // Seven mask layers: the surface, then the six cuts it subtracts.
+    const composite = /mask-composite:\s*([^;]*);/.exec(chrome)?.[1] ?? ''
+    expect(composite.split(',').map((c) => c.trim())).toEqual([
+      'subtract',
+      'add',
+      'add',
+      'add',
+      'add',
+      'add',
+      'add'
+    ])
+  })
+
   it("the slot's own surface is the LAST background layer — painted once, never composited twice", () => {
     const chrome = block(/^\.pinnedSlot::before\s*\{([^}]*)/m)
     const backgroundBlock = /background:\s*([^;]*);/.exec(chrome)?.[1] ?? ''
