@@ -159,11 +159,11 @@
 }
 
 /* "Show all tags" ON is LIT — the same state as a row's open peek toggle and the board's filter
- * toggle: `--text-primary` fill, `--bg-base` ink. Only that toggle carries `aria-pressed` (the
+ * toggle: `--text-primary` fill, `--text-on-lit` ink. Only that toggle carries `aria-pressed` (the
  * chevron is `aria-expanded`). After :hover so it wins at equal specificity. */
 .collapseToggle[aria-pressed='true'] {
   background: var(--text-primary);
-  color: var(--bg-base);
+  color: var(--text-on-lit);
 }
 
 .collapseToggle:focus-visible {
@@ -290,25 +290,25 @@
   pointer-events: none;
   background:
     linear-gradient(var(--border), var(--border)) right 0 top 0 / 1px
-      calc(var(--space-3) - var(--rounded-md) + 1px) no-repeat,
+      calc(var(--space-3) - var(--rounded-md) + 1px + var(--rail-bounce)) no-repeat,
     linear-gradient(var(--border), var(--border)) right 0 bottom 0 / 1px
-      calc(var(--space-3) - var(--rounded-md) + 1px) no-repeat,
+      calc(var(--space-3) - var(--rounded-md) + 1px - var(--rail-bounce)) no-repeat,
     radial-gradient(
         circle at 0 0,
         transparent calc(var(--rounded-md) - 1px),
         var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
         transparent var(--rounded-md)
       )
-      right 0 top calc(var(--space-3) - var(--rounded-md) + 1px) / var(--rounded-md)
-      calc(var(--rounded-md) + 1px) no-repeat,
+      right 0 top calc(var(--space-3) - var(--rounded-md) + 1px + var(--rail-bounce)) /
+      var(--rounded-md) calc(var(--rounded-md) + 1px) no-repeat,
     radial-gradient(
         circle at 0 100%,
         transparent calc(var(--rounded-md) - 1px),
         var(--border) calc(var(--rounded-md) - 1px) var(--rounded-md),
         transparent var(--rounded-md)
       )
-      right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px) / var(--rounded-md)
-      calc(var(--rounded-md) + 1px) no-repeat,
+      right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px - var(--rail-bounce)) /
+      var(--rounded-md) calc(var(--rounded-md) + 1px) no-repeat,
     var(--bg-surface);
   mask-image:
     linear-gradient(black, black), linear-gradient(black, black), linear-gradient(black, black),
@@ -326,12 +326,14 @@
     );
   mask-position:
     0 0,
-    left calc(var(--rail-tab-left) + var(--rounded-md) + 1px) top calc(var(--space-3) + 1px),
-    left var(--rail-tab-left) top calc(var(--space-3) + var(--rounded-md) + 1px),
-    right 0 top calc(var(--space-3) - var(--rounded-md) + 1px),
-    right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px),
-    left var(--rail-tab-left) top calc(var(--space-3) + 1px),
-    left var(--rail-tab-left) bottom calc(var(--space-3) + 1px);
+    left calc(var(--rail-tab-left) + var(--rounded-md) + 1px) top
+      calc(var(--space-3) + 1px + var(--rail-bounce)),
+    left var(--rail-tab-left) top
+      calc(var(--space-3) + var(--rounded-md) + 1px + var(--rail-bounce)),
+    right 0 top calc(var(--space-3) - var(--rounded-md) + 1px + var(--rail-bounce)),
+    right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px - var(--rail-bounce)),
+    left var(--rail-tab-left) top calc(var(--space-3) + 1px + var(--rail-bounce)),
+    left var(--rail-tab-left) bottom calc(var(--space-3) + 1px - var(--rail-bounce));
   mask-size:
     100% 100%,
     calc(100% - var(--rail-tab-left) - var(--rounded-md) - 1px)
@@ -343,6 +345,64 @@
     calc(var(--rounded-md) + 1px) var(--rounded-md);
   mask-repeat: no-repeat;
   mask-composite: subtract, add, add, add, add, add, add;
+}
+
+/* The pinned tab BOUNCES WITH ITS SHOULDERS.
+ *
+ * A needs-you row hops (`needsYouBounce`, a `transform` on the row). The tab's notch and its two
+ * shoulders are not on the row, though — they are cut and drawn by `.pinnedSlot::before` above,
+ * and a transform on the row cannot move a different element. So the row hopped and its outward
+ * corners stayed behind.
+ *
+ * One value drives both now: `--rail-bounce`, animated on the SLOT and inherited by its chrome
+ * layer and by the row. The row translates by it; every vertical position in the chrome layer
+ * (the six cuts, the two rings, the two wall stubs) is offset by it. One animation, so the two can
+ * never drift apart the way two synced animations could. `railBounce` repeats `needsYouBounce`'s
+ * stops and pixels exactly (CSS modules cannot share a keyframes name across files); a test in
+ * `AttentionRail.flare.styles.test.ts` fails if they drift.
+ *
+ * The cost: animating a custom property is NOT compositor-only — the slot's chrome repaints on each
+ * frame of the hop (~0.5s of the 2.4s cycle, one small layer). It is scoped to the ONE pinned row,
+ * and only while it needs you; every other row keeps the compositor-only transform.
+ *
+ * Registered (`@property`) so it interpolates as a length; unregistered it would jump between stops.
+ * Reduced motion: no animation, so the value stays at its `0px` initial value and nothing moves. */
+@property --rail-bounce {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@keyframes railBounce {
+  0%,
+  22%,
+  100% {
+    --rail-bounce: 0px;
+  }
+
+  5% {
+    --rail-bounce: -4px;
+  }
+
+  11% {
+    --rail-bounce: 0px;
+  }
+
+  16% {
+    --rail-bounce: -2px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pinnedSlot:has(.emphasized) {
+    animation: railBounce 2.4s ease-in-out infinite;
+  }
+}
+
+/* The row follows the slot's value instead of running its own copy of the hop. */
+.pinnedSlot .row.emphasized {
+  animation: none;
+  transform: translateY(var(--rail-bounce));
 }
 
 .list {
@@ -1082,12 +1142,12 @@
 }
 
 /* OPEN is LIT — the board filter toggle's lit state (FilterBar `.toggle[data-lit]`): a
- * `--text-primary` fill with `--bg-base` ink (11.6:1), the mark redrawn in that ink
+ * `--text-primary` fill with `--text-on-lit` ink (11.6:1), the mark redrawn in that ink
  * (`TagIndicator mono`). It is how the row says "expanded — press again to close". Placed after
  * `:hover` so it wins at equal specificity. */
 .peekButton[aria-expanded='true'] {
   background: var(--text-primary);
-  color: var(--bg-base);
+  color: var(--text-on-lit);
 }
 
 .peekButton:focus-visible {

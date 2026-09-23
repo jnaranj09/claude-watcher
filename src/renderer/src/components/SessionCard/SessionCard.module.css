@@ -101,6 +101,14 @@
   opacity: 0.82;
 }
 
+/* Fully opaque while this card's move menu or tag picker is open. `opacity` below 1 makes the card
+ * a BACKDROP ROOT: a glass popover inside it (a theme's `backdrop-filter`) could then blur only
+ * what the card itself painted, never the board behind it — and the popover was drawn at 82% too.
+ * The card being acted on is also the one worth reading at full strength. */
+.calm[data-menu-open] {
+  opacity: 1;
+}
+
 /* ── Anatomy ───────────────────────────────────────────────────────────────── */
 /* Three children in a row: the name, the rename pencil, the status dot.
  *

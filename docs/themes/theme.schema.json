@@ -110,6 +110,10 @@
           "type": "string",
           "maxLength": 500
         },
+        "text-on-lit": {
+          "type": "string",
+          "maxLength": 500
+        },
         "working": {
           "type": "string",
           "maxLength": 500

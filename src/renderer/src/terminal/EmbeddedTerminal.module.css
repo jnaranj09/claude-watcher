@@ -48,6 +48,16 @@
   background-color: transparent;
 }
 
+/* xterm draws its OWN scrollbar (a VS Code-style `.slider` div, coloured by the theme's
+   `scrollbarSlider*` keys), so main.css's `::-webkit-scrollbar` pill never reaches it. Give its
+   slider the same shape: a rounded pill inset by a transparent border. xterm sets the slider's
+   size inline; with the app's `box-sizing: border-box` the border fits inside that size. */
+.host :global(.xterm .xterm-scrollable-element > .scrollbar > .slider) {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
 /* Kept-alive hidden terminals use visibility:hidden, NEVER display:none (display:none collapses
    the box to 0×0 and breaks the next fit() — terminal.md). The element keeps its layout box. */
 .hidden {

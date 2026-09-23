@@ -72,22 +72,37 @@
 .hint {
   font-size: var(--font-size-caption, 12px);
   color: var(--text-secondary);
-  /* Allow the hint to stretch so the Stop button stays right-aligned. */
-  flex: 1 1 auto;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* Name-sync (D-11) — the focused session's own name in the bar, ellipsised like every other
-   operator-typed name (design.md), with the ⟳ mark (SessionCard's NameSyncMark) trailing it.
-   No margin-left: .bar already sets `gap: var(--space-3)` between every child, so one here would
-   double the gap in front of the name. */
+/* The breadcrumb's `/` between `← Board` and the title. */
+.crumbSep {
+  color: var(--text-muted);
+  font-size: var(--font-size-heading);
+  flex-shrink: 0;
+}
+
+/* The bar's TITLE — `● name` as the breadcrumb's last step. It stretches, so the hint and the two
+   exits stay right-aligned; `min-width: 0` lets the name ellipsise instead of pushing them out.
+   No margin-left: .bar already sets `gap` between every child. */
 .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+}
+
+/* The name, ellipsised like every other operator-typed name (design.md), `title` on it. */
+.titleName {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-primary);
-  display: inline-flex;
-  align-items: center;
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-heading);
 }
 
 /* Past sessions (D-3) — the Archive button (was Story 4.3's ⏹ Stop session; same look, no

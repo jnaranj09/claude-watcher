@@ -85,7 +85,7 @@
    (StatusDot/AttentionRail), so "something needs you" reads consistently. */
 .badge {
   background: var(--needs-you);
-  color: var(--bg-base);
+  color: var(--text-on-lit);
 }
 
 /* The elsewhere tab — cards needing you in OTHER workspaces. One layer below the button, its left

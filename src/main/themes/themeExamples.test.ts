@@ -33,6 +33,13 @@ const POPOVERS = [
   "[data-testid='expander-box']"
 ]
 
+// Header buttons liquid-glass blurs from themselves: leaves (nothing inside them blurs), and the
+// workspace menu is their sibling, not their child.
+const LEAF_BUTTONS = [
+  "[data-testid='workspace-switcher']",
+  "[data-testid='workspace-elsewhere-tab']"
+]
+
 describe('docs/themes/examples', () => {
   it('scan lists the three examples, none broken, sorted by name', () => {
     expect(scanner.scan()).toEqual([
@@ -59,16 +66,15 @@ describe('docs/themes/examples', () => {
       expect(r.bundle.css.startsWith(':root {')).toBe(true)
     }
   })
-  // The grain is an ASSET, not a `data:` URI written by hand — `rewriteCssUrls` only accepts
-  // `url("name.ext")`. Rename or drop noise.svg and the load fails closed (theme_asset_missing),
-  // so this pins that the file is still there AND that every reference to it was inlined.
-  it('liquid-glass inlines its noise.svg grain, leaving no un-rewritten url()', () => {
+  // LIQUID glass carries no grain: a noise tile is the acrylic (frosted) recipe and read matte.
+  // The material is the lit rim and the sheen instead, and no asset is loaded at all.
+  it('liquid-glass has no grain and no asset: rim + sheen, no url()', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect(r.bundle.css).toContain('url("data:image/svg+xml;base64,')
-      // The name survives in the file's own comments — it is the `url()` that must be gone.
-      expect(r.bundle.css).not.toContain('url("noise.svg")')
+      expect(r.bundle.css).not.toContain('url(')
+      expect(r.bundle.css).toContain('--glass-rim:')
+      expect(r.bundle.css).toContain('--glass-sheen:')
     }
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
@@ -82,7 +88,7 @@ describe('docs/themes/examples', () => {
       .filter((r) => /(^|[\s;])backdrop-filter:(?!\s*none\b)/.test(r.body))
       .flatMap((r) => r.selectors)
     expect(blurring.length).toBeGreaterThan(0)
-    expect(blurring.filter((s) => !s.endsWith('::before'))).toEqual(POPOVERS)
+    expect(blurring.filter((s) => !s.endsWith('::before'))).toEqual([...POPOVERS, ...LEAF_BUTTONS])
     // A modal's panel is its ONLY child, and it is not always a <div>: "Name this session" is a
     // <form>, and a `> div` rule left it with no glass at all.
     expect(blurring).toContain("[role='dialog'][aria-modal='true'] > *::before")
@@ -122,7 +128,13 @@ describe('docs/themes/examples', () => {
       (r) => POPOVERS.every((p) => r.selectors.includes(p)) && /backdrop-filter:/.test(r.body)
     )
     expect(glass).toHaveLength(1)
-    expect(glass[0]?.body).toMatch(/(^|[\s;])backdrop-filter:\s*blur\(\d+px\)/)
+    // The shared `--glass-filter` (declared on :root), itself a blur.
+    expect(glass[0]?.body).toMatch(/(^|[\s;])backdrop-filter:\s*var\(--glass-filter\);/)
+    const root = liquidGlassRules()
+      .filter((r) => r.selectors.includes(':root'))
+      .map((r) => r.body)
+      .join('\n')
+    expect(root).toMatch(/--glass-filter:\s*blur\(\d+px\)/)
     // An opaque colour on the same rule would hide the blur it pays for.
     expect(glass[0]?.body).not.toMatch(/background(-color)?:/)
     // The expander's list is INLINE in the box, not a popover of its own: it must not paint a
@@ -147,7 +159,7 @@ describe('docs/themes/examples', () => {
         .map((r) => r.body)
         .join('\n')
     expect(body("[data-testid='focused-layer']")).toMatch(
-      /padding:\s*0 var\(--gutter\) var\(--space-2\);/
+      /padding:\s*0 var\(--space-2\) var\(--space-2\);/
     )
     const bubble = body("[data-testid='focused-session']")
     expect(bubble).toMatch(/border-radius:\s*var\(--rounded-lg\);/)

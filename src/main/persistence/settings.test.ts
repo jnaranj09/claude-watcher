@@ -81,6 +81,24 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
     expect(next.soundEnabled).toBe(DEFAULT_SETTINGS.soundEnabled)
   })
 
+  it('a fresh file starts from the injected defaults (the dev profile API port)', () => {
+    const defaults: Settings = { ...DEFAULT_SETTINGS, apiPort: 19281 }
+    const fake = makeFakeBlobStore(undefined)
+    const store = createSettingsStore({ blobStore: fake.blobStore, log: vi.fn(), defaults })
+
+    expect(store.get()).toEqual(defaults)
+    expect(fake.writes).toContainEqual(defaults)
+  })
+
+  it('injected defaults never override a saved file', () => {
+    const saved: Settings = { ...DEFAULT_SETTINGS, apiPort: 9300 }
+    const fake = makeFakeBlobStore(saved)
+    const defaults: Settings = { ...DEFAULT_SETTINGS, apiPort: 19281 }
+    const store = createSettingsStore({ blobStore: fake.blobStore, log: vi.fn(), defaults })
+
+    expect(store.get().apiPort).toBe(9300)
+  })
+
   it('loads a VALID persisted blob as-is (no defaults, no backup)', () => {
     const persisted: Settings = {
       version: 1,

@@ -705,6 +705,70 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
   })
 })
 
+describe('the card popovers close like every other popover', () => {
+  const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
+  const props = (): SessionCardProps =>
+    baseProps({
+      workspaces: [
+        { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null },
+        { id: 'w2', name: 'Side', color: 'rose', defaultCwd: null }
+      ],
+      currentWorkspaceId: 'w1',
+      onMoveToWorkspace: vi.fn(),
+      availableTags: [PROD],
+      onSetTags: vi.fn()
+    })
+  const moveMenuOpen = (root: Element): boolean =>
+    root.querySelector('[data-testid="card-move-w2"]') !== null
+
+  it('a mousedown outside the move menu closes it', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...props()} />)
+    cleanup = unmount
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')?.click())
+    expect(moveMenuOpen(container)).toBe(true)
+    act(() => {
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    expect(moveMenuOpen(container)).toBe(false)
+  })
+
+  it('opening the tag picker closes the move menu (the reported pair)', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...props()} />)
+    cleanup = unmount
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')?.click())
+    const tagsButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="card-tags-button"]'
+    )
+    if (tagsButton === null) throw new Error('no tags button')
+    act(() => {
+      tagsButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      tagsButton.click()
+    })
+    expect(moveMenuOpen(container)).toBe(false)
+    expect(container.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
+  })
+
+  it('a mousedown inside the move menu leaves it open (its rows still get their click)', () => {
+    const { container, unmount } = renderComponent(<SessionCard {...props()} />)
+    cleanup = unmount
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')?.click())
+    act(() => {
+      container
+        .querySelector('[data-testid="card-move-w2"]')
+        ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+    expect(moveMenuOpen(container)).toBe(true)
+  })
+
+  // A calm card is drawn at `opacity: 0.82`. Opacity under 1 makes the card a BACKDROP ROOT, so a
+  // glass popover inside it could only blur the card itself — never the board behind it — and the
+  // popover was drawn at 82% too. While its popover is open the card is fully opaque.
+  it('a calm card is fully opaque while its popover is open', async () => {
+    const css = await readCss()
+    expect(/\.calm\[data-menu-open\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/opacity:\s*1;/)
+  })
+})
+
 describe('Archive / Delete (D-3, D-5)', () => {
   it('renders Archive (no confirm) and a red Delete only when handlers are wired, and neither activates the card', () => {
     const onActivate = vi.fn()

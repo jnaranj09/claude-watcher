@@ -23,6 +23,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
 import { AttentionRail } from '../components/attention/AttentionRail'
 import { NameSyncMark } from '../components/SessionCard/SessionCard'
+import { StatusDot, type DotStatus } from '../components/StatusDot/StatusDot'
+import type { Column } from '../../../shared/ipc/contract'
 import { archiveTerminal, sessionIdForTerminal } from '../lib/sessionExit'
 import {
   boardStore,
@@ -61,6 +63,13 @@ function resolveSessionName(terminalId: string): string {
  *  the ⟳ mark. Reverse-looks-up the session bound to the focused terminal; null pre-correlation
  *  (no card yet) or with no terminal focused — the title falls back to an empty string, never a
  *  crash. */
+/** The title's dot IS the session's column, as on the rail and the board (compiler-checked). */
+const DOT_STATUS_FOR_COLUMN: Record<Column, DotStatus> = {
+  working: 'working',
+  'needs-you': 'needs-you',
+  idle: 'idle'
+}
+
 const selectFocusedSession = (s: BoardState): BoardSession | null => {
   const sid = Object.entries(s.terminalIdBySessionId).find(
     ([, t]) => t === s.focusedTerminalId
@@ -160,18 +169,24 @@ export function FocusedSession({
           >
             ← Board
           </button>
-          <span className={styles.hint}>Esc to return</span>
-          {/* Name-sync (D-11) — the focused session's own name + ⟳ mark while a rename is
-              pending. A separate element from the stop button on purpose: Task 10 replaces the
-              stop button with Archive/Delete affordances, and this title must not depend on it. */}
-          <span
-            className={styles.title}
-            data-testid="focused-title"
-            title={focusedSession?.sessionName}
-          >
-            {focusedSession?.sessionName ?? ''}
+          {/* The session's name is the bar's TITLE, read as a breadcrumb: `← Board / ● name`. At the
+              right edge it read as a stray label beside Archive/Delete. Its dot is the session's
+              status (never colour-only: StatusDot carries an sr-only label); the ⟳ mark trails it
+              while a rename is pending (D-11). The title stretches, so the hint and the two exits
+              stay right-aligned. */}
+          <span className={styles.crumbSep} aria-hidden>
+            /
+          </span>
+          <span className={styles.title} data-testid="focused-title">
+            {focusedSession && (
+              <StatusDot status={DOT_STATUS_FOR_COLUMN[focusedSession.column]} labelHidden />
+            )}
+            <span className={styles.titleName} title={focusedSession?.sessionName}>
+              {focusedSession?.sessionName ?? ''}
+            </span>
             {focusedSession?.nameSyncPending === true && <NameSyncMark />}
           </span>
+          <span className={styles.hint}>Esc to return</span>
           {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. Same
               chord as Ctrl+W (App.tsx), which archives directly without opening this bar. */}
           <button

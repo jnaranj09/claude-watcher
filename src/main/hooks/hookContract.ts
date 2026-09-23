@@ -4,11 +4,14 @@
 // flag file handed to each spawned claude). The reducer does NOT import this module (it must
 // not depend on the hooks layer). [.claude/rules/zod-boundaries.md; spec Code Map]
 
+import { PROFILE } from '../profile'
+
 /** Localhost-only bind address. NEVER 0.0.0.0. */
 export const HOST = '127.0.0.1'
 
-/** HTTP port the hook listener binds to (Ask-First decision: 9279). */
-export const PORT = 9279
+/** HTTP port the hook listener binds to (Ask-First decision: 9279; `npm run dev` uses the dev
+ *  profile's own port so it can run beside the installed app — `../profile.ts`). */
+export const PORT = PROFILE.hookPort
 
 /** The full URL Claude Code posts hook events to. */
 export const HOOK_URL = `http://${HOST}:${PORT}/`

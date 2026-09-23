@@ -21,7 +21,15 @@
 // NO IPC, NO store). The card is keyboard-focusable with a lavender AA focus ring
 // and calls `onActivate` on click/Enter — the handler is wired by Story 1.4; this
 // component only takes the callback. Status is dot + text label (never color-only).
-import { useId, useRef, useState, type JSX, type KeyboardEvent, type MouseEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent,
+  type MouseEvent
+} from 'react'
 import { StatusDot, type DotStatus } from '../StatusDot/StatusDot'
 import { needsYouEmphasisClass } from '../../styles/emphasis'
 import type { Tag, Workspace } from '../../../../shared/ipc/contract'
@@ -180,6 +188,19 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   // WorkspaceSwitcher popover already uses.
   const [moveOpen, setMoveOpen] = useState(false)
   const moveButtonRef = useRef<HTMLButtonElement | null>(null)
+  const moveAnchorRef = useRef<HTMLDivElement | null>(null)
+  // A mousedown anywhere outside the move button + menu closes the menu — the same rule as every
+  // other popover here (TagPicker, Select, AppMenu…). Without it, opening the tag picker beside it
+  // left BOTH open. A mousedown on the toggle itself is ignored so its click can still toggle.
+  useEffect(() => {
+    if (!moveOpen) return
+    const onMouseDown = (e: globalThis.MouseEvent): void => {
+      if (moveAnchorRef.current?.contains(e.target as Node) === true) return
+      setMoveOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [moveOpen])
   // Review finding 2 — an empty target list is a control that opens nothing, which is a defect,
   // not a valid state. Computed once here so the render guard below and the menu's map share the
   // SAME filtered list (never re-derived, never drifting).
@@ -409,7 +430,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
             exists to move to (review finding 2 — a control that opens onto nothing is a defect,
             not a valid state; the single-workspace install is the common case this guards). */}
         {onMoveToWorkspace !== undefined && otherWorkspaces.length > 0 && (
-          <div className={styles.moveWrap}>
+          <div className={styles.moveWrap} ref={moveAnchorRef}>
             <button
               ref={moveButtonRef}
               type="button"

@@ -47,6 +47,7 @@
   --text-dim: #47453d;
   --text-on-accent: #11111b;
   --text-on-danger: #ffffff;
+  --text-on-lit: #1a1a18;
 
   /* ── Status / accent (Catppuccin Mocha + one custom gold) ───────────────── */
   --working: #89b4fa;

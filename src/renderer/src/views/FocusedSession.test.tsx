@@ -271,6 +271,34 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(r.container.querySelector('[data-testid="name-sync-pending"]')).not.toBeNull()
   })
 
+  // Option 3 (2026-09-23): the name is the bar's TITLE, a breadcrumb step after `← Board`, with the
+  // session's status dot — not a stray label at the right edge beside Archive/Delete.
+  it('draws the name as a breadcrumb title after ← Board, with the status dot, before the hint', () => {
+    act(() => {
+      boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 10))
+      boardStore.setState({
+        terminalIdBySessionId: { a: 'term-a' },
+        focusedTerminalId: 'term-a',
+        launchedTerminals: {
+          'term-a': { terminalId: 'term-a', launchedAt: 1, label: 's-a', workspaceId: 'default' }
+        }
+      })
+    })
+    const r = renderComponent(<FocusedSession onBack={vi.fn()} onNewSession={vi.fn()} />)
+    cleanup = r.unmount
+    const title = r.container.querySelector('[data-testid="focused-title"]')
+    expect(
+      title?.querySelector('[data-status="needs-you"] [data-testid="status-dot"]')
+    ).not.toBeNull()
+    const bar = title?.parentElement
+    const order = [...(bar?.children ?? [])].map(
+      (el) => el.getAttribute('data-testid') ?? el.textContent?.trim()
+    )
+    expect(order.indexOf('focused-back')).toBeLessThan(order.indexOf('focused-title'))
+    expect(order.indexOf('focused-title')).toBeLessThan(order.indexOf('Esc to return'))
+    expect(order.indexOf('Esc to return')).toBeLessThan(order.indexOf('focused-archive'))
+  })
+
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
     boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
     boardStore.getState().openLaunchedTerminal('launch-other', 'other', 'default') // focused = some other terminal

@@ -1319,7 +1319,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     ] as const) {
       const rule = block(new RegExp(`${lit.replace(/[.[\]]/g, '\\$&')}\\s*\\{([^}]*)\\}`))
       expect(rule, lit).toMatch(/background:\s*var\(--text-primary\)/)
-      expect(rule, lit).toMatch(/color:\s*var\(--bg-base\)/)
+      expect(rule, lit).toMatch(/color:\s*var\(--text-on-lit\)/)
       // After :hover, or hovering the lit toggle would drop its fill.
       expect(css.indexOf(lit), lit).toBeGreaterThan(css.indexOf(`${base}:hover`))
     }

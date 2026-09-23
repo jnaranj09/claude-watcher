@@ -98,6 +98,71 @@ describe('AttentionRail — the notch is a genuine hole (mask), not a paint-over
   })
 })
 
+// The shoulders and the notch live on the SLOT's chrome layer, not on the row, so the row's own
+// `needsYouBounce` transform cannot move them: an active needs-you row hopped while its outward
+// corners stayed put. One animated custom property on the slot drives BOTH now — the row's
+// translate and every position in the chrome layer — so they cannot drift apart.
+describe('AttentionRail — the pinned tab bounces WITH its shoulders', () => {
+  const emphasis = readFileSync(
+    join(process.cwd(), 'src/renderer/src/styles/emphasis.module.css'),
+    'utf8'
+  )
+
+  /** `{ percent: px }` for every stop of a keyframes block, whichever property it moves. */
+  const stops = (sheet: string, name: string): Record<string, number> => {
+    const body = new RegExp(`@keyframes ${name}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(sheet)?.[1] ?? ''
+    const out: Record<string, number> = {}
+    for (const m of body.matchAll(
+      /([\d%,\s]+)\{[^}:]*:\s*(?:translateY\()?(-?\d+)(?:px)?\)?;\s*\}/g
+    )) {
+      for (const pct of (m[1] ?? '')
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)) {
+        out[pct] = Number(m[2])
+      }
+    }
+    return out
+  }
+
+  it('registers --rail-bounce as an inherited <length>, so it can animate and reach the row', () => {
+    const prop = block(/^@property --rail-bounce\s*\{([^}]*)/m)
+    expect(prop).toMatch(/syntax:\s*'<length>'/)
+    expect(prop).toMatch(/inherits:\s*true/)
+    expect(prop).toMatch(/initial-value:\s*0px/)
+  })
+
+  it('the slot animates --rail-bounce while it holds a needs-you row, only without reduced motion', () => {
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.pinnedSlot:has\(\.emphasized\)\s*\{\s*animation:\s*railBounce 2\.4s ease-in-out infinite;/
+    )
+  })
+
+  it('railBounce hops exactly like needsYouBounce — same stops, same pixels', () => {
+    const rail = stops(css, 'railBounce')
+    expect(Object.keys(rail).length).toBeGreaterThan(0)
+    expect(rail).toEqual(stops(emphasis, 'needsYouBounce'))
+  })
+
+  it("the pinned row drops its own bounce and follows the slot's value instead", () => {
+    const row = block(/^\.pinnedSlot \.row\.emphasized\s*\{([^}]*)/m)
+    expect(row).toMatch(/animation:\s*none/)
+    expect(row).toMatch(/transform:\s*translateY\(var\(--rail-bounce\)\)/)
+  })
+
+  it('every vertical position in the chrome layer moves by --rail-bounce', () => {
+    const chrome = block(/^\.pinnedSlot::before\s*\{([^}]*)/m)
+    const positions = /mask-position:\s*([^;]*);/.exec(chrome)?.[1] ?? ''
+    // Layer 1 is the whole surface (0 0); the six cuts after it all follow the tab.
+    const layers = positions.split(/,\s*\n/).map((l) => l.trim())
+    expect(layers).toHaveLength(7)
+    for (const layer of layers.slice(1)) expect(layer).toContain('var(--rail-bounce)')
+    // Two wall stubs + two rings in the background: each one's size or offset moves too.
+    const background = /background:\s*([^;]*);/.exec(chrome)?.[1] ?? ''
+    expect(background.match(/var\(--rail-bounce\)/g)?.length).toBe(4)
+  })
+})
+
 describe('AttentionRail — the hit strip keeps the row clickable where its box gave up width', () => {
   it('.row.active::after is pointer-events: auto (chrome around it stays pointer-events: none)', () => {
     const strip = block(/^\.row\.active::after\s*\{([^}]*)\}/m)

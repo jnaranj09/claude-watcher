@@ -24,6 +24,7 @@
     "text-dim": "#47453d",
     "text-on-accent": "#11111b",
     "text-on-danger": "#ffffff",
+    "text-on-lit": "#1a1a18",
     "working": "#89b4fa",
     "needs-you": "#ffcf29",
     "done": "#a6e3a1",

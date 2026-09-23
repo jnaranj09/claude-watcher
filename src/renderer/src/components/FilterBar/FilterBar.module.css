@@ -60,7 +60,7 @@
 .toggle[data-lit='true'] {
   background: var(--text-primary);
   border-color: var(--text-primary);
-  color: var(--bg-base);
+  color: var(--text-on-lit);
 }
 
 .toggleCount {

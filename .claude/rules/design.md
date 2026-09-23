@@ -190,7 +190,7 @@ rail, the `TagPicker` rows — is drawn by `TagPathLabel` instead, never a chip 
   nest in the row `<button>`: a hidden copy holds its place in the flow, and CSS anchor positioning
   lays the button over it (`anchor-scope` per `.rowWrap`). It needs `position-visibility: always`:
   the default force-hides a box whose anchor is invisible, and the copy is `visibility: hidden`.
-- **An open peek toggle is LIT** — the filter toggle's lit state: `--text-primary` fill, `--bg-base`
+- **An open peek toggle is LIT** — the filter toggle's lit state: `--text-primary` fill, `--text-on-lit`
   ink, and the tag mark redrawn in that ink (`TagIndicator mono`, same shape, so nothing shifts). It
   is the row's only sign that it is expanded and can be closed; its `title` reads `Hide tags`. The
   rail header's `Show all tags` toggle is lit the same way while on.
@@ -243,7 +243,7 @@ above the columns, never in the header: a header button reading "All tags" did n
   `.filterSlot`). Never pull the grid up with a negative margin: its box would cover the lower part
   of the bar and take its clicks.
 - **The button is LIT while the chip row is open**, like the rail's open tag toggles, **and while
-  it is closed with a filter on** — `--text-primary` fill, `--bg-base` ink (`data-lit`). Closed
+  it is closed with a filter on** — `--text-primary` fill, `--text-on-lit` ink (`data-lit`). Closed
   with a filter on it is the loudest thing on the board's edge, on purpose: cards are hidden and the
   pill that says so is out of sight. (A corner count badge was the quieter option; the operator
   chose this one.) With a filter on it also carries the count (named `Filter, 1 on`). The search is

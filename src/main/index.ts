@@ -249,6 +249,7 @@ import { createPendingTitles } from './hooks/pendingTitles'
 // Name-sync — the read-back decision (claude is the authority on its own name). Pure + here
 // rather than inline, so it is testable: nothing can import index.ts.
 import { titleReadBackRename } from './hooks/titleReadBack'
+import { PROFILE } from './profile'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
@@ -256,6 +257,15 @@ import { titleReadBackRename } from './hooks/titleReadBack'
 // exit gate machine-verifiable in a headless/autonomous run.
 const SMOKE = process.env.C9_SMOKE === '1'
 const SMOKE_OUT = process.env.C9_SMOKE_OUT || ''
+
+// The run profile (`./profile.ts`): `npm run dev` keeps its data in its OWN userData dir and
+// binds its own ports, so it runs beside the installed app without sharing a byte of state.
+// userData must be moved BEFORE app-ready — every store below is built after it.
+if (PROFILE.name !== 'default') {
+  app.setPath('userData', join(app.getPath('appData'), PROFILE.userDataDirName))
+  console.log(`[claude-watcher][profile] name=${PROFILE.name} hookPort=${PROFILE.hookPort}`)
+}
+const PROFILE_SETTINGS_DEFAULTS = { ...DEFAULT_SETTINGS, apiPort: PROFILE.apiPort }
 
 // --- Story 0.1 spike: single dedicated PTY forwarder ---------------------------
 // THIS STORY ONLY: a single PTY streamed to the renderer over a minimal IPC
@@ -2473,6 +2483,14 @@ function createWindow(): void {
     }
   })
 
+  // A dev-profile window says so in its title, so it is never mistaken for the installed app.
+  if (PROFILE.titleSuffix !== '') {
+    mainWindow.on('page-title-updated', (e, title) => {
+      e.preventDefault()
+      mainWindow.setTitle(title + PROFILE.titleSuffix)
+    })
+  }
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
@@ -2663,12 +2681,15 @@ app
     try {
       settingsStore = SMOKE
         ? createSettingsStore()
-        : createSettingsStore({ blobStore: createElectronSettingsBlobStore() })
+        : createSettingsStore({
+            blobStore: createElectronSettingsBlobStore(),
+            defaults: PROFILE_SETTINGS_DEFAULTS
+          })
     } catch {
       // Code ONLY — never the error. A JSON SyntaxError message QUOTES the offending file
       // content, which can carry an operator path (zod-boundaries.md never-log-the-value).
       console.error('[c9watch][settings] code=settings_store_init_failed (using in-memory)')
-      settingsStore = createSettingsStore()
+      settingsStore = createSettingsStore({ defaults: PROFILE_SETTINGS_DEFAULTS })
     }
     registerSettingsIpc()
 

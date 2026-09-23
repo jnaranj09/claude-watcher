@@ -63,6 +63,10 @@ export const TOKENS = {
    * lightens the ground. `text-on-danger` sits on `--danger` (armed Delete, Quit anyway). */
   'text-on-accent': '#11111b',
   'text-on-danger': '#ffffff',
+  /* Ink ON a lit fill: a LIT toggle (`--text-primary` fill — the filter button, the rail's open
+   * tag toggles) and the needs-you count pill. It was `--bg-base`, which a glass theme makes
+   * `transparent` — and the ink vanished with it. Same value as `bg-base` here. */
+  'text-on-lit': '#1a1a18',
 
   // ── Status / accent (Catppuccin Mocha + one custom gold) ───────────────────
   working: '#89b4fa',

@@ -89,6 +89,7 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `text-dim` | Dividers and the dimmest text (bright-black in the terminal) | `#47453d` |
 | `text-on-accent` | Ink on a working-coloured (primary) button | `#11111b` |
 | `text-on-danger` | Ink on a danger-coloured (armed delete) button | `#ffffff` |
+| `text-on-lit` | Ink on a lit toggle (text-primary fill) and on the needs-you count pill | `#1a1a18` |
 | `working` | The working status colour, the primary button fill and the selection accent | `#89b4fa` |
 | `needs-you` | The needs-you status colour (gold): the rail badge, the hero column accent | `#ffcf29` |
 | `done` | Defined for completeness; no component uses it | `#a6e3a1` |

@@ -49,6 +49,10 @@ export interface SettingsStoreOptions {
   /** Log sink — a `code=` ONLY, NEVER a settings/file value (Guardrail #6). Defaults to
    *  console.warn. Injectable so tests can spy without a real console write. */
   log?: (message: string) => void
+  /** What a FRESH (or reset) settings file starts from. Defaults to DEFAULT_SETTINGS; the dev
+   *  profile passes its own `apiPort` here (`../profile.ts`). An existing valid file keeps its
+   *  own values — this never overrides what the operator saved. */
+  defaults?: Settings
 }
 
 export interface SettingsStore {
@@ -84,7 +88,7 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
   let current: Settings = loadPersistedOrReset<Settings>({
     blobStore,
     parse: parseSettings,
-    fallback: () => ({ ...DEFAULT_SETTINGS }),
+    fallback: () => ({ ...(options.defaults ?? DEFAULT_SETTINGS) }),
     onProblem: (code) => log(`[c9watch][settings] code=settings_${code}`)
   })
 

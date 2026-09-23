@@ -27,6 +27,12 @@ implementation should also follow a systematic approach.
 | E2E (Playwright-Electron)              | `npm run test:e2e`                                               |
 | Packaged node-pty smoke gate           | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
 
+**`npm run dev` runs on the DEV profile** (`src/main/profile.ts`), so it can run beside the
+installed app: userData `~/.config/claude-watcher-dev`, hook port **19279**, a fresh settings file
+starts with API port **19281**, and the window title ends in `(dev)`. The signal is
+`ELECTRON_RENDERER_URL` (set only by `electron-vite dev`), so the packaged app, `smoke` and the
+drive/e2e runs of the built app stay on the default profile (9279 / 9281).
+
 **Running a single test** — Vitest has two projects (see `vitest.config.ts`): `unit`
 (jsdom) and `main-unit` (node). Target one file or test:
 
