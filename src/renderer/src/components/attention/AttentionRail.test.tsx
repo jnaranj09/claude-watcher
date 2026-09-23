@@ -646,8 +646,8 @@ describe('AttentionRail — the active row is NOT a control', () => {
     const css = readCss('./AttentionRail.module.css')
 
     // A ROW rule is one whose selector names a row class. The lookahead keeps `.rowWrap`,
-    // `.rowRenameButton` and `.startingRowName` out — chrome around a row, not the row, and they
-    // legitimately carry their own sizes (a 20px pencil, a 24px chevron).
+    // `.rowTools` and `.startingRowName` out — chrome around a row, not the row. (The pencil and
+    // the chevron are the shared Button now; their sizes live in Button.module.css.)
     const ROW_CLASS = /\.(?:row|startingRow|emphasized|active)(?![A-Za-z])/
     const rules: { selector: string; sizes: number[] }[] = []
     for (const [, rawSelector, block] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
@@ -1302,27 +1302,47 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
   it('CSS: the tools overlay the row, the untagged toggle hides until hover, tags only PAD the row', () => {
     const css = readCss('./AttentionRail.module.css')
     expect(/\.rowTools\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/position:\s*absolute/)
-    expect(/\.peekButtonEmpty\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/opacity:\s*0/)
-    expect(css).toMatch(/\.rowWrap:hover \.peekButtonEmpty/)
+    // The reveal is on the WRAPPER (Button takes no className): hidden at rest, shown on hover /
+    // focus-within, and held open by `data-open` while the peek is up and focus is in the picker.
+    expect(/\.hoverTool\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/opacity:\s*0/)
+    expect(css).toMatch(
+      /\.rowWrap:hover \.hoverTool,\s*\.rowWrap:focus-within \.hoverTool,\s*\.hoverTool\[data-open\]\s*\{[^}]*opacity:\s*1/
+    )
+    // An untagged row's toggle is in a hover slot; a tagged row's is not (its mark is information).
+    seed()
+    const r = renderRail({ onSetSessionTags: vi.fn() })
+    const slotOf = (id: string): string | undefined =>
+      itemOf(r, id)?.querySelector('[data-testid="rail-tags-peek"]')?.parentElement?.className
+    expect(slotOf('plain')).toContain('hoverTool')
+    expect(slotOf('tagged')).not.toContain('hoverTool')
     const hasTags = /\.row\[data-has-tags\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
     expect(hasTags).toMatch(/padding-right/)
     expect(hasTags).not.toMatch(/height/)
   })
 
-  it('CSS: open/on toggles are lit like the filter toggle; + tag is laid over its ghost', () => {
+  it('open/on toggles are LIT (Button `lit`) like the filter toggle; + tag is laid over its ghost', () => {
+    // The row's open peek toggle and the header's "Show all tags" while on are the shared Button's
+    // `lit` state (`data-lit`, present only while on — Button.module.css owns the fill and ink).
+    seed()
+    const r = renderRail()
+    const peek = itemOf(r, 'tagged')?.querySelector<HTMLButtonElement>(
+      '[data-testid="rail-tags-peek"]'
+    )
+    const showAll = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-show-tags"]')
+    expect(peek?.hasAttribute('data-lit')).toBe(false)
+    expect(showAll?.hasAttribute('data-lit')).toBe(false)
+    act(() => peek?.click())
+    expect(peek?.hasAttribute('data-lit')).toBe(true)
+    act(() => showAll?.click())
+    expect(showAll?.hasAttribute('data-lit')).toBe(true)
+    act(() => peek?.click())
+    act(() => showAll?.click())
+    expect(peek?.hasAttribute('data-lit')).toBe(false)
+    expect(showAll?.hasAttribute('data-lit')).toBe(false)
+    // The rail draws no lit rule of its own any more (comments stripped: they name the token).
     const css = readCss('./AttentionRail.module.css')
     const block = (re: RegExp): string => re.exec(css)?.[1] ?? ''
-    // The row's open peek toggle, and the header's "Show all tags" while on.
-    for (const [base, lit] of [
-      ['.peekButton', ".peekButton[aria-expanded='true']"],
-      ['.collapseToggle', ".collapseToggle[aria-pressed='true']"]
-    ] as const) {
-      const rule = block(new RegExp(`${lit.replace(/[.[\]]/g, '\\$&')}\\s*\\{([^}]*)\\}`))
-      expect(rule, lit).toMatch(/background:\s*var\(--text-primary\)/)
-      expect(rule, lit).toMatch(/color:\s*var\(--text-on-lit\)/)
-      // After :hover, or hovering the lit toggle would drop its fill.
-      expect(css.indexOf(lit), lit).toBeGreaterThan(css.indexOf(`${base}:hover`))
-    }
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/--text-on-lit|data-lit/)
     // Each wrapper scopes its own anchor; the ghost names it and stays invisible; the real button is
     // laid over it.
     expect(block(/\.rowWrap\s*\{([^}]*)\}/)).toMatch(/anchor-scope:\s*--rail-add-tag/)

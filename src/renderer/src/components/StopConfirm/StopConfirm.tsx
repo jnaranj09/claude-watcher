@@ -53,6 +53,7 @@ import { useEffect, useRef, type JSX } from 'react'
 import type { StopConfirmPayload } from '../../stores/boardStore'
 import { boardStore } from '../../stores/boardStore'
 import { deleteTerminal } from '../../lib/sessionExit'
+import { Button } from '../Button/Button'
 import styles from './StopConfirm.module.css'
 
 interface StopConfirmProps {
@@ -111,24 +112,19 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
 
         {/* Button row: Cancel (default-focused) + Delete (danger) */}
         <div className={styles.actions}>
-          <button
-            type="button"
-            ref={cancelRef}
-            className={styles.cancelButton}
-            data-testid="stop-confirm-cancel"
+          {/* Focus-on-mount lives in the useEffect above, not autoFocus, so it is deterministic. */}
+          <Button
+            variant="secondary"
+            buttonRef={cancelRef}
+            testId="stop-confirm-cancel"
             onClick={handleCancel}
-            // autoFocus is set in useEffect above for deterministic focus-on-mount.
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className={styles.confirmButton}
-            data-testid="stop-confirm-stop"
-            onClick={handleDelete}
-          >
+          </Button>
+          {/* `armed`: this IS the confirming press, so it is drawn filled, not red-outlined. */}
+          <Button variant="danger" armed testId="stop-confirm-stop" onClick={handleDelete}>
             Delete
-          </button>
+          </Button>
         </div>
       </div>
     </div>

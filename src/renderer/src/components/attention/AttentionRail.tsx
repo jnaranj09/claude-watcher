@@ -84,6 +84,7 @@ import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagChipWrap } from '../TagChip/TagChip'
 import { TagPicker } from '../TagPicker/TagPicker'
+import { Button } from '../Button/Button'
 import { shortName } from './railName'
 import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './AttentionRail.module.css'
@@ -397,22 +398,33 @@ function PeekButton(props: {
       ? `Add tags to ${name}`
       : `Tags: ${tags.map((t) => t.name).join(', ')}`
   const title = createOnly ? 'No tags yet — create tags' : open ? 'Hide tags' : label
+  // The hover-reveal of an untagged row's toggle is the wrapper's (Button takes no className);
+  // `data-open` keeps it shown while its peek is open and focus has moved to the picker.
   return (
-    <button
-      type="button"
-      className={`${styles.peekButton} ${tags.length === 0 ? styles.peekButtonEmpty : ''}`}
-      data-testid="rail-tags-peek"
-      {...(createOnly ? { 'aria-haspopup': 'dialog' as const } : { 'aria-expanded': open })}
-      aria-label={label}
-      title={title}
-      onClick={onToggle}
+    <span
+      className={`${styles.toolSlot} ${tags.length === 0 ? styles.hoverTool : ''}`}
+      {...(open ? { 'data-open': true } : {})}
     >
-      {tags.length > 0 ? (
-        <TagIndicator tags={tags} mono={open} />
-      ) : (
-        <TagGlyphIcon size={10} strokeWidth={1.92} />
-      )}
-    </button>
+      <Button
+        variant="ghost"
+        size="xs"
+        // The 3-or-more mark (two glyphs + the `+`) is 29px wide and cannot sit in the 20px icon
+        // square; that toggle takes `xs`'s own padding instead, as the old `min-width` let it.
+        icon={tags.length < 3}
+        lit={open}
+        testId="rail-tags-peek"
+        {...(createOnly ? { 'aria-haspopup': 'dialog' as const } : { 'aria-expanded': open })}
+        aria-label={label}
+        title={title}
+        onClick={onToggle}
+      >
+        {tags.length > 0 ? (
+          <TagIndicator tags={tags} mono={open} />
+        ) : (
+          <TagGlyphIcon size={10} strokeWidth={1.92} />
+        )}
+      </Button>
+    </span>
   )
 }
 
@@ -422,28 +434,31 @@ function PeekButton(props: {
 function RenameButton(props: { name: string; onClick: () => void }): JSX.Element {
   const { name, onClick } = props
   return (
-    <button
-      type="button"
-      className={styles.rowRenameButton}
-      data-testid="rail-rename"
-      aria-label={`Rename ${name}`}
-      title={`Rename ${name}`}
-      onClick={onClick}
-    >
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
+    <span className={`${styles.toolSlot} ${styles.hoverTool}`}>
+      <Button
+        variant="ghost"
+        size="xs"
+        icon
+        testId="rail-rename"
+        aria-label={`Rename ${name}`}
+        title={`Rename ${name}`}
+        onClick={onClick}
       >
-        <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
-      </svg>
-    </button>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
+        </svg>
+      </Button>
+    </span>
   )
 }
 
@@ -694,28 +709,31 @@ export function AttentionRail({
         {!collapsed && <span className={styles.title}>Sessions</span>}
         <span className={styles.headerTools}>
           {!collapsed && hasTags && (
-            <button
-              type="button"
-              className={styles.collapseToggle}
-              data-testid="rail-show-tags"
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
+              lit={showAllTags}
+              testId="rail-show-tags"
               aria-pressed={showAllTags}
               aria-label="Show all tags"
               title={showAllTags ? 'Hide tags' : 'Show all tags'}
               onClick={() => setShowAllTags((v) => !v)}
             >
               <TagGlyphIcon size={13} />
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className={styles.collapseToggle}
-            data-testid="rail-collapse"
+          <Button
+            variant="ghost"
+            size="sm"
+            icon
+            testId="rail-collapse"
             aria-label={collapsed ? 'Expand sessions rail' : 'Collapse sessions rail'}
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((c) => !c)}
           >
             {collapsed ? '»' : '«'}
-          </button>
+          </Button>
         </span>
       </div>
       <LiveAnnouncer message={announcement} />

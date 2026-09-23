@@ -112,57 +112,12 @@
   margin: 0;
 }
 
-/* ── Actions: Cancel (default) + Quit anyway (danger) ───────────────────── */
+/* ── Actions: the wrapper for Cancel (default) + Quit anyway (danger). The buttons themselves
+   are `Button` (secondary / danger armed) — layout only lives here. ────── */
 .actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-2);
-}
-
-/* Cancel — the DEFAULT action (focused on mount; Enter cancels). Ghost style. */
-.cancelButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.cancelButton:hover {
-  background: var(--bg-surface);
-  border-color: var(--border-strong);
-}
-
-/* Focus ring: lavender (#b4befe) for the default Cancel button. */
-.cancelButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-/* Quit anyway — danger red (#db4b4b). */
-.confirmButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--rounded-md);
-  background: var(--danger);
-  color: var(--text-on-danger);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.confirmButton:hover {
-  opacity: 0.88;
-}
-
-.confirmButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
 }

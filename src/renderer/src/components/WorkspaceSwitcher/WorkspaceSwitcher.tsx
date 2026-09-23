@@ -132,7 +132,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
       <button
         type="button"
         ref={buttonRef}
-        className={styles.button}
+        className={styles.switcher}
         data-testid="workspace-switcher"
         aria-haspopup="menu"
         aria-expanded={open}

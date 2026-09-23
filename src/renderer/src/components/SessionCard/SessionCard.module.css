@@ -110,7 +110,7 @@
 }
 
 /* ── Anatomy ───────────────────────────────────────────────────────────────── */
-/* Three children in a row: the name, the rename pencil, the status dot.
+/* The name, the action slots (pencil, move, tags, Archive, Delete), the status dot, in a row.
  *
  * This used to be `justify-content: space-between`, which spread all three across the full card
  * width and parked the pencil an inch away from the name it renames. A control that far from its
@@ -134,60 +134,39 @@
   margin-left: auto;
 }
 
-/* ── A2 rename pencil ───────────────────────────────────────────────────────────
- * Revealed on card hover / focus-within, and ALWAYS visible while itself focused.
+/* ── The card's action slots (rename, move, tags, Archive, Delete) ─────────────────
+ * Each control is the shared `Button` (ghost / danger, `xs`, icon) — it owns the box, the ink and
+ * the focus ring. This WRAPPER owns only where the button sits and when it shows: revealed on card
+ * hover / focus-within (a focused button is inside the card, so tabbing to it shows it with no
+ * pointer near the card).
  *
  * `opacity`, NOT `display:none` / `visibility:hidden`: the button must stay in the layout AND in
  * the tab order at all times. Hiding it would make rename keyboard-unreachable, and a hover-only
  * control is exactly the accessibility hole UX-DR29's "never the sole signal" thinking guards
- * against. Reserved space also means revealing it never reflows the header (no title jump).
- *
- * `:focus-visible` on the button itself wins over the hidden default, so tabbing to it shows it
- * even with no pointer anywhere near the card. */
-.renameButton {
+ * against. Reserved space also means revealing it never reflows the header (no title jump). */
+.actionSlot {
   flex: none;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: var(--rounded-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
   opacity: 0;
   transition: opacity 120ms ease-out;
 }
 
-.root:hover .renameButton,
-.root:focus-within .renameButton {
+.root:hover .actionSlot,
+.root:focus-within .actionSlot {
   opacity: 1;
-}
-
-.renameButton:hover {
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-}
-
-.renameButton:focus-visible {
-  opacity: 1;
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
 }
 
 /* Motion is reserved for needs-you signals; honour the reduced-motion preference here too. */
 @media (prefers-reduced-motion: reduce) {
-  .renameButton {
+  .actionSlot {
     transition: none;
   }
 }
 
 /* ── Workspaces (Task 12) move-to-workspace affordance ─────────────────────────
- * The toggle button itself reuses `.renameButton` verbatim (same reveal-on-hover/focus-within
- * chrome as the pencil); only the popover it opens is new here. Chrome mirrors
- * WorkspaceSwitcher.module.css's `.menu`/`.row`, scaled down for the card's own footprint. */
+ * The toggle sits in an `.actionSlot` like the pencil; only the popover it opens is new here.
+ * Chrome mirrors WorkspaceSwitcher.module.css's `.menu`/`.row`, scaled down for the card's own
+ * footprint. */
 .moveWrap {
   position: relative;
   display: inline-flex;
@@ -323,20 +302,6 @@
   font-size: 0.85em;
   margin-left: 0.3em;
   flex: none;
-}
-
-/* D-5 — Delete is red at rest, filled on hover/focus (design.md's Delete treatment, drawn here
-   because the ManageDialog danger-button class names are reserved to ManageDialog.module.css —
-   see SessionCard.test.tsx's "never uses the ManageDialog class names" guard). Inherits
-   `.renameButton`'s reveal-on-hover; the colour is the only difference. */
-.cardDelete {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-.cardDelete:hover,
-.cardDelete:focus-visible {
-  background: var(--danger);
-  color: var(--text-on-danger);
 }
 
 /* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised

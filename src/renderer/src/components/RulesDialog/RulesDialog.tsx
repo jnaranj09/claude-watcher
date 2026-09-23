@@ -136,6 +136,8 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
                           testId={`rule-up-${r.id}`}
                           onClick={() => move(r, -1)}
                           disabled={isFirst}
+                          size="xs"
+                          icon
                         >
                           <span aria-hidden="true">↑</span>
                           <span className="sr-only">
@@ -146,6 +148,8 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
                           testId={`rule-down-${r.id}`}
                           onClick={() => move(r, 1)}
                           disabled={isLast}
+                          size="xs"
+                          icon
                         >
                           <span aria-hidden="true">↓</span>
                           <span className="sr-only">

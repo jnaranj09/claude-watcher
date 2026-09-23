@@ -51,6 +51,7 @@ import { useShortcuts, makeSelectVisibleShortcuts } from '../stores/shortcutsSto
 import { selectActiveWorkspaceId, useWorkspaces } from '../stores/workspacesStore'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
+import { Button } from '../components/Button/Button'
 import styles from './EmbeddedTerminal.module.css'
 
 export interface EmbeddedTerminalProps {
@@ -605,15 +606,11 @@ export function EmbeddedTerminal({
               />
             ) : (
               // Plain-shell terminals view (`#terminals`): no App seams exist, so the ONE action
-              // stays a re-open of a fresh pty into this same pane.
-              <button
-                type="button"
-                className={styles.deadButton}
-                data-testid="dead-new-session"
-                onClick={reopen}
-              >
+              // stays a re-open of a fresh pty into this same pane. `md` — it fills the slot the
+              // 32px `+ New session` primary fills above, so the pane is the same shape either way.
+              <Button variant="secondary" testId="dead-new-session" onClick={reopen}>
                 New session
-              </button>
+              </Button>
             )}
           </div>
         </div>

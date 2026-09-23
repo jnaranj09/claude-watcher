@@ -57,6 +57,7 @@ import { brokenThemesLine, themeErrorCopy } from '../../lib/themeCopy'
 import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
+import { Button } from '../Button/Button'
 import { reminderSummary } from './reminderSummary'
 import styles from './Settings.module.css'
 
@@ -281,15 +282,16 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
         <div className={styles.header}>
           <span className={styles.title}>Settings</span>
           {onClose && (
-            <button
-              type="button"
-              className={styles.closeButton}
-              data-testid="settings-close"
+            <Button
+              variant="ghost"
+              size="sm"
+              icon
+              testId="settings-close"
               onClick={onClose}
               aria-label="Close settings"
             >
               ✕
-            </button>
+            </Button>
           )}
         </div>
 
@@ -533,16 +535,17 @@ export function Settings(): JSX.Element {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button
-        type="button"
-        className={styles.openButton}
-        data-testid="settings-open"
+      <Button
+        variant="ghost"
+        size="sm"
+        icon
+        testId="settings-open"
         aria-label="Open settings"
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
       >
         ⚙
-      </button>
+      </Button>
       {open && <SettingsPanel onClose={() => setOpen(false)} />}
     </>
   )

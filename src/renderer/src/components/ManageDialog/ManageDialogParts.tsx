@@ -22,6 +22,7 @@ import {
   type ManageDialogContextValue
 } from './manageDialogState'
 import styles from './ManageDialog.module.css'
+import { Button, type ButtonSize } from '../Button/Button'
 
 function cx(...classes: (string | false | undefined)[]): string {
   return classes.filter((c): c is string => typeof c === 'string' && c.length > 0).join(' ')
@@ -110,16 +111,17 @@ export function ManageDialogHeader({
       </div>
       <div className={styles.headerActions}>
         {buttons}
-        <button
-          ref={closeRef}
-          type="button"
-          className={styles.closeButton}
-          data-testid={`${testIdPrefix}-close`}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon
+          buttonRef={closeRef}
+          testId={`${testIdPrefix}-close`}
           aria-label={`Close ${title.toLowerCase()}`}
           onClick={() => actions.close()}
         >
           ✕
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -209,17 +211,17 @@ export function ManageDialogDelete({
   }
 
   return (
-    <button
-      type="button"
-      className={armed ? styles.dangerButton : styles.deleteButton}
-      data-testid={armed ? (armedTestId ?? testId) : testId}
+    <Button
+      variant="danger"
+      armed={armed}
+      testId={armed ? (armedTestId ?? testId) : testId}
       disabled={disabled}
       onClick={handleClick}
       onBlur={() => actions.disarm()}
       onKeyDown={handleKeyDown}
     >
       {armed ? confirmLabel : label}
-    </button>
+    </Button>
   )
 }
 
@@ -240,15 +242,15 @@ export function ManageDialogSave({
   children = 'Save'
 }: ManageDialogSaveProps): JSX.Element {
   return (
-    <button
+    <Button
+      variant="primary"
       type={onClick === undefined ? 'submit' : 'button'}
-      className={styles.primaryButton}
-      data-testid={testId}
+      testId={testId}
       disabled={disabled}
       onClick={onClick}
     >
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -299,26 +301,32 @@ export interface ManageDialogGhostButtonProps {
   testId: string
   onClick: () => void
   disabled?: boolean
+  /** Rules' ↑ / ↓ in the 56px `RowActions` slot: two `xs` icon squares fit, two `md` do not. */
+  size?: ButtonSize | undefined
+  icon?: boolean | undefined
   children: ReactNode
 }
 
-/** The secondary button style (Browse…, Cancel, Edit, Add shortcut). */
+/** The secondary button (Browse…, Cancel, Edit, Add shortcut) — `Button` `secondary`. */
 export function ManageDialogGhostButton({
   testId,
   onClick,
   disabled = false,
+  size,
+  icon,
   children
 }: ManageDialogGhostButtonProps): JSX.Element {
   return (
-    <button
-      type="button"
-      className={styles.ghostButton}
-      data-testid={testId}
+    <Button
+      variant="secondary"
+      size={size}
+      icon={icon}
+      testId={testId}
       disabled={disabled}
       onClick={onClick}
     >
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -420,17 +428,15 @@ function isRowActions(node: ReactNode): boolean {
   return isValidElement(node) && node.type === ManageDialogRowActions
 }
 
-/** `+ New` — back to the empty form. Sits at the BOTTOM of the rail (`margin-top: auto`). */
+/** `+ New` — back to the empty form. Its SLOT sits at the BOTTOM of the rail (`margin-top: auto`
+ *  on the wrapper: a button never carries layout of its own). */
 export function ManageDialogNew({ testId }: { testId: string }): JSX.Element {
   const { actions } = useManageDialogContext()
   return (
-    <button
-      type="button"
-      className={cx(styles.ghostButton, styles.newButton)}
-      data-testid={testId}
-      onClick={() => actions.select(null)}
-    >
-      + New
-    </button>
+    <div className={styles.newSlot}>
+      <Button variant="secondary" testId={testId} onClick={() => actions.select(null)}>
+        + New
+      </Button>
+    </div>
   )
 }

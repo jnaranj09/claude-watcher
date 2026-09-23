@@ -38,6 +38,7 @@ import { useEffect, useRef, type JSX } from 'react'
 import type { QuitGuardPayload } from '../../../../shared/ipc/contract'
 import { boardStore } from '../../stores/boardStore'
 import { statusLabel } from '../StatusDot/statusLabel'
+import { Button } from '../Button/Button'
 import styles from './QuitGuard.module.css'
 
 interface QuitGuardProps {
@@ -126,24 +127,19 @@ export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
 
         {/* Button row: Cancel (default-focused) + Quit anyway (danger) */}
         <div className={styles.actions}>
-          <button
-            type="button"
-            ref={cancelRef}
-            className={styles.cancelButton}
-            data-testid="quit-guard-cancel"
+          {/* Focus-on-mount lives in the useEffect above, not autoFocus, so it is deterministic. */}
+          <Button
+            variant="secondary"
+            buttonRef={cancelRef}
+            testId="quit-guard-cancel"
             onClick={handleCancel}
-            // autoFocus is set in useEffect above for deterministic focus-on-mount.
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className={styles.confirmButton}
-            data-testid="quit-guard-confirm"
-            onClick={handleConfirm}
-          >
+          </Button>
+          {/* `armed`: this IS the confirming press, so it is drawn filled, not red-outlined. */}
+          <Button variant="danger" armed testId="quit-guard-confirm" onClick={handleConfirm}>
             Quit anyway
-          </button>
+          </Button>
         </div>
       </div>
     </div>

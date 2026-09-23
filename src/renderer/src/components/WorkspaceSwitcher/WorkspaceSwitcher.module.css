@@ -12,9 +12,21 @@
   z-index: 50;
 }
 
-.button {
+/* The workspace PILL — a compound control (dot + name + count, the elsewhere tab tucked under it),
+   not a button style, so it is not `components/Button`; the liquid-glass theme targets it by its
+   test id. It is the header's height, and the pill's own line fills that box: the name, the count
+   and the badge are baseline-aligned (below), and a baseline group sits at the TOP of a flex line,
+   not the middle — with the height fixed, only a line as tall as the content box keeps the text
+   level with the dot. `--switcher-line` is that height, and the tab's strut uses the same one. */
+.anchor {
+  --switcher-line: calc(32px - 2 * var(--space-1) - 2px);
+}
+.switcher {
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  height: 32px;
+  line-height: var(--switcher-line);
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -28,10 +40,10 @@
   font-weight: var(--font-weight-body);
   cursor: pointer;
 }
-.button:hover {
+.switcher:hover {
   background: var(--bg-surface);
 }
-.button:focus-visible {
+.switcher:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -45,7 +57,7 @@
    glyph is not the middle of its line box. The dot stays centered — it has no baseline. */
 .name,
 .count,
-.button > .badge,
+.switcher > .badge,
 .tab::before,
 .tab > .badge,
 .rowName,
@@ -105,10 +117,10 @@
   border: 1px solid var(--border-strong);
   border-radius: 0 var(--rounded-md) var(--rounded-md) 0;
   background: var(--bg-base);
-  /* The button's font, so the strut below is as tall as the button's name line. */
+  /* The button's font AND line, so the strut below is as tall as the button's name line. */
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
-  line-height: normal;
+  line-height: var(--switcher-line);
   cursor: pointer;
   animation: tab-slide-out 150ms ease-out;
 }

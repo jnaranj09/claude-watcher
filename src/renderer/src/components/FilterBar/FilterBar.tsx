@@ -39,6 +39,7 @@ import {
 import { boardStore, selectSearchQuery, useBoard } from '../../stores/boardStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
+import { Button } from '../Button/Button'
 import { TagChip } from '../TagChip/TagChip'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
@@ -208,15 +209,14 @@ export function FilterBar({
           />
         </div>
         {canFilter && (
-          <button
-            type="button"
-            className={styles.toggle}
-            data-testid="filter-toggle"
+          <Button
+            variant="secondary"
+            lit={lit}
+            testId="filter-toggle"
             aria-expanded={expanded}
             aria-controls={chipRowId}
             title={expanded ? 'Hide filters' : 'Show filters'}
             aria-label={filterOn ? 'Filter, 1 on' : 'Filter'}
-            data-lit={lit}
             onClick={toggleExpanded}
           >
             <FilterLinesIcon />
@@ -226,7 +226,7 @@ export function FilterBar({
                 1
               </span>
             )}
-          </button>
+          </Button>
         )}
         <span className={styles.count} data-testid="filter-count">
           {countText(total, workspaceTotal, filterOn || searching)}

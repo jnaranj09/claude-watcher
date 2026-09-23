@@ -35,21 +35,6 @@
   color: var(--text-primary);
 }
 
-.closeButton {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--rounded-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-  font-size: 14px;
-}
-
-.closeButton:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
 .row {
   display: flex;
   align-items: center;
@@ -116,21 +101,4 @@
   justify-content: flex-end;
   gap: var(--space-3);
   padding: 0 0 var(--space-3);
-}
-
-/* The header gear that opens the surface. */
-.openButton {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--rounded-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-  font-size: 16px;
-  line-height: 1;
-}
-
-.openButton:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
 }

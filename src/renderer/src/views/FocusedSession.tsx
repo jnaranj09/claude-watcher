@@ -24,6 +24,7 @@ import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
 import { AttentionRail } from '../components/attention/AttentionRail'
 import { NameSyncMark } from '../components/SessionCard/SessionCard'
 import { StatusDot, type DotStatus } from '../components/StatusDot/StatusDot'
+import { Button } from '../components/Button/Button'
 import type { Column } from '../../../shared/ipc/contract'
 import { archiveTerminal, sessionIdForTerminal } from '../lib/sessionExit'
 import {
@@ -160,15 +161,14 @@ export function FocusedSession({
       />
       <div className={styles.main}>
         <div className={styles.bar}>
-          <button
-            type="button"
-            className={styles.backButton}
-            data-testid="focused-back"
+          <Button
+            variant="secondary"
+            testId="focused-back"
             onClick={onBack}
             aria-label="Back to board (Esc)"
           >
             ← Board
-          </button>
+          </Button>
           {/* The session's name is the bar's TITLE, read as a breadcrumb: `← Board / ● name`. At the
               right edge it read as a stray label beside Archive/Delete. Its dot is the session's
               status (never colour-only: StatusDot carries an sr-only label); the ⟳ mark trails it
@@ -189,28 +189,28 @@ export function FocusedSession({
           <span className={styles.hint}>Esc to return</span>
           {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. Same
               chord as Ctrl+W (App.tsx), which archives directly without opening this bar. */}
-          <button
-            type="button"
-            className={styles.archiveButton}
-            data-testid="focused-archive"
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="focused-archive"
             onClick={handleArchive}
             aria-label="Archive this session (Ctrl+W)"
             title="Archive — keeps it in Past sessions"
           >
             Archive
-          </button>
+          </Button>
           {/* Past sessions (D-5) — Delete: opens the confirm (UX-DR14: the one exit that is NOT
               reversible needs a confirm; danger styling is on the confirm's Delete button, and
-              this trigger carries the danger treatment too so it reads as the risky one). */}
-          <button
-            type="button"
-            className={`${styles.archiveButton} ${styles.deleteButtonFocused}`}
-            data-testid="focused-delete"
+              this trigger is `danger` too — red at rest — so it reads as the risky one). */}
+          <Button
+            variant="danger"
+            size="sm"
+            testId="focused-delete"
             onClick={handleDelete}
             aria-label="Delete this session"
           >
             Delete
-          </button>
+          </Button>
         </div>
         <div className={styles.terminalWrap}>
           {keptAlive.map((terminalId) => (

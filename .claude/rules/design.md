@@ -58,17 +58,16 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
   footer is ONE `flex-end` row: `[Delete] [Save]`. The operator reads the object they
   are about to destroy (the form) right above the button that destroys it.
 - **Destructive actions arm IN PLACE — one button, two presses.** The label goes
-  `Delete` → `Confirm delete`; the class goes `.deleteButton` → `.dangerButton`. Blur
+  `Delete` → `Confirm delete`; the button goes `variant="danger"` → `armed`. Blur
   disarms it, and Escape disarms it and STOPS THERE (it must not also close the dialog —
   Escape peels one layer). Never a second Cancel/Confirm pair: it adds a control, moves
   the layout, and buries the primary action.
-- **Delete is red at rest, filled on hover/focus.** `.deleteButton` = `--danger` border
-  and text on a transparent background; `:hover`/`:focus-visible` fills `--danger` with
-  white text. `.dangerButton` (solid `--danger`) is the ARMED state only, so arming
-  reads as the same button changing, not a new one appearing. Both classes live in
-  `ManageDialog.module.css` and nowhere else: render `<ManageDialog.Delete>`, which owns
-  the arm / blur / Escape behaviour once. `ManageDialog.styles.test.ts` fails if any other
-  module declares either class.
+- **Delete is red at rest, filled on hover/focus.** `<Button variant="danger">` = `--danger`
+  border and text on a transparent background; `:hover`/`:focus-visible` fills `--danger` with
+  white text. `armed` (solid `--danger`) is the ARMED state only, so arming reads as the same
+  button changing, not a new one appearing. Both looks live in `Button.module.css` and nowhere
+  else: in a Manage dialog render `<ManageDialog.Delete>`, which owns the arm / blur / Escape
+  behaviour once. `Button.test.tsx` fails if any other module declares a button class.
 - **The panel is capped to the viewport and the FORM is what scrolls.** `.panel` is
   `max-height: calc(100vh - 2 * var(--space-6))`, `.columns` carries
   `grid-template-rows: minmax(0, 1fr)`, and `.form` is the one `overflow-y: auto` region — so the
@@ -85,7 +84,8 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
   second error surface per section, and never render a thrown `error.message` — map the
   code to operator copy first (see the `copyFor`/`templateErrorMessage` precedent).
 - **Every interactive control gets `:focus-visible`** in the module's shared outline
-  group. Adding a button class means adding it to that selector list too.
+  group. A button gets it from `Button`; a non-button control (a row select, a menu item) joins
+  its module's selector list.
 - **A control the operator must not use is not rendered.** Do not render it disabled and
   refuse it on click (the Default workspace has NO delete button at all). Main refusing
   the operation is the backstop, not the UI's excuse to offer it.
@@ -234,8 +234,8 @@ above the columns, never in the header: a header button reading "All tags" did n
   little bigger than the 26px ☰ box they started at. A 16px "filter list" icon (three lines getting
   shorter) on the ☰ icon's grid and stroke, `--border`, `--rounded-md`. (An uppercase `FILTERS`
   label and a bare icon were both tried before; the operator's toolbar mockup put `Filter` beside
-  the icon.) Titled `Show filters` / `Hide filters`. A stylesheet test in `FilterBar.test.tsx` pins
-  its height to the search box's.
+  the icon.) Titled `Show filters` / `Hide filters`. It is `<Button variant="secondary" lit>`; a
+  stylesheet test pins Button's `md` height to the search box's.
 - **No chevron and no "pressed" look: open reads as LIT** (below). A second look for "open" would
   make the operator ask which of the two it is in.
 - **It sits tight: 8px under the header, 8px above the columns** (not the 16px gutter either side,
@@ -376,6 +376,39 @@ class. The next copy-paste turns it red before a screenshot has to.
 Checkboxes, radios and ranges are still bare `<input>` — they are not text fields and they do not
 share this box.
 
+## A button is `components/Button/Button.tsx`. Never a bare `<button className=…>`.
+
+Nine button looks had grown across the renderer and most were copies: the raised header button
+pasted into four modules, the dialog Cancel/Confirm pair into three, the quiet outlined ☰ / ⚙ / ✕
+into four with three different borders. None of them set a height, so the label sat on
+`padding: 4px 12px` and looked squeezed. The operator's own mock (2026-09-23) had the buttons at a
+fixed height with room around the text, and that is what Button draws.
+
+- **Four variants.** `primary` is the ONE main action of a surface (`+ New session`, Save) and the
+  only filled-with-accent button. `secondary` is every other outlined control (☰, Back, Cancel,
+  Filter). `danger` is red at rest and fills when `armed` (the Delete contract above). `ghost` is
+  borderless: the icon buttons on cards, rail rows and dialog headers. There is no fifth; a look
+  that is not one of these is a design question, not a new class.
+- **Three sizes, all FIXED heights.** `md` 32px (the header, the filter bar, dialog footers — the
+  same height as TextInput's `toolbar` box), `sm` 26px (pills, the rail's controls), `xs` 20px (the
+  icon buttons inside a card or a rail row). `icon` makes a square of that height.
+- **`lit` is the ON state of a toggle** (`--text-primary` fill, `--text-on-lit` ink): the Filter
+  button while its row is open or a filter is on, an open rail peek. It is a boolean `data-lit`
+  attribute, present only while on — a test checks `hasAttribute`, never `=== 'true'`.
+- **It has no `className`.** Layout — a footer's `flex-end`, `+ New`'s `margin-top: auto`, a
+  card's reveal-on-hover — goes on a WRAPPER at the call site. The moment a button takes a class
+  from its caller, the copies this replaced come back through it.
+- **Refs go through `buttonRef`**; whoever opens a popover owns the refocus, not the button.
+- **The workspace switcher is not a Button.** It is a compound pill (dot, name, count, the
+  "elsewhere" tab) with its own glass in the liquid-glass theme; it only matches Button's `md`
+  height.
+- **The dashed pills** (`+ Add filter`, `+ tag`) and the menu / list rows (AppMenu items, Select
+  options, ManageDialog row selects) are not buttons in this sense and keep their own rules.
+
+`Button.test.tsx` walks every `*.module.css` under `src/renderer/src` and fails if any module other
+than Button declares a button class (`.button`, `.primaryButton`, `.cancelButton`, `.closeButton`,
+…). The next copy-paste turns it red before a screenshot has to.
+
 ## A note on testing CSS classes
 
 `vitest.config.ts` sets no `css` option, so `import styles from './X.module.css'` resolves to a
@@ -389,9 +422,9 @@ and assert on its text instead.
 - Don't put a per-row action anywhere but `ManageDialog.RowActions`, and never one the form
   already has.
 - Don't write `<input type="text">` or a `.input` CSS rule. That is `<TextInput>`.
-- Don't introduce a fourth button style. There are three: `primaryButton`,
-  `ghostButton`, `deleteButton` (+ its armed `dangerButton`) — all in
-  `ManageDialog.module.css`; render `ManageDialog.Save` / `GhostButton` / `Delete`.
+- Don't write `<button className=…>` or a button CSS rule. Every button is
+  `components/Button/Button.tsx` (below). In a Manage dialog render `ManageDialog.Save` /
+  `GhostButton` / `Delete`, which are thin wrappers over it.
 - Don't reach for a native `<select>`, `alert()`, `confirm()`, or any other browser-drawn widget
   with a popup. They are painted by the platform and cannot be themed.
 - Don't hard-code a color that a token already names (`--danger`, `--working`,

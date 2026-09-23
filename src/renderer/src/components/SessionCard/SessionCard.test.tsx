@@ -794,11 +794,55 @@ describe('Archive / Delete (D-3, D-5)', () => {
     expect(container.querySelector('[data-testid="card-archive"]')).toBeNull()
     expect(container.querySelector('[data-testid="card-delete"]')).toBeNull()
   })
-  it('the Delete control is red at rest (--danger) and never uses the ManageDialog class names', async () => {
+  // The card draws NO button of its own: every control is the shared Button (Button.test.tsx guards
+  // the stylesheet). Delete is Button's `danger` — red outline at rest, filled on hover/focus — and
+  // the other four are `ghost`, all `xs` icon squares.
+  it('the controls are the shared Button: Delete is the danger variant, the rest are ghost', async () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          onRename: vi.fn(),
+          onArchive: vi.fn(),
+          onDelete: vi.fn(),
+          onSetTags: vi.fn(),
+          availableTags: [{ id: 't', name: 't', color: 'rose', workspaceId: null }]
+        })}
+      />
+    )
+    cleanup = unmount
+    const variantOf = (testId: string): string | null | undefined =>
+      container.querySelector(`[data-testid="${testId}"]`)?.getAttribute('data-variant')
+    expect(variantOf('card-delete')).toBe('danger')
+    for (const id of ['card-rename', 'card-archive', 'card-tags-button']) {
+      expect(variantOf(id), id).toBe('ghost')
+      expect(container.querySelector(`[data-testid="${id}"]`)?.getAttribute('data-size')).toBe('xs')
+    }
     const css = await readCss()
-    expect(css).toMatch(/\.cardDelete\s*\{[^}]*var\(--danger\)/)
-    expect(css).not.toContain('.deleteButton')
-    expect(css).not.toContain('.dangerButton')
+    for (const cls of ['.renameButton', '.cardDelete', '.deleteButton', '.dangerButton']) {
+      expect(css, cls).not.toContain(cls)
+    }
+  })
+
+  // jsdom applies no :hover, so the reveal is pinned on the stylesheet. It lives on the WRAPPER
+  // (Button takes no className), as `opacity` — never `display:none` — so the controls stay in
+  // the tab order, and a focused one shows through `.root:focus-within`.
+  it('the controls hide in an .actionSlot wrapper that the card reveals on hover / focus-within', async () => {
+    const css = await readCss()
+    expect(/^\.actionSlot\s*\{([^}]*)\}/m.exec(css)?.[1] ?? '').toMatch(/opacity:\s*0;/)
+    expect(css).toMatch(
+      /\.root:hover \.actionSlot,\s*\.root:focus-within \.actionSlot\s*\{[^}]*opacity:\s*1/
+    )
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ onRename: vi.fn(), onArchive: vi.fn(), onDelete: vi.fn() })} />
+    )
+    cleanup = unmount
+    // CSS-module names are hashed here (`_actionSlot_…`), so match the class, not the string.
+    for (const id of ['card-rename', 'card-archive', 'card-delete']) {
+      expect(
+        container.querySelector(`[data-testid="${id}"]`)?.parentElement?.className,
+        id
+      ).toContain('actionSlot')
+    }
   })
 })
 

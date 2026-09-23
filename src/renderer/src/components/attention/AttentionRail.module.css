@@ -138,38 +138,8 @@
   text-transform: uppercase;
 }
 
-.collapseToggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--rounded-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.collapseToggle:hover {
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-}
-
-/* "Show all tags" ON is LIT — the same state as a row's open peek toggle and the board's filter
- * toggle: `--text-primary` fill, `--text-on-lit` ink. Only that toggle carries `aria-pressed` (the
- * chevron is `aria-expanded`). After :hover so it wins at equal specificity. */
-.collapseToggle[aria-pressed='true'] {
-  background: var(--text-primary);
-  color: var(--text-on-lit);
-}
-
-.collapseToggle:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
-}
+/* The header's two buttons (the collapse chevron, "Show all tags") are the shared `Button`
+ * (ghost, `sm`, icon); "Show all tags" ON is its `lit` state. Nothing to draw here. */
 
 /* The ONE scroll container for every group.
  *
@@ -644,43 +614,32 @@
   anchor-scope: --rail-add-tag;
 }
 
-/* Revealed on row hover / keyboard focus anywhere in the wrapper, and always while itself focused.
- * `opacity` rather than `display:none`, for the same reason as the card pencil: it must stay in the
- * tab order, or rename becomes mouse-only. */
-.rowRenameButton {
+/* A tool's slot: the pencil and the tag toggle are the shared `Button` (ghost, `xs`, icon), which
+ * takes no className — so the wrapper is where a tool's layout lives. `inline-flex`, not a bare
+ * span: a blockified span would add a line box's strut under the 20px button. */
+.toolSlot {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: var(--rounded-sm);
-  background: var(--bg-surface-raised);
-  color: var(--text-secondary);
-  cursor: pointer;
+}
+
+/* A HOVER tool (the pencil; an untagged row's tag toggle): revealed on row hover / keyboard focus
+ * anywhere in the wrapper — a focused button is inside `.rowWrap`, so tabbing to it shows it — and
+ * while its own peek is open (`data-open`, set by the toggle) even after focus moved on to the
+ * picker. `opacity` rather than `display:none`, for the same reason as the card pencil: it must
+ * stay in the tab order, or rename becomes mouse-only. */
+.hoverTool {
   opacity: 0;
   transition: opacity 120ms ease-out;
 }
 
-.rowWrap:hover .rowRenameButton,
-.rowWrap:focus-within .rowRenameButton {
+.rowWrap:hover .hoverTool,
+.rowWrap:focus-within .hoverTool,
+.hoverTool[data-open] {
   opacity: 1;
-}
-
-.rowRenameButton:hover {
-  color: var(--text-primary);
-}
-
-.rowRenameButton:focus-visible {
-  opacity: 1;
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
 }
 
 /* Motion stays reserved for needs-you signals. */
 @media (prefers-reduced-motion: reduce) {
-  .rowRenameButton {
+  .hoverTool {
     transition: none;
   }
 }
@@ -1123,51 +1082,10 @@
   padding-right: calc(var(--space-3) + 28px - var(--rounded-md));
 }
 
-.peekButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 20px;
-  min-width: 20px;
-  padding: 0 2px;
-  border: none;
-  border-radius: var(--rounded-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.peekButton:hover {
-  background: var(--bg-surface-raised);
-}
-
-/* OPEN is LIT — the board filter toggle's lit state (FilterBar `.toggle[data-lit]`): a
- * `--text-primary` fill with `--text-on-lit` ink (11.6:1), the mark redrawn in that ink
- * (`TagIndicator mono`). It is how the row says "expanded — press again to close". Placed after
- * `:hover` so it wins at equal specificity. */
-.peekButton[aria-expanded='true'] {
-  background: var(--text-primary);
-  color: var(--text-on-lit);
-}
-
-.peekButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
-}
-
-/* An untagged row's toggle is the pencil's twin: hidden until the row is hovered or focused, and
- * `opacity` (never display:none) so it stays in the tab order. */
-.peekButtonEmpty {
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-.rowWrap:hover .peekButtonEmpty,
-.rowWrap:focus-within .peekButtonEmpty,
-.peekButtonEmpty:focus-visible,
-.peekButtonEmpty[aria-expanded='true'] {
-  opacity: 1;
-}
+/* The tag toggle is the shared `Button` in a `.toolSlot` (above). OPEN is its `lit` state — the
+ * board filter toggle's: a `--text-primary` fill with `--text-on-lit` ink (11.6:1), the mark redrawn
+ * in that ink (`TagIndicator mono`). It is how the row says "expanded — press again to close". An
+ * untagged row's toggle is the pencil's twin: its slot is a `.hoverTool`. */
 
 /* "Show all tags" — the chips are the row's second line. The row grows here because the operator
  * chose this view (T-27), the same reason the active row may step up. */
@@ -1256,10 +1174,4 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .peekButtonEmpty {
-    transition: none;
-  }
 }

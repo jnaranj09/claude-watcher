@@ -83,20 +83,6 @@
   align-items: center;
   gap: var(--space-2);
 }
-.closeButton {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--rounded-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-  line-height: 1;
-}
-.closeButton:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
 /* ── The list rail ─────────────────────────────────────────────────────────────────────────── */
 /* `minmax(0, 1fr)` on the row is what makes the panel's cap reach the form: an `auto` row sizes
    itself to the form's full content and pushes straight through the cap, so the form's own
@@ -175,18 +161,12 @@
 .row:focus-within .rowActions {
   visibility: visible;
 }
-/* Rules' ↑ / ↓ (Task 10, R-width): the default ghostButton padding (8px 16px) makes two of them
-   ~84px wide — they overflow this 56px slot onto the row label. Compact them here, scoped to the
-   slot, rather than widen the slot (it must stay this exact width on every row) or add a fourth
-   button style. */
-.rowActions .ghostButton {
-  padding: 2px 6px;
-  font-size: var(--font-size-meta);
-}
 /* `+ New` sits at the BOTTOM of the rail, not directly under the last row: `.rows` stops at its
-   max-height, so without this the button floats mid-column whenever the form is the taller side. */
-.newButton {
+   max-height, so without this the button floats mid-column whenever the form is the taller side.
+   On the button's WRAPPER: a `Button` never carries layout of its own. */
+.newSlot {
   margin-top: auto;
+  display: flex;
 }
 
 /* The form is the ONLY region that scrolls — the smallest one that fixes the overflow. The header
@@ -236,96 +216,10 @@
   margin-top: var(--space-4);
 }
 
-/* ── The three button styles (design.md: never a fourth) ─────────────────────────────────── */
-.ghostButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1;
-  white-space: nowrap;
-}
-.ghostButton:hover:not(:disabled) {
-  background: var(--bg-surface);
-}
-.ghostButton:disabled {
-  color: var(--text-muted);
-  border-color: var(--border);
-  cursor: not-allowed;
-}
-.primaryButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--working);
-  border-radius: var(--rounded-md);
-  background: var(--working);
-  color: var(--text-on-accent);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-  white-space: nowrap;
-}
-.primaryButton:hover:not(:disabled) {
-  opacity: 0.88;
-}
-.primaryButton:disabled {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-muted);
-  cursor: not-allowed;
-}
-/* The Delete affordance (design.md): danger is stated in the OUTLINE at rest and FILLED only on
-   hover/focus, so a destructive control never dominates a resting form. The armed ("Confirm
-   delete") state swaps to .dangerButton — the same solid red the fill lands on, so arming reads as
-   the button staying put rather than a new control appearing. */
-.deleteButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--danger);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1;
-  white-space: nowrap;
-}
-.deleteButton:hover:not(:disabled),
-.deleteButton:focus-visible {
-  background: var(--danger);
-  color: var(--text-on-danger);
-}
-.deleteButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.dangerButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--rounded-md);
-  background: var(--danger);
-  color: var(--text-on-danger);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-  white-space: nowrap;
-}
-.dangerButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* The buttons — Save, Delete, Cancel, + New, ✕ — are `components/Button` (design.md): primary,
+   danger (armed in place), secondary, ghost. Nothing button-shaped is declared here. */
 
-.rowSelect:focus-visible,
-.closeButton:focus-visible,
-.ghostButton:focus-visible,
-.primaryButton:focus-visible,
-.deleteButton:focus-visible,
-.dangerButton:focus-visible {
+.rowSelect:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }

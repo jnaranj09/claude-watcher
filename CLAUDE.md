@@ -112,8 +112,10 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
    so it comes up light on a dark app; use `components/Select/Select.tsx`. **A bare
    `<input type="text">` is banned too** — five dialogs had grown five drifting copies of the
    same `.input` CSS rule; use `components/TextInput/TextInput.tsx` (its test fails if any other
-   module declares an `.input`/`.search` class). Read the sibling dialog before laying out a
-   new one.
+   module declares an `.input`/`.search` class). **A bare `<button className=…>` is banned the same
+   way** — every button is `components/Button/Button.tsx` (four variants, three fixed heights, no
+   `className`; `Button.test.tsx` fails if any other module declares a button class). Read the
+   sibling dialog before laying out a new one.
 
 **Debugging a symptom?** Read `.claude/rules/troubleshooting.md` first — run its Step-0
 questions (data present? depends on a sibling? console empty?) to pin the layer before

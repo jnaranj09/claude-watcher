@@ -83,15 +83,19 @@ function componentModules(baseDir: string = componentsDir): { name: string; css:
 }
 
 describe('ManageDialog owns the Manage-dialog styles', () => {
-  it('is the only module that declares the Delete button classes', () => {
-    const offenders: string[] = []
-    for (const { name, css } of componentModules()) {
-      if (name.startsWith('ManageDialog/')) continue
-      for (const selector of ['.deleteButton', '.dangerButton']) {
-        if (declares(css, selector)) offenders.push(`${name} → ${selector}`)
-      }
+  // The buttons themselves — Save, Delete (armed in place), Cancel, + New, ✕ — moved to
+  // `components/Button` (its own guard, Button.test.tsx). This shell draws none of its own.
+  it('declares no button of its own', () => {
+    const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+    for (const selector of [
+      '.deleteButton',
+      '.dangerButton',
+      '.primaryButton',
+      '.ghostButton',
+      '.closeButton'
+    ]) {
+      expect(declares(css, selector), selector).toBe(false)
     }
-    expect(offenders).toEqual([])
   })
 
   it('the three Manage dialogs draw no shell and no button of their own', () => {
@@ -117,11 +121,10 @@ describe('ManageDialog owns the Manage-dialog styles', () => {
     expect(offenders).toEqual([])
   })
 
-  // Non-vacuity: the two guards above pass trivially if the classes vanish everywhere.
-  it('declares both Delete classes itself', () => {
+  // Non-vacuity: the guard above passes trivially if the detector is broken. The slot rule is real.
+  it('declares the `+ New` slot itself', () => {
     const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
-    expect(declares(css, '.deleteButton')).toBe(true)
-    expect(declares(css, '.dangerButton')).toBe(true)
+    expect(declares(css, '.newSlot')).toBe(true)
   })
 })
 
@@ -161,7 +164,7 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
   it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
     expect(ruleBody(css, '.rows')).toMatch(/overflow-y:\s*auto/)
     expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*360px/)
-    expect(ruleBody(css, '.newButton')).toMatch(/margin-top:\s*auto/)
+    expect(ruleBody(css, '.newSlot')).toMatch(/margin-top:\s*auto/)
   })
 })
 

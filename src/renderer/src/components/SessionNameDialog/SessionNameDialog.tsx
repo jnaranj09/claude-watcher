@@ -24,6 +24,7 @@
 // NEVER logs the typed name or the cwd — both are operator content (zod-boundaries.md).
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { SESSION_NAME_MAX_LENGTH } from '../../../../shared/schemas/launch'
+import { Button } from '../Button/Button'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './SessionNameDialog.module.css'
 
@@ -133,22 +134,19 @@ export function SessionNameDialog({
         )}
 
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.cancelButton}
-            data-testid="session-name-cancel"
-            onClick={onCancel}
-          >
+          <Button variant="secondary" testId="session-name-cancel" onClick={onCancel}>
             Cancel
-          </button>
-          <button
+          </Button>
+          {/* `submit`: Enter in the field creates through the native <form>. Disabled while the
+              trimmed name is empty or too long — a blank name never reaches the IPC seam. */}
+          <Button
+            variant="primary"
             type="submit"
-            className={styles.confirmButton}
-            data-testid="session-name-confirm"
+            testId="session-name-confirm"
             disabled={!canSubmit}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

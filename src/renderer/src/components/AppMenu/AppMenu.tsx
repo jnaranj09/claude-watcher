@@ -10,6 +10,7 @@
 // focus is still on the ☰ button, where a mouse click leaves it.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import { Button } from '../Button/Button'
 import styles from './AppMenu.module.css'
 
 export interface AppMenuProps {
@@ -127,11 +128,11 @@ export function AppMenu({
 
   return (
     <div className={styles.anchor} ref={anchorRef} onKeyDown={handleKeyDown}>
-      <button
-        type="button"
-        ref={buttonRef}
-        className={styles.button}
-        data-testid="app-menu"
+      <Button
+        variant="secondary"
+        icon
+        buttonRef={buttonRef}
+        testId="app-menu"
         aria-label="Menu"
         title="Menu"
         aria-haspopup="menu"
@@ -142,7 +143,7 @@ export function AppMenu({
         }}
       >
         <MenuIcon />
-      </button>
+      </Button>
       {open && (
         <div className={styles.menu} role="menu" aria-label="Menu" data-testid="app-menu-list">
           <button

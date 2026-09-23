@@ -1,0 +1,129 @@
+/* The project's ONE button (design.md). Every class in this file is guarded by Button.test.tsx:
+   no other module may declare `.button`, `.primary`, `.secondary`, `.danger`, `.ghost`, or any
+   of the retired copies (`.primaryButton`, `.ghostButton`, `.deleteButton`, `.dangerButton`,
+   `.cancelButton`, `.confirmButton`, `.closeButton`, ...). Layout around a button — a footer's
+   `flex-end`, a rail's `margin-top: auto`, a card's reveal-on-hover — lives on a WRAPPER at the
+   call site, never here and never on the button. */
+
+/* The box. A FIXED height per size, so the label has room and two buttons in a row are always
+   the same height; the old `padding: 4px 12px` with no height is what looked squeezed. `border`
+   is always drawn (transparent on `ghost`) so a variant swap never moves the label. */
+.button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sm {
+  height: 26px;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-label);
+}
+.xs {
+  height: 20px;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-label);
+  border-radius: var(--rounded-sm);
+}
+/* Icon-only: a square of the size's height. */
+.icon {
+  width: 32px;
+  padding: 0;
+}
+.sm.icon {
+  width: 26px;
+}
+.xs.icon {
+  width: 20px;
+}
+.button:disabled {
+  cursor: not-allowed;
+}
+.button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* ── primary: the ONE main action of a surface ─────────────────────────────────────────────── */
+/* RAISED, not coloured: the lighter surface fill (`--bg-surface-raised`) on the strong border,
+   which is what `+ New session` always was. An accent-filled primary (`--working` blue) was tried
+   on 2026-09-23 and rejected: a blue block in the header pulled the eye off the board, and it
+   stopped reading as glass in the liquid-glass theme, where the raised fill is translucent and
+   keeps the ground showing through. The weight and the fill are what set it apart from
+   `secondary`, which sits on the bare glass. */
+.primary {
+  background: var(--bg-surface-raised);
+  border-color: var(--border-strong);
+  font-weight: 600;
+}
+.primary:hover:not(:disabled) {
+  background: var(--bg-surface);
+}
+.primary:disabled {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* ── secondary: every other outlined control ───────────────────────────────────────────────── */
+.secondary {
+  border-color: var(--border-strong);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--bg-surface);
+}
+.secondary:disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* ── danger: red at rest, FILLED when armed (design.md's arm-in-place Delete) ──────────────── */
+.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.danger:hover:not(:disabled),
+.danger:focus-visible,
+.danger[data-armed] {
+  background: var(--danger);
+  color: var(--text-on-danger);
+}
+.danger[data-armed] {
+  font-weight: 600;
+}
+.danger:disabled {
+  opacity: 0.6;
+}
+
+/* ── ghost: borderless — the icon buttons on cards, rail rows and dialog headers ───────────── */
+.ghost {
+  color: var(--text-secondary);
+}
+.ghost:hover:not(:disabled),
+.ghost[aria-expanded='true'] {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.ghost:disabled {
+  color: var(--text-muted);
+}
+
+/* ── lit: a toggle that is ON (secondary and ghost) ────────────────────────────────────────── */
+.button[data-lit] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--text-on-lit);
+}

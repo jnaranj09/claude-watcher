@@ -1,7 +1,6 @@
 /* Session-naming — the session NAME dialog (create-time prompt; the deferred rename pass reuses
    this component unchanged). Mirrors StopConfirm.module.css's token spine 1:1 — NO new colors,
    every value from the DESIGN.md token set.
-   The one addition over StopConfirm is the text `.input` and its disabled-submit state.
    [Source: StopConfirm.module.css (mirror); DESIGN.md Dialogs; UX-DR14] */
 
 /* ── Overlay (full-viewport scrim, flex-centered) ───────────────────────── */
@@ -77,65 +76,12 @@
   line-height: var(--line-height-body, 1.4);
 }
 
-/* ── Actions: Cancel (ghost) + Create (accent) ──────────────────────────── */
+/* ── Actions: the wrapper for Cancel + Create. The buttons are `Button` (secondary / primary
+   submit) — Create is primary, not danger, because naming is not destructive. ── */
 .actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-2);
-}
-
-.cancelButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.cancelButton:hover {
-  background: var(--bg-surface);
-}
-
-.cancelButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-/* Create — the PRIMARY action here (unlike StopConfirm, whose primary is destructive, so this
-   takes the `working` blue accent rather than `--danger`). It is also the default-focused
-   control: naming is not a destructive act, so a reflexive Enter should CREATE, not cancel. */
-.confirmButton {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--working);
-  border-radius: var(--rounded-md);
-  background: var(--working);
-  color: var(--text-on-accent);
-  font-size: var(--font-size-body, 13px);
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.confirmButton:hover:not(:disabled) {
-  opacity: 0.88;
-}
-
-.confirmButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-/* Disabled while the trimmed name is empty — a blank name never reaches the IPC seam. */
-.confirmButton:disabled {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-muted);
-  cursor: not-allowed;
-  opacity: 1;
 }

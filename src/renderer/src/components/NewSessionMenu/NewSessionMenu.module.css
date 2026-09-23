@@ -14,35 +14,7 @@
   transform: translateX(-50%);
 }
 
-/* The header button — mirrors App.module.css .newSessionHeaderButton, plus a `gap` for the
-   caret (this component has no caret yet, but the gap is harmless and keeps future icon spacing
-   free). */
-.button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-body);
-  cursor: pointer;
-}
-.buttonPrimary {
-  padding: var(--space-2) var(--space-4);
-}
-.button:hover,
-.buttonPrimary:hover {
-  background: var(--bg-surface);
-}
-.button:focus-visible,
-.buttonPrimary:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
+/* The button itself is `components/Button` (`primary`); only the anchor and the menu live here. */
 
 .menu {
   position: absolute;

@@ -37,6 +37,7 @@ import { tagsDroppedByMove } from '../../../../shared/tags/tagScope'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagPicker } from '../TagPicker/TagPicker'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import { Button } from '../Button/Button'
 import styles from './SessionCard.module.css'
 
 export type SessionCardVariant = 'hero' | 'calm'
@@ -397,54 +398,20 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
             Rendered only when a handler is wired, so purely presentational callers/tests are
             untouched. */}
         {onRename !== undefined && (
-          <button
-            type="button"
-            className={styles.renameButton}
-            data-testid="card-rename"
-            aria-label={`Rename ${sessionName}`}
-            title={`Rename ${sessionName}`}
-            onClick={handleRenameClick}
-            onKeyDown={handleRenameKeyDown}
-          >
-            {/* Inline SVG pencil: no icon dependency, and `currentColor` inherits the card's
-                text ramp so hero/calm variants tint it correctly. aria-hidden — the button's
-                aria-label is the accessible name. */}
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+          <span className={styles.actionSlot}>
+            {/* The reveal-on-hover lives on the `.actionSlot` WRAPPER: Button takes no className. */}
+            <Button
+              variant="ghost"
+              size="xs"
+              icon
+              testId="card-rename"
+              aria-label={`Rename ${sessionName}`}
+              title={`Rename ${sessionName}`}
+              onClick={handleRenameClick}
+              onKeyDown={handleRenameKeyDown}
             >
-              <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
-            </svg>
-          </button>
-        )}
-        {/* Workspaces (Task 12) — move-to-workspace affordance. Same reveal-on-hover/focus-within
-            + always-tab-reachable treatment as the pencil, and the same optional-seam rule:
-            rendered only when `onMoveToWorkspace` is wired AND at least one OTHER workspace
-            exists to move to (review finding 2 — a control that opens onto nothing is a defect,
-            not a valid state; the single-workspace install is the common case this guards). */}
-        {onMoveToWorkspace !== undefined && otherWorkspaces.length > 0 && (
-          <div className={styles.moveWrap} ref={moveAnchorRef}>
-            <button
-              ref={moveButtonRef}
-              type="button"
-              className={styles.renameButton}
-              data-testid="card-move"
-              aria-haspopup="menu"
-              aria-expanded={moveOpen}
-              aria-label={`Move ${sessionName} to another workspace`}
-              title={`Move ${sessionName} to another workspace`}
-              onClick={handleMoveToggleClick}
-              onKeyDown={handleMoveToggleKeyDown}
-            >
-              {/* Inline SVG folder-arrow glyph: no icon dependency, `currentColor` inherits the
-                  card's text ramp the same way the pencil's does. aria-hidden — the button's
+              {/* Inline SVG pencil: no icon dependency, and `currentColor` inherits the card's
+                  text ramp so hero/calm variants tint it correctly. aria-hidden — the button's
                   aria-label is the accessible name. */}
               <svg
                 width="12"
@@ -457,10 +424,53 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
                 strokeLinejoin="round"
                 aria-hidden
               >
-                <path d="M2 4.5h4l1.5 2H14v6.5H2z" />
-                <path d="M8 8.5v3M6.5 10h3" />
+                <path d="M11.5 2.5l2 2-7 7-2.5.5.5-2.5z" />
               </svg>
-            </button>
+            </Button>
+          </span>
+        )}
+        {/* Workspaces (Task 12) — move-to-workspace affordance. Same reveal-on-hover/focus-within
+            + always-tab-reachable treatment as the pencil, and the same optional-seam rule:
+            rendered only when `onMoveToWorkspace` is wired AND at least one OTHER workspace
+            exists to move to (review finding 2 — a control that opens onto nothing is a defect,
+            not a valid state; the single-workspace install is the common case this guards). */}
+        {onMoveToWorkspace !== undefined && otherWorkspaces.length > 0 && (
+          <div className={styles.moveWrap} ref={moveAnchorRef}>
+            {/* The slot wraps the BUTTON only, not the menu: `opacity` below 1 makes a stacking
+                context, and the popover must not be trapped in (or faded with) it. */}
+            <span className={styles.actionSlot}>
+              <Button
+                variant="ghost"
+                size="xs"
+                icon
+                buttonRef={moveButtonRef}
+                testId="card-move"
+                aria-haspopup="menu"
+                aria-expanded={moveOpen}
+                aria-label={`Move ${sessionName} to another workspace`}
+                title={`Move ${sessionName} to another workspace`}
+                onClick={handleMoveToggleClick}
+                onKeyDown={handleMoveToggleKeyDown}
+              >
+                {/* Inline SVG folder-arrow glyph: no icon dependency, `currentColor` inherits the
+                    card's text ramp the same way the pencil's does. aria-hidden — the button's
+                    aria-label is the accessible name. */}
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M2 4.5h4l1.5 2H14v6.5H2z" />
+                  <path d="M8 8.5v3M6.5 10h3" />
+                </svg>
+              </Button>
+            </span>
             {moveOpen && (
               <div
                 className={styles.moveMenu}
@@ -504,28 +514,31 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
             workspace tags, or, while there are none yet, the Tags dialog that creates them. */}
         {onSetTags !== undefined && (!tagsCreateOnly || onManageTags !== undefined) && (
           <div className={styles.moveWrap} ref={tagsAnchorRef}>
-            <button
-              ref={tagsButtonRef}
-              type="button"
-              className={styles.renameButton}
-              data-testid="card-tags-button"
-              {...(tagsCreateOnly
-                ? {
-                    'aria-haspopup': 'dialog' as const,
-                    'aria-label': 'Create tags',
-                    title: 'No tags yet — create tags'
-                  }
-                : {
-                    'aria-expanded': tagsOpen,
-                    'aria-controls': tagPickerId,
-                    'aria-label': `Tags for ${sessionName}`,
-                    title: `Tags for ${sessionName}`
-                  })}
-              onClick={handleTagsToggleClick}
-              onKeyDown={handleTagsToggleKeyDown}
-            >
-              <TagGlyphIcon />
-            </button>
+            <span className={styles.actionSlot}>
+              <Button
+                variant="ghost"
+                size="xs"
+                icon
+                buttonRef={tagsButtonRef}
+                testId="card-tags-button"
+                {...(tagsCreateOnly
+                  ? {
+                      'aria-haspopup': 'dialog' as const,
+                      'aria-label': 'Create tags',
+                      title: 'No tags yet — create tags'
+                    }
+                  : {
+                      'aria-expanded': tagsOpen,
+                      'aria-controls': tagPickerId,
+                      'aria-label': `Tags for ${sessionName}`,
+                      title: `Tags for ${sessionName}`
+                    })}
+                onClick={handleTagsToggleClick}
+                onKeyDown={handleTagsToggleKeyDown}
+              >
+                <TagGlyphIcon />
+              </Button>
+            </span>
             {tagsOpen && (
               <TagPicker
                 id={tagPickerId}
@@ -544,61 +557,66 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
             as the pencil/move/tags controls, and the same optional-seam rule: rendered only when
             wired (a card whose terminal binding has not landed cannot be exited yet). */}
         {onArchive !== undefined && (
-          <button
-            type="button"
-            className={styles.renameButton}
-            data-testid="card-archive"
-            aria-label={`Archive ${sessionName}`}
-            title={`Archive ${sessionName} (keeps it in Past sessions)`}
-            onClick={handleArchiveClick}
-            onKeyDown={handleArchiveKeyDown}
-          >
-            {/* Inline SVG archive-box glyph: no icon dependency, currentColor inherits the
-                card's text ramp like the other controls'. aria-hidden — the button's
-                aria-label is the accessible name. */}
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+          <span className={styles.actionSlot}>
+            <Button
+              variant="ghost"
+              size="xs"
+              icon
+              testId="card-archive"
+              aria-label={`Archive ${sessionName}`}
+              title={`Archive ${sessionName} (keeps it in Past sessions)`}
+              onClick={handleArchiveClick}
+              onKeyDown={handleArchiveKeyDown}
             >
-              <path d="M2 4h12v2H2zM3 6v7h10V6M6.5 9h3" />
-            </svg>
-          </button>
+              {/* Inline SVG archive-box glyph: no icon dependency, currentColor inherits the
+                  card's text ramp like the other controls'. aria-hidden — the button's
+                  aria-label is the accessible name. */}
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M2 4h12v2H2zM3 6v7h10V6M6.5 9h3" />
+              </svg>
+            </Button>
+          </span>
         )}
-        {/* Past sessions (D-5) — Delete. Red at rest (design.md's Delete treatment, drawn in
-            `.cardDelete` because `.deleteButton`/`.dangerButton` are reserved to
-            ManageDialog.module.css). Opens the confirm; the confirm itself deletes. */}
+        {/* Past sessions (D-5) — Delete: Button's `danger` (red outline at rest, filled on
+            hover/focus — design.md's Delete treatment). Opens the confirm; the confirm deletes. */}
         {onDelete !== undefined && (
-          <button
-            type="button"
-            className={`${styles.renameButton} ${styles.cardDelete}`}
-            data-testid="card-delete"
-            aria-label={`Delete ${sessionName}`}
-            title={`Delete ${sessionName}`}
-            onClick={handleDeleteClick}
-            onKeyDown={handleDeleteKeyDown}
-          >
-            {/* Inline SVG trash glyph. */}
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+          <span className={styles.actionSlot}>
+            <Button
+              variant="danger"
+              size="xs"
+              icon
+              testId="card-delete"
+              aria-label={`Delete ${sessionName}`}
+              title={`Delete ${sessionName}`}
+              onClick={handleDeleteClick}
+              onKeyDown={handleDeleteKeyDown}
             >
-              <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" />
-            </svg>
-          </button>
+              {/* Inline SVG trash glyph. */}
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" />
+              </svg>
+            </Button>
+          </span>
         )}
         <StatusDot status={status} labelHidden />
       </div>

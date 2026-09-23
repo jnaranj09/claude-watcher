@@ -14,6 +14,7 @@ import {
   type JSX
 } from 'react'
 import { createPortal } from 'react-dom'
+import { Button } from '../Button/Button'
 import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
 import { makeSelectVisibleTemplates, useTemplates } from '../../stores/templatesStore'
@@ -127,17 +128,17 @@ export function NewSessionButton({
       ref={anchorRef}
       className={primary ? `${styles.anchor} ${styles.anchorPrimary}` : styles.anchor}
     >
-      <button
-        ref={buttonRef}
-        type="button"
-        className={primary ? `${styles.button} ${styles.buttonPrimary}` : styles.button}
-        data-testid={testId}
+      {/* `primary`: the ONE main action of the header, the empty board and the dead pane alike. */}
+      <Button
+        variant="primary"
+        buttonRef={buttonRef}
+        testId={testId}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
         + New session
-      </button>
+      </Button>
       {/* The `dead` variant portals its menu to document.body: its host terminal frame is
           `overflow: clip`, so an in-anchor popover would be cut at the frame edge with no
           scrollbar to recover it (the TerminalContextMenu precedent). The inline variants are

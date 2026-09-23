@@ -99,7 +99,7 @@ describe('FilterBar', () => {
     expect(toggle?.querySelector('svg')?.getAttribute('width')).toBe('16')
     expect(toggle?.getAttribute('aria-label')).toBe('Filter')
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
-    expect(toggle?.getAttribute('data-lit')).toBe('false')
+    expect(toggle?.hasAttribute('data-lit')).toBe(false)
     expect(toggle?.getAttribute('title')).toBe('Show filters')
     // The count sits on the controls row, so it shows even with the chip row closed.
     expect(row?.contains(q(r, 'filter-count'))).toBe(true)
@@ -115,7 +115,7 @@ describe('FilterBar', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('true')
     expect(toggle?.getAttribute('title')).toBe('Hide filters')
     // Open is LIT, like the rail's open tag toggles — with or without a filter on.
-    expect(toggle?.getAttribute('data-lit')).toBe('true')
+    expect(toggle?.hasAttribute('data-lit')).toBe(true)
     // getElementById: a React id is not a valid CSS selector.
     const chips = document.getElementById(toggle?.getAttribute('aria-controls') ?? '')
     expect(chips?.contains(q(r, 'filter-add'))).toBe(true)
@@ -125,7 +125,7 @@ describe('FilterBar', () => {
     expect(row.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     click(toggle)
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
-    expect(toggle?.getAttribute('data-lit')).toBe('false')
+    expect(toggle?.hasAttribute('data-lit')).toBe(false)
     expect(q(r, 'filter-add')).toBeNull()
   })
 
@@ -138,34 +138,44 @@ describe('FilterBar', () => {
     expect(q(r, 'filter-pill-tag')).toBeNull()
     expect(q(r, 'filter-toggle-count')?.textContent).toBe('1')
     expect(toggle?.getAttribute('aria-label')).toBe('Filter, 1 on')
-    expect(toggle?.getAttribute('data-lit')).toBe('true')
+    expect(toggle?.hasAttribute('data-lit')).toBe(true)
     click(toggle)
     expect(q(r, 'filter-pill-tag')).not.toBeNull()
     expect(q(r, 'filter-toggle-count')?.textContent).toBe('1')
-    expect(toggle?.getAttribute('data-lit')).toBe('true')
+    expect(toggle?.hasAttribute('data-lit')).toBe(true)
   })
 
-  // The button is the toolbar's height — 32px, the same as the search box beside it (TextInput's
-  // `toolbar` variant) — with the ☰ button's border and radius. Open reads as LIT, so it draws no
-  // chevron — and no separate "pressed" look either, or open would have two looks. jsdom has no
-  // layout: read the stylesheets.
+  // The button is `Button` (secondary, md) — the toolbar's height, 32px, the same as the search box
+  // beside it (TextInput's `toolbar` variant). Open reads as LIT through Button's `data-lit`, so it
+  // draws no chevron and no separate "pressed" look, or open would have two looks. jsdom has no
+  // layout: read the stylesheets. FilterBar's own module must no longer draw the button (the
+  // `.toggle` copy is what Button replaced).
   it('the Filter button is the search box’s height, draws no chevron, and lights up only through data-lit', () => {
     const css = readFileSync(
       join(process.cwd(), 'src/renderer/src/components/FilterBar/FilterBar.module.css'),
+      'utf8'
+    )
+    const button = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Button/Button.module.css'),
       'utf8'
     )
     const field = readFileSync(
       join(process.cwd(), 'src/renderer/src/components/TextInput/TextInput.module.css'),
       'utf8'
     )
-    const toggle = /\n\.toggle \{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(toggle).toMatch(/height: 32px;/)
+    const box = /\n\.button \{([^}]*)\}/.exec(button)?.[1] ?? ''
+    expect(box).toMatch(/height: 32px;/)
     expect(/\n\.toolbar \{([^}]*)\}/.exec(field)?.[1] ?? '').toMatch(/height: 32px;/)
-    expect(toggle).toMatch(/border: 1px solid var\(--border\);/)
-    expect(toggle).toMatch(/border-radius: var\(--rounded-md\);/)
-    expect(css).not.toMatch(/\.toggle::after/)
-    expect(css).toMatch(/\.toggle\[data-lit='true'\] \{[^}]*background: var\(--text-primary\);/)
-    expect(css).not.toMatch(/\.toggle\[aria-expanded/)
+    expect(box).toMatch(/border-radius: var\(--rounded-md\);/)
+    expect(button).toMatch(/\.button\[data-lit\] \{[^}]*background: var\(--text-primary\);/)
+    expect(button).not.toMatch(
+      /\[aria-expanded='true'\][^{]*\{[^}]*background: var\(--text-primary\)/
+    )
+    expect(css).not.toMatch(/\.toggle\b/)
+    expect(css).not.toMatch(/data-lit/)
+    const r = render()
+    expect(q(r, 'filter-toggle')?.getAttribute('data-variant')).toBe('secondary')
+    expect(q(r, 'filter-toggle')?.getAttribute('data-size')).toBe('md')
   })
 
   it('closing the chip row closes an open tag list', () => {
@@ -324,7 +334,7 @@ describe('FilterBar — the search box', () => {
     act(() => boardStore.getState().setSearchQuery('x'))
     const r = render()
     expect(q(r, 'filter-toggle-count')).toBeNull()
-    expect(q(r, 'filter-toggle')?.getAttribute('data-lit')).toBe('false')
+    expect(q(r, 'filter-toggle')?.hasAttribute('data-lit')).toBe(false)
   })
 
   // Escape peels ONE layer: the search text, and it must not also reach App's Escape (Focused → Board).

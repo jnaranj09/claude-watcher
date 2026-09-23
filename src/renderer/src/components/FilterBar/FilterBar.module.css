@@ -26,43 +26,9 @@
   min-width: 120px;
 }
 
-/* The `Filter` button — the toolbar's 32px height, the same as the search box beside it (TextInput
- * `toolbar`), with the ☰ button's border and radius and a 16px icon beside the word. No chevron
- * and no "pressed" look: open reads as LIT. */
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-label);
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.toggle:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-/* LIT — a light fill — while the chip row is open (the rail's open tag toggles do the same), and
- * while it is closed with a filter on: the pill that says cards are hidden is then out of sight, so
- * this is the loudest state on the board's edge, on purpose. Ink on fill is 11.6:1. Placed LAST so
- * it wins over :hover (same specificity), whose light ink would vanish on this light fill. */
-.toggle[data-lit='true'] {
-  background: var(--text-primary);
-  border-color: var(--text-primary);
-  color: var(--text-on-lit);
-}
-
+/* The `Filter` button is `Button` (secondary, `lit` while the chip row is open or a filter is on):
+ * the toolbar's 32px height, the same as the search box beside it. Only the count inside it is
+ * styled here. */
 .toggleCount {
   font-weight: 700;
 }
@@ -231,7 +197,6 @@
   color: var(--text-secondary);
 }
 
-.toggle:focus-visible,
 .add:focus-visible,
 .pillEdit:focus-visible,
 .pillRemove:focus-visible,

@@ -39,34 +39,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  /* `--space-1` vertically, not `--space-2`: the `← Board` button is the shared Button's 32px md
+     box, and 45px − 2 × 8px − 1px border left a 28px content box it overflowed. 4px keeps it
+     inside. The buttons themselves (Back, Archive, Delete) are `components/Button` — no button
+     style lives in this module. */
+  padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
   flex: 0 0 auto;
   height: var(--topbar-height);
-}
-
-.backButton {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-body);
-  cursor: pointer;
-}
-
-.backButton:hover {
-  background: var(--bg-surface);
-}
-
-.backButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .hint {
@@ -103,52 +84,6 @@
   white-space: nowrap;
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-heading);
-}
-
-/* Past sessions (D-3) — the Archive button (was Story 4.3's ⏹ Stop session; same look, no
-   confirm). Ghost style — Archive is reversible, so it carries no danger treatment. */
-.archiveButton {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-caption, 12px);
-  font-weight: var(--font-weight-body);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.archiveButton:hover {
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
-.archiveButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-/* Past sessions (D-5) — the Delete trigger. Danger treatment (design.md's Delete treatment,
-   NOT the ManageDialog `.deleteButton`/`.dangerButton` class names, which are reserved to
-   ManageDialog.module.css) so the risky exit reads differently from Archive at a glance, even
-   before the confirm opens. */
-.deleteButtonFocused {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-/* border-color is load-bearing: this element also carries .archiveButton, whose :hover has the SAME
-   specificity and sets a grey --border-strong border. Naming it here (and after that rule) wins. */
-.deleteButtonFocused:hover,
-.deleteButtonFocused:focus-visible {
-  background: var(--danger);
-  color: var(--text-on-danger);
-  border-color: var(--danger);
 }
 
 /* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned

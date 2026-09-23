@@ -432,25 +432,35 @@ describe('FocusedSession — the rail header and the Board bar end on the same l
   })
 })
 
-// The focused bar's Delete wears BOTH classes (`archiveButton deleteButtonFocused`: Archive's box,
-// the danger colours). `.archiveButton:hover` and `.deleteButtonFocused:hover` have EQUAL
-// specificity, so any property the Delete's hover/focus block leaves out falls through to Archive's
-// hover — its grey `--border-strong` border drew round the red fill. The Delete block must name the
-// border itself, and must come after Archive's hover so it wins the tie.
-describe('FocusedSession — Delete keeps its danger border on hover and focus', () => {
+// The bar's three exits are the shared `components/Button` (design.md): Back is the outlined
+// `secondary`; Archive is the same at the rail's `sm` height (reversible, so no danger treatment);
+// Delete is `danger` — red at rest, filled on hover/focus — at the same height, so the risky exit
+// reads differently at a glance. Before this, Delete wore Archive's box plus a danger colour
+// override, and a hover-specificity tie let Archive's grey border draw round the red fill; Button
+// owns the hover now, so the guard is that these are Button and that this module draws no button.
+describe('FocusedSession — the bar buttons are the shared Button', () => {
   const css = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), './FocusedSession.module.css'),
     'utf8'
   )
 
-  it('the Delete hover/focus block sets a --danger border and follows the Archive hover rule', () => {
-    const deleteHover =
-      /^\.deleteButtonFocused:hover,\s*\.deleteButtonFocused:focus-visible\s*\{([^}]*)\}/m.exec(css)
-    const archiveHoverAt = css.search(/^\.archiveButton:hover\s*\{/m)
+  it('Back is secondary md; Archive secondary sm; Delete danger sm', () => {
+    boardStore.getState().openLaunchedTerminal('launch-button-test', 'button-test', 'default')
+    const r = render()
+    const button = (testId: string): HTMLButtonElement => {
+      const el = r.container.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)
+      if (el === null) throw new Error(`missing ${testId}`)
+      return el
+    }
+    expect(button('focused-back').dataset).toMatchObject({ variant: 'secondary', size: 'md' })
+    expect(button('focused-archive').dataset).toMatchObject({ variant: 'secondary', size: 'sm' })
+    expect(button('focused-delete').dataset).toMatchObject({ variant: 'danger', size: 'sm' })
+    expect(button('focused-delete').hasAttribute('data-armed')).toBe(false)
+  })
 
-    expect(deleteHover?.[1]).toMatch(/^\s*border-color:\s*var\(--danger\);/m)
-    expect(archiveHoverAt).toBeGreaterThanOrEqual(0)
-    expect(deleteHover?.index).toBeGreaterThan(archiveHoverAt)
+  it('the module declares no button style of its own', () => {
+    const selectors = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(selectors).not.toMatch(/\.(backButton|archiveButton|deleteButtonFocused)\b/)
   })
 })
 

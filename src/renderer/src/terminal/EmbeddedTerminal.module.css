@@ -91,27 +91,9 @@
   color: var(--text-secondary);
 }
 
+/* The slot the ONE action sits in. The action itself is `components/Button` (the shared
+   `+ New session` primary, or the plain-shell fallback's `secondary`) — no button style here. */
 .deadActions {
   display: flex;
   gap: var(--space-2);
-}
-
-.deadButton {
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
-  color: var(--text-primary);
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  cursor: pointer;
-}
-
-.deadButton:hover {
-  background: var(--bg-surface);
-}
-
-.deadButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
 }
