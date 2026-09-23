@@ -68,14 +68,39 @@ describe('docs/themes/examples', () => {
   })
   // LIQUID glass carries no grain: a noise tile is the acrylic (frosted) recipe and read matte.
   // The material is the lit rim and the sheen instead, and no asset is loaded at all.
-  it('liquid-glass has no grain and no asset: rim + sheen, no url()', () => {
+  it('liquid-glass has no grain, no sheen and no asset: one fill + rim, no url()', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.bundle.css).not.toContain('url(')
       expect(r.bundle.css).toContain('--glass-rim:')
-      expect(r.bundle.css).toContain('--glass-sheen:')
+      expect(r.bundle.css).toContain('--glass-fill:')
+      expect(r.bundle.css).not.toContain('--glass-sheen')
     }
+  })
+  // ONE material. The header, the columns, the modal panels and the popovers all take
+  // `--glass-fill` and the same `--glass-filter`; three recipes (a smoky black header, milky
+  // dialogs under a sheen, black popovers) read as three materials side by side (2026-09-23).
+  it('liquid-glass paints every surface with the one --glass-fill and the one blur', () => {
+    const rules = liquidGlassRules()
+    const fillOf = (sel: string): string =>
+      rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => r.body)
+        .join('\n')
+    for (const sel of [
+      "[data-testid='app-header']",
+      "[role='dialog'][aria-modal='true'] > *",
+      "[data-testid='settings-panel']",
+      'section[data-column]:not([data-hero-accent])',
+      ...POPOVERS
+    ]) {
+      expect(fillOf(sel), sel).toMatch(/background(-color)?:\s*var\(--glass-fill\);/)
+    }
+    const filters = rules.flatMap((r) => [...r.body.matchAll(/backdrop-filter:\s*([^;]+);/g)])
+    expect(new Set(filters.map((m) => m[1]))).toEqual(
+      new Set(['var(--glass-filter)', 'none', 'blur(12px)'])
+    )
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
   // blurs only what that element painted, never the page — the header's border and a dialog's
@@ -148,6 +173,29 @@ describe('docs/themes/examples', () => {
     expect(inline).toMatch(/box-shadow:\s*none;/)
     expect(inline).toMatch(/(^|[\s;])backdrop-filter:\s*none;/)
   })
+  // A popover is GLASS like the header: the token's white film + the sheen's dark bottom band read
+  // as a flat grey card beside the glass header, and the header's own dark fill read as a black
+  // slab over the near-black board (a blur of black is black). A FAINT WHITE tint lifts it. The
+  // fill sits in its own rule (the blur rule must carry no colour), the sheen is off the popovers,
+  // and the rim is the directional one — two offset inset shadows, never a `::after` ring, because
+  // a Select list and the tag picker scroll.
+  it('liquid-glass gives every popover a faint white glass fill and a directional rim, no sheen', () => {
+    const rules = liquidGlassRules()
+    const popoverRules = rules.filter((r) => POPOVERS.every((p) => r.selectors.includes(p)))
+    const smoky = popoverRules.filter((r) => /background-color:/.test(r.body))
+    expect(smoky).toHaveLength(1)
+    expect(smoky[0]?.body).toMatch(/background-color:\s*var\(--glass-fill\);/)
+    expect(smoky[0]?.body).not.toMatch(/backdrop-filter/)
+    expect(popoverRules.map((r) => r.body).join('\n')).not.toContain('--glass-sheen')
+    const rim = popoverRules.filter((r) => /box-shadow:/.test(r.body))
+    expect(rim).toHaveLength(1)
+    expect(rim[0]?.body).toMatch(/box-shadow:\s*var\(--glass-rim-pop\), var\(--shadow-pop\);/)
+    const root = rules
+      .filter((r) => r.selectors.includes(':root'))
+      .map((r) => r.body)
+      .join('\n')
+    expect(root).toMatch(/--glass-rim-pop:\s*inset 1px 1px 0 rgba\([^)]*\), inset -1px -1px 0 rgba/)
+  })
   // The focused view's body (rail + terminal column) is ONE bubble like the header: inset from the
   // window by padding on its absolute layer (a margin on the 100%-tall body would overflow), and
   // rounded with a clip so the rail's surface follows the corners.
@@ -165,6 +213,26 @@ describe('docs/themes/examples', () => {
     expect(bubble).toMatch(/border-radius:\s*var\(--rounded-lg\);/)
     expect(bubble).toMatch(/overflow:\s*clip;/)
     expect(bubble).not.toMatch(/margin/)
+  })
+  // `data-column` is on the board's column <section> AND on each rail status group (a <div>). A
+  // bare `[data-column]` bubble rule drew a square glass box (rim, blur, shadow) around every
+  // group of the focused view's rail.
+  it('liquid-glass scopes the column bubble to the board <section>, not the rail groups', () => {
+    const selectors = liquidGlassRules().flatMap((r) => r.selectors)
+    const column = selectors.filter((s) => s.includes('[data-column]'))
+    expect(column.length).toBeGreaterThan(0)
+    expect(column.filter((s) => !s.startsWith('section[data-column]'))).toEqual([])
+  })
+  // `--bg-base` is transparent here, so the app's hover fill (`--bg-base`) left a hovered rail row
+  // on the rail's surface instead of the active tab's dark ground. The theme darkens it back.
+  it('liquid-glass darkens a hovered resting rail row to the active tab tone', () => {
+    const hover = liquidGlassRules()
+      .filter((r) =>
+        r.selectors.includes("[data-testid='attention-rail'] button[data-testid='rail-row']:hover")
+      )
+      .map((r) => r.body)
+      .join('\n')
+    expect(hover).toMatch(/background:\s*rgba\(0, 0, 0, 0\.\d+\);/)
   })
   it('paper is a light, tokens-only theme', () => {
     const r = scanner.load('paper')

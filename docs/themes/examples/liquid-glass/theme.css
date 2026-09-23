@@ -1,23 +1,21 @@
 /* Liquid Glass — the raw-CSS proof. Everything the tokens cannot say lives here. */
 
-/* Something behind the panels to blur. The ground is NEUTRAL GREY on purpose: it is the only
-   thing the glass has to work with, so it carries DEPTH — a light bloom top-left, a shadow
-   bottom-right — without carrying HUE. The pair of saturated radials this replaced (purple +
-   cyan) tinted every panel in the app, because a white glass panel shows whatever is behind it;
-   the board, the header and the dialogs all came out blue. Brightness gives the blur something
-   to chew on; colour was never what made it read as glass.
-   The first three layers are soft LIGHT SPOTS along the top. On a smooth ground a blur gives back
-   a smooth result, so every glass surface read as one even film; uneven light behind the glass is
-   what it has to show. Kept grey, for the reason above. ROUND spots only: two diagonal streaks
-   across the window were tried and read as a reflection on a windshield over the board. */
+/* Something behind the panels to blur. The ground is DEEP COLOUR, QUIET (option D2 of the
+   2026-09-23 brainstorm): two dark saturated pools, each about the size of the window and centred
+   just outside it — indigo at the top-left, teal at the bottom-right — over a near-black base, plus
+   one small cool light over the app name. Big pools on purpose: a half-size pair kept to the
+   corners was tried and the operator did not like the reduction. The hue is a hint you only notice when you look for it; the glass stays dark. Before
+   it the ground was neutral grey light spots (a bloom top-left, a shadow bottom-right), and white
+   light at low alpha over near-black read as grey haze: the whole app looked dusty. Colour that is
+   kept DARK gives the blur something to show without tinting the panels — the older bright
+   purple + cyan pair turned every panel blue. It also puts the gold Needs-you column on a cool
+   ground, where it reads gold instead of brown. */
 body {
   background:
-    radial-gradient(380px 150px at 20% 2%, rgba(255, 255, 255, 0.11), transparent 70%),
-    radial-gradient(300px 120px at 58% 10%, rgba(255, 255, 255, 0.06), transparent 70%),
-    radial-gradient(420px 170px at 90% 0%, rgba(255, 255, 255, 0.08), transparent 70%),
-    radial-gradient(1150px 820px at 14% 4%, rgba(255, 255, 255, 0.075), transparent 60%),
-    radial-gradient(1000px 800px at 88% 96%, rgba(0, 0, 0, 0.4), transparent 62%),
-    linear-gradient(160deg, #050507 0%, #0d0e10 100%);
+    radial-gradient(360px 150px at 8% 0%, rgba(190, 200, 255, 0.1), transparent 70%),
+    radial-gradient(1000px 700px at 0% -10%, rgba(52, 58, 140, 0.22), transparent 62%),
+    radial-gradient(900px 650px at 100% 110%, rgba(16, 84, 84, 0.2), transparent 60%),
+    linear-gradient(160deg, #050508 0%, #08080c 100%);
   background-attachment: fixed;
 }
 
@@ -27,37 +25,28 @@ body {
    is what made every panel here read matte. So:
    - NO noise. The `noise.svg` tile this theme carried is gone.
    - LESS blur, MORE saturation (`--glass-filter`): the backdrop stays recognisable and its colour
-     spills onto the glass, which is what reads as liquid. 18px/140% read as frost.
-   - VOLUME: a vertical sheen on the fill (`--glass-sheen`), lighter at the top, darker at the
-     bottom. A single flat tint is what reads as a flat sheet.
+     spills onto the glass, which is what reads as liquid. 18px/140% read as frost; 16px/175% (2026-09-23) keeps the colour and still lets a card's text bleed away under a dialog.
+   - ONE FILL for every surface (`--glass-fill`, white 3%): the header, the columns, the dialog
+     panels and the popovers. A vertical sheen (lighter top, darker bottom) was carried for volume
+     and read as a dirty film; and three fills — a smoky black header, milky white dialogs, black
+     popovers — read as three materials side by side (2026-09-23). The rim is the only thing that
+     says "edge", the blur the only thing that says "glass".
    - A LIT RIM on BOTH edges (`--glass-rim`): real glass catches light on the far edge too, just
      weaker. A dark bottom inset is wrong for this material. The rim is CRISP (0 blur) and faint:
      a blurred inset plus an inner glow read as a soft, milky, blurry edge on a small button.
    The big bubbles (header, focused body, modal panels) also get a DIRECTIONAL rim on `::after`:
    bright at top-left and bottom-right, dim between. */
 :root {
-  --glass-filter: blur(10px) saturate(175%);
-  --glass-filter-panel: blur(14px) saturate(175%);
-  --glass-sheen: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.07),
-    rgba(255, 255, 255, 0.01) 50%,
-    rgba(0, 0, 0, 0.14)
-  );
+  --glass-filter: blur(16px) saturate(175%);
+  --glass-fill: rgba(255, 255, 255, 0.03);
   --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
-}
-
-/* The sheen on a popover is its own background LAYER, over the token's colour. A popover is
-   positioned by the app (`[role='menu']` and `[role='listbox']` are popups), so a positioned
-   pseudo-element would need `position: relative` and would move it; a background image needs
-   nothing. On a CONTAINER the sheen rides on the `::before` blur layer instead — a background
-   painted under that layer would be blurred away. NOT on the terminal. */
-[role='menu'],
-[role='listbox'],
-[data-testid='new-session-menu'],
-[data-testid$='tag-picker'],
-[data-testid='expander-box'] {
-  background-image: var(--glass-sheen);
+  /* The popovers' rim is DIRECTIONAL like the big bubbles' conic ring — lit at the top-left,
+     faint at the bottom-right — but drawn with two offset inset shadows, not a `::after` ring:
+     a Select list, the tag picker and the filter's tag list SCROLL, and an absolute pseudo-element
+     inside a scroll container scrolls away with the rows. A box-shadow follows the rounded box
+     and never moves. */
+  --glass-rim-pop:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.26), inset -1px -1px 0 rgba(255, 255, 255, 0.09);
 }
 
 /* CONTAINERS blur from a `::before` layer, never from their own `backdrop-filter`.
@@ -98,18 +87,20 @@ body {
   pointer-events: none;
 }
 
-/* Glass panels: every dialog body and the settings panel blur what is behind them and carry a
-   1px inner highlight on the top edge. */
+/* Glass panels: every dialog body and the settings panel blur what is behind them. The ONE fill
+   replaces the token's `--bg-surface-raised` (white 10%): that, under the sheen the `::before`
+   layer used to carry, is what made a dialog milky next to the header. The scrim behind a modal
+   already darkens the board, so the same 3% still reads as a panel. */
 [role='dialog'][aria-modal='true'] > *,
 [data-testid='settings-panel'] {
+  background-color: var(--glass-fill);
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--shadow-dialog);
 }
 [role='dialog'][aria-modal='true'] > *::before,
 [data-testid='settings-panel']::before {
-  backdrop-filter: var(--glass-filter-panel);
-  -webkit-backdrop-filter: var(--glass-filter-panel);
-  background-image: var(--glass-sheen);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
 }
 
 /* The header floats as a BUBBLE, not a bar welded to the window edge. `.app` is a flex column
@@ -161,11 +152,10 @@ body {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
 }
-/* The header is SMOKY and carries NO sheen. The token fill (`--bg-surface`, white 6%) plus the
-   white sheen laid an even white film over the whole bar; a dark, near-clear fill lets the light
-   spots of the ground show through, and the rim alone marks the edge. */
+/* The header carries the one fill and the rim, nothing else. It was black at 20% for a day, which
+   read well over the ground's light spots but was a different material from every other surface. */
 [data-testid='app-header'] {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--glass-fill);
   box-shadow: var(--glass-rim), var(--shadow-pop);
 }
 
@@ -200,7 +190,7 @@ body {
    own (2026-09-22, NVIDIA card: 2.3 at the bottom edge, 2.4 in the middle); the bleed stays for
    the software path.
    So the layer BLEEDS past the box by `--bleed` on every side, which gives the blur real pixels
-   to read there, and a mask cuts it back to the box. 56px covers 4 sigma of the 14px blur (the
+   to read there, and a mask cuts it back to the box. 56px covers 3.5 sigma of the 16px blur (the
    CSS radius IS the standard deviation). The `content-box` mask is the box itself: padding =
    bleed, and a radius of `--rounded-lg` + bleed leaves exactly `--rounded-lg` on the content
    box. It must be a MASK, not a clip-path: a clip-path also shrinks the area the blur reads
@@ -273,7 +263,24 @@ body {
 [data-testid='expander-box'] {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
-  box-shadow: var(--glass-rim), var(--shadow-pop);
+  box-shadow: var(--glass-rim-pop), var(--shadow-pop);
+}
+/* GLASS like the header, not a grey slab: the token fill (`--bg-surface-raised`, white 10%) plus
+   the sheen's dark bottom band and a 28% border made the ☰ menu read as a flat, opaque card next
+   to the glass header (2026-09-23). NOT the header's dark fill either: the header sits over the
+   ground's light spots, so its blur has something bright to show, but a popover sits over the
+   near-black board, and black at 35% over a blur of black was a black slab (tried the same day).
+   A faint white tint is what lifts it off that ground; the blur still brings a card's or the gold
+   column's colour through it. The directional rim carries the edge on its own, so the border drops
+   to the header's 6%. In its own rule, apart from the blur: a fill on the blur rule reads as one
+   that hides it. */
+[role='menu'],
+[role='listbox'],
+[data-testid='new-session-menu'],
+[data-testid$='tag-picker'],
+[data-testid='expander-box'] {
+  background-color: var(--glass-fill);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 /* A menu that HOLDS a submenu (the ☰ menu and its `Tags ▸` list) is a container, not a leaf: if it
@@ -311,20 +318,20 @@ body {
    header, and the tab under it showed straight through. Both are LEAVES — nothing inside them
    blurs — so they blur from themselves, like a popover. The workspace menu is their SIBLING in the
    anchor, not their child, so they are not its backdrop root. The tab's token fill is
-   `--bg-base`, which is `transparent` here; it takes the smoky fill below instead. */
+   `--bg-base`, which is `transparent` here; it takes the raised fill below instead. */
 [data-testid='workspace-switcher'],
 [data-testid='workspace-elsewhere-tab'] {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
-  background-image: var(--glass-sheen);
   box-shadow: var(--glass-rim);
 }
-/* SMOKY, not milky: the token tint (0.10 white) + the sheen + a light border read as a white
-   blob on the header. A dark tint and a faint border let the rim carry the edge, like the
-   reference pill. */
+/* A CONTROL on the header, not a surface: it takes the raised fill `+ New session` beside it has
+   (`--bg-surface-raised`, white 10%), well above the header's 3%, and a faint border so the
+   rim carries the edge. It was black at 22% while the header was black at 20%; on the 3% header
+   that read as a hole. */
 [data-testid='workspace-switcher'],
 [data-testid='workspace-elsewhere-tab'] {
-  background-color: rgba(0, 0, 0, 0.22);
+  background-color: var(--bg-surface-raised);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -333,20 +340,30 @@ body {
    cards hold the tag picker, a popover), so it blurs from a `::before` layer, never from itself —
    see CONTAINERS above. Each keeps its token fill (`--bg-col-calm`, and the faint gold
    `--bg-col-hero` on Needs you), and the hero keeps its gold hairline inside the rim. No sheen:
-   it laid the same even white film on the columns that it laid on the header. */
-[data-column],
+   it laid the same even white film on the columns that it laid on the header.
+   `section[data-column]`, never a bare `[data-column]`: the focused view's rail groups carry
+   `data-column` too (a <div> each), and the bare selector drew a square glass box around them. */
+section[data-column],
 [data-testid='skeleton-column'] {
   position: relative;
   isolation: isolate;
+  border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--glass-rim), var(--shadow-pop);
 }
-[data-column][data-hero-accent='needs-you'] {
+/* The calm columns take the one fill (the token's `--bg-col-calm` is white 3%, a shade darker
+   than the header beside them). Needs you keeps its gold `--bg-col-hero`: that tint is the
+   column's meaning, not its material. */
+section[data-column]:not([data-hero-accent]),
+[data-testid='skeleton-column'] {
+  background-color: var(--glass-fill);
+}
+section[data-column][data-hero-accent='needs-you'] {
   box-shadow:
     inset 0 0 0 1px rgba(255, 207, 41, 0.12),
     var(--glass-rim),
     var(--shadow-pop);
 }
-[data-column]::before,
+section[data-column]::before,
 [data-testid='skeleton-column']::before {
   content: '';
   position: absolute;
@@ -357,7 +374,7 @@ body {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
 }
-[data-column]::after,
+section[data-column]::after,
 [data-testid='skeleton-column']::after {
   content: '';
   position: absolute;
@@ -376,4 +393,15 @@ body {
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
+}
+
+/* A resting rail row's HOVER previews the active tab: the app paints it `--bg-base`, which is
+   `transparent` here, so a hovered row showed the rail's own 6% surface and looked unhovered,
+   while the active tab (a NOTCH cut through that surface) shows the dark ground. The hover
+   cannot cut the surface away, so it darkens it back instead: black at 0.3 over the 6% white
+   lands on the ground's tone where the rail sits (measured 39 → 27, the tab's own 27). Scoped
+   to the rail, and after `.row:not(.active):hover` on specificity (0,3,1 over 0,3,0). */
+[data-testid='attention-rail'] button[data-testid='rail-row']:hover,
+[data-testid='attention-rail'] [data-testid='starting-rail-row']:not([data-active]):hover {
+  background: rgba(0, 0, 0, 0.3);
 }
