@@ -237,7 +237,12 @@ import { ensureHookSettingsFile } from './hooks/hookSettingsFile'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
 // one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
-import { claimByProcess, createOrphanRegistry, sessionEndKeepsCard } from './hooks/sessionRebind'
+import {
+  claimByProcess,
+  createOrphanRegistry,
+  isAdoptableSessionId,
+  sessionEndKeepsCard
+} from './hooks/sessionRebind'
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
 // UserPromptSubmit hook POST (the only way to rename an already-running session).
 import { createPendingTitles } from './hooks/pendingTitles'
@@ -846,6 +851,12 @@ function registerWatchFeed(window: BrowserWindow): void {
     proof: 'pid' | 'cwd'
   ): boolean {
     if (launchService === null) return false
+    if (!isAdoptableSessionId(newSessionId)) {
+      // SEC-1 — a forged id must not become a card id (it later reaches `claude --resume`).
+      // Code only: the id is caller-controlled.
+      console.warn('[c9watch][hooks] path=(hook) code=hook_rebind_bad_id')
+      return false
+    }
     const stored = reducer.snapshotMap().get(oldSessionId)
     if (stored === undefined) {
       // The card left by another path (stop/exit) — any orphan record is stale, drop it.

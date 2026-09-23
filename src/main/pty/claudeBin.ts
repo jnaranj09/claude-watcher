@@ -191,8 +191,10 @@ function flagArg(flag: string, value: string | null): string {
  *     so an un-quoted `it's mine` would terminate the quoting and split the command apart.
  *     This is operator-supplied text reaching a shell; treat it as hostile.
  *
- * The session id is a crypto `randomUUID()` (hex + dashes), so quoting it is belt-and-
- * braces — but the string still passes through a shell and must not rely on that.
+ * The session id is quoted too, and that is NOT belt-and-braces: a new launch mints a
+ * `randomUUID()`, but a `/clear` rebind adopts the id a HOOK reported, the card is archived
+ * under it, and Past sessions → Open resumes it here. It was once hand-quoted `'…'`, so a
+ * forged id with a `'` ran as a command (SEC-1; `adoptCard` now also refuses a non-UUID).
  *
  * `displayName` becomes claude's `-n <name>`, so claude adopts the operator's name for its
  * own session and `claude --resume` / the `/resume` picker agree with the board card. An
@@ -241,7 +243,7 @@ function flagArg(flag: string, value: string | null): string {
 export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
   if (spec.resume) {
     return (
-      `${shellQuote(spec.claudeCommand)} --resume '${spec.sessionId}'` +
+      `${shellQuote(spec.claudeCommand)} --resume ${shellQuote(spec.sessionId)}` +
       flagArg('--settings', spec.hookSettingsPath) +
       flagArg('--append-system-prompt', spec.appendSystemPrompt)
     )
@@ -251,7 +253,7 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
       ? ` -- ${shellQuote(spec.initialPrompt)}`
       : ''
   return (
-    `${shellQuote(spec.claudeCommand)} --session-id '${spec.sessionId}'` +
+    `${shellQuote(spec.claudeCommand)} --session-id ${shellQuote(spec.sessionId)}` +
     flagArg('-n', spec.displayName) +
     flagArg('--settings', spec.hookSettingsPath) +
     flagArg('--append-system-prompt', spec.appendSystemPrompt) +

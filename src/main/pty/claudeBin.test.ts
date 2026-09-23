@@ -19,7 +19,7 @@ import {
 import type { ClaudeCommandSpec } from './claudeBin'
 import { EFFORT_LEVELS } from '../../shared/schemas/template'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, chmodSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -447,6 +447,27 @@ describe('composeClaudeCommand', () => {
           .split('\n')
           .filter((l) => l !== '')
         expect(argv).toEqual(['--resume', SID, '--settings', '/tmp/a b/hooks.json'])
+      })
+
+      // SEC-1: a forged hook session_id can be adopted onto a card, archived, and reopened with
+      // --resume. The id reached the shell inside hand-written '…', so a `'` in it closed the
+      // quoting and the rest ran as a command. Revert either shellQuote and these go red.
+      it.each([true, false])('does not let a hostile id run a command (resume: %s)', (resume) => {
+        const dir = mkdtempSync(join(tmpdir(), 'c9-sid-'))
+        const marker = join(dir, 'pwned')
+        try {
+          const hostile = `x'; touch '${marker}'; '`
+          const cmd = composeClaudeCommand(
+            spec({ resume, claudeCommand: stub, sessionId: hostile, displayName: '' })
+          )
+          const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+            .split('\n')
+            .filter((l) => l !== '')
+          expect(argv).toEqual([resume ? '--resume' : '--session-id', hostile])
+          expect(existsSync(marker)).toBe(false)
+        } finally {
+          rmSync(dir, { recursive: true, force: true })
+        }
       })
 
       it('resume: false composes byte-identically to before (no regression)', () => {
