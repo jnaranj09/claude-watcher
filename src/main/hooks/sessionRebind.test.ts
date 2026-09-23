@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest'
 import {
   claimByProcess,
   createOrphanRegistry,
+  isAdoptableSessionId,
   sessionEndKeepsCard,
   REBIND_WINDOW_MS,
   type LiveTerminals,
@@ -228,5 +229,23 @@ describe('OrphanRegistry.claim — a refusal caused by the window ALONE is repor
     expect(reg.claim('/repo/a', T0 + REBIND_WINDOW_MS + 1, alive())).toBeNull()
     expect(reg.claim('/repo/a', T0 + 1, alive('term-1'))).toEqual(orphan)
     expect(refused).toEqual([])
+  })
+})
+
+// SEC-1 hardening: an adopted id becomes the card's id, is archived, and later reaches a
+// `claude --resume` shell command. claude's own ids are UUIDs, so anything else is forged.
+describe('isAdoptableSessionId', () => {
+  it('accepts a claude session UUID', () => {
+    expect(isAdoptableSessionId('3f2b8c1e-9a4d-4e7f-8b2c-1d0e6f5a7b9c')).toBe(true)
+  })
+
+  it.each([
+    ['a quote-breaking payload', "x'; touch /tmp/pwned; '"],
+    ['an empty string', ''],
+    ['a UUID with trailing text', '3f2b8c1e-9a4d-4e7f-8b2c-1d0e6f5a7b9c; id'],
+    ['a UUID with a newline', '3f2b8c1e-9a4d-4e7f-8b2c-1d0e6f5a7b9c\n'],
+    ['a UUID missing a group', '3f2b8c1e-9a4d-4e7f-1d0e6f5a7b9c']
+  ])('refuses %s', (_label, id) => {
+    expect(isAdoptableSessionId(id)).toBe(false)
   })
 })

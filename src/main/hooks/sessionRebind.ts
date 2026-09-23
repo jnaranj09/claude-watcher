@@ -62,6 +62,17 @@ export interface OrphanedLaunch {
  *  enough that an unrelated manual `claude` in the same cwd rarely lands inside it. */
 export const REBIND_WINDOW_MS = 5 * 60_000
 
+const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** SEC-1 hardening: may a hook's unknown id become a card's id? Only a UUID — claude's own ids
+ *  always are. The id rides the card into Past sessions and later into `claude --resume <id>`
+ *  under a shell, so a forged hook must not plant anything else there. `composeClaudeCommand`
+ *  shell-quotes it regardless; this keeps the forged value off the board in the first place.
+ *  Not on `PastSessionIdSchema` — existence is the store's call there, by design. */
+export function isAdoptableSessionId(id: string): boolean {
+  return SESSION_UUID.test(id)
+}
+
 /** The minimal launch-service surface Part 1 needs (structurally satisfied by `LaunchService`
  *  once `terminalIdFor` is added — see launchSession.ts). */
 export interface RebindBindingSource {
