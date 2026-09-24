@@ -296,6 +296,12 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   the DEFAULT bundle is pushed, and Settings shows the error line. Recovery is always "fix or remove
   the folder, Reload themes (or restart)". Logs carry `code=` and the zod `path=` only — never a
   manifest value, CSS text or a file path.
+- **A theme may list predefined `wallpapers`** (spec `2026-09-24-theme-wallpapers-design.md`): the
+  app inlines ONLY the chosen one as `--theme-wallpaper` (its own `:root` block, after the tokens),
+  validates and size-counts ALL of them, and remembers the pick per theme in
+  `settings.wallpaperByTheme`. An unknown pick falls back to the FIRST entry and keeps the setting
+  (`code=theme_wallpaper_not_found id=<themeId>`). No file picker — a custom image means editing
+  the theme.
 - **`nativeTheme.themeSource` and the root `color-scheme` FOLLOW THE THEME** (`colorScheme: dark|light`,
   `themeLifecycle.ts` + `hooks/useApplyTheme.ts`). The old fixed `:root { color-scheme: dark }` is
   gone from `main.css`; the pre-window `nativeTheme.themeSource = 'dark'` in index.ts is only the

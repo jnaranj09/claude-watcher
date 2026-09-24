@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/jnaranj09/claude-watcher/main/docs/themes/theme.schema.json",
   "title": "claude-watcher theme manifest",
-  "description": "theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain \"..\"; name is trimmed before its length is checked, so a whitespace-only name (e.g. \" \") satisfies this schema but is rejected by the app.",
+  "description": "theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain \"..\"; name is trimmed before its length is checked, so a whitespace-only name (e.g. \" \") satisfies this schema but is rejected by the app. A wallpapers[].file is a plain file name ending in .png, .jpg, .jpeg or .webp, and wallpaper ids must be unique.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -478,6 +478,35 @@
     "css": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+\\.css$"
+    },
+    "wallpapers": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+\\.(png|jpg|jpeg|webp)$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "file"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "required": [

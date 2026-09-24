@@ -193,6 +193,30 @@ The keys of xterm's `ITheme`, plus `allowTransparency`. Set any subset.
 that turns it on reaches terminals opened after it was applied; Settings says so while it is on.
 It costs paint performance; use it only with a translucent `background`.
 
+### Wallpapers
+
+A theme may ship up to 8 predefined wallpapers. The operator picks one in Settings (the
+`Wallpaper` row appears when a theme lists 2 or more); nobody picks a file from disk.
+
+```json
+"wallpapers": [
+  { "id": "graphite", "name": "Graphite", "file": "ground.png" },
+  { "id": "aurora", "name": "Aurora gradient", "file": "aurora.jpg" }
+]
+```
+
+- `id` follows the theme-id rule (lower-case letters, digits, `-`); ids are unique. `name` is what
+  the dropdown shows (1–40 characters). `file` is a `.png`, `.jpg`, `.jpeg` or `.webp` in the
+  theme folder.
+- The FIRST entry is the default.
+- The app inlines only the chosen image, as `--theme-wallpaper`. Use it in your CSS:
+  `body { background: var(--theme-wallpaper) center / cover no-repeat, #000; }`.
+- Every listed file must exist and they all count toward the 5 MB asset limit, even the ones not
+  picked. A missing file lists the theme as broken.
+- If the operator's pick disappears from the list (you renamed it), the first wallpaper is used
+  and their setting is kept.
+- Want a darker or blurrier image? Change the file. There is no darken or blur setting.
+
 ## The CSS file
 
 Loaded AFTER the tokens block, so it wins over everything — `!important` is never needed. The
@@ -291,7 +315,8 @@ path=<field>`. Never the values.
 - [`examples/builtin-dark`](examples/builtin-dark/) — the built-in look as a package: every token and
   terminal key at its default. Generated; copy it and change values.
 - [`examples/liquid-glass`](examples/liquid-glass/) — what the CSS file makes possible: translucent
-  panels, `backdrop-filter`, a gradient behind everything, a transparent terminal.
+  panels, `backdrop-filter`, a transparent terminal, and three wallpapers (Graphite; Aurora
+  gradient by Mohammed Kareem on Unsplash; Warm smoke by SplitShire on Pexels).
 - [`examples/paper`](examples/paper/) — a light theme, tokens only.
 
 ## Editor support

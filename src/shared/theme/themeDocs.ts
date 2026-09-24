@@ -38,7 +38,7 @@ export function renderThemeJsonSchema(): string {
     $id: THEME_SCHEMA_URL,
     title: 'claude-watcher theme manifest',
     description:
-      'theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain ".."; name is trimmed before its length is checked, so a whitespace-only name (e.g. " ") satisfies this schema but is rejected by the app.',
+      'theme.json for a claude-watcher theme package. Rules the schema cannot express: a token or terminal value may not contain url(, ;, {, }, /*, a newline or a backslash; css may not contain ".."; name is trimmed before its length is checked, so a whitespace-only name (e.g. " ") satisfies this schema but is rejected by the app. A wallpapers[].file is a plain file name ending in .png, .jpg, .jpeg or .webp, and wallpaper ids must be unique.',
     ...schema
   }
   return JSON.stringify(out, null, 2) + '\n'
