@@ -60,7 +60,8 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
         expanderKey: patch.expanderKey ?? DEFAULT_SETTINGS.expanderKey,
         apiEnabled: patch.apiEnabled ?? DEFAULT_SETTINGS.apiEnabled,
         apiPort: patch.apiPort ?? DEFAULT_SETTINGS.apiPort,
-        themeId: patch.themeId ?? DEFAULT_SETTINGS.themeId
+        themeId: patch.themeId ?? DEFAULT_SETTINGS.themeId,
+        wallpaperByTheme: patch.wallpaperByTheme ?? DEFAULT_SETTINGS.wallpaperByTheme
       }
       return merged
     }

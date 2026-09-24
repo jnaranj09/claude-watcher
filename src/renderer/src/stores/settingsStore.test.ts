@@ -14,7 +14,8 @@ import {
   selectExpanderKey,
   selectApiEnabled,
   selectApiPort,
-  selectThemeId
+  selectThemeId,
+  selectWallpaperByTheme
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -39,7 +40,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       expanderKey: 'X',
       apiEnabled: false,
       apiPort: DEFAULT_SETTINGS.apiPort,
-      themeId: 'default'
+      themeId: 'default',
+      wallpaperByTheme: {}
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -141,5 +143,17 @@ describe('themeId', () => {
     expect(selectThemeId(store.getState())).toBe('liquid-glass')
     store.getState().applyPatch({ soundEnabled: false })
     expect(selectThemeId(store.getState())).toBe('liquid-glass')
+  })
+})
+
+describe('wallpaperByTheme (spec 2026-09-24)', () => {
+  it('hydrates and applies a patch', () => {
+    const store = createSettingsStore()
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, wallpaperByTheme: { g: 'a' } })
+    expect(selectWallpaperByTheme(store.getState())).toEqual({ g: 'a' })
+    store.getState().applyPatch({ wallpaperByTheme: { g: 'b' } })
+    expect(selectWallpaperByTheme(store.getState())).toEqual({ g: 'b' })
+    store.getState().applyPatch({ soundEnabled: false })
+    expect(selectWallpaperByTheme(store.getState())).toEqual({ g: 'b' })
   })
 })

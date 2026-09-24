@@ -37,6 +37,8 @@ export interface SettingsState {
   /** Custom themes — the CHOSEN theme id (`default` or a folder id). The APPLIED bundle lives
    *  in themeStore. */
   themeId: string
+  /** Theme wallpapers — theme id → picked wallpaper id (spec 2026-09-24). */
+  wallpaperByTheme: Readonly<Record<string, string>>
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
@@ -64,6 +66,7 @@ export function createSettingsStore(): SettingsStoreApi {
     apiEnabled: DEFAULT_SETTINGS.apiEnabled,
     apiPort: DEFAULT_SETTINGS.apiPort,
     themeId: DEFAULT_SETTINGS.themeId,
+    wallpaperByTheme: DEFAULT_SETTINGS.wallpaperByTheme,
     loaded: false,
 
     hydrate: (settings) => {
@@ -76,6 +79,7 @@ export function createSettingsStore(): SettingsStoreApi {
         apiEnabled: settings.apiEnabled,
         apiPort: settings.apiPort,
         themeId: settings.themeId,
+        wallpaperByTheme: settings.wallpaperByTheme,
         loaded: true
       })
     },
@@ -94,7 +98,10 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.expanderKey !== undefined ? { expanderKey: patch.expanderKey } : {}),
         ...(patch.apiEnabled !== undefined ? { apiEnabled: patch.apiEnabled } : {}),
         ...(patch.apiPort !== undefined ? { apiPort: patch.apiPort } : {}),
-        ...(patch.themeId !== undefined ? { themeId: patch.themeId } : {})
+        ...(patch.themeId !== undefined ? { themeId: patch.themeId } : {}),
+        ...(patch.wallpaperByTheme !== undefined
+          ? { wallpaperByTheme: patch.wallpaperByTheme }
+          : {})
       })
     }
   }))
@@ -121,6 +128,9 @@ export const selectApiEnabled = (state: SettingsState): boolean => state.apiEnab
 export const selectApiPort = (state: SettingsState): number => state.apiPort
 /** Custom themes — the live chosen theme id (primitive). */
 export const selectThemeId = (state: SettingsState): string => state.themeId
+/** Same object reference until a hydrate/patch replaces it — safe without `useShallow`. */
+export const selectWallpaperByTheme = (state: SettingsState): Readonly<Record<string, string>> =>
+  state.wallpaperByTheme
 /** Whether the initial load has completed (primitive). */
 export const selectLoaded = (state: SettingsState): boolean => state.loaded
 

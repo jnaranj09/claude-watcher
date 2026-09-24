@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest'
 import {
   SettingsSchema,
   SettingsPatchSchema,
+  WALLPAPER_BY_THEME_MAX,
   parseSettings,
   DEFAULT_SETTINGS,
   SETTINGS_VERSION,
@@ -39,7 +40,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       expanderKey: 'X',
       apiEnabled: false,
       apiPort: 9281,
-      themeId: 'default'
+      themeId: 'default',
+      wallpaperByTheme: {}
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -331,5 +333,38 @@ describe('settings.themeId (custom themes, additive on v1)', () => {
   })
   it('DEFAULT_SETTINGS.themeId is default', () => {
     expect(DEFAULT_SETTINGS.themeId).toBe('default')
+  })
+})
+
+describe('settings.wallpaperByTheme (theme wallpapers, additive on v1)', () => {
+  const base = { version: 1, soundEnabled: true, terminalFontSize: 14 }
+  it('defaults to {} on a v1 blob written before wallpapers existed', () => {
+    const r = SettingsSchema.safeParse(base)
+    expect(r.success && r.data.wallpaperByTheme).toEqual({})
+  })
+  it('accepts theme id → wallpaper id and fails closed on a non-id key or value', () => {
+    const ok = { 'liquid-glass': 'aurora' }
+    expect(SettingsSchema.safeParse({ ...base, wallpaperByTheme: ok }).success).toBe(true)
+    expect(
+      SettingsSchema.safeParse({ ...base, wallpaperByTheme: { 'Bad Key': 'a' } }).success
+    ).toBe(false)
+    expect(SettingsSchema.safeParse({ ...base, wallpaperByTheme: { g: '../a' } }).success).toBe(
+      false
+    )
+  })
+  it(`fails closed past ${WALLPAPER_BY_THEME_MAX} entries`, () => {
+    const many = Object.fromEntries(
+      Array.from({ length: WALLPAPER_BY_THEME_MAX + 1 }, (_, i) => [`t${i}`, 'a'])
+    )
+    expect(SettingsSchema.safeParse({ ...base, wallpaperByTheme: many }).success).toBe(false)
+  })
+  it('the patch accepts the map and a map-only patch fills nothing else', () => {
+    expect(SettingsPatchSchema.parse({ wallpaperByTheme: { g: 'a' } })).toEqual({
+      wallpaperByTheme: { g: 'a' }
+    })
+    expect(SettingsPatchSchema.parse({ themeId: 'paper' })).toEqual({ themeId: 'paper' })
+  })
+  it('DEFAULT_SETTINGS.wallpaperByTheme is {}', () => {
+    expect(DEFAULT_SETTINGS.wallpaperByTheme).toEqual({})
   })
 })

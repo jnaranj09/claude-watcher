@@ -87,6 +87,15 @@ const ApiPortSchema = z.number().int().min(API_PORT_MIN).max(API_PORT_MAX)
  * are dropped, not failed; a MALFORMED known key fails closed, which is the load-bearing
  * guarantee for AC-6).
  */
+/** Theme wallpapers (spec 2026-09-24): theme id → the operator's wallpaper pick for that theme.
+ *  Bounded so a hand-edited file cannot grow it without limit; stale keys are kept on purpose. */
+export const WALLPAPER_BY_THEME_MAX = 64
+export const WallpaperByThemeSchema = z
+  .record(ThemeIdSchema, ThemeIdSchema)
+  .refine((m) => Object.keys(m).length <= WALLPAPER_BY_THEME_MAX, {
+    error: 'too many wallpaper picks'
+  })
+
 export const SettingsSchema = z.object({
   version: z.literal(SETTINGS_VERSION),
   soundEnabled: z.boolean(),
@@ -107,7 +116,9 @@ export const SettingsSchema = z.object({
   // operator chose, or `default`. A stored value that is not an id fails closed (backup +
   // fresh), like every other field. A chosen theme that no longer LOADS is not a schema
   // matter: main falls back to Default and keeps this value (D-7).
-  themeId: ThemeIdSchema.default(DEFAULT_THEME_ID)
+  themeId: ThemeIdSchema.default(DEFAULT_THEME_ID),
+  // Theme wallpapers (spec 2026-09-24). Additive on v1, same `.default()` reasoning as above.
+  wallpaperByTheme: WallpaperByThemeSchema.default({})
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -133,7 +144,8 @@ export const SettingsPatchSchema = z
     expanderKey: ExpanderKeySchema,
     apiEnabled: z.boolean(),
     apiPort: ApiPortSchema,
-    themeId: ThemeIdSchema
+    themeId: ThemeIdSchema,
+    wallpaperByTheme: WallpaperByThemeSchema
   })
   .partial()
 
@@ -152,7 +164,8 @@ export const DEFAULT_SETTINGS: Settings = {
   expanderKey: DEFAULT_EXPANDER_KEY,
   apiEnabled: false,
   apiPort: DEFAULT_API_PORT,
-  themeId: DEFAULT_THEME_ID
+  themeId: DEFAULT_THEME_ID,
+  wallpaperByTheme: {}
 }
 
 /**
