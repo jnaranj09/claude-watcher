@@ -102,8 +102,8 @@ describe('docs/themes/examples', () => {
   })
   it.each([
     ['graphite', 'image/png'],
-    ['aurora', 'image/jpeg'],
-    ['smoke', 'image/jpeg']
+    ['aurora', 'image/png'],
+    ['smoke', 'image/png']
   ])('liquid-glass loads with wallpaper %s', (id, mime) => {
     const r = scanner.load('liquid-glass', id)
     expect(r.ok && r.bundle.wallpaperId).toBe(id)
