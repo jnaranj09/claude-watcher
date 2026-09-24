@@ -200,4 +200,14 @@ describe('Button owns every button style', () => {
     expect(css).toMatch(/\.danger\[data-armed\] \{[^}]*font-weight: 600;/)
     expect(css).toMatch(/\.button\[data-lit\] \{[^}]*background: var\(--text-primary\);/)
   })
+
+  // `.secondary:hover:not(:disabled)` (0,3,0) outranks `.button[data-lit]` (0,2,0): a hovered
+  // lit Filter button took the surface fill but KEPT the dark lit ink, so its icon and label
+  // vanished. The lit hover rule must out-rank every variant's hover and keep the lit ink.
+  it('keeps a lit button lit on hover', () => {
+    const css = readFileSync(join(componentsDir, 'Button/Button.module.css'), 'utf8')
+    const rule = /\n\.button\[data-lit\]:hover:not\(:disabled\) \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(rule).toMatch(/background: var\(--text-primary\);/)
+    expect(rule).toMatch(/color: var\(--text-on-lit\);/)
+  })
 })
