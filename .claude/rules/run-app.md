@@ -8,7 +8,11 @@ screenshots the window. It uses the same seams as `tests/e2e/native-engine.e2e.t
 
 ## Recipe
 
-1. **Free 127.0.0.1:9279.** Ask the operator to close the installed app and any `npm run dev`.
+1. **Free 127.0.0.1:9279.** Ask the operator to close the INSTALLED app (`/opt/Claude Watcher`) —
+   it is the only thing that holds 9279. **Never ask them to close `npm run dev`**: it runs on the
+   DEV profile (`src/main/profile.ts`) — hook port **19279**, API **19281**, userData
+   `~/.config/claude-watcher-dev` — so it never conflicts with a drive run. Check who holds the
+   port before asking: `ss -ltnp | grep :9279`.
    The driver refuses to start while the port is taken: the app TOLERATES EADDRINUSE — it logs
    `code=eaddrinuse` and keeps running rather than crashing (`hookServer.ts`) — so it would bind
    nothing and your hook POSTs would reach the OTHER instance. The log line is the only sign, and

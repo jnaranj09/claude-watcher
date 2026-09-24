@@ -45,7 +45,9 @@ npx vitest run --project unit src/shared/schemas         # one project / dir
 **Seeing a visual change in the real app** — tests cannot see CSS, stacking or pixel alignment.
 `npm run build`, then drive the built app from a scenario script on `tests/drive/driveApp.mjs`
 (Playwright-Electron, real `claude`, real hook POSTs, screenshots). It needs 127.0.0.1:9279
-free, so the installed app must be closed. Recipe and gotchas: `.claude/rules/run-app.md`.
+free, so the INSTALLED app must be closed. A running `npm run dev` does NOT block it (dev profile:
+19279 / 19281, see above) — never ask the operator to close it. Recipe and gotchas:
+`.claude/rules/run-app.md`.
 
 **Gate buckets.** Most changes gate on `typecheck / lint / test / build`. Only changes
 touching node-pty / the preload seam / packaging additionally require `build:dir` +
