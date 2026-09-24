@@ -40,6 +40,7 @@ import {
   selectApiEnabled,
   selectApiPort,
   selectThemeId,
+  selectWallpaperByTheme,
   persistSettingsPatch
 } from '../../stores/settingsStore'
 import {
@@ -160,6 +161,16 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const brokenLine = brokenThemesLine(summaries)
   const chosenSummary = summaries.find((s) => s.id === themeId)
   const chosenName = chosenSummary?.name ?? themeId
+  // Theme wallpapers (spec 2026-09-24): offered only for the theme that actually LOADED (the
+  // bundle names it) and only with a real choice — design.md: a control the operator cannot use
+  // is not rendered. The value is what landed (`bundle.wallpaperId`), so a stale pick that fell
+  // back shows the wallpaper on screen, never a value the list does not offer.
+  const wallpaperByTheme = useSettings(selectWallpaperByTheme)
+  const wallpaperOptions: SelectOption<string>[] =
+    bundle.id === themeId && bundle.wallpaperId !== null
+      ? (chosenSummary?.wallpapers ?? []).map((w) => ({ value: w.id, label: w.name }))
+      : []
+  const appliedWallpaper = bundle.wallpaperId
   // D-7: the setting is kept; the bundle's id says what actually landed. Finding 1(b): name the
   // REASON too, not just "could not be loaded" — the chosen theme's own summary now carries the
   // same code a full package validation (manifest + CSS + assets, themeScanner.ts scan()) would
@@ -396,7 +407,8 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             Regenerate is the block's only armable control; a second one would need its own
             Provider. */}
         <ManageDialog.Provider {...apiDialog}>
-          {/* Custom themes — the picker (a Select; never a native <select>), the two actions, the
+          {/* Custom themes — the picker (a Select; never a native <select>), a Wallpaper picker when
+              the applied theme lists 2+ (spec 2026-09-24), the two actions, the
               broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
           <div className={styles.row}>
             <span className={styles.label}>Theme</span>
@@ -410,6 +422,24 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
               />
             </div>
           </div>
+          {wallpaperOptions.length >= 2 && appliedWallpaper !== null && (
+            <div className={styles.row}>
+              <span className={styles.label}>Wallpaper</span>
+              <div className={styles.controlGroup}>
+                <Select
+                  value={appliedWallpaper}
+                  options={wallpaperOptions}
+                  onChange={(next) =>
+                    void persistSettingsPatch({
+                      wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next }
+                    })
+                  }
+                  ariaLabel="Wallpaper"
+                  testId="settings-wallpaper"
+                />
+              </div>
+            </div>
+          )}
           <div className={styles.themeActions}>
             <ManageDialog.GhostButton
               testId="settings-theme-reload"

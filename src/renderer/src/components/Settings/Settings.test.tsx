@@ -777,4 +777,103 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     )
     expect(optionValues(r.container, 'settings-theme')).toEqual(['default'])
   })
+  describe('Wallpaper (spec 2026-09-24)', () => {
+    const two: ThemeSummary = {
+      id: 'liquid-glass',
+      name: 'Liquid Glass',
+      colorScheme: 'dark',
+      wallpapers: [
+        { id: 'graphite', name: 'Graphite' },
+        { id: 'aurora', name: 'Aurora gradient' }
+      ]
+    }
+    const applied = {
+      ...DEFAULT_THEME_BUNDLE,
+      id: 'liquid-glass',
+      name: 'Liquid Glass',
+      wallpaperId: 'graphite'
+    }
+    const chooseGlass = (): void =>
+      act(() => {
+        settingsStore.getState().hydrate({
+          ...DEFAULT_SETTINGS,
+          themeId: 'liquid-glass',
+          wallpaperByTheme: { paper: 'x' }
+        })
+        themeStore.getState().setBundle(applied)
+      })
+    const wallpaperSelect = (c: HTMLElement): Element | null =>
+      c.querySelector('[data-testid="settings-wallpaper"]')
+
+    it('shows the applied theme wallpapers, on the applied one', async () => {
+      stubSettings()
+      stubApi()
+      stubThemes([two])
+      chooseGlass()
+      const r = renderComponent(<SettingsPanel />)
+      cleanup = r.unmount
+      await flush()
+      expect(optionValues(r.container, 'settings-wallpaper')).toEqual(['graphite', 'aurora'])
+      expect(selectedValue(r.container, 'settings-wallpaper')).toBe('graphite')
+    })
+
+    it('picking one persists the WHOLE map with this theme updated', async () => {
+      const { setCalls } = stubSettings()
+      stubApi()
+      stubThemes([two])
+      chooseGlass()
+      const r = renderComponent(<SettingsPanel />)
+      cleanup = r.unmount
+      await flush()
+      chooseOption(r.container, 'settings-wallpaper', 'aurora')
+      expect(setCalls).toEqual([{ wallpaperByTheme: { paper: 'x', 'liquid-glass': 'aurora' } }])
+    })
+
+    it('is not rendered for a theme with one wallpaper', async () => {
+      stubSettings()
+      stubApi()
+      stubThemes([{ ...two, wallpapers: [{ id: 'graphite', name: 'Graphite' }] }])
+      chooseGlass()
+      const r = renderComponent(<SettingsPanel />)
+      cleanup = r.unmount
+      await flush()
+      expect(wallpaperSelect(r.container)).toBeNull()
+    })
+
+    it('is not rendered while the chosen theme failed and Default is applied', async () => {
+      stubSettings()
+      stubApi()
+      stubThemes([two])
+      act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'liquid-glass' })) // bundle stays DEFAULT_THEME_BUNDLE
+      const r = renderComponent(<SettingsPanel />)
+      cleanup = r.unmount
+      await flush()
+      expect(wallpaperSelect(r.container)).toBeNull()
+    })
+
+    it("is not rendered while the applied bundle is ANOTHER theme's (a switch not yet landed)", async () => {
+      stubSettings()
+      stubApi()
+      const paperTwo: ThemeSummary = { ...two, id: 'paper', name: 'Paper' }
+      stubThemes([two, paperTwo])
+      act(() => {
+        settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'paper' })
+        themeStore.getState().setBundle(applied) // still liquid-glass, wallpaperId 'graphite'
+      })
+      const r = renderComponent(<SettingsPanel />)
+      cleanup = r.unmount
+      await flush()
+      expect(wallpaperSelect(r.container)).toBeNull()
+    })
+
+    it('is not rendered on Default', async () => {
+      stubSettings()
+      stubApi()
+      stubThemes([two])
+      const r = renderComponent(<SettingsPanel />)
+      cleanup = r.unmount
+      await flush()
+      expect(wallpaperSelect(r.container)).toBeNull()
+    })
+  })
 })
