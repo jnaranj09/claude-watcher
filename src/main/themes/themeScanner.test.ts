@@ -326,3 +326,48 @@ describe('codeForIssue', () => {
     })
   })
 })
+
+describe('wallpapers (spec 2026-09-24)', () => {
+  const wm = {
+    version: 1,
+    name: 'Glass',
+    wallpapers: [
+      { id: 'graphite', name: 'Graphite', file: 'ground.png' },
+      { id: 'aurora', name: 'Aurora', file: 'aurora.jpg' }
+    ]
+  }
+  const files = { 'ground.png': 'P', 'aurora.jpg': 'J' }
+
+  it('scan lists { id, name } per wallpaper and never the file', () => {
+    const dir = themesDir()
+    theme(dir, 'glass', wm, files)
+    const [s] = createThemeScanner({ dir, log }).scan()
+    expect(s?.wallpapers).toEqual([
+      { id: 'graphite', name: 'Graphite' },
+      { id: 'aurora', name: 'Aurora' }
+    ])
+    expect(JSON.stringify(s)).not.toContain('aurora.jpg')
+  })
+  it('a missing wallpaper file lists the theme as broken', () => {
+    const dir = themesDir()
+    theme(dir, 'glass', wm, { 'ground.png': 'P' })
+    const [s] = createThemeScanner({ dir, log }).scan()
+    expect(s?.error).toBe('theme_asset_missing')
+  })
+  it('a symlinked wallpaper reads as missing', () => {
+    const dir = themesDir()
+    theme(dir, 'glass', wm, { 'ground.png': 'P' })
+    writeFileSync(join(dir, 'secret.txt'), 'S')
+    symlinkSync(join(dir, 'secret.txt'), join(dir, 'glass', 'aurora.jpg'))
+    expect(createThemeScanner({ dir, log }).load('glass')).toEqual({
+      ok: false,
+      code: 'theme_asset_missing'
+    })
+  })
+  it('load passes the wallpaper id through', () => {
+    const dir = themesDir()
+    theme(dir, 'glass', wm, files)
+    const r = createThemeScanner({ dir, log }).load('glass', 'aurora')
+    expect(r.ok && r.bundle.wallpaperId).toBe('aurora')
+  })
+})

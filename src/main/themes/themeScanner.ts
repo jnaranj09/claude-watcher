@@ -24,7 +24,7 @@ export interface ThemeScanner {
   /** `mkdir -p` the folder, then every subfolder whose id matches, sorted by name. Broken
    *  manifests are LISTED with their code so the author sees why (spec §2). */
   scan(): ThemeSummary[]
-  load(id: string): ThemeLoadResult
+  load(id: string, wallpaperId?: string): ThemeLoadResult
 }
 
 export function codeForIssue(issue: { path: PropertyKey[]; code: string }): {
@@ -114,7 +114,7 @@ export function createThemeScanner(opts: {
 }): ThemeScanner {
   const log = opts.log ?? ((message: string): void => console.warn(message))
 
-  function load(id: string): ThemeLoadResult {
+  function load(id: string, wallpaperId?: string): ThemeLoadResult {
     if (id === DEFAULT_THEME_ID) return { ok: true, bundle: DEFAULT_THEME_BUNDLE }
     if (!THEME_ID_PATTERN.test(id)) return { ok: false, code: 'theme_id_invalid' }
     const folder = join(opts.dir, id)
@@ -125,7 +125,7 @@ export function createThemeScanner(opts: {
     }
     const m = readManifest(folder)
     if (!m.ok) return m
-    return composeTheme(id, m.manifest, folderReader(folder))
+    return composeTheme(id, m.manifest, folderReader(folder), wallpaperId)
   }
 
   function scan(): ThemeSummary[] {
@@ -178,7 +178,10 @@ export function createThemeScanner(opts: {
         id,
         name: m.manifest.name,
         ...(m.manifest.author !== undefined ? { author: m.manifest.author } : {}),
-        colorScheme: m.manifest.colorScheme
+        colorScheme: m.manifest.colorScheme,
+        ...(m.manifest.wallpapers !== undefined
+          ? { wallpapers: m.manifest.wallpapers.map((w) => ({ id: w.id, name: w.name })) }
+          : {})
       }
       if (composed.ok) {
         out.push(base)
