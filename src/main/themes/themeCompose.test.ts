@@ -217,3 +217,93 @@ describe('composeTheme', () => {
     }
   )
 })
+
+describe('composeTheme — wallpapers (spec 2026-09-24)', () => {
+  const jpg = new Uint8Array([0xff, 0xd8, 0xff])
+  const jb64 = Buffer.from(jpg).toString('base64')
+  const three = {
+    wallpapers: [
+      { id: 'graphite', name: 'Graphite', file: 'ground.png' },
+      { id: 'aurora', name: 'Aurora', file: 'aurora.jpg' },
+      { id: 'smoke', name: 'Smoke', file: 'smoke.jpg' }
+    ]
+  }
+  const files = { 'ground.png': png, 'aurora.jpg': jpg, 'smoke.jpg': new Uint8Array([1, 2]) }
+  const varBlock = (mime: string, data: string): string =>
+    `:root {\n  --theme-wallpaper: url("data:${mime};base64,${data}");\n}\n`
+
+  it('inlines ONLY the chosen file, as its own :root block before the theme CSS', () => {
+    const r = composeTheme(
+      'g',
+      manifest({ ...three, css: 't.css', tokens: { 'bg-base': '#000' } }),
+      createMapReader({ ...files, 't.css': 'body{background:var(--theme-wallpaper)}' }),
+      'aurora'
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.bundle.wallpaperId).toBe('aurora')
+    expect(r.wallpaperFallback).toBeUndefined()
+    expect(r.bundle.css).toBe(
+      ':root {\n  --bg-base: #000;\n}\n' +
+        varBlock('image/jpeg', jb64) +
+        'body{background:var(--theme-wallpaper)}'
+    )
+    expect(r.bundle.css).not.toContain(b64) // ground.png was read, never inlined
+  })
+  it('with no stored id uses the first entry, no fallback flag', () => {
+    const r = composeTheme('g', manifest(three), createMapReader(files))
+    expect(r.ok && r.bundle.wallpaperId).toBe('graphite')
+    expect(r.ok && r.wallpaperFallback).toBeFalsy()
+    expect(r.ok && r.bundle.css).toBe(varBlock('image/png', b64))
+  })
+  it('an unknown stored id falls back to the first entry and flags it', () => {
+    const r = composeTheme('g', manifest(three), createMapReader(files), 'gone')
+    expect(r.ok && r.bundle.wallpaperId).toBe('graphite')
+    expect(r.ok && r.wallpaperFallback).toBe(true)
+  })
+  it('a theme without wallpapers emits no variable and wallpaperId null', () => {
+    const r = composeTheme('g', manifest(), createMapReader({}), 'aurora')
+    expect(r).toEqual({
+      ok: true,
+      bundle: { id: 'g', name: 'T', colorScheme: 'dark', css: '', terminal: {}, wallpaperId: null }
+    })
+  })
+  it('a listed-but-not-chosen file that is missing fails the theme', () => {
+    const rest: Record<string, Uint8Array> = { ...files }
+    delete rest['smoke.jpg']
+    expect(composeTheme('g', manifest(three), createMapReader(rest), 'aurora')).toEqual({
+      ok: false,
+      code: 'theme_asset_missing'
+    })
+  })
+  it('a throwing reader on a wallpaper is theme_read_failed', () => {
+    const reader: ThemeReader = {
+      read() {
+        throw new Error('EACCES')
+      }
+    }
+    expect(composeTheme('g', manifest(three), reader)).toEqual({
+      ok: false,
+      code: 'theme_read_failed'
+    })
+  })
+  it('every listed wallpaper counts toward the asset cap, not only the chosen one', () => {
+    const half = new Uint8Array(Math.floor(THEME_ASSETS_MAX_BYTES / 2) + 1)
+    const r = composeTheme(
+      'g',
+      manifest(three),
+      createMapReader({ 'ground.png': png, 'aurora.jpg': half, 'smoke.jpg': half }),
+      'graphite'
+    )
+    expect(r).toEqual({ ok: false, code: 'theme_asset_too_large' })
+  })
+  it('wallpapers and the CSS assets share ONE running total', () => {
+    const half = new Uint8Array(Math.floor(THEME_ASSETS_MAX_BYTES / 2) + 1)
+    const r = composeTheme(
+      'g',
+      manifest({ wallpapers: [{ id: 'a', name: 'A', file: 'a.jpg' }], css: 't.css' }),
+      createMapReader({ 'a.jpg': half, 'b.png': half, 't.css': 'body{background:url(b.png)}' })
+    )
+    expect(r).toEqual({ ok: false, code: 'theme_asset_too_large' })
+  })
+})

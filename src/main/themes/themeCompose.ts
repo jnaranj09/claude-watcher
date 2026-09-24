@@ -9,7 +9,8 @@ import {
   type ThemeBundle,
   type ThemeErrorCode,
   type ThemeManifest,
-  type ThemeTokens
+  type ThemeTokens,
+  type ThemeWallpaper
 } from '../../shared/schemas/theme'
 
 export interface ThemeReader {
@@ -18,7 +19,7 @@ export interface ThemeReader {
 }
 
 export type ThemeLoadResult =
-  | { ok: true; bundle: ThemeBundle }
+  | { ok: true; bundle: ThemeBundle; wallpaperFallback?: true }
   | { ok: false; code: ThemeErrorCode; path?: string }
 
 /** An in-memory reader for tests and the docs examples. Strings are UTF-8. */
@@ -54,10 +55,11 @@ const OWN_DATA_URI_CALL = /url\("data:[^"]*"\)/g
 
 export function rewriteCssUrls(
   css: string,
-  reader: ThemeReader
+  reader: ThemeReader,
+  startTotal = 0
 ): { ok: true; css: string } | { ok: false; code: ThemeErrorCode } {
   const inlined = new Map<string, string>()
-  let total = 0
+  let total = startTotal
   let failure = null as ThemeErrorCode | null
 
   const out = css.replace(
@@ -120,12 +122,66 @@ export function rewriteCssUrls(
 // `content: "\201C"`) is refused too.
 const CSS_ESCAPE_OR_IMPORT = /\\|@import|image-set\(/i
 
+/** Read every listed wallpaper (D-7: all of them count toward the cap, a missing one fails the
+ *  theme), then encode ONLY the chosen one. Unknown/absent `wanted` → the first entry. */
+function composeWallpaper(
+  wallpapers: readonly ThemeWallpaper[],
+  reader: ThemeReader,
+  wanted: string | undefined
+):
+  | { ok: true; id: string; block: string; bytes: number; fallback: boolean }
+  | { ok: false; code: ThemeErrorCode } {
+  const chosen = wallpapers.find((w) => w.id === wanted) ?? wallpapers[0]
+  if (chosen === undefined) return { ok: false, code: 'theme_manifest_invalid' } // min(1) upstream
+  let total = 0
+  let chosenBytes: Uint8Array | null = null
+  for (const w of wallpapers) {
+    let bytes: Uint8Array | null
+    try {
+      bytes = reader.read(w.file)
+    } catch {
+      return { ok: false, code: 'theme_read_failed' }
+    }
+    if (bytes === null) return { ok: false, code: 'theme_asset_missing' }
+    total += bytes.byteLength
+    if (total > THEME_ASSETS_MAX_BYTES) return { ok: false, code: 'theme_asset_too_large' }
+    if (w === chosen) chosenBytes = bytes
+  }
+  const ext = (chosen.file.split('.').pop() ?? '').toLowerCase()
+  const mime = THEME_ASSET_MIME[ext]
+  if (chosenBytes === null || mime === undefined) {
+    return { ok: false, code: 'theme_asset_type_invalid' }
+  }
+  const data = `data:${mime};base64,${Buffer.from(chosenBytes).toString('base64')}`
+  return {
+    ok: true,
+    id: chosen.id,
+    // Written by the app, not the author: the file name was checked by the schema and the MIME
+    // comes from the allow-list, so this bypasses the theme-CSS url() guard on purpose.
+    block: `:root {\n  --theme-wallpaper: url("${data}");\n}\n`,
+    bytes: total,
+    fallback: wanted !== undefined && chosen.id !== wanted
+  }
+}
+
 export function composeTheme(
   id: string,
   manifest: ThemeManifest,
-  reader: ThemeReader
+  reader: ThemeReader,
+  wallpaperId?: string
 ): ThemeLoadResult {
   let css = renderTokensBlock(manifest.tokens)
+  let assetBytes = 0
+  let appliedWallpaper: string | null = null
+  let fallback = false
+  if (manifest.wallpapers !== undefined) {
+    const wp = composeWallpaper(manifest.wallpapers, reader, wallpaperId)
+    if (!wp.ok) return wp
+    css += wp.block
+    assetBytes = wp.bytes
+    appliedWallpaper = wp.id
+    fallback = wp.fallback
+  }
   if (manifest.css !== undefined) {
     let bytes: Uint8Array | null
     try {
@@ -135,7 +191,7 @@ export function composeTheme(
     }
     if (bytes === null) return { ok: false, code: 'theme_css_missing' }
     if (bytes.byteLength > THEME_CSS_MAX_BYTES) return { ok: false, code: 'theme_css_too_large' }
-    const rewritten = rewriteCssUrls(new TextDecoder().decode(bytes), reader)
+    const rewritten = rewriteCssUrls(new TextDecoder().decode(bytes), reader, assetBytes)
     if (!rewritten.ok) return rewritten
     if (CSS_ESCAPE_OR_IMPORT.test(rewritten.css)) {
       return { ok: false, code: 'theme_css_url_invalid' }
@@ -150,7 +206,8 @@ export function composeTheme(
       colorScheme: manifest.colorScheme,
       css,
       terminal: manifest.terminal,
-      wallpaperId: null
-    }
+      wallpaperId: appliedWallpaper
+    },
+    ...(fallback ? { wallpaperFallback: true as const } : {})
   }
 }
