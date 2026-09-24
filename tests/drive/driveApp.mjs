@@ -3,7 +3,9 @@
 //
 // Same seams as tests/e2e/native-engine.e2e.ts: Playwright's `_electron` launches
 // out/main/index.js, C9_TEST_PICK_DIR stands in for the KDE folder picker, a REAL `claude` is
-// spawned per session, and REAL hook POSTs to 127.0.0.1:9279 move the cards between columns.
+// spawned per session, and REAL hook POSTs to 127.0.0.1:29279 move the cards between columns.
+// The app runs on the DRIVE profile (`CLAUDE_WATCHER_PROFILE=drive`, src/main/profile.ts): its own
+// ports and data dir, so it runs beside the installed app and `npm run dev`.
 //
 //   import * as d from './tests/drive/driveApp.mjs'
 //   await d.run(async ({ page, pickDir }) => {
@@ -22,11 +24,11 @@ import { fileURLToPath } from 'node:url'
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '')
 export const SHOT_DIR = path.join(ROOT, 'test-results/drive')
 const HOOK_HOST = '127.0.0.1'
-const HOOK_PORT = 9279
+const HOOK_PORT = 29279 // DRIVE_PROFILE.hookPort in src/main/profile.ts
 
 // ── hook port + hook POSTs ──────────────────────────────────────────────────────────────────
 
-/** True when something already listens on the hook port (the installed app, a dev instance). */
+/** True when something already listens on the hook port (another drive run). */
 export function portInUse() {
   return new Promise((resolve) => {
     const socket = net.connect({ port: HOOK_PORT, host: HOOK_HOST })
@@ -136,13 +138,13 @@ const isLaunchedClaude = (cmdline) =>
 export async function launchApp() {
   if (await portInUse()) {
     throw new Error(
-      `${HOOK_HOST}:${HOOK_PORT} is taken — close the installed or dev Claude Watcher first`
+      `${HOOK_HOST}:${HOOK_PORT} is taken — another drive run is still going (the drive profile's port)`
     )
   }
   const pickDir = mkdtempSync(path.join(tmpdir(), 'cw-drive-'))
   const app = await electron.launch({
     args: [path.join(ROOT, 'out/main/index.js')],
-    env: { ...process.env, C9_TEST_PICK_DIR: pickDir }
+    env: { ...process.env, C9_TEST_PICK_DIR: pickDir, CLAUDE_WATCHER_PROFILE: 'drive' }
   })
   const pid = app.process().pid
   const page = await app.firstWindow()

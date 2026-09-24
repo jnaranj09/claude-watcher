@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PROFILE, DEV_PROFILE, resolveProfile } from './profile'
+import { DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE, resolveProfile } from './profile'
 
 describe('resolveProfile', () => {
   it('is dev only while electron-vite dev serves the renderer', () => {
@@ -11,11 +11,24 @@ describe('resolveProfile', () => {
     expect(resolveProfile({ ELECTRON_RENDERER_URL: '' })).toBe(DEFAULT_PROFILE)
   })
 
-  it('shares no data dir and no port with the default profile', () => {
-    expect(DEV_PROFILE.userDataDirName).not.toBe(DEFAULT_PROFILE.userDataDirName)
-    const devPorts = [DEV_PROFILE.hookPort, DEV_PROFILE.apiPort]
-    for (const port of [DEFAULT_PROFILE.hookPort, DEFAULT_PROFILE.apiPort, 9280]) {
-      expect(devPorts).not.toContain(port)
-    }
+  it('is drive only when CLAUDE_WATCHER_PROFILE=drive asks for it, even beside a renderer URL', () => {
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: 'drive' })).toBe(DRIVE_PROFILE)
+    expect(
+      resolveProfile({ CLAUDE_WATCHER_PROFILE: 'drive', ELECTRON_RENDERER_URL: 'http://x' })
+    ).toBe(DRIVE_PROFILE)
+  })
+
+  it('ignores any other CLAUDE_WATCHER_PROFILE value (no way to pick dev or default by name)', () => {
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: 'dev' })).toBe(DEFAULT_PROFILE)
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: 'Drive' })).toBe(DEFAULT_PROFILE)
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: '' })).toBe(DEFAULT_PROFILE)
+  })
+
+  it('no two profiles share a data dir or a port, and none takes 9280', () => {
+    const all = [DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE]
+    expect(new Set(all.map((p) => p.userDataDirName)).size).toBe(all.length)
+    const ports = all.flatMap((p) => [p.hookPort, p.apiPort])
+    expect(new Set(ports).size).toBe(ports.length)
+    expect(ports).not.toContain(9280)
   })
 })

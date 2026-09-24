@@ -8,12 +8,12 @@ screenshots the window. It uses the same seams as `tests/e2e/native-engine.e2e.t
 
 ## Recipe
 
-1. **Free 127.0.0.1:9279.** Ask the operator to close the INSTALLED app (`/opt/Claude Watcher`) —
-   it is the only thing that holds 9279. **Never ask them to close `npm run dev`**: it runs on the
-   DEV profile (`src/main/profile.ts`) — hook port **19279**, API **19281**, userData
-   `~/.config/claude-watcher-dev` — so it never conflicts with a drive run. Check who holds the
-   port before asking: `ss -ltnp | grep :9279`.
-   The driver refuses to start while the port is taken: the app TOLERATES EADDRINUSE — it logs
+1. **Close NOTHING.** The driver starts the app on the DRIVE profile (`CLAUDE_WATCHER_PROFILE=drive`,
+   `src/main/profile.ts`): hook port **29279**, API **29281**, userData
+   `~/.config/claude-watcher-drive`. The installed app (9279 / 9281) and `npm run dev` (19279 /
+   19281) keep running — never ask the operator to close either. (Until 2026-09-24 the driver ran
+   on the default profile and the installed app had to be closed every time.)
+   Only a second drive run can hold 29279. The driver refuses to start while it is taken: the app TOLERATES EADDRINUSE — it logs
    `code=eaddrinuse` and keeps running rather than crashing (`hookServer.ts`) — so it would bind
    nothing and your hook POSTs would reach the OTHER instance. The log line is the only sign, and
    it is easy to miss in the driver's output, which is why the port is checked up front.
@@ -42,8 +42,9 @@ Helpers (all take `page` first, except the hooks): `launchSession`, `needsYou(pi
 
 ## Gotchas (each one cost a run)
 
-- **The profile is `~/.config/Electron`, not the operator's `~/.config/claude-watcher`.** The
-  unpackaged launch writes there, so the operator's real workspaces and settings are safe. A fresh
+- **The profile is `~/.config/claude-watcher-drive`, not the operator's `~/.config/claude-watcher`.**
+  The drive profile writes there, so the operator's real workspaces and settings are safe. To try a
+  theme, copy its folder into `~/.config/claude-watcher-drive/themes/` first. A fresh
   profile has ONLY the Default workspace: create what the scenario needs, and delete it after.
 - **A workspace with running sessions cannot be deleted** (main refuses: "That workspace still has
   running sessions"). Delete it in a second `run` — every run starts with no sessions.

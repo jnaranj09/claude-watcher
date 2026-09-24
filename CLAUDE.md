@@ -31,7 +31,10 @@ implementation should also follow a systematic approach.
 installed app: userData `~/.config/claude-watcher-dev`, hook port **19279**, a fresh settings file
 starts with API port **19281**, and the window title ends in `(dev)`. The signal is
 `ELECTRON_RENDERER_URL` (set only by `electron-vite dev`), so the packaged app, `smoke` and the
-drive/e2e runs of the built app stay on the default profile (9279 / 9281).
+e2e runs of the built app stay on the default profile (9279 / 9281). **The drive runs
+(`tests/drive/driveApp.mjs`) use a THIRD profile, `drive`** (`CLAUDE_WATCHER_PROFILE=drive`): hook
+**29279**, API **29281**, userData `~/.config/claude-watcher-drive`. The three never share a port,
+so NOTHING has to be closed for a dev run or a drive run — never ask the operator to.
 
 **Running a single test** — Vitest has two projects (see `vitest.config.ts`): `unit`
 (jsdom) and `main-unit` (node). Target one file or test:
@@ -44,9 +47,8 @@ npx vitest run --project unit src/shared/schemas         # one project / dir
 
 **Seeing a visual change in the real app** — tests cannot see CSS, stacking or pixel alignment.
 `npm run build`, then drive the built app from a scenario script on `tests/drive/driveApp.mjs`
-(Playwright-Electron, real `claude`, real hook POSTs, screenshots). It needs 127.0.0.1:9279
-free, so the INSTALLED app must be closed. A running `npm run dev` does NOT block it (dev profile:
-19279 / 19281, see above) — never ask the operator to close it. Recipe and gotchas:
+(Playwright-Electron, real `claude`, real hook POSTs, screenshots). It runs on the `drive`
+profile (above), beside the installed app and `npm run dev` — close nothing. Recipe and gotchas:
 `.claude/rules/run-app.md`.
 
 **Gate buckets.** Most changes gate on `typecheck / lint / test / build`. Only changes

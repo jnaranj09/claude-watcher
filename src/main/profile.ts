@@ -7,13 +7,14 @@
 //
 // The profile is decided ONCE, at import, from the environment. `ELECTRON_RENDERER_URL` is the
 // signal: electron-vite sets it only for `electron-vite dev` (it is the HMR server's URL), so a
-// packaged app, `npm run smoke` and the drive/e2e runs of the BUILT app (`out/main/index.js`)
-// all stay on the default profile and keep the ports their harnesses POST to.
+// packaged app, `npm run smoke` and the e2e runs of the BUILT app (`out/main/index.js`) stay on
+// the default profile and keep the ports their harnesses POST to. The drive runs set
+// `CLAUDE_WATCHER_PROFILE=drive` and get DRIVE_PROFILE (below).
 //
 // This module is pure (no electron import) so `hookContract.ts` — imported by main-unit tests —
 // can read its port from here without loading electron.
 
-export type ProfileName = 'default' | 'dev'
+export type ProfileName = 'default' | 'dev' | 'drive'
 
 export interface Profile {
   readonly name: ProfileName
@@ -45,7 +46,23 @@ export const DEV_PROFILE: Profile = {
   titleSuffix: ' (dev)'
 }
 
+// The scripted runs of the BUILT app (`tests/drive/driveApp.mjs`) get their own profile too, so a
+// screenshot run works beside the installed app AND beside `npm run dev` — with the default profile
+// it fought the installed app for 9279 and the operator had to close it every time. The built app
+// has no renderer URL, so the signal is an explicit env var the driver sets. 2xxxx mirrors, same
+// reason as the dev ports.
+export const DRIVE_PROFILE: Profile = {
+  name: 'drive',
+  userDataDirName: 'claude-watcher-drive',
+  hookPort: 29279,
+  apiPort: 29281,
+  titleSuffix: ' (drive)'
+}
+
 export function resolveProfile(env: NodeJS.ProcessEnv): Profile {
+  // Exact match only: this var can select `drive` and nothing else, so it can never move a
+  // packaged app onto another profile's ports by accident.
+  if (env['CLAUDE_WATCHER_PROFILE'] === 'drive') return DRIVE_PROFILE
   const rendererUrl = env['ELECTRON_RENDERER_URL']
   return rendererUrl !== undefined && rendererUrl !== '' ? DEV_PROFILE : DEFAULT_PROFILE
 }
