@@ -1,21 +1,32 @@
 /* Liquid Glass — the raw-CSS proof. Everything the tokens cannot say lives here. */
 
-/* Something behind the panels to blur. The ground is DEEP COLOUR, QUIET (option D2 of the
-   2026-09-23 brainstorm): two dark saturated pools, each about the size of the window and centred
-   just outside it — indigo at the top-left, teal at the bottom-right — over a near-black base, plus
-   one small cool light over the app name. Big pools on purpose: a half-size pair kept to the
-   corners was tried and the operator did not like the reduction. The hue is a hint you only notice when you look for it; the glass stays dark. Before
-   it the ground was neutral grey light spots (a bloom top-left, a shadow bottom-right), and white
-   light at low alpha over near-black read as grey haze: the whole app looked dusty. Colour that is
-   kept DARK gives the blur something to show without tinting the panels — the older bright
-   purple + cyan pair turned every panel blue. It also puts the gold Needs-you column on a cool
-   ground, where it reads gold instead of brown. */
+/* Something behind the panels to blur. The ground is a GRAPHITE MESH (chosen 2026-09-23 from a
+   second round of mocks built on what the references agree on: one hue family, one light moment,
+   charcoal instead of pure black, never two complementary colours side by side): three large,
+   overlapping, hard-desaturated pools — slate, dusty teal, muted mauve, all under 40% saturation
+   — over a charcoal base, plus one small cool light over the app name. It reads as graphite with a
+   hint of colour, never as blobs. The pools are sized in vw/vh, NOT px: in px they overlapped
+   into one mesh on a 1000px mock and sat apart as three dots on a 1600px window (2026-09-23).
+   Their falloff is longer than the mock's, because the terminal's 58% black tint crushes a pool
+   to its centre and bands the rest into rings. Intensity is LOW on purpose: a step up (0.28 /
+   0.26 / 0.18 on a #0a0b10 base, with a blue-white light) turned the header blue; the base is
+   near-neutral so the header reads dark grey again. The three hues are kept clearly APART
+   (slate blue, teal green, plum) at low alpha: at the same alpha with closer hues they merged
+   into one grey wash and the colour was not worth having. Each pool holds its colour to 30% of
+   its radius and is gone by 62% — a SHARPER edge than a plain falloff, so a pool reads as a
+   shape and not as a stain (asked for 2026-09-23). The pools sit in the LOWER two thirds; the top band of the ground stays neutral so the header, which is the most see-through
+   surface, reads as clear glass and not as a tinted one. What came before it, and why it went: neutral grey light spots
+   (white light at low alpha over near-black read as dust); an indigo pool top-left (the operator
+   did not like the purple); rose + cyan under the centre (a complementary pair reads as police
+   lights, whatever the alpha). Colour kept DARK gives the blur something to show without tinting
+   the panels — the old bright purple + cyan pair turned every panel blue. */
 body {
   background:
-    radial-gradient(360px 150px at 8% 0%, rgba(190, 200, 255, 0.1), transparent 70%),
-    radial-gradient(1000px 700px at 0% -10%, rgba(52, 58, 140, 0.22), transparent 62%),
-    radial-gradient(900px 650px at 100% 110%, rgba(16, 84, 84, 0.2), transparent 60%),
-    linear-gradient(160deg, #050508 0%, #08080c 100%);
+    radial-gradient(360px 150px at 8% 0%, rgba(215, 220, 235, 0.05), transparent 70%),
+    radial-gradient(66vw 62vh at 30% 64%, rgba(66, 78, 124, 0.06) 30%, transparent 62%),
+    radial-gradient(60vw 56vh at 72% 56%, rgba(44, 104, 92, 0.055) 30%, transparent 62%),
+    radial-gradient(50vw 48vh at 56% 94%, rgba(118, 70, 112, 0.05) 30%, transparent 62%),
+    linear-gradient(160deg, #0a0a0d 0%, #0c0c10 100%);
   background-attachment: fixed;
 }
 
@@ -39,14 +50,21 @@ body {
 :root {
   --glass-filter: blur(16px) saturate(175%);
   --glass-fill: rgba(255, 255, 255, 0.03);
-  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
+     which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
+     a film. Brighter than before (0.3 / 0.08 against 0.2 / 0.06): with the fill at 3% the rim is
+     what draws the edge. Every surface gets it through this one variable. */
+  --glass-rim:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 14px rgba(255, 255, 255, 0.06);
   /* The popovers' rim is DIRECTIONAL like the big bubbles' conic ring — lit at the top-left,
      faint at the bottom-right — but drawn with two offset inset shadows, not a `::after` ring:
      a Select list, the tag picker and the filter's tag list SCROLL, and an absolute pseudo-element
      inside a scroll container scrolls away with the rows. A box-shadow follows the rounded box
      and never moves. */
   --glass-rim-pop:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.26), inset -1px -1px 0 rgba(255, 255, 255, 0.09);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.3), inset -1px -1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 14px rgba(255, 255, 255, 0.06);
 }
 
 /* CONTAINERS blur from a `::before` layer, never from their own `backdrop-filter`.
@@ -156,7 +174,14 @@ body {
    read well over the ground's light spots but was a different material from every other surface. */
 [data-testid='app-header'] {
   background: var(--glass-fill);
-  box-shadow: var(--glass-rim), var(--shadow-pop);
+  /* A SHALLOWER bevel than `--glass-rim`: the shared 14px inner glow covers most of a 48px bar
+     from both edges and lifted the whole header to a pale film (2026-09-23). 6px keeps the glow
+     at the edge on a surface this short. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 6px rgba(255, 255, 255, 0.04),
+    var(--shadow-pop);
 }
 
 /* "Terminal exited." lies over the dead terminal's last output. Its tint alone (`--bg-terminal`,
@@ -241,6 +266,34 @@ body {
 [data-testid='app-header'],
 [data-testid='focused-session'] {
   border-color: rgba(255, 255, 255, 0.06);
+}
+/* The TERMINAL FRAME is a bubble too (asked for 2026-09-23): the same crisp rim, the same
+   directional ring and the faint border, on the frame that already blurs from its `::before`.
+   Its `::after` has no z-index, so the dead-terminal pane (z-index 12) still covers it, and the
+   ring is 1px inside the border, so the frame's `overflow: clip` never cuts it. The fill stays
+   the token's darker `--bg-terminal`: glyphs need it. */
+[data-testid='embedded-terminal'] {
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: var(--glass-rim), var(--shadow-pop);
+}
+[data-testid='embedded-terminal']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from 315deg,
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.05) 75%,
+    rgba(255, 255, 255, 0.4)
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
 }
 
 /* Popovers are GLASS: menus, dropdown lists, the `+ New session` popover, the tag picker and the

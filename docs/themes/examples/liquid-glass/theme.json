@@ -25,8 +25,8 @@
     "rounded-sm": "8px",
     "rounded-md": "12px",
     "rounded-lg": "18px",
-    "shadow-dialog": "0 24px 64px rgba(0,0,0,0.45)",
-    "shadow-pop": "0 12px 32px rgba(0,0,0,0.35)"
+    "shadow-dialog": "0 30px 70px rgba(0,0,0,0.55)",
+    "shadow-pop": "0 20px 48px rgba(0,0,0,0.5)"
   },
   "terminal": {
     "background": "rgba(0,0,0,0)",
