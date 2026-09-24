@@ -47,7 +47,17 @@ describe('docs/themes/examples', () => {
   it('scan lists the three examples, none broken, sorted by name', () => {
     expect(scanner.scan()).toEqual([
       { id: 'builtin-dark', name: 'Built-in dark', author: 'claude-watcher', colorScheme: 'dark' },
-      { id: 'liquid-glass', name: 'Liquid Glass', author: 'claude-watcher', colorScheme: 'dark' },
+      {
+        id: 'liquid-glass',
+        name: 'Liquid Glass',
+        author: 'claude-watcher',
+        colorScheme: 'dark',
+        wallpapers: [
+          { id: 'graphite', name: 'Graphite' },
+          { id: 'aurora', name: 'Aurora gradient' },
+          { id: 'smoke', name: 'Warm smoke' }
+        ]
+      },
       { id: 'paper', name: 'Paper', author: 'claude-watcher', colorScheme: 'light' }
     ])
   })
@@ -70,20 +80,34 @@ describe('docs/themes/examples', () => {
     }
   })
   // LIQUID glass carries no grain: a noise tile is the acrylic (frosted) recipe and read matte.
-  // The material is the lit rim instead. The ONE asset is the ground image, on `body` only:
-  // CSS gradients this faint draw a ring around every pool (see theme.css).
-  it('liquid-glass has no grain, no sheen, and one asset: the ground image on body only', () => {
+  // The material is the lit rim instead. The ground is the chosen WALLPAPER (spec 2026-09-24):
+  // the app inlines exactly one as --theme-wallpaper and body is its only consumer; the theme CSS
+  // references no asset of its own.
+  it('liquid-glass has no grain, no sheen, and one image: the chosen wallpaper on body only', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
+      expect(r.bundle.wallpaperId).toBe('graphite')
       expect(r.bundle.css.match(/url\(/g)).toHaveLength(1)
-      const withUrl = liquidGlassRules().filter((rule) => rule.body.includes('url('))
-      expect(withUrl.map((rule) => rule.selectors)).toEqual([['body']])
-      expect(withUrl[0]?.body).toContain("url('ground.png')")
+      expect(r.bundle.css).toContain('--theme-wallpaper: url("data:image/png;base64,')
+      expect(liquidGlassRules().filter((rule) => rule.body.includes('url('))).toEqual([])
+      const users = liquidGlassRules().filter((rule) =>
+        rule.body.includes('var(--theme-wallpaper)')
+      )
+      expect(users.map((rule) => rule.selectors)).toEqual([['body']])
       expect(r.bundle.css).toContain('--glass-rim:')
       expect(r.bundle.css).toContain('--glass-fill:')
       expect(r.bundle.css).not.toContain('--glass-sheen')
     }
+  })
+  it.each([
+    ['graphite', 'image/png'],
+    ['aurora', 'image/jpeg'],
+    ['smoke', 'image/jpeg']
+  ])('liquid-glass loads with wallpaper %s', (id, mime) => {
+    const r = scanner.load('liquid-glass', id)
+    expect(r.ok && r.bundle.wallpaperId).toBe(id)
+    expect(r.ok && r.bundle.css).toContain(`--theme-wallpaper: url("data:${mime};base64,`)
   })
   // ONE material. The header, the columns, the modal panels and the popovers all take
   // `--glass-fill` and the same `--glass-filter`; three recipes (a smoky black header, milky

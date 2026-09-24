@@ -25,18 +25,17 @@
    did not like the purple); rose + cyan under the centre (a complementary pair reads as police
    lights, whatever the alpha). Colour kept DARK gives the blur something to show without tinting
    the panels — the old bright purple + cyan pair turned every panel blue. */
-/* The pools are an IMAGE, `ground.png`, rendered by `src/ground.py` (edit the pools there and
-   re-run it). CSS gradients cannot draw them: at these alphas an rgba() pool's tail drops below
-   1/255, Chromium rounds each channel, and every pool drew a visible ring around itself (measured
-   on an offscreen render, 2026-09-23). A dither tile on top did not help, since noise added AFTER
-   rounding leaves the step in place, and solid colours under `background-blend-mode: screen` came
-   out about twice as bright as asked. The script mixes in float and dithers BEFORE rounding, so
-   there is no ring. `100% 100%` stretches it to the window, as the old vw/vh pools did. The small
-   cool light over the app name stays CSS: it is px-sized and sits under the header glass. */
+/* The ground is the operator's WALLPAPER pick (spec 2026-09-24): theme.json lists three, the app
+   inlines the chosen one as `--theme-wallpaper`. Graphite (`ground.png`, the default) is the pool
+   mesh described above, rendered by `src/ground.py` — CSS gradients cannot draw it without rings
+   (Chromium rounds each channel at these alphas; the script dithers before rounding). Aurora and
+   Warm smoke are photos darkened 80% by `src/wallpapers.py`. `cover` for all three: ground.png is
+   16:10, so a 16:9 window crops a sliver of an area that is already near-black. The small cool
+   light over the app name stays CSS: it is px-sized and sits under the header glass. */
 body {
   background:
     radial-gradient(360px 150px at 8% 0%, rgba(215, 220, 235, 0.05), transparent 70%),
-    url('ground.png') 0 0 / 100% 100% no-repeat,
+    var(--theme-wallpaper) center / cover no-repeat,
     #0b0b0e;
   background-attachment: fixed;
 }
