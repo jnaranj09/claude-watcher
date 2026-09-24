@@ -184,6 +184,7 @@ import type { ApiSession } from '../shared/schemas/api'
 // Custom themes — the folder scanner (T5) and the apply lifecycle (T11), wired below.
 import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
+import { chosenWallpaper, themeNeedsReapply } from './themes/themeApplyTrigger'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
 // launch synthesis CONSTRUCTS a valid Session from main-owned values (minted uuid, picked
 // cwd, pty pid) — it never re-runs SessionSchema over internal data.
@@ -1424,7 +1425,7 @@ function registerSettingsIpc(): void {
   ipcMain.handle(CH.settingsSet, (_evt, raw: unknown) => {
     if (settingsStore === null) throw new Error('settings store not initialized')
     const patch = SettingsPatchSchema.parse(raw)
-    const before = settingsStore.get().themeId
+    const before = settingsStore.get()
     const next = settingsStore.set(patch)
     // Programmatic API — the listener FOLLOWS the setting: start when it is switched on, stop when
     // it is switched off, restart when the port moves. `apply` is idempotent, so the patches that
@@ -1434,8 +1435,9 @@ function registerSettingsIpc(): void {
     apiLifecycle?.apply(next)
     // Custom themes — persist FIRST (the setting is the operator's choice), then apply. The
     // outcome reaches the renderer as the pushed bundle, whose id says whether the chosen theme
-    // or Default landed. Only a CHANGED id applies: a font-size patch must not re-read the disk.
-    if (next.themeId !== before) themeLifecycle?.apply(next.themeId)
+    // or Default landed. Only a changed theme or a changed pick for it applies: a font-size patch
+    // must not re-read the disk.
+    if (themeNeedsReapply(before, next)) themeLifecycle?.apply(next.themeId, chosenWallpaper(next))
     return next
   })
 }
@@ -1452,7 +1454,8 @@ function registerThemesIpc(): void {
   ipcMain.handle(CH.themeReload, () => {
     if (themeLifecycle === null || settingsStore === null)
       throw new Error('theme lifecycle not initialized')
-    return themeLifecycle.apply(settingsStore.get().themeId)
+    const s = settingsStore.get()
+    return themeLifecycle.apply(s.themeId, chosenWallpaper(s))
   })
   ipcMain.handle(CH.themesOpenFolder, async () => {
     if (themeScanner === null) throw new Error('theme scanner not initialized')
@@ -2539,7 +2542,8 @@ function createWindow(): void {
   // not lost. Runs in SMOKE too: the in-memory store's themeId is `default`, no disk is read.
   mainWindow.webContents.once('did-finish-load', () => {
     if (settingsStore === null) return
-    themeLifecycle?.apply(settingsStore.get().themeId)
+    const s = settingsStore.get()
+    themeLifecycle?.apply(s.themeId, chosenWallpaper(s))
   })
 
   // Story 4.2 (FR-14 / UX-DR25 / FROZEN #4 / Epic-4 DECISION #2) — minimize-to-taskbar.
