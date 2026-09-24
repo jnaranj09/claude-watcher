@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/home/user/personal/github/claude-watcher/claude-watcher/.codex/hooks/typecheck-lint.sh'",
+            "timeout": 60,
+            "statusMessage": "Typecheck + lint on changed file"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no-install vitest run",
+            "timeout": 180,
+            "statusMessage": "Running vitest"
+          }
+        ]
+      }
+    ]
+  }
+}

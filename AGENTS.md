@@ -1,0 +1,190 @@
+# AGENTS.md
+
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+
+Codex-watcher is a KDE-first Electron desktop app that watches local `Codex`
+sessions and embeds live terminals for them. v1 (Epics 0–5) is feature-complete;
+Epic 6 replaced the external `c9watch` CLI with a native session engine (the app
+name and several dir/channel names keep the historical "c9watch" prefix).
+
+The following file: IdeasBoard.md
+Is used to keep track of new work on the app. When something is discarded or completed it must be removed from the file to keep it updated.
+Items in that board should never be implemented right away. They should always be validated using a systematic approach like bmad or superpowers plugin. Once approved
+implementation should also follow a systematic approach.
+
+## Commands
+
+| Task                                   | Command                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| Dev (HMR)                              | `npm run dev`                                                    |
+| Build (typecheck + bundle)             | `npm run build`                                                  |
+| Packaged build (`--dir`)               | `npm run build:dir`                                              |
+| Typecheck (node + web + test projects) | `npm run typecheck`                                              |
+| Lint (flat config, type-checked rules) | `npm run lint`                                                   |
+| Format                                 | `npm run format`                                                 |
+| Unit/integration tests (Vitest)        | `npm run test`                                                   |
+| Watch tests                            | `npm run test:watch`                                             |
+| E2E (Playwright-Electron)              | `npm run test:e2e`                                               |
+| Packaged node-pty smoke gate           | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
+
+**Running a single test** — Vitest has two projects (see `vitest.config.ts`): `unit`
+(jsdom) and `main-unit` (node). Target one file or test:
+
+```bash
+npx vitest run src/main/c9watch/reducer.test.ts          # one file
+npx vitest run --project main-unit -t "desync"           # one test by name (main-side)
+npx vitest run --project unit src/shared/schemas         # one project / dir
+```
+
+**Gate buckets.** Most changes gate on `typecheck / lint / test / build`. Only changes
+touching node-pty / the preload seam / packaging additionally require `build:dir` +
+`smoke` (the packaged-native gate). The `smoke` script proving node-pty survives
+packaging is load-bearing — do not regress it.
+
+## Architecture — three process layers + shared
+
+Code lives in four trees; the boundaries between them are the whole design:
+
+- **`src/main/`** — Electron main process. **node-pty runs HERE, never in the renderer.**
+  Subdivided into `c9watch/` (the reducer → enrich → ship pipeline; the dir name is
+  historical — the c9watch CLI is retired), `hooks/` (the :9279 hook ingest), `pty/`
+  (terminal/launch lifecycle), `kde/`, `lifecycle/`, `persistence/`. Main is the
+  **single source of truth for session state**.
+- **`src/preload/`** — the typed `contextBridge` seam. The renderer gets ONLY these
+  functions, never `ipcRenderer`/Node directly. `index.d.ts` augments `Window`.
+- **`src/renderer/`** — React UI (sandboxed). Reaches IPC only through `window.*` bridges.
+  View-state lives in a Zustand store (`src/renderer/src/stores/boardStore.ts`).
+- **`src/shared/`** — imported by BOTH sides: `ipc/contract.ts` (the `CH` channel registry and payload types), `schemas/hookEvent.ts` (the Zod hook-POST adapter — the ONE external
+  boundary), and `schemas/session.ts` (the Session storage/renderer shape).
+- `src/__fixtures__/` — the fake hook feed + launched-session fixtures (test doubles;
+  never shipped).
+
+### The data flow (one-way)
+
+```
+launch spawn (minted --session-id) ──> reducer.upsertLaunched ─┐
+Codex hook POSTs (127.0.0.1:9279) ──> Zod-validate            ├─> reducer (Map<id,Session>)
+   (hookEvent.ts) ──> reducer.applyHookStatus ─────────────────┘
+   ──> validated deltas over CH.watchEvents ──> renderer Zustand store ──> selectors ──> components
+```
+
+Session truth flows main → renderer; view intent flows back via typed IPC. The renderer
+never invents or mutates session truth — it renders a projection of what main sends.
+
+## Load-bearing constraints (the non-obvious ones)
+
+Detailed standards live in `.Codex/rules/*` — read the relevant file before touching
+that layer. The high-frequency rules, in **precedence order** (earlier wins on conflict):
+
+1. **Fail-closed Zod boundaries** (`.Codex/rules/zod-boundaries.md`). Every external input
+   is validated at exactly ONE boundary that fails closed. A bad hook POST gets a 400 +
+   drop + log **by error PATH + CODE only — never the value** (a ZodError stringifies its
+   input, which may carry prompts / assistant prose / tool input). This BEATS never-crash.
+2. **Never-crash past the boundary** — one bad session/line must not take down the board.
+3. **Typed IPC seam** (`.Codex/rules/ipc.md`). Every channel is a `CH.*` const from
+   `src/shared/ipc/contract.ts`, NEVER a string literal (enforced by the authored
+   `local-ipc/no-literal-channels` ESLint rule). Adding a channel touches 4 files in
+   lockstep (contract → schema → main handler → preload wrapper) + a test.
+4. **xterm owned imperatively** (`.Codex/rules/terminal.md`). Terminals live in refs,
+   NEVER React `useState`, and are NOT in the store. One node-pty per xterm; transport is
+   Electron IPC (a `MessagePort` forwarded to the main world). Kept-alive frames hide with
+   `visibility:hidden` on the whole frame (not `display:none`, not just the inner host).
+5. **State ownership** (`.Codex/rules/state.md`). Session-truth = main; view-state =
+   renderer Zustand; derived = narrow selectors (never persisted). Inject `now()` for
+   determinism.
+
+**Debugging a symptom?** Read `.Codex/rules/troubleshooting.md` first — run its Step-0
+questions (data present? depends on a sibling? console empty?) to pin the layer before
+theorizing. Note its trap: the `tests/e2e/two-launch-screenshot*` diagnostics were not
+trustworthy and have been removed; a manual repro with real `Codex` is the reliable signal.
+
+### The native session engine (the c9watch CLI is retired — Epic 6)
+
+- **Minimum Codex is 2.1.245, enforced at launch** (`src/main/pty/claudeVersion.ts`). The
+  spawn passes `--session-id`, `-n` and `--settings`; a Codex that does not know one of those
+  does NOT degrade — it rejects the argument and the session dies instantly. `CH.sessionLaunch`
+  probes `$SHELL -l -c "<Codex> --version"` (the same shell the spawn uses), blocks with a
+  native error box naming both versions, and caches ONLY the ok verdict so an upgrade unblocks
+  without an app restart. It **fails OPEN** on an unreadable/unparseable version — the one
+  deliberate inversion of the fail-closed default, because a false block bricks a working
+  install. Bump the floor only alongside a re-verification of those three flags.
+- **Identity is minted at launch:** the app spawns `Codex --session-id <uuid>` with a
+  caller-minted UUID (verified on Codex 2.1.199), so the terminal↔session binding is
+  EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
+  (status `Connecting`) — no discovery wait, no pid-ancestry correlation for new launches.
+- **Hooks own every status transition:** Codex lifecycle hooks POST to
+  `127.0.0.1:9279`. **ZERO FOOTPRINT — the app writes into NO project and NO user settings
+  file.** `hookSettingsFile.ts` writes the hook block into the app's OWN data dir
+  (`app.getPath('userData')`) and `composeClaudeCommand` hands it to each spawn as
+  `--settings <path>`, so the hooks scope to EXACTLY the sessions the app launches and a
+  plain `Codex` in the same folder stays silent. Probe-verified on Codex 2.1.245:
+  `--settings` MERGES with the project's own settings (an operator's own hooks/permissions
+  survive), and a stale block on the same URL is DEDUPED against the flag (one POST, not
+  two — which is what keeps the name-sync push-once safe).
+  This REPLACED `registerHooks`, which merged the block into
+  `<picked cwd>/.Codex/settings.local.json` and left a permanent trace in every directory
+  the app was ever launched in. The app does NOT clean those up — they are the operator's
+  file to edit. ALL hook input goes through
+  the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
+  additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
+  NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
+  `hookStatus.ts` is the ONLY event→status mapping.
+- **Removal is stop/exit-driven:** in-app Stop and PTY exit remove the bound session's
+  card immediately (Story 6.3); the `SessionEnd` hook removal is belt-and-suspenders
+  (idempotent — removing an already-gone id emits nothing, logs nothing).
+- **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
+  card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate).
+- **Codex changes its own session id mid-run (`/clear`) and the card must follow**
+  (`src/main/hooks/sessionRebind.ts`). The same process and pty continue under a NEW id, so
+  every later hook would be `hook_unknown_id` and the card would freeze on its last status.
+  Adoption is tried with an EXACT proof first: Codex 2.1.257 records each live process's
+  current id in `~/.Codex/sessions/<pid>.json` (`src/main/pty/claudeSessionFile.ts`, the
+  THIRD fail-closed Zod boundary — never log it, it carries cwd + name), and a launched
+  terminal whose process tree records the unknown id adopts it — no cwd, no window. The
+  older cwd + single-match + alive + 5-minute-window heuristic remains as the fallback; it
+  froze a monitor session for hours on 2026-09-01 when the first accepted hook came 24 min
+  after `/clear`, which is why the exact proof exists. Log codes: `hook_sessionend_pty_alive`,
+  `hook_session_id_rebound proof=pid|cwd`, `hook_rebind_window_expired`.
+- **Identity = the stable `id` (UUID), never `pid`** — pid is a wandering Codex thread id.
+- **`status` is NOT enum-locked** (a new status string must not fail the session closed).
+- **`pendingToolInput` is polymorphic** (object for `Agent`, string for others) — do not narrow it.
+- **Historical naming:** the `src/main/c9watch/` dir, the `CH.watch*` channel names, and
+  the `[c9watch]` log prefixes predate the retirement — they are names, not a CLI
+  dependency. `rg -w c9watch src/` must never show a spawn/exec of the CLI.
+- **Naming — `Codex-watcher` for NEW code, rename of the rest is PENDING.** Decided
+  2026-09-02: every NEW file, store name, log prefix and identifier uses `Codex-watcher`
+  (e.g. `[Codex-watcher][templates]`, `Codex-watcher-templates.json`), never `c9watch`.
+  The EXISTING `c9watch`-prefixed dirs, `CH.watch*` channels, `[c9watch]` log prefixes and
+  the `c9watch-settings.json` store file are a PENDING rename (the store file needs a
+  migration so settings survive). Do not rename them in passing — one dedicated change.
+
+### node-pty + packaging (a day-costing gotcha)
+
+node-pty is a native module. Keep it EXTERNALIZED in the electron-vite main config, rebuilt
+against Electron's ABI via `@electron/rebuild` (`postinstall`), and `asarUnpack`-ed by
+electron-builder. `npm run smoke` (packaged) is the gate that proves this still works.
+
+### Security posture (never weaken)
+
+`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. node-pty's power stays
+in main, behind the typed preload.
+
+## Enforcement (the feedback harness)
+
+- **Strict TypeScript** is the QA: `strict`, `noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`. Do NOT
+  drop a flag to silence an error — fix the consumer.
+- **Hooks** (`.Codex/hooks/`, wired in `.Codex/settings.json`): a PostToolUse hook runs
+  incremental `tsc` + cached `eslint` on each edited `*.ts|*.tsx`; a Stop hook runs `vitest run`.
+- **Type-checked ESLint:** `no-floating-promises` + `consistent-type-imports` +
+  the authored `no-literal-channels` (fixture-tested in
+  `tests/unit/no-literal-channels.rule.test.ts`).
+- **The `code-reviewer` subagent** (`.Codex/agents/code-reviewer.md`) runs the TS/IPC checks
+  (implicit any, literal channels, floating promises, Zod boundary gaps, xterm-in-React,
+  never-log-parsed-value). The review convention is a fresh reviewer who re-runs the gate
+  first-hand and fault-injects every guard (reverting it must turn a test red).
+
+## Versions (don't bump in passing)
+
+Electron **39** (ABI/modules **140**), zod **4**, zustand **5**, React **19**,
+@xterm/xterm **6**, node-pty **1.1**, Vitest **4**.
