@@ -142,7 +142,8 @@ describe('composeTheme', () => {
         name: 'T',
         colorScheme: 'dark',
         css: ':root {\n  --bg-base: #000;\n}\n',
-        terminal: {}
+        terminal: {},
+        wallpaperId: null
       }
     })
   })

@@ -8,7 +8,8 @@ import {
   TERMINAL_THEME_KEYS,
   TOKEN_NAMES,
   isSafeCssValue,
-  DEFAULT_THEME_BUNDLE
+  DEFAULT_THEME_BUNDLE,
+  THEME_WALLPAPERS_MAX
 } from './theme'
 import { TOKENS } from '../theme/tokens'
 
@@ -166,7 +167,8 @@ describe('wire shapes', () => {
       name: 'Default',
       colorScheme: 'dark',
       css: '',
-      terminal: {}
+      terminal: {},
+      wallpaperId: null
     })
   })
 
@@ -194,5 +196,72 @@ describe('wire shapes', () => {
         error: 'nope'
       }).success
     ).toBe(false)
+  })
+})
+
+describe('ThemeManifestSchema — wallpapers (spec 2026-09-24)', () => {
+  const base = { version: 1, name: 'T' }
+  const wp = (id: string, file = `${id}.jpg`): { id: string; name: string; file: string } => ({
+    id,
+    name: id.toUpperCase(),
+    file
+  })
+  const issuePath = (raw: unknown): string => {
+    const r = ThemeManifestSchema.safeParse(raw)
+    return r.success ? '<ok>' : (r.error.issues[0]?.path.join('.') ?? '')
+  }
+
+  it('is optional: a manifest without it parses with no wallpapers key', () => {
+    const r = ThemeManifestSchema.parse(base)
+    expect(r.wallpapers).toBeUndefined()
+  })
+  it('accepts 1..8 entries with png/jpg/jpeg/webp files', () => {
+    const list = [wp('a', 'a.png'), wp('b', 'b.jpg'), wp('c', 'c.jpeg'), wp('d', 'd.webp')]
+    expect(ThemeManifestSchema.parse({ ...base, wallpapers: list }).wallpapers).toEqual(list)
+  })
+  it('rejects an empty list and more than THEME_WALLPAPERS_MAX', () => {
+    expect(ThemeManifestSchema.safeParse({ ...base, wallpapers: [] }).success).toBe(false)
+    const nine = Array.from({ length: THEME_WALLPAPERS_MAX + 1 }, (_, i) => wp(`w${i}`))
+    expect(ThemeManifestSchema.safeParse({ ...base, wallpapers: nine }).success).toBe(false)
+  })
+  it('rejects duplicate ids', () => {
+    expect(
+      ThemeManifestSchema.safeParse({ ...base, wallpapers: [wp('a'), wp('a', 'other.jpg')] })
+        .success
+    ).toBe(false)
+  })
+  it.each([
+    ['a bad id', { id: 'Aurora', name: 'x', file: 'a.jpg' }, 'wallpapers.0.id'],
+    ['a path in file', { id: 'a', name: 'x', file: 'sub/a.jpg' }, 'wallpapers.0.file'],
+    ['a .. in file', { id: 'a', name: 'x', file: '..a.jpg' }, 'wallpapers.0.file'],
+    ['a non-image file', { id: 'a', name: 'x', file: 'a.svg' }, 'wallpapers.0.file'],
+    ['a blank name', { id: 'a', name: '  ', file: 'a.jpg' }, 'wallpapers.0.name'],
+    ['a 41-char name', { id: 'a', name: 'n'.repeat(41), file: 'a.jpg' }, 'wallpapers.0.name']
+  ])('fails closed on %s with the zod path', (_label, entry, path) => {
+    expect(issuePath({ ...base, wallpapers: [entry] })).toBe(path)
+  })
+  it('an unknown key in an entry fails closed', () => {
+    expect(
+      ThemeManifestSchema.safeParse({ ...base, wallpapers: [{ ...wp('a'), size: 'cover' }] })
+        .success
+    ).toBe(false)
+  })
+})
+
+describe('wire shapes — wallpapers', () => {
+  it('a summary may carry { id, name } but never file', () => {
+    const s = { id: 'g', name: 'G', colorScheme: 'dark', wallpapers: [{ id: 'a', name: 'A' }] }
+    expect(ThemeSummarySchema.safeParse(s).success).toBe(true)
+    const withFile = { ...s, wallpapers: [{ id: 'a', name: 'A', file: 'a.jpg' }] }
+    expect(ThemeSummarySchema.safeParse(withFile).success).toBe(false)
+  })
+  it('a bundle carries wallpaperId, null on Default', () => {
+    expect(DEFAULT_THEME_BUNDLE.wallpaperId).toBeNull()
+    expect(ThemeBundleSchema.safeParse({ ...DEFAULT_THEME_BUNDLE, wallpaperId: 'a' }).success).toBe(
+      true
+    )
+    const missing: Partial<typeof DEFAULT_THEME_BUNDLE> = { ...DEFAULT_THEME_BUNDLE }
+    delete missing.wallpaperId
+    expect(ThemeBundleSchema.safeParse(missing).success).toBe(false)
   })
 })

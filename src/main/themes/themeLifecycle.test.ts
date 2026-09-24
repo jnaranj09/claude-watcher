@@ -8,7 +8,8 @@ const paper: ThemeBundle = {
   name: 'Paper',
   colorScheme: 'light',
   css: 'body{}',
-  terminal: {}
+  terminal: {},
+  wallpaperId: null
 }
 
 interface Harness {

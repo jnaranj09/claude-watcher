@@ -24,6 +24,11 @@ export const THEME_TOKEN_VALUE_MAX = 500
 export const THEME_TERMINAL_VALUE_MAX = 100
 /** A file NAME in the theme folder: no separators, no `..`, lower-case `.css`. */
 export const THEME_CSS_FILE_PATTERN = /^[A-Za-z0-9_.-]+\.css$/
+export const THEME_WALLPAPERS_MAX = 8
+/** The image types a wallpaper may be — a subset of THEME_ASSET_MIME (no svg, no fonts). */
+export const THEME_WALLPAPER_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const
+/** A plain file NAME with a wallpaper extension: no separators, lower- or upper-case ext. */
+const THEME_WALLPAPER_FILE_PATTERN = /^[A-Za-z0-9_.-]+\.(png|jpg|jpeg|webp)$/i
 
 /** Extension → MIME for the assets a theme's CSS may reference (inlined as data: URIs). */
 export const THEME_ASSET_MIME: Readonly<Record<string, string>> = {
@@ -132,6 +137,28 @@ export const ThemeTerminalSchema = z
   .strict()
 export type ThemeTerminal = z.infer<typeof ThemeTerminalSchema>
 
+// Theme wallpapers (spec 2026-09-24). `.strict()` like every entry of our shape; the id shares
+// the theme-id pattern so it is safe in a log line and a Select option testid.
+export const ThemeWallpaperSchema = z
+  .object({
+    id: ThemeIdSchema,
+    name: z.string().trim().min(1).max(40),
+    file: z
+      .string()
+      .regex(THEME_WALLPAPER_FILE_PATTERN)
+      .refine((name) => !name.includes('..'), { error: 'no ..' })
+  })
+  .strict()
+export type ThemeWallpaper = z.infer<typeof ThemeWallpaperSchema>
+
+const ThemeWallpapersSchema = z
+  .array(ThemeWallpaperSchema)
+  .min(1)
+  .max(THEME_WALLPAPERS_MAX)
+  .refine((list) => new Set(list.map((w) => w.id)).size === list.length, {
+    error: 'duplicate wallpaper id'
+  })
+
 export const ThemeManifestSchema = z
   .object({
     /** For the author's editor; accepted and ignored. */
@@ -146,7 +173,10 @@ export const ThemeManifestSchema = z
       .string()
       .regex(THEME_CSS_FILE_PATTERN)
       .refine((name) => !name.includes('..'), { error: 'no ..' })
-      .optional()
+      .optional(),
+    /** Predefined wallpapers; the first is the default. The app inlines the chosen one as
+     *  `--theme-wallpaper` (spec 2026-09-24). */
+    wallpapers: ThemeWallpapersSchema.optional()
   })
   .strict()
 export type ThemeManifest = z.infer<typeof ThemeManifestSchema>
@@ -158,6 +188,11 @@ export const ThemeSummarySchema = z
     name: z.string().min(1).max(80),
     author: z.string().max(80).optional(),
     colorScheme: ColorSchemeSchema,
+    /** The theme's wallpapers for the Settings dropdown — never the file names. */
+    wallpapers: z
+      .array(z.object({ id: ThemeIdSchema, name: z.string().min(1).max(40) }).strict())
+      .max(THEME_WALLPAPERS_MAX)
+      .optional(),
     error: ThemeErrorCodeSchema.optional(),
     path: z.string().max(200).optional()
   })
@@ -172,7 +207,9 @@ export const ThemeBundleSchema = z
     colorScheme: ColorSchemeSchema,
     /** ONE string: the `:root` tokens block, then the theme's own CSS with assets inlined. */
     css: z.string(),
-    terminal: ThemeTerminalSchema
+    terminal: ThemeTerminalSchema,
+    /** The wallpaper actually applied; null for a theme without wallpapers and for Default. */
+    wallpaperId: ThemeIdSchema.nullable()
   })
   .strict()
 export type ThemeBundle = z.infer<typeof ThemeBundleSchema>
@@ -187,5 +224,6 @@ export const DEFAULT_THEME_BUNDLE: ThemeBundle = {
   name: 'Default',
   colorScheme: 'dark',
   css: '',
-  terminal: {}
+  terminal: {},
+  wallpaperId: null
 }

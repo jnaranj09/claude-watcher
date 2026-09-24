@@ -149,7 +149,8 @@ export function composeTheme(
       name: manifest.name,
       colorScheme: manifest.colorScheme,
       css,
-      terminal: manifest.terminal
+      terminal: manifest.terminal,
+      wallpaperId: null
     }
   }
 }

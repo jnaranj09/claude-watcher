@@ -175,7 +175,8 @@ describe('custom themes — App wiring', () => {
         name: 'Paper',
         colorScheme: 'light',
         css: 'body{}',
-        terminal: {}
+        terminal: {},
+        wallpaperId: null
       })
     )
     expect(document.getElementById('claude-watcher-theme')?.textContent).toBe('body{}')
