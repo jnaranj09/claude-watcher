@@ -15,7 +15,7 @@ import type { ThemeLoadResult } from './themeCompose'
 const LOG_PREFIX = '[claude-watcher][themes]'
 
 export interface ThemeLifecycle {
-  apply(id: string): ThemeApplyResult
+  apply(id: string, wallpaperId?: string): ThemeApplyResult
   /** The bundle `apply` last resolved to (Default until the first apply) — i.e. the theme
    *  main CONSIDERS active, regardless of whether `push` or `setNativeTheme` went on to
    *  succeed. `send()` sets it before either of those (each independently try/caught), so a
@@ -24,7 +24,7 @@ export interface ThemeLifecycle {
 }
 
 export function createThemeLifecycle(opts: {
-  load: (id: string) => ThemeLoadResult
+  load: (id: string, wallpaperId: string | undefined) => ThemeLoadResult
   push: (bundle: ThemeBundle) => void
   setNativeTheme: (scheme: ColorScheme) => void
   log?: (message: string) => void
@@ -46,10 +46,10 @@ export function createThemeLifecycle(opts: {
     }
   }
 
-  function apply(id: string): ThemeApplyResult {
+  function apply(id: string, wallpaperId?: string): ThemeApplyResult {
     let loaded: ThemeLoadResult
     try {
-      loaded = opts.load(id)
+      loaded = opts.load(id, wallpaperId)
     } catch {
       loaded = { ok: false, code: 'theme_read_failed' }
     }
@@ -66,6 +66,11 @@ export function createThemeLifecycle(opts: {
       log(`${LOG_PREFIX} code=theme_bundle_invalid id=${id} path=${issue?.path.join('.') ?? ''}`)
       send(DEFAULT_THEME_BUNDLE)
       return { ok: false, id, code: 'theme_manifest_invalid' }
+    }
+    // D-8 (spec 2026-09-24): the stored pick is gone — the first wallpaper landed, the setting
+    // is kept. The stored id is operator config: the line names the THEME only.
+    if (loaded.wallpaperFallback === true) {
+      log(`${LOG_PREFIX} code=theme_wallpaper_not_found id=${id}`)
     }
     send(checked.data)
     return { ok: true, id }

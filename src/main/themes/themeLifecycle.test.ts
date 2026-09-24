@@ -87,3 +87,23 @@ describe('createThemeLifecycle.apply', () => {
     expect(logs).toEqual(['[claude-watcher][themes] code=theme_native_theme_failed'])
   })
 })
+
+describe('createThemeLifecycle — wallpapers (spec 2026-09-24)', () => {
+  it('passes the wallpaper id to load', () => {
+    const load = vi.fn(() => ({ ok: true as const, bundle: paper }))
+    const lc = createThemeLifecycle({ load, push: vi.fn(), setNativeTheme: vi.fn(), log: () => {} })
+    lc.apply('paper', 'aurora')
+    expect(load).toHaveBeenCalledWith('paper', 'aurora')
+  })
+  it('a fallback pushes the bundle, returns ok, logs the theme id and never the stored id', () => {
+    const h = harness(() => ({
+      ok: true,
+      bundle: { ...paper, wallpaperId: 'graphite' },
+      wallpaperFallback: true
+    }))
+    expect(h.lc.apply('paper', 'secret-pick')).toEqual({ ok: true, id: 'paper' })
+    expect(h.push).toHaveBeenCalledWith({ ...paper, wallpaperId: 'graphite' })
+    expect(h.logs).toEqual(['[claude-watcher][themes] code=theme_wallpaper_not_found id=paper'])
+    expect(h.logs.join('')).not.toContain('secret-pick')
+  })
+})

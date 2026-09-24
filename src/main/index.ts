@@ -2697,7 +2697,7 @@ app
     // every window (a single window today); `nativeTheme.themeSource` follows the bundle.
     themeScanner = createThemeScanner({ dir: join(app.getPath('userData'), 'themes') })
     themeLifecycle = createThemeLifecycle({
-      load: (id) => (themeScanner as ThemeScanner).load(id),
+      load: (id, wallpaperId) => (themeScanner as ThemeScanner).load(id, wallpaperId),
       push: (bundle) => {
         for (const win of BrowserWindow.getAllWindows()) {
           if (!win.webContents.isDestroyed()) win.webContents.send(CH.themeApplied, bundle)
