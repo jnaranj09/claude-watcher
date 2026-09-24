@@ -37,7 +37,10 @@ const POPOVERS = [
 // workspace menu is their sibling, not their child.
 const LEAF_BUTTONS = [
   "[data-testid='workspace-switcher']",
-  "[data-testid='workspace-elsewhere-tab']"
+  "[data-testid='workspace-elsewhere-tab']",
+  "button[data-variant='primary']:not(:disabled)",
+  "button[data-variant='secondary']:not(:disabled):not([data-lit])",
+  'button[data-variant][data-lit]:not(:disabled)'
 ]
 
 describe('docs/themes/examples', () => {
@@ -67,12 +70,16 @@ describe('docs/themes/examples', () => {
     }
   })
   // LIQUID glass carries no grain: a noise tile is the acrylic (frosted) recipe and read matte.
-  // The material is the lit rim and the sheen instead, and no asset is loaded at all.
-  it('liquid-glass has no grain, no sheen and no asset: one fill + rim, no url()', () => {
+  // The material is the lit rim instead. The ONE asset is the ground image, on `body` only:
+  // CSS gradients this faint draw a ring around every pool (see theme.css).
+  it('liquid-glass has no grain, no sheen, and one asset: the ground image on body only', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect(r.bundle.css).not.toContain('url(')
+      expect(r.bundle.css.match(/url\(/g)).toHaveLength(1)
+      const withUrl = liquidGlassRules().filter((rule) => rule.body.includes('url('))
+      expect(withUrl.map((rule) => rule.selectors)).toEqual([['body']])
+      expect(withUrl[0]?.body).toContain("url('ground.png')")
       expect(r.bundle.css).toContain('--glass-rim:')
       expect(r.bundle.css).toContain('--glass-fill:')
       expect(r.bundle.css).not.toContain('--glass-sheen')
@@ -213,6 +220,45 @@ describe('docs/themes/examples', () => {
     expect(ring).toMatch(/conic-gradient\(/)
     expect(ring).toMatch(/pointer-events:\s*none;/)
     expect(ring).not.toMatch(/z-index/)
+  })
+  // Primary and secondary Buttons are the switcher's glass: same blur, rim and faint border. They
+  // never set a fill (primary's raised fill vs secondary's clear one is what tells them apart),
+  // and a lit button (opaque white, its own border) is excluded.
+  it('liquid-glass gives primary and secondary buttons the switcher glass, fill untouched', () => {
+    const rules = liquidGlassRules()
+    const bodyOf = (sel: string): string =>
+      rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => r.body)
+        .join('\n')
+    const switcher = bodyOf("[data-testid='workspace-switcher']")
+    for (const sel of LEAF_BUTTONS.slice(2, 4)) {
+      const body = bodyOf(sel)
+      expect(body, sel).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
+      expect(body, sel).toMatch(/box-shadow:\s*var\(--glass-rim\);/)
+      const border = /border-color:\s*([^;]+);/.exec(body)?.[1]
+      expect(border, sel).toBeDefined()
+      expect(switcher).toContain(`border-color: ${border ?? ''};`)
+      expect(body, sel).not.toMatch(/background/)
+    }
+    expect(LEAF_BUTTONS.slice(2).find((s) => s.includes('secondary'))).toContain(':not([data-lit])')
+  })
+  // A LIT toggle is glass too: a translucent white fill, not the app's opaque one, with the same
+  // blur and rim, and it STAYS lit on hover (a hover that dropped the fill kept the dark lit ink
+  // and blanked the Filter button).
+  it('liquid-glass draws a lit button as translucent glass that stays lit on hover', () => {
+    const rules = liquidGlassRules()
+    const bodyOf = (sel: string): string =>
+      rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => r.body)
+        .join('\n')
+    const lit = bodyOf('button[data-variant][data-lit]:not(:disabled)')
+    expect(lit).toMatch(/background:\s*rgba\(242, 244, 248, 0\.\d+\);/)
+    expect(lit).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
+    expect(lit).toMatch(/box-shadow:\s*var\(--glass-rim\);/)
+    const hover = bodyOf('button[data-variant][data-lit]:hover:not(:disabled)')
+    expect(hover).toMatch(/background:\s*rgba\(242, 244, 248, 0\.\d+\);/)
   })
   // The focused view's body (rail + terminal column) is ONE bubble like the header: inset from the
   // window by padding on its absolute layer (a margin on the 100%-tall body would overflow), and

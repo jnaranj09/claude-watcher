@@ -12,21 +12,32 @@
    0.26 / 0.18 on a #0a0b10 base, with a blue-white light) turned the header blue; the base is
    near-neutral so the header reads dark grey again. The three hues are kept clearly APART
    (slate blue, teal green, plum) at low alpha: at the same alpha with closer hues they merged
-   into one grey wash and the colour was not worth having. Each pool holds its colour to 30% of
-   its radius and is gone by 62% — a SHARPER edge than a plain falloff, so a pool reads as a
-   shape and not as a stain (asked for 2026-09-23). The pools sit in the LOWER two thirds; the top band of the ground stays neutral so the header, which is the most see-through
+   into one grey wash and the colour was not worth having. Each pool fades on an EASED
+   curve (eight stops, smoothstep-shaped) and is gone by 82% of its radius. A straight two-stop
+   fade ends with a kink, and the eye draws that kink as a sharp circle where two pools meet (the
+   operator circled them, 2026-09-23). The eased curve ends FLAT, so there is no edge to see. (A
+   sharper 30% → 62% edge was tried first, so a pool read as a shape; the operator then asked for
+   the ground blurred.) The pools are sized so they fade out by ~25vh and never reach the header.
+   The pink pool (138,72,128; plum 118,70,112 read red) sits centre-left and the slate one at the bottom (swapped 2026-09-23), and every
+   alpha went up ~20% at the same time so the softer pools keep their colour. The pools sit in the LOWER two thirds; the top band of the ground stays neutral so the header, which is the most see-through
    surface, reads as clear glass and not as a tinted one. What came before it, and why it went: neutral grey light spots
    (white light at low alpha over near-black read as dust); an indigo pool top-left (the operator
    did not like the purple); rose + cyan under the centre (a complementary pair reads as police
    lights, whatever the alpha). Colour kept DARK gives the blur something to show without tinting
    the panels — the old bright purple + cyan pair turned every panel blue. */
+/* The pools are an IMAGE, `ground.png`, rendered by `src/ground.py` (edit the pools there and
+   re-run it). CSS gradients cannot draw them: at these alphas an rgba() pool's tail drops below
+   1/255, Chromium rounds each channel, and every pool drew a visible ring around itself (measured
+   on an offscreen render, 2026-09-23). A dither tile on top did not help, since noise added AFTER
+   rounding leaves the step in place, and solid colours under `background-blend-mode: screen` came
+   out about twice as bright as asked. The script mixes in float and dithers BEFORE rounding, so
+   there is no ring. `100% 100%` stretches it to the window, as the old vw/vh pools did. The small
+   cool light over the app name stays CSS: it is px-sized and sits under the header glass. */
 body {
   background:
     radial-gradient(360px 150px at 8% 0%, rgba(215, 220, 235, 0.05), transparent 70%),
-    radial-gradient(66vw 62vh at 30% 64%, rgba(66, 78, 124, 0.06) 30%, transparent 62%),
-    radial-gradient(60vw 56vh at 72% 56%, rgba(44, 104, 92, 0.055) 30%, transparent 62%),
-    radial-gradient(50vw 48vh at 56% 94%, rgba(118, 70, 112, 0.05) 30%, transparent 62%),
-    linear-gradient(160deg, #0a0a0d 0%, #0c0c10 100%);
+    url('ground.png') 0 0 / 100% 100% no-repeat,
+    #0b0b0e;
   background-attachment: fixed;
 }
 
@@ -386,6 +397,42 @@ body {
 [data-testid='workspace-elsewhere-tab'] {
   background-color: var(--bg-surface-raised);
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Every PRIMARY and SECONDARY Button is the same glass as the workspace switcher beside them
+   (asked for 2026-09-23: `+ New session` read as an outlined box next to a piece of glass). Its
+   own blur, the crisp rim, and a faint border in place of `--border-strong` so the rim carries the
+   edge. The FILL is left alone: primary keeps the raised 10% (the switcher's own fill), secondary
+   stays clear, and that difference is what still tells the ☰ apart from `+ New session`. Primary
+   also drops to the body weight the switcher uses. Buttons are LEAVES (a menu is a sibling of its
+   trigger, never a child), so they may blur from themselves. Lit and disabled are left out: lit is
+   an opaque white fill with its own border, and a disabled button keeps its faint app look. */
+button[data-variant='primary']:not(:disabled),
+button[data-variant='secondary']:not(:disabled):not([data-lit]) {
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-rim);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+button[data-variant='primary'] {
+  font-weight: var(--font-weight-body);
+}
+/* A LIT toggle (the Filter button while its row is open or a filter is on, an open rail peek) is
+   glass too: the app's opaque `--text-primary` fill becomes a TRANSLUCENT white (82%), with the
+   same blur and rim, so it reads as lit glass beside the clear buttons and not as a flat white
+   block (asked for 2026-09-23). The ink stays `--text-on-lit`: #1a1a18 on 82% white over the dark
+   ground measures ~10:1. Hover brightens it a step; it must stay LIT on hover (Button.module.css
+   pins the same for the app). `[data-variant]` makes these (0,3,1)/(0,4,1), above the app's
+   `.button[data-lit]` (0,2,0) and its lit hover (0,4,0). */
+button[data-variant][data-lit]:not(:disabled) {
+  background: rgba(242, 244, 248, 0.82);
+  border-color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-rim);
+}
+button[data-variant][data-lit]:hover:not(:disabled) {
+  background: rgba(242, 244, 248, 0.92);
 }
 
 /* The board's three COLUMNS float as bubbles, like the header: the same smoky glass, the same
