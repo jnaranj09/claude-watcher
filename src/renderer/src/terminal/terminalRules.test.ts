@@ -40,6 +40,27 @@ describe('terminal.md source invariants — kept-alive hidden (AC-3)', () => {
   it('NO rule sets display:none (display:none collapses the box to 0×0 and breaks fit())', () => {
     expect(css).not.toMatch(/display:\s*none/)
   })
+
+  // xterm's WebGL renderer never clears its canvas: it relies on the browser clearing the drawing
+  // buffer after each frame is SHOWN, and a `visibility:hidden` canvas is never shown. So a hidden
+  // terminal that keeps receiving output stacks every frame on top of the last, and with a
+  // see-through theme (liquid-glass) the stack shows the moment the terminal is shown again.
+  // Moving it OFF-SCREEN makes xterm's own IntersectionObserver pause rendering, and xterm does a
+  // full refresh when it comes back. Both hide paths need it: the kept-alive frame, and the whole
+  // focused layer while the Board is shown.
+  it('a hidden frame is also moved off-screen, so xterm pauses its renderer', () => {
+    const block = /\.hidden\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/translate:\s*-\d+vw/)
+  })
+
+  it('a hidden view layer is also moved off-screen (the focused layer while on the Board)', () => {
+    const appCss = readFileSync(resolve(here, '../App.module.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ''
+    )
+    const block = /\.viewLayer\[data-active='false'\]\s*\{([^}]*)\}/.exec(appCss)?.[1] ?? ''
+    expect(block).toMatch(/translate:\s*-\d+vw/)
+  })
 })
 
 describe('terminal.md source invariants — frame token (UX-DR13)', () => {

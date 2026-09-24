@@ -57,6 +57,13 @@ useEffect(() => {
   2nd terminal is alive. Apply the hidden toggle to the frame; `visibility:hidden` keeps
   the layout box so the inner host stays sized for `fit()`. (This was the blank-2nd-
   terminal bug — see `.claude/rules/troubleshooting.md` worked example.)
+- **A hidden terminal is ALSO moved off-screen** (`translate: -200vw 0` on `.hidden` and on
+  `App.module.css` `.viewLayer[data-active='false']`). xterm's WebGL renderer never clears its
+  canvas; the browser clears it after each frame is SHOWN, and a `visibility:hidden` canvas never is.
+  A hidden terminal that kept getting output stacked every frame on the last one, and a see-through
+  theme (liquid-glass) showed the stack on return until a click forced a redraw (2026-09-23).
+  Off-screen, xterm's own IntersectionObserver pauses the renderer and full-refreshes on return.
+  Guarded by `terminalRules.test.ts`.
 - **`convertEol: false`** — let the PTY own newline semantics.
 - **The GPU is ON — WebGL is the active renderer, canvas/dom the fallback.** (Changed
   2026-09-22. From 2026-08-03 to that day it was the opposite: `src/main/index.ts` called

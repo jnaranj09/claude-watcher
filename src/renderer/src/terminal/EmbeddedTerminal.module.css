@@ -59,9 +59,16 @@
 }
 
 /* Kept-alive hidden terminals use visibility:hidden, NEVER display:none (display:none collapses
-   the box to 0×0 and breaks the next fit() — terminal.md). The element keeps its layout box. */
+   the box to 0×0 and breaks the next fit() — terminal.md). The element keeps its layout box.
+   It is ALSO moved off-screen: xterm's WebGL renderer never clears its canvas (the browser clears
+   it after each frame is shown, and a visibility:hidden canvas is never shown), so a hidden
+   terminal that kept getting output stacked every frame on the last one, and a see-through theme
+   showed the stack when the terminal came back. Off-screen, xterm's own IntersectionObserver
+   pauses the renderer and does a full refresh on return. `translate` keeps the box size, so fit()
+   is unaffected. */
 .hidden {
   visibility: hidden;
+  translate: -200vw 0;
 }
 
 /* Dead-terminal pane (UX-DR18 / Story 6.1): "Terminal exited." + ONE New-session button.

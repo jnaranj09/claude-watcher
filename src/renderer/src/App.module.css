@@ -91,6 +91,10 @@
      visibility:hidden already blocks hit-testing on the hidden one, this is belt-and-braces). */
 }
 
+/* Off-screen too, like a hidden terminal frame (EmbeddedTerminal.module.css `.hidden`): while the
+   Board is shown, the focused terminal inside this layer must pause its WebGL renderer, or the
+   frames it draws meanwhile stack up on its never-cleared canvas. */
 .viewLayer[data-active='false'] {
   pointer-events: none;
+  translate: -200vw 0;
 }
