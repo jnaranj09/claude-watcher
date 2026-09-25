@@ -295,6 +295,15 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   composes ONE stylesheet (`:root` tokens block, then the raw CSS with every `url()` inlined as a
   `data:` URI — allow-listed extensions, 5 MB total) and pushes a `ThemeBundle` over
   `CH.themeApplied`, validated at source. No custom protocol, no file served to the renderer.
+- **Liquid Glass and Paper SHIP inside the app, read-only** (spec
+  `2026-09-25-bundled-themes-design.md`). electron-builder `extraResources` copies
+  `docs/themes/examples/{liquid-glass,paper}` to `<resourcesPath>/themes`; unpackaged runs read the
+  repo folder (`bundledThemesDir`). `BUNDLED_THEME_IDS` is the ONE list (a test pins the yml filter
+  to it). A bundled id ALWAYS loads from the bundled root; a `<userData>/themes` folder with that id
+  is skipped (`code=theme_id_reserved`), so a stale hand copy can never block an update. The
+  bundled root is never created or written. The packaged smoke's `main.themes.pass` proves the read
+  with a PROBE scanner over an empty user folder — the smoke runs on the default profile, where
+  the operator's own copies would otherwise make it pass with nothing packaged.
 - **Fail closed, fall back to Default, KEEP the setting.** `settings.themeId` (additive, v1) is the
   operator's choice; a theme that does not load logs `code=theme_load_failed id=<id> reason=<code>`,
   the DEFAULT bundle is pushed, and Settings shows the error line. Recovery is always "fix or remove

@@ -11,7 +11,7 @@ import {
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
-import { statSync, mkdirSync } from 'node:fs'
+import { statSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -183,6 +183,7 @@ import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
 import type { ApiSession } from '../shared/schemas/api'
 // Custom themes — the folder scanner (T5) and the apply lifecycle (T11), wired below.
 import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
+import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
 import { chosenWallpaper, themeNeedsReapply } from './themes/themeApplyTrigger'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
@@ -426,6 +427,20 @@ let apiLifecycle: ApiLifecycle | null = null
 
 // Custom themes — the folder scanner and the apply lifecycle, built after app-ready (userData).
 let themeScanner: ThemeScanner | null = null
+
+/** Liquid Glass and Paper ship READ-ONLY inside the app and win an id clash (spec 2026-09-25):
+ *  <resourcesPath>/themes packaged, the repo's docs/themes/examples otherwise. One place, so the
+ *  app's scanner and the smoke's probe read the same root. */
+function bundledThemes(): { dir: string; ids: typeof BUNDLED_THEME_IDS } {
+  return {
+    dir: bundledThemesDir({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      mainDir: __dirname
+    }),
+    ids: BUNDLED_THEME_IDS
+  }
+}
 let themeLifecycle: ThemeLifecycle | null = null
 
 /** The ONE log sink every API piece writes to — the context, the server, the docs routes, the
@@ -1263,6 +1278,33 @@ function registerPtyIpc(): void {
       const asset = await status('/docs/swagger-ui-bundle.js')
       api = { docs, openapi, asset, pass: docs === 200 && openapi === 200 && asset === 200 }
     }
+    // Bundled themes (spec 2026-09-25) — the packaged read. `scan()` must list every bundled id
+    // clean and `load('liquid-glass')` must compose (CSS + a ~1 MB wallpaper) from
+    // <resourcesPath>/themes — the only check that opens a theme file inside a real package.
+    // A PROBE scanner over an EMPTY user folder, not the app's own: the smoke runs on the default
+    // profile, and an operator's hand copy in <userData>/themes would pass the check with a
+    // package that carries no theme at all (seen on the first run).
+    let themes = { listed: [] as string[], liquidGlass: false, pass: false }
+    try {
+      const probeDir = mkdtempSync(join(os.tmpdir(), 'claude-watcher-smoke-themes-'))
+      try {
+        const probe = createThemeScanner({ dir: probeDir, bundled: bundledThemes(), log: () => {} })
+        const listed = probe
+          .scan()
+          .filter((t) => t.error === undefined)
+          .map((t) => t.id)
+        const liquidGlass = probe.load('liquid-glass').ok
+        themes = {
+          listed,
+          liquidGlass,
+          pass: liquidGlass && BUNDLED_THEME_IDS.every((id) => listed.includes(id))
+        }
+      } finally {
+        rmSync(probeDir, { recursive: true, force: true })
+      }
+    } catch {
+      console.error('[claude-watcher][themes] code=smoke_probe_failed')
+    }
     const full = {
       ...report,
       main: {
@@ -1270,7 +1312,8 @@ function registerPtyIpc(): void {
         abi: process.versions.modules,
         node: process.versions.node,
         ptyPid: term?.pid ?? null,
-        api
+        api,
+        themes
       }
     }
     const json = JSON.stringify(full, null, 2)
@@ -2697,9 +2740,13 @@ app
     }
     registerSettingsIpc()
 
-    // Custom themes — the scanner over <userData>/themes and the apply lifecycle. The push goes to
+    // Custom themes — the scanner over <userData>/themes plus the bundled, read-only themes, and the
+    // apply lifecycle. The push goes to
     // every window (a single window today); `nativeTheme.themeSource` follows the bundle.
-    themeScanner = createThemeScanner({ dir: join(app.getPath('userData'), 'themes') })
+    themeScanner = createThemeScanner({
+      dir: join(app.getPath('userData'), 'themes'),
+      bundled: bundledThemes()
+    })
     themeLifecycle = createThemeLifecycle({
       load: (id, wallpaperId) => (themeScanner as ThemeScanner).load(id, wallpaperId),
       push: (bundle) => {

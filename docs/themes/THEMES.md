@@ -7,6 +7,11 @@ breaks a rule is listed with the reason and never applied.
 The themes folder is `themes/` inside the app's data folder — on Linux
 `~/.config/claude-watcher/themes/`. **Open themes folder** in Settings opens it.
 
+Two themes ship with the app: **Liquid Glass** and **Paper**. They are read-only, live inside the
+app, and update with it. A folder in your themes folder with the same id (`liquid-glass`,
+`paper`) is ignored — to customise one, copy it from [examples](examples/) under a NEW id.
+`builtin-dark` is not shipped: it is the Default theme written out as a starting point.
+
 ## A theme in 5 minutes
 
 1. Make a folder. Its NAME is the theme id: lower-case letters, digits and `-`, up to 64 chars,

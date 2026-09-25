@@ -149,11 +149,16 @@ const ok =
   // listener at all), a 503 on `/docs` is `swagger-ui-dist` unresolvable inside the package, and
   // a 404 on the asset is a packaged file the read could not open (the `files` allow-list trimmed
   // it) — `/docs` itself would still answer 200 in that case, which is why the asset is fetched.
-  report.main?.api?.pass === true
+  report.main?.api?.pass === true &&
+  // Bundled themes — Liquid Glass and Paper must list clean and Liquid Glass must load from
+  // <resourcesPath>/themes (electron-builder extraResources). A false here is a theme the
+  // package did not carry, or one that no longer composes.
+  report.main?.themes?.pass === true
 
 if (!ok) {
   console.error('[smoke] FAIL — exit gate not satisfied.')
   console.error('[smoke] api:', JSON.stringify(report.main?.api ?? null))
+  console.error('[smoke] themes:', JSON.stringify(report.main?.themes ?? null))
   process.exit(1)
 }
 
