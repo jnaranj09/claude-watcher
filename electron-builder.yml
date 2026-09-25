@@ -34,6 +34,18 @@ asarUnpack:
   # AC-5 / Guardrail #4: native binaries (node-pty's pty.node) must be reachable
   # outside the asar archive once packaged.
   - '**/*.node'
+# Bundled themes (spec 2026-09-25): shipped READ-ONLY beside app.asar, in <resourcesPath>/themes,
+# as plain files — the theme reader's lstat symlink guard works there exactly as it does on
+# <userData>/themes. The ids must match BUNDLED_THEME_IDS (src/main/themes/bundledThemes.ts;
+# bundledThemes.test.ts fails when they differ). `src/` holds the wallpaper generator scripts,
+# which the app never reads.
+extraResources:
+  - from: docs/themes/examples
+    to: themes
+    filter:
+      - liquid-glass/**
+      - paper/**
+      - '!*/src/**'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
