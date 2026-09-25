@@ -29,7 +29,7 @@
    inlines the chosen one as `--theme-wallpaper`. Graphite (`ground.png`, the default) is the pool
    mesh described above, rendered by `src/ground.py` — CSS gradients cannot draw it without rings
    (Chromium rounds each channel at these alphas; the script dithers before rounding). Aurora and
-   Warm smoke are photos darkened 80% by `src/wallpapers.py`. `cover` for all three: ground.png is
+   Warm smoke are photos darkened by `src/wallpapers.py` (Aurora 67% and desaturated, smoke 80%). `cover` for all three: ground.png is
    16:10, so a 16:9 window crops a sliver of an area that is already near-black. The small cool
    light over the app name stays CSS: it is px-sized and sits under the header glass. */
 body {
