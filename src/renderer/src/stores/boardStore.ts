@@ -1104,6 +1104,20 @@ export const selectNeedsYouCountByWorkspace = (state: BoardState): Record<string
 }
 
 /**
+ * Workspaces — working counts keyed by workspace, INCLUDING workspaces that are not active. The
+ * switcher's blue pill; like the needs-you selector above, a subset of the card count below.
+ * Derived, never stored (state.md forbids a denormalized copy).
+ */
+export const selectWorkingCountByWorkspace = (state: BoardState): Record<string, number> => {
+  const counts: Record<string, number> = {}
+  for (const session of Object.values(state.sessionsById)) {
+    if (session.column !== 'working') continue
+    counts[session.workspaceId] = (counts[session.workspaceId] ?? 0) + 1
+  }
+  return counts
+}
+
+/**
  * Workspaces — card counts keyed by workspace, every column, INCLUDING workspaces that are not
  * active. The switcher's per-workspace total; the needs-you selector above is its subset.
  * Derived, never stored (state.md forbids a denormalized copy).

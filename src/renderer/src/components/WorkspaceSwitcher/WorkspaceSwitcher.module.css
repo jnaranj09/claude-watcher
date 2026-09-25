@@ -58,18 +58,21 @@
 .name,
 .count,
 .switcher > .badge,
+.switcher > .working,
 .tab::before,
 .tab > .badge,
 .rowName,
 .rowCount,
+.row > .working,
 .row > .badge {
   align-self: baseline;
 }
 
-/* Every count in the switcher is a pill of ONE shape — the grey total and the needs-you pill differ
-   only by fill, so they read as a pair. A bare grey digit beside a pill looked unfinished. */
+/* Every count in the switcher is a pill of ONE shape — the grey, blue and yellow pills differ only
+   by fill, so they read as a set. A bare grey digit beside a pill looked unfinished. */
 .count,
 .rowCount,
+.working,
 .badge {
   display: inline-flex;
   align-items: center;
@@ -84,12 +87,19 @@
   line-height: 1;
 }
 
-/* The cards that do NOT need you (the yellow pill counts the rest). A neutral fill from the
+/* The idle cards (the blue and yellow pills count the rest). A neutral fill from the
    raised-surface family; --text-primary on it measures ~7:1. */
 .count,
 .rowCount {
   background: var(--border-strong);
   color: var(--text-primary);
+}
+
+/* The working pill — the same --working blue as the Working column's status dot. Its ink is the
+   one every filled --working surface uses (the primary button). */
+.working {
+  background: var(--working);
+  color: var(--text-on-accent);
 }
 
 /* The needs-you pill — in the button (this workspace), on the tab (other workspaces) and on each

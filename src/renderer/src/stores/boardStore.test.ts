@@ -30,6 +30,7 @@ import {
   selectShortcutsDialogOpen,
   selectNeedsYouCountByWorkspace,
   selectCardCountByWorkspace,
+  selectWorkingCountByWorkspace,
   selectTagsDialogOpen,
   selectRulesDialogOpen,
   selectPastSessionsDialogOpen,
@@ -1075,6 +1076,16 @@ describe('workspace filtering', () => {
     store.getState().applyWatchEvent(updated('c', 'w2', 'needs-you'))
     store.getState().applyWatchEvent(updated('d', 'w2', 'working'))
     expect(selectNeedsYouCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 2 })
+  })
+
+  it('counts working per workspace INCLUDING hidden ones', () => {
+    const store = createBoardStore({ now: () => 1 })
+    store.getState().applyWatchEvent(updated('a', 'w1', 'working'))
+    store.getState().applyWatchEvent(updated('b', 'w2', 'working'))
+    store.getState().applyWatchEvent(updated('c', 'w2', 'working'))
+    store.getState().applyWatchEvent(updated('d', 'w2', 'needs-you'))
+    store.getState().applyWatchEvent(updated('e', 'w2', 'idle'))
+    expect(selectWorkingCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 2 })
   })
 
   it('counts every card per workspace, whatever its column, INCLUDING hidden ones', () => {

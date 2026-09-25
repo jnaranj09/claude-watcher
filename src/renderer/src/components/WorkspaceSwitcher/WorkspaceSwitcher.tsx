@@ -1,5 +1,6 @@
-// Workspaces — the header switcher. Shows the active workspace with a grey count of its cards that
-// do NOT need you and, when some do, a yellow pill INSIDE the button. Cards needing attention in OTHER
+// Workspaces — the header switcher. Shows the active workspace with one pill per column: grey for
+// its idle cards, blue for the working ones and yellow for the ones that need you, INSIDE the
+// button; a pill at 0 is not drawn. Cards needing attention in OTHER
 // workspaces go on a tab that slides out from BEHIND the button, carrying those workspaces' dots —
 // a pill inside the button used to mean "elsewhere" too, and it read as "this one needs you"
 // (alerts are global; only the CARDS are scoped — spec W-3). The popover's open state is LOCAL
@@ -10,6 +11,7 @@ import {
   boardStore,
   selectCardCountByWorkspace,
   selectNeedsYouCountByWorkspace,
+  selectWorkingCountByWorkspace,
   useBoard
 } from '../../stores/boardStore'
 import {
@@ -29,19 +31,22 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** "Ops, 2 sessions, 1 needs you" — a workspace and its counts, read aloud. The needs-you part
- *  is dropped at zero. */
-function describeCounts(name: string, total: number, needsYou: number): string {
-  const base = `${name}, ${plural(total, 'session', 'sessions')}`
-  return needsYou > 0 ? `${base}, ${plural(needsYou, 'needs', 'need')} you` : base
+/** "Ops, 3 sessions, 1 working, 1 needs you" — a workspace and its counts, read aloud. The
+ *  working and needs-you parts are dropped at zero. */
+function describeCounts(name: string, total: number, working: number, needsYou: number): string {
+  let text = `${name}, ${plural(total, 'session', 'sessions')}`
+  if (working > 0) text += `, ${working} working`
+  if (needsYou > 0) text += `, ${plural(needsYou, 'needs', 'need')} you`
+  return text
 }
 
-/** The grey number: the cards that do NOT need you — the pill beside it counts the rest, so
- *  "2 sessions, 1 needs you" reads `1 (1)`. Null (not rendered) when the pill already covers every
- *  card, so `0 (1)` never shows; an empty workspace still reads 0. */
-function greyCount(total: number, needsYou: number): number | null {
-  const rest = total - needsYou
-  return rest === 0 && needsYou > 0 ? null : rest
+/** The grey number: the cards that are neither working nor need you (the idle column) — the blue
+ *  and yellow pills beside it count the rest, so "3 sessions, 1 working, 1 needs you" reads
+ *  `1 (1) (1)`. Null (not rendered) whenever it would be 0: a grey 0 was noise (operator,
+ *  2026-09-25); the aria-label still reads the true total. */
+function greyCount(total: number, working: number, needsYou: number): number | null {
+  const rest = total - working - needsYou
+  return rest === 0 ? null : rest
 }
 
 export interface WorkspaceSwitcherProps {
@@ -56,12 +61,14 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
   const activeId = useWorkspaces(selectActiveWorkspaceId)
   const totals = useBoard(useShallow(selectCardCountByWorkspace))
   const counts = useBoard(useShallow(selectNeedsYouCountByWorkspace))
+  const workingCounts = useBoard(useShallow(selectWorkingCountByWorkspace))
 
   const active = workspaces.find((w) => w.id === activeId) ?? null
   const activeName = active?.name ?? 'Workspace'
   const activeTotal = totals[activeId] ?? 0
   const here = counts[activeId] ?? 0
-  const activeGrey = greyCount(activeTotal, here)
+  const activeWorking = workingCounts[activeId] ?? 0
+  const activeGrey = greyCount(activeTotal, activeWorking, here)
   const elsewhere = Object.entries(counts).reduce(
     (total, [id, count]) => (id === activeId ? total : total + count),
     0
@@ -79,7 +86,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
   ]
 
   const label =
-    describeCounts(activeName, activeTotal, here) +
+    describeCounts(activeName, activeTotal, activeWorking, here) +
     (elsewhere > 0
       ? `; ${plural(elsewhere, 'session needs', 'sessions need')} you in other workspaces`
       : '')
@@ -146,6 +153,11 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
             {activeGrey}
           </span>
         )}
+        {activeWorking > 0 && (
+          <span className={styles.working} data-testid="workspace-working-count">
+            {activeWorking}
+          </span>
+        )}
         {here > 0 && (
           <span className={styles.badge} data-testid="workspace-here-badge">
             {here}
@@ -176,7 +188,8 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           {workspaces.map((w) => {
             const total = totals[w.id] ?? 0
             const needsYou = counts[w.id] ?? 0
-            const grey = greyCount(total, needsYou)
+            const working = workingCounts[w.id] ?? 0
+            const grey = greyCount(total, working, needsYou)
             return (
               <button
                 key={w.id}
@@ -185,15 +198,20 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                 className={styles.row}
                 data-testid={`workspace-row-${w.id}`}
                 aria-current={w.id === activeId}
-                aria-label={describeCounts(w.name, total, needsYou)}
+                aria-label={describeCounts(w.name, total, working, needsYou)}
                 onClick={() => pick(w.id)}
               >
                 <WorkspaceDot tone={w.color} />
                 <span className={styles.rowName}>{w.name}</span>
-                {/* Grey, then yellow — the button's order, so the pair reads the same everywhere. */}
+                {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
                 {grey !== null && (
                   <span className={styles.rowCount} data-testid={`workspace-row-count-${w.id}`}>
                     {grey}
+                  </span>
+                )}
+                {working > 0 && (
+                  <span className={styles.working} data-testid={`workspace-row-working-${w.id}`}>
+                    {working}
                   </span>
                 )}
                 {needsYou > 0 && (

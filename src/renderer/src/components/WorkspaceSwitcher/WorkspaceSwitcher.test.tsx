@@ -107,16 +107,28 @@ describe('WorkspaceSwitcher', () => {
     expect(q(r, '[data-testid="workspace-switcher"]').textContent).toContain('Default')
   })
 
-  // The grey number is the cards that do NOT need you — the pill beside it counts the rest, so
-  // "2 sessions, 1 needs you" reads `1 (1)`, never `2 (1)`.
-  it('shows the active workspace cards that do not need you, inside the button', () => {
+  // One pill per column: grey = idle, blue = working, yellow = needs you — so "4 sessions,
+  // 1 working, 1 needs you" reads `2 (1) (1)`, never `4 (1)`.
+  it('shows the active workspace idle, working and needs-you counts, inside the button', () => {
     seedCard('default', 'a', 'needs-you')
     seedCard('default', 'b', 'working')
     seedCard('default', 'c', 'idle')
+    seedCard('default', 'e', 'idle')
     seedCard('w1', 'd', 'working')
     const r = renderSwitcher()
-    const count = q(r, '[data-testid="workspace-switcher"] [data-testid="workspace-card-count"]')
-    expect(count.textContent).toBe('2')
+    const inButton = (id: string): string | null =>
+      q(r, `[data-testid="workspace-switcher"] [data-testid="${id}"]`).textContent
+    expect(inButton('workspace-card-count')).toBe('2')
+    expect(inButton('workspace-working-count')).toBe('1')
+    expect(inButton('workspace-here-badge')).toBe('1')
+  })
+
+  it('hides the blue count when nothing in the active workspace is working', () => {
+    seedCard('default', 'c', 'idle')
+    seedCard('w1', 'd', 'working')
+    const r = renderSwitcher()
+    expect(r.container.querySelector('[data-testid="workspace-working-count"]')).toBeNull()
+    expect(q(r, '[data-testid="workspace-card-count"]').textContent).toBe('1')
   })
 
   it('hides the grey count when every active card needs you — the pill alone, never 0 (1)', () => {
@@ -126,10 +138,10 @@ describe('WorkspaceSwitcher', () => {
     expect(q(r, '[data-testid="workspace-here-badge"]').textContent).toBe('1')
   })
 
-  it('shows 0 when the active workspace has no cards', () => {
+  it('hides the grey count when the active workspace has no cards — never a grey 0', () => {
     seedCard('w1', 'd', 'working')
     const r = renderSwitcher()
-    expect(q(r, '[data-testid="workspace-card-count"]').textContent).toBe('0')
+    expect(r.container.querySelector('[data-testid="workspace-card-count"]')).toBeNull()
   })
 
   // The pill INSIDE the button means "this workspace needs you"; the tab BEHIND it means
@@ -222,22 +234,25 @@ describe('WorkspaceSwitcher', () => {
     seedCard('default', 'b', 'idle')
     const r = renderSwitcher()
     expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
-      'Default, 2 sessions'
+      'Default, 2 sessions, 1 working'
     )
   })
 
-  it('shows each row its cards that do not need you and a needs-you pill', () => {
+  it('shows each row its idle, working and needs-you pills', () => {
     seedCard('w1', 'b', 'needs-you')
     seedCard('w1', 'c', 'working')
+    seedCard('w1', 'e', 'idle')
     const r = renderSwitcher()
     click(q(r, '[data-testid="workspace-switcher"]'))
     expect(q(r, '[data-testid="workspace-row-count-w1"]').textContent).toBe('1')
+    expect(q(r, '[data-testid="workspace-row-working-w1"]').textContent).toBe('1')
     expect(q(r, '[data-testid="workspace-row-needs-w1"]').textContent).toBe('1')
-    expect(q(r, '[data-testid="workspace-row-count-default"]').textContent).toBe('0')
+    expect(r.container.querySelector('[data-testid="workspace-row-working-default"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="workspace-row-count-default"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="workspace-row-needs-default"]')).toBeNull()
     // Read aloud, the row still gives the TRUE total — "2 sessions, 1 needs you" is accurate.
     expect(q(r, '[data-testid="workspace-row-w1"]').getAttribute('aria-label')).toBe(
-      'Ops, 2 sessions, 1 needs you'
+      'Ops, 3 sessions, 1 working, 1 needs you'
     )
   })
 
@@ -251,22 +266,34 @@ describe('WorkspaceSwitcher', () => {
 
   // The pair reads the same in the button and in every row: grey first, then yellow. The rows
   // once put yellow first, so the same two pills swapped places when the menu opened.
-  it('puts the grey count before the needs-you pill in the button and in every row', () => {
-    seedCard('default', 'a', 'needs-you')
-    seedCard('default', 'b', 'working')
-    seedCard('w1', 'c', 'needs-you')
-    seedCard('w1', 'd', 'working')
+  it('puts grey, then blue, then yellow in the button and in every row', () => {
+    for (const ws of ['default', 'w1']) {
+      seedCard(ws, `${ws}-n`, 'needs-you')
+      seedCard(ws, `${ws}-w`, 'working')
+      seedCard(ws, `${ws}-i`, 'idle')
+    }
     const r = renderSwitcher()
-    const follows = (first: string, second: string): boolean =>
-      (q(r, first).compareDocumentPosition(q(r, second)) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    const inOrder = (...sels: string[]): boolean =>
+      sels.every(
+        (sel, k) =>
+          k === 0 ||
+          (q(r, sels[k - 1] ?? '').compareDocumentPosition(q(r, sel)) &
+            Node.DOCUMENT_POSITION_FOLLOWING) !==
+            0
+      )
     expect(
-      follows('[data-testid="workspace-card-count"]', '[data-testid="workspace-here-badge"]')
+      inOrder(
+        '[data-testid="workspace-card-count"]',
+        '[data-testid="workspace-working-count"]',
+        '[data-testid="workspace-here-badge"]'
+      )
     ).toBe(true)
     click(q(r, '[data-testid="workspace-switcher"]'))
     for (const id of ['default', 'w1']) {
       expect(
-        follows(
+        inOrder(
           `[data-testid="workspace-row-count-${id}"]`,
+          `[data-testid="workspace-row-working-${id}"]`,
           `[data-testid="workspace-row-needs-${id}"]`
         )
       ).toBe(true)
