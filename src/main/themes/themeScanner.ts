@@ -2,7 +2,7 @@
 // ONE Zod boundary's issues to theme codes, and hands composeTheme a reader rooted in the
 // theme folder. Logs `code=` (+ `path=`, a zod path) only — never a manifest value, never a
 // folder name that failed the id pattern, never an errno message.
-import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { lstatSync, mkdirSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
 import { join } from 'node:path'
 import {
   DEFAULT_THEME_BUNDLE,
@@ -108,16 +108,39 @@ function folderReader(folder: string): ThemeReader {
   }
 }
 
+/** A second, READ-ONLY root for the themes that ship inside the app (spec 2026-09-25). Only
+ *  `ids` are taken from `dir`; a `<userData>/themes` folder with one of these ids is skipped. */
+export interface BundledThemes {
+  dir: string
+  ids: readonly string[]
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
+}
+
 export function createThemeScanner(opts: {
   dir: string
+  bundled?: BundledThemes
   log?: (message: string) => void
 }): ThemeScanner {
   const log = opts.log ?? ((message: string): void => console.warn(message))
+  const bundled = opts.bundled
+  const bundledIds = new Set<string>(bundled?.ids ?? [])
+
+  /** A bundled id ALWAYS resolves to the bundled root — never to a user folder of that id. */
+  function folderFor(id: string): string {
+    return bundled !== undefined && bundledIds.has(id) ? join(bundled.dir, id) : join(opts.dir, id)
+  }
 
   function load(id: string, wallpaperId?: string): ThemeLoadResult {
     if (id === DEFAULT_THEME_ID) return { ok: true, bundle: DEFAULT_THEME_BUNDLE }
     if (!THEME_ID_PATTERN.test(id)) return { ok: false, code: 'theme_id_invalid' }
-    const folder = join(opts.dir, id)
+    const folder = folderFor(id)
     try {
       if (!statSync(folder).isDirectory()) return { ok: false, code: 'theme_not_found' }
     } catch {
@@ -128,25 +151,79 @@ export function createThemeScanner(opts: {
     return composeTheme(id, m.manifest, folderReader(folder), wallpaperId)
   }
 
+  /** One folder → one summary row: manifest, then the full compose, exactly as `load()` does. */
+  function summarize(id: string, folder: string): ThemeSummary {
+    const m = readManifest(folder)
+    if (!m.ok) {
+      log(`${LOG_PREFIX} code=${m.code} id=${id}${m.path !== undefined ? ` path=${m.path}` : ''}`)
+      return {
+        id,
+        name: id,
+        colorScheme: 'dark',
+        error: m.code,
+        ...(m.path !== undefined ? { path: m.path } : {})
+      }
+    }
+    // Finding 1(a): the manifest alone is not the whole theme. Go through composeTheme the
+    // same way `load()` does, so a theme broken only in its CSS/assets is caught HERE too and
+    // never offered as loadable (Settings keys the picker + the broken-themes line off
+    // `error === undefined`). Discard the composed bundle — scan() returns summaries, not
+    // bundles. Settings is opened rarely, so the extra CSS/asset read per theme (bounded by
+    // the existing 1 MB / 5 MB caps) is worth it over silently offering a broken theme.
+    const composed = composeTheme(id, m.manifest, folderReader(folder))
+    const base = {
+      id,
+      name: m.manifest.name,
+      ...(m.manifest.author !== undefined ? { author: m.manifest.author } : {}),
+      colorScheme: m.manifest.colorScheme,
+      ...(m.manifest.wallpapers !== undefined
+        ? { wallpapers: m.manifest.wallpapers.map((w) => ({ id: w.id, name: w.name })) }
+        : {})
+    }
+    if (composed.ok) return base
+    log(
+      `${LOG_PREFIX} code=${composed.code} id=${id}${composed.path !== undefined ? ` path=${composed.path}` : ''}`
+    )
+    return {
+      ...base,
+      error: composed.code,
+      ...(composed.path !== undefined ? { path: composed.path } : {})
+    }
+  }
+
   function scan(): ThemeSummary[] {
-    let entries
+    const out: ThemeSummary[] = []
+    // The bundled root first. It is NEVER created or written: a missing folder is a packaging
+    // fault, logged by code + id (never the path — it would leak the install layout).
+    if (bundled !== undefined) {
+      for (const id of bundled.ids) {
+        const folder = join(bundled.dir, id)
+        if (!isDirectory(folder)) {
+          log(`${LOG_PREFIX} code=theme_not_found id=${id}`)
+          continue
+        }
+        out.push(summarize(id, folder))
+      }
+    }
+    let entries: Dirent[] = []
     try {
       // Both calls can throw past this boundary — a regular FILE sitting at the themes path
       // (ENOTDIR/EEXIST), a read-only or permission-denied userData dir, or the dir removed
       // between the two calls. `scan()` must never throw (Global Constraints), so both are
       // inside the same try; on any failure it logs a code (never an errno message, which
-      // quotes the absolute path) and reports no themes rather than crashing main.
+      // quotes the absolute path) and reports no USER themes rather than crashing main — the
+      // bundled ones above are still offered.
       mkdirSync(opts.dir, { recursive: true })
       entries = readdirSync(opts.dir, { withFileTypes: true })
     } catch {
       log(`${LOG_PREFIX} code=theme_read_failed`)
-      return []
     }
-    const out: ThemeSummary[] = []
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const id = entry.name
-      if (id === DEFAULT_THEME_ID) {
+      // `default` is the built-in; a bundled id belongs to the app too. Either one is skipped
+      // BEFORE its folder is read, so a stale or broken copy never shows up as a broken row.
+      if (id === DEFAULT_THEME_ID || bundledIds.has(id)) {
         log(`${LOG_PREFIX} code=theme_id_reserved id=${id}`)
         continue
       }
@@ -154,47 +231,7 @@ export function createThemeScanner(opts: {
         log(`${LOG_PREFIX} code=theme_id_invalid`)
         continue
       }
-      const folder = join(opts.dir, id)
-      const m = readManifest(folder)
-      if (!m.ok) {
-        log(`${LOG_PREFIX} code=${m.code} id=${id}${m.path !== undefined ? ` path=${m.path}` : ''}`)
-        out.push({
-          id,
-          name: id,
-          colorScheme: 'dark',
-          error: m.code,
-          ...(m.path !== undefined ? { path: m.path } : {})
-        })
-        continue
-      }
-      // Finding 1(a): the manifest alone is not the whole theme. Go through composeTheme the
-      // same way `load()` does, so a theme broken only in its CSS/assets is caught HERE too and
-      // never offered as loadable (Settings keys the picker + the broken-themes line off
-      // `error === undefined`). Discard the composed bundle — scan() returns summaries, not
-      // bundles. Settings is opened rarely, so the extra CSS/asset read per theme (bounded by
-      // the existing 1 MB / 5 MB caps) is worth it over silently offering a broken theme.
-      const composed = composeTheme(id, m.manifest, folderReader(folder))
-      const base = {
-        id,
-        name: m.manifest.name,
-        ...(m.manifest.author !== undefined ? { author: m.manifest.author } : {}),
-        colorScheme: m.manifest.colorScheme,
-        ...(m.manifest.wallpapers !== undefined
-          ? { wallpapers: m.manifest.wallpapers.map((w) => ({ id: w.id, name: w.name })) }
-          : {})
-      }
-      if (composed.ok) {
-        out.push(base)
-      } else {
-        log(
-          `${LOG_PREFIX} code=${composed.code} id=${id}${composed.path !== undefined ? ` path=${composed.path}` : ''}`
-        )
-        out.push({
-          ...base,
-          error: composed.code,
-          ...(composed.path !== undefined ? { path: composed.path } : {})
-        })
-      }
+      out.push(summarize(id, join(opts.dir, id)))
     }
     return out.sort((a, b) => a.name.localeCompare(b.name))
   }
