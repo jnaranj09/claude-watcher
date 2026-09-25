@@ -60,6 +60,12 @@ body {
 :root {
   --glass-filter: blur(16px) saturate(175%);
   --glass-fill: rgba(255, 255, 255, 0.03);
+  /* The ONE exception to the one material: a MODAL panel sits over the scrim, and through 3% glass
+     it showed the dimmed board and read too dark (operator, 2026-09-25). It carries light of its
+     own — a 5% fill, and `brightness(120%)` on its backdrop (7% / 135% read too bright), which lifts the scrim off the area
+     under the panel only; the board around it stays dimmed. */
+  --glass-fill-modal: rgba(255, 255, 255, 0.05);
+  --glass-filter-modal: var(--glass-filter) brightness(120%);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
      a film. Brighter than before (0.3 / 0.08 against 0.2 / 0.06): with the fill at 3% the rim is
@@ -118,17 +124,18 @@ body {
 /* Glass panels: every dialog body and the settings panel blur what is behind them. The ONE fill
    replaces the token's `--bg-surface-raised` (white 10%): that, under the sheen the `::before`
    layer used to carry, is what made a dialog milky next to the header. The scrim behind a modal
-   already darkens the board, so the same 3% still reads as a panel. */
+   already darkens the board — too much through 3% glass, so a modal panel takes the brighter
+   `--glass-fill-modal` / `--glass-filter-modal` pair (see `:root`). */
 [role='dialog'][aria-modal='true'] > *,
 [data-testid='settings-panel'] {
-  background-color: var(--glass-fill);
+  background-color: var(--glass-fill-modal);
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--shadow-dialog);
 }
 [role='dialog'][aria-modal='true'] > *::before,
 [data-testid='settings-panel']::before {
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter-modal);
+  -webkit-backdrop-filter: var(--glass-filter-modal);
 }
 
 /* The header floats as a BUBBLE, not a bar welded to the window edge. `.app` is a flex column

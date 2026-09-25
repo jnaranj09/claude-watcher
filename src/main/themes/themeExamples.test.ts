@@ -109,9 +109,11 @@ describe('docs/themes/examples', () => {
     expect(r.ok && r.bundle.wallpaperId).toBe(id)
     expect(r.ok && r.bundle.css).toContain(`--theme-wallpaper: url("data:${mime};base64,`)
   })
-  // ONE material. The header, the columns, the modal panels and the popovers all take
-  // `--glass-fill` and the same `--glass-filter`; three recipes (a smoky black header, milky
-  // dialogs under a sheen, black popovers) read as three materials side by side (2026-09-23).
+  // ONE material. The header, the columns and the popovers all take `--glass-fill` and the same
+  // `--glass-filter`; three recipes (a smoky black header, milky dialogs under a sheen, black
+  // popovers) read as three materials side by side (2026-09-23). The ONE exception is a MODAL
+  // panel: it sits over the scrim and read too dark through 3% glass (2026-09-25), so it takes the
+  // brighter `--glass-fill-modal` / `--glass-filter-modal` pair — and nothing else does.
   it('liquid-glass paints every surface with the one --glass-fill and the one blur', () => {
     const rules = liquidGlassRules()
     const fillOf = (sel: string): string =>
@@ -121,16 +123,30 @@ describe('docs/themes/examples', () => {
         .join('\n')
     for (const sel of [
       "[data-testid='app-header']",
-      "[role='dialog'][aria-modal='true'] > *",
-      "[data-testid='settings-panel']",
       'section[data-column]:not([data-hero-accent])',
       ...POPOVERS
     ]) {
       expect(fillOf(sel), sel).toMatch(/background(-color)?:\s*var\(--glass-fill\);/)
     }
+    const MODAL_PANELS = [
+      "[role='dialog'][aria-modal='true'] > *",
+      "[data-testid='settings-panel']"
+    ]
+    for (const sel of MODAL_PANELS) {
+      expect(fillOf(sel), sel).toMatch(/background(-color)?:\s*var\(--glass-fill-modal\);/)
+      expect(fillOf(`${sel}::before`), sel).toMatch(
+        /backdrop-filter:\s*var\(--glass-filter-modal\);/
+      )
+    }
+    const modalUsers = rules
+      .filter((r) => /var\(--glass-(fill|filter)-modal\)/.test(r.body))
+      .flatMap((r) => r.selectors)
+    expect(new Set(modalUsers)).toEqual(
+      new Set([...MODAL_PANELS, ...MODAL_PANELS.map((sel) => `${sel}::before`)])
+    )
     const filters = rules.flatMap((r) => [...r.body.matchAll(/backdrop-filter:\s*([^;]+);/g)])
     expect(new Set(filters.map((m) => m[1]))).toEqual(
-      new Set(['var(--glass-filter)', 'none', 'blur(12px)'])
+      new Set(['var(--glass-filter)', 'var(--glass-filter-modal)', 'none', 'blur(12px)'])
     )
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
