@@ -65,6 +65,18 @@ useEffect(() => {
   Off-screen, xterm's own IntersectionObserver pauses the renderer and full-refreshes on return.
   Guarded by `terminalRules.test.ts`.
 - **`convertEol: false`** — let the PTY own newline semantics.
+- **Links open in the OS default browser, never in the app** (`terminalLinks.ts`). ONE activator
+  serves xterm's `linkHandler` (OSC 8 links, which claude prints) and `@xterm/addon-web-links`
+  (plain-text URLs): Ctrl+click (Cmd+click on macOS) → `window.links.openExternal` →
+  `CH.linkOpenExternal` → main's `externalLinks` gate (http/https only) → `shell.openExternal`.
+  Without `linkHandler`, xterm falls back to a browser `confirm()` and an empty `window.open()`.
+  **A gesture click on a link is the APP's alone** (`createLinkClickGuard`): claude turns on mouse
+  reporting, so a click xterm sees is also reported to claude, which opened the same link a second
+  time (2026-09-25 — a process watch showed one `xdg-open` under electron and one under claude).
+  The guard tracks the hovered link (`hover`/`leave` of both providers) and takes the gesture
+  mousedown + its mouseup in the CAPTURE phase on the frame, before xterm can report them.
+  Main also denies every `window.open` and every navigation away from the app's own page
+  (`installLinkGuards`). Never log a URL — it can carry a token.
 - **The GPU is ON — WebGL is the active renderer, canvas/dom the fallback.** (Changed
   2026-09-22. From 2026-08-03 to that day it was the opposite: `src/main/index.ts` called
   `app.disableHardwareAcceleration()` + `disable-software-rasterizer`, and canvas/dom was THE

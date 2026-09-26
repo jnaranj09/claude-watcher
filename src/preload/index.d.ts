@@ -15,7 +15,8 @@ import type {
   QuitApi,
   ClipboardApi,
   ApiApi,
-  ThemesApi
+  ThemesApi,
+  LinksApi
 } from './index'
 
 declare global {
@@ -54,5 +55,7 @@ declare global {
     api: ApiApi
     // Custom themes — the theme bridge (list / reload / openFolder / onApplied via CH.theme*).
     themes: ThemesApi
+    // External links — the OS-browser bridge (openExternal via CH.linkOpenExternal).
+    links: LinksApi
   }
 }

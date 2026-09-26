@@ -33,8 +33,10 @@ import { useShallow } from 'zustand/react/shallow'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
+import { createLinkActivator, createLinkClickGuard, isMacUserAgent } from './terminalLinks'
 import type {
   Template,
   TerminalPortMainMessage,
@@ -194,8 +196,26 @@ export function EmbeddedTerminal({
     // the open() call below so a re-open of the same terminalId pairs only ITS port, never a stale.
     const openToken = `open-${++openTokenSeq}`
 
+    // Links open in the OS default browser on Ctrl+click (Cmd+click on macOS), never in the app:
+    // OSC 8 hyperlinks through `linkHandler` (xterm's default is a browser confirm() and an
+    // empty window.open), plain-text URLs through the web-links addon. Main gates the scheme.
+    // The click GUARD takes a gesture click on a hovered link before xterm sees it, so claude
+    // (which turns on mouse reporting) is never told about it and cannot open it a second time.
+    // `activateLink` stays as the fallback for a click the guard did not take.
+    const linkOpts = {
+      open: (url: string) => window.links.openExternal(url),
+      isMac: isMacUserAgent(navigator.userAgent)
+    }
+    const activateLink = createLinkActivator(linkOpts)
+    const linkGuard = createLinkClickGuard(linkOpts)
+    const linkHover = {
+      hover: (_e: MouseEvent, uri: string): void => linkGuard.hover(uri),
+      leave: (): void => linkGuard.leave()
+    }
+
     const term = new Terminal({
       cursorBlink: true,
+      linkHandler: { activate: activateLink, ...linkHover },
       // convertEol:false — the PTY owns newline semantics (terminal.md; the delta SmokeCockpit omits).
       convertEol: false,
       fontFamily: "'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace",
@@ -209,7 +229,11 @@ export function EmbeddedTerminal({
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
+    term.loadAddon(new WebLinksAddon(activateLink, linkHover))
     term.open(container)
+    // CAPTURE phase on the frame: runs before any xterm listener inside it.
+    container.addEventListener('mousedown', linkGuard.onMouseDown, true)
+    container.addEventListener('mouseup', linkGuard.onMouseUp, true)
 
     termRef.current = term
     fitRef.current = fit
@@ -421,6 +445,8 @@ export function EmbeddedTerminal({
       // Clipboard feature cleanup — remove listeners BEFORE disposing the terminal.
       container.removeEventListener('contextmenu', contextMenuHandler)
       container.removeEventListener('paste', pasteHandler, true)
+      container.removeEventListener('mousedown', linkGuard.onMouseDown, true)
+      container.removeEventListener('mouseup', linkGuard.onMouseUp, true)
       // Dismiss any open context menu when this effect re-runs (a re-open) or unmounts.
       setMenu(null)
 

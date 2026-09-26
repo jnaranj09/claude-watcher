@@ -562,6 +562,16 @@ const themesApi = {
 
 export type ThemesApi = typeof themesApi
 
+// External links — the terminal's links reach the OS default browser ONLY through main, which
+// gates the scheme (http/https) and calls shell.openExternal. CH.* consts only.
+const linksApi = {
+  openExternal(url: string): Promise<void> {
+    return ipcRenderer.invoke(CH.linkOpenExternal, { url })
+  }
+}
+
+export type LinksApi = typeof linksApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -595,6 +605,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('api', apiApi)
     // Custom themes — the theme bridge (themes:list / theme:reload / themes:open-folder / theme:applied).
     contextBridge.exposeInMainWorld('themes', themesApi)
+    // External links — the OS-browser bridge (link:open-external).
+    contextBridge.exposeInMainWorld('links', linksApi)
   } catch (error) {
     console.error(error)
   }
@@ -637,4 +649,6 @@ if (process.contextIsolated) {
   window.api = apiApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.themes is in index.d.ts
   window.themes = themesApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.links is in index.d.ts
+  window.links = linksApi
 }

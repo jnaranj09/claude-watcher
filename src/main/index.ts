@@ -222,6 +222,10 @@ import type { QuitGuardPayload } from '../shared/ipc/contract'
 // Terminal clipboard feature — the Zod arg schema for CH.clipboardWriteText (renderer→main).
 // Parse-and-throw at the boundary; NEVER log the text value (user content — Guardrail #6).
 import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
+// External links — every clicked link (terminal, window.open, a navigation) goes through ONE gate
+// that opens http(s) in the OS default browser and refuses everything else.
+import { LinkOpenExternalSchema } from '../shared/schemas/link'
+import { createExternalLinks, installLinkGuards } from './links/externalLinks'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
@@ -2447,6 +2451,19 @@ function registerLaunchIpc(): void {
 // The write arg is UNTRUSTED cross-process input → parse-and-throw-typed
 // (zod-boundaries.md IPC-arg row). NEVER log the clipboard text value (user content;
 // Guardrail #6 — the throw IS the signal). The read handler has no arg.
+// External links — the ONE opener. `shell.openExternal` is the cross-platform call (xdg-open on
+// Linux, `open` on macOS, ShellExecute on Windows); the gate in front of it allows http(s) only.
+const externalLinks = createExternalLinks({ openExternal: (url) => shell.openExternal(url) })
+
+// External links — the terminal's Ctrl/Cmd+click lands here. Parse-and-throw on a bad arg; the
+// scheme check and every log line (code only, never the URL) live in externalLinks.
+function registerLinksIpc(): void {
+  ipcMain.handle(CH.linkOpenExternal, (_evt, raw: unknown) => {
+    const { url } = LinkOpenExternalSchema.parse(raw)
+    externalLinks.open(url)
+  })
+}
+
 function registerClipboardIpc(): void {
   // clipboard:read-text — read the OS clipboard text and return it directly. No arg to
   // parse; the read is safe (no cross-process input). Returns '' if the clipboard has no
@@ -2609,12 +2626,10 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    // Fire-and-forget: open externally; we deny the in-app window regardless. The
-    // handler must return synchronously, so the promise is intentionally voided.
-    void shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
+  // The app never opens a second window and never navigates away from its own page: a
+  // `window.open` or a navigation to an http(s) URL goes to the OS default browser, anything
+  // else is refused (src/main/links/externalLinks.ts).
+  installLinkGuards(mainWindow.webContents, externalLinks)
 
   // CAPTURED BEFORE destruction: by the time `'closed'` fires the BrowserWindow is destroyed
   // and even the `webContents` GETTER throws `Object has been destroyed` (Electron surfaces it
@@ -2896,6 +2911,7 @@ app
     // Terminal clipboard feature — register the clipboard text bridge ONCE (clipboard:read-text,
     // clipboard:write-text). Power stays in MAIN; renderer reaches it via window.clipboard.*.
     registerClipboardIpc()
+    registerLinksIpc()
 
     // Programmatic API — build the token store + the listener's lifecycle, and register the token
     // IPC ONCE. NOTHING BINDS HERE: `apiLifecycle.apply` is the only thing that starts a listener,

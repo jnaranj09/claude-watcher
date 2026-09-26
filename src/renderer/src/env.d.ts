@@ -218,5 +218,10 @@ declare global {
       openFolder(): Promise<void>
       onApplied(cb: (bundle: ThemeBundle) => void): () => void
     }
+    // External links — mirrors src/preload/index.ts `linksApi`. MAIN gates the scheme and opens
+    // the OS default browser; the renderer only hands over the URL.
+    links: {
+      openExternal(url: string): Promise<void>
+    }
   }
 }

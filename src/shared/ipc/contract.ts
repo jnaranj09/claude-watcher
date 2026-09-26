@@ -239,7 +239,12 @@ export const CH = {
   // when the renderer forwards `\x16` via the existing port input frame. No image bytes
   // ever cross the renderer/IPC seam. [Source: spec-terminal-clipboard.md; .claude/rules/ipc.md]
   clipboardReadText: 'clipboard:read-text',
-  clipboardWriteText: 'clipboard:write-text'
+  clipboardWriteText: 'clipboard:write-text',
+
+  // External links — a link clicked in a terminal opens in the OS default browser, never in the
+  // app. invoke({ url }) → void; the arg is UNTRUSTED (parse-and-throw, LinkOpenExternalSchema)
+  // and main opens http(s) only (src/main/links/externalLinks.ts). Never log the URL.
+  linkOpenExternal: 'link:open-external'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
