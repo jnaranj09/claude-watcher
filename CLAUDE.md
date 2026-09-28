@@ -342,6 +342,15 @@ electron-builder. `npm run smoke` (packaged) is the gate that proves this still 
 `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. node-pty's power stays
 in main, behind the typed preload.
 
+### No application menu (`src/main/appMenu/appMenu.ts`)
+
+Linux/Windows install NO menu; macOS keeps only the app + Edit menus (Cmd+C/V/Q need their roles),
+never View. Electron's default menu ate keys claude needs (Ctrl+R reload — which also left the board
+without a snapshot — Ctrl+M, F11, and Alt raising the hidden bar). Do not bring back
+`optimizer.watchWindowShortcuts`: it swallowed Ctrl+R in production. DevTools in dev = F12 only
+(`installDevToolsToggle`); Ctrl+Shift+I is gone. Playwright key presses skip menu accelerators, so a
+drive run cannot prove a key reaches the pty — check `Menu.getApplicationMenu()` or use real keys.
+
 ## Enforcement (the feedback harness)
 
 - **Strict TypeScript** is the QA: `strict`, `noUncheckedIndexedAccess`,

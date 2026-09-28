@@ -65,6 +65,10 @@ useEffect(() => {
   Off-screen, xterm's own IntersectionObserver pauses the renderer and full-refreshes on return.
   Guarded by `terminalRules.test.ts`.
 - **`convertEol: false`** — let the PTY own newline semantics.
+- **Every key reaches the terminal — there is no app menu to eat one** (`src/main/appMenu/appMenu.ts`,
+  2026-09-28). Ctrl+R is claude's history search, not a reload. A new main-side key handler
+  (`before-input-event`) that calls `preventDefault` takes the key from claude too; the only one is
+  the dev-only F12 DevTools toggle.
 - **Links open in the OS default browser, never in the app** (`terminalLinks.ts`). ONE activator
   serves xterm's `linkHandler` (OSC 8 links, which claude prints) and `@xterm/addon-web-links`
   (plain-text URLs): Ctrl+click (Cmd+click on macOS) → `window.links.openExternal` →
