@@ -156,7 +156,9 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
   additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
-  `hookStatus.ts` is the ONLY event→status mapping.
+  `hookStatus.ts` is the ONLY event→status mapping. A POST carrying an `Origin` header is a
+  browser and gets 403 before the body is read (SEC-2): claude's own hook POST sends none
+  (probe 2026-09-28, claude 2.1.284). Re-probe if a claude upgrade ever stops every card moving.
 - **Removal is stop/exit-driven, and every exit names its REASON (past sessions):** in-app
   Archive, `Ctrl+W`, `Ctrl+C` twice, `/exit`, a pty exit, the belt-and-suspenders `SessionEnd`,
   an app QUIT and a WINDOW CLOSE all remove the card with reason `archive` — main snapshots the

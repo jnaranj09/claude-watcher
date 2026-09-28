@@ -15,10 +15,18 @@ import { createServer, request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
 // Make an HTTP request and resolve the status code (never rejects on 4xx/5xx).
-function send(url: string, method: string, body?: string): Promise<number> {
+function send(
+  url: string,
+  method: string,
+  body?: string,
+  extraHeaders: Record<string, string> = {}
+): Promise<number> {
   return new Promise((resolve, reject) => {
     const u = new URL(url)
-    const headers: Record<string, string | number> = { 'content-type': 'application/json' }
+    const headers: Record<string, string | number> = {
+      'content-type': 'application/json',
+      ...extraHeaders
+    }
     if (body !== undefined) headers['content-length'] = Buffer.byteLength(body)
     const req = httpRequest(
       { hostname: u.hostname, port: Number(u.port), path: u.pathname, method, headers },
@@ -85,6 +93,22 @@ describe('hookServer — HTTP handler logic (real createHookServer on an ephemer
     const status = await send(srv.url, 'GET')
     expect(status).toBe(405)
     expect(onHookEvent).not.toHaveBeenCalled()
+  })
+
+  it('a POST carrying Origin (a browser) → 403, never parsed, origin never logged (SEC-2)', async () => {
+    const onHookEvent = vi.fn<(evt: HookEvent) => void>()
+    const log = vi.fn<(err: BoundaryErrorRecord) => void>()
+    srv = await startServer(onHookEvent, log)
+
+    const body = JSON.stringify({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Stop'
+    })
+    const status = await send(srv.url, 'POST', body, { origin: 'https://evil.example' })
+    expect(status).toBe(403)
+    expect(onHookEvent).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith({ path: '(request)', code: 'origin_rejected' })
+    expect(JSON.stringify(log.mock.calls)).not.toContain('evil')
   })
 
   it('non-JSON body → 400 + log path+code only (never body)', async () => {

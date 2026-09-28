@@ -5,6 +5,7 @@
 // only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
 //
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.
+// A request carrying an `Origin` header (a browser) is rejected 403 before the body is read.
 // 'error' handler on the server tolerates EADDRINUSE (log + skip).
 // Never throws past the request handler.
 // [.claude/rules/zod-boundaries.md; spec hookServer.ts Code Map]
@@ -60,6 +61,16 @@ export function createHookServer(options: HookServerOptions): HookServer {
     // the parser, and a non-POST carrying a valid body cannot fire onHookEvent.
     if (req.method !== 'POST') {
       res.writeHead(405).end()
+      return
+    }
+
+    // SEC-2 — a browser stamps `Origin` on every cross-origin POST, `no-cors` included, so any
+    // web page the operator opens could otherwise post here. Claude's own hook POST carries no
+    // `Origin` (probe 2026-09-28, claude 2.1.284: axios, no Origin/Referer). Refuse before the
+    // body is read; log the CODE only — never the origin, it names the page.
+    if (req.headers.origin !== undefined) {
+      log({ path: '(request)', code: 'origin_rejected' })
+      res.writeHead(403).end()
       return
     }
 
