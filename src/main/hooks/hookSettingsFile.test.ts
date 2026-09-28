@@ -4,14 +4,16 @@
 // LAUNCHED PROJECT's `.claude/settings.local.json`. This module replaced that, so the two
 // things worth guarding are (a) the file still contains a block claude will accept, and
 // (b) writing it can never fail a launch.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, type Mock } from 'vitest'
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   buildHookSettings,
   ensureHookSettingsFile,
-  HOOK_SETTINGS_FILENAME
+  hookSettingsPathIfListening,
+  HOOK_SETTINGS_FILENAME,
+  type HookSettingsForSpawnDeps
 } from './hookSettingsFile'
 import { HOOK_URL, REGISTERED_EVENTS } from './hookContract'
 
@@ -145,5 +147,61 @@ describe('ensureHookSettingsFile', () => {
       expect(() => ensureHookSettingsFile({ dir })).not.toThrow()
       chmodSync(dir, 0o700)
     })
+  })
+})
+
+describe('hookSettingsPathIfListening (SEC-6)', () => {
+  function deps(
+    listening: boolean,
+    ensure: () => string | null = () => '/data/hooks.json'
+  ): {
+    logs: string[]
+    written: boolean[]
+    ensureSpy: Mock<() => string | null>
+    deps: HookSettingsForSpawnDeps
+  } {
+    const logs: string[] = []
+    const written: boolean[] = []
+    const ensureSpy = vi.fn<() => string | null>(ensure)
+    return {
+      logs,
+      written,
+      ensureSpy,
+      deps: {
+        listening: () => listening,
+        ensure: ensureSpy,
+        written: (ok: boolean) => void written.push(ok),
+        log: (m: string) => void logs.push(m)
+      }
+    }
+  }
+
+  it('NOT listening → null, no file write, one code line (a squatter gets no hooks)', () => {
+    const d = deps(false)
+    expect(hookSettingsPathIfListening(d.deps)).toBeNull()
+    expect(d.ensureSpy).not.toHaveBeenCalled()
+    expect(d.logs).toEqual(['[c9watch][hookSettings] code=hook_server_not_listening'])
+  })
+
+  it('listening → the written path, and reports the write worked', () => {
+    const d = deps(true)
+    expect(hookSettingsPathIfListening(d.deps)).toBe('/data/hooks.json')
+    expect(d.written).toEqual([true])
+    expect(d.logs).toEqual([])
+  })
+
+  it('listening but the write fails → null, reported as failed', () => {
+    const d = deps(true, () => null)
+    expect(hookSettingsPathIfListening(d.deps)).toBeNull()
+    expect(d.written).toEqual([false])
+  })
+
+  it('a throwing write is contained and logged by code only', () => {
+    const d = deps(true, () => {
+      throw new Error('EACCES /home/someone/.config/claude-watcher')
+    })
+    expect(hookSettingsPathIfListening(d.deps)).toBeNull()
+    expect(d.written).toEqual([false])
+    expect(d.logs).toEqual(['[c9watch][hookSettings] code=hook_settings_unavailable'])
   })
 })

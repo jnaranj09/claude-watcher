@@ -244,7 +244,13 @@ export const CH = {
   // External links — a link clicked in a terminal opens in the OS default browser, never in the
   // app. invoke({ url }) → void; the arg is UNTRUSTED (parse-and-throw, LinkOpenExternalSchema)
   // and main opens http(s) only (src/main/links/externalLinks.ts). Never log the URL.
-  linkOpenExternal: 'link:open-external'
+  linkOpenExternal: 'link:open-external',
+
+  // Server health (UX-05, R11) — are the hook ingest and the API actually listening?
+  // `server-health:get` → ServerHealth (the renderer asks on mount); `server-health:changed` is
+  // the main → renderer push on every change, validated at source (ServerHealthSchema).
+  serverHealthGet: 'server-health:get',
+  serverHealth: 'server-health:changed'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
@@ -551,6 +557,9 @@ export type AttentionReminderPayload = {
  * [Source: story 2.4 Task 3; AC-5/7; src/shared/schemas/settings.ts; .claude/rules/ipc.md]
  */
 export type { Settings, SettingsPatch } from '../schemas/settings'
+
+// Server health — the hook/API listener state pushed to the banner and Settings.
+export type { ServerHealth, HookHealth, ApiHealth } from '../schemas/serverHealth'
 
 // Custom themes — the theme seam's payload types (schema-inferred; never a hand-written copy).
 export type { ThemeSummary, ThemeBundle, ThemeApplyResult } from '../schemas/theme'

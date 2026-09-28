@@ -187,6 +187,8 @@ describe('hookServer — HTTP handler logic (real createHookServer on an ephemer
 describe('hookServer — EADDRINUSE tolerance (real createHookServer on a used port)', () => {
   it('logs eaddrinuse and does not throw when the port is already in use', async () => {
     const log = vi.fn<(err: BoundaryErrorRecord) => void>()
+    const onError = vi.fn<(errno: string) => void>()
+    const onListening = vi.fn()
 
     // Bind a raw blocker on an ephemeral port, then read the actual port it took.
     const blocker = createServer((_req, res) => {
@@ -205,7 +207,9 @@ describe('hookServer — EADDRINUSE tolerance (real createHookServer on a used p
       onHookEvent: vi.fn(),
       log,
       port: blockerPort,
-      host: '127.0.0.1'
+      host: '127.0.0.1',
+      onError,
+      onListening
     })
 
     // Wait for the 'error' event to fire.
@@ -215,6 +219,9 @@ describe('hookServer — EADDRINUSE tolerance (real createHookServer on a used p
     const logged = log.mock.calls[0]?.[0]
     expect(Object.keys(logged ?? {}).sort()).toEqual(['code', 'path'])
     expect(logged?.code).toBe('eaddrinuse')
+    // UX-05 / SEC-6 — main learns the bind failed (the errno CODE only), and never that it bound.
+    expect(onError).toHaveBeenCalledWith('EADDRINUSE')
+    expect(onListening).not.toHaveBeenCalled()
 
     // Cleanup — no crash
     srv2.close()

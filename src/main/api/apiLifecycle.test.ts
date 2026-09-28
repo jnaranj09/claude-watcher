@@ -12,7 +12,11 @@
 import { describe, it, expect } from 'vitest'
 import { createApiLifecycle, type ApiLifecycle } from './apiLifecycle'
 
-type StartImpl = (port: number, onListening: (port: number) => void) => { close(): void }
+type StartImpl = (
+  port: number,
+  onListening: (port: number) => void,
+  onError: (errno: string) => void
+) => { close(): void }
 
 interface Harness {
   lc: ApiLifecycle
@@ -21,6 +25,7 @@ interface Harness {
   /** Ports whose handle was closed, in call order (default impl only). */
   closes: number[]
   logs: string[]
+  states: string[]
 }
 
 /** A fake listener factory. The default impl reports its bind synchronously and records closes. */
@@ -28,21 +33,27 @@ function harness(startImpl?: StartImpl): Harness {
   const starts: number[] = []
   const closes: number[] = []
   const logs: string[] = []
+  const states: string[] = []
   const impl: StartImpl =
     startImpl ??
     ((port, onListening) => {
       onListening(port)
       return { close: () => void closes.push(port) }
     })
-  const start: StartImpl = (port, onListening) => {
+  const start: StartImpl = (port, onListening, onError) => {
     starts.push(port)
-    return impl(port, onListening)
+    return impl(port, onListening, onError)
   }
   return {
-    lc: createApiLifecycle({ start, log: (m) => void logs.push(m) }),
+    lc: createApiLifecycle({
+      start,
+      log: (m) => void logs.push(m),
+      onState: (s) => void states.push(s)
+    }),
     starts,
     closes,
-    logs
+    logs,
+    states
   }
 }
 
@@ -187,6 +198,60 @@ describe('createApiLifecycle', () => {
 
     expect(starts).toEqual([9281, 9281])
     expect(lc.port()).toBeNull()
+  })
+
+  // R11 — the REAL failure: `listen()` returns fine and EADDRINUSE arrives later as an event.
+  it('an ASYNC bind error stops the lifecycle, so the next apply with the SAME port retries', () => {
+    let fail: ((errno: string) => void) | null = null
+    let closed = 0
+    const { lc, starts, states } = harness((_port, _onListening, onError) => {
+      fail = onError
+      return { close: () => void closed++ }
+    })
+
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    expect(fail).not.toBeNull()
+    fail!('EADDRINUSE')
+
+    expect(lc.port()).toBeNull()
+    expect(closed).toBe(1)
+    expect(states).toEqual(['starting', 'port_in_use'])
+
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    expect(starts).toEqual([9281, 9281])
+  })
+
+  it('a non-EADDRINUSE bind error reports failed', () => {
+    const { lc, states } = harness((_port, _onListening, onError) => {
+      onError('EACCES')
+      return { close: () => {} }
+    })
+    lc.apply({ apiEnabled: true, apiPort: 80 })
+    expect(states).toEqual(['starting', 'failed'])
+  })
+
+  it('an error from a listener already replaced by a restart changes nothing', () => {
+    const errors: ((errno: string) => void)[] = []
+    const { lc, states } = harness((port, onListening, onError) => {
+      errors.push(onError)
+      onListening(port)
+      return { close: () => {} }
+    })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    lc.apply({ apiEnabled: true, apiPort: 9290 })
+    errors[0]!('EADDRINUSE')
+    expect(lc.port()).toBe(9290)
+    expect(states.at(-1)).toBe('listening')
+  })
+
+  it('turning the API off after a failed bind reports off', () => {
+    const { lc, states } = harness((_port, _onListening, onError) => {
+      onError('EADDRINUSE')
+      return { close: () => {} }
+    })
+    lc.apply({ apiEnabled: true, apiPort: 9281 })
+    lc.apply({ apiEnabled: false, apiPort: 9281 })
+    expect(states.at(-1)).toBe('off')
   })
 
   it('never logs the thrown error, only the code', () => {

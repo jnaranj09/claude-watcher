@@ -156,7 +156,13 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
   additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
-  `hookStatus.ts` is the ONLY event→status mapping. A POST carrying an `Origin` header is a
+  `hookStatus.ts` is the ONLY event→status mapping. **No bind, no `--settings` (SEC-6):**
+  `hookSettingsPathIfListening` gives claude the settings file ONLY while THIS process's hook
+  server is bound (`src/main/serverHealth.ts`, fed by `createHookServer`'s `onListening` /
+  `onError`). A port another program holds would otherwise receive every prompt; instead the
+  session runs without status and the server-health banner (`ServerHealthBanner`, pushed over
+  `CH.serverHealth` / asked with `CH.serverHealthGet`) says so — `port_in_use`, `server_error`,
+  or `hooks_file_failed`. Never withhold the flag silently; never send it without the bind. A POST carrying an `Origin` header is a
   browser and gets 403 before the body is read (SEC-2): claude's own hook POST sends none
   (probe 2026-09-28, claude 2.1.284). Re-probe if a claude upgrade ever stops every card moving.
 - **Removal is stop/exit-driven, and every exit names its REASON (past sessions):** in-app
@@ -254,7 +260,9 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   `app.getPath('userData')` (0600, chmod-ed once per process — on the first read that finds an
   existing file; `current()` caches) — never in `settings.json` (the renderer
   reads that blob), never logged. `createApiLifecycle` starts/stops/restarts it from the settings
-  store: first apply on the window's `did-finish-load`, `stop()` on `will-quit`.
+  store: first apply on the window's `did-finish-load`, `stop()` on `will-quit`. A bind error is
+  async (`onError`): the lifecycle drops its entry so the next apply retries, and Settings shows
+  the port is taken instead of the Docs URL (R11).
 - **Every action is a registry entry** (`src/main/api/commands/`): ONE `defineCommand` object with
   separate Zod `params` / `query` / `body` / `output` schemas, a `handler` (or a `stream`), and the
   error statuses it can answer. The router (`apiServer.ts`) AND `/openapi.json` (`openapi.ts`) are
@@ -342,6 +350,16 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
 node-pty is a native module. Keep it EXTERNALIZED in the electron-vite main config, rebuilt
 against Electron's ABI via `@electron/rebuild` (`postinstall`), and `asarUnpack`-ed by
 electron-builder. `npm run smoke` (packaged) is the gate that proves this still works.
+
+### One instance per profile (`src/main/lifecycle/singleInstance.ts`, UX-04)
+
+`app.requestSingleInstanceLock()` runs right after the profile moves userData (the lock lives
+there, so default / dev / drive never block each other). A second launch quits before app-ready
+(`code=already_running`) and the first raises its window — operator-initiated, like the quit
+guard's raise; never from a session event. Two instances used to fight over the hook port (the
+second's cards froze) and over the whole-file stores (last writer reverted the other's templates,
+tags, rules and past sessions). **SMOKE skips the lock**: it runs on the default profile beside a
+running installed app and must still pass.
 
 ### Security posture (never weaken)
 

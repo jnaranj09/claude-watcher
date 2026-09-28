@@ -97,6 +97,8 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 import { useSessionSeen } from './hooks/useSessionSeen'
 // Custom themes — writes the applied bundle into <head> and the root color-scheme (T13).
 import { useApplyTheme } from './hooks/useApplyTheme'
+import { useServerHealth } from './hooks/useServerHealth'
+import { ServerHealthBanner } from './components/ServerHealthBanner/ServerHealthBanner'
 import { themeStore } from './stores/themeStore'
 import styles from './App.module.css'
 
@@ -126,6 +128,7 @@ function App(): React.JSX.Element {
 
   // null = smoke-config not resolved yet; true/false once known.
   const [smoke, setSmoke] = useState<boolean | null>(null)
+  const serverHealth = useServerHealth()
 
   useEffect(() => {
     let cancelled = false
@@ -698,6 +701,8 @@ function App(): React.JSX.Element {
           />
         </div>
       </header>
+      {/* UX-05 — the hook ingest is down: say so on every view until it is back. */}
+      <ServerHealthBanner health={serverHealth} />
       <main className={styles.main}>
         {/* Stacked views — BOTH mounted; the inactive one is visibility:hidden (terminal.md). The
             board is always mounted; FocusedSession mounts once there is a terminal to keep alive and

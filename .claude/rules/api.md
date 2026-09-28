@@ -199,9 +199,14 @@ timeout's doing. Fix it with the rate limit above, not by clearing recipes a Reo
 ## Running it locally
 
 The API port must be FREE, like the hook ingest's 9279 (`.claude/rules/run-app.md`). They fail
-differently, though: the hook server TOLERATES `EADDRINUSE` (`code=eaddrinuse`, skip, keep running —
-so a second instance binds nothing and its hook POSTs reach the FIRST one), while the API logs
-`code=listen_failed errno=…` for ANY bind error and stays down. The default is 9281, not 9280: on
+differently, though: the hook server TOLERATES `EADDRINUSE` (`code=eaddrinuse`, skip, keep running,
+the server-health banner, and launches without `--settings`), while the API logs
+`code=listen_failed errno=…` for ANY bind error and stays down. The bind error arrives ASYNC, on
+the server's `error` event; `createApiServer`'s `onError` tells `apiLifecycle`, which drops its
+entry so the NEXT `apply` (any settings change, the same port included) binds again, and reports
+`port_in_use` / `failed` to server health — Settings then shows "port … is used by another program"
+instead of the Docs URL (R11). Before that the lifecycle believed it was running and every later
+apply short-circuited until a restart. The default is 9281, not 9280: on
 the operator's machine 9280 belongs to `kubectl-radar`, a daemon they use every day and which is not
 ours to move. A drive scenario should still set its own port through Settings rather than assume the
 default is free.

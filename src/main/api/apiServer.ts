@@ -42,6 +42,9 @@ export interface ApiServerOptions {
   port?: number
   host?: string
   onListening?: (port: number) => void
+  /** A bind/server error, errno CODE only (R11): the lifecycle marks itself stopped so the next
+   *  settings apply retries, and Settings says the port is taken. */
+  onError?: (errno: string) => void
   log?: (message: string) => void
   maxStreams?: number
   pingMs?: number
@@ -377,6 +380,7 @@ export function createApiServer(options: ApiServerOptions): ApiServer {
   // told it was listening is unsupportable. `err.code` is an errno string, not a value.
   server.on('error', (err: NodeJS.ErrnoException) => {
     log(`[claude-watcher][api] code=listen_failed errno=${err.code ?? 'unknown'}`)
+    options.onError?.(err.code ?? 'unknown')
   })
   server.listen(options.port ?? API_DEFAULT_PORT, options.host ?? API_HOST, () => {
     const addr = server.address()

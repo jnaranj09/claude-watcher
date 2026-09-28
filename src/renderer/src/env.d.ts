@@ -43,7 +43,8 @@ import type {
   PastSessionOpenResult,
   ThemeSummary,
   ThemeBundle,
-  ThemeApplyResult
+  ThemeApplyResult,
+  ServerHealth
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -222,6 +223,12 @@ declare global {
     // the OS default browser; the renderer only hands over the URL.
     links: {
       openExternal(url: string): Promise<void>
+    }
+    // Server health — mirrors src/preload/index.ts `serverHealthApi`. MAIN owns the state (are
+    // the hook ingest and the API listening); the renderer only draws it.
+    serverHealth: {
+      get(): Promise<ServerHealth>
+      onChanged(cb: (health: ServerHealth) => void): () => void
     }
   }
 }

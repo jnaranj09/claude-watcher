@@ -27,6 +27,10 @@ export interface HookServerOptions {
   host?: string
   /** Called once the server is listening, with the actually-bound port. */
   onListening?: (port: number) => void
+  /** Called on a server-level error (a failed bind, `EADDRINUSE` included) with the errno CODE
+   *  only. Main's server-health state reads it: SEC-6 withholds `--settings` and UX-05 shows a
+   *  banner, so a port another process holds never fails silently. */
+  onError?: (errno: string) => void
   /** Name-sync — read AND CLEAR this session's pending rename, or null when nothing is
    *  pending. Wired to `pendingTitles.take` in main. Optional: when absent the server keeps
    *  its historical always-empty-200 behaviour, so every existing test stays valid. */
@@ -171,6 +175,7 @@ export function createHookServer(options: HookServerOptions): HookServer {
     } else {
       log({ path: '(server)', code: err.code ?? 'server_error' })
     }
+    options.onError?.(err.code ?? 'server_error')
   })
 
   // Bind to 127.0.0.1 only (never 0.0.0.0). port/host are injectable (tests bind port 0

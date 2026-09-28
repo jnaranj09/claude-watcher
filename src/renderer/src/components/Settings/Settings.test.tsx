@@ -34,6 +34,7 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   vi.restoreAllMocks()
+  delete (window as unknown as { serverHealth?: unknown }).serverHealth
   // Reset the singleton store between tests.
   act(() => {
     settingsStore.getState().hydrate(DEFAULT_SETTINGS)
@@ -416,6 +417,24 @@ describe('SettingsPanel — the local API block', () => {
     expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Regenerate')
     expect(q(r, '[data-testid="settings-api-docs-url"]').textContent).toBe(
       'http://127.0.0.1:9281/docs'
+    )
+  })
+
+  // R11 — a bind that failed must not keep advertising a Docs URL nobody answers on.
+  it('while main reports the API port in use, it says so INSTEAD of the Docs URL', async () => {
+    stubSettings()
+    stubApi('b'.repeat(64))
+    stubThemes()
+    ;(window as unknown as { serverHealth: unknown }).serverHealth = {
+      get: () => Promise.resolve({ hooks: 'ok', hookPort: 9279, api: 'port_in_use' }),
+      onChanged: () => () => {}
+    }
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    const r = render()
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-api-docs-url"]')).toBeNull()
+    expect(q(r, '[data-testid="settings-api-down"]').textContent).toContain(
+      'port 9281 is used by another program'
     )
   })
 

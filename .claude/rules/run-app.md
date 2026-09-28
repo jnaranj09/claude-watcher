@@ -13,10 +13,12 @@ screenshots the window. It uses the same seams as `tests/e2e/native-engine.e2e.t
    `~/.config/claude-watcher-drive`. The installed app (9279 / 9281) and `npm run dev` (19279 /
    19281) keep running — never ask the operator to close either. (Until 2026-09-24 the driver ran
    on the default profile and the installed app had to be closed every time.)
-   Only a second drive run can hold 29279. The driver refuses to start while it is taken: the app TOLERATES EADDRINUSE — it logs
-   `code=eaddrinuse` and keeps running rather than crashing (`hookServer.ts`) — so it would bind
-   nothing and your hook POSTs would reach the OTHER instance. The log line is the only sign, and
-   it is easy to miss in the driver's output, which is why the port is checked up front.
+   Only a second drive run can hold 29279. The driver refuses to start while it is taken: the app
+   TOLERATES EADDRINUSE — it logs `code=eaddrinuse`, keeps running, shows the server-health banner
+   and launches every claude WITHOUT `--settings` (SEC-6) — so no card would ever move and your
+   hook POSTs would reach the OTHER process. That is why the port is checked up front. A second
+   drive run on the same profile would not even start: the single-instance lock is per userData
+   (UX-04), so it quits with `code=already_running`.
 2. **`npm run build`.** The driver runs `out/main/index.js`, not the dev server. Rebuild after
    every change.
 3. **Write a scenario in your scratchpad** (not the repo) and run it with `node <file>.mjs`.

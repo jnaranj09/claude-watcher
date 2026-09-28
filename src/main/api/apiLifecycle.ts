@@ -13,9 +13,16 @@
 //     so the next `apply` retries rather than short-circuiting on a stale entry. This is main's
 //     settings handler and its quit path; a throw out of either is a broken app.
 //
+// R11 — a bind failure is ASYNC: `listen()` returns, and `EADDRINUSE` arrives later on the
+// server's `error` event. Until that was wired here the lifecycle kept its entry, believed it was
+// running, and short-circuited every later `apply` — the API stayed down until a restart. The
+// `onError` callback now clears the entry (so the next apply retries) and reports the state.
+//
 // NEVER-LOG-THE-VALUE: a caught error is reported by code alone — a bind error's message carries
 // the host and port, and it says nothing the code does not.
 // [.claude/rules/zod-boundaries.md; src/main/api/apiServer.ts]
+
+import type { ApiHealth } from '../../shared/schemas/serverHealth'
 
 /** The handle `start` hands back. `ApiServer` (apiServer.ts) satisfies it structurally. */
 interface ListenerHandle {
@@ -40,10 +47,17 @@ export interface ApiLifecycle {
 }
 
 export function createApiLifecycle(opts: {
-  start: (port: number, onListening: (port: number) => void) => ListenerHandle
+  start: (
+    port: number,
+    onListening: (port: number) => void,
+    onError: (errno: string) => void
+  ) => ListenerHandle
   log?: (message: string) => void
+  /** Every state the listener passes through, for Settings (server health, R11). */
+  onState?: (state: ApiHealth) => void
 }): ApiLifecycle {
   const log = opts.log ?? ((message: string): void => console.warn(message))
+  const report = opts.onState ?? ((): void => {})
   let running: RunningListener | null = null
 
   function stop(): void {
@@ -58,11 +72,13 @@ export function createApiLifecycle(opts: {
       log('[claude-watcher][api] code=close_failed')
     }
     log('[claude-watcher][api] code=stopped')
+    report('off')
   }
 
   function apply(settings: { apiEnabled: boolean; apiPort: number }): void {
     if (!settings.apiEnabled) {
       stop()
+      report('off') // also after a failed bind, when there was no entry for `stop` to clear
       return
     }
     if (running !== null && running.requestedPort === settings.apiPort) return
@@ -73,17 +89,36 @@ export function createApiLifecycle(opts: {
       boundPort: null
     }
     running = entry
+    report('starting')
     try {
       // The bind callback closes over `entry`, never over `running`, so a report that arrives
       // after a stop or a restart lands on the dead entry instead of reopening `port()` — and
       // says nothing, or the log would announce a listener the operator just turned off.
-      entry.handle = opts.start(settings.apiPort, (port) => {
-        entry.boundPort = port
-        if (running === entry) log(`[claude-watcher][api] code=listening port=${port}`)
-      })
+      entry.handle = opts.start(
+        settings.apiPort,
+        (port) => {
+          entry.boundPort = port
+          if (running !== entry) return
+          log(`[claude-watcher][api] code=listening port=${port}`)
+          report('listening')
+        },
+        (errno) => {
+          // Same dead-entry rule. The server already logged `listen_failed errno=`; here the
+          // entry is dropped so the next `apply` — even with the same port — starts again.
+          if (running !== entry) return
+          running = null
+          try {
+            entry.handle?.close()
+          } catch {
+            log('[claude-watcher][api] code=close_failed')
+          }
+          report(errno === 'EADDRINUSE' ? 'port_in_use' : 'failed')
+        }
+      )
     } catch {
       running = null
       log('[claude-watcher][api] code=listen_failed')
+      report('failed')
     }
   }
 

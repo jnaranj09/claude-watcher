@@ -244,7 +244,10 @@ import { hookStatus } from './hooks/hookStatus'
 import { createTranscriptWatcher, type TranscriptWatcher } from './hooks/transcriptWatcher'
 import { createBackgroundWorkState } from './hooks/backgroundWorkState'
 import { forgetSession, trackHookEvent, type SessionTrackingDeps } from './hooks/sessionTracking'
-import { ensureHookSettingsFile } from './hooks/hookSettingsFile'
+import { ensureHookSettingsFile, hookSettingsPathIfListening } from './hooks/hookSettingsFile'
+import { createServerHealth } from './serverHealth'
+import { ServerHealthSchema, type ServerHealth } from '../shared/schemas/serverHealth'
+import { claimSingleInstance } from './lifecycle/singleInstance'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
 // one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
@@ -277,6 +280,55 @@ if (PROFILE.name !== 'default') {
   console.log(`[claude-watcher][profile] name=${PROFILE.name} hookPort=${PROFILE.hookPort}`)
 }
 const PROFILE_SETTINGS_DEFAULTS = { ...DEFAULT_SETTINGS, apiPort: PROFILE.apiPort }
+
+// One app per profile (UX-04, `lifecycle/singleInstance.ts`). Taken AFTER the profile moved
+// userData, because the lock lives there. A second launch quits at once — before app-ready,
+// before any store or listener exists — and the first instance raises its window instead.
+const IS_PRIMARY_INSTANCE = claimSingleInstance({
+  smoke: SMOKE,
+  requestLock: () => app.requestSingleInstanceLock(),
+  onSecondInstance: (handler) => {
+    app.on('second-instance', handler)
+  },
+  raise: () => raiseMainWindow(),
+  log: (line) => console.log(line)
+})
+if (!IS_PRIMARY_INSTANCE) app.exit(0)
+
+// Server health (UX-05, SEC-6, R11) — whether the hook ingest and the API really bound. Every
+// change is pushed to the window (banner + Settings), validated AT SOURCE.
+const serverHealth = createServerHealth({
+  hookPort: PROFILE.hookPort,
+  onChange: (health) => pushServerHealth(health)
+})
+
+function pushServerHealth(health: ServerHealth): void {
+  const r = ServerHealthSchema.safeParse(health)
+  if (!r.success) {
+    const issue = r.error.issues[0]
+    console.error(
+      `[claude-watcher][health] dropped server-health path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+    )
+    return
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.webContents.isDestroyed()) win.webContents.send(CH.serverHealth, r.data)
+  }
+}
+
+// Restore + show + focus the one window. Operator-initiated ONLY (a second launch of the app);
+// never call it from a session event — the no-self-raise rule (Epic-4 DECISION #2) stands.
+function raiseMainWindow(): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win === undefined || win.isDestroyed()) return
+  try {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  } catch {
+    console.warn('[claude-watcher][instance] code=raise_failed')
+  }
+}
 
 // --- Story 0.1 spike: single dedicated PTY forwarder ---------------------------
 // THIS STORY ONLY: a single PTY streamed to the renderer over a minimal IPC
@@ -1043,7 +1095,10 @@ function registerWatchFeed(window: BrowserWindow): void {
       if (name !== null) reducer.clearNameSyncPending(sessionId).forEach(handleDelta)
       return name
     },
-    log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`)
+    log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
+    // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
+    onListening: () => serverHealth.hookBound(),
+    onError: (errno) => serverHealth.hookFailed(errno)
   })
   hookServers.set(wc, hookServer)
 
@@ -1136,6 +1191,7 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
   if (hookServer) {
     hookServers.delete(wc)
     hookServer.close()
+    serverHealth.hookClosed()
   }
   // Stop every transcript tail so no fs watch outlives the window. Idempotent, never throws.
   const watcher = transcriptWatchers.get(wc)
@@ -2194,16 +2250,20 @@ function claudeVersionAllowsLaunch(): boolean {
 // own IO errors and returns null; the try/catch is belt-and-braces for an unexpected throw.
 // Either way the flag is omitted and the session spawns WITHOUT status reporting — degraded,
 // not dead. NEVER-LOG-THE-VALUE: the path is never logged, only a `code=`.
+//
+// SEC-6: no `--settings` at all unless THIS process's hook server is bound — a port someone else
+// holds would otherwise receive every prompt of the session. The banner (UX-05) says why.
 function hookSettingsPathForSpawn(): string | null {
-  try {
-    return ensureHookSettingsFile({
-      dir: app.getPath('userData'),
-      log: (msg) => console.warn(msg)
-    })
-  } catch {
-    console.warn('[c9watch][hookSettings] code=hook_settings_unavailable')
-    return null
-  }
+  return hookSettingsPathIfListening({
+    listening: () => serverHealth.hookListening(),
+    ensure: () =>
+      ensureHookSettingsFile({
+        dir: app.getPath('userData'),
+        log: (msg) => console.warn(msg)
+      }),
+    written: (ok) => serverHealth.hookSettingsWritten(ok),
+    log: (msg) => console.warn(msg)
+  })
 }
 
 // Story 3.2 (FR-11) — register the launch IPC ONCE (mirrors registerTerminalIpc / registerPtyIpc;
@@ -2470,6 +2530,11 @@ const externalLinks = createExternalLinks({ openExternal: (url) => shell.openExt
 
 // External links — the terminal's Ctrl/Cmd+click lands here. Parse-and-throw on a bad arg; the
 // scheme check and every log line (code only, never the URL) live in externalLinks.
+// Server health — the renderer asks once on mount; every later change is a push.
+function registerServerHealthIpc(): void {
+  ipcMain.handle(CH.serverHealthGet, () => serverHealth.get())
+}
+
 function registerLinksIpc(): void {
   ipcMain.handle(CH.linkOpenExternal, (_evt, raw: unknown) => {
     const { url } = LinkOpenExternalSchema.parse(raw)
@@ -2730,6 +2795,8 @@ nativeTheme.themeSource = 'dark'
 app
   .whenReady()
   .then(() => {
+    // A second instance is already exiting (UX-04): build nothing, bind nothing.
+    if (!IS_PRIMARY_INSTANCE) return
     // Set app user model id for windows. CANONICAL appId = `com.claudewatcher.app` (Story 2.3
     // AC-6): must match `electron-builder.yml` (`appId`) + the `.desktop` file's
     // `StartupWMClass`/filename so the tray + notification OS identity is consistent. [FROZEN #5;
@@ -2929,6 +2996,7 @@ app
     // clipboard:write-text). Power stays in MAIN; renderer reaches it via window.clipboard.*.
     registerClipboardIpc()
     registerLinksIpc()
+    registerServerHealthIpc()
 
     // Programmatic API — build the token store + the listener's lifecycle, and register the token
     // IPC ONCE. NOTHING BINDS HERE: `apiLifecycle.apply` is the only thing that starts a listener,
@@ -2942,7 +3010,7 @@ app
     // leaves the rest of the API untouched.
     const swaggerDistDir = resolveSwaggerDistDir()
     apiLifecycle = createApiLifecycle({
-      start: (port, onListening) => {
+      start: (port, onListening, onError) => {
         const store = apiTokenStore
         // The lifecycle CONTAINS a throwing `start` (logs `code=listen_failed`, stays stopped), so
         // this is a refusal to serve without a token, not a crash.
@@ -2999,11 +3067,13 @@ app
           publicRoutes: docs,
           port,
           onListening,
+          onError,
           log: apiLog
         })
         return server
       },
-      log: apiLog
+      log: apiLog,
+      onState: (state) => serverHealth.setApi(state)
     })
     // SMOKE — force the listener up on an EPHEMERAL port so the packaged binary proves that
     // `/docs` and `/openapi.json` are reachable from inside the asar (the smoke-report handler

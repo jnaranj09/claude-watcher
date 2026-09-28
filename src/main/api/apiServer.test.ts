@@ -558,6 +558,7 @@ describe('createApiServer', () => {
 describe('createApiServer — a bind failure is logged, never swallowed', () => {
   it('logs code=listen_failed when the port is already taken, and does not throw', async () => {
     const log = vi.fn()
+    const onError = vi.fn<(errno: string) => void>()
     const { ctx } = makeFakeContext()
     const blocker = createServer((_req, res) => {
       res.writeHead(200).end()
@@ -573,11 +574,14 @@ describe('createApiServer — a bind failure is logged, never swallowed', () => 
       token: () => TEST_TOKEN,
       port,
       host: '127.0.0.1',
-      log
+      log,
+      onError
     })
     await vi.waitFor(() =>
       expect(log).toHaveBeenCalledWith('[claude-watcher][api] code=listen_failed errno=EADDRINUSE')
     )
+    // R11 — the lifecycle is TOLD, so it stops believing it runs and the next apply retries.
+    expect(onError).toHaveBeenCalledWith('EADDRINUSE')
 
     srv.close()
     await new Promise<void>((resolve) => blocker.close(() => resolve()))

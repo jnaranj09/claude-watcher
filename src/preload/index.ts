@@ -55,7 +55,8 @@ import type {
   PastSessionOpenResult,
   ThemeSummary,
   ThemeBundle,
-  ThemeApplyResult
+  ThemeApplyResult,
+  ServerHealth
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -572,6 +573,22 @@ const linksApi = {
 
 export type LinksApi = typeof linksApi
 
+// Server health (UX-05, R11) — are the hook ingest and the API listening? The renderer asks once
+// on mount and then follows the push. CH.* consts only.
+const serverHealthApi = {
+  get(): Promise<ServerHealth> {
+    return ipcRenderer.invoke(CH.serverHealthGet)
+  },
+  /** Subscribe to every change. Returns unsubscribe. */
+  onChanged(cb: (health: ServerHealth) => void): () => void {
+    const listener = (_evt: unknown, health: ServerHealth): void => cb(health)
+    ipcRenderer.on(CH.serverHealth, listener)
+    return () => ipcRenderer.removeListener(CH.serverHealth, listener)
+  }
+}
+
+export type ServerHealthApi = typeof serverHealthApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -607,6 +624,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('themes', themesApi)
     // External links — the OS-browser bridge (link:open-external).
     contextBridge.exposeInMainWorld('links', linksApi)
+    // Server health — the hook/API listener state (server-health:get / server-health:changed).
+    contextBridge.exposeInMainWorld('serverHealth', serverHealthApi)
   } catch (error) {
     console.error(error)
   }
@@ -651,4 +670,6 @@ if (process.contextIsolated) {
   window.themes = themesApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.links is in index.d.ts
   window.links = linksApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.serverHealth is in index.d.ts
+  window.serverHealth = serverHealthApi
 }

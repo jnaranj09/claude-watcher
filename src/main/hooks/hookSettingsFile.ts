@@ -99,3 +99,36 @@ export function ensureHookSettingsFile(options: EnsureHookSettingsOptions): stri
     return null
   }
 }
+
+export interface HookSettingsForSpawnDeps {
+  /** True only while THIS process's hook server is bound (serverHealth.hookListening). */
+  listening: () => boolean
+  /** The file write — `ensureHookSettingsFile` in production. */
+  ensure: () => string | null
+  /** Told whether the write worked, so the banner can say so (UX-05). */
+  written: (ok: boolean) => void
+  log: (msg: string) => void
+}
+
+/**
+ * The path to pass as `--settings`, or null to spawn WITHOUT hooks.
+ *
+ * SEC-6 — the hook URL is a fixed loopback port. If THIS process did not bind it, whoever did
+ * (another app, another local user) would receive every prompt, `last_assistant_message` and
+ * tool input of the session. So no bind, no `--settings`: the session runs without status, and
+ * the server-health banner says why. Code only in the log, never the path.
+ */
+export function hookSettingsPathIfListening(deps: HookSettingsForSpawnDeps): string | null {
+  if (!deps.listening()) {
+    deps.log('[c9watch][hookSettings] code=hook_server_not_listening')
+    return null
+  }
+  let path: string | null = null
+  try {
+    path = deps.ensure()
+  } catch {
+    deps.log('[c9watch][hookSettings] code=hook_settings_unavailable')
+  }
+  deps.written(path !== null)
+  return path
+}

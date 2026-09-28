@@ -60,6 +60,7 @@ import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { Button } from '../Button/Button'
 import { reminderSummary } from './reminderSummary'
+import { useServerHealth } from '../../hooks/useServerHealth'
 import styles from './Settings.module.css'
 
 /** Attention reminders — `Off`, then 1..REMINDER_COUNT_MAX. A Select value is a string. */
@@ -233,6 +234,13 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
 
   // The COMMITTED port, never the draft: this is the URL the running listener answers on.
   const docsUrl = `http://127.0.0.1:${apiPort}/docs`
+  const apiHealth = useServerHealth()?.api
+  const apiDown =
+    apiHealth === 'port_in_use'
+      ? `The API is not running: port ${apiPort} is used by another program. Choose another port.`
+      : apiHealth === 'failed'
+        ? `The API is not running: it could not listen on port ${apiPort}. Choose another port.`
+        : null
 
   function setApiEnabled(next: boolean): void {
     // Switching OFF drops the token and the block's error line: there is nothing to show, and no
@@ -542,9 +550,17 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                   />
                 </div>
               </div>
-              <p className={styles.hint}>
-                Docs: <span data-testid="settings-api-docs-url">{docsUrl}</span>
-              </p>
+              {/* R11 — a listener that did not bind has no Docs URL to offer. The next change
+                  in this panel retries the bind. */}
+              {apiDown !== null ? (
+                <p className={styles.hint} data-testid="settings-api-down">
+                  {apiDown}
+                </p>
+              ) : (
+                <p className={styles.hint}>
+                  Docs: <span data-testid="settings-api-docs-url">{docsUrl}</span>
+                </p>
+              )}
             </>
           )}
           <ManageDialog.Error testId="settings-error" />

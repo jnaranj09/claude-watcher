@@ -16,7 +16,8 @@ import type {
   ClipboardApi,
   ApiApi,
   ThemesApi,
-  LinksApi
+  LinksApi,
+  ServerHealthApi
 } from './index'
 
 declare global {
@@ -57,5 +58,7 @@ declare global {
     themes: ThemesApi
     // External links — the OS-browser bridge (openExternal via CH.linkOpenExternal).
     links: LinksApi
+    // Server health — the hook/API listener state (get / onChanged via CH.serverHealth*).
+    serverHealth: ServerHealthApi
   }
 }
