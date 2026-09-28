@@ -243,6 +243,7 @@ import { isInterruptKey } from './pty/interruptKey'
 import { hookStatus } from './hooks/hookStatus'
 import { createTranscriptWatcher, type TranscriptWatcher } from './hooks/transcriptWatcher'
 import { createBackgroundWorkState } from './hooks/backgroundWorkState'
+import { forgetSession, trackHookEvent, type SessionTrackingDeps } from './hooks/sessionTracking'
 import { ensureHookSettingsFile } from './hooks/hookSettingsFile'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
@@ -587,11 +588,27 @@ function registerWatchFeed(window: BrowserWindow): void {
   // `Stop` only and Esc fires no hook, so without this memory an interrupt has nothing to
   // consult. Fed from every hook event below; read by demoteOnInterrupt.
   const backgroundWork = createBackgroundWorkState()
+  // The transcript tail (see demoteOnInterrupt below). Declared BEFORE handleDelta, which closes
+  // over it through `tracking` — the same temporal-dead-zone reason as `apiHub` above. Kept in
+  // `transcriptWatchers` so teardownWatchFeed disposes it with the window (R13).
+  const transcriptWatcher = createTranscriptWatcher({
+    onSignal: (sessionId) => {
+      demoteOnInterrupt(sessionId, 'transcript_interrupt')
+    }
+  })
+  transcriptWatchers.set(wc, transcriptWatcher)
+  const tracking: SessionTrackingDeps = {
+    watcher: transcriptWatcher,
+    backgroundWork,
+    log: (line) => console.log(line),
+    warn: (line) => console.warn(line)
+  }
 
   function handleDelta(delta: ReducerWatchEventsPayload): void {
-    // A removed session's background verdict is dead weight — drop it here, the one
-    // chokepoint EVERY removal passes through (hook SessionEnd, in-app Stop, pty exit).
-    if (delta.event.type === 'session.removed') backgroundWork.forget(delta.event.id)
+    // A removed session's tail and background verdict are dead weight — drop them here, the one
+    // chokepoint EVERY removal passes through (hook SessionEnd, in-app Stop, pty exit, and the
+    // old id of a `/clear` rebind, which adoptCard removes directly).
+    if (delta.event.type === 'session.removed') forgetSession(delta.event.id, tracking)
     if (wc.isDestroyed()) return
     // Rules (spec §2.2) — runDeltaPipeline (rules/deltaPipeline.ts) owns the column-edge order
     // the rules engine depends on: read `tracker.columnOf(id)` BEFORE `tracker.onDelta` sees this
@@ -948,12 +965,6 @@ function registerWatchFeed(window: BrowserWindow): void {
       .forEach(handleDelta)
   }
 
-  const transcriptWatcher = createTranscriptWatcher({
-    onSignal: (sessionId) => {
-      demoteOnInterrupt(sessionId, 'transcript_interrupt')
-    }
-  })
-
   const hookServer = createHookServer({
     onHookEvent: (evt) => {
       // Name-sync READ-BACK — claude's own name for the session, reported on every
@@ -977,25 +988,22 @@ function registerWatchFeed(window: BrowserWindow): void {
         reducer.renameSession(evt.session_id, readBack).forEach(handleDelta)
       }
 
-      // Tail this session's transcript. Every hook event carries `transcript_path`, and
-      // the watcher is idempotent for a path it already follows, so this is the cheapest
-      // place to (re)establish the tail — including after a session-id rebind.
-      if (evt.transcript_path !== undefined && evt.transcript_path.length > 0) {
-        // Log the ATTACH once per session (never the path — it embeds the project
-        // directory). Without this the tail is invisible when it silently fails to start.
-        if (transcriptWatcher.watch(evt.session_id, evt.transcript_path)) {
-          console.log(`[c9watch][hooks] code=transcript_watch session=${evt.session_id}`)
-        }
-      } else {
-        console.warn(`[c9watch][hooks] code=transcript_path_absent session=${evt.session_id}`)
+      const change = hookStatus(evt)
+
+      // Session-rebind PART 2 — an UNKNOWN id posting a status may be that same pty under its
+      // new id. Adopt only under sessionRebind.ts's narrow proof; anything looser would put an
+      // external session on the board (Story 3.3 ship gate). A miss falls through to the
+      // unchanged `hook_unknown_id` no-op below. Runs BEFORE the tracking gate, so a session
+      // under its new `/clear` id is known by then and keeps its transcript tail.
+      if (change?.kind === 'status' && !reducer.snapshotMap().has(evt.session_id)) {
+        adoptOrphanedCard(evt.cwd ?? '', evt.session_id)
       }
 
-      // Remember what this event states about background work (a no-op unless it carries
-      // `background_tasks`). Runs BEFORE the status mapping and before its unknown-event
-      // early return, so the verdict is recorded even for an event we do not map.
-      backgroundWork.observe(evt.session_id, evt)
+      // Tail the transcript and record the background verdict — for a KNOWN id only (SEC-2:
+      // an unknown POST must not grow a watcher; SEC-3: its raw id is never logged). Runs
+      // before the unknown-event return, so an event we do not map still records its verdict.
+      trackHookEvent(evt, reducer.snapshotMap().has(evt.session_id), tracking)
 
-      const change = hookStatus(evt)
       if (change === null) return // unrecognized event — ignore
 
       // Session-rebind PART 1 — removal is STOP/EXIT-driven (CLAUDE.md); this hook is only
@@ -1015,14 +1023,6 @@ function registerWatchFeed(window: BrowserWindow): void {
           console.warn('[c9watch][hooks] path=(hook) code=hook_sessionend_pty_alive')
           return
         }
-      }
-
-      // Session-rebind PART 2 — an UNKNOWN id posting a status may be that same pty under its
-      // new id. Adopt only under sessionRebind.ts's narrow proof; anything looser would put an
-      // external session on the board (Story 3.3 ship gate). A miss falls through to the
-      // unchanged `hook_unknown_id` no-op below.
-      if (change.kind === 'status' && !reducer.snapshotMap().has(evt.session_id)) {
-        adoptOrphanedCard(evt.cwd ?? '', evt.session_id)
       }
 
       // Past sessions (D-3) — a SessionEnd that reaches here (the pty-alive guard above did NOT

@@ -180,7 +180,11 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   `pendingTitles.rebind` moves a pending rename with the card on `/clear` (`adoptCard`), which is
   what fixed "rename, then /clear, then the card reverts".
 - **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
-  card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate).
+  card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate). They
+  also start NO transcript tail, record no background verdict, and their raw `session_id` is
+  never logged (`src/main/hooks/sessionTracking.ts`, SEC-2/SEC-3): anyone on the machine can
+  POST to :9279. The `/clear` adoption runs BEFORE that gate, so a rebound card keeps its tail;
+  `forgetSession` on every `session.removed` stops it (R13).
 - **Claude changes its own session id mid-run (`/clear`) and the card must follow**
   (`src/main/hooks/sessionRebind.ts`). The same process and pty continue under a NEW id, so
   every later hook would be `hook_unknown_id` and the card would freeze on its last status.
