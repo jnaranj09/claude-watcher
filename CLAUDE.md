@@ -342,6 +342,13 @@ electron-builder. `npm run smoke` (packaged) is the gate that proves this still 
 `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. node-pty's power stays
 in main, behind the typed preload.
 
+**The smoke cockpit's channels exist ONLY under `C9_SMOKE=1`** (`src/main/smoke/smokeIpc.ts`, SEC-8).
+`CH.ptyStart` / `ptyInput` / `ptyResize` are a raw `$SHELL` spawn + write, and `CH.smokeReport`
+hard-exits with NO archive — registered in production they were one IPC away from any page that
+reached the preload. `CH.smokeConfig` is the exception and stays registered always: `App.tsx`
+asks it on every start. A new smoke-only channel goes through `registerSmokeIpc`, never a bare
+`ipcMain.on` in `registerPtyIpc`.
+
 ### No application menu (`src/main/appMenu/appMenu.ts`)
 
 Linux/Windows install NO menu; macOS keeps only the app + Edit menus (Cmd+C/V/Q need their roles),

@@ -24,6 +24,7 @@ import icon from '../../resources/icon.png?asset'
 import { CH } from '../shared/ipc/contract'
 import type {
   PtyResizeRequest,
+  SmokeConfig,
   SmokeReport,
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
@@ -228,6 +229,7 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 import { LinkOpenExternalSchema } from '../shared/schemas/link'
 import { createExternalLinks, installLinkGuards } from './links/externalLinks'
 import { applicationMenuTemplate, installDevToolsToggle } from './appMenu/appMenu'
+import { registerSmokeIpc } from './smoke/smokeIpc'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
@@ -1189,7 +1191,7 @@ function archiveLiveSessions(only?: Electron.WebContents): void {
 // anything it launches (e.g. claude).
 function registerPtyIpc(): void {
   // Renderer asks for the PTY once the terminal element is mounted & sized.
-  ipcMain.on(CH.ptyStart, (evt) => {
+  const ptyStart = (evt: Electron.IpcMainEvent): void => {
     const wc = evt.sender
     if (ptys.has(wc)) return
     const term = pty.spawn(SHELL, [], {
@@ -1217,15 +1219,15 @@ function registerPtyIpc(): void {
       if (!wc.isDestroyed()) wc.send(CH.ptyExit, { exitCode })
       ptys.delete(wc)
     })
-  })
+  }
 
-  ipcMain.on(CH.ptyInput, (evt, data: string) => {
+  const ptyInput = (evt: Electron.IpcMainEvent, data: string): void => {
     ptys.get(evt.sender)?.write(data)
-  })
+  }
 
   // Resize ordering (Guardrail #8): the renderer computes cols/rows, then the
   // PTY is resized. We resize the pty here on receipt; the renderer fits after.
-  ipcMain.on(CH.ptyResize, (evt, size: PtyResizeRequest) => {
+  const ptyResize = (evt: Electron.IpcMainEvent, size: PtyResizeRequest): void => {
     const term = ptys.get(evt.sender)
     if (term && size && size.cols > 0 && size.rows > 0) {
       try {
@@ -1234,18 +1236,18 @@ function registerPtyIpc(): void {
         console.error('[c9watch][pty] resize error', e)
       }
     }
-  })
+  }
 
   // Smoke harness wiring (AC-3). Renderer asks whether smoke mode is on, and
   // posts its verdict here; main persists it and exits.
-  ipcMain.handle(CH.smokeConfig, () => ({
+  const config = (): SmokeConfig => ({
     enabled: SMOKE,
     electron: process.versions.electron,
     abi: process.versions.modules,
     node: process.versions.node
-  }))
+  })
 
-  ipcMain.on(CH.smokeReport, async (evt, report: SmokeReport) => {
+  const smokeReport = async (evt: Electron.IpcMainEvent, report: SmokeReport): Promise<void> => {
     const term = ptys.get(evt.sender)
     // Programmatic API — the packaged-docs check. The listener was forced up on an ephemeral
     // port at app-ready (SMOKE), so a 200 from these routes proves the docs serve from INSIDE
@@ -1347,6 +1349,15 @@ function registerPtyIpc(): void {
     // so in smoke mode force a hard process exit as a fallback.
     app.exit(code)
     setTimeout(() => process.exit(code), 250)
+  }
+
+  // SEC-8: outside smoke only `smokeConfig` exists (App.tsx asks it on every start).
+  registerSmokeIpc(ipcMain, SMOKE, {
+    config,
+    ptyStart,
+    ptyInput,
+    ptyResize,
+    report: (evt, report: SmokeReport) => void smokeReport(evt, report)
   })
 }
 
