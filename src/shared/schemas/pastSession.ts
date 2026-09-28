@@ -24,7 +24,18 @@ export const PastSessionSchema = z
     /** `.default([])` is the additive-field rule: a record written without it must still load. */
     tagIds: z.array(z.string().min(1)).default([]),
     launchedAt: z.number().int().nonnegative(),
-    endedAt: z.number().int().nonnegative()
+    /** For a `live` record: the last time main saw the card (refreshed at most once a minute),
+     *  which becomes the end time if the app dies without archiving it (UX-01). */
+    endedAt: z.number().int().nonnegative(),
+    /** Present (and `true`) ONLY while the card is on the board (UX-01, UX-02). Written at launch
+     *  so a crash, SIGKILL or power loss still leaves a record; the next start turns it into a
+     *  normal one. The dialog never lists a live record and the 200 cap never evicts one.
+     *  Optional, not `.default(false)`: absent = ended, and the file stays version 1. */
+    live: z.literal(true).optional(),
+    /** Claude's own transcript for this id, from the hook payload's `transcript_path` (UX-08).
+     *  Open refuses with `transcript_missing` when it is gone. A record without it (older
+     *  records, or a session no hook ever reached) is not checked. Never logged. */
+    transcriptPath: z.string().min(1).optional()
   })
   .strict()
 export type PastSession = z.infer<typeof PastSessionSchema>

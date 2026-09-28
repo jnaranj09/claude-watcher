@@ -427,6 +427,14 @@ describe('PastSessionsDialog', () => {
     expect(q(r, '[data-testid="past-session-form-name"]')).toBeNull()
   })
 
+  it('UX-15: says the history keeps only the 200 most recent sessions', async () => {
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="past-sessions-cap-note"]')?.textContent).toBe(
+      'Keeps the 200 most recent sessions'
+    )
+  })
+
   it('focuses the search box on open (an aria-modal dialog takes focus)', async () => {
     const { r } = render()
     await flush()

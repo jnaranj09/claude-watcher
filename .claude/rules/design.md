@@ -296,6 +296,11 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
   confirm (`StopConfirm`, its component/test-ids unrenamed): "Delete session? The session is
   stopped and nothing is kept in Past sessions. Claude's own files are not touched." — Cancel
   default-focused, Delete the danger button.
+- **The rail's foot says the cap:** "Keeps the 200 most recent sessions" (UX-15), in
+  `--text-secondary`, where `+ New` sits in the sibling dialogs — the 201st archive drops the oldest
+  with no other notice. A live session is never listed and never counted against the cap.
+- **`transcript_missing` points at Forget:** "Claude no longer has this conversation. Forget it to
+  remove it from the list" — claude deleted the transcript, so a resume could only fail.
 - **A pending rename draws `⟳` after the name**, in `--text-secondary`, titled "Claude applies
   this name on your next prompt" (`NameSyncMark`, on `SessionCard` and `FocusedSession`) — it
   clears itself the moment the hook server pushes the name to claude.

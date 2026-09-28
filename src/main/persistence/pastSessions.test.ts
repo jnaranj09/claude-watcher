@@ -56,7 +56,7 @@ describe('createPastSessionsStore — load', () => {
       expect(line).not.toContain('billing api')
     }
   })
-  it('drops a record naming a workspace that does not exist (hand-edited file), by code', () => {
+  it('UX-03: a record naming a missing workspace is HIDDEN, but kept in the file', () => {
     const fake = fakeBlob({
       version: 1,
       sessions: [ROW, { ...ROW, id: 's2', workspaceId: 'gone' }]
@@ -68,9 +68,79 @@ describe('createPastSessionsStore — load', () => {
       workspaceExists: (id) => id === 'default'
     })
     expect(store.list().map((s) => s.id)).toEqual(['s1'])
+    expect(store.get('s2')).toBeNull()
     expect(log).toHaveBeenCalledWith(
-      '[claude-watcher][past-sessions] code=past_sessions_dropped_unknown_workspace count=1'
+      '[claude-watcher][past-sessions] code=past_sessions_hidden_unknown_workspace count=1'
     )
+    // The load-time write and every later one keep it (the file is what a restart reads).
+    expect((fake.current() as PastSessionsFile).sessions.map((s) => s.id)).toEqual(['s1', 's2'])
+    store.archive({ ...ROW, id: 's3', endedAt: 999 })
+    store.remove('s1')
+    expect((fake.current() as PastSessionsFile).sessions.map((s) => s.id)).toEqual(['s3', 's2'])
+  })
+  it('UX-03: the hidden record comes back once its workspace does (a restored workspaces file)', () => {
+    const fake = fakeBlob({ version: 1, sessions: [{ ...ROW, workspaceId: 'w1' }] })
+    createPastSessionsStore({ blobStore: fake.blobStore, workspaceExists: () => false })
+    const restored = createPastSessionsStore({
+      blobStore: fake.blobStore,
+      workspaceExists: () => true
+    })
+    expect(restored.list().map((s) => s.id)).toEqual(['s1'])
+  })
+  it('UX-01: a record still marked live on load is a crash leftover — it becomes a normal record', () => {
+    const fake = fakeBlob({ version: 1, sessions: [{ ...ROW, live: true, endedAt: 555 }] })
+    const log = vi.fn()
+    const store = createPastSessionsStore({ blobStore: fake.blobStore, log })
+    expect(store.list()).toEqual([{ ...ROW, endedAt: 555 }])
+    expect((fake.current() as PastSessionsFile).sessions[0]).not.toHaveProperty('live')
+    expect(log).toHaveBeenCalledWith(
+      '[claude-watcher][past-sessions] code=past_sessions_recovered_live count=1'
+    )
+  })
+})
+
+describe('createPastSessionsStore — live records (UX-01, UX-02)', () => {
+  it('a live record is written to the file but never listed', () => {
+    const fake = fakeBlob()
+    const store = createPastSessionsStore({ blobStore: fake.blobStore })
+    store.markLive(ROW)
+    expect(store.list()).toEqual([])
+    expect((fake.current() as PastSessionsFile).sessions).toEqual([{ ...ROW, live: true }])
+  })
+  it('get still answers for a live record (Open then says already_open)', () => {
+    const store = createPastSessionsStore()
+    store.markLive(ROW)
+    expect(store.get('s1')?.live).toBe(true)
+  })
+  it('archive overwrites the live record by id and ends it', () => {
+    const store = createPastSessionsStore()
+    store.markLive(ROW)
+    store.archive({ ...ROW, endedAt: 900 })
+    expect(store.list()).toEqual([{ ...ROW, endedAt: 900 }])
+  })
+  it('archive keeps the transcript path the live record learned', () => {
+    const store = createPastSessionsStore()
+    store.markLive({ ...ROW, transcriptPath: '/t/s1.jsonl' })
+    store.archive(ROW)
+    expect(store.get('s1')?.transcriptPath).toBe('/t/s1.jsonl')
+  })
+  it('the cap never evicts a live record', () => {
+    const store = createPastSessionsStore()
+    store.markLive({ ...ROW, id: 'running', endedAt: 0 })
+    for (let i = 1; i <= PAST_SESSIONS_MAX + 1; i++) {
+      store.archive({ ...ROW, id: `s${i}`, endedAt: i })
+    }
+    expect(store.get('running')).not.toBeNull()
+    expect(store.list()).toHaveLength(PAST_SESSIONS_MAX)
+  })
+  it('dropLive removes a live record only — an archived one stays', () => {
+    const store = createPastSessionsStore()
+    store.markLive({ ...ROW, id: 'old' })
+    store.archive(ROW)
+    store.dropLive('old')
+    store.dropLive('s1')
+    expect(store.get('old')).toBeNull()
+    expect(store.get('s1')).not.toBeNull()
   })
 })
 

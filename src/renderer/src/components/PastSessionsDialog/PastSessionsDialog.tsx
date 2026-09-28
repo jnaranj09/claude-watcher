@@ -7,6 +7,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
+import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import type { ScopeFilterValue } from '../ScopeFilter/scope'
@@ -34,6 +35,7 @@ import {
   folderBasename,
   isAlreadyOpenError,
   pastSessionErrorMessage,
+  pastSessionsCapNote,
   pastSessionsEmptyCopy,
   relativeEnded,
   type PastScope
@@ -196,6 +198,9 @@ export function PastSessionsDialog({
                 </p>
               )}
             </ManageDialog.Rows>
+            <p className={styles.capNote} data-testid="past-sessions-cap-note">
+              {pastSessionsCapNote(PAST_SESSIONS_MAX)}
+            </p>
           </ManageDialog.List>
           <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
             {selected !== null && <PastSessionDetails session={selected} workspaces={workspaces} />}

@@ -183,6 +183,19 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   with `claude --resume <id>` (the launch service's `resumeSessionId`; the minted id IS the
   record's id — probe-verified 2026-09-18 on claude 2.1.277 that `--resume` keeps it). The
   `session.removed` from a late `SessionEnd` stays idempotent (no card ⇒ no record, no log).
+- **A card on the board ALREADY has its record, marked `live` (UX-01):** `livePastSessions.ts`,
+  fed from `handleDelta` and from the hook ingest's `transcript_path`, writes it at launch and on
+  every change of name / folder / workspace / tags / transcript, plus at most once a minute to
+  keep `endedAt` fresh. `list()` hides a live record and the 200 cap never evicts one; an archive
+  overwrites it by id; the old id of a `/clear` rebind is dropped (`dropLive`). A crash, SIGKILL
+  or power loss therefore still leaves the session in Past sessions: the next start turns a
+  leftover live record into a normal one (`code=past_sessions_recovered_live`). **Open does NOT
+  remove the record** (UX-02) — the resumed card's live record replaces it. **Open refuses
+  `transcript_missing`** when the record's `transcriptPath` file is gone (UX-08; a record with no
+  path is not checked). **SIGTERM cannot be caught:** Electron's own handler turns it into
+  `app.quit()`, so a logout or `kill` with live sessions stops at the quit guard until the session
+  manager SIGKILLs the app (drive run 2026-09-28; `process.on('SIGTERM')` never fired, even
+  registered after app-ready). The live records are what cover that case.
 - **A rename waits for the next prompt, and the card says so:** `Session.nameSyncPending` (set by
   an in-app rename, cleared when the hook server takes the pending title) draws the `⟳` mark;
   `pendingTitles.rebind` moves a pending rename with the card on `/clear` (`adoptCard`), which is
@@ -233,9 +246,13 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   Bumping either WITHOUT a migration makes every existing file fail closed → backed up → started
   EMPTY, losing every saved template and shortcut — the warning still stands for templates, and
   for any future shortcuts bump that skips the migration step.
-- **`PastSession.workspaceId` is REQUIRED and the workspaces cascade deletes the records** (a
-  record never names a missing workspace; one that does, from a hand-edited file, is dropped on
-  load by code). `PAST_SESSIONS_FILE_VERSION` stays 1; new fields are additive `.default()`s.
+- **`PastSession.workspaceId` is REQUIRED and the workspaces cascade deletes the records.** A
+  record that names a missing workspace anyway (a hand-edited file, or a corrupt workspaces file
+  reset to Default) is HIDDEN from `list()`/`get()` but KEPT in the file
+  (`code=past_sessions_hidden_unknown_workspace`, UX-03) — restoring the workspaces backup brings
+  it back. It used to be dropped on load and rewritten away with no backup.
+  `PAST_SESSIONS_FILE_VERSION` stays 1; new fields are additive `.default()`s or `.optional()`
+  (`live`, `transcriptPath`).
 - **Shortcuts are reached by ALIAS, not by a chord of their own.** One chord
   (`settings.expanderKey`, `Ctrl+Alt+X` by default) opens `ExpanderBox` inside the focused
   terminal; `<alias> <values…>` expands `$1..$9` / `$*` / `$$` (`src/renderer/src/shortcuts/expand.ts`,

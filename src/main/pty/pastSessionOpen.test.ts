@@ -15,28 +15,26 @@ const RECORD: PastSession = {
 
 function deps(over: Partial<PastSessionOpenDeps> = {}): PastSessionOpenDeps & {
   launch: Mock<(req: LaunchRequest) => { terminalId: string }>
-  remove: Mock<(id: string) => void>
 } {
   const launch = vi.fn<(req: LaunchRequest) => { terminalId: string }>(() => ({
     terminalId: 'term-9'
   }))
-  const remove = vi.fn<(id: string) => void>()
   return {
     get: (id) => (id === RECORD.id ? RECORD : null),
     isDirectory: () => true,
     isLive: () => false,
+    transcriptExists: () => true,
     tagExists: (id) => id === 't-live',
     ...over,
-    // Always the mocks: no test in this file overrides launch/remove, and keeping them last
-    // (rather than inside the `over` spread) keeps their type the concrete `Mock<...>` instead
-    // of a union with `PastSessionOpenDeps`'s plain function signature.
-    launch,
-    remove
+    // Always the mock: no test in this file overrides launch, and keeping it last (rather than
+    // inside the `over` spread) keeps its type the concrete `Mock<...>` instead of a union with
+    // `PastSessionOpenDeps`'s plain function signature.
+    launch
   }
 }
 
 describe('openPastSession', () => {
-  it('registers a resume recipe (cwd, name, workspace, surviving tags), removes the record, returns the launch', () => {
+  it('registers a resume recipe (cwd, name, workspace, surviving tags) and returns the launch', () => {
     const d = deps()
     expect(openPastSession({ id: 'sess-A' }, d)).toEqual({
       ok: true,
@@ -52,18 +50,48 @@ describe('openPastSession', () => {
       tagIds: ['t-live'],
       flags: { model: null, permissionMode: null, effort: null }
     })
-    expect(d.remove).toHaveBeenCalledWith('sess-A')
   })
-  it('not_found: unknown id, nothing launched, nothing removed', () => {
+  it('UX-02: the record is NOT removed on Open — the deps offer no way to remove it', () => {
+    // A crash while the resumed session runs used to lose the record for good. The resumed
+    // card's live record overwrites it by id instead (livePastSessions.ts).
+    expect(Object.keys(deps())).not.toContain('remove')
+  })
+  it('not_found: unknown id, nothing launched', () => {
     const d = deps()
     expect(openPastSession({ id: 'nope' }, d)).toEqual({ ok: false, code: 'not_found' })
     expect(d.launch).not.toHaveBeenCalled()
-    expect(d.remove).not.toHaveBeenCalled()
   })
-  it('folder_missing: the cwd is gone or not a directory; the record STAYS', () => {
+  it('folder_missing: the cwd is gone or not a directory', () => {
     const d = deps({ isDirectory: () => false })
     expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'folder_missing' })
-    expect(d.remove).not.toHaveBeenCalled()
+    expect(d.launch).not.toHaveBeenCalled()
+  })
+  it('UX-08 transcript_missing: claude no longer has the conversation; nothing launched', () => {
+    const seen: string[] = []
+    const d = deps({
+      get: () => ({ ...RECORD, transcriptPath: '/home/op/.claude/projects/x/sess-A.jsonl' }),
+      transcriptExists: (path) => {
+        seen.push(path)
+        return false
+      }
+    })
+    expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'transcript_missing' })
+    expect(seen).toEqual(['/home/op/.claude/projects/x/sess-A.jsonl'])
+    expect(d.launch).not.toHaveBeenCalled()
+  })
+  it('UX-08: a record with no transcript path is not checked (older records)', () => {
+    const transcriptExists = vi.fn(() => false)
+    const d = deps({ transcriptExists })
+    expect(openPastSession({ id: 'sess-A' }, d).ok).toBe(true)
+    expect(transcriptExists).not.toHaveBeenCalled()
+  })
+  it('a live card answers already_open before the transcript is checked', () => {
+    const d = deps({
+      get: () => ({ ...RECORD, transcriptPath: '/t.jsonl' }),
+      isLive: () => true,
+      transcriptExists: () => false
+    })
+    expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'already_open' })
   })
   it('already_open: the id is a live card; nothing launched', () => {
     const d = deps({ isLive: (id) => id === 'sess-A' })

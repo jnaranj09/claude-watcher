@@ -21,20 +21,31 @@ export type PastSessionsBlobStore = PersistedBlobStore<PastSessionsFile>
 export interface PastSessionsStoreOptions {
   blobStore?: PastSessionsBlobStore
   log?: (message: string) => void
-  /** A record can only name a workspace that exists (the delete cascade guarantees it). A
-   *  hand-edited file that says otherwise is dropped on load, by code. index.ts wires it to the
-   *  workspaces store; the default says every workspace exists. */
+  /** A record can only be LISTED while its workspace exists (the delete cascade guarantees it).
+   *  One that names a missing workspace — a hand-edited file, or a workspaces file that was
+   *  corrupt and reset to Default — is KEPT in the file and hidden (UX-03): restoring the
+   *  workspaces backup brings it back. index.ts wires it to the workspaces store; the default
+   *  says every workspace exists. */
   workspaceExists?: (workspaceId: string) => boolean
 }
 
 export interface PastSessionsStore {
-  /** Newest first (`endedAt` desc; ties by id for a stable order). */
+  /** What the dialog shows, newest first (`endedAt` desc; ties by id for a stable order): never
+   *  a `live` record, never one whose workspace is gone. */
   list(): PastSession[]
+  /** A listed record, or a live one (Open then answers `already_open`). Null for a hidden one. */
   get(id: string): PastSession | null
   /** Upsert by id (a resumed session that ends again overwrites its own record), then keep the
    *  `PAST_SESSIONS_MAX` newest. Returns the new list. Trusts its typed input: the removal
    *  chokepoint builds the record from main-owned session truth (pastSessionRecord.ts). */
   archive(record: PastSession): PastSession[]
+  /** UX-01 — upsert the record of a card that is ON the board, marked `live`. Hidden from
+   *  `list()`, never trimmed. A later `archive` of the same id overwrites it; a crash leaves it
+   *  for the next start to turn into a normal record. */
+  markLive(record: PastSession): void
+  /** The card left WITHOUT an archive (a `/clear` rebind's old id): drop its record, but ONLY
+   *  while it is still live — an archived or deleted one is not this call's to touch. */
+  dropLive(id: string): void
   /** Idempotent. Returns the new list. */
   remove(id: string): PastSession[]
   /** Workspaces — delete every record in `workspaceId`. Called ONLY by the workspaces store's
@@ -56,45 +67,80 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     fallback: () => EMPTY_PAST_SESSIONS_FILE,
     onProblem: (code) => log(`${LOG_PREFIX} code=past_sessions_${code}`)
   })
-  let dropped = 0
+  let hidden = 0
+  let recovered = 0
   for (const record of loaded.sessions) {
-    if (!workspaceExists(record.workspaceId)) {
-      dropped += 1
-      continue
+    // UX-01 — nothing is on the board yet (one instance per profile), so a record still marked
+    // live was left by a run that died without archiving it: it is a normal record now, ended at
+    // the last time that run saw the card.
+    if (record.live === true) {
+      recovered += 1
+      byId.set(record.id, ended(record))
+    } else {
+      byId.set(record.id, record)
     }
-    byId.set(record.id, record)
+    if (!workspaceExists(record.workspaceId)) hidden += 1
   }
-  if (dropped > 0)
-    log(`${LOG_PREFIX} code=past_sessions_dropped_unknown_workspace count=${dropped}`)
+  if (recovered > 0) log(`${LOG_PREFIX} code=past_sessions_recovered_live count=${recovered}`)
+  if (hidden > 0) log(`${LOG_PREFIX} code=past_sessions_hidden_unknown_workspace count=${hidden}`)
   trim()
   persist()
 
+  /** Every record, hidden ones included — what the FILE holds. */
+  function all(): PastSession[] {
+    return [...byId.values()].sort(newestFirst)
+  }
+
   function persist(): void {
     try {
-      blobStore.write({ version: PAST_SESSIONS_FILE_VERSION, sessions: list() })
+      blobStore.write({ version: PAST_SESSIONS_FILE_VERSION, sessions: all() })
     } catch {
       log(`${LOG_PREFIX} code=past_sessions_write_failed`)
     }
   }
 
   function list(): PastSession[] {
-    return [...byId.values()].sort(newestFirst)
+    return all().filter((r) => r.live !== true && workspaceExists(r.workspaceId))
   }
 
   function get(id: string): PastSession | null {
-    return byId.get(id) ?? null
+    const record = byId.get(id)
+    if (record === undefined || !workspaceExists(record.workspaceId)) return null
+    return record
   }
 
-  /** Keep the newest `PAST_SESSIONS_MAX`. */
+  /** Keep the newest `PAST_SESSIONS_MAX` ended records. A live one is never evicted: it is a
+   *  session still running, and evicting it would lose it the moment the app dies. */
   function trim(): void {
-    for (const stale of list().slice(PAST_SESSIONS_MAX)) byId.delete(stale.id)
+    const endedRecords = all().filter((r) => r.live !== true)
+    for (const stale of endedRecords.slice(PAST_SESSIONS_MAX)) byId.delete(stale.id)
+  }
+
+  /** The new record, keeping the transcript path an earlier write learned: the hook that
+   *  carries it may not have reached this run yet (a resumed session writes the same file). */
+  function merged(record: PastSession): PastSession {
+    const next: PastSession = { ...record, tagIds: [...record.tagIds] }
+    const known = byId.get(record.id)?.transcriptPath
+    if (next.transcriptPath === undefined && known !== undefined) next.transcriptPath = known
+    return next
   }
 
   function archive(record: PastSession): PastSession[] {
-    byId.set(record.id, { ...record, tagIds: [...record.tagIds] })
+    byId.set(record.id, ended(merged(record)))
     trim()
     persist()
     return list()
+  }
+
+  function markLive(record: PastSession): void {
+    byId.set(record.id, { ...merged(record), live: true })
+    persist()
+  }
+
+  function dropLive(id: string): void {
+    if (byId.get(id)?.live !== true) return
+    byId.delete(id)
+    persist()
   }
 
   function remove(id: string): PastSession[] {
@@ -114,7 +160,14 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     return removed
   }
 
-  return { list, get, archive, remove, removeByWorkspace }
+  return { list, get, archive, markLive, dropLive, remove, removeByWorkspace }
+}
+
+/** The record without its `live` mark. */
+function ended(record: PastSession): PastSession {
+  const rest = { ...record }
+  delete rest.live
+  return rest
 }
 
 function newestFirst(a: PastSession, b: PastSession): number {

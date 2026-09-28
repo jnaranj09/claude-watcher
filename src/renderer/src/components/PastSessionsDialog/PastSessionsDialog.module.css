@@ -26,6 +26,12 @@
   font-size: var(--font-size-meta);
   color: var(--text-secondary);
 }
+/* UX-15 — the cap, said once at the foot of the rail (where `+ New` sits in the sibling dialogs). */
+.capNote {
+  margin: auto 0 0;
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
 .empty {
   margin: 0;
   padding: var(--space-2) var(--space-3);

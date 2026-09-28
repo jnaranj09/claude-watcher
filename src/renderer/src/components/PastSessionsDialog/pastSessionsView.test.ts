@@ -59,6 +59,9 @@ describe('pastSessionsView', () => {
       'That folder no longer exists'
     )
     expect(pastSessionErrorMessage(new Error('already_open'))).toBe('That session is already open')
+    expect(pastSessionErrorMessage(new Error('transcript_missing'))).toBe(
+      'Claude no longer has this conversation. Forget it to remove it from the list'
+    )
     expect(pastSessionErrorMessage(new Error('/home/op leaked'))).toBe('Could not open the session')
     expect(pastSessionErrorMessage('x')).toBe('Could not open the session')
   })

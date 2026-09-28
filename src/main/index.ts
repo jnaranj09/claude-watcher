@@ -107,6 +107,7 @@ import { createShortcutsIpcHandlers } from './persistence/shortcutsIpc'
 // Past sessions — the main-owned archive of ended app-launched sessions (its own file; a
 // corrupt history can never reset settings/templates/workspaces).
 import { createPastSessionsStore, type PastSessionsStore } from './persistence/pastSessions'
+import { createLivePastSessions } from './persistence/livePastSessions'
 import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
 import { createPastSessionsIpcHandlers } from './persistence/pastSessionsIpc'
 // Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
@@ -660,7 +661,13 @@ function registerWatchFeed(window: BrowserWindow): void {
     // A removed session's tail and background verdict are dead weight — drop them here, the one
     // chokepoint EVERY removal passes through (hook SessionEnd, in-app Stop, pty exit, and the
     // old id of a `/clear` rebind, which adoptCard removes directly).
-    if (delta.event.type === 'session.removed') forgetSession(delta.event.id, tracking)
+    if (delta.event.type === 'session.removed') {
+      forgetSession(delta.event.id, tracking)
+      livePastSessions.onRemoved(delta.event.id)
+    } else if (delta.event.type === 'session.updated' && launchedSet.has(delta.event.id)) {
+      const session = reducer.snapshotMap().get(delta.event.id)
+      if (session !== undefined) livePastSessions.onSession(session)
+    }
     if (wc.isDestroyed()) return
     // Rules (spec §2.2) — runDeltaPipeline (rules/deltaPipeline.ts) owns the column-edge order
     // the rules engine depends on: read `tracker.columnOf(id)` BEFORE `tracker.onDelta` sees this
@@ -1055,6 +1062,16 @@ function registerWatchFeed(window: BrowserWindow): void {
       // an unknown POST must not grow a watcher; SEC-3: its raw id is never logged). Runs
       // before the unknown-event return, so an event we do not map still records its verdict.
       trackHookEvent(evt, reducer.snapshotMap().has(evt.session_id), tracking)
+      // UX-08 — the record learns where claude keeps this conversation, so Open can tell when
+      // claude has since deleted it. Known, launched ids only (the same gate as the tail).
+      const knownSession = reducer.snapshotMap().get(evt.session_id)
+      if (
+        knownSession !== undefined &&
+        launchedSet.has(evt.session_id) &&
+        evt.transcript_path !== undefined
+      ) {
+        livePastSessions.notePath(knownSession, evt.transcript_path)
+      }
 
       if (change === null) return // unrecognized event — ignore
 
@@ -1469,6 +1486,12 @@ function requireTemplatesStore(): TemplatesStore {
 
 // Past sessions — same lifecycle as templatesStore (needs app-ready for electron-store).
 let pastSessionsStore: PastSessionsStore | null = null
+// UX-01 — every card on the board also has a `live` record in the history file, so a crash
+// still leaves it in Past sessions. App-global like the store (records are keyed by session id).
+const livePastSessions = createLivePastSessions({
+  store: () => pastSessionsStore,
+  now: () => Date.now()
+})
 function requirePastSessionsStore(): PastSessionsStore {
   if (pastSessionsStore === null) throw new Error('past_sessions_store_not_initialized')
   return pastSessionsStore
@@ -2473,11 +2496,15 @@ function registerLaunchIpc(): void {
         }
       },
       isLive: isSessionLive,
+      transcriptExists: (path) => {
+        try {
+          return statSync(path).isFile()
+        } catch {
+          return false // missing / unreadable — never throws, never logs the path
+        }
+      },
       tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
-      launch: (req) => service.launch(req),
-      remove: (id) => {
-        requirePastSessionsStore().remove(id)
-      }
+      launch: (req) => service.launch(req)
     })
     if (!out.ok) throw new Error(out.code)
     return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }

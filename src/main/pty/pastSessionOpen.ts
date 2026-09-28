@@ -5,7 +5,11 @@
 import { PastSessionOpenSchema, type PastSession } from '../../shared/schemas/pastSession'
 import { NO_LAUNCH_FLAGS, type LaunchRequest } from './launchSession'
 
-export type PastSessionOpenCode = 'not_found' | 'folder_missing' | 'already_open'
+export type PastSessionOpenCode =
+  | 'not_found'
+  | 'folder_missing'
+  | 'already_open'
+  | 'transcript_missing'
 
 export interface PastSessionOpenDeps {
   get(id: string): PastSession | null
@@ -13,12 +17,17 @@ export interface PastSessionOpenDeps {
   isDirectory(path: string): boolean
   /** True when any window's board still shows this id (the renderer then focuses the live card). */
   isLive(sessionId: string): boolean
+  /** Production: `statSync(path).isFile()` inside a try (a missing path is `false`). */
+  transcriptExists(path: string): boolean
   /** A tag deleted since the archive is dropped from the resumed card (spec: surviving tags only). */
   tagExists(tagId: string): boolean
   launch(req: LaunchRequest): { terminalId: string }
-  /** The record leaves the history while the session is live; the next archive writes it again. */
-  remove(id: string): void
 }
+
+// The record is NOT removed on Open (UX-02). It used to be, "the next archive writes it again" —
+// and after a crash there is no next archive, so the record was lost for good. It stays: the
+// resumed card's live record overwrites it by id (livePastSessions.ts), which hides it from the
+// dialog while the card is up, and `already_open` still stops a second Open.
 
 export type PastSessionOpenOutcome =
   | { ok: true; terminalId: string; workspaceId: string; name: string }
@@ -30,6 +39,12 @@ export function openPastSession(raw: unknown, deps: PastSessionOpenDeps): PastSe
   if (record === null) return { ok: false, code: 'not_found' }
   if (!deps.isDirectory(record.cwd)) return { ok: false, code: 'folder_missing' }
   if (deps.isLive(id)) return { ok: false, code: 'already_open' }
+  // UX-08 — claude cleaned its history, or the session ended before claude wrote a transcript.
+  // `claude --resume` would print "no conversation found" and exit, and that exit archived the
+  // record again as the newest one: a loop. Refuse, and the dialog points at Forget.
+  if (record.transcriptPath !== undefined && !deps.transcriptExists(record.transcriptPath)) {
+    return { ok: false, code: 'transcript_missing' }
+  }
   const { terminalId } = deps.launch({
     cwd: record.cwd,
     name: record.name,
@@ -38,6 +53,5 @@ export function openPastSession(raw: unknown, deps: PastSessionOpenDeps): PastSe
     tagIds: record.tagIds.filter((tagId) => deps.tagExists(tagId)),
     flags: NO_LAUNCH_FLAGS
   })
-  deps.remove(id)
   return { ok: true, terminalId, workspaceId: record.workspaceId, name: record.name }
 }

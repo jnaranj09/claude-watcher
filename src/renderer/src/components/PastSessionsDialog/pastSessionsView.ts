@@ -42,7 +42,9 @@ export function relativeEnded(endedAt: number, now: number): string {
 const ERROR_COPY: Readonly<Record<string, string>> = {
   not_found: 'That session is no longer in the history',
   folder_missing: 'That folder no longer exists',
-  already_open: 'That session is already open'
+  already_open: 'That session is already open',
+  // UX-08 — claude deleted the conversation (its own history cleanup), or never wrote one.
+  transcript_missing: 'Claude no longer has this conversation. Forget it to remove it from the list'
 }
 
 /**
@@ -62,6 +64,11 @@ export function pastSessionErrorMessage(err: unknown): string {
  *  Electron-wrapping reason. */
 export function isAlreadyOpenError(err: unknown): boolean {
   return err instanceof Error && err.message.includes('already_open')
+}
+
+/** UX-15 — the history drops the oldest record past the cap, so the dialog says there is one. */
+export function pastSessionsCapNote(max: number): string {
+  return `Keeps the ${max} most recent sessions`
 }
 
 export function folderBasename(cwd: string): string {
