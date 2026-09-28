@@ -62,6 +62,11 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
   disarms it, and Escape disarms it and STOPS THERE (it must not also close the dialog —
   Escape peels one layer). Never a second Cancel/Confirm pair: it adds a control, moves
   the layout, and buries the primary action.
+- **The workspace Delete warning names EVERY store the cascade empties** — today templates,
+  shortcuts, tags, rules and past sessions (main's `cascade()`). A new store that joins the cascade
+  owes a word in that sentence and in its test (UX-09: rules and past sessions went silently).
+  Deleting the ACTIVE workspace also re-points the focused view (`focusWorkspace`, UX-18), the way
+  an explicit switch does — a dead pane of the deleted workspace must not stay on screen.
 - **Delete is red at rest, filled on hover/focus.** `<Button variant="danger">` = `--danger`
   border and text on a transparent background; `:hover`/`:focus-visible` fills `--danger` with
   white text. `armed` (solid `--danger`) is the ARMED state only, so arming reads as the same

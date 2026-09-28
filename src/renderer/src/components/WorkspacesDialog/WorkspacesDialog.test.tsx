@@ -8,6 +8,7 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { WorkspacesDialog } from './WorkspacesDialog'
 import { workspacesStore } from '../../stores/workspacesStore'
+import { boardStore } from '../../stores/boardStore'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 
 const ROWS: Workspace[] = [
@@ -213,13 +214,85 @@ describe('WorkspacesDialog', () => {
     expect(del.closest('[data-testid="workspace-item-w1"]')).toBeNull()
   })
 
-  it('warns that scoped templates, shortcuts and tags go with the workspace', () => {
+  // UX-09: the cascade also takes the rules and every past-session record of the workspace, and
+  // the warning used to stop at tags. Each word is asserted on its own so dropping any one fails.
+  it('names everything the cascade deletes: templates, shortcuts, tags, rules, past sessions', () => {
     const { r } = render()
     click(q(r, '[data-testid="workspace-select-w1"]'))
     click(q(r, '[data-testid="workspace-delete-w1"]'))
-    expect(q(r, '[data-testid="workspace-delete-confirm-text"]').textContent).toMatch(
-      /templates, shortcuts and tags scoped to it/i
-    )
+    const text = q(r, '[data-testid="workspace-delete-confirm-text"]').textContent
+    for (const word of ['templates', 'shortcuts', 'tags', 'rules', 'past sessions']) {
+      expect(text).toContain(word)
+    }
+  })
+
+  // UX-18: a natural exit removes the session from main, so main allows deleting its workspace
+  // while the dead pane is still focused. Deleting the ACTIVE workspace must pull the focused view
+  // back into the new active one (Default, here with no terminal → the board).
+  describe('the focused view after a delete (UX-18)', () => {
+    beforeEach(() => {
+      act(() => {
+        boardStore.setState({ viewMode: 'board', focusedTerminalId: null, launchedTerminals: {} })
+        boardStore.getState().registerLaunchedTerminal('t-dead', 'dead pane', 'w1')
+        boardStore.setState({ viewMode: 'focused', focusedTerminalId: 't-dead' })
+      })
+    })
+    afterEach(() => {
+      act(() =>
+        boardStore.setState({ viewMode: 'board', focusedTerminalId: null, launchedTerminals: {} })
+      )
+    })
+
+    async function deleteW1(r: RenderResult): Promise<void> {
+      click(q(r, '[data-testid="workspace-select-w1"]'))
+      click(q(r, '[data-testid="workspace-delete-w1"]'))
+      click(q(r, '[data-testid="workspace-delete-confirm"]'))
+      await flush()
+    }
+
+    it('deleting the active workspace leaves its focused dead pane', async () => {
+      act(() => workspacesStore.setState({ activeId: 'w1' }))
+      const { r } = render()
+      await deleteW1(r)
+      expect(boardStore.getState().focusedTerminalId).toBeNull()
+      expect(boardStore.getState().viewMode).toBe('board')
+    })
+
+    // Focused on the OLDER of two Default panes: an unconditional focusWorkspace would jump to the
+    // newest one, so this fails if the reconcile runs for a delete of a non-active workspace.
+    it('deleting another workspace leaves the focused view alone', async () => {
+      act(() => {
+        const { launchedTerminals } = boardStore.getState()
+        boardStore.setState({
+          launchedTerminals: {
+            ...launchedTerminals,
+            't-default': {
+              terminalId: 't-default',
+              launchedAt: 1,
+              label: 'a',
+              workspaceId: 'default'
+            },
+            't-newer': { terminalId: 't-newer', launchedAt: 2, label: 'b', workspaceId: 'default' }
+          },
+          focusedTerminalId: 't-default'
+        })
+      })
+      const { r } = render()
+      await deleteW1(r)
+      expect(boardStore.getState().focusedTerminalId).toBe('t-default')
+      expect(boardStore.getState().viewMode).toBe('focused')
+    })
+
+    it('a refused delete leaves the focused view alone', async () => {
+      remove.mockRejectedValueOnce(
+        new Error("Error invoking remote method 'workspaces:delete': Error: workspace_has_sessions")
+      )
+      act(() => workspacesStore.setState({ activeId: 'w1' }))
+      const { r } = render()
+      await deleteW1(r)
+      expect(boardStore.getState().focusedTerminalId).toBe('t-dead')
+      expect(boardStore.getState().viewMode).toBe('focused')
+    })
   })
 
   it('closes on Escape', () => {

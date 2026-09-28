@@ -23,6 +23,7 @@ import {
 } from '../../../../shared/schemas/workspace'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
+import { boardStore } from '../../stores/boardStore'
 import { loadRules } from '../../stores/rulesStore'
 import { loadShortcuts } from '../../stores/shortcutsStore'
 import { loadTags } from '../../stores/tagsStore'
@@ -31,7 +32,8 @@ import {
   removeWorkspace,
   saveWorkspace,
   selectWorkspaces,
-  useWorkspaces
+  useWorkspaces,
+  workspacesStore
 } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
@@ -155,10 +157,12 @@ function WorkspaceForm({
       </div>
 
       {/* The cascade warning — the one thing this Delete says that Templates' does not, because
-          deleting a workspace also deletes every template and shortcut scoped to it. */}
+          deleting a workspace also deletes everything scoped to it: templates, shortcuts, tags,
+          rules and past sessions (main's `cascade()`; UX-09 — rules and past sessions were left
+          out and went silently). */}
       {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && state.armed && (
         <ManageDialog.Hint testId="workspace-delete-confirm-text">
-          {`Delete ${workspace.name}? Any templates, shortcuts and tags scoped to it are deleted too. This cannot be undone.`}
+          {`Delete ${workspace.name}? Its templates, shortcuts, tags, rules and past sessions are deleted too. This cannot be undone.`}
         </ManageDialog.Hint>
       )}
 
@@ -196,8 +200,16 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
 
   async function commitDelete(id: string): Promise<void> {
     setDeleteBusy(true)
+    const wasActive = workspacesStore.getState().activeId === id
     try {
       await removeWorkspace(id)
+      // UX-18: deleting the ACTIVE workspace moves main's pointer to Default, but the focused
+      // view can still hold one of the deleted workspace's dead panes (a natural exit removes the
+      // session from main, so the delete is allowed while the pane stays mounted). Reconcile the
+      // way an explicit switch does (WorkspaceSwitcher `pick`), or Focused shows a terminal of a
+      // workspace that no longer exists.
+      const activeId = workspacesStore.getState().activeId
+      if (wasActive && activeId !== id) boardStore.getState().focusWorkspace(activeId)
       // A committed delete CASCADES in main (templates, shortcuts, the tag catalog and rules all
       // removeByWorkspace), and nothing else tells the renderer: the four loaders otherwise run
       // ONLY at startup. Without this re-read the deleted rows sit in the projections until an
