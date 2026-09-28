@@ -6,7 +6,8 @@ import {
   MessageChannelMain,
   dialog,
   clipboard,
-  nativeTheme
+  nativeTheme,
+  Menu
 } from 'electron'
 import type { MessagePortMain } from 'electron'
 import { join } from 'path'
@@ -14,7 +15,7 @@ import { writeFileSync, accessSync, constants as fsConstants } from 'fs'
 import { statSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { electronApp, is } from '@electron-toolkit/utils'
 import * as os from 'os'
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
@@ -226,6 +227,7 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 // that opens http(s) in the OS default browser and refuses everything else.
 import { LinkOpenExternalSchema } from '../shared/schemas/link'
 import { createExternalLinks, installLinkGuards } from './links/externalLinks'
+import { applicationMenuTemplate, installDevToolsToggle } from './appMenu/appMenu'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
@@ -2723,11 +2725,15 @@ app
     // AR-10]
     electronApp.setAppUserModelId('com.claudewatcher.app')
 
-    // Default open or close DevTools by F12 in development
-    // and ignore CommandOrControl + R in production.
-    app.on('browser-window-created', (_, window) => {
-      optimizer.watchWindowShortcuts(window)
-    })
+    // No default menu: its accelerators (Ctrl+R reload, …) ate keys claude needs, and a reload
+    // left the board without a snapshot (UX-16 / R2). F12 toggles DevTools in dev only.
+    const menuTemplate = applicationMenuTemplate(process.platform)
+    Menu.setApplicationMenu(menuTemplate === null ? null : Menu.buildFromTemplate(menuTemplate))
+    if (is.dev) {
+      app.on('browser-window-created', (_, window) => {
+        installDevToolsToggle(window.webContents)
+      })
+    }
 
     // Register PTY/smoke IPC ONCE (Review F1) — not per-window, so app.activate
     // re-creating a window cannot throw on duplicate ipcMain.handle nor stack
