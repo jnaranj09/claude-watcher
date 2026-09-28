@@ -19,7 +19,14 @@ export default defineConfig(
     //   npx eslint eslint-rules/__fixtures__/bad-literal-channel.ts   (reports)
     //   npx eslint eslint-rules/__fixtures__/good-ch-channel.ts       (clean)
     // The AUTOMATED pass/fail runner (Vitest) is Story 0.3.
-    ignores: ['**/node_modules', '**/dist', '**/out', 'eslint-rules/__fixtures__/**']
+    ignores: [
+      '**/node_modules',
+      '**/dist',
+      '**/out',
+      'eslint-rules/__fixtures__/**',
+      // Vendored agent skills (beaf0c7): third-party scripts, not app code.
+      '.agents/**'
+    ]
   },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,
