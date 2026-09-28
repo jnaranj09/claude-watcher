@@ -1,4 +1,6 @@
 // Tags — the Tags dialog's copy. A .ts file: react-refresh allows only component exports in a .tsx.
+import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import type { TagColor } from '../../../../shared/schemas/tag'
 import { usedByRulesCopy } from '../../stores/rulesStore'
 
@@ -14,7 +16,8 @@ export const TAG_COLOR_LABELS: Record<TagColor, string> = {
 const ERROR_COPY: Record<string, string> = {
   tag_name_taken: 'A tag with that name already exists where this one would show.',
   tag_in_use: 'A rule uses this tag. Change or delete that rule first.',
-  tag_not_found: 'That tag no longer exists.'
+  tag_not_found: 'That tag no longer exists.',
+  [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY
 }
 const FALLBACK_ERROR = 'Something went wrong. Try again.'
 

@@ -1,3 +1,4 @@
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { describe, it, expect, vi } from 'vitest'
 import { createTagsStore, TAG_ERROR, type TagRuleRef, type TagsBlobStore } from './tags'
 import type { TagsFile } from '../../shared/schemas/tag'
@@ -138,10 +139,10 @@ describe('createTagsStore — save / get / remove', () => {
     expect(fake.writes.length).toBe(before + 1)
   })
 
-  it('a failed write logs tags_write_failed and keeps the in-memory row', () => {
+  it('UX-06: a failed write undoes the save, throws store_write_failed, and logs tags_write_failed', () => {
     const { store, log } = make(undefined, { writeThrows: true })
-    store.save(ROW)
-    expect(store.list()).toHaveLength(1)
+    expect(() => store.save(ROW)).toThrow(STORE_WRITE_FAILED)
+    expect(store.list()).toEqual([])
     expect(log).toHaveBeenCalledWith('[claude-watcher][tags] code=tags_write_failed')
   })
 })

@@ -1,3 +1,4 @@
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { describe, it, expect, vi } from 'vitest'
 import { createTemplatesStore, TEMPLATE_ERROR, type TemplatesBlobStore } from './templates'
 import { EFFORT_LEVELS, type TemplatesFile } from '../../shared/schemas/template'
@@ -153,10 +154,10 @@ describe('createTemplatesStore — save / get / remove', () => {
     const out = store.save({ ...ROW, initialPrompt: 'Work on $1', params })
     expect(store.get(out.saved.id)).toMatchObject({ initialPrompt: 'Work on $1', params })
   })
-  it('a failed write logs templates_write_failed and keeps the in-memory row', () => {
+  it('UX-06: a failed write undoes the save, throws store_write_failed, and logs templates_write_failed', () => {
     const { store, log } = make(undefined, { writeThrows: true })
-    store.save(ROW)
-    expect(store.list()).toHaveLength(1)
+    expect(() => store.save(ROW)).toThrow(STORE_WRITE_FAILED)
+    expect(store.list()).toEqual([])
     expect(log).toHaveBeenCalledWith('[claude-watcher][templates] code=templates_write_failed')
   })
 

@@ -1,7 +1,7 @@
 ---
 title: "Ideas board"
 description: "This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list"
-last_modified: 2026-09-20
+last_modified: 2026-09-28
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort]
 ---
@@ -21,6 +21,7 @@ allowed_efforts: [low_effort, medium_effort, high_effort]
 - **`scan()` reads every theme in full, synchronously, on main's event loop**: Since the final review, `scan()` validates the whole package rather than just the manifest, so a theme's CSS and assets are read on every scan. Bounded by the existing caps (64 KB manifest, 1 MB CSS, 5 MB assets per theme) but worst case is roughly 6 MB per theme, so ~20 installed themes is ~120 MB of synchronous I/O. It runs only on app start, on Settings open and on Reload — never a hot path — so it was accepted rather than fixed. A future fix would validate the CSS and assets without fully inlining them during a scan, or move the scan off the synchronous path. `pending_review` `medium_effort`
 - **Per-workspace themes**: Considered and explicitly out of scope for custom themes v1 — the operator did not ask for it. Noted here so it is not re-proposed without knowing it was already declined. `pending_review` `low_effort`
 - **A theme marketplace / installer**: Considered and explicitly out of scope for custom themes v1 — the operator did not ask for it. Noted here so it is not re-proposed without knowing it was already declined. `pending_review` `low_effort`
+- **Custom hook port, and the banner suggests it**: The hook ingest listens on a fixed port (9279, 19279 dev, 29279 drive). When another program holds it, the server-health banner (UX-05) says session status is off and the only fix it offers is closing that program. Let the operator pick the hook port in Settings (like `apiPort`), and have the `port_in_use` banner suggest changing it. A new port must reach the hook settings file handed to each spawn (`--settings`); sessions started before the change keep POSTing to the old port, so decide whether they are re-launched, left without status, or the old port stays bound until they end. The drive/e2e harness POSTs to fixed ports and would need the value too. `pending_review` `medium_effort`
 ***
 ## Bugs
 ***

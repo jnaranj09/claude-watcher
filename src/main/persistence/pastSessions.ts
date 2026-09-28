@@ -13,14 +13,20 @@ import {
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore
+  type PersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 
 export type PastSessionsBlobStore = PersistedBlobStore<PastSessionsFile>
 
 export interface PastSessionsStoreOptions {
   blobStore?: PastSessionsBlobStore
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
+  report?: StorageReporter
   /** A record can only be LISTED while its workspace exists (the delete cascade guarantees it).
    *  One that names a missing workspace — a hand-edited file, or a workspaces file that was
    *  corrupt and reset to Default — is KEPT in the file and hidden (UX-03): restoring the
@@ -58,6 +64,7 @@ const LOG_PREFIX = '[claude-watcher][past-sessions]'
 export function createPastSessionsStore(options: PastSessionsStoreOptions = {}): PastSessionsStore {
   const blobStore = options.blobStore ?? createInMemoryBlobStore<PastSessionsFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
   const workspaceExists = options.workspaceExists ?? ((): boolean => true)
   const byId = new Map<string, PastSession>()
 
@@ -65,7 +72,10 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     blobStore,
     parse: (raw) => PastSessionsFileSchema.parse(raw),
     fallback: () => EMPTY_PAST_SESSIONS_FILE,
-    onProblem: (code) => log(`${LOG_PREFIX} code=past_sessions_${code}`)
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=past_sessions_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
   let hidden = 0
   let recovered = 0
@@ -84,19 +94,34 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   if (recovered > 0) log(`${LOG_PREFIX} code=past_sessions_recovered_live count=${recovered}`)
   if (hidden > 0) log(`${LOG_PREFIX} code=past_sessions_hidden_unknown_workspace count=${hidden}`)
   trim()
-  persist()
+  persistOrReport()
 
   /** Every record, hidden ones included — what the FILE holds. */
   function all(): PastSession[] {
     return [...byId.values()].sort(newestFirst)
   }
 
-  function persist(): void {
+  function persist(): boolean {
     try {
       blobStore.write({ version: PAST_SESSIONS_FILE_VERSION, sessions: all() })
+      return true
     } catch {
       log(`${LOG_PREFIX} code=past_sessions_write_failed`)
+      return false
     }
+  }
+
+  /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
+   *  the dialog never says "saved" about a row the next start will not have. */
+  function commit(undo: () => void): void {
+    if (persist()) return
+    undo()
+    throw new Error(STORE_WRITE_FAILED)
+  }
+
+  /** Every other write: the change holds for this run, and storage health says it was not kept. */
+  function persistOrReport(): void {
+    if (!persist()) report('write_failed')
   }
 
   function list(): PastSession[] {
@@ -128,23 +153,25 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   function archive(record: PastSession): PastSession[] {
     byId.set(record.id, ended(merged(record)))
     trim()
-    persist()
+    persistOrReport()
     return list()
   }
 
   function markLive(record: PastSession): void {
     byId.set(record.id, { ...merged(record), live: true })
-    persist()
+    persistOrReport()
   }
 
   function dropLive(id: string): void {
     if (byId.get(id)?.live !== true) return
     byId.delete(id)
-    persist()
+    persistOrReport()
   }
 
   function remove(id: string): PastSession[] {
-    if (byId.delete(id)) persist()
+    // Forget — the dialog's own action (UX-06): a record the disk kept must not vanish from it.
+    const previous = byId.get(id)
+    if (previous !== undefined && byId.delete(id)) commit(() => byId.set(id, previous))
     return list()
   }
 
@@ -156,7 +183,7 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
         removed += 1
       }
     }
-    if (removed > 0) persist()
+    if (removed > 0) persistOrReport()
     return removed
   }
 

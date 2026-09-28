@@ -1,5 +1,7 @@
 // Session templates — PURE helpers behind TemplateForm.tsx: the editable draft, its validation
 // into a TemplateSaveRequest, dirtiness, and the copy for IPC error codes. No React, no store.
+import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { scanPlaceholders } from '../../../../shared/schemas/shortcut'
 import {
   MODEL_ALIASES,
@@ -83,7 +85,8 @@ const ERROR_COPY: Record<string, string> = {
   template_in_use: 'A rule uses this template. Change or delete that rule first.',
   prompt_invalid: PROMPT_ERROR,
   param_pattern_invalid: 'A parameter pattern does not compile.',
-  params_mismatch: PARAMS_ERROR
+  params_mismatch: PARAMS_ERROR,
+  [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY
 }
 const FALLBACK_ERROR = 'Could not save the template.'
 const FIELD_ERRORS: Record<string, string> = {

@@ -17,7 +17,8 @@ import type {
   ApiApi,
   ThemesApi,
   LinksApi,
-  ServerHealthApi
+  ServerHealthApi,
+  StorageHealthApi
 } from './index'
 
 declare global {
@@ -60,5 +61,7 @@ declare global {
     links: LinksApi
     // Server health — the hook/API listener state (get / onChanged via CH.serverHealth*).
     serverHealth: ServerHealthApi
+    // Storage health — unreadable / unwritable store files (get / onChanged via CH.storageHealth*).
+    storageHealth: StorageHealthApi
   }
 }

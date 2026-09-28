@@ -124,6 +124,18 @@ describe('WorkspacesDialog', () => {
   })
 
   // Wrapped shape, same reasoning as the delete case above.
+  it('UX-06: a save the disk refused says so, not "saved"', async () => {
+    save.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'workspaces:save': Error: store_write_failed")
+    )
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-new"]'))
+    type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
+    click(q(r, '[data-testid="workspace-submit"]'))
+    await flush()
+    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/^Could not save to disk/)
+  })
+
   it('shows the name-taken copy on a duplicate', async () => {
     save.mockRejectedValueOnce(
       new Error("Error invoking remote method 'workspaces:save': Error: workspace_name_taken")

@@ -2,6 +2,7 @@
 // back the file up and start from a fallback (never crash on a bad prefs file; zod-boundaries.md
 // "persisted file read" row). Pure: the electron-store factory lives in electronBlobStore.ts so
 // this module (and every store built on it) stays importable in node unit tests.
+import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
 
 export interface PersistedBlobStore<T> {
   read(): unknown
@@ -14,6 +15,15 @@ export function createInMemoryBlobStore<T>(): PersistedBlobStore<T> {
 }
 
 export type PersistedBlobProblem = 'read_failed' | 'backup_failed' | 'corrupt_reset_to_defaults'
+
+/** A load-time problem in the storage-health channel's words (UX-07). */
+export function storageCodeForLoad(code: PersistedBlobProblem): StorageProblemCode {
+  return code === 'corrupt_reset_to_defaults' ? 'corrupt_reset' : code
+}
+
+/** A store's `report` option (storageHealth.ts). The default reports nowhere (tests, SMOKE). */
+export type StorageReporter = (code: StorageProblemCode) => void
+export const reportNowhere: StorageReporter = () => {}
 
 export interface LoadPersistedOptions<T> {
   blobStore: PersistedBlobStore<T>

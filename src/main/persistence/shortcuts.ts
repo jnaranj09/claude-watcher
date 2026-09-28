@@ -14,8 +14,12 @@ import type { ShortcutsSaveResult } from '../../shared/ipc/contract'
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore
+  type PersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 
 export type ShortcutsBlobStore = PersistedBlobStore<ShortcutsFile>
 
@@ -28,6 +32,8 @@ export const SHORTCUT_ERROR = {
 export interface ShortcutsStoreOptions {
   blobStore?: ShortcutsBlobStore
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
+  report?: StorageReporter
   newId?: () => string
 }
 
@@ -51,6 +57,7 @@ const LOG_PREFIX = '[claude-watcher][shortcuts]'
 export function createShortcutsStore(options: ShortcutsStoreOptions = {}): ShortcutsStore {
   const blobStore = options.blobStore ?? createInMemoryBlobStore<ShortcutsFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
   const newId = options.newId ?? randomUUID
   const byId = new Map<string, Shortcut>()
 
@@ -60,17 +67,35 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     parse: parseShortcutsFile,
     fallback: () => EMPTY_SHORTCUTS_FILE,
     // CODE only — the thrown ZodError stringifies the file, which carries operator phrases.
-    onProblem: (code) => log(`${LOG_PREFIX} code=shortcuts_${code}`)
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=shortcuts_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
   for (const shortcut of loaded.shortcuts) byId.set(shortcut.id, shortcut)
-  persist()
+  persistOrReport()
 
-  function persist(): void {
+  function persist(): boolean {
     try {
       blobStore.write({ version: SHORTCUTS_FILE_VERSION, shortcuts: list() })
+      return true
     } catch {
       log(`${LOG_PREFIX} code=shortcuts_write_failed`)
+      return false
     }
+  }
+
+  /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
+   *  the dialog never says "saved" about a row the next start will not have. */
+  function commit(undo: () => void): void {
+    if (persist()) return
+    undo()
+    throw new Error(STORE_WRITE_FAILED)
+  }
+
+  /** Every other write: the change holds for this run, and storage health says it was not kept. */
+  function persistOrReport(): void {
+    if (!persist()) report('write_failed')
   }
 
   function list(): Shortcut[] {
@@ -92,13 +117,15 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
       text: input.text,
       workspaceId: input.workspaceId
     }
+    const previous = byId.get(id)
     byId.set(id, saved)
-    persist()
+    commit(() => (previous === undefined ? byId.delete(id) : byId.set(id, previous)))
     return { saved, shortcuts: list() }
   }
 
   function remove(id: string): Shortcut[] {
-    if (byId.delete(id)) persist()
+    const previous = byId.get(id)
+    if (previous !== undefined && byId.delete(id)) commit(() => byId.set(id, previous))
     return list()
   }
 
@@ -110,7 +137,7 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
         removed += 1
       }
     }
-    if (removed > 0) persist()
+    if (removed > 0) persistOrReport()
     return removed
   }
 

@@ -1,3 +1,4 @@
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { describe, it, expect, vi } from 'vitest'
 import { createRulesStore, RULE_ERROR, type RulesBlobStore, type ScopedLookup } from './rules'
 import type { Rule, RuleSaveRequest, RulesFile } from '../../shared/schemas/rule'
@@ -231,10 +232,10 @@ describe('createRulesStore — remove / move / cascade / references', () => {
     expect(store.refsToTemplate('tpl-other')).toEqual([])
   })
 
-  it('a failed write logs rules_write_failed and keeps the in-memory rule', () => {
+  it('UX-06: a failed write undoes the save, throws store_write_failed, and logs rules_write_failed', () => {
     const { store, log } = make(undefined, { writeThrows: true })
-    store.save(REQ)
-    expect(store.list()).toHaveLength(1)
+    expect(() => store.save(REQ)).toThrow(STORE_WRITE_FAILED)
+    expect(store.list()).toEqual([])
     expect(log).toHaveBeenCalledWith('[claude-watcher][rules] code=rules_write_failed')
   })
 })

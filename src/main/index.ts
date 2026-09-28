@@ -248,6 +248,8 @@ import { forgetSession, trackHookEvent, type SessionTrackingDeps } from './hooks
 import { ensureHookSettingsFile, hookSettingsPathIfListening } from './hooks/hookSettingsFile'
 import { createServerHealth } from './serverHealth'
 import { ServerHealthSchema, type ServerHealth } from '../shared/schemas/serverHealth'
+import { createStorageHealth } from './storageHealth'
+import { StorageHealthSchema, type StorageHealth } from '../shared/schemas/storageHealth'
 import { claimSingleInstance } from './lifecycle/singleInstance'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
@@ -314,6 +316,27 @@ function pushServerHealth(health: ServerHealth): void {
   }
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.webContents.isDestroyed()) win.webContents.send(CH.serverHealth, r.data)
+  }
+}
+
+// Storage health (UX-06, UX-07) — store files that could not be read or written this run. Every
+// store reports into it; every new problem is pushed to the window (the notice), validated AT
+// SOURCE. Store name + code only, never a path.
+const storageHealth = createStorageHealth({
+  onChange: (health) => pushStorageHealth(health)
+})
+
+function pushStorageHealth(health: StorageHealth): void {
+  const r = StorageHealthSchema.safeParse(health)
+  if (!r.success) {
+    const issue = r.error.issues[0]
+    console.error(
+      `[claude-watcher][health] dropped storage-health path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+    )
+    return
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.webContents.isDestroyed()) win.webContents.send(CH.storageHealth, r.data)
   }
 }
 
@@ -2557,9 +2580,10 @@ const externalLinks = createExternalLinks({ openExternal: (url) => shell.openExt
 
 // External links — the terminal's Ctrl/Cmd+click lands here. Parse-and-throw on a bad arg; the
 // scheme check and every log line (code only, never the URL) live in externalLinks.
-// Server health — the renderer asks once on mount; every later change is a push.
+// Server and storage health — the renderer asks once on mount; every later change is a push.
 function registerServerHealthIpc(): void {
   ipcMain.handle(CH.serverHealthGet, () => serverHealth.get())
+  ipcMain.handle(CH.storageHealthGet, () => storageHealth.get())
 }
 
 function registerLinksIpc(): void {
@@ -2856,12 +2880,14 @@ app
         ? createSettingsStore()
         : createSettingsStore({
             blobStore: createElectronSettingsBlobStore(),
-            defaults: PROFILE_SETTINGS_DEFAULTS
+            defaults: PROFILE_SETTINGS_DEFAULTS,
+            report: storageHealth.reporterFor('settings')
           })
     } catch {
       // Code ONLY — never the error. A JSON SyntaxError message QUOTES the offending file
       // content, which can carry an operator path (zod-boundaries.md never-log-the-value).
       console.error('[c9watch][settings] code=settings_store_init_failed (using in-memory)')
+      storageHealth.report('settings', 'read_failed')
       settingsStore = createSettingsStore({ defaults: PROFILE_SETTINGS_DEFAULTS })
     }
     registerSettingsIpc()
@@ -2892,12 +2918,14 @@ app
         : createWorkspacesStore({
             blobStore: createElectronWorkspacesBlobStore(),
             hasLiveSessions,
-            cascade
+            cascade,
+            report: storageHealth.reporterFor('workspaces')
           })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a
       // workspaces blob carries operator names and a default cwd.
       console.error('[claude-watcher][workspaces] code=workspaces_store_init_failed (in-memory)')
+      storageHealth.report('workspaces', 'read_failed')
       workspacesStore = createWorkspacesStore({ hasLiveSessions, cascade })
     }
     registerWorkspacesIpc()
@@ -2915,12 +2943,14 @@ app
         : createTemplatesStore({
             blobStore: createElectronTemplatesBlobStore(),
             ruleRefCount,
-            ruleRefs: templateRuleRefs
+            ruleRefs: templateRuleRefs,
+            report: storageHealth.reporterFor('templates')
           })
     } catch {
       // Code ONLY — never the error (see the settings catch above: a SyntaxError message
       // quotes file content, and a template blob carries operator cwds and names).
       console.error('[claude-watcher][templates] code=templates_store_init_failed (in-memory)')
+      storageHealth.report('templates', 'read_failed')
       templatesStore = createTemplatesStore({ ruleRefCount, ruleRefs: templateRuleRefs })
     }
     registerTemplatesIpc()
@@ -2931,11 +2961,16 @@ app
     try {
       tagsStore = SMOKE
         ? createTagsStore({ ruleRefs })
-        : createTagsStore({ blobStore: createElectronTagsBlobStore(), ruleRefs })
+        : createTagsStore({
+            blobStore: createElectronTagsBlobStore(),
+            ruleRefs,
+            report: storageHealth.reporterFor('tags')
+          })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a tags blob
       // carries operator names.
       console.error('[claude-watcher][tags] code=tags_store_init_failed (in-memory)')
+      storageHealth.report('tags', 'read_failed')
       tagsStore = createTagsStore({ ruleRefs })
     }
     registerTagsIpc()
@@ -2943,11 +2978,16 @@ app
     try {
       rulesStore = SMOKE
         ? createRulesStore(ruleLookups())
-        : createRulesStore({ ...ruleLookups(), blobStore: createElectronRulesBlobStore() })
+        : createRulesStore({
+            ...ruleLookups(),
+            blobStore: createElectronRulesBlobStore(),
+            report: storageHealth.reporterFor('rules')
+          })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a rules blob
       // carries operator names and patterns.
       console.error('[claude-watcher][rules] code=rules_store_init_failed (in-memory)')
+      storageHealth.report('rules', 'read_failed')
       rulesStore = createRulesStore(ruleLookups())
     }
     registerRulesIpc()
@@ -2955,11 +2995,15 @@ app
     try {
       shortcutsStore = SMOKE
         ? createShortcutsStore()
-        : createShortcutsStore({ blobStore: createElectronShortcutsBlobStore() })
+        : createShortcutsStore({
+            blobStore: createElectronShortcutsBlobStore(),
+            report: storageHealth.reporterFor('shortcuts')
+          })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a shortcuts
       // blob carries operator phrases.
       console.error('[claude-watcher][shortcuts] code=shortcuts_store_init_failed (in-memory)')
+      storageHealth.report('shortcuts', 'read_failed')
       shortcutsStore = createShortcutsStore()
     }
     registerShortcutsIpc()
@@ -2971,7 +3015,8 @@ app
         ? createPastSessionsStore({ workspaceExists })
         : createPastSessionsStore({
             blobStore: createElectronPastSessionsBlobStore(),
-            workspaceExists
+            workspaceExists,
+            report: storageHealth.reporterFor('past_sessions')
           })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a record
@@ -2979,6 +3024,7 @@ app
       console.error(
         '[claude-watcher][past-sessions] code=past_sessions_store_init_failed (in-memory)'
       )
+      storageHealth.report('past_sessions', 'read_failed')
       pastSessionsStore = createPastSessionsStore({ workspaceExists })
     }
     registerPastSessionsIpc()

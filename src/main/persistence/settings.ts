@@ -35,7 +35,10 @@ import {
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore as GenericPersistedBlobStore
+  type PersistedBlobStore as GenericPersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
 
 /** Kept under its historical name: settings.test.ts and electronSettingsBlobStore.ts import it. */
@@ -49,6 +52,8 @@ export interface SettingsStoreOptions {
   /** Log sink — a `code=` ONLY, NEVER a settings/file value (Guardrail #6). Defaults to
    *  console.warn. Injectable so tests can spy without a real console write. */
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a failed write is told (storageHealth.ts). */
+  report?: StorageReporter
   /** What a FRESH (or reset) settings file starts from. Defaults to DEFAULT_SETTINGS; the dev
    *  profile passes its own `apiPort` here (`../profile.ts`). An existing valid file keeps its
    *  own values — this never overrides what the operator saved. */
@@ -79,6 +84,7 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
   const blobStore = options.blobStore ?? createInMemoryBlobStore<Settings>()
   // never-log-the-value: a `code=` ONLY, never a settings/file value (Guardrail #6).
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
 
   // --- Corrupt-read fail-closed recovery (AC-6) ---------------------------------------
   // Read the persisted blob ONCE at construction. `undefined` = nothing persisted yet
@@ -89,7 +95,10 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
     blobStore,
     parse: parseSettings,
     fallback: () => ({ ...(options.defaults ?? DEFAULT_SETTINGS) }),
-    onProblem: (code) => log(`[c9watch][settings] code=settings_${code}`)
+    onProblem: (code) => {
+      log(`[c9watch][settings] code=settings_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
 
   // Persist the recovered/seeded value so the on-disk file always reflects a valid shape.
@@ -98,6 +107,7 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
     blobStore.write(current)
   } catch {
     log('[c9watch][settings] code=settings_write_failed')
+    report('write_failed')
   }
 
   function get(): Settings {
@@ -117,8 +127,10 @@ export function createSettingsStore(options: SettingsStoreOptions = {}): Setting
       blobStore.write(current)
     } catch {
       // A persist failure must not lose the in-memory change nor crash the caller; the
-      // value still took effect in-session. Log a code only.
+      // value still took effect in-session. Log a code, and tell storage health (UX-06): every
+      // control in Settings saves on change, so there is no Save button to put an error beside.
       log('[c9watch][settings] code=settings_write_failed')
+      report('write_failed')
     }
     return current
   }

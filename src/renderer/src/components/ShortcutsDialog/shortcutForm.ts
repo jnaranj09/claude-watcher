@@ -1,5 +1,7 @@
 // Phrase shortcuts — PURE form helpers, unit-tested without React. No store access, no window
 // access. The "Open with" chord recorder uses src/renderer/src/shortcuts/chord.ts directly.
+import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import {
   ShortcutSaveSchema,
   type Shortcut,
@@ -67,7 +69,11 @@ export function isDraftDirty(draft: ShortcutDraft, shortcut: Shortcut | null): b
   )
 }
 
-export type ShortcutErrorCode = 'shortcut_alias_taken' | 'shortcut_not_found' | 'unknown'
+export type ShortcutErrorCode =
+  | 'shortcut_alias_taken'
+  | 'shortcut_not_found'
+  | typeof STORE_WRITE_FAILED
+  | 'unknown'
 
 /**
  * Map a rejected save to a code the dialog can render.
@@ -81,11 +87,13 @@ export function shortcutErrorCode(err: unknown): ShortcutErrorCode {
   const message = err instanceof Error ? err.message : ''
   if (message.includes('shortcut_alias_taken')) return 'shortcut_alias_taken'
   if (message.includes('shortcut_not_found')) return 'shortcut_not_found'
+  if (message.includes(STORE_WRITE_FAILED)) return STORE_WRITE_FAILED
   return 'unknown'
 }
 
 export const SHORTCUT_ERROR_COPY: Record<ShortcutErrorCode, string> = {
   shortcut_alias_taken: 'That alias is already used by another shortcut.',
   shortcut_not_found: 'That shortcut no longer exists.',
+  [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY,
   unknown: 'Could not save the shortcut.'
 }

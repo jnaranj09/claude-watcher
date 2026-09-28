@@ -1,6 +1,8 @@
 // Rules — the Rules form's PURE model: labels, defaults, validation and the one-line trigger
 // summary. A .ts file (react-refresh allows only component exports in a .tsx) and unit-tested alone,
 // like TemplatesDialog/templateForm.ts.
+import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { COLUMNS, type Column } from '../../../../shared/ipc/contract'
 import {
   RuleSaveSchema,
@@ -187,7 +189,8 @@ const ERROR_COPY: Record<string, string> = {
   rule_bad_pattern: 'That pattern is not a valid regular expression.',
   rule_ref_missing: 'A tag or template this rule uses no longer exists.',
   rule_ref_out_of_scope: 'This rule uses a tag or template its workspace cannot see.',
-  rule_not_found: 'That rule no longer exists.'
+  rule_not_found: 'That rule no longer exists.',
+  [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY
 }
 
 /** Electron wraps a thrown handler error as "Error invoking remote method '…': Error: <code>"; the

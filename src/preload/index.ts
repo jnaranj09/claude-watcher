@@ -56,7 +56,8 @@ import type {
   ThemeSummary,
   ThemeBundle,
   ThemeApplyResult,
-  ServerHealth
+  ServerHealth,
+  StorageHealth
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -589,6 +590,22 @@ const serverHealthApi = {
 
 export type ServerHealthApi = typeof serverHealthApi
 
+// Storage health (UX-06, UX-07) — store files that could not be read or written. The renderer
+// asks once on mount and then follows the push. CH.* consts only.
+const storageHealthApi = {
+  get(): Promise<StorageHealth> {
+    return ipcRenderer.invoke(CH.storageHealthGet)
+  },
+  /** Subscribe to every change. Returns unsubscribe. */
+  onChanged(cb: (health: StorageHealth) => void): () => void {
+    const listener = (_evt: unknown, health: StorageHealth): void => cb(health)
+    ipcRenderer.on(CH.storageHealth, listener)
+    return () => ipcRenderer.removeListener(CH.storageHealth, listener)
+  }
+}
+
+export type StorageHealthApi = typeof storageHealthApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -626,6 +643,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('links', linksApi)
     // Server health — the hook/API listener state (server-health:get / server-health:changed).
     contextBridge.exposeInMainWorld('serverHealth', serverHealthApi)
+    // Storage health — unreadable / unwritable store files (storage-health:get / :changed).
+    contextBridge.exposeInMainWorld('storageHealth', storageHealthApi)
   } catch (error) {
     console.error(error)
   }
@@ -672,4 +691,6 @@ if (process.contextIsolated) {
   window.links = linksApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.serverHealth is in index.d.ts
   window.serverHealth = serverHealthApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.storageHealth is in index.d.ts
+  window.storageHealth = storageHealthApi
 }

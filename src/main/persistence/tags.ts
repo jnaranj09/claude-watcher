@@ -15,8 +15,12 @@ import { inRuleScope } from '../../shared/rules/ruleRefs'
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore
+  type PersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 
 export type TagsBlobStore = PersistedBlobStore<TagsFile>
 
@@ -36,6 +40,8 @@ export interface TagRuleRef {
 export interface TagsStoreOptions {
   blobStore?: TagsBlobStore
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
+  report?: StorageReporter
   newId?: () => string
   /** The rules that reference a tag (spec T-16, §1.4). index.ts wires it to the rules store in
    *  Phase 2; the default says "no rule uses it", so this store works before rules exist. */
@@ -61,6 +67,7 @@ const LOG_PREFIX = '[claude-watcher][tags]'
 export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
   const blobStore = options.blobStore ?? createInMemoryBlobStore<TagsFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
   const newId = options.newId ?? randomUUID
   const ruleRefs = options.ruleRefs ?? ((): TagRuleRef[] => [])
   const byId = new Map<string, Tag>()
@@ -69,17 +76,35 @@ export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
     blobStore,
     parse: (raw) => TagsFileSchema.parse(raw),
     fallback: () => EMPTY_TAGS_FILE,
-    onProblem: (code) => log(`${LOG_PREFIX} code=tags_${code}`)
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=tags_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
   for (const tag of loaded.tags) byId.set(tag.id, tag)
-  persist()
+  persistOrReport()
 
-  function persist(): void {
+  function persist(): boolean {
     try {
       blobStore.write({ version: TAGS_FILE_VERSION, tags: list() })
+      return true
     } catch {
       log(`${LOG_PREFIX} code=tags_write_failed`)
+      return false
     }
+  }
+
+  /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
+   *  the dialog never says "saved" about a row the next start will not have. */
+  function commit(undo: () => void): void {
+    if (persist()) return
+    undo()
+    throw new Error(STORE_WRITE_FAILED)
+  }
+
+  /** Every other write: the change holds for this run, and storage health says it was not kept. */
+  function persistOrReport(): void {
+    if (!persist()) report('write_failed')
   }
 
   function list(): Tag[] {
@@ -99,8 +124,9 @@ export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
       throw new Error(TAG_ERROR.inUse)
     }
     const saved: Tag = { id, name: input.name, color: input.color, workspaceId: input.workspaceId }
+    const previous = byId.get(id)
     byId.set(id, saved)
-    persist()
+    commit(() => (previous === undefined ? byId.delete(id) : byId.set(id, previous)))
     return { saved, tags: list() }
   }
 
@@ -108,8 +134,9 @@ export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
     if (!byId.has(id)) return list()
     // T-16 — no rule is ever silently changed by a delete.
     if (ruleRefs(id).length > 0) throw new Error(TAG_ERROR.inUse)
+    const previous = byId.get(id)
     byId.delete(id)
-    persist()
+    commit(() => previous !== undefined && byId.set(id, previous))
     return list()
   }
 
@@ -121,7 +148,7 @@ export function createTagsStore(options: TagsStoreOptions = {}): TagsStore {
         removed += 1
       }
     }
-    if (removed > 0) persist()
+    if (removed > 0) persistOrReport()
     return removed
   }
 

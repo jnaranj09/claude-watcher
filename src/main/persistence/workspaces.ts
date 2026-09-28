@@ -16,8 +16,12 @@ import type { WorkspacesListResult, WorkspacesSaveResult } from '../../shared/ip
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore
+  type PersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 
 export type WorkspacesBlobStore = PersistedBlobStore<WorkspacesFile>
 
@@ -32,6 +36,8 @@ export const WORKSPACE_ERROR = {
 export interface WorkspacesStoreOptions {
   blobStore?: WorkspacesBlobStore
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
+  report?: StorageReporter
   newId?: () => string
   /** Live-session guard (spec W-6). Injected by index.ts from the reducer snapshot; the default
    *  says "no live sessions" so a unit test and the smoke build need no reducer. */
@@ -62,6 +68,7 @@ const LOG_PREFIX = '[claude-watcher][workspaces]'
 export function createWorkspacesStore(options: WorkspacesStoreOptions = {}): WorkspacesStore {
   const blobStore = options.blobStore ?? createInMemoryBlobStore<WorkspacesFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
   const newId = options.newId ?? randomUUID
   const hasLiveSessions = options.hasLiveSessions ?? ((): boolean => false)
   const cascade = options.cascade ?? ((): void => {})
@@ -71,7 +78,10 @@ export function createWorkspacesStore(options: WorkspacesStoreOptions = {}): Wor
     blobStore,
     parse: (raw) => WorkspacesFileSchema.parse(raw),
     fallback: () => DEFAULT_WORKSPACES_FILE,
-    onProblem: (code) => log(`${LOG_PREFIX} code=workspaces_${code}`)
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=workspaces_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
   for (const workspace of loaded.workspaces) byId.set(workspace.id, workspace)
   // Default must always exist — a hand-edited file that dropped it would otherwise leave a
@@ -87,18 +97,33 @@ export function createWorkspacesStore(options: WorkspacesStoreOptions = {}): Wor
   // An activeId naming a missing workspace is a bad pointer, not a corrupt list — fall back
   // rather than reset the operator's workspaces.
   let active = byId.has(loaded.activeId) ? loaded.activeId : DEFAULT_WORKSPACE_ID
-  persist()
+  persistOrReport()
 
-  function persist(): void {
+  function persist(): boolean {
     try {
       blobStore.write({
         version: WORKSPACES_FILE_VERSION,
         activeId: active,
         workspaces: list()
       })
+      return true
     } catch {
       log(`${LOG_PREFIX} code=workspaces_write_failed`)
+      return false
     }
+  }
+
+  /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
+   *  the dialog never says "saved" about a row the next start will not have. */
+  function commit(undo: () => void): void {
+    if (persist()) return
+    undo()
+    throw new Error(STORE_WRITE_FAILED)
+  }
+
+  /** Every other write: the change holds for this run, and storage health says it was not kept. */
+  function persistOrReport(): void {
+    if (!persist()) report('write_failed')
   }
 
   function list(): Workspace[] {
@@ -123,8 +148,9 @@ export function createWorkspacesStore(options: WorkspacesStoreOptions = {}): Wor
       color: input.color,
       defaultCwd: input.defaultCwd
     }
+    const previous = byId.get(id)
     byId.set(id, saved)
-    persist()
+    commit(() => (previous === undefined ? byId.delete(id) : byId.set(id, previous)))
     return { saved, ...view() }
   }
 
@@ -134,9 +160,15 @@ export function createWorkspacesStore(options: WorkspacesStoreOptions = {}): Wor
     // The guard runs BEFORE any mutation, so a refused delete leaves the store untouched and
     // never cascades (a cascade on a refused delete would silently destroy scoped config).
     if (hasLiveSessions(id)) throw new Error(WORKSPACE_ERROR.hasSessions)
+    const previous = byId.get(id)
+    const previousActive = active
     byId.delete(id)
     if (active === id) active = DEFAULT_WORKSPACE_ID
-    persist()
+    // BEFORE the cascade: a delete the disk refused must not have emptied the other stores.
+    commit(() => {
+      if (previous !== undefined) byId.set(id, previous)
+      active = previousActive
+    })
     cascade(id)
     return view()
   }
@@ -144,7 +176,8 @@ export function createWorkspacesStore(options: WorkspacesStoreOptions = {}): Wor
   function setActive(id: string): WorkspacesListResult {
     if (!byId.has(id)) throw new Error(WORKSPACE_ERROR.notFound)
     active = id
-    persist()
+    // A switch is not a dialog Save: it holds for this run even on a full disk.
+    persistOrReport()
     return view()
   }
 

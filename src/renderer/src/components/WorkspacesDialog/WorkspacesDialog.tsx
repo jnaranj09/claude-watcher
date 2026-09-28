@@ -11,6 +11,8 @@
 // Never render a raw thrown error: every IPC rejection is mapped through `copyFor()` to
 // operator-facing copy before it reaches the shared error line, which both the delete flow and
 // the save flow report through.
+import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -43,7 +45,8 @@ const ERROR_COPY: Record<string, string> = {
   workspace_name_taken: 'A workspace with that name already exists.',
   workspace_has_sessions: 'That workspace still has running sessions. Stop or move them first.',
   workspace_default_undeletable: 'The Default workspace cannot be deleted.',
-  workspace_not_found: 'That workspace no longer exists.'
+  workspace_not_found: 'That workspace no longer exists.',
+  [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY
 }
 
 /** Maps a thrown IPC error to operator-facing copy. NEVER render `error.message` directly — it

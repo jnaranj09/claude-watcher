@@ -378,6 +378,18 @@ second's cards froze) and over the whole-file stores (last writer reverted the o
 tags, rules and past sessions). **SMOKE skips the lock**: it runs on the default profile beside a
 running installed app and must still pass.
 
+### Storage health (`src/main/storageHealth.ts`, UX-06 / UX-07)
+
+Every store reports into ONE collector through its `report` option; main pushes it over
+`CH.storageHealth` (asked with `CH.storageHealthGet`), store NAME + code only, never a path, and
+`StorageNotice` draws it under the header until dismissed. **A dialog's Save / Delete that the disk
+refuses is UNDONE and throws `store_write_failed`** (`commit()` in each store) — every Manage
+dialog maps it to `STORE_WRITE_FAILED_COPY`; a new dialog owes the same entry. Every OTHER write (a
+cascade, a workspace switch, settings, the session history) keeps the change for the run and
+reports `write_failed` (`persistOrReport()`): a removal path must never throw. A damaged file
+reports `corrupt_reset`, an unreadable one `read_failed`. A workspace delete commits BEFORE its
+cascade, so a refused delete empties no other store.
+
 ### Security posture (never weaken)
 
 `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. node-pty's power stays

@@ -44,7 +44,8 @@ import type {
   ThemeSummary,
   ThemeBundle,
   ThemeApplyResult,
-  ServerHealth
+  ServerHealth,
+  StorageHealth
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -229,6 +230,12 @@ declare global {
     serverHealth: {
       get(): Promise<ServerHealth>
       onChanged(cb: (health: ServerHealth) => void): () => void
+    }
+    // Storage health — mirrors src/preload/index.ts `storageHealthApi`. MAIN collects the store
+    // files it could not read or write; the renderer only draws the notice.
+    storageHealth: {
+      get(): Promise<StorageHealth>
+      onChanged(cb: (health: StorageHealth) => void): () => void
     }
   }
 }

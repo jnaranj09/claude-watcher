@@ -250,7 +250,12 @@ export const CH = {
   // `server-health:get` → ServerHealth (the renderer asks on mount); `server-health:changed` is
   // the main → renderer push on every change, validated at source (ServerHealthSchema).
   serverHealthGet: 'server-health:get',
-  serverHealth: 'server-health:changed'
+  serverHealth: 'server-health:changed',
+  // Storage health (UX-06, UX-07) — store files that could not be read or written this run.
+  // `storage-health:get` → StorageHealth (asked on mount); `storage-health:changed` is the push on
+  // every new problem, validated at source (StorageHealthSchema).
+  storageHealthGet: 'storage-health:get',
+  storageHealth: 'storage-health:changed'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
@@ -560,6 +565,12 @@ export type { Settings, SettingsPatch } from '../schemas/settings'
 
 // Server health — the hook/API listener state pushed to the banner and Settings.
 export type { ServerHealth, HookHealth, ApiHealth } from '../schemas/serverHealth'
+export type {
+  StorageHealth,
+  StorageProblem,
+  StorageProblemCode,
+  StoreName
+} from '../schemas/storageHealth'
 
 // Custom themes — the theme seam's payload types (schema-inferred; never a hand-written copy).
 export type { ThemeSummary, ThemeBundle, ThemeApplyResult } from '../schemas/theme'

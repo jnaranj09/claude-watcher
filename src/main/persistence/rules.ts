@@ -27,8 +27,12 @@ import { inRuleScope, ruleUsesTag, ruleUsesTemplate } from '../../shared/rules/r
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore
+  type PersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import type { TagRuleRef } from './tags'
 import type { TemplateRuleRef } from './templates'
 
@@ -49,6 +53,8 @@ export type ScopedLookup = (id: string) => { workspaceId: string | null } | null
 export interface RulesStoreOptions {
   blobStore?: RulesBlobStore
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
+  report?: StorageReporter
   newId?: () => string
   /** The tag catalog. index.ts binds it late (the tags store); the default knows no tag. */
   lookupTag?: ScopedLookup
@@ -85,6 +91,7 @@ const NOTHING: ScopedLookup = () => null
 export function createRulesStore(options: RulesStoreOptions = {}): RulesStore {
   const blobStore = options.blobStore ?? createInMemoryBlobStore<RulesFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
   const newId = options.newId ?? randomUUID
   const lookupTag = options.lookupTag ?? NOTHING
   const lookupTemplate = options.lookupTemplate ?? NOTHING
@@ -93,17 +100,35 @@ export function createRulesStore(options: RulesStoreOptions = {}): RulesStore {
     blobStore,
     parse: (raw) => RulesFileSchema.parse(raw),
     fallback: () => EMPTY_RULES_FILE,
-    onProblem: (code) => log(`${LOG_PREFIX} code=rules_${code}`)
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=rules_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
   let rules: Rule[] = [...loaded.rules]
-  persist()
+  persistOrReport()
 
-  function persist(): void {
+  function persist(): boolean {
     try {
       blobStore.write({ version: RULES_FILE_VERSION, rules })
+      return true
     } catch {
       log(`${LOG_PREFIX} code=rules_write_failed`)
+      return false
     }
+  }
+
+  /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
+   *  the dialog never says "saved" about a row the next start will not have. */
+  function commit(undo: () => void): void {
+    if (persist()) return
+    undo()
+    throw new Error(STORE_WRITE_FAILED)
+  }
+
+  /** Every other write: the change holds for this run, and storage health says it was not kept. */
+  function persistOrReport(): void {
+    if (!persist()) report('write_failed')
   }
 
   /** T-11 — a rule may reference only a tag/template its own scope can see. */
@@ -172,15 +197,17 @@ export function createRulesStore(options: RulesStoreOptions = {}): RulesStore {
       conditions: input.conditions,
       actions: input.actions
     }
+    const previous = rules
     rules = index === -1 ? [...rules, saved] : rules.map((r, i) => (i === index ? saved : r))
-    persist()
+    commit(() => (rules = previous))
     return { saved, ...view() }
   }
 
   function remove(id: string): RulesListResult {
     if (!rules.some((r) => r.id === id)) return view()
+    const previous = rules
     rules = rules.filter((r) => r.id !== id)
-    persist()
+    commit(() => (rules = previous))
     return view()
   }
 
@@ -189,8 +216,9 @@ export function createRulesStore(options: RulesStoreOptions = {}): RulesStore {
     if (rule === null) throw new Error(RULE_ERROR.notFound)
     const rest = rules.filter((r) => r.id !== id)
     const at = Math.min(toIndex, rest.length)
+    const previous = rules
     rules = [...rest.slice(0, at), rule, ...rest.slice(at)]
-    persist()
+    commit(() => (rules = previous))
     return view()
   }
 
@@ -198,7 +226,7 @@ export function createRulesStore(options: RulesStoreOptions = {}): RulesStore {
     const before = rules.length
     rules = rules.filter((r) => r.workspaceId !== workspaceId)
     const removed = before - rules.length
-    if (removed > 0) persist()
+    if (removed > 0) persistOrReport()
     return removed
   }
 

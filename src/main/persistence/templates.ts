@@ -15,8 +15,12 @@ import { inRuleScope } from '../../shared/rules/ruleRefs'
 import {
   createInMemoryBlobStore,
   loadPersistedOrReset,
-  type PersistedBlobStore
+  type PersistedBlobStore,
+  reportNowhere,
+  storageCodeForLoad,
+  type StorageReporter
 } from './persistedBlob'
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 
 export type TemplatesBlobStore = PersistedBlobStore<TemplatesFile>
 
@@ -35,6 +39,8 @@ export interface TemplateRuleRef {
 export interface TemplatesStoreOptions {
   blobStore?: TemplatesBlobStore
   log?: (message: string) => void
+  /** UX-06 / UX-07 — where a load problem or a background write failure is told (storageHealth.ts). */
+  report?: StorageReporter
   newId?: () => string
   /** How many rules use a template (spec T-17). index.ts wires it to the rules store; the default
    *  says none, so this store works without rules. */
@@ -64,6 +70,7 @@ const LOG_PREFIX = '[claude-watcher][templates]'
 export function createTemplatesStore(options: TemplatesStoreOptions = {}): TemplatesStore {
   const blobStore = options.blobStore ?? createInMemoryBlobStore<TemplatesFile>()
   const log = options.log ?? ((message: string): void => console.warn(message))
+  const report = options.report ?? reportNowhere
   const newId = options.newId ?? randomUUID
   const ruleRefCount = options.ruleRefCount ?? ((): number => 0)
   const ruleRefs = options.ruleRefs ?? ((): TemplateRuleRef[] => [])
@@ -73,17 +80,35 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     blobStore,
     parse: (raw) => TemplatesFileSchema.parse(raw),
     fallback: () => EMPTY_TEMPLATES_FILE,
-    onProblem: (code) => log(`${LOG_PREFIX} code=templates_${code}`)
+    onProblem: (code) => {
+      log(`${LOG_PREFIX} code=templates_${code}`)
+      report(storageCodeForLoad(code))
+    }
   })
   for (const template of loaded.templates) byId.set(template.id, template)
-  persist()
+  persistOrReport()
 
-  function persist(): void {
+  function persist(): boolean {
     try {
       blobStore.write({ version: TEMPLATES_FILE_VERSION, templates: list() })
+      return true
     } catch {
       log(`${LOG_PREFIX} code=templates_write_failed`)
+      return false
     }
+  }
+
+  /** A dialog's Save / Delete (UX-06): undo the change and throw when the file write fails, so
+   *  the dialog never says "saved" about a row the next start will not have. */
+  function commit(undo: () => void): void {
+    if (persist()) return
+    undo()
+    throw new Error(STORE_WRITE_FAILED)
+  }
+
+  /** Every other write: the change holds for this run, and storage health says it was not kept. */
+  function persistOrReport(): void {
+    if (!persist()) report('write_failed')
   }
 
   function list(): Template[] {
@@ -113,8 +138,9 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
       initialPrompt: input.initialPrompt,
       params: input.params
     }
+    const previous = byId.get(id)
     byId.set(id, saved)
-    persist()
+    commit(() => (previous === undefined ? byId.delete(id) : byId.set(id, previous)))
     return { saved, templates: list() }
   }
 
@@ -122,8 +148,9 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     if (!byId.has(id)) return list()
     // T-17 — a rule never silently loses the template it points at.
     if (ruleRefCount(id) > 0) throw new Error(TEMPLATE_ERROR.inUse)
+    const previous = byId.get(id)
     byId.delete(id)
-    persist()
+    commit(() => previous !== undefined && byId.set(id, previous))
     return list()
   }
 
@@ -135,7 +162,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
         removed += 1
       }
     }
-    if (removed > 0) persist()
+    if (removed > 0) persistOrReport()
     return removed
   }
 

@@ -1,3 +1,4 @@
+import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
 import { describe, it, expect, vi } from 'vitest'
 import { createShortcutsStore, SHORTCUT_ERROR, type ShortcutsBlobStore } from './shortcuts'
 import type { ShortcutsFile } from '../../shared/schemas/shortcut'
@@ -125,7 +126,7 @@ describe('createShortcutsStore', () => {
     )
   })
 
-  it('logs a code and keeps memory when the write fails', () => {
+  it('UX-06: a failed write undoes the save, throws store_write_failed, and logs a code', () => {
     const log = vi.fn()
     const blob: ShortcutsBlobStore = {
       read: () => undefined,
@@ -135,8 +136,8 @@ describe('createShortcutsStore', () => {
       backup: () => {}
     }
     const store = createShortcutsStore({ blobStore: blob, log, newId: idSeq() })
-    store.save(A)
-    expect(store.list()).toHaveLength(1)
+    expect(() => store.save(A)).toThrow(STORE_WRITE_FAILED)
+    expect(store.list()).toEqual([])
     expect(log).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_write_failed')
   })
 
