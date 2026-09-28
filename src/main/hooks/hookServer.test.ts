@@ -162,6 +162,22 @@ describe('hookServer — HTTP handler logic (real createHookServer on an ephemer
     expect(log.mock.calls[0]?.[0]?.code).toBe('body_too_large')
   })
 
+  // R22: a PostToolUse for a large file edit carries the whole file. 2 MiB was dropped under the
+  // old 1 MiB cap and left the card on its old status.
+  it('accepts a 2 MiB hook body (a large file edit)', async () => {
+    const onHookEvent = vi.fn<(evt: HookEvent) => void>()
+    const log = vi.fn<(err: BoundaryErrorRecord) => void>()
+    srv = await startServer(onHookEvent, log)
+    const body = JSON.stringify({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'PostToolUse',
+      tool_input: { content: 'x'.repeat(2 * 1024 * 1024) }
+    })
+    expect(await post(srv.url, body)).toBe(200)
+    expect(onHookEvent).toHaveBeenCalledTimes(1)
+    expect(log).not.toHaveBeenCalled()
+  })
+
   it('server never crashes: onHookEvent throwing is caught; responds 200', async () => {
     const log = vi.fn<(err: BoundaryErrorRecord) => void>()
     let hookCalled = false

@@ -59,6 +59,8 @@ function harness(opts: { now?: () => number; debounceMs?: number } = {}): {
   launch(session: Parameters<Reducer['upsertLaunched']>[0]): void
   launchAll(): void
   hook(id: string, status: string): void
+  /** A PreToolUse for `toolName` (Working, from a tool) — what names a later permission prompt. */
+  tool(id: string, toolName: string): void
   remove(id: string): void
 } {
   const now = opts.now ?? (() => FIXED_NOW)
@@ -89,6 +91,11 @@ function harness(opts: { now?: () => number; debounceMs?: number } = {}): {
     },
     hook(id, status): void {
       route(reducer.applyHookStatus(id, { kind: 'status', status }))
+    },
+    tool(id, toolName): void {
+      route(
+        reducer.applyHookStatus(id, { kind: 'status', status: 'Working', toolName, fromTool: true })
+      )
     },
     remove(id): void {
       route(reducer.applyHookStatus(id, { kind: 'removed' }))
@@ -165,11 +172,11 @@ describe('attention tracker — needs-you entry raises exactly once (AC-3, D3)',
     const clock = makeClock()
     const h = harness({ now: clock.now, debounceMs: 500 })
     h.launchAll()
-    // webapp carries pendingToolName 'Agent' (from the launch fixture) — leave needs-you,
-    // wait past the debounce window, re-enter: the raise carries the tool name.
-    h.hook(NEEDS_ATTENTION_ID, 'Working') // leave needs-you
+    // A PreToolUse(Agent) leaves needs-you; past the debounce window its permission prompt
+    // re-enters: the raise names the tool the prompt is for (R14).
+    h.tool(NEEDS_ATTENTION_ID, 'Agent') // leave needs-you
     clock.advance(600) // > 500ms window
-    h.hook(NEEDS_ATTENTION_ID, 'NeedsAttention') // re-enter
+    h.hook(NEEDS_ATTENTION_ID, 'NeedsPermission') // re-enter
     expect(h.attention).toHaveLength(1)
     expect(h.attention[0]!.pendingToolName).toBe('Agent')
 
@@ -178,6 +185,37 @@ describe('attention tracker — needs-you entry raises exactly once (AC-3, D3)',
     const last = h.attention[h.attention.length - 1]!
     expect(last.id).toBe(WORKING_ID)
     expect('pendingToolName' in last).toBe(false)
+  })
+
+  // R5: a turn that ended with claude's background work running lands in needs-you QUIETLY.
+  it('entering needs-you as YourTurnBackground raises nothing', () => {
+    const h = harness()
+    h.launchAll()
+    h.hook(WORKING_ID, 'YourTurnBackground')
+    expect(h.attention).toHaveLength(0)
+    expect(h.tracker.columnOf(WORKING_ID)).toBe('needs-you')
+  })
+
+  // ...and when claude then wakes and ends a turn that IS worth an alert without leaving the
+  // column (a question, or YourTurn), that raises — its entry raised nothing.
+  it('a quiet your-turn that turns into YourTurn or a question raises once', () => {
+    const h = harness()
+    h.launchAll()
+    h.hook(WORKING_ID, 'YourTurnBackground')
+    h.hook(WORKING_ID, 'YourTurn')
+    expect(h.attention).toHaveLength(1)
+    expect(h.attention[0]!.status).toBe('YourTurn')
+    h.hook(WORKING_ID, 'NeedsAttention') // already alerted: same column, no second raise
+    expect(h.attention).toHaveLength(1)
+  })
+
+  it('a loud needs-you status that turns quiet raises nothing more', () => {
+    const h = harness()
+    h.launchAll()
+    h.hook(WORKING_ID, 'YourTurn')
+    expect(h.attention).toHaveLength(1)
+    h.hook(WORKING_ID, 'YourTurnBackground')
+    expect(h.attention).toHaveLength(1)
   })
 
   it('does NOT re-raise while a session STAYS in needs-you (level-triggered entry edge only)', () => {
@@ -333,7 +371,8 @@ describe('attention tracker — privacy (never leak a session value)', () => {
         pendingToolInput: 'Allow running: ./deploy.sh staging'
       })
     )
-    h.hook(id, 'NeedsAttention')
+    h.tool(id, 'Bash')
+    h.hook(id, 'NeedsPermission')
     expect(h.attention).toHaveLength(1)
     const keys = Object.keys(h.attention[0]!).sort()
     expect(keys).toEqual(

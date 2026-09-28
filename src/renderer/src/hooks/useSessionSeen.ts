@@ -6,7 +6,7 @@
 // [.claude/rules/state.md]. Distinct from `acknowledgedById` (renderer-only emphasis).
 import { useEffect, useState } from 'react'
 import { useBoard, selectRailActiveSessionId, selectViewMode } from '../stores/boardStore'
-import { STATUS_YOUR_TURN } from '../../../shared/ipc/contract'
+import { YOUR_TURN_STATUSES } from '../../../shared/ipc/contract'
 
 export function useSessionSeen(): void {
   const activeId = useBoard(selectRailActiveSessionId)
@@ -31,7 +31,8 @@ export function useSessionSeen(): void {
 
   useEffect(() => {
     if (viewMode !== 'focused' || !windowFocused) return
-    if (activeId === null || activeStatus !== STATUS_YOUR_TURN) return
+    if (activeId === null || activeStatus === undefined || !YOUR_TURN_STATUSES.has(activeStatus))
+      return
     // Fire-and-forget; a rejection logs a code only (never the id as "content" — it is an
     // opaque uuid, but the log stays value-free by convention).
     window.launch.markSeen(activeId).catch(() => {

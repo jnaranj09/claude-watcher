@@ -128,8 +128,7 @@ describe('reducer — applyHookStatus (hooks own every status transition)', () =
       launchedSession(id, {
         projectPath: '/home/op/keepme',
         sessionName: 'keepme',
-        pid: 7777,
-        pendingToolName: 'Agent'
+        pid: 7777
       })
     )
 
@@ -138,7 +137,50 @@ describe('reducer — applyHookStatus (hooks own every status transition)', () =
     expect(stored?.projectPath).toBe('/home/op/keepme')
     expect(stored?.sessionName).toBe('keepme')
     expect(stored?.pid).toBe(7777)
-    expect(stored?.pendingToolName).toBe('Agent')
+  })
+
+  // R14: a permission prompt names the tool of the LAST PreToolUse (the Notification itself does
+  // not carry one), and the name lives only while the card waits.
+  it('NeedsPermission takes the last PreToolUse tool name; leaving it clears the name', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook00a1-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+    r.applyHookStatus(id, { kind: 'status', status: 'Working', toolName: 'Read', fromTool: true })
+    r.applyHookStatus(id, { kind: 'status', status: 'Working', toolName: 'Bash', fromTool: true })
+    expect(r.snapshotMap().get(id)?.pendingToolName).toBeUndefined()
+    r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+    expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Bash')
+    r.applyHookStatus(id, { kind: 'status', status: 'Working' })
+    expect(r.snapshotMap().get(id)?.pendingToolName).toBeUndefined()
+  })
+
+  it('AskUserQuestion names itself; a Stop question names no tool', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook00a2-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+    const ask = { kind: 'status', status: 'NeedsAttention', fromTool: true } as const
+    r.applyHookStatus(id, { ...ask, toolName: 'AskUserQuestion' })
+    expect(r.snapshotMap().get(id)?.pendingToolName).toBe('AskUserQuestion')
+    r.applyHookStatus(id, { kind: 'status', status: 'Working', toolName: 'Bash', fromTool: true })
+    r.applyHookStatus(id, { kind: 'status', status: 'NeedsAttention' })
+    expect(r.snapshotMap().get(id)?.pendingToolName).toBeUndefined()
+  })
+
+  // R20: a parallel subagent keeps firing tool events while the prompt is open; they must not
+  // move the card out of needs-you. A non-tool status (a prompt, a Stop) still does.
+  it('a tool event never pulls a card out of NeedsPermission; a non-tool status does', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook00a3-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+    r.applyHookStatus(id, { kind: 'status', status: 'Working', toolName: 'Bash', fromTool: true })
+    r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+    const pre = { kind: 'status', status: 'Working', toolName: 'Grep', fromTool: true } as const
+    expect(r.applyHookStatus(id, pre)).toEqual([])
+    expect(r.applyHookStatus(id, { kind: 'status', status: 'Working', fromTool: true })).toEqual([])
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsPermission')
+    expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Bash')
+    expect(r.applyHookStatus(id, { kind: 'status', status: 'YourTurn' })).toHaveLength(1)
+    expect(r.snapshotMap().get(id)?.status).toBe('YourTurn')
   })
 
   it('hook removed emits session.removed and deletes from the map', () => {
@@ -412,6 +454,14 @@ describe('reducer — markSeen (deterministic attention: the guarded YourTurn-to
       id: 'a',
       status: 'WaitingForInput'
     })
+    expect(r.snapshotMap().get('a')?.status).toBe('WaitingForInput')
+  })
+
+  // R5: the quiet your-turn is still the operator's turn — looking at it clears it the same way.
+  it('demotes a YourTurnBackground session too', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    r.upsertLaunched(launchedSession('a', { status: 'YourTurnBackground' }))
+    expect(r.markSeen('a')).toHaveLength(1)
     expect(r.snapshotMap().get('a')?.status).toBe('WaitingForInput')
   })
 

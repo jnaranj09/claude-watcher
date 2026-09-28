@@ -42,6 +42,8 @@ export const REGISTERED_EVENTS: readonly string[] = [
 
 /**
  * Maximum accepted HTTP request body size in bytes.
- * Hook payloads are compact JSON; anything larger is suspicious / misconfigured.
+ * Most hook payloads are compact JSON, but a `PostToolUse` carries the tool's whole input and
+ * response: a large Write/Edit went past the old 1 MiB, the event was dropped and the card kept
+ * its old status (R22 in docs/reports/2026-09-23-bug-hunt). 8 MiB on a loopback listener.
  */
-export const MAX_BODY_BYTES = 1024 * 1024 // 1 MiB
+export const MAX_BODY_BYTES = 8 * 1024 * 1024 // 8 MiB

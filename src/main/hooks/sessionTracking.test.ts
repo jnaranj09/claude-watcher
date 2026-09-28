@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
-import { createBackgroundWorkState, type BackgroundWorkState } from './backgroundWorkState'
 import { forgetSession, trackHookEvent, type SessionTrackingDeps } from './sessionTracking'
 
 const ID = '11111111-2222-4333-8444-555555555555'
 
 function deps(): SessionTrackingDeps & {
-  backgroundWork: BackgroundWorkState
   watch: ReturnType<typeof vi.fn>
   unwatch: ReturnType<typeof vi.fn>
   lines: string[]
@@ -19,7 +17,6 @@ function deps(): SessionTrackingDeps & {
     unwatch,
     lines,
     watcher: { watch, unwatch },
-    backgroundWork: createBackgroundWorkState(),
     log: (line) => lines.push(line),
     warn: (line) => lines.push(line)
   }
@@ -39,7 +36,6 @@ describe('trackHookEvent', () => {
     const d = deps()
     trackHookEvent(stop(ID, true), true, d)
     expect(d.watch).toHaveBeenCalledWith(ID, '/tmp/t.jsonl')
-    expect(d.backgroundWork.isRunning(ID)).toBe(true)
     expect(d.lines).toEqual([`[c9watch][hooks] code=transcript_watch session=${ID}`])
   })
 
@@ -48,7 +44,6 @@ describe('trackHookEvent', () => {
     const forged = 'x\n[c9watch][hooks] code=forged'
     trackHookEvent(stop(forged, true), false, d)
     expect(d.watch).not.toHaveBeenCalled()
-    expect(d.backgroundWork.isRunning(forged)).toBe(false)
     expect(d.lines).toEqual([])
   })
 
@@ -61,11 +56,10 @@ describe('trackHookEvent', () => {
 })
 
 describe('forgetSession', () => {
-  it('stops the tail and drops the verdict (R13)', () => {
+  it('stops the tail (R13)', () => {
     const d = deps()
     trackHookEvent(stop(ID, true), true, d)
     forgetSession(ID, d)
     expect(d.unwatch).toHaveBeenCalledWith(ID)
-    expect(d.backgroundWork.isRunning(ID)).toBe(false)
   })
 })

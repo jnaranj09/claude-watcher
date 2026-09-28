@@ -41,23 +41,41 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
   it('PreToolUse(AskUserQuestion) → NeedsAttention', () => {
     expect(
       hookStatus(evt({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion' }))
-    ).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    ).toEqual({
+      kind: 'status',
+      status: 'NeedsAttention',
+      toolName: 'AskUserQuestion',
+      fromTool: true
+    })
   })
 
-  it('PreToolUse(other tool) → Working', () => {
+  // R14 / R20: a tool event carries its tool's name (a later permission prompt is for it) and is
+  // marked as a tool event (it cannot clear an open permission prompt).
+  it('PreToolUse(other tool) → Working, naming the tool', () => {
     expect(hookStatus(evt({ hook_event_name: 'PreToolUse', tool_name: 'Bash' }))).toEqual({
       kind: 'status',
-      status: 'Working'
+      status: 'Working',
+      toolName: 'Bash',
+      fromTool: true
     })
     expect(hookStatus(evt({ hook_event_name: 'PreToolUse' }))).toEqual({
       kind: 'status',
-      status: 'Working'
+      status: 'Working',
+      fromTool: true
     })
   })
 
-  // --- Plain active events → Working ---
-  it.each(['UserPromptSubmit', 'PostToolUse'] as const)('%s → Working', (name) => {
-    expect(hookStatus(evt({ hook_event_name: name }))).toEqual({
+  it('PostToolUse → Working, as a tool event', () => {
+    expect(hookStatus(evt({ hook_event_name: 'PostToolUse', tool_name: 'Bash' }))).toEqual({
+      kind: 'status',
+      status: 'Working',
+      fromTool: true
+    })
+  })
+
+  // --- A prompt is NOT a tool event: it always moves the card ---
+  it('UserPromptSubmit → Working', () => {
+    expect(hookStatus(evt({ hook_event_name: 'UserPromptSubmit' }))).toEqual({
       kind: 'status',
       status: 'Working'
     })
@@ -69,6 +87,18 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
       kind: 'status',
       status: 'WaitingForInput'
     })
+  })
+
+  // R19: an auto-compact restarts claude's context MID-TURN; it must not drop the card to idle.
+  // The other sources (and a future one) still mean "at the prompt".
+  it('SessionStart source=compact → ignored; other sources → WaitingForInput', () => {
+    expect(hookStatus(evt({ hook_event_name: 'SessionStart', source: 'compact' }))).toBeNull()
+    for (const source of ['startup', 'resume', 'clear', 'something-new']) {
+      expect(hookStatus(evt({ hook_event_name: 'SessionStart', source }))).toEqual({
+        kind: 'status',
+        status: 'WaitingForInput'
+      })
+    }
   })
 
   // --- Stop: prose-question branch BOTH ways ---
@@ -123,19 +153,17 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     expect(hookStatus(evt({ hook_event_name: 'SessionEnd' }))).toEqual({ kind: 'removed' })
   })
 
-  // --- the background-work latch: a covered Stop is NOT the operator's turn ---
-  // Claude Code emits no "background task finished" hook, so a session that backgrounds
-  // a shell or arms a Monitor ends its turn normally and today lands in `needs-you`,
-  // firing a notification for work that is still running. The caller passes the latch
-  // verdict in; hookStatus stays PURE.
-  it('Stop with a pending background task → Working (not YourTurn)', () => {
+  // --- a turn end with background work running is a QUIET your-turn (R5) ---
+  // It used to be `Working`, and a task that never ends (a dev server) held the card there
+  // forever. The quiet status reaches needs-you without a popup or a sound (attention.ts).
+  it('Stop with a pending background task → YourTurnBackground (not Working, not YourTurn)', () => {
     expect(
       hookStatus(
         evt({ hook_event_name: 'Stop', background_tasks: [{ id: 'b1', status: 'running' }] })
       )
     ).toEqual({
       kind: 'status',
-      status: 'Working'
+      status: 'YourTurnBackground'
     })
   })
 

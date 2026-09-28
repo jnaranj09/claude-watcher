@@ -15,7 +15,7 @@
 // the wall clock. [Source: spec-native-session-engine.md Story 6.4;
 // .claude/rules/{zod-boundaries,state,ipc}.md]
 import type { Session } from '../../shared/schemas/session'
-import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
+import { YOUR_TURN_STATUSES } from '../../shared/ipc/contract'
 import { sameTagSet } from '../../shared/tags/tagScope'
 import type {
   ReducerSessionUpdatedEvent,
@@ -29,7 +29,20 @@ import type {
  * (consistent-type-imports: import type only — the reducer must NOT be a runtime
  * dependency of the hooks layer.)
  */
-export type HookStatusChange = { kind: 'status'; status: string } | { kind: 'removed' }
+export type HookStatusChange =
+  | {
+      kind: 'status'
+      status: string
+      /** `PreToolUse` only: the tool claude is about to run. The reducer remembers the last one,
+       *  because the `Notification(permission_prompt)` that follows does not name it (R14). */
+      toolName?: string
+      /** A `PreToolUse` / `PostToolUse` status. It never pulls a card OUT of `NeedsPermission`:
+       *  a parallel subagent's tool events would otherwise clear a prompt that is still open
+       *  (R20). The approval keystroke (`approvedLaunched`), a prompt, a Stop or an interrupt
+       *  still do. */
+      fromTool?: true
+    }
+  | { kind: 'removed' }
 
 /** A boundary failure record — PATH + CODE only, NEVER the parsed/raw value.
  *  (A ZodError stringifies its INPUT, which can carry PTY content / prompts /
@@ -197,6 +210,8 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   const log = options.log ?? defaultLog
 
   const map = new Map<string, Session>()
+  // The tool of each session's last PreToolUse — what a following permission prompt is for.
+  const lastToolName = new Map<string, string>()
   // The epoch is a CONSTANT 0 in the native engine (no snapshot reconcile ever bumps
   // it). Kept in the frame so the renderer's `payload.epoch < state.epoch` stale-drop
   // contract is untouched (0 < 0 is false → every delta applies).
@@ -227,12 +242,27 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     if (change.kind === 'removed') {
       // SessionEnd / stop / exit: remove the session from the map and emit session.removed.
       map.delete(id)
+      lastToolName.delete(id)
       lastApplied = now()
       return [frame(toRemoved(id, stored))]
     }
 
     // kind === 'status': hooks own the status — update it, keep the other fields.
+    if (change.toolName !== undefined) lastToolName.set(id, change.toolName)
+    if (change.fromTool === true && stored.status === 'NeedsPermission') return []
+    // `pendingToolName` names the tool the card WAITS on, so it lives only as long as the wait:
+    // the last PreToolUse's tool for a permission prompt, AskUserQuestion for its own question,
+    // and nothing for any other status (R14 — nothing set it before, so every permission alert
+    // said "wants permission" without saying for what).
+    const pendingToolName =
+      change.status === 'NeedsPermission'
+        ? lastToolName.get(id)
+        : change.status === 'NeedsAttention' && change.fromTool === true
+          ? change.toolName
+          : undefined
     const updated: Session = { ...stored, status: change.status }
+    if (pendingToolName === undefined) delete updated.pendingToolName
+    else updated.pendingToolName = pendingToolName
     map.set(id, updated)
     lastApplied = now()
     return [frame(toUpdated(updated))]
@@ -322,7 +352,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
    */
   function markSeen(id: string): SessionDelta[] {
     const stored = map.get(id)
-    if (stored === undefined || stored.status !== STATUS_YOUR_TURN) return []
+    if (stored === undefined || !YOUR_TURN_STATUSES.has(stored.status)) return []
     const updated: Session = { ...stored, status: 'WaitingForInput' }
     map.set(id, updated)
     lastApplied = now()

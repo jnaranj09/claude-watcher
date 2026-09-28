@@ -241,9 +241,9 @@ import { registerSmokeIpc } from './smoke/smokeIpc'
 import { createHookServer, type HookServer } from './hooks/hookServer'
 import { buildPtyEnv } from './pty/ptyEnv'
 import { isInterruptKey } from './pty/interruptKey'
+import { approvalStatusChange } from './pty/approvalKey'
 import { hookStatus } from './hooks/hookStatus'
 import { createTranscriptWatcher, type TranscriptWatcher } from './hooks/transcriptWatcher'
-import { createBackgroundWorkState } from './hooks/backgroundWorkState'
 import { forgetSession, trackHookEvent, type SessionTrackingDeps } from './hooks/sessionTracking'
 import { ensureHookSettingsFile, hookSettingsPathIfListening } from './hooks/hookSettingsFile'
 import { createServerHealth } from './serverHealth'
@@ -473,6 +473,9 @@ interface LaunchBoardSeam {
    *  Interrupting fires no hook and (when interrupted early) leaves no transcript trace,
    *  so the keystroke is the only evidence. A session already idle is a quiet no-op. */
   interruptLaunched(sessionId: string): void
+  /** R4 — a key typed into a launched terminal: Enter/1/2 on an open permission prompt moves
+   *  the card to Working (claude sends no hook on approval). Anything else is a no-op. */
+  keyLaunched(sessionId: string, data: string): void
   /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
    *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
   renameLaunched(sessionId: string, name: string): void
@@ -660,10 +663,6 @@ function registerWatchFeed(window: BrowserWindow): void {
   // hook deltas can route through the SAME chokepoint (same enrich/column/tray/attention
   // treatment). The spec requires this extraction: hook events call
   // reducer.applyHookStatus(...).forEach(handleDelta) — same path, no new channel.
-  // Claude's last STATED background-work verdict, per session. `background_tasks` rides
-  // `Stop` only and Esc fires no hook, so without this memory an interrupt has nothing to
-  // consult. Fed from every hook event below; read by demoteOnInterrupt.
-  const backgroundWork = createBackgroundWorkState()
   // The transcript tail (see demoteOnInterrupt below). Declared BEFORE handleDelta, which closes
   // over it through `tracking` — the same temporal-dead-zone reason as `apiHub` above. Kept in
   // `transcriptWatchers` so teardownWatchFeed disposes it with the window (R13).
@@ -675,13 +674,12 @@ function registerWatchFeed(window: BrowserWindow): void {
   transcriptWatchers.set(wc, transcriptWatcher)
   const tracking: SessionTrackingDeps = {
     watcher: transcriptWatcher,
-    backgroundWork,
     log: (line) => console.log(line),
     warn: (line) => console.warn(line)
   }
 
   function handleDelta(delta: ReducerWatchEventsPayload): void {
-    // A removed session's tail and background verdict are dead weight — drop them here, the one
+    // A removed session's tail is dead weight — drop them here, the one
     // chokepoint EVERY removal passes through (hook SessionEnd, in-app Stop, pty exit, and the
     // old id of a `/clear` rebind, which adoptCard removes directly).
     if (delta.event.type === 'session.removed') {
@@ -838,6 +836,12 @@ function registerWatchFeed(window: BrowserWindow): void {
     interruptLaunched: (sessionId) => {
       if (reducer.snapshotMap().get(sessionId)?.status === 'WaitingForInput') return
       demoteOnInterrupt(sessionId, 'interrupt_key')
+    },
+    keyLaunched: (sessionId, data) => {
+      const change = approvalStatusChange(reducer.snapshotMap().get(sessionId)?.status, data)
+      if (change === null) return
+      console.log(`[claude-watcher][hooks] code=permission_answered_key session=${sessionId}`)
+      reducer.applyHookStatus(sessionId, change).forEach(handleDelta)
     },
     // Session-naming A2 — the rename takes the SAME handleDelta chokepoint as every other delta
     // (tracker → tray → enrich → ship gate), so the retitled card reaches the renderer as an
@@ -1027,18 +1031,14 @@ function registerWatchFeed(window: BrowserWindow): void {
    * KEYSTROKE seen on the pty, and the `[Request interrupted by user]` marker the transcript
    * tail finds — so the rule below cannot drift between them.
    *
-   * The rule: an interrupt ends the FOREGROUND turn, not the background work. Claude
-   * detaches a backgrounded shell deliberately and it keeps running past the interrupt, so
-   * demoting to idle here would be a false idle for the whole life of that task. When the
-   * last `Stop` said work was running the card STAYS on `Working`, which is true, and it
-   * corrects itself when that work finishes: claude wakes on the completion and the turn it
-   * runs ends with a `Stop` carrying an empty `background_tasks` (probe-verified, ~4s).
+   * The rule: an interrupt always demotes to idle, background work or not. It used to keep
+   * the card on `Working` while the last `Stop` said work was running, and a task that never
+   * ends (a dev server) then held it there forever, Esc included (R5). A turn end with work
+   * running is now a quiet your-turn (hookStatus.ts); an interrupt is the operator's own key,
+   * so it is the calm column. If claude later wakes on the task's completion, that turn's own
+   * hooks move the card again.
    */
   function demoteOnInterrupt(sessionId: string, code: string): void {
-    if (backgroundWork.isRunning(sessionId)) {
-      console.log(`[c9watch][hooks] code=${code}_background_kept session=${sessionId}`)
-      return
-    }
     // Claude is now sitting at its prompt waiting, and the operator is the one who
     // pressed the key — so this is idle-by-truth: the calm column, no notification.
     console.log(`[c9watch][hooks] code=${code} session=${sessionId}`)
@@ -1866,16 +1866,21 @@ function registerTerminalIpc(): void {
     // on an ACTUAL status change so a stray Escape (dismissing an autocomplete menu) cannot
     // emit a pointless delta. Never logs `data` — that is what the operator is typing.
     onInput: (terminalId, data) => {
-      if (!isInterruptKey(data)) return
+      // Only single-key chunks matter (Escape, or an answer to a permission prompt); a paste
+      // or typed text is never looked up.
+      if (data.length !== 1) return
       // Only an app-LAUNCHED terminal has a bound session; a plain shell has none, and an
       // Escape there is just an Escape.
       const sessionId = launchService?.sessionIdFor(terminalId) ?? null
       if (sessionId === null) return
       const wc = terminalOwners.get(terminalId)
       if (wc === undefined) return
+      if (!isInterruptKey(data)) {
+        launchBoardSeams.get(wc)?.keyLaunched(sessionId, data)
+        return
+      }
       // The key was SEEN on the pty. What the board then does about it is logged by
-      // demoteOnInterrupt (`interrupt_key` when it demotes, `interrupt_key_background_kept`
-      // when background work holds the card on Working) — two facts, two lines.
+      // demoteOnInterrupt (`interrupt_key` when it demotes) — two facts, two lines.
       console.log(`[c9watch][pty] code=interrupt_key_seen session=${sessionId}`)
       launchBoardSeams.get(wc)?.interruptLaunched(sessionId)
     },

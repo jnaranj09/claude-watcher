@@ -6,9 +6,8 @@
 //   - Notification(permission_prompt) → NeedsPermission  (→ needs-you column)
 //   - PreToolUse(AskUserQuestion)     → NeedsAttention   (→ needs-you column)
 //   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
-//   - Stop w/ background_tasks running → Working          (→ working column; claude
-//     backgrounded a shell / armed a monitor and will wake ITSELF, so this turn end is
-//     not the operator's — claude reports this on the Stop payload; see backgroundTasks.ts)
+//   - Stop w/ background_tasks running → YourTurnBackground (→ needs-you column, QUIETLY:
+//     claude backgrounded a shell / armed a monitor and may wake itself; no alert — R5)
 //   - Stop, otherwise                 → YourTurn         (→ needs-you column; the
 //     deterministic your-turn floor — a turn NEVER ends idle straight from Stop)
 // Returns `null` for any event we choose to ignore (idle_prompt — SessionStart +
@@ -24,7 +23,7 @@
 import type { HookStatusChange } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
-import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
+import { STATUS_YOUR_TURN, STATUS_YOUR_TURN_BACKGROUND } from '../../shared/ipc/contract'
 import { hasRunningBackgroundWork } from './backgroundTasks'
 
 /**
@@ -35,10 +34,11 @@ import { hasRunningBackgroundWork } from './backgroundTasks'
  * - `Notification` & `notification_type === 'permission_prompt'` → `NeedsPermission`
  * - `Notification` & `idle_prompt` (or any other type)          → `null` (ignore — Stop owns idle)
  * - `PreToolUse` & `tool_name === 'AskUserQuestion'`            → `NeedsAttention`
- * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` | `SessionStart` → `Working`
+ * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` → `Working`
+ * - `SessionStart` → `WaitingForInput`, except `source === 'compact'` → `null` (mid-turn, R19)
  * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question;
- *            else `Working` if the payload's `background_tasks` still lists running work
- *            (claude will wake itself, so this is NOT the operator's turn);
+ *            else `YourTurnBackground` if the payload's `background_tasks` still lists
+ *            running work (the operator's turn, but quiet: claude may wake itself — R5);
  *            else `YourTurn` (deterministic your-turn floor — ANY other Stop,
  *            including an absent message, is the operator's turn; a turn never
  *            ends idle straight from Stop — idle comes only from `SessionStart`
@@ -58,17 +58,25 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
         ? { kind: 'status', status: 'NeedsPermission' }
         : null
 
-    case 'PreToolUse':
+    case 'PreToolUse': {
       // AskUserQuestion is a deterministic "blocking on a structured question" signal.
-      return evt.tool_name === 'AskUserQuestion'
-        ? { kind: 'status', status: 'NeedsAttention' }
-        : { kind: 'status', status: 'Working' }
+      const status = evt.tool_name === 'AskUserQuestion' ? 'NeedsAttention' : 'Working'
+      return evt.tool_name === undefined
+        ? { kind: 'status', status, fromTool: true }
+        : { kind: 'status', status, toolName: evt.tool_name, fromTool: true }
+    }
+
+    case 'PostToolUse':
+      return { kind: 'status', status: 'Working', fromTool: true }
 
     case 'UserPromptSubmit':
-    case 'PostToolUse':
       return { kind: 'status', status: 'Working' }
 
     case 'SessionStart':
+      // An auto-compact fires SessionStart in the MIDDLE of a turn: claude keeps working after
+      // it. Mapping it to idle dropped a working card to idle for a moment and fired the
+      // operator's idle rules (R19). The turn's own later events keep the status right.
+      if (evt.source === 'compact') return null
       // Claude BOOTING (or resuming) is not claude's turn — after startup it sits at
       // the prompt waiting for the operator. Idle-by-truth; UserPromptSubmit is the
       // edge that flips a session to Working.
@@ -84,11 +92,12 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
         return { kind: 'status', status: 'NeedsAttention' }
       }
       // Claude's own `background_tasks` list says whether a shell or monitor is still
-      // running. If it is, claude will wake ITSELF, so this turn end is not the
-      // operator's — surfacing "your turn" here would be a false alarm (and, on a
-      // monitor loop, a notification storm).
+      // running. The turn is the operator's all the same, but claude may wake ITSELF when the
+      // task finishes, so it is a QUIET your-turn: no popup, no sound (a monitor loop would
+      // otherwise be a notification storm). It was `Working`, which a task that never ends —
+      // a dev server — held forever (R5).
       if (hasRunningBackgroundWork(evt)) {
-        return { kind: 'status', status: 'Working' }
+        return { kind: 'status', status: STATUS_YOUR_TURN_BACKGROUND }
       }
       return { kind: 'status', status: STATUS_YOUR_TURN }
 

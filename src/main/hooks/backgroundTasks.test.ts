@@ -18,7 +18,7 @@
 // on the exact event that needs it. None of it was necessary.
 
 import { describe, it, expect } from 'vitest'
-import { hasRunningBackgroundWork, reportsBackgroundTasks } from './backgroundTasks'
+import { hasRunningBackgroundWork } from './backgroundTasks'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 
 const stop = (over: Partial<HookEvent> = {}): HookEvent => ({
@@ -107,34 +107,5 @@ describe('hasRunningBackgroundWork — read the truth off the Stop payload', () 
     expect(hasRunningBackgroundWork(stop({ background_tasks: null }))).toBe(false)
     expect(hasRunningBackgroundWork(stop({ background_tasks: [null, 42, 'x'] }))).toBe(false)
     expect(hasRunningBackgroundWork(stop({ background_tasks: [{}] }))).toBe(false)
-  })
-})
-
-// `reportsBackgroundTasks` answers a DIFFERENT question from `hasRunningBackgroundWork`:
-// not "is work running?" but "did claude state an answer at all?". They differ on exactly
-// the cases that matter — an event with no field, and an event whose field is malformed —
-// and conflating them is what would let a mid-turn PreToolUse wipe a live verdict.
-describe('reportsBackgroundTasks — did this event state a verdict at all?', () => {
-  const ev = (background_tasks?: unknown): HookEvent =>
-    (background_tasks === undefined
-      ? { session_id: 's', hook_event_name: 'Stop' }
-      : { session_id: 's', hook_event_name: 'Stop', background_tasks }) as unknown as HookEvent
-
-  it('is false when the field is absent (every mid-turn event)', () => {
-    expect(reportsBackgroundTasks(ev())).toBe(false)
-  })
-
-  it('is TRUE for an empty list — "nothing running" is a real answer', () => {
-    expect(reportsBackgroundTasks(ev([]))).toBe(true)
-  })
-
-  it('is true for a populated list', () => {
-    expect(reportsBackgroundTasks(ev([{ id: 't', type: 'shell', status: 'running' }]))).toBe(true)
-  })
-
-  it('is false for a malformed (non-array) field — a drift states nothing', () => {
-    expect(reportsBackgroundTasks(ev('nope'))).toBe(false)
-    expect(reportsBackgroundTasks(ev({ a: 1 }))).toBe(false)
-    expect(reportsBackgroundTasks(ev(null))).toBe(false)
   })
 })

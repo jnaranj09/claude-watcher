@@ -46,6 +46,8 @@ function pipeline(isLaunched: (id: string) => boolean = () => true): {
   launchAll(): void
   launch(session: Session): void
   hook(id: string, status: string): void
+  /** A PreToolUse for `toolName` — what names a later permission prompt (R14). */
+  tool(id: string, toolName: string): void
   remove(id: string): void
   shownCount: () => number
   shown: () => NotificationOptions[]
@@ -81,6 +83,10 @@ function pipeline(isLaunched: (id: string) => boolean = () => true): {
     },
     launch: (session) => route(reducer.upsertLaunched(session)),
     hook: (id, status) => route(reducer.applyHookStatus(id, { kind: 'status', status })),
+    tool: (id, toolName) =>
+      route(
+        reducer.applyHookStatus(id, { kind: 'status', status: 'Working', toolName, fromTool: true })
+      ),
     remove: (id) => route(reducer.applyHookStatus(id, { kind: 'removed' })),
     shownCount: () => shown.length,
     shown: () => shown
@@ -92,10 +98,11 @@ describe('notifier pipeline — fires 1:1 on a needs-you ENTRY (AC-1)', () => {
     const p = pipeline()
     p.launchAll() // first observations suppress raises (no launch storm)
     expect(p.shownCount()).toBe(0)
-    // A Working session that carries a pending tool crosses into needs-you → ONE notify
-    // whose body names the tool (the raise reads pendingToolName off the stored session).
+    // A PreToolUse(Bash) then its permission prompt → ONE notify whose body names the tool
+    // (the reducer takes it from the last PreToolUse; the raise reads it off the session, R14).
     const id = 'aaaa2222-0000-4000-8000-000000000001'
-    p.launch(launchedSession(id, { status: 'Working', pendingToolName: 'Bash' }))
+    p.launch(launchedSession(id, { status: 'Working' }))
+    p.tool(id, 'Bash')
     p.hook(id, 'NeedsPermission')
     expect(p.shownCount()).toBe(1)
     const opts = p.shown()[0]

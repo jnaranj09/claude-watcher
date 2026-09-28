@@ -45,16 +45,3 @@ export function hasRunningBackgroundWork(evt: HookEvent): boolean {
       (task as Record<string, unknown>)['status'] === RUNNING
   )
 }
-
-/**
- * True when this event STATES a background-work verdict — i.e. carries a well-formed
- * `background_tasks` list. An empty list is a verdict ("nothing running"); an absent or
- * malformed field is not.
- *
- * This is deliberately separate from `hasRunningBackgroundWork`. Only `Stop` carries the
- * field, so every mid-turn event would otherwise read as "nothing running" and wipe a live
- * verdict. `backgroundWorkState` uses this to decide whether an event is worth believing.
- */
-export function reportsBackgroundTasks(evt: HookEvent): boolean {
-  return Array.isArray(evt.background_tasks)
-}

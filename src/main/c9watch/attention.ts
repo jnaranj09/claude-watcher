@@ -39,7 +39,11 @@
 //  .claude/rules/{zod-boundaries,state,ipc}.md]
 import { columnForStatus, type Column } from './columns'
 import type { Session } from '../../shared/schemas/session'
-import type { AttentionRaisedEvent, ReducerWatchEventsPayload } from '../../shared/ipc/contract'
+import {
+  STATUS_YOUR_TURN_BACKGROUND,
+  type AttentionRaisedEvent,
+  type ReducerWatchEventsPayload
+} from '../../shared/ipc/contract'
 
 /** One epoch-framed reducer delta — exactly the `watch:events` payload. The tracker
  *  consumes the reducer's output; the reducer only ever produces session.updated /
@@ -61,6 +65,8 @@ interface TrackedColumn {
   /** Epoch-millis it last LEFT `needs-you` (into idle OR working), for the D5
    *  debounce. Undefined until it has left needs-you at least once. */
   leftNeedsYouAt?: number
+  /** The current status is the QUIET your-turn (R5): its needs-you entry raised nothing. */
+  quiet: boolean
 }
 
 export interface AttentionTrackerOptions {
@@ -138,13 +144,14 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
     const newColumn = columnForStatus(event.status)
     const prior = tracked.get(id)
     const at = now()
+    const quiet = event.status === STATUS_YOUR_TURN_BACKGROUND
 
     // First time the tracker sees this id — establish the baseline and SUPPRESS (D3:
     // no launch storm). In the native engine an id can only be first-seen via
     // `upsertLaunched` (always `Connecting` → working; hooks for unknown ids no-op), so
     // a first observation is never a needs-you entry edge anyway.
     if (prior === undefined) {
-      tracked.set(id, { column: newColumn, enteredColumnAt: at })
+      tracked.set(id, { column: newColumn, enteredColumnAt: at, quiet })
       return []
     }
 
@@ -154,6 +161,14 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
       // re-stamp of enteredColumnAt (D4: stamp only on a CHANGE). status may have
       // shifted WITHIN the same column (e.g. NeedsAttention→NeedsPermission, both
       // needs-you) — that is NOT a new entry and must NOT re-raise.
+      // The one exception (R5): a QUIET your-turn that becomes a real needs-you status —
+      // claude woke from its background work and asked, or finished — raises now, since its
+      // entry into the column raised nothing.
+      const wasQuiet = prior.quiet
+      prior.quiet = quiet
+      if (newColumn === 'needs-you' && wasQuiet && !quiet) {
+        return raiseIfNotDebounced(id, sessionsById, at, prior)
+      }
       return []
     }
 
@@ -161,6 +176,7 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
     const fromNeedsYou = prior.column === 'needs-you'
     prior.column = newColumn
     prior.enteredColumnAt = at
+    prior.quiet = quiet
 
     if (newColumn !== 'needs-you') {
       // Entered idle OR working → NO attention event (AC-4: entry into idle/working
@@ -169,6 +185,10 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
       if (fromNeedsYou) prior.leftNeedsYouAt = at
       return []
     }
+
+    // R5: a turn that ended with claude's background work still running is the operator's
+    // turn, but QUIET — the card moves, nothing pops up and nothing plays.
+    if (quiet) return []
 
     // Entered needs-you from another column (idle or working) → the attention entry
     // edge (D3), subject to the D5 debounce.

@@ -202,7 +202,7 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   what fixed "rename, then /clear, then the card reverts".
 - **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
   card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate). They
-  also start NO transcript tail, record no background verdict, and their raw `session_id` is
+  also start NO transcript tail, and their raw `session_id` is
   never logged (`src/main/hooks/sessionTracking.ts`, SEC-2/SEC-3): anyone on the machine can
   POST to :9279. The `/clear` adoption runs BEFORE that gate, so a rebound card keeps its tail;
   `forgetSession` on every `session.removed` stops it (R13).
@@ -219,6 +219,19 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   `hook_session_id_rebound proof=pid|cwd`, `hook_rebind_window_expired`.
 - **Identity = the stable `id` (UUID), never `pid`** — pid is a wandering claude thread id.
 - **`status` is NOT enum-locked** (a new status string must not fail the session closed).
+- **The status rules that are not obvious (group 9 of the 2026-09-23 bug hunt):**
+  - A turn that ends with claude's `background_tasks` still running is `YourTurnBackground`
+    (R5): needs-you, but the attention tracker raises NOTHING for it (no popup, no sound), and
+    markSeen clears it like `YourTurn`. It raises only if it turns into another needs-you status.
+    It used to be `Working`, which a dev server held forever. Esc now ALWAYS demotes to idle.
+  - A tool event (`PreToolUse` / `PostToolUse`, `fromTool`) never pulls a card out of
+    `NeedsPermission` (R20: a parallel subagent's events cleared an open prompt). claude sends no
+    hook on approval, so Enter / `1` / `2` typed into that terminal moves it to `Working` instead
+    (R4, `pty/approvalKey.ts`, `code=permission_answered_key`).
+  - `pendingToolName` is set ONLY while the card waits: the last `PreToolUse` tool for a
+    permission prompt (the Notification names none), `AskUserQuestion` for its own question (R14).
+  - `SessionStart` with `source: "compact"` is ignored: an auto-compact happens mid-turn (R19).
+  - The hook body cap is 8 MiB (R22): a `PostToolUse` for a large Write carries the whole file.
 - **`pendingToolInput` is polymorphic** (object for `Agent`, string for others) — do not narrow it.
 - **Historical naming:** the `src/main/c9watch/` dir, the `CH.watch*` channel names, and
   the `[c9watch]` log prefixes predate the retirement — they are names, not a CLI

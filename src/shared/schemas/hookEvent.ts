@@ -46,6 +46,10 @@ export const HookEventSchema = z
     tool_name: z.string().optional(), // PreToolUse tool name (e.g. AskUserQuestion); NOT enum-locked
     last_assistant_message: z.string().optional(), // Stop prose (SENSITIVE — never log the value)
     session_title: z.string().optional(), // claude's CURRENT name for the session (SENSITIVE — never log)
+    // `SessionStart` only: why the session (re)started — `startup`, `resume`, `clear` or `compact`
+    // per claude's hooks reference (not probed live). NOT enum-locked. `compact` is claude
+    // restarting its context MID-TURN, not a new session at the prompt (R19). [hookStatus.ts]
+    source: z.string().optional(),
     // The session's JSONL transcript. Promoted from passthrough because the app TAILS it
     // for the two facts no hook reports: the turn was interrupted (Esc fires no hook at
     // all) and a background task finished (there is no "task done" hook). Verified present
