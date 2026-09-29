@@ -17,7 +17,7 @@
 // second window (single-window, UX-DR24). Esc returns to the Board (UX-DR21); the "← Board" button
 // is the visible equivalent (the Esc keybinding lives in App.tsx). [Source: story 3.4 Task 4;
 // UX-DR9/21/24; terminal.md; src/renderer/src/terminal/EmbeddedTerminal.tsx (reused, `active` prop)]
-import { useCallback, type JSX } from 'react'
+import { useCallback, useLayoutEffect, useState, type JSX } from 'react'
 import type { Template } from '../../../shared/ipc/contract'
 import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
@@ -32,12 +32,14 @@ import {
   useBoard,
   selectFocusedTerminalId,
   selectKeptAliveTerminalIds,
+  selectViewMode,
   type BoardState,
   type BoardSession
 } from '../stores/boardStore'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal).
 // The two consequences are paired in ONE place (FROZEN-5); boardStore stays pure view-state.
 import { acknowledgeSession } from '../utils/acknowledgeSession'
+import { isInsideTerminal } from '../lib/terminalFocus'
 import styles from './FocusedSession.module.css'
 
 /**
@@ -116,6 +118,27 @@ export function FocusedSession({
   const keptAlive = useBoard(useShallow(selectKeptAliveTerminalIds))
   // Name-sync (D-11) — the focused terminal's session, for the bar's title + ⟳ mark.
   const focusedSession = useBoard(selectFocusedSession)
+  // R10 — the view is on screen: the terminal in view takes DOM focus on every switch into it.
+  const viewShown = useBoard(selectViewMode) === 'focused'
+  // R1 (decision b) — is DOM focus inside a terminal? There every key is claude's (Esc is its
+  // interrupt), so the bar may promise "Esc to return" ONLY while focus is outside it. Local
+  // view-state, read from the DOM on focusin/focusout — never stored. A LAYOUT effect: the
+  // terminals' own (passive) effects focus xterm on mount, and a child's effects run before this
+  // parent's, so a passive listener would attach too late to see that first focus.
+  const [focusInTerminal, setFocusInTerminal] = useState(() =>
+    isInsideTerminal(document.activeElement)
+  )
+  useLayoutEffect(() => {
+    const onFocusIn = (e: FocusEvent): void => setFocusInTerminal(isInsideTerminal(e.target))
+    const onFocusOut = (e: FocusEvent): void =>
+      setFocusInTerminal(isInsideTerminal(e.relatedTarget))
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+    }
+  }, [])
 
   // A rail row click: switch the visible terminal to that session's terminal (if its binding is
   // known) AND acknowledge it. PURE view-state — no input is sent (alert-only). A session whose
@@ -132,7 +155,7 @@ export function FocusedSession({
 
   // Past sessions (D-3) — Archive the currently-focused terminal's session. No confirmation
   // (reversible through Past sessions…) — fires straight through sessionExit.archiveTerminal,
-  // the SAME helper the card and Ctrl+W call. No-op guard: focusedTerminalId should never be
+  // the SAME helper the card calls. No-op guard: focusedTerminalId should never be
   // null in the focused view, but guard anyway (degrade gracefully, never crash).
   const handleArchive = useCallback((): void => {
     if (focusedTerminalId === null) return
@@ -186,15 +209,21 @@ export function FocusedSession({
             </span>
             {focusedSession?.nameSyncPending === true && <NameSyncMark />}
           </span>
-          <span className={styles.hint}>Esc to return</span>
-          {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. Same
-              chord as Ctrl+W (App.tsx), which archives directly without opening this bar. */}
+          {/* R1 — only a key that works where focus is. Inside the terminal Esc is claude's. */}
+          {!focusInTerminal && (
+            <span className={styles.hint} data-testid="focused-hint">
+              Esc to return
+            </span>
+          )}
+          {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. The
+              button is the ONLY path: Ctrl+W archives nothing (R27 — it is claude's delete-word,
+              and a slipped focus turned it into an archive). */}
           <Button
             variant="secondary"
             size="sm"
             testId="focused-archive"
             onClick={handleArchive}
-            aria-label="Archive this session (Ctrl+W)"
+            aria-label="Archive this session"
             title="Archive — keeps it in Past sessions"
           >
             Archive
@@ -218,6 +247,7 @@ export function FocusedSession({
               key={terminalId}
               terminalId={terminalId}
               active={terminalId === focusedTerminalId}
+              takeFocus={viewShown && terminalId === focusedTerminalId}
               onNewSession={onNewSession}
               {...(onPickTemplate ? { onPickTemplate } : {})}
               {...(onManageTemplates ? { onManageTemplates } : {})}

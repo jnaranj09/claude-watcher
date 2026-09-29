@@ -81,6 +81,7 @@ import { StopConfirm } from './components/StopConfirm/StopConfirm'
 // confirm call through, so the explicit main-side stop-and-record/drop FIRST, then the
 // renderer's own view-state ordering (F1) cannot drift between callers.
 import { archiveTerminal } from './lib/sessionExit'
+import { isInsideTerminal } from './lib/terminalFocus'
 // Session-naming — the create-time name prompt (renderer view-state; shown when
 // boardStore.sessionNamePrompt is non-null, i.e. after the directory picker and BEFORE the
 // launch). Same z-60 overlay family; it never co-exists with the other two modals.
@@ -464,7 +465,7 @@ function App(): React.JSX.Element {
   // Past sessions (D-3) — Archive a card (the Board onArchiveCard seam). Resolves the session's
   // terminalId (Column only wires the control once the binding is known, but re-check here too —
   // a race between the click and a removal is a no-op, not a crash) and fires the SAME
-  // sessionExit.archiveTerminal the focused bar and Ctrl+W use.
+  // sessionExit.archiveTerminal the focused bar uses.
   const handleArchiveCard = useCallback((id: string): void => {
     const terminalId = boardStore.getState().terminalIdBySessionId[id]
     if (terminalId !== undefined) archiveTerminal(terminalId)
@@ -472,7 +473,7 @@ function App(): React.JSX.Element {
 
   // Past sessions (D-5) — Delete a card (the Board onDeleteCard seam): open the SAME confirm the
   // focused bar's Delete button opens. Single-modal / no-double-open guard mirrors every other
-  // showStopConfirm call site (App's Ctrl+W handler, isModalOpen()).
+  // showStopConfirm call site (isModalOpen()).
   const handleDeleteCard = useCallback((id: string): void => {
     const state = boardStore.getState()
     const terminalId = state.terminalIdBySessionId[id]
@@ -516,27 +517,30 @@ function App(): React.JSX.Element {
 
   // Story 3.2 (FR-11 / UX-DR21) — global keybindings: Ctrl+N → new session; Esc → Board.
   // Story 4.2 (FR-14) — adds Ctrl+Q → requestQuit (the one chokepoint); Esc-guard-open → cancel.
-  // Story 4.3 (FR-15) — adds Ctrl+W → Stop-confirm (focused only; no-op on board; NEVER the window).
+  //
+  // Focused-view keys (R1, R27, R10 — decision b, 2026-09-28): claude KEEPS EVERY KEY while its
+  // terminal has focus. Ctrl+W is delete-word, Ctrl+N a readline key, Esc claude's interrupt — none
+  // is the app's to take. So a key that comes from inside a terminal (`isInsideTerminal`) is left
+  // alone here — no action, no preventDefault — whatever xterm itself does with it. The chords
+  // below act only with focus OUTSIDE the terminal (the bar, the rail, the page body). Do not rely
+  // on xterm's own stopPropagation for this: it does not stop every key it forwards.
   //
   // Esc disambiguation (RESOLVED — UX-DR14): topmost layer wins; the order is:
   //   1. Stop-confirm open → Esc = Cancel (clearStopConfirm); return.
   //   2. Quit-guard open → Esc = Cancel (clearQuitGuard + window.quit.cancel()); return.
   //   3. Else → showBoard (Focused → Board; no-op on the board).
   // The Stop-confirm and Quit-guard are mutually exclusive (single-modal rule), so the order
-  // is defensive but safe.
+  // is defensive but safe. (Both take focus on open, so their Esc never comes from a terminal.)
   //
   // Gated on NON-smoke + NON-terminal-host below via the early returns, so this effect only runs
-  // for the real app view. Ctrl+N opens the picker from anywhere. The handlers above never throw.
+  // for the real app view. The handlers above never throw.
   //
-  // All three Ctrl bindings carry `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut
-  // namespace, and an unmatched chord there deliberately reaches this listener.
+  // All the Ctrl bindings carry `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut namespace.
   useEffect(() => {
     if (smoke !== false) return
     const onKey = (e: KeyboardEvent): void => {
-      // `!e.altKey`: Ctrl+Alt+<letter> is the phrase-shortcut namespace. Without this term a
-      // Ctrl+Alt+N chord fired BOTH the shortcut and the app. Fixed here rather than by
-      // stopPropagation in the terminal, because an UNMATCHED Ctrl+Alt chord is deliberately not
-      // swallowed — it must reach the pty — so it does reach this listener.
+      // R1 (decision b): the terminal owns every key typed into it.
+      if (isInsideTerminal(e.target)) return
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
         void handleNewSession()
@@ -551,28 +555,13 @@ function App(): React.JSX.Element {
         if (window.quit) void window.quit.requestQuit()
         return
       }
-      // D-3/D-5 — the chord ARCHIVES, no confirm; Delete is a button that opens the confirm.
-      // (Was Story 4.3's Ctrl+W → Stop-confirm; Archive needs no confirmation at all — it is
-      // reversible through `Past sessions…` — so the chord now fires archiveTerminal directly.)
-      // MUST e.preventDefault() to NEVER close the window (UX-DR21).
-      // Only acts when a session is focused (viewMode==='focused' AND focusedTerminalId!==null).
-      // No-op on the board (preventDefault still fires to suppress Electron/browser default close).
-      // Guard: do NOT act if ANY modal is already open (UX-DR14) — including the session-naming
-      // prompt, which CAN be open over a focused session (naming a NEW session while an existing
-      // one runs), and the quit-guard / Delete-confirm (quitGuard / stopConfirm), so Ctrl+W can
-      // never archive out from under an open dialog.
+      // R27 — Ctrl+W ARCHIVES NOTHING. It used to archive the focused session with no confirm from
+      // anywhere in the focused view, so a delete-word typed while focus had slipped off the
+      // terminal (a rail click) archived the session. An arm-in-place second press would not help:
+      // the reflex is to press it twice to delete two words. The bar's Archive button is the only
+      // path. preventDefault stays so Ctrl+W can never close the window (UX-DR21).
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault()
-        const state = boardStore.getState()
-        if (
-          state.viewMode === 'focused' &&
-          state.focusedTerminalId !== null &&
-          state.quitGuard === null &&
-          state.stopConfirm === null &&
-          !isModalOpen()
-        ) {
-          archiveTerminal(state.focusedTerminalId)
-        }
         return
       }
       if (e.key === 'Escape') {
@@ -767,7 +756,7 @@ function App(): React.JSX.Element {
       {quitGuard !== null && <QuitGuard payload={quitGuard} />}
       {/* Past sessions (D-5) — the Delete-confirm modal (was Story 4.3's Stop-confirm; renderer
           view-state, non-null when the operator triggered Delete from a card, the focused bar's
-          Delete button, or App's onDeleteCard seam — never from Archive/Ctrl+W, which have no
+          Delete button, or App's onDeleteCard seam — never from Archive, which has no
           confirm). Rendered as a stacked overlay (z-60, same layer as QuitGuard — they never
           co-exist per the single-modal rule UX-DR14). Does NOT teardown on open (FROZEN F1 — the
           explicit delete runs INSIDE the modal's confirm handler, not on mount/unmount).

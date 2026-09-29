@@ -1,5 +1,5 @@
 // Past sessions (D-3/D-5) — the renderer side of the two exits, in ONE place so the card, the
-// focused bar, Ctrl+W and the Delete confirm cannot drift on the ordering that StopConfirm.tsx
+// focused bar and the Delete confirm cannot drift on the ordering that StopConfirm.tsx
 // froze (F1): the explicit main-side stop FIRST, then the renderer's own view-state.
 import { boardStore } from '../stores/boardStore'
 

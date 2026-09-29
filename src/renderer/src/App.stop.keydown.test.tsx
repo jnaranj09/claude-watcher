@@ -4,14 +4,15 @@
 // A NEW test file (rather than extending App.keydown.test.tsx) to avoid touching the green 4-2
 // guardrail tests. The 4-2 App.keydown.test.tsx assertions STAY UNCHANGED.
 //
-// D-3/D-5 changed WHAT Ctrl+W does: it used to open the Stop-confirm; it now ARCHIVES directly
-// (no confirm — Archive is reversible through `Past sessions…`). Delete is reached only through
+// D-3/D-5 made Ctrl+W archive directly; R27 (2026-09-28) took that away — a delete-word typed
+// with focus off the terminal archived the session. Ctrl+W now does nothing app-side (the Archive
+// button is the only path; App.terminalKeys.test.tsx). Delete is reached only through
 // the card's/focused bar's own button, which opens this same confirm modal (boardStore.stopConfirm)
 // for the ONE exit that is NOT reversible.
 //
 // Asserts:
-//   (a) Ctrl+W while a session is focused calls window.launch.archiveSession(focusedTerminalId)
-//       and leaves stopConfirm null, AND e.preventDefault() fired (window does NOT close).
+//   (a) Ctrl+W while a session is focused archives NOTHING (R27 — the Archive button is the only
+//       path) and leaves stopConfirm null, AND e.preventDefault() fired (window does NOT close).
 //   (b) Ctrl+W on the board (viewMode='board') is a no-op (archiveSession NOT called) but
 //       preventDefault() still fires (the window does NOT close in any case).
 //   (c) Ctrl+W while the Quit-guard is open does NOT archive (single-modal rule UX-DR14).
@@ -200,10 +201,9 @@ async function renderApp(): Promise<RenderResult> {
 // (a) Ctrl+W while focused ARCHIVES the focused terminal + preventDefault fires
 // ---------------------------------------------------------------------------
 
-describe('App keydown — Ctrl+W archives (D-3/D-5 Task 10)', () => {
-  it('(a) Ctrl+W while focused calls window.launch.archiveSession(focusedTerminalId), leaves stopConfirm null', async () => {
+describe('App keydown — Ctrl+W archives NOTHING (R27; was D-3/D-5 Task 10)', () => {
+  it('(a) Ctrl+W while focused does NOT archive, opens no confirm, and still preventDefaults', async () => {
     await renderApp()
-    // Enter the focused view with a known terminal.
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-ctrl-w' })
     })
@@ -222,26 +222,11 @@ describe('App keydown — Ctrl+W archives (D-3/D-5 Task 10)', () => {
     })
 
     expect(preventDefaultCalled).toBe(true)
-    expect(window.launch.archiveSession).toHaveBeenCalledWith('term-ctrl-w')
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
     expect(boardStore.getState().stopConfirm).toBeNull()
   })
 
-  // Hazard 1 again: Ctrl+Alt+W must not archive now that Ctrl+Alt is the phrase-shortcut namespace.
-  it('(a) Ctrl+Alt+W does NOT archive', async () => {
-    await renderApp()
-    act(() => {
-      boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-ctrl-alt-w' })
-    })
-
-    await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true, altKey: true }))
-      await Promise.resolve()
-    })
-
-    expect(window.launch.archiveSession).not.toHaveBeenCalled()
-  })
-
-  it('(a) Ctrl+W (uppercase W) also archives', async () => {
+  it('(a) Ctrl+W (uppercase W) does NOT archive either', async () => {
     await renderApp()
     act(() => {
       boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-w-upper' })
@@ -252,21 +237,7 @@ describe('App keydown — Ctrl+W archives (D-3/D-5 Task 10)', () => {
       await Promise.resolve()
     })
 
-    expect(window.launch.archiveSession).toHaveBeenCalledWith('term-w-upper')
-  })
-
-  it('(a) Ctrl+W archives the CURRENTLY focused terminal, not a stale one', async () => {
-    await renderApp()
-    act(() => {
-      boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-payload-check' })
-    })
-
-    await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true }))
-      await Promise.resolve()
-    })
-
-    expect(window.launch.archiveSession).toHaveBeenCalledWith('term-payload-check')
+    expect(window.launch.archiveSession).not.toHaveBeenCalled()
   })
 
   // ---------------------------------------------------------------------------

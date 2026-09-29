@@ -286,6 +286,10 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     })
     const r = renderComponent(<FocusedSession onBack={vi.fn()} onNewSession={vi.fn()} />)
     cleanup = r.unmount
+    // The hint draws only while focus is OUTSIDE the terminal (R1) — put it on ← Board.
+    act(() => {
+      r.container.querySelector<HTMLButtonElement>('[data-testid="focused-back"]')?.focus()
+    })
     const title = r.container.querySelector('[data-testid="focused-title"]')
     expect(
       title?.querySelector('[data-status="needs-you"] [data-testid="status-dot"]')
@@ -295,8 +299,8 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
       (el) => el.getAttribute('data-testid') ?? el.textContent?.trim()
     )
     expect(order.indexOf('focused-back')).toBeLessThan(order.indexOf('focused-title'))
-    expect(order.indexOf('focused-title')).toBeLessThan(order.indexOf('Esc to return'))
-    expect(order.indexOf('Esc to return')).toBeLessThan(order.indexOf('focused-archive'))
+    expect(order.indexOf('focused-title')).toBeLessThan(order.indexOf('focused-hint'))
+    expect(order.indexOf('focused-hint')).toBeLessThan(order.indexOf('focused-archive'))
   })
 
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
@@ -651,5 +655,97 @@ describe('FocusedSession — the active tab flares outward into the wall', () =>
       )?.[1] ?? ''
     expect(collapsedTab).toMatch(/width:\s*calc\(100% - var\(--rail-tab-inset\) \+ 1px\)/)
     expect(collapsedTab).toMatch(/margin-right:\s*-1px/)
+  })
+})
+
+// Focused-view keys (R1, R27, R10 — decision b): claude keeps every key while its terminal has
+// focus, so the view must PUT focus there on every switch (R10), and the bar may only promise a
+// key that works where focus is.
+describe('FocusedSession — terminal focus and the bar hint (R1, R10, R27)', () => {
+  function xtermOf(r: RenderResult, terminalId: string): HTMLElement {
+    const el = r.container.querySelector<HTMLElement>(
+      `[data-testid="embedded-terminal"][data-terminal-id="${terminalId}"] .xterm`
+    )
+    if (!el) throw new Error(`xterm for ${terminalId} did not open`)
+    return el
+  }
+
+  function seedTwo(): void {
+    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200))
+    boardStore.getState().addCorrelation('a', 'launch-a')
+    boardStore.getState().addCorrelation('b', 'launch-b')
+    boardStore.getState().switchTerminal('launch-a')
+  }
+
+  it('R10: a rail-row click moves DOM focus into the newly shown terminal', () => {
+    seedTwo()
+    const r = render()
+    const rowB = r.container.querySelector<HTMLButtonElement>('[data-session-id="b"]')
+    expect(rowB).not.toBeNull()
+    // A real click focuses the row first (mousedown); that is where focus was left before R10.
+    act(() => {
+      rowB?.focus()
+      rowB?.click()
+    })
+    expect(boardStore.getState().focusedTerminalId).toBe('launch-b')
+    expect(xtermOf(r, 'launch-b').contains(document.activeElement)).toBe(true)
+  })
+
+  it('R10: coming back from the board to the SAME terminal focuses it again', () => {
+    seedTwo()
+    const r = render()
+    act(() => {
+      boardStore.getState().showBoard()
+    })
+    act(() => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+    })
+    expect(xtermOf(r, 'launch-a').contains(document.activeElement)).toBe(false)
+    act(() => {
+      boardStore.getState().activateCard('a')
+    })
+    expect(xtermOf(r, 'launch-a').contains(document.activeElement)).toBe(true)
+  })
+
+  it('a hidden terminal (an API create, registry only) never takes focus', () => {
+    seedTwo()
+    const r = render()
+    act(() => {
+      boardStore.getState().switchTerminal('launch-a')
+    })
+    act(() => {
+      boardStore.getState().registerLaunchedTerminal('launch-api', 'api', 'default')
+    })
+    expect(xtermOf(r, 'launch-api').contains(document.activeElement)).toBe(false)
+    expect(xtermOf(r, 'launch-a').contains(document.activeElement)).toBe(true)
+  })
+
+  it('"Esc to return" shows only while focus is OUTSIDE the terminal (Esc is claude’s inside it)', () => {
+    seedTwo()
+    const r = render()
+    const hint = (): Element | null => r.container.querySelector('[data-testid="focused-hint"]')
+    // The view put focus in the terminal: Esc belongs to claude, so no Esc hint.
+    expect(xtermOf(r, 'launch-a').contains(document.activeElement)).toBe(true)
+    expect(hint()).toBeNull()
+    // Focus leaves the terminal (the ← Board button): now Esc does return.
+    const back = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-back"]')
+    act(() => {
+      back?.focus()
+    })
+    expect(hint()?.textContent).toBe('Esc to return')
+    // And back into the terminal: gone again.
+    act(() => {
+      xtermOf(r, 'launch-a').querySelector<HTMLTextAreaElement>('textarea')?.focus()
+    })
+    expect(hint()).toBeNull()
+  })
+
+  it('R27: the Archive button promises no chord (Ctrl+W archives nothing)', () => {
+    seedTwo()
+    const r = render()
+    const archive = r.container.querySelector('[data-testid="focused-archive"]')
+    expect(archive?.getAttribute('aria-label')).toBe('Archive this session')
+    expect(r.container.textContent).not.toContain('Ctrl+W')
   })
 })

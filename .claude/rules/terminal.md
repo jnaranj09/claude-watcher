@@ -69,6 +69,12 @@ useEffect(() => {
   2026-09-28). Ctrl+R is claude's history search, not a reload. A new main-side key handler
   (`before-input-event`) that calls `preventDefault` takes the key from claude too; the only one is
   the dev-only F12 DevTools toggle.
+- **The app takes no key typed INTO the terminal** (R1, decision b, 2026-09-28). App's window
+  keydown returns on `isInsideTerminal(e.target)` (`lib/terminalFocus.ts`) before any chord — do
+  not lean on xterm's own `stopPropagation`: in jsdom it let Esc / Ctrl+N / Ctrl+Q through. Test a
+  key on xterm's helper textarea AND on the `.xterm` root (`App.terminalKeys.test.tsx`), never only
+  on `window`. The flip side (R10): the terminal in view takes focus on every switch (`takeFocus`),
+  and a hidden one never does, not even when its port lands.
 - **Links open in the OS default browser, never in the app** (`terminalLinks.ts`). ONE activator
   serves xterm's `linkHandler` (OSC 8 links, which claude prints) and `@xterm/addon-web-links`
   (plain-text URLs): Ctrl+click (Cmd+click on macOS) → `window.links.openExternal` →

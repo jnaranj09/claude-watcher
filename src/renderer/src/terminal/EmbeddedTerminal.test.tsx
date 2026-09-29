@@ -131,6 +131,7 @@ afterEach(() => {
 function render(props: {
   terminalId: string
   active?: boolean
+  takeFocus?: boolean
   onNewSession?: () => void
   onPickTemplate?: (template: Template) => void
   onManageTemplates?: () => void
@@ -512,5 +513,51 @@ describe('EmbeddedTerminal — dead pane opens the New-session popover (template
       )
     })
     expect(bodyMenu()).toBeNull()
+  })
+})
+
+// R10 (focused-view keys, decision b): claude owns every key typed into a focused terminal, so
+// WHICH terminal holds DOM focus decides where the operator's keys go.
+describe('EmbeddedTerminal — takeFocus (R10)', () => {
+  const inside = (r: RenderResult): boolean =>
+    r.container.querySelector('.xterm')?.contains(document.activeElement) === true
+
+  it('a HIDDEN terminal whose port lands does NOT take focus (an API create mounts hidden)', async () => {
+    const outside = document.createElement('button')
+    document.body.appendChild(outside)
+    outside.focus()
+    const r = render({ terminalId: 't-hidden', active: false })
+    await act(async () => {
+      deliverPort('t-hidden', lastOpenToken())
+      await Promise.resolve()
+    })
+    expect(inside(r)).toBe(false)
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
+  })
+
+  it('takes focus when takeFocus turns true, not before', () => {
+    const r = render({ terminalId: 't-f', takeFocus: false })
+    expect(inside(r)).toBe(false)
+    act(() => {
+      r.root.render(<EmbeddedTerminal terminalId="t-f" takeFocus />)
+    })
+    expect(inside(r)).toBe(true)
+  })
+
+  it('never pulls focus out of an open dialog', () => {
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    const field = document.createElement('input')
+    dialog.appendChild(field)
+    document.body.appendChild(dialog)
+    field.focus()
+    const r = render({ terminalId: 't-d', takeFocus: false })
+    act(() => {
+      r.root.render(<EmbeddedTerminal terminalId="t-d" takeFocus />)
+    })
+    expect(inside(r)).toBe(false)
+    expect(document.activeElement).toBe(field)
+    dialog.remove()
   })
 })

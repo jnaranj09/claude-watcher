@@ -175,7 +175,7 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   browser and gets 403 before the body is read (SEC-2): claude's own hook POST sends none
   (probe 2026-09-28, claude 2.1.284). Re-probe if a claude upgrade ever stops every card moving.
 - **Removal is stop/exit-driven, and every exit names its REASON (past sessions):** in-app
-  Archive, `Ctrl+W`, `Ctrl+C` twice, `/exit`, a pty exit, the belt-and-suspenders `SessionEnd`,
+  Archive, `Ctrl+C` twice, `/exit`, a pty exit, the belt-and-suspenders `SessionEnd`,
   an app QUIT and a WINDOW CLOSE all remove the card with reason `archive` — main snapshots the
   card into `claude-watcher-past-sessions.json` (`src/main/persistence/pastSessions.ts`, state
   only, v1, cap 200, cascades on workspace delete) BEFORE the reducer drops it. Quit and window
@@ -448,6 +448,17 @@ without a snapshot — Ctrl+M, F11, and Alt raising the hidden bar). Do not brin
 `optimizer.watchWindowShortcuts`: it swallowed Ctrl+R in production. DevTools in dev = F12 only
 (`installDevToolsToggle`); Ctrl+Shift+I is gone. Playwright key presses skip menu accelerators, so a
 drive run cannot prove a key reaches the pty — check `Menu.getApplicationMenu()` or use real keys.
+
+### Focused-view keys (`src/renderer/src/lib/terminalFocus.ts`, R1 / R27 / R10)
+
+**claude keeps every key while its terminal has focus** (decision b, 2026-09-28): Ctrl+W is its
+delete-word, Ctrl+N a readline key, Esc its interrupt. App's window keydown skips any key from
+inside xterm (`isInsideTerminal` — `.xterm`, not the whole frame), so Esc → Board, Ctrl+N and
+Ctrl+Q work only with focus OUTSIDE it. **No key archives** (R27): Ctrl+W from a slipped focus used
+to archive with no confirm; the Archive button is the only path. So focus must land IN the terminal
+on every switch (R10): `EmbeddedTerminal`'s `takeFocus` (the focused view passes `viewShown &&
+active`) focuses xterm when it turns true, never from a hidden mount and never out of an open
+`role="dialog"`. The bar shows `Esc to return` only while focus is outside the terminal.
 
 ## Enforcement (the feedback harness)
 

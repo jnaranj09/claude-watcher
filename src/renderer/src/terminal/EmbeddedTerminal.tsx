@@ -62,6 +62,12 @@ export interface EmbeddedTerminalProps {
   /** When false, the terminal is kept ALIVE but hidden (visibility:hidden, never display:none —
    *  terminal.md). Defaults to true (visible). */
   active?: boolean
+  /** R10 — the terminal takes DOM focus every time this turns true (and when its port lands
+   *  while it is true). claude owns every key typed into a focused terminal (R1, decision b), so
+   *  a switch that leaves focus on the rail row hands the operator's next keys to the APP. The
+   *  focused view passes `viewShown && active`; defaults to `active`. Never steals focus from an
+   *  open dialog. */
+  takeFocus?: boolean
   /** Story 6.1 — launch a NEW session from the dead pane. The focused-session surface threads
    *  App's `handleNewSession` here (native dir picker → launch → focused view — the same flow as
    *  the header button / Ctrl+N). When ABSENT (the plain-shell terminals view), the dead pane's
@@ -105,9 +111,18 @@ type MenuState = {
 // NOT Date.now()/Math.random().
 let openTokenSeq = 0
 
+/** Focus a terminal unless a dialog holds focus: a switch that lands while a modal is open (a
+ *  notification click over the rename prompt) must not pull the operator's keys out of it. */
+function focusTerminal(term: Terminal): void {
+  const current = document.activeElement
+  if (current instanceof Element && current.closest('[role="dialog"],[role="alertdialog"]')) return
+  term.focus()
+}
+
 export function EmbeddedTerminal({
   terminalId,
   active = true,
+  takeFocus = active,
   onNewSession,
   onPickTemplate,
   onManageTemplates
@@ -164,6 +179,8 @@ export function EmbeddedTerminal({
   const [expanderOpen, setExpanderOpen] = useState(false)
   /** Mirrors `dead` for the key handler, which must not close over React state. */
   const deadRef = useRef<DeadState>(null)
+  /** Mirrors `takeFocus` for the port handler (a create-effect closure must not depend on it). */
+  const takeFocusRef = useRef(takeFocus)
 
   // Close the box the moment attention leaves this terminal (active=false) or the pty dies. A
   // kept-alive terminal switch or a dead pane must not leave a box open over a pane nobody is
@@ -339,7 +356,9 @@ export function EmbeddedTerminal({
       port.start()
       // First fit AFTER the port is wired so the initial resize reaches a live pty.
       doFit()
-      term.focus()
+      // Only a terminal the operator is looking at takes focus: a kept-alive or API-created one
+      // mounting hidden must not pull the keys away from the one in view (R10).
+      if (takeFocusRef.current) focusTerminal(term)
     }
     window.addEventListener('message', portHandler)
     // Open the terminal: triggers main to spawn the pty + transfer the MessagePort.
@@ -519,6 +538,17 @@ export function EmbeddedTerminal({
   useEffect(() => {
     deadRef.current = dead
   }, [dead])
+
+  // --- R10: take focus whenever this terminal becomes the one in view. ---------------------
+  // Declared AFTER the create effect, so on a first mount the terminal already exists. A switch
+  // (rail row, board card, notification) flips `takeFocus` → focus lands in xterm, where every
+  // key is claude's. The effect re-runs on a re-open too (openNonce), for the fresh instance.
+  useEffect(() => {
+    takeFocusRef.current = takeFocus
+    const term = termRef.current
+    if (!takeFocus || term === null) return
+    focusTerminal(term)
+  }, [takeFocus, openNonce])
 
   // Re-open fallback: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty +
   // port). Only reachable from the dead pane's button when NO onNewSession prop was provided
