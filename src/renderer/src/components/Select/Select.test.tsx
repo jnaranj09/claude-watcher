@@ -1,5 +1,7 @@
 // The project's ONE dropdown. jsdom `unit` project, `renderComponent` harness (no
 // @testing-library/react in this repo — Story 1.3).
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -137,5 +139,33 @@ describe('Select', () => {
     cleanup = r.unmount
     click(q(r, '[data-testid="letter"]'))
     expect(r.container.querySelector('[data-testid="letter-list"]')).toBeNull()
+  })
+
+  // A trigger at the right edge of a scroll region (the Settings rows): a left-aligned popup wider
+  // than a short value ran past the pane and was clipped. `align="end"` pins it to the right edge.
+  it('lines the popup up with the trigger END when asked', () => {
+    const r = renderComponent(
+      <Select
+        value="b"
+        options={OPTIONS}
+        onChange={vi.fn()}
+        ariaLabel="Letter"
+        testId="letter"
+        align="end"
+      />
+    )
+    cleanup = r.unmount
+    click(q(r, '[data-testid="letter"]'))
+    const endClasses = q(r, '[data-testid="letter-list"]').className
+    cleanup()
+    const s = render()
+    click(q(s, '[data-testid="letter"]'))
+    expect(endClasses).not.toBe(q(s, '[data-testid="letter-list"]').className)
+    // The class proxy returns a name for any key, so read the stylesheet for the rule itself.
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Select/Select.module.css'),
+      'utf8'
+    )
+    expect(css).toMatch(/\.listEnd\s*\{[^}]*left:\s*auto;[^}]*right:\s*0;/)
   })
 })

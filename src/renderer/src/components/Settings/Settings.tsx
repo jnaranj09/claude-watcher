@@ -362,6 +362,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       }}
                       ariaLabel="Reminders"
                       testId="settings-reminder-count"
+                      align="end"
                     />
                   </div>
                 </div>
@@ -385,6 +386,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                         }}
                         ariaLabel="First reminder after"
                         testId="settings-reminder-first-delay"
+                        align="end"
                       />
                     </div>
                   </div>
@@ -409,6 +411,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       onChange={pickTheme}
                       ariaLabel="Theme"
                       testId="settings-theme"
+                      align="end"
                     />
                   </div>
                 </div>
@@ -426,6 +429,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                         }
                         ariaLabel="Wallpaper"
                         testId="settings-wallpaper"
+                        align="end"
                       />
                     </div>
                   </div>

@@ -74,6 +74,12 @@
   background: var(--bg-surface-raised);
   box-shadow: var(--shadow-dialog);
 }
+/* `align="end"`: a trigger at the right edge of a scroll region (the Settings rows). Left-aligned,
+   a list wider than a short value ("Graphite") ran past the pane and was clipped. */
+.listEnd {
+  left: auto;
+  right: 0;
+}
 .option {
   display: flex;
   align-items: center;

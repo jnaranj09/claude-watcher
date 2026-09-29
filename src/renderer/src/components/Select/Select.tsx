@@ -37,6 +37,9 @@ export interface SelectProps<T extends string> {
   testId: string
   /** `field` fills a form row; `inline` is compact chrome (a dialog header). */
   variant?: 'field' | 'inline'
+  /** Which trigger edge the popup lines up with. `end` for a control at the right edge of its
+   *  column (the Settings rows): a popup wider than the trigger would otherwise run past it. */
+  align?: 'start' | 'end'
   disabled?: boolean
 }
 
@@ -47,6 +50,7 @@ export function Select<T extends string>({
   ariaLabel,
   testId,
   variant = 'field',
+  align = 'start',
   disabled = false
 }: SelectProps<T>): JSX.Element {
   const [open, setOpen] = useState(false)
@@ -138,7 +142,7 @@ export function Select<T extends string>({
       </button>
       {open && (
         <div
-          className={styles.list}
+          className={align === 'end' ? `${styles.list} ${styles.listEnd}` : styles.list}
           role="listbox"
           aria-label={ariaLabel}
           data-testid={`${testId}-list`}
