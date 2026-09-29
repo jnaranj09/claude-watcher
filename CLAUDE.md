@@ -255,10 +255,11 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **Identity = the stable `id` (UUID), never `pid`** — pid is a wandering claude thread id.
 - **`status` is NOT enum-locked** (a new status string must not fail the session closed).
 - **The status rules that are not obvious (group 9 of the 2026-09-23 bug hunt):**
-  - A turn that ends with claude's `background_tasks` still running is `YourTurnBackground`
-    (R5): needs-you, but the attention tracker raises NOTHING for it (no popup, no sound), and
-    markSeen clears it like `YourTurn`. It raises only if it turns into another needs-you status.
-    It used to be `Working`, which a dev server held forever. Esc now ALWAYS demotes to idle.
+  - A turn that ends with claude's `background_tasks` still running is `Working` — the terminal
+    says "1 shell still running", and the card must not say less. (R5 made it a quiet your-turn;
+    looking at the session then demoted it to Idle with the shell still running — reverted
+    2026-09-29, operator's call.) A task that never ends (a dev server) holds Working until the
+    next event; Esc ALWAYS demotes to idle, background work or not.
   - A tool event (`PreToolUse` / `PostToolUse`, `fromTool`) never pulls a card out of
     `NeedsPermission` (R20: a parallel subagent's events cleared an open prompt). claude sends no
     hook on approval, so Enter / `1` / `2` typed into that terminal moves it to `Working` instead

@@ -6,8 +6,8 @@
 //   - Notification(permission_prompt) → NeedsPermission  (→ needs-you column)
 //   - PreToolUse(AskUserQuestion)     → NeedsAttention   (→ needs-you column)
 //   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
-//   - Stop w/ background_tasks running → YourTurnBackground (→ needs-you column, QUIETLY:
-//     claude backgrounded a shell / armed a monitor and may wake itself; no alert — R5)
+//   - Stop w/ background_tasks running → Working (claude backgrounded a shell / armed a
+//     monitor; the terminal says "1 shell still running", so the card says Working)
 //   - Stop, otherwise                 → YourTurn         (→ needs-you column; the
 //     deterministic your-turn floor — a turn NEVER ends idle straight from Stop)
 // Returns `null` for any event we choose to ignore (idle_prompt — SessionStart +
@@ -23,7 +23,7 @@
 import type { HookStatusChange } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
-import { STATUS_YOUR_TURN, STATUS_YOUR_TURN_BACKGROUND } from '../../shared/ipc/contract'
+import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import { hasRunningBackgroundWork } from './backgroundTasks'
 
 /**
@@ -37,8 +37,7 @@ import { hasRunningBackgroundWork } from './backgroundTasks'
  * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` → `Working`
  * - `SessionStart` → `WaitingForInput`, except `source === 'compact'` → `null` (mid-turn, R19)
  * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question;
- *            else `YourTurnBackground` if the payload's `background_tasks` still lists
- *            running work (the operator's turn, but quiet: claude may wake itself — R5);
+ *            else `Working` if the payload's `background_tasks` still lists running work;
  *            else `YourTurn` (deterministic your-turn floor — ANY other Stop,
  *            including an absent message, is the operator's turn; a turn never
  *            ends idle straight from Stop — idle comes only from `SessionStart`
@@ -92,12 +91,11 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
         return { kind: 'status', status: 'NeedsAttention' }
       }
       // Claude's own `background_tasks` list says whether a shell or monitor is still
-      // running. The turn is the operator's all the same, but claude may wake ITSELF when the
-      // task finishes, so it is a QUIET your-turn: no popup, no sound (a monitor loop would
-      // otherwise be a notification storm). It was `Working`, which a task that never ends —
-      // a dev server — held forever (R5).
+      // running: the card says Working, as the terminal does ("1 shell still running"). R5 made
+      // this a quiet your-turn, and looking at the session then demoted it to Idle with the shell
+      // still running (operator, 2026-09-29). Working raises nothing; Esc still drops to idle.
       if (hasRunningBackgroundWork(evt)) {
-        return { kind: 'status', status: STATUS_YOUR_TURN_BACKGROUND }
+        return { kind: 'status', status: 'Working' }
       }
       return { kind: 'status', status: STATUS_YOUR_TURN }
 

@@ -1069,7 +1069,7 @@ function registerWatchFeed(window: BrowserWindow): void {
    * The rule: an interrupt always demotes to idle, background work or not. It used to keep
    * the card on `Working` while the last `Stop` said work was running, and a task that never
    * ends (a dev server) then held it there forever, Esc included (R5). A turn end with work
-   * running is now a quiet your-turn (hookStatus.ts); an interrupt is the operator's own key,
+   * running is still `Working` (hookStatus.ts); an interrupt is the operator's own key,
    * so it is the calm column. If claude later wakes on the task's completion, that turn's own
    * hooks move the card again.
    */

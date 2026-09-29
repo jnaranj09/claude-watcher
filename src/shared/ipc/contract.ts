@@ -875,18 +875,8 @@ export const TERMINAL_PORT_TAG = 'c9watch:terminal-port' as const
 // `needs-you` (columns.ts fail-toward-attention + an explicit pin test).
 export const STATUS_YOUR_TURN = 'YourTurn' as const
 
-// R5 (docs/reports/2026-09-23-bug-hunt) — a turn ended while claude's own background work (a
-// dev server, a watcher) is still running. It IS the operator's turn, so the card sits in
-// `needs-you` like `YourTurn`, but QUIETLY: the attention tracker raises nothing for it (no
-// popup, no sound), reminders skip it, and markSeen demotes it like `YourTurn`. It used to be
-// `Working`, which a task that never ends (a dev server) held forever.
-export const STATUS_YOUR_TURN_BACKGROUND = 'YourTurnBackground' as const
-
-/** The two "your turn" statuses: what a seen demotes to idle. */
-export const YOUR_TURN_STATUSES: ReadonlySet<string> = new Set([
-  STATUS_YOUR_TURN,
-  STATUS_YOUR_TURN_BACKGROUND
-])
+/** The "your turn" statuses: what a seen demotes to idle. */
+export const YOUR_TURN_STATUSES: ReadonlySet<string> = new Set([STATUS_YOUR_TURN])
 
 /** main → renderer over the port: a chunk of PTY output bytes to write to xterm. */
 export type TerminalPortOutput = {

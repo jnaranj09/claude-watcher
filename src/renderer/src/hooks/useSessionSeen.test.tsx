@@ -133,16 +133,6 @@ describe('useSessionSeen — the deterministic-attention seen effect', () => {
     expect(markSeenSpy).toHaveBeenCalledWith('sess-1')
   })
 
-  // R5: the quiet your-turn (a turn ended with claude's background work still running) is
-  // cleared by looking at it, the same as YourTurn.
-  it('fires markSeen for a YourTurnBackground session too', async () => {
-    seedFocused('sess-1', 'YourTurnBackground')
-    await renderProbe()
-    dispatchWindowFocus()
-
-    expect(markSeenSpy).toHaveBeenCalledWith('sess-1')
-  })
-
   it('does NOT fire on the board view', async () => {
     seedFocused('sess-1', STATUS_YOUR_TURN)
     // Overwrite to the board view — same session/status, just not focused-view.

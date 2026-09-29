@@ -187,37 +187,6 @@ describe('attention tracker — needs-you entry raises exactly once (AC-3, D3)',
     expect('pendingToolName' in last).toBe(false)
   })
 
-  // R5: a turn that ended with claude's background work running lands in needs-you QUIETLY.
-  it('entering needs-you as YourTurnBackground raises nothing', () => {
-    const h = harness()
-    h.launchAll()
-    h.hook(WORKING_ID, 'YourTurnBackground')
-    expect(h.attention).toHaveLength(0)
-    expect(h.tracker.columnOf(WORKING_ID)).toBe('needs-you')
-  })
-
-  // ...and when claude then wakes and ends a turn that IS worth an alert without leaving the
-  // column (a question, or YourTurn), that raises — its entry raised nothing.
-  it('a quiet your-turn that turns into YourTurn or a question raises once', () => {
-    const h = harness()
-    h.launchAll()
-    h.hook(WORKING_ID, 'YourTurnBackground')
-    h.hook(WORKING_ID, 'YourTurn')
-    expect(h.attention).toHaveLength(1)
-    expect(h.attention[0]!.status).toBe('YourTurn')
-    h.hook(WORKING_ID, 'NeedsAttention') // already alerted: same column, no second raise
-    expect(h.attention).toHaveLength(1)
-  })
-
-  it('a loud needs-you status that turns quiet raises nothing more', () => {
-    const h = harness()
-    h.launchAll()
-    h.hook(WORKING_ID, 'YourTurn')
-    expect(h.attention).toHaveLength(1)
-    h.hook(WORKING_ID, 'YourTurnBackground')
-    expect(h.attention).toHaveLength(1)
-  })
-
   it('does NOT re-raise while a session STAYS in needs-you (level-triggered entry edge only)', () => {
     const h = harness()
     h.launchAll()

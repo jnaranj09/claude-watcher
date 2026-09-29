@@ -153,17 +153,17 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     expect(hookStatus(evt({ hook_event_name: 'SessionEnd' }))).toEqual({ kind: 'removed' })
   })
 
-  // --- a turn end with background work running is a QUIET your-turn (R5) ---
-  // It used to be `Working`, and a task that never ends (a dev server) held the card there
-  // forever. The quiet status reaches needs-you without a popup or a sound (attention.ts).
-  it('Stop with a pending background task → YourTurnBackground (not Working, not YourTurn)', () => {
+  // --- a turn end with background work still running is Working (operator, 2026-09-29) ---
+  // R5 made it a quiet your-turn, and looking at the session then demoted it to Idle while claude
+  // still said "1 shell still running". Working is what the terminal shows; it never raises.
+  it('Stop with a pending background task → Working (not YourTurn)', () => {
     expect(
       hookStatus(
         evt({ hook_event_name: 'Stop', background_tasks: [{ id: 'b1', status: 'running' }] })
       )
     ).toEqual({
       kind: 'status',
-      status: 'YourTurnBackground'
+      status: 'Working'
     })
   })
 

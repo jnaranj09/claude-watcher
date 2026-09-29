@@ -457,14 +457,6 @@ describe('reducer — markSeen (deterministic attention: the guarded YourTurn-to
     expect(r.snapshotMap().get('a')?.status).toBe('WaitingForInput')
   })
 
-  // R5: the quiet your-turn is still the operator's turn — looking at it clears it the same way.
-  it('demotes a YourTurnBackground session too', () => {
-    const r = createReducer({ now: () => FIXED_NOW })
-    r.upsertLaunched(launchedSession('a', { status: 'YourTurnBackground' }))
-    expect(r.markSeen('a')).toHaveLength(1)
-    expect(r.snapshotMap().get('a')?.status).toBe('WaitingForInput')
-  })
-
   it('is a silent no-op for any non-YourTurn status (the race guard: seen can never hide a question/permission/work)', () => {
     const r = createReducer({ now: () => FIXED_NOW })
     for (const status of [
