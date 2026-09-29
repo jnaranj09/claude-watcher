@@ -143,6 +143,23 @@
 .rowSelect:hover {
   background: var(--bg-surface);
 }
+/* A workspace row (`tint`): the row is its workspace's colour (WorkspaceTint). The fill IS the
+   colour, so hover and selected move to the BORDER, and the select button's own hover fill is off
+   (it would cover the tint). */
+.row[data-tone] {
+  background: var(--ws-fill, transparent);
+  border-color: var(--ws-border, transparent);
+}
+.row[data-tone]:hover {
+  border-color: var(--text-secondary);
+}
+.row[data-tone][data-selected='true'] {
+  background: var(--ws-fill, var(--bg-surface));
+  border-color: var(--text-primary);
+}
+.row[data-tone] .rowSelect:hover {
+  background: transparent;
+}
 /* Fixed width + `visibility` (not `display`): the slot always takes its space, so a row never
    changes width when its actions appear, and nothing moves when one of them arms. Hidden controls
    are not focusable, but the row's own select button is — focusing it reveals the slot

@@ -3,6 +3,8 @@
 // RowActions exists for the Rules dialog's ↑/↓ (spec §0.1): actions the form does NOT own. They
 // must render OUTSIDE the row's select button — a <button> inside a <button> is invalid HTML — and
 // pressing one must not select the row.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, type JSX } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -120,5 +122,55 @@ describe('ManageDialog.New', () => {
     click(q(r, '[data-testid="rule-new"]'))
     expect(q(r, '[data-testid="probe-selected"]').textContent).toBe('none')
     expect(q(r, '[data-testid="rule-new"]').textContent).toBe('+ New')
+  })
+})
+
+function TintHarness(): JSX.Element {
+  const dialog = useManageDialog({ title: 'Workspaces', testIdPrefix: 'ws', onClose: () => {} })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Columns>
+          <ManageDialog.List>
+            <ManageDialog.Rows>
+              <ManageDialog.Row id="a" testId="row-a" tint="green">
+                A
+              </ManageDialog.Row>
+              <ManageDialog.Row id="b" testId="row-b">
+                B
+              </ManageDialog.Row>
+            </ManageDialog.Rows>
+          </ManageDialog.List>
+        </ManageDialog.Columns>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.Row tint (spec 2026-09-29)', () => {
+  it('marks a tinted row with data-tone; an untinted row has none', () => {
+    const r = renderComponent(<TintHarness />)
+    cleanup = r.unmount
+    expect(r.container.querySelector('[data-testid="row-a"]')?.getAttribute('data-tone')).toBe(
+      'green'
+    )
+    expect(r.container.querySelector('[data-testid="row-b"]')?.getAttribute('data-tone')).toBeNull()
+  })
+
+  // The fill IS the workspace's colour, so hover and selected move to the border.
+  it('moves a tinted row states to the border, never the fill', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/ManageDialog/ManageDialog.module.css'),
+      'utf8'
+    )
+    expect(css).toMatch(/\.row\[data-tone\]\s*\{[^}]*background:\s*var\(--ws-fill, transparent\)/)
+    expect(css).toMatch(
+      /\.row\[data-tone\]\s*\{[^}]*border-color:\s*var\(--ws-border, transparent\)/
+    )
+    expect(css).toMatch(/\.row\[data-tone\]:hover\s*\{[^}]*border-color:\s*var\(--text-secondary\)/)
+    expect(css).toMatch(
+      /\.row\[data-tone\]\[data-selected='true'\]\s*\{[^}]*border-color:\s*var\(--text-primary\)/
+    )
+    expect(css).toMatch(/\.row\[data-tone\] \.rowSelect:hover\s*\{[^}]*background:\s*transparent/)
   })
 })

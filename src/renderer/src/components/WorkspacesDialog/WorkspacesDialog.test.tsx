@@ -10,6 +10,7 @@ import { WorkspacesDialog } from './WorkspacesDialog'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { boardStore } from '../../stores/boardStore'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
+import { WORKSPACE_COLORS } from '../../../../shared/schemas/workspace'
 
 const ROWS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -356,6 +357,21 @@ describe('WorkspacesDialog', () => {
     click(q(r, '[data-testid="workspace-browse"]'))
     await flush()
     expect(pickDirectory).toHaveBeenCalledWith()
+  })
+
+  it('tints each rail row with its workspace colour and draws the colour picker as named swatches', async () => {
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="workspace-item-default"]').getAttribute('data-tone')).toBe('slate')
+    expect(q(r, '[data-testid="workspace-item-w1"]').getAttribute('data-tone')).toBe('blue')
+    click(q(r, '[data-testid="workspace-new"]'))
+    for (const c of WORKSPACE_COLORS) {
+      const radio = q<HTMLInputElement>(r, `[data-testid="workspace-color-${c}"]`)
+      expect(radio.getAttribute('aria-label')).toBe(c)
+      const label = radio.closest('label')
+      expect(label?.getAttribute('title')).toBe(c)
+      expect(label?.querySelector('[data-tone]')?.getAttribute('data-tone')).toBe(c)
+    }
   })
 })
 

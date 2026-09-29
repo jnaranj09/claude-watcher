@@ -21,7 +21,7 @@ import {
   WORKSPACE_NAME_MAX_LENGTH,
   type WorkspaceColor
 } from '../../../../shared/schemas/workspace'
-import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 import { boardStore } from '../../stores/boardStore'
 import { loadRules } from '../../stores/rulesStore'
@@ -145,7 +145,7 @@ function WorkspaceForm({
       <ManageDialog.Label>Color</ManageDialog.Label>
       <div className={styles.colorRow} role="radiogroup" aria-label="Color">
         {WORKSPACE_COLORS.map((c) => (
-          <label key={c} className={styles.colorOption}>
+          <label key={c} className={styles.colorOption} title={c}>
             <input
               type="radio"
               name="workspace-color"
@@ -158,7 +158,11 @@ function WorkspaceForm({
                 actions.setError(null)
               }}
             />
-            <WorkspaceDot tone={c} />
+            <span
+              className={`${styles.swatch} ${workspaceTintClass(c)}`}
+              data-tone={c}
+              aria-hidden="true"
+            />
           </label>
         ))}
       </div>
@@ -270,8 +274,8 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
                   id={w.id}
                   testId={`workspace-item-${w.id}`}
                   selectTestId={`workspace-select-${w.id}`}
+                  tint={w.color}
                 >
-                  <WorkspaceDot tone={w.color} />
                   <span className={styles.rowName}>{w.name}</span>
                   <span className={styles.rowFolder}>{w.defaultCwd ?? 'None'}</span>
                 </ManageDialog.Row>

@@ -23,6 +23,7 @@ import {
 } from './manageDialogState'
 import styles from './ManageDialog.module.css'
 import { Button, type ButtonSize } from '../Button/Button'
+import { workspaceTintClass, type WorkspaceTone } from '../WorkspaceTint/workspaceTint'
 
 function cx(...classes: (string | false | undefined)[]): string {
   return classes.filter((c): c is string => typeof c === 'string' && c.length > 0).join(' ')
@@ -402,6 +403,9 @@ export interface ManageDialogRowProps {
   /** The row's label, plus at most one <ManageDialog.RowActions> — a DIRECT child of this row,
    *  not wrapped in a Fragment or a wrapper component (see `ManageDialogRowActions`). */
   children: ReactNode
+  /** A workspace row (the Workspaces dialog): the row is tinted with that colour, and its hover /
+   *  selected states move to the border (spec 2026-09-29). */
+  tint?: WorkspaceTone
 }
 
 /**
@@ -419,14 +423,20 @@ export function ManageDialogRow({
   testId,
   selectTestId,
   dataAttributes = {},
-  children
+  children,
+  tint
 }: ManageDialogRowProps): JSX.Element {
   const { state, actions } = useManageDialogContext()
   const parts = Children.toArray(children)
   const rowActions = parts.filter(isRowActions)
   const label = parts.filter((part) => !isRowActions(part))
   return (
-    <div className={styles.row} data-testid={testId} data-selected={state.selectedId === id}>
+    <div
+      className={cx(styles.row, tint !== undefined && workspaceTintClass(tint))}
+      data-testid={testId}
+      data-selected={state.selectedId === id}
+      data-tone={tint}
+    >
       <button
         type="button"
         className={styles.rowSelect}

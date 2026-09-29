@@ -25,6 +25,16 @@
   align-items: center;
   cursor: pointer;
 }
+/* A colour choice is a small SQUARE of the tint it gives the workspace — never a dot (a circle
+   reads as a status). The radio beside it carries the choice and its name. */
+.swatch {
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: var(--rounded-sm);
+  border: 1px solid var(--ws-border);
+  background: var(--ws-fill);
+}
 .folderRow {
   display: flex;
   align-items: center;
