@@ -398,9 +398,16 @@ body {
 }
 /* A CONTROL on the header, not a surface: it takes the raised fill `+ New session` beside it has
    (`--bg-surface-raised`, white 10%), well above the header's 3%, and a faint border so the
-   rim carries the edge. It was black at 22% while the header was black at 20%; on the 3% header
-   that read as a hole. */
-[data-testid='workspace-switcher'],
+   rim carries the edge. The switcher takes its WORKSPACE tint instead when it has one
+   (spec 2026-09-29): translucent, so the glass still shows. Hover moves the border only. It was
+   black at 22% while the header was black at 20%; on the 3% header that read as a hole. */
+[data-testid='workspace-switcher'] {
+  background-color: var(--ws-fill, var(--bg-surface-raised));
+  border-color: var(--ws-border, rgba(255, 255, 255, 0.1));
+}
+[data-testid='workspace-switcher']:hover {
+  border-color: var(--text-secondary);
+}
 [data-testid='workspace-elsewhere-tab'] {
   background-color: var(--bg-surface-raised);
   border-color: rgba(255, 255, 255, 0.1);

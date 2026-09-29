@@ -1,5 +1,5 @@
 /* Workspaces — the header switcher popover. Chrome (radius/border/surface/shadow) mirrors
-   NewSessionMenu.module.css; the six dot colors below are the ONE new color axis in the app —
+   NewSessionMenu.module.css; a workspace's colour is its tint (WorkspaceTint, spec 2026-09-29) —
    everything else reuses the existing tokens, no new chrome color is invented. */
 .anchor {
   position: relative;
@@ -12,12 +12,12 @@
   z-index: 50;
 }
 
-/* The workspace PILL — a compound control (dot + name + count, the elsewhere tab tucked under it),
+/* The workspace PILL — a compound control (name + counts, the elsewhere tab tucked under it),
    not a button style, so it is not `components/Button`; the liquid-glass theme targets it by its
    test id. It is the header's height, and the pill's own line fills that box: the name, the count
    and the badge are baseline-aligned (below), and a baseline group sits at the TOP of a flex line,
    not the middle — with the height fixed, only a line as tall as the content box keeps the text
-   level with the dot. `--switcher-line` is that height, and the tab's strut uses the same one. */
+   level in the box. `--switcher-line` is that height, and the tab's strut uses the same one. */
 .anchor {
   --switcher-line: calc(32px - 2 * var(--space-1) - 2px);
 }
@@ -31,17 +31,19 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--ws-border, var(--border-strong));
   border-radius: var(--rounded-md);
-  background: var(--bg-surface-raised);
+  background: var(--ws-fill, var(--bg-surface-raised));
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-body);
   cursor: pointer;
 }
+/* The tint IS the workspace's colour, so hover moves the BORDER, never the fill. */
 .switcher:hover {
-  background: var(--bg-surface);
+  background: var(--ws-fill, var(--bg-surface));
+  border-color: var(--text-secondary);
 }
 .switcher:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -54,7 +56,7 @@
 
 /* The name, the grey total and the pill's digit share ONE baseline. Centering them left the grey
    digit ~1px below the pill's (measured on a 1× screenshot): a digit has no descender, so its
-   glyph is not the middle of its line box. The dot stays centered — it has no baseline. */
+   glyph is not the middle of its line box. */
 .name,
 .count,
 .switcher > .badge,
@@ -124,6 +126,8 @@
   margin-block: 2px;
   margin-left: calc(-1 * var(--space-3));
   padding: 2px var(--space-2) 2px calc(var(--space-3) + var(--space-2));
+  /* With no needs-you pill the tab is empty: this sliver still shows something is behind. */
+  min-width: calc(var(--space-3) + var(--space-3));
   border: 1px solid var(--border-strong);
   border-radius: 0 var(--rounded-md) var(--rounded-md) 0;
   background: var(--bg-base);
@@ -143,16 +147,6 @@
 .tab::before {
   content: '\200b';
   margin-inline-end: calc(-1 * var(--space-1));
-}
-
-/* Overlapping dots, each ringed in the tab's own background so the overlap stays readable. */
-.tabDot {
-  display: inline-flex;
-  border-radius: var(--rounded-full);
-  box-shadow: 0 0 0 1.5px var(--bg-base);
-}
-.tabDot + .tabDot {
-  margin-left: calc(-1 * var(--space-2));
 }
 
 /* It slides out from under the button when it first appears (the first card in another workspace). */
@@ -206,7 +200,15 @@
   text-align: left;
   cursor: pointer;
 }
-.row:hover,
+/* A menu row is tinted with ITS workspace's colour (WorkspaceTint); `Manage` stays untinted. */
+.row {
+  background: var(--ws-fill, transparent);
+  border-color: var(--ws-border, transparent);
+}
+.row:hover {
+  background: var(--ws-fill, var(--bg-surface));
+  border-color: var(--text-secondary);
+}
 .manage:hover {
   background: var(--bg-surface);
 }

@@ -173,7 +173,21 @@ describe('WorkspaceSwitcher', () => {
     expect(r.container.querySelector('[data-testid="workspace-here-badge"]')).toBeNull()
   })
 
-  it('puts one dot per OTHER workspace needing you on the tab — list order, at most 3', () => {
+  // The tab is ONE neutral tab (spec 2026-09-29): a workspace's colour on it was read as a
+  // session status — a blue workspace looked like "a card is working over there".
+  it('shows a neutral tab with NO dot and NO count when other workspaces have cards but none need you', () => {
+    seedCard('w1', 'a', 'idle')
+    seedCard('w1', 'b', 'working')
+    const r = renderSwitcher()
+    const tab = q(r, '[data-testid="workspace-elsewhere-tab"]')
+    expect(tab.children.length).toBe(0)
+    expect(tab.getAttribute('data-tone')).toBeNull()
+    expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
+      'Default, 0 sessions; 2 sessions in other workspaces'
+    )
+  })
+
+  it('puts only the yellow count on the tab, counting every card elsewhere that needs you', () => {
     workspacesStore.setState({
       workspaces: [
         ...rows,
@@ -188,56 +202,60 @@ describe('WorkspaceSwitcher', () => {
     seedNeedsYou('w1', 'd')
     seedNeedsYou('w2', 'e')
     const r = renderSwitcher()
-    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
-    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual([
-      'workspace-elsewhere-dot-w1',
-      'workspace-elsewhere-dot-w2',
-      'workspace-elsewhere-dot-w3'
+    const tab = q(r, '[data-testid="workspace-elsewhere-tab"]')
+    expect([...tab.children].map((c) => c.getAttribute('data-testid'))).toEqual([
+      'workspace-elsewhere-badge'
     ])
-    // The count still covers all four — the dots are capped, the number is not.
     expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('4')
   })
 
-  // A card whose workspace was deleted still needs you; it gets the dim orphan dot, after the
-  // real workspaces.
-  it('gives a needs-you card in a deleted workspace a dot after the real ones', () => {
+  // A card whose workspace was deleted has no colour to draw — it still shows the tab and counts.
+  it('counts a needs-you card in a deleted workspace on the tab', () => {
     seedNeedsYou('gone', 'a')
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
-    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
-    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual([
-      'workspace-elsewhere-dot-w1',
-      'workspace-elsewhere-dot-gone'
-    ])
+    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('2')
   })
 
-  // Any card in another workspace puts that workspace's dot on the tab (operator, 2026-09-29);
-  // the yellow count stays for needs-you only, so a tab with no pill means "cards, none waiting".
-  it('shows the tab with dots and NO count when other workspaces have cards but none need you', () => {
-    seedCard('w1', 'a', 'idle')
-    seedCard('w1', 'b', 'working')
+  it('tints the button with the ACTIVE workspace colour and each menu row with its own', () => {
+    workspacesStore.setState({ activeId: 'w1' })
     const r = renderSwitcher()
-    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
-    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual(['workspace-elsewhere-dot-w1'])
-    expect(r.container.querySelector('[data-testid="workspace-elsewhere-badge"]')).toBeNull()
-    expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
-      'Default, 0 sessions; 2 sessions in other workspaces'
+    const button = q(r, '[data-testid="workspace-switcher"]')
+    expect(button.getAttribute('data-tone')).toBe('blue')
+    click(button)
+    expect(q(r, '[data-testid="workspace-row-default"]').getAttribute('data-tone')).toBe('slate')
+  })
+
+  // No workspace dot inside a menu row: the name is the only thing before the counts.
+  it('draws no dot in a menu row', () => {
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(
+      q(r, '[data-testid="workspace-row-w1"]').querySelector('[aria-hidden="true"]')
+    ).toBeNull()
+  })
+
+  // The tint is the BACKGROUND and border; hover changes the border only, so the colour under the
+  // pointer never changes.
+  it('reads the tint in the stylesheet and hovers on the border', () => {
+    const css = readFileSync(
+      join(
+        process.cwd(),
+        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
+      ),
+      'utf8'
     )
-  })
-
-  it('puts a dot for every other workspace with cards, needs-you or not, in list order', () => {
-    workspacesStore.setState({
-      workspaces: [...rows, { id: 'w2', name: 'Two', color: 'green', defaultCwd: null }]
-    })
-    seedCard('w2', 'a', 'idle')
-    seedNeedsYou('w1', 'b')
-    const r = renderSwitcher()
-    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
-    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual([
-      'workspace-elsewhere-dot-w1',
-      'workspace-elsewhere-dot-w2'
-    ])
-    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('1')
+    const block = (sel: string): string => {
+      const i = css.indexOf(`${sel} {`)
+      return css.slice(i, css.indexOf('}', i))
+    }
+    expect(block('.switcher')).toContain('background: var(--ws-fill, var(--bg-surface-raised))')
+    expect(block('.switcher')).toContain('border: 1px solid var(--ws-border, var(--border-strong))')
+    expect(block('.switcher:hover')).toContain('background: var(--ws-fill, var(--bg-surface))')
+    expect(block('.switcher:hover')).toContain('border-color: var(--text-secondary)')
+    expect(block('.row')).toContain('background: var(--ws-fill, transparent)')
+    expect(block('.row')).toContain('border-color: var(--ws-border, transparent)')
+    expect(css).not.toContain('.tabDot')
   })
 
   it('renders no tab when only the active workspace has cards', () => {
@@ -457,9 +475,4 @@ describe('WorkspaceSwitcher', () => {
     expect(manageRules).not.toMatch(/border-radius:\s*0\b/)
     expect(manageRules).not.toMatch(/border-top/)
   })
-
-  // The swatch colors moved to WorkspaceDot.module.css (ONE definition app-wide); the
-  // completeness net over WORKSPACE_COLORS lives in WorkspaceDot.test.tsx, where it reads the
-  // stylesheet. Indexing an imported `styles` object could never have caught a missing class —
-  // vitest resolves a CSS module to a proxy that answers every key.
 })

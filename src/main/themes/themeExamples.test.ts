@@ -271,7 +271,9 @@ describe('docs/themes/examples', () => {
         .filter((r) => r.selectors.includes(sel))
         .map((r) => r.body)
         .join('\n')
-    const switcher = bodyOf("[data-testid='workspace-switcher']")
+    // The switcher itself now takes its workspace tint (spec 2026-09-29); the elsewhere tab beside
+    // it keeps the untinted glass border the buttons share.
+    const switcher = bodyOf("[data-testid='workspace-elsewhere-tab']")
     for (const sel of LEAF_BUTTONS.slice(2, 4)) {
       const body = bodyOf(sel)
       expect(body, sel).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)

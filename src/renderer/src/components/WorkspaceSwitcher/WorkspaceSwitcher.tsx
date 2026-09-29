@@ -1,8 +1,8 @@
 // Workspaces — the header switcher. Shows the active workspace with one pill per column: grey for
 // its idle cards, blue for the working ones and yellow for the ones that need you, INSIDE the
 // button; a pill at 0 is not drawn. Cards in OTHER workspaces go on a tab that slides out from
-// BEHIND the button, carrying the dots of every other workspace with a card, and a yellow pill only
-// while one of them needs you — a pill inside the button used to mean "elsewhere" too, and it read
+// BEHIND the button: a neutral tab — no colour, a workspace's colour there was read as a status
+// (spec 2026-09-29) — and a yellow pill only while one of them needs you — a pill inside the button used to mean "elsewhere" too, and it read
 // as "this one needs you" (alerts are global; only the CARDS are scoped — spec W-3). The tab used
 // to show for needs-you only; any card elsewhere shows it now (operator, 2026-09-29). The popover's open state is LOCAL
 // and transient, like NewSessionButton's.
@@ -22,11 +22,8 @@ import {
   useWorkspaces,
   workspacesStore
 } from '../../stores/workspacesStore'
-import { WorkspaceDot, type WorkspaceTone } from '../WorkspaceDot/WorkspaceDot'
+import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
 import styles from './WorkspaceSwitcher.module.css'
-
-/** The tab shows at most this many dots; the pill beside them still counts every card. */
-const MAX_TAB_DOTS = 3
 
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
@@ -78,17 +75,6 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
     )
   const elsewhereCards = sumOthers(totals)
   const elsewhere = sumOthers(counts)
-  // The OTHER workspaces with at least one card, in the list's order. A card whose workspace was
-  // deleted still counts: it comes last, with the orphan tone (it has no color of its own).
-  const known = new Set(workspaces.map((w) => w.id))
-  const elsewhereDots: { id: string; tone: WorkspaceTone }[] = [
-    ...workspaces
-      .filter((w) => w.id !== activeId && (totals[w.id] ?? 0) > 0)
-      .map((w) => ({ id: w.id, tone: w.color })),
-    ...Object.keys(totals)
-      .filter((id) => !known.has(id))
-      .map((id) => ({ id, tone: 'orphan' as const }))
-  ]
 
   const label =
     describeCounts(activeName, activeTotal, activeWorking, here) +
@@ -145,14 +131,14 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
       <button
         type="button"
         ref={buttonRef}
-        className={styles.switcher}
+        className={`${styles.switcher} ${workspaceTintClass(active?.color ?? 'slate')}`}
         data-testid="workspace-switcher"
+        data-tone={active?.color ?? 'slate'}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
         onClick={() => setOpen((v) => !v)}
       >
-        <WorkspaceDot tone={active?.color ?? 'slate'} />
         <span className={styles.name}>{activeName}</span>
         {activeGrey !== null && (
           <span className={styles.count} data-testid="workspace-card-count">
@@ -179,11 +165,6 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           aria-hidden="true"
           onClick={() => setOpen((v) => !v)}
         >
-          {elsewhereDots.slice(0, MAX_TAB_DOTS).map(({ id, tone }) => (
-            <span key={id} className={styles.tabDot} data-testid={`workspace-elsewhere-dot-${id}`}>
-              <WorkspaceDot tone={tone} />
-            </span>
-          ))}
           {elsewhere > 0 && (
             <span className={styles.badge} data-testid="workspace-elsewhere-badge">
               {elsewhere}
@@ -205,12 +186,12 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                 key={w.id}
                 type="button"
                 role="menuitem"
-                className={styles.row}
+                className={`${styles.row} ${workspaceTintClass(w.color)}`}
                 data-testid={`workspace-row-${w.id}`}
+                data-tone={w.color}
                 aria-label={describeCounts(w.name, total, working, needsYou)}
                 onClick={() => pick(w.id)}
               >
-                <WorkspaceDot tone={w.color} />
                 <span className={styles.rowName}>{w.name}</span>
                 {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
                 {grey !== null && (
