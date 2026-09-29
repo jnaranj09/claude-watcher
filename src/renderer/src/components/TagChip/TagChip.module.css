@@ -1,7 +1,7 @@
 /* Tags — the label pill (spec T-7, §4.2). ONE drawing of a tag name for the whole app: board
  * cards, rail rows (peek / show-all), the tag filter, the Tags… picker and the Tags dialog all
  * render <TagChip>. A rounded label with a tinted fill — never a dot + name, so it cannot read as
- * a WorkspaceDot (design.md) or a StatusDot — and it carries TEXT, so it cannot read as the
+ * a StatusDot, and a pill, never the workspace tint's small square box (design.md) — and it carries TEXT, so it cannot read as the
  * switcher's count pills. Colours come only from the `--tag-*` tokens. */
 .chip {
   flex: none;

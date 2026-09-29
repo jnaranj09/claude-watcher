@@ -1,7 +1,7 @@
 /* Workspaces — what is Workspaces' own in the Manage dialog: the row's content, the color picker
    and the default-folder line. The shell, list rail, form, footer and every button are
-   ManageDialog.module.css (.claude/rules/design.md). The dot and its six colors are
-   WorkspaceDot.module.css — render <WorkspaceDot tone={color} />. */
+   ManageDialog.module.css (.claude/rules/design.md). A workspace's colour is its
+   tint (WorkspaceTint) — the rows and the swatches below read it. */
 .rowName {
   flex: none;
   font-weight: var(--font-weight-label);

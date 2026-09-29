@@ -2,7 +2,7 @@
 // tag's text colour. One tag → one glyph; two → two overlapped; three or more → two + a `+`.
 // Colours follow the order given (tag-list order). It draws no text, so it can never read as a
 // count pill, and it is a tag shape, never a circle, so it can never read as a StatusDot or a
-// WorkspaceDot (T-7).
+// workspace tint (T-7).
 //
 // The overlap cuts the BACK glyph with an SVG mask shaped like the front glyph's outline, instead
 // of a stroke painted in the row's colour: a rail row changes fill on hover, when active and when

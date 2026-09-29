@@ -180,21 +180,34 @@ such dialog, so they all offer the same entries in the same order.
 - **`+ New` sits at the BOTTOM of the rail** (`margin-top: auto`), not directly under the last
   row — the list stops at its max-height, so without it the button floats mid-column whenever the
   form is the taller side.
-- **The swatch sits inside the control, and on every row.** The trigger shows the selected
-  scope's dot; each option in the list carries its own. This is `Select`'s `adornment`, and it is
-  one of the reasons the native control had to go.
+- **The name sits in its tint, in the trigger and on every row.** Each option passes a
+  `WorkspaceLabel` as `display` — something a native `<option>` can never do, and one of the
+  reasons the native control had to go.
 
 ## Naming a workspace in the UI
 
-`components/WorkspaceDot/WorkspaceDot.tsx` is the ONE swatch that stands for a workspace
-anywhere in the app — the header switcher, the Workspaces dialog rows, its color picker, the
-scope dropdown.
+A workspace is a LIGHT TINT of the control that names it — never a dot (spec
+`2026-09-29-workspace-tint-design.md`). A small coloured circle reads as a session STATUS in this app
+(the status dot, the rail): a blue workspace dot on the switcher's tab was read as "a card is working
+over there" (operator, 2026-09-29), which is why the dot was removed everywhere.
 
-- **`tone` is a flat union**: a `WorkspaceColor`, `'global'` (hollow ring), or `'orphan'` (dim
-  disc). A caller cannot pass a color for Global or forget the color for a real workspace. The
-  six color classes live in `WorkspaceDot.module.css` and nowhere else.
-- **The dot is never the only cue.** A name is always beside it, and the two non-workspace tones
-  differ by SHAPE (ring vs disc), so they survive greyscale and color blindness.
+- **`components/WorkspaceTint/` is the ONE tone → colour mapping.** `workspaceTintClass(tone)` sets
+  `--ws-fill` / `--ws-border` from the `--workspace-<color>-{fill,border}` tokens; a tinted control
+  reads them in its OWN rule (`background: var(--ws-fill, <its default>)`), so it keeps its shape and
+  only takes the colour. Where it is used: the switcher button, its menu rows, the Workspaces dialog
+  rows (`ManageDialog.Row tint`), the colour swatches.
+- **A workspace listed by name is `components/WorkspaceLabel/WorkspaceLabel.tsx`**: the name in a
+  small tinted box (`--rounded-sm` — a pill is a tag). The scope dropdowns pass it as the option's
+  `display`; the Past sessions form shows it.
+- **`tone` is a flat union**: a `WorkspaceColor`, `'global'` or `'orphan'`. The last two are NOT
+  workspaces and are UNTINTED: their class RESETS `--ws-fill`/`--ws-border` to `initial`, because
+  custom properties inherit and a Global label inside a tinted row must not take the row's colour.
+- **The tint is light** (default fill 14% / border 40% over `--bg-surface-raised`) and text on it
+  stays `--text-primary`. The tokens are separate from `--tag-*`: a workspace must not look like a tag.
+- **Hover on a tinted control moves the BORDER** (`--text-secondary`), never the fill — the fill IS
+  the colour. A selected tinted row: border `--text-primary`.
+- **The name is never absent.** Colour is not the only cue: Global and `(no workspace)` differ by
+  their NAME, which is always shown.
 - **Any operator-typed name truncates and keeps a `title`.** Workspace names are unbounded (a
   domain like `docs.example.app` overflows a rail a short name fits): `overflow:hidden` +
   `text-overflow:ellipsis` + `white-space:nowrap`, `min-width:0` on the flex parent or the
@@ -212,7 +225,8 @@ compact form, used only by the rail's default view. The Tags dialog RAIL names a
 siblings with `TagPathLabel` instead, never a chip (below).
 
 - **A tag is a label pill, never a dot.** A rounded rectangle with a tinted fill and the name in it.
-  The workspace dot and the status dot are circles; the rail's tag indicator is a tag OUTLINE.
+  The status dot is a circle, a workspace is a tinted square box; the rail's tag indicator is a tag
+  OUTLINE.
   Nothing else draws a tag.
 - **Colours come from the `--tag-<color>-{fill,border,text}` tokens only.** The fills are OPAQUE (the
   hue pre-composited over `--bg-surface`), so a chip measures the same on every surface — the gold
@@ -413,8 +427,8 @@ What the component owes you, because a native select gave it for free:
   `data-testid="<testId>-option-<value>"`. Tests drive it through
   `src/renderer/src/test/selectHarness.ts` (`chooseOption` / `selectedValue` / `optionValues`) —
   there is no `.value` to set and no `change` event to fire.
-- Options can carry an `adornment`, which is how every scope dropdown shows its workspace swatch
-  on every row — something a native `<option>` can never do.
+- Options can carry an `adornment` (the Tags dialog's colour preview) or a `display` that replaces
+  the label text (a workspace name in its tint) — something a native `<option>` can never do.
 
 A sentinel option value is a WORD (`'global'`), never `''`: it becomes part of the option's
 testid, and `template-scope-option-` with nothing after it is not a name anyone can read.
@@ -481,8 +495,8 @@ fixed height with room around the text, and that is what Button draws.
 - **The workspace switcher's menu lists only the OTHER workspaces.** The button already names the
   active one with its counts; listing it again read as a duplicate (operator, 2026-09-28). With no
   other workspace the menu is `Manage workspaces…` alone, with no divider.
-- **The workspace switcher is not a Button.** It is a compound pill (dot, name, count, the
-  "elsewhere" tab) with its own glass in the liquid-glass theme; it only matches Button's `md`
+- **The workspace switcher is not a Button.** It is a compound pill (its workspace tint, name,
+  counts, the "elsewhere" tab) with its own glass in the liquid-glass theme; it only matches Button's `md`
   height.
 - **The dashed pills** (`+ Add filter`, `+ tag`) and the menu / list rows (AppMenu items, Select
   options, ManageDialog row selects) are not buttons in this sense and keep their own rules.
@@ -510,9 +524,10 @@ and assert on its text instead.
 - Don't reach for a native `<select>`, `alert()`, `confirm()`, or any other browser-drawn widget
   with a popup. They are painted by the platform and cannot be themed.
 - Don't hard-code a color that a token already names (`--danger`, `--working`,
-  `--border-strong`, `--text-*`). The workspace dot colors are the ONE exception, and
-  they are documented as such at their definition.
-- Don't render a workspace as bare text, and don't copy the dot CSS into another module.
+  `--border-strong`, `--text-*`). The workspace tints are tokens too
+  (`--workspace-<color>-{fill,border}`).
+- Don't draw a workspace as a dot, and don't render a tinted workspace without `WorkspaceTint` —
+  never a copy of its colours in another module.
 - Don't group a scoped list into sections. The dropdown narrows it; the form names the scope.
 - Don't assert UI text by searching the container's `textContent` for a workspace name — the
   scope dropdown's own `<option>` labels contain every one of them, so such an assertion passes

@@ -114,7 +114,8 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
    `ManageDialog.Placeholder`, `+ New` calls `startNew()`. **Settings and Shortcuts are the same
    shell** — Settings with a rail of categories and a `Pane`, opening on the first (spec
    `2026-09-29-two-column-dialogs-design.md`). Destructive actions arm
-   in place and are red-outlined at rest; a workspace is always drawn with `WorkspaceDot`.
+   in place and are red-outlined at rest; a workspace is always drawn as its tint
+   (`WorkspaceTint` / `WorkspaceLabel`), never a dot.
    **A native `<select>` is banned** — Chromium paints its popup from the desktop's GTK theme,
    so it comes up light on a dark app; use `components/Select/Select.tsx`. **A bare
    `<input type="text">` is banned too** — five dialogs had grown five drifting copies of the
@@ -423,7 +424,7 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   gone from `main.css`; the pre-window `nativeTheme.themeSource = 'dark'` in index.ts is only the
   default before the first apply.
 - **Every renderer colour is a token.** `styles/noHexLiterals.test.ts` fails on a hex literal outside
-  `tokens.css` / `tokens.ts` / `xtermTheme.ts` / `WorkspaceDot.module.css` / `SmokeCockpit.tsx`. Ink
+  `tokens.css` / `tokens.ts` / `xtermTheme.ts` / `SmokeCockpit.tsx`. Ink
   on filled buttons is `--text-on-accent` / `--text-on-danger`. `TOKENS` lives in
   `src/shared/theme/tokens.ts` (main validates against it); the renderer path re-exports it.
 - **xterm re-themes live, but `allowTransparency` is read at creation only** (xterm requires it

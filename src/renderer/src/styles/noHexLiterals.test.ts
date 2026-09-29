@@ -20,7 +20,6 @@ const ALLOWED = new Set([
   'styles/tokens.css', // the sheet itself
   'styles/tokens.ts', // a re-export today; kept listed so a future value here is still allowed
   'styles/xtermTheme.ts',
-  'components/WorkspaceDot/WorkspaceDot.module.css', // the operator's workspace colours (design.md)
   'SmokeCockpit.tsx' // the diagnostic screen's deliberately hardcoded xterm theme
 ])
 

@@ -243,5 +243,5 @@
   color: var(--text-secondary);
 }
 
-/* The color dot + its six workspace colors moved to WorkspaceDot.module.css — ONE
-   definition for the whole app (.claude/rules/design.md). Render <WorkspaceDot tone={color} />. */
+/* A workspace's colour is its tint — ONE definition for the whole app, WorkspaceTint.module.css
+   (.claude/rules/design.md). */
