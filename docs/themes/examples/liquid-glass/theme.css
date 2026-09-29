@@ -313,7 +313,8 @@ body {
     linear-gradient(#000 0 0);
 }
 
-/* Popovers are GLASS: menus, dropdown lists, the `+ New session` popover, the tag picker and the
+/* Popovers are GLASS: menus, dropdown lists, the `+ New session` popover, the tag lists
+   (`[data-tag-menu]`: the board filter's and the card / rail picker's, one design) and the
    shortcut expander over a terminal. Each keeps its own translucent token background and blurs
    what is behind it.
    They were OPAQUE (#323235) from the GPU-off days (2026-08-03 to 2026-09-22): Chromium's
@@ -329,7 +330,7 @@ body {
 [role='menu'],
 [role='listbox'],
 [data-testid='new-session-menu'],
-[data-testid$='tag-picker'],
+[data-tag-menu],
 [data-testid='expander-box'] {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
@@ -347,7 +348,7 @@ body {
 [role='menu'],
 [role='listbox'],
 [data-testid='new-session-menu'],
-[data-testid$='tag-picker'],
+[data-tag-menu],
 [data-testid='expander-box'] {
   background-color: var(--glass-fill);
   border-color: rgba(255, 255, 255, 0.06);

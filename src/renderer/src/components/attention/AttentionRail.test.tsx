@@ -1156,8 +1156,8 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     act(() => item?.querySelector<HTMLButtonElement>('[data-testid="rail-tags-add"]')?.click())
     // A real click starts with a mousedown, and TagPicker closes on a mousedown outside its anchor:
     // the anchor must hold the list too, or the list is gone before the click lands.
-    const check = (): HTMLInputElement | null | undefined =>
-      item?.querySelector<HTMLInputElement>('[data-testid="rail-tag-picker-check-t-deploy"]')
+    const check = (): HTMLButtonElement | null | undefined =>
+      item?.querySelector<HTMLButtonElement>('[data-testid="rail-tag-picker-row-t-deploy"]')
     act(() => {
       check()?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     })

@@ -29,7 +29,7 @@ const POPOVERS = [
   "[role='menu']",
   "[role='listbox']",
   "[data-testid='new-session-menu']",
-  "[data-testid$='tag-picker']",
+  '[data-tag-menu]',
   "[data-testid='expander-box']"
 ]
 

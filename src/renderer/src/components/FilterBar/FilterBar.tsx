@@ -41,6 +41,7 @@ import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesS
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { Button } from '../Button/Button'
 import { TagChip } from '../TagChip/TagChip'
+import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
 
@@ -275,17 +276,15 @@ export function FilterBar({
               </span>
             )}
             {open && (
-              <div
-                className={styles.menu}
+              <TagMenu
+                align="start"
                 role="menu"
-                aria-label="Filter by tag"
+                ariaLabel="Filter by tag"
                 onKeyDown={handleMenuKeyDown}
               >
                 {ordered.length === 0 ? (
                   <>
-                    <span className={styles.empty} data-testid="filter-no-tags">
-                      No tags yet
-                    </span>
+                    <TagMenuNote testId="filter-no-tags">No tags yet</TagMenuNote>
                     <button
                       type="button"
                       role="menuitem"
@@ -298,20 +297,17 @@ export function FilterBar({
                   </>
                 ) : (
                   ordered.map((t) => (
-                    <button
+                    <TagMenuRow
                       key={t.id}
-                      type="button"
+                      tag={t}
+                      checked={t.id === activeTagId}
                       role="menuitemradio"
-                      aria-checked={t.id === activeTagId}
-                      className={styles.row}
-                      data-testid={`filter-tag-row-${t.id}`}
+                      testId={`filter-tag-row-${t.id}`}
                       onClick={() => pick(t.id)}
-                    >
-                      <TagChip tag={t} />
-                    </button>
+                    />
                   ))
                 )}
-              </div>
+              </TagMenu>
             )}
           </div>
         </div>

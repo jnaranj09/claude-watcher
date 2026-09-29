@@ -51,53 +51,62 @@ function render(over: Partial<TagPickerProps> = {}): {
   return { r, onChange, onClose, onParentClick, onParentKey }
 }
 
-const check = (r: RenderResult, id: string): HTMLInputElement => {
-  const el = r.container.querySelector<HTMLInputElement>(`[data-testid="picker-check-${id}"]`)
-  if (el === null) throw new Error(`missing checkbox ${id}`)
+const row = (r: RenderResult, id: string): HTMLButtonElement => {
+  const el = r.container.querySelector<HTMLButtonElement>(`[data-testid="picker-row-${id}"]`)
+  if (el === null) throw new Error(`missing row ${id}`)
   return el
 }
+const isOn = (r: RenderResult, id: string): boolean =>
+  row(r, id).getAttribute('aria-checked') === 'true'
 
 describe('TagPicker', () => {
-  it('one checkbox per offered tag, ticked when the card carries it, drawn with its path label', () => {
+  // 2026-09-29 — the board filter's tag list look: a coloured chip per row, a ✓ on the chosen
+  // ones, and no native checkbox (the desktop theme painted it white on a dark app).
+  it('one checkbox row per offered tag, on when the card carries it, drawn as a chip', () => {
     const { r } = render()
-    expect(check(r, 't-deploy').checked).toBe(false)
-    expect(check(r, 't-prod').checked).toBe(true)
-    expect(
-      r.container.querySelector('[data-testid="picker-row-t-deploy"] [data-testid="tag-path"]')
-        ?.textContent
-    ).toBe('deploy')
+    expect(r.container.querySelector('input')).toBeNull()
+    expect(row(r, 't-deploy').getAttribute('role')).toBe('checkbox')
+    expect(isOn(r, 't-deploy')).toBe(false)
+    expect(isOn(r, 't-prod')).toBe(true)
+    expect(row(r, 't-deploy').querySelector('[data-testid="tag-chip"]')?.textContent).toBe('deploy')
     expect(r.container.querySelector('[data-testid="picker"]')?.getAttribute('aria-label')).toBe(
       'Tags for api'
     )
   })
 
+  it('a chosen row carries the check mark; an unchosen one does not', () => {
+    const { r } = render()
+    expect(row(r, 't-prod').querySelector('[data-testid="tag-menu-check"]')).not.toBeNull()
+    expect(row(r, 't-deploy').querySelector('[data-testid="tag-menu-check"]')).toBeNull()
+  })
+
   it('ticking adds and unticking removes, handing back the list in tag-list order', () => {
     const { r, onChange } = render()
-    act(() => check(r, 't-deploy').click())
+    act(() => row(r, 't-deploy').click())
     expect(onChange).toHaveBeenLastCalledWith(['t-deploy', 't-prod'])
-    act(() => check(r, 't-prod').click())
+    act(() => row(r, 't-prod').click())
     expect(onChange).toHaveBeenLastCalledWith([])
   })
 
   it('clicks and Enter/Space inside never reach the parent (a board card is a role="button")', () => {
     const { r, onParentClick, onParentKey } = render()
-    act(() => check(r, 't-deploy').click())
-    fireEvent(check(r, 't-deploy'), new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    fireEvent(check(r, 't-deploy'), new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    act(() => row(r, 't-deploy').click())
+    fireEvent(row(r, 't-deploy'), new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    fireEvent(row(r, 't-deploy'), new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
     expect(onParentClick).not.toHaveBeenCalled()
     expect(onParentKey).not.toHaveBeenCalled()
   })
 
   it('Escape closes it and stops there', () => {
     const { r, onClose, onParentKey } = render()
-    fireEvent(check(r, 't-deploy'), new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    fireEvent(row(r, 't-deploy'), new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     expect(onClose).toHaveBeenCalledWith('escape')
     expect(onParentKey).not.toHaveBeenCalled()
   })
 
   it('a mousedown outside the anchor closes it; inside does not', () => {
     const { r, onClose } = render()
-    fireEvent(check(r, 't-deploy'), new MouseEvent('mousedown', { bubbles: true }))
+    fireEvent(row(r, 't-deploy'), new MouseEvent('mousedown', { bubbles: true }))
     expect(onClose).not.toHaveBeenCalled()
     fireEvent(document.body, new MouseEvent('mousedown', { bubbles: true }))
     expect(onClose).toHaveBeenCalledWith('outside')
@@ -110,12 +119,10 @@ describe('TagPicker', () => {
     )
   })
 
-  it('D-13: rows draw the path label (full name accessible), chips elsewhere are unaffected', () => {
+  it('a nested tag shows its full name in the chip, like the filter list', () => {
     const { r } = render({ tags: [DEPLOY, { ...PROD, name: 'deploy/prod' }] })
-    const row = r.container.querySelector<HTMLElement>(
-      '[data-testid="picker-row-t-prod"] [data-testid="tag-path"]'
+    expect(row(r, 't-prod').querySelector('[data-testid="tag-chip"]')?.textContent).toBe(
+      'deploy/prod'
     )
-    expect(row?.getAttribute('aria-label')).toBe('deploy/prod')
-    expect(row?.querySelector('[data-testid="tag-path-leaf"]')?.textContent).toBe('prod')
   })
 })

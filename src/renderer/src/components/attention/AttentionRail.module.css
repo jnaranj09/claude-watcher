@@ -610,6 +610,10 @@
   display: flex;
   align-items: center;
   width: 100%;
+  /* The tools cluster's widest footprint from the row's right edge: the pencil (Button `xs`, a
+   * 20px square), the 2px gap, the tag toggle (20px, 29px with its 3-or-more mark) and the
+   * cluster's `--space-2` inset (`.rowTools`). The name reserves it while the tools show (below). */
+  --rail-tools-width: calc(20px + 2px + 29px + var(--space-2));
   /* Each row's `+ tag` anchor stays its own: the button in THIS wrapper finds THIS row's ghost. */
   anchor-scope: --rail-add-tag;
 }
@@ -1082,6 +1086,22 @@
   padding-right: calc(var(--space-3) + 28px - var(--rounded-md));
 }
 
+/* While the tools SHOW — the row hovered, keyboard focus anywhere in it, or its tag peek open —
+ * the pencil joins the tag toggle on the row's right edge, and a long name ran UNDER both, which
+ * made them hard to see (2026-09-29). Reserve the whole cluster then, so the ellipsis ends before
+ * it. The name re-truncates a little on hover; that is the trade. Base CSS, so every theme gets
+ * it. Specificity 0-4-0 / 0-5-0 beats the tagged reservation above. */
+.rowWrap:has(.rowTools):hover .row,
+.rowWrap:has(.rowTools):focus-within .row,
+.rowWrap:has(.toolSlot[data-open]) .row {
+  padding-right: calc(var(--space-3) + var(--rail-tools-width));
+}
+.rowWrap:has(.rowTools):hover .row.active,
+.rowWrap:has(.rowTools):focus-within .row.active,
+.rowWrap:has(.toolSlot[data-open]) .row.active {
+  padding-right: calc(var(--space-3) + var(--rail-tools-width) - var(--rounded-md));
+}
+
 /* The tag toggle is the shared `Button` in a `.toolSlot` (above). OPEN is its `lit` state — the
  * board filter toggle's: a `--text-primary` fill with `--text-on-lit` ink (11.6:1), the mark redrawn
  * in that ink (`TagIndicator mono`). It is how the row says "expanded — press again to close". An
@@ -1092,6 +1112,14 @@
 .row[data-two-line] {
   flex-wrap: wrap;
   row-gap: var(--space-1);
+}
+
+/* In a wrapping row the name's `auto` basis is its whole unwrapped text: a long name did not fit
+ * beside the dot, so the dot sat alone on line 1 and the name dropped to line 2 (2026-09-29). Basis
+ * 0 makes it take the rest of line 1 and ellipsize there; the chips' 100% basis still breaks them
+ * onto line 2. */
+.row[data-two-line] .name {
+  flex-basis: 0;
 }
 
 /* Indented to the name: the dot's 8px + the row gap. */

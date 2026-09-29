@@ -1,0 +1,74 @@
+/* TagMenu — the ONE look of a tag list popup: the board filter's tag list and the TagPicker. The
+ * board filter's design (the one the operator liked, 2026-09-29), moved here so both use it. No
+ * caller declares a popup or row rule of its own (TagMenu.test.tsx). Tokens only. */
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  z-index: 50;
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+  cursor: default;
+}
+.alignStart {
+  left: 0;
+}
+.alignEnd {
+  right: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--bg-surface);
+}
+/* A tag that is ON — a border, like a selected Manage-dialog row, never a fill that could read as
+ * a tag colour; the ✓ says it without colour. */
+.row[aria-checked='true'] {
+  border-color: var(--border-strong);
+}
+.row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.check {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-primary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+}
+
+/* On the raised panel: --text-secondary, never --text-muted (design.md). */
+.note {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+}

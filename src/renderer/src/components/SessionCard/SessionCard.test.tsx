@@ -642,7 +642,7 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     expect(container.querySelector('[data-testid="card-tag-picker"]')).not.toBeNull()
     act(() =>
       container
-        .querySelector<HTMLInputElement>('[data-testid="card-tag-picker-check-t-ops"]')
+        .querySelector<HTMLButtonElement>('[data-testid="card-tag-picker-row-t-ops"]')
         ?.click()
     )
     expect(onSetTags).toHaveBeenCalledWith(['t-ops', 't-prod'])

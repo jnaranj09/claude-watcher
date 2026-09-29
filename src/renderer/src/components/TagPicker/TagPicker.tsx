@@ -1,13 +1,12 @@
-// Tags — the checkbox list that edits ONE card's tags (spec §4.3: the board card's `Tags…` menu
-// and the rail peek's `Edit`). Offers only the tags the card's workspace can see (T-11 — the caller
+// Tags — the list that edits ONE card's tags (spec §4.3: the board card's `Tags…` button and the
+// rail peek's `+ tag`). Offers only the tags the card's workspace can see (T-11 — the caller
 // passes that list), in tag-list order. Every tick applies at once through `onChange`; there is no
 // Save, because the card itself shows the result.
 //
-// D-13: each row draws `TagPathLabel`, not `TagChip` — a picker lists a tag among its siblings,
-// where the parent name is visible right above it, so the row shows the hierarchy. The card's own
-// chips (TagChip / TagChipRow / TagIndicator) are untouched and keep the full name.
-//
-// Checkboxes are allowed: design.md scopes the TextInput rule to TEXT fields.
+// Drawn by TagMenu, the board filter's tag list design (2026-09-29): a chip per row, a ✓ on the
+// ones the card carries, no native checkbox. Each row is a `role="checkbox"` button, so it still
+// reads as a checkbox. The chip carries the full name (`acme/prod`), like the filter list — the
+// indented path label (D-13) is kept for the Tags dialog rail only.
 //
 // Mechanics mirror the card's move menu and WorkspaceSwitcher: Escape closes and STOPS (it must not
 // also close a dialog or leave the focused view), a mousedown outside the anchor closes. Clicks and
@@ -15,8 +14,7 @@
 // card's own role="button" — without that, ticking a tag would also open the session.
 import { useEffect, type JSX, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
-import { TagPathLabel } from '../TagChip/TagPathLabel'
-import styles from './TagPicker.module.css'
+import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 
 export interface TagPickerProps {
   /** DOM id for the popup root. Lets a trigger button point `aria-controls` at it (SessionCard's
@@ -71,38 +69,36 @@ export function TagPicker({
       onClose('escape')
       return
     }
-    // Do NOT preventDefault: the checkbox's own toggle must still happen.
+    // Do NOT preventDefault: the row button's own click (Enter / Space) must still happen.
     if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
   }
 
   return (
-    <div
-      className={styles.picker}
+    <TagMenu
+      align="end"
       role="group"
-      aria-label={label}
-      data-testid={testId}
-      {...(id !== undefined ? { id } : {})}
+      ariaLabel={label}
+      testId={testId}
+      id={id}
       onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onKeyDown={handleKeyDown}
     >
       {tags.length === 0 ? (
-        <p className={styles.empty} data-testid={`${testId}-empty`}>
+        <TagMenuNote testId={`${testId}-empty`}>
           No tags here yet. Create them in the tag filter&apos;s Manage tags….
-        </p>
+        </TagMenuNote>
       ) : (
         tags.map((t) => (
-          <label key={t.id} className={styles.row} data-testid={`${testId}-row-${t.id}`}>
-            <input
-              type="checkbox"
-              className={styles.checkbox}
-              data-testid={`${testId}-check-${t.id}`}
-              checked={selected.has(t.id)}
-              onChange={() => toggle(t.id)}
-            />
-            <TagPathLabel tag={t} />
-          </label>
+          <TagMenuRow
+            key={t.id}
+            tag={t}
+            checked={selected.has(t.id)}
+            role="checkbox"
+            testId={`${testId}-row-${t.id}`}
+            onClick={() => toggle(t.id)}
+          />
         ))
       )}
-    </div>
+    </TagMenu>
   )
 }

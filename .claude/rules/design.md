@@ -206,10 +206,10 @@ scope dropdown.
 ## Naming a tag in the UI
 
 `components/TagChip/TagChip.tsx` is the ONE drawing of a tag as a CHIP — board card footers, rail
-rows (peek and "Show all tags"), the tag filter's pill and its tag list, the past-sessions rows, and
-the Tags dialog's colour-preview swatch. `components/TagIndicator/TagIndicator.tsx` is its compact
-form, used only by the rail's default view. A tag named in a LIST OF SIBLINGS — the Tags dialog
-rail, the `TagPicker` rows — is drawn by `TagPathLabel` instead, never a chip (below).
+rows (peek and "Show all tags"), the tag filter's pill, both tag LISTS (below), the past-sessions
+rows, and the Tags dialog's colour-preview swatch. `components/TagIndicator/TagIndicator.tsx` is its
+compact form, used only by the rail's default view. The Tags dialog RAIL names a tag among its
+siblings with `TagPathLabel` instead, never a chip (below).
 
 - **A tag is a label pill, never a dot.** A rounded rectangle with a tinted fill and the name in it.
   The workspace dot and the status dot are circles; the rail's tag indicator is a tag OUTLINE.
@@ -243,8 +243,20 @@ rail, the `TagPicker` rows — is drawn by `TagPathLabel` instead, never a chip 
   `overflow: hidden` + `line-height: 1` cut every `p`/`g`/`y` tail flat and sat the text ~1px low.
 - **A trigger that opens `TagPicker` uses `aria-expanded` + `aria-controls`** (pointed at the
   picker's own id), **never `aria-haspopup`** — the popup is a checkbox `group`, not a menu.
-- **In a list of siblings (the Tags dialog rail, the `TagPicker` rows) a tag's name is
-  `TagPathLabel`**: `acme/` in `--text-secondary`, `prod` in `--text-primary`, indented
+- **Every tag list popup is `components/TagMenu/TagMenu.tsx`** — the board filter's tag list AND
+  `TagPicker` (a card's `Tags…`, the rail peek's `+ tag`): a chip per row, a `✓` at the right of a
+  tag that is on, the row outlined, no native checkbox (2026-09-29 — the picker's checkboxes came up
+  white from the desktop theme, and two lists doing one job had two looks). The look lives in
+  `TagMenu.module.css` only; `TagMenu.test.tsx` fails if a caller declares its own popup or row
+  rule. Roles stay each caller's: the filter is a single-choice `menu` (`menuitemradio`), the picker
+  a checkbox `group` (`role="checkbox"` rows). Themes target `[data-tag-menu]` /
+  `[data-tag-menu-row]`, never one caller's test id, so no theme can style one list and miss the
+  other.
+- **A rail row's name leaves room for BOTH tools while they show** (hover, focus in the row, or its
+  peek open): the pencil and the tag toggle overlay the row's right edge, and a long name used to run
+  under them. `AttentionRail.module.css` reserves `--rail-tools-width` then; it re-truncates a
+  little on hover, which is the trade.
+- **In the Tags dialog rail a tag's name is `TagPathLabel`**: `acme/` in `--text-secondary`, `prod` in `--text-primary`, indented
   `depth × --space-3`, accessible name = the full name. Display only — nothing filters or matches
   by the path. Chips keep the full name.
 - **A card and an untagged rail row can always reach tagging, even before a tag exists.** With no

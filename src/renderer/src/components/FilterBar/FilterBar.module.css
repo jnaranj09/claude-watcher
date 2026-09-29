@@ -139,26 +139,8 @@
   background: var(--bg-surface);
 }
 
-.menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  left: 0;
-  z-index: 50;
-  min-width: 200px;
-  max-width: 300px;
-  max-height: 360px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-lg);
-  box-shadow: var(--shadow-pop);
-}
-
-.row,
+/* The tag list popup and its rows are TagMenu (TagMenu.module.css) — the ONE design the card /
+ * rail TagPicker shares. Only the filter's own `Create tags…` row lives here. */
 .create {
   display: flex;
   align-items: center;
@@ -168,7 +150,7 @@
   border: 1px solid transparent;
   border-radius: var(--rounded-md);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-family: var(--font-ui);
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-label);
@@ -176,31 +158,13 @@
   cursor: pointer;
 }
 
-.row:hover,
 .create:hover {
   background: var(--bg-surface);
-}
-
-/* The chosen tag — a border, like a selected Manage-dialog row, never a fill that could read as a
- * tag colour. */
-.row[aria-checked='true'] {
-  border-color: var(--border-strong);
-}
-
-.empty {
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-label);
-  color: var(--text-secondary);
-}
-
-.create {
-  color: var(--text-secondary);
 }
 
 .add:focus-visible,
 .pillEdit:focus-visible,
 .pillRemove:focus-visible,
-.row:focus-visible,
 .create:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
