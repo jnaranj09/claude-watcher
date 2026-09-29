@@ -1,9 +1,10 @@
 // Workspaces — the header switcher. Shows the active workspace with one pill per column: grey for
 // its idle cards, blue for the working ones and yellow for the ones that need you, INSIDE the
-// button; a pill at 0 is not drawn. Cards needing attention in OTHER
-// workspaces go on a tab that slides out from BEHIND the button, carrying those workspaces' dots —
-// a pill inside the button used to mean "elsewhere" too, and it read as "this one needs you"
-// (alerts are global; only the CARDS are scoped — spec W-3). The popover's open state is LOCAL
+// button; a pill at 0 is not drawn. Cards in OTHER workspaces go on a tab that slides out from
+// BEHIND the button, carrying the dots of every other workspace with a card, and a yellow pill only
+// while one of them needs you — a pill inside the button used to mean "elsewhere" too, and it read
+// as "this one needs you" (alerts are global; only the CARDS are scoped — spec W-3). The tab used
+// to show for needs-you only; any card elsewhere shows it now (operator, 2026-09-29). The popover's open state is LOCAL
 // and transient, like NewSessionButton's.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -70,26 +71,30 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
   const here = counts[activeId] ?? 0
   const activeWorking = workingCounts[activeId] ?? 0
   const activeGrey = greyCount(activeTotal, activeWorking, here)
-  const elsewhere = Object.entries(counts).reduce(
-    (total, [id, count]) => (id === activeId ? total : total + count),
-    0
-  )
-  // The OTHER workspaces that need you, in the list's order. A card whose workspace was deleted
-  // still needs you: it comes last, with the orphan tone (it has no color of its own).
+  const sumOthers = (byWorkspace: Record<string, number>): number =>
+    Object.entries(byWorkspace).reduce(
+      (total, [id, count]) => (id === activeId ? total : total + count),
+      0
+    )
+  const elsewhereCards = sumOthers(totals)
+  const elsewhere = sumOthers(counts)
+  // The OTHER workspaces with at least one card, in the list's order. A card whose workspace was
+  // deleted still counts: it comes last, with the orphan tone (it has no color of its own).
   const known = new Set(workspaces.map((w) => w.id))
   const elsewhereDots: { id: string; tone: WorkspaceTone }[] = [
     ...workspaces
-      .filter((w) => w.id !== activeId && (counts[w.id] ?? 0) > 0)
+      .filter((w) => w.id !== activeId && (totals[w.id] ?? 0) > 0)
       .map((w) => ({ id: w.id, tone: w.color })),
-    ...Object.keys(counts)
+    ...Object.keys(totals)
       .filter((id) => !known.has(id))
       .map((id) => ({ id, tone: 'orphan' as const }))
   ]
 
   const label =
     describeCounts(activeName, activeTotal, activeWorking, here) +
-    (elsewhere > 0
-      ? `; ${plural(elsewhere, 'session needs', 'sessions need')} you in other workspaces`
+    (elsewhereCards > 0
+      ? `; ${plural(elsewhereCards, 'session', 'sessions')} in other workspaces` +
+        (elsewhere > 0 ? `, ${plural(elsewhere, 'needs', 'need')} you` : '')
       : '')
 
   useEffect(() => {
@@ -165,8 +170,8 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           </span>
         )}
       </button>
-      {elsewhere > 0 && (
-        // Not its own Tab-key stop: the button's aria-label already reads this count, and a
+      {elsewhereCards > 0 && (
+        // Not its own Tab-key stop: the button's aria-label already reads these counts, and a
         // click here does exactly what the button does.
         <span
           className={styles.tab}
@@ -179,9 +184,11 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
               <WorkspaceDot tone={tone} />
             </span>
           ))}
-          <span className={styles.badge} data-testid="workspace-elsewhere-badge">
-            {elsewhere}
-          </span>
+          {elsewhere > 0 && (
+            <span className={styles.badge} data-testid="workspace-elsewhere-badge">
+              {elsewhere}
+            </span>
+          )}
         </span>
       )}
       {open && (

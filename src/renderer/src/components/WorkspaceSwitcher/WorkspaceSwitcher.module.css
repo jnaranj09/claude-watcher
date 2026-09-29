@@ -110,7 +110,7 @@
   color: var(--text-on-lit);
 }
 
-/* The elsewhere tab — cards needing you in OTHER workspaces. One layer below the button, its left
+/* The elsewhere tab — cards in OTHER workspaces (the yellow pill only while one needs you). One layer below the button, its left
    end tucked under the button's right edge, darker and a little shorter: it reads as coming from
    BEHIND the workspace on screen, so its pill cannot be taken for this workspace's. */
 .tab {
@@ -155,7 +155,7 @@
   margin-left: calc(-1 * var(--space-2));
 }
 
-/* It slides out from under the button — motion is reserved for needs-you signals, and this is one. */
+/* It slides out from under the button when it first appears (the first card in another workspace). */
 @keyframes tab-slide-out {
   from {
     transform: translateX(-100%);

@@ -211,6 +211,41 @@ describe('WorkspaceSwitcher', () => {
     ])
   })
 
+  // Any card in another workspace puts that workspace's dot on the tab (operator, 2026-09-29);
+  // the yellow count stays for needs-you only, so a tab with no pill means "cards, none waiting".
+  it('shows the tab with dots and NO count when other workspaces have cards but none need you', () => {
+    seedCard('w1', 'a', 'idle')
+    seedCard('w1', 'b', 'working')
+    const r = renderSwitcher()
+    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
+    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual(['workspace-elsewhere-dot-w1'])
+    expect(r.container.querySelector('[data-testid="workspace-elsewhere-badge"]')).toBeNull()
+    expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
+      'Default, 0 sessions; 2 sessions in other workspaces'
+    )
+  })
+
+  it('puts a dot for every other workspace with cards, needs-you or not, in list order', () => {
+    workspacesStore.setState({
+      workspaces: [...rows, { id: 'w2', name: 'Two', color: 'green', defaultCwd: null }]
+    })
+    seedCard('w2', 'a', 'idle')
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    const dots = [...r.container.querySelectorAll('[data-testid^="workspace-elsewhere-dot-"]')]
+    expect(dots.map((d) => d.getAttribute('data-testid'))).toEqual([
+      'workspace-elsewhere-dot-w1',
+      'workspace-elsewhere-dot-w2'
+    ])
+    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('1')
+  })
+
+  it('renders no tab when only the active workspace has cards', () => {
+    seedCard('default', 'a', 'idle')
+    const r = renderSwitcher()
+    expect(r.container.querySelector('[data-testid="workspace-elsewhere-tab"]')).toBeNull()
+  })
+
   it('opens the dropdown from the tab too', () => {
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
@@ -225,7 +260,7 @@ describe('WorkspaceSwitcher', () => {
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
     expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
-      'Default, 1 session, 1 needs you; 1 session needs you in other workspaces'
+      'Default, 1 session, 1 needs you; 1 session in other workspaces, 1 needs you'
     )
   })
 
