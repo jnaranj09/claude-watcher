@@ -23,8 +23,11 @@ import styles from './Select.module.css'
 export interface SelectOption<T extends string> {
   value: T
   label: string
-  /** Optional leading element — the workspace swatch, for the scope dropdowns. */
+  /** Optional leading element — the Tags dialog's colour picker draws its chip preview here. */
   adornment?: ReactNode
+  /** Drawn IN PLACE of the label text, in the trigger and in this option's row — a workspace name
+   *  in its tint (WorkspaceLabel). `label` stays the option's text for tests and assistive tech. */
+  display?: ReactNode
 }
 
 export interface SelectProps<T extends string> {
@@ -135,7 +138,7 @@ export function Select<T extends string>({
         onKeyDown={handleTriggerKeyDown}
       >
         {selected?.adornment}
-        <span className={styles.label}>{selected?.label ?? ''}</span>
+        <span className={styles.label}>{selected?.display ?? selected?.label ?? ''}</span>
         <span className={styles.caret} aria-hidden="true">
           ▾
         </span>
@@ -163,7 +166,7 @@ export function Select<T extends string>({
               onClick={() => commit(o.value)}
             >
               {o.adornment}
-              <span className={styles.label}>{o.label}</span>
+              <span className={styles.label}>{o.display ?? o.label}</span>
             </button>
           ))}
         </div>

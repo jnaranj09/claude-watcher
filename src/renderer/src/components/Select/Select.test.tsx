@@ -168,4 +168,24 @@ describe('Select', () => {
     )
     expect(css).toMatch(/\.listEnd\s*\{[^}]*left:\s*auto;[^}]*right:\s*0;/)
   })
+
+  // A workspace dropdown draws the name in its tint (WorkspaceLabel) instead of plain text. The
+  // label stays the option's text for tests and assistive tech.
+  it('draws `display` in place of the label text, in the trigger and the row', () => {
+    const opts: SelectOption<'a' | 'b'>[] = [
+      { value: 'a', label: 'Alpha', display: <em data-testid="shown-a">Alpha</em> },
+      { value: 'b', label: 'Beta' }
+    ]
+    const r = renderComponent(
+      <Select value="a" options={opts} onChange={vi.fn()} ariaLabel="Letter" testId="letter" />
+    )
+    cleanup = r.unmount
+    const trigger = q(r, '[data-testid="letter"]')
+    expect(trigger.querySelector('[data-testid="shown-a"]')).not.toBeNull()
+    expect(trigger.textContent).toContain('Alpha')
+    click(trigger)
+    const row = q(r, '[data-testid="letter-option-a"]')
+    expect(row.querySelector('[data-testid="shown-a"]')).not.toBeNull()
+    expect(q(r, '[data-testid="letter-option-b"]').textContent).toBe('Beta')
+  })
 })
