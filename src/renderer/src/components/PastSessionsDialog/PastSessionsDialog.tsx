@@ -13,7 +13,7 @@ import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TextInput } from '../TextInput/TextInput'
-import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import {
   selectActiveWorkspaceId,
@@ -230,7 +230,7 @@ export function PastSessionsDialog({
   )
 }
 
-/** The read-only form: name, full folder, workspace (always drawn with WorkspaceDot), tags, times.
+/** The read-only form: name, full folder, workspace (its name in its tint, WorkspaceLabel), tags, times.
  *  No editable field — name and tags change on the live card after Open. */
 function PastSessionDetails({
   session,
@@ -258,10 +258,10 @@ function PastSessionDetails({
       </p>
       <ManageDialog.Label>Workspace</ManageDialog.Label>
       <p className={styles.valueRow} data-testid="past-session-form-workspace">
-        <WorkspaceDot tone={workspace?.color ?? 'orphan'} />
-        <span className={styles.workspaceName} title={workspace?.name ?? '(no workspace)'}>
-          {workspace?.name ?? '(no workspace)'}
-        </span>
+        <WorkspaceLabel
+          name={workspace?.name ?? '(no workspace)'}
+          tone={workspace?.color ?? 'orphan'}
+        />
       </p>
       <ManageDialog.Label>Tags</ManageDialog.Label>
       <div className={styles.valueRow}>

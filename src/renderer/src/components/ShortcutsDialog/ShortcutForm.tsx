@@ -22,7 +22,7 @@ import {
   type ShortcutDraft
 } from './shortcutForm'
 import { Select } from '../Select/Select'
-import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './ShortcutsDialog.module.css'
 
@@ -113,11 +113,15 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
       <Select
         value={draft.workspaceId ?? GLOBAL_SCOPE}
         options={[
-          { value: GLOBAL_SCOPE, label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+          {
+            value: GLOBAL_SCOPE,
+            label: 'Global',
+            display: <WorkspaceLabel name="Global" tone="global" />
+          },
           ...workspaces.map((w) => ({
             value: w.id,
             label: w.name,
-            adornment: <WorkspaceDot tone={w.color} />
+            display: <WorkspaceLabel name={w.name} tone={w.color} />
           }))
         ]}
         onChange={(next) => change({ ...draft, workspaceId: next === GLOBAL_SCOPE ? null : next })}

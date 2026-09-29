@@ -12,7 +12,7 @@ import { inRuleScope } from '../../../../shared/rules/ruleRefs'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Select } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
-import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { removeRule, saveRule } from '../../stores/rulesStore'
 import { selectTags, useTags } from '../../stores/tagsStore'
 import { selectTemplates, useTemplates } from '../../stores/templatesStore'
@@ -131,11 +131,15 @@ export function RuleForm({ rule, onSaved }: RuleFormProps): JSX.Element {
       <Select
         value={draft.workspaceId ?? GLOBAL_SCOPE}
         options={[
-          { value: GLOBAL_SCOPE, label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+          {
+            value: GLOBAL_SCOPE,
+            label: 'Global',
+            display: <WorkspaceLabel name="Global" tone="global" />
+          },
           ...workspaces.map((w) => ({
             value: w.id,
             label: w.name,
-            adornment: <WorkspaceDot tone={w.color} />
+            display: <WorkspaceLabel name={w.name} tone={w.color} />
           }))
         ]}
         onChange={(next) => {

@@ -21,7 +21,7 @@ import { Select } from '../Select/Select'
 import { TagChip } from '../TagChip/TagChip'
 import { TagPathLabel } from '../TagChip/TagPathLabel'
 import { TextInput } from '../TextInput/TextInput'
-import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { removeTag, saveTag, selectTags, useTags } from '../../stores/tagsStore'
 import { rulesStore, rulesUsingTag } from '../../stores/rulesStore'
 import {
@@ -217,11 +217,15 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
       <Select
         value={workspaceId ?? GLOBAL_SCOPE}
         options={[
-          { value: GLOBAL_SCOPE, label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+          {
+            value: GLOBAL_SCOPE,
+            label: 'Global',
+            display: <WorkspaceLabel name="Global" tone="global" />
+          },
           ...workspaces.map((w) => ({
             value: w.id,
             label: w.name,
-            adornment: <WorkspaceDot tone={w.color} />
+            display: <WorkspaceLabel name={w.name} tone={w.color} />
           }))
         ]}
         onChange={(next) => setWorkspaceId(next === GLOBAL_SCOPE ? null : next)}

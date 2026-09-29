@@ -9,7 +9,7 @@
 // `color-scheme: dark` nor `nativeTheme.themeSource` changed it.
 import type { JSX } from 'react'
 import type { Workspace } from '../../../../shared/ipc/contract'
-import { WorkspaceDot, type WorkspaceTone } from '../WorkspaceDot/WorkspaceDot'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { Select, type SelectOption } from '../Select/Select'
 import { workspaceScope, type ScopeFilterValue } from './scope'
 
@@ -42,8 +42,8 @@ export function ScopeFilter({
   testId,
   ariaLabel
 }: ScopeFilterProps): JSX.Element {
-  // Each entry carries its own swatch, which a native <option> could never do — the whole list
-  // is now colour-coded, not just the closed trigger.
+  // Each entry is its workspace's NAME in its tint — never a dot (spec 2026-09-29), and something a
+  // native <option> could never draw. Global and `(no workspace)` are untinted.
   const options: SelectOption<ScopeFilterValue>[] = [
     { value: 'all', label: allLabel },
     ...(showGlobal
@@ -51,21 +51,21 @@ export function ScopeFilter({
           {
             value: 'global' as ScopeFilterValue,
             label: 'Global',
-            adornment: <WorkspaceDot tone="global" />
+            display: <WorkspaceLabel name="Global" tone="global" />
           }
         ]
       : []),
     ...workspaces.map((w) => ({
       value: workspaceScope(w.id),
       label: w.name,
-      adornment: <WorkspaceDot tone={w.color as WorkspaceTone} />
+      display: <WorkspaceLabel name={w.name} tone={w.color} />
     })),
     ...(showOrphans
       ? [
           {
             value: 'orphans' as ScopeFilterValue,
             label: '(no workspace)',
-            adornment: <WorkspaceDot tone="orphan" />
+            display: <WorkspaceLabel name="(no workspace)" tone="orphan" />
           }
         ]
       : [])

@@ -15,7 +15,7 @@ import { removeTemplate, saveTemplate } from '../../stores/templatesStore'
 import { rulesLosingTemplate, rulesStore, rulesUsingTemplate } from '../../stores/rulesStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Select } from '../Select/Select'
-import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
   MODEL_CHOICES,
@@ -183,11 +183,15 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
       <Select
         value={draft.workspaceId ?? GLOBAL_SCOPE}
         options={[
-          { value: GLOBAL_SCOPE, label: 'Global', adornment: <WorkspaceDot tone="global" /> },
+          {
+            value: GLOBAL_SCOPE,
+            label: 'Global',
+            display: <WorkspaceLabel name="Global" tone="global" />
+          },
           ...workspaces.map((w) => ({
             value: w.id,
             label: w.name,
-            adornment: <WorkspaceDot tone={w.color} />
+            display: <WorkspaceLabel name={w.name} tone={w.color} />
           }))
         ]}
         onChange={(next) => patch({ workspaceId: next === GLOBAL_SCOPE ? null : next })}

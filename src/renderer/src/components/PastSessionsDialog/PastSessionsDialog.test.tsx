@@ -223,6 +223,9 @@ describe('PastSessionsDialog', () => {
     )
     expect(q(r, '[data-testid="past-session-form-workspace"]')?.textContent).toContain('Ops')
     expect(
+      q(r, '[data-testid="past-session-form-workspace"] [data-tone]')?.getAttribute('data-tone')
+    ).toBe('blue')
+    expect(
       q(r, '[data-testid="past-session-form-tags"]')?.querySelectorAll('[data-testid="tag-chip"]')
     ).toHaveLength(1)
     // The form is read-only: nothing in it can be typed into.
@@ -238,7 +241,7 @@ describe('PastSessionsDialog', () => {
   })
 
   // The cascade makes this unreachable through the app; if it ever happens the form still draws a
-  // workspace the design's way (the orphan disc + `(no workspace)`), never a raw id.
+  // workspace the design's way (the untinted `(no workspace)` name), never a raw id.
   it('a record whose workspace is gone draws the orphan workspace, not its id', async () => {
     list.mockReturnValueOnce(Promise.resolve([{ ...A, workspaceId: 'gone-id' }]))
     const { r } = render()
@@ -248,6 +251,7 @@ describe('PastSessionsDialog', () => {
     const ws = q(r, '[data-testid="past-session-form-workspace"]')
     expect(ws?.textContent).toBe('(no workspace)')
     expect(ws?.textContent).not.toContain('gone-id')
+    expect(ws?.querySelector('[data-tone]')?.getAttribute('data-tone')).toBe('orphan')
   })
 
   it('Open resumes it, takes the view and closes the dialog', async () => {
