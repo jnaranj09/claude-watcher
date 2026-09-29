@@ -1,0 +1,36 @@
+/* The ONE mapping from a workspace tone to its tint (spec 2026-09-29-workspace-tint-design.md). A
+   workspace is a LIGHT tint of the control that names it, never a dot. Each class sets two custom
+   properties; a tinted control reads them in its OWN rule — `background: var(--ws-fill, …)`,
+   `border-color: var(--ws-border, …)` — so it keeps its own shape and only takes the colour. The
+   values are theme tokens (tokens.css), so a theme can tune them. */
+.slate {
+  --ws-fill: var(--workspace-slate-fill);
+  --ws-border: var(--workspace-slate-border);
+}
+.blue {
+  --ws-fill: var(--workspace-blue-fill);
+  --ws-border: var(--workspace-blue-border);
+}
+.green {
+  --ws-fill: var(--workspace-green-fill);
+  --ws-border: var(--workspace-green-border);
+}
+.amber {
+  --ws-fill: var(--workspace-amber-fill);
+  --ws-border: var(--workspace-amber-border);
+}
+.violet {
+  --ws-fill: var(--workspace-violet-fill);
+  --ws-border: var(--workspace-violet-border);
+}
+.rose {
+  --ws-fill: var(--workspace-rose-fill);
+  --ws-border: var(--workspace-rose-border);
+}
+/* Global and (no workspace) are not workspaces and have no colour. Custom properties INHERIT, so
+   this RESETS them (the guaranteed-invalid value): a Global label inside a tinted row must fall
+   back to its own default, not take the row's colour. */
+.neutral {
+  --ws-fill: initial;
+  --ws-border: initial;
+}

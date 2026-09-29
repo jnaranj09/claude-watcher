@@ -1,0 +1,21 @@
+/* A workspace NAME in its light tint — the dropdowns, the Past sessions form. Shape of a small box
+   (--rounded-sm), NOT a pill: a pill is a tag (TagChip). The text stays --text-primary. */
+.label {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--ws-border, var(--border));
+  border-radius: var(--rounded-sm);
+  background: var(--ws-fill, transparent);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.label[data-tone='orphan'] {
+  color: var(--text-secondary);
+}
