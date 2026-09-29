@@ -279,8 +279,10 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **Shortcuts are reached by ALIAS, not by a chord of their own.** One chord
   (`settings.expanderKey`, `Ctrl+Alt+X` by default) opens `ExpanderBox` inside the focused
   terminal; `<alias> <values…>` expands `$1..$9` / `$*` / `$$` (`src/renderer/src/shortcuts/expand.ts`,
-  pure) and the result is TYPED over the port, never submitted. Any other `Ctrl+Alt` chord still
-  reaches the pty untouched.
+  pure) and the result is TYPED over the port, never submitted. A value may hold spaces when
+  quoted: `parseInput` takes `"…"` / `'…'`, `\` escapes, `""` is an empty value, and an unclosed
+  quote takes the rest of the line (never an error — the box parses on every keystroke). Any other
+  `Ctrl+Alt` chord still reaches the pty untouched.
 - **A workspace switch unmounts NOTHING.** Hidden terminals stay in `launchedTerminals` and
   render `active={false}` → `visibility:hidden` on the whole frame. Live xterms accumulate
   across workspaces; bounding that memory is a separate IdeasBoard item.

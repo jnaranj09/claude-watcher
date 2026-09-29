@@ -28,6 +28,45 @@ describe('parseInput', () => {
     expect(parseInput('')).toEqual({ alias: '', args: [] })
     expect(parseInput('   ')).toEqual({ alias: '', args: [] })
   })
+  it('a double- or single-quoted value keeps its whitespace as ONE value', () => {
+    expect(parseInput('dp "fix  login bug" 1234')).toEqual({
+      alias: 'dp',
+      args: ['fix  login bug', '1234']
+    })
+    expect(parseInput("dp 'a b' c")).toEqual({ alias: 'dp', args: ['a b', 'c'] })
+  })
+  it('the other quote kind is literal inside a quote', () => {
+    expect(parseInput(`say "it's" 'say "hi"'`)).toEqual({
+      alias: 'say',
+      args: ["it's", 'say "hi"']
+    })
+  })
+  it('a backslash escapes the next character, inside and outside quotes', () => {
+    expect(parseInput('say \\"a b\\" "x\\"y" c\\\\d e\\ f')).toEqual({
+      alias: 'say',
+      args: ['"a', 'b"', 'x"y', 'c\\d', 'e f']
+    })
+    expect(parseInput("say don\\'t")).toEqual({ alias: 'say', args: ["don't"] })
+  })
+  it('an empty quoted value is a real (empty) value', () => {
+    expect(parseInput('dp "" x')).toEqual({ alias: 'dp', args: ['', 'x'] })
+  })
+  it('quoted and bare parts of one word join (shell rule)', () => {
+    expect(parseInput('say a"b c"d')).toEqual({ alias: 'say', args: ['ab cd'] })
+  })
+  it('an unclosed quote takes the rest of the line as one value, no error', () => {
+    expect(parseInput('dp "half typed  value')).toEqual({
+      alias: 'dp',
+      args: ['half typed  value']
+    })
+    expect(parseInput('dp "')).toEqual({ alias: 'dp', args: [''] })
+  })
+  it('a trailing lone backslash is kept literally', () => {
+    expect(parseInput('say a\\')).toEqual({ alias: 'say', args: ['a\\'] })
+  })
+  it('a quoted alias is lowercased like a bare one', () => {
+    expect(parseInput('"HT" 1')).toEqual({ alias: 'ht', args: ['1'] })
+  })
 })
 
 describe('matchAliases', () => {
@@ -105,6 +144,13 @@ describe('expandInput', () => {
       ok: true,
       value: 'work on help desk ticket 1234'
     })
+  })
+  it('a quoted value with spaces fills ONE positional, and $* keeps its inner spaces', () => {
+    expect(expandInput('dp "api gateway" staging', list)).toEqual({
+      ok: true,
+      value: 'deploy api gateway to staging'
+    })
+    expect(expandInput('say "a  b" c', list)).toEqual({ ok: true, value: 'say a  b c' })
   })
   it('an empty input is an unknown empty alias', () => {
     expect(expandInput('', list)).toEqual({

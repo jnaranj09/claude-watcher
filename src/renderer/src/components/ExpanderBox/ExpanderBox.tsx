@@ -100,7 +100,7 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
       <TextInput
         ariaLabel="Expand shortcut"
         testId="expander-input"
-        placeholder="alias value value…"
+        placeholder='alias value "value with spaces"…'
         maxLength={INPUT_MAX_LENGTH}
         value={query}
         onChange={handleChange}

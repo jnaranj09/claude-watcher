@@ -31,12 +31,39 @@ export interface ParsedInput {
   args: string[]
 }
 
-/** `"HT 1234"` → `{ alias: 'ht', args: ['1234'] }`. Whitespace-separated, never quoted. */
+/**
+ * `"HT 1234"` → `{ alias: 'ht', args: ['1234'] }`. Words split on whitespace, with a small shell
+ * subset so a value can hold spaces: `"…"` or `'…'` groups (the other quote kind is literal
+ * inside), `\` escapes the next character anywhere, `""` is a real empty value, and quoted and bare
+ * parts of one word join (`a"b c"` → `ab c`). An unclosed quote takes the rest of the line — the
+ * box parses on every keystroke, so a half-typed quote is never an error.
+ */
 export function parseInput(raw: string): ParsedInput {
-  const words = raw
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 0)
+  const words: string[] = []
+  let word = ''
+  let inWord = false // true once the word has any part, so `""` still counts as a word
+  let quote: '"' | "'" | null = null
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i] as string
+    if (ch === '\\' && i + 1 < raw.length) {
+      word += raw[++i] as string
+      inWord = true
+    } else if (quote !== null) {
+      if (ch === quote) quote = null
+      else word += ch
+    } else if (ch === '"' || ch === "'") {
+      quote = ch
+      inWord = true
+    } else if (/\s/.test(ch)) {
+      if (inWord) words.push(word)
+      word = ''
+      inWord = false
+    } else {
+      word += ch
+      inWord = true
+    }
+  }
+  if (inWord) words.push(word)
   const [first, ...args] = words
   return { alias: (first ?? '').toLowerCase(), args }
 }
