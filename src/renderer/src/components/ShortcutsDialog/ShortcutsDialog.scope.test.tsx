@@ -81,9 +81,9 @@ function q<T extends Element>(r: RenderResult, sel: string): T {
 }
 
 function ids(r: RenderResult): string[] {
-  return [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')]
-    .map((el) => el.getAttribute('data-testid') ?? '')
-    .filter((id) => id !== 'shortcut-row-editing')
+  return [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')].map(
+    (el) => el.getAttribute('data-testid') ?? ''
+  )
 }
 
 const FILTER = 'shortcut-scope-filter'
@@ -128,17 +128,17 @@ describe('ShortcutsDialog scope filter', () => {
   })
 
   // Flat in EVERY scope, All included — same rule as the templates rail. Structural, not an
-  // absent-testid check: ONE rowgroup holding every row is what a sectioned list cannot produce,
-  // and it is also the a11y shape (table > rowgroup > row) that must survive.
-  it('never renders scope sections — one rowgroup holds every row', () => {
+  // absent-testid check: ONE parent holding every row, and nothing else, is what a sectioned list
+  // cannot produce.
+  it('never renders scope sections — one list holds every row', () => {
     seed([GLOBAL, OWN])
     const r = render()
     chooseOption(r.container, FILTER, 'all')
-    const groups = r.container.querySelectorAll('[role="rowgroup"]')
-    expect(groups).toHaveLength(1)
     const rows = [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')]
     expect(rows).toHaveLength(2)
-    expect(groups[0]?.children).toHaveLength(rows.length)
+    const parent = rows[0]?.parentElement
+    expect(rows.every((row) => row.parentElement === parent)).toBe(true)
+    expect(parent?.children).toHaveLength(rows.length)
   })
 
   it('offers (no workspace) only when a row has a gone workspace', () => {
@@ -153,15 +153,15 @@ describe('ShortcutsDialog scope filter', () => {
     expect(optionValues(r2.container, FILTER)).toContain('orphans')
   })
 
-  // The editor card is the shortcuts dialog's equivalent of the templates form: it must not
-  // outlive the list it was opened from.
-  it('closes the open editor when the scope changes', () => {
+  // The form must not outlive the list it was opened from: nothing open, the placeholder.
+  it('closes the open form when the scope changes', () => {
     seed([GLOBAL, OWN])
     const r = render()
-    click(q(r, '[data-testid="shortcut-edit-own"]'))
-    expect(r.container.querySelector('[data-testid="shortcut-row-editing"]')).not.toBeNull()
+    click(q(r, '[data-testid="shortcut-select-own"]'))
+    expect(r.container.querySelector('[data-testid="shortcut-form"]')).not.toBeNull()
     chooseOption(r.container, FILTER, 'global')
-    expect(r.container.querySelector('[data-testid="shortcut-row-editing"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="shortcut-form"]')).toBeNull()
+    expect(q(r, '[data-testid="shortcut-placeholder"]')).toBeTruthy()
   })
 
   // R7 — three empty states, three sentences (design.md). With shortcuts saved but none in the
@@ -183,12 +183,31 @@ describe('ShortcutsDialog scope filter', () => {
     expect(q(r, '[data-testid="shortcuts-empty-scope"]').textContent).toBe('No global shortcuts')
   })
 
-  // Editing the scope's only row hides it from the list (the editor holds it) — that is not an
-  // empty scope, and saying so under the open editor would be false.
-  it('does not call the scope empty while its only row is in the editor', () => {
+  // Editing the scope's only row keeps it in the rail — the scope is not empty.
+  it('does not call the scope empty while its only row is open', () => {
     seed([GLOBAL, OWN])
     const r = render()
-    click(q(r, '[data-testid="shortcut-edit-own"]'))
+    click(q(r, '[data-testid="shortcut-select-own"]'))
     expect(r.container.querySelector('[data-testid="shortcuts-empty-scope"]')).toBeNull()
+  })
+})
+
+describe('a save that moves the row follows it (Review Focus 5)', () => {
+  it('keeps the row selected and re-points the filter at its new scope', async () => {
+    seed([OWN])
+    const moved: Shortcut = { ...OWN, workspaceId: null }
+    ;(window as unknown as { shortcuts: { save: unknown } }).shortcuts.save = vi.fn(() =>
+      Promise.resolve({ saved: moved, shortcuts: [moved] })
+    )
+    const r = render()
+    click(q(r, '[data-testid="shortcut-select-own"]'))
+    chooseOption(r.container, 'shortcut-scope', 'global')
+    click(q(r, '[data-testid="shortcut-save"]'))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(selectedValue(r.container, FILTER)).toBe('global')
+    expect(q(r, '[data-testid="shortcut-row-own"]').getAttribute('data-selected')).toBe('true')
   })
 })

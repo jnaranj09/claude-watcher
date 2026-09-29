@@ -1,18 +1,29 @@
-/* Phrase shortcuts — what is Shortcuts' own in the Manage dialog: the table list, the key chips,
-   the editor card and the chord recorder. The shell, header, error line and every button are
-   ManageDialog.module.css (.claude/rules/design.md). Zero new colors, zero new tokens (spec S-7).
+/* Phrase shortcuts — what is Shortcuts' own in the Manage dialog: the rail row's name + alias,
+   the rail's empty sentences, the key chips, the form's help lines and the chord recorder (which
+   Settings → Keyboard renders). The shell, rail, form, error line and every button are
+   ManageDialog.module.css (.claude/rules/design.md). Zero new colors, zero new tokens (spec S-7). */
 
-   Layout note: the EDITOR is a card of its own, above the list — it is NOT a row squeezed into
-   the list grid. Four controls (name, chord recorder, phrase, three buttons) never fit one
-   860px row: the phrase input collapsed and a 3-chord sequence overflowed its column. */
-
-/* The header's "Open with" row: the ONE chord that opens the shortcut box (settings.expanderKey).
-   Its own row under the ManageDialog header — the header's subtitle is a <p>, which cannot hold
-   the recorder's <div>. The panel's gap spaces it, so no margin of its own. */
-.openWith {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+/* The rail's empty sentences — --text-secondary on the raised panel (design.md). */
+.empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+}
+/* A rail row: the name, then the alias muted after it. Both truncate (operator-typed). */
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowAlias {
+  margin-left: auto;
+  padding-left: var(--space-2);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
 }
 
 /* --- Key chips: one chip per chord; every caller today passes exactly one (the single
@@ -35,145 +46,11 @@
   white-space: nowrap;
 }
 
-/* --- The list: Name · Alias · Phrase · Edit ------------------------------------------------ */
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 380px;
-  overflow-y: auto;
-}
-/* ONE flat rowgroup — the scope sections are gone (the header dropdown narrows the list, and
-   the editor's Workspace field names the row's scope). `.group` re-declares the flex column:
-   `.row` is display:grid so it stacks anyway, but `.list`'s gap does not reach between rows one
-   level deeper without this — they would sit flush against each other. */
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.headRow,
-.row {
-  display: grid;
-  grid-template-columns: 160px minmax(180px, 240px) minmax(0, 1fr) auto;
-  gap: var(--space-4);
-  align-items: center;
-}
-.headRow {
-  color: var(--text-muted);
-  font-size: var(--font-size-label);
-  border-bottom: 1px solid var(--border);
-  padding: 0 var(--space-3) var(--space-2);
-  margin-bottom: var(--space-1);
-}
-.row {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--rounded-md);
-}
-.row:hover {
-  background: var(--bg-surface);
-  border-color: var(--border);
-}
-.cellName {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cellAlias {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-mono);
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.cellText {
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* --- Empty state: say what is missing, then what to do about it --------------------------- */
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-8) var(--space-4);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--rounded-md);
-  text-align: center;
-}
-.emptyTitle {
-  font-size: var(--font-size-heading);
-  font-weight: var(--font-weight-heading);
-}
-.emptyBody {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  color: var(--text-secondary);
-  font-size: var(--font-size-body);
-}
-
-/* --- The editor card --------------------------------------------------------------------- */
-.editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-}
-.editorTitle {
-  font-size: var(--font-size-heading);
-  font-weight: var(--font-weight-heading);
-  letter-spacing: var(--letter-spacing-heading);
-}
-.editorTop {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: start;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-.fieldLabel {
-  color: var(--text-secondary);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
-}
 .fieldHelp {
   color: var(--text-muted);
   font-size: var(--font-size-meta);
   line-height: 1.4;
 }
-/* [Delete] on the left, [Cancel] [Save shortcut] on the right. Shortcuts' own footer: its editor
-   is a card, not a form, and carries a Cancel the list|form dialogs do not need (P0-1). */
-.editorActions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.editorActionsRight {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: auto;
-}
-
 /* --- The chord recorder ------------------------------------------------------------------ */
 .recorder {
   display: flex;

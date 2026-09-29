@@ -130,7 +130,7 @@ describe('TagsDialog', () => {
     expect(rowNames(r)).toContain('deploy')
   })
 
-  it('a confirmed delete removes the row and returns to the empty form', async () => {
+  it('a confirmed delete removes the row and returns to the placeholder', async () => {
     const { r } = render()
     chooseOption(r.container, 'tag-scope-filter', 'all')
     click(q(r, '[data-testid="tag-select-t-deploy"]'))
@@ -138,7 +138,8 @@ describe('TagsDialog', () => {
     click(q(r, '[data-testid="tag-delete"]'))
     await flush()
     expect(rowNames(r)).toEqual(['ops-only'])
-    expect(q<HTMLInputElement>(r, '[data-testid="tag-name"]').value).toBe('')
+    expect(q(r, '[data-testid="tag-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('[data-testid="tag-name"]')).toBeNull()
   })
 
   it('a refused delete says how many rules use the tag (T-16)', async () => {
@@ -199,5 +200,30 @@ describe('TagsDialog', () => {
       )
     })
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('nothing open → placeholder (spec 2026-09-29)', () => {
+  it('opens on the placeholder, with no form field rendered', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="tag-placeholder"]').textContent).toBe(
+      'Select a tag on the left, or create a new one.'
+    )
+    expect(r.container.querySelector('#tag-name')).toBeNull()
+  })
+
+  it('+ New replaces the placeholder with the empty form', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="tag-new"]'))
+    expect(r.container.querySelector('[data-testid="tag-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#tag-name')).not.toBeNull()
+  })
+
+  it('picking a row replaces the placeholder with that row', () => {
+    const { r } = render()
+    chooseOption(r.container, 'tag-scope-filter', 'all')
+    click(q(r, '[data-testid="tag-select-t-deploy"]'))
+    expect(r.container.querySelector('[data-testid="tag-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#tag-name')).not.toBeNull()
   })
 })

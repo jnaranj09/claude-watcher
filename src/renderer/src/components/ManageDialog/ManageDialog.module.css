@@ -32,7 +32,7 @@
   flex-direction: column;
   gap: var(--space-4);
 }
-/* Shortcuts: its list carries three columns AND key chips. */
+/* Rules: its form carries trigger, condition and action rows side by side. */
 .panelWide {
   min-width: 760px;
   max-width: 940px;
@@ -181,8 +181,10 @@
    `padding-right` alone, every full-width field in the form (TextInput, Select, TextArea) sat at
    left 0 and had its ring cut down the left side. So both sides get the same buffer, and
    `scroll-padding-block` gives the same 8px to a field the browser scrolls into view on Tab, which
-   would otherwise align its border box with the top or bottom edge and clip the ring there. */
-.form {
+   would otherwise align its border box with the top or bottom edge and clip the ring there.
+   `.pane` is the same region for a surface with no submit (Settings). */
+.form,
+.pane {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -191,6 +193,24 @@
   padding-left: var(--space-2);
   padding-right: var(--space-2);
   scroll-padding-block: var(--space-2);
+}
+/* The right column while nothing is open (spec 2026-09-29): it stretches to the row the rail sets
+   and centres one line in it, so the panel keeps its size and the line sits mid-column.
+   --text-secondary: muted text on this raised panel measures 2.54:1 (design.md). */
+.placeholder {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: var(--space-4);
+  color: var(--text-secondary);
+  text-align: center;
+}
+.placeholderText {
+  margin: 0;
+  max-width: 32ch;
+  font-size: var(--font-size-body);
 }
 .label {
   font-size: var(--font-size-label);

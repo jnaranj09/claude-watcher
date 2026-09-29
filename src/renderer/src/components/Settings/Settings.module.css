@@ -1,36 +1,11 @@
-/* Story 2.4 — the minimal Settings surface (AC-4). Uses the DESIGN.md tokens via the
-   generated :root custom properties (src/renderer/src/styles/tokens.css) — NO new colors. */
+/* Settings — what is the panel's own inside the ManageDialog shell (spec 2026-09-29 §3): the
+   category heading and the `label | control` rows of the right column. The overlay, panel, header,
+   rail and scroll region are ManageDialog.module.css. Tokens only — NO new colors. */
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-.panel {
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-lg);
-  padding: var(--space-6);
-  min-width: 320px;
-  max-width: 420px;
-  color: var(--text-primary);
-  box-shadow: 0 12px 32px var(--scrim);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-5);
-}
-
-.title {
-  font-size: var(--text-lg, 16px);
+/* The category's own heading at the top of the right column: which page this is. */
+.categoryTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -57,7 +32,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  /* The API token row carries a field and two buttons; on the 320px panel they wrap instead of
+  /* The API token row carries a field and two buttons; in the right column they wrap instead of
      pushing the row past its edge. */
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -71,8 +46,8 @@
   width: 10ch;
 }
 
-/* Programmatic API — the token is 64 chars. It takes what the row has left (and no more: the
-   panel caps at 420px) and scrolls inside its own box rather than widening the panel. */
+/* Programmatic API — the token is 64 chars. It takes what the row has left (and no more: the right
+   column is capped by the panel) and scrolls inside its own box rather than widening the panel. */
 .tokenField {
   display: block;
   flex: 1 1 16ch;

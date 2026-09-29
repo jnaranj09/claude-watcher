@@ -210,12 +210,12 @@ describe('PastSessionsDialog', () => {
     expect(row?.querySelectorAll('[data-testid="tag-chip"]')).toHaveLength(1)
   })
 
-  it('Open is disabled with no selection; selecting fills the read-only form', async () => {
+  it('Open is not rendered with no selection; selecting fills the read-only form', async () => {
     const { r } = render()
     await flush()
-    expect((q(r, '[data-testid="past-session-open"]') as HTMLButtonElement).disabled).toBe(true)
-    expect(q(r, '[data-testid="past-session-open"]')?.textContent).toBe('Open')
+    expect(q(r, '[data-testid="past-session-open"]')).toBeNull()
     act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+    expect(q(r, '[data-testid="past-session-open"]')?.textContent).toBe('Open')
     expect((q(r, '[data-testid="past-session-open"]') as HTMLButtonElement).disabled).toBe(false)
     expect(q(r, '[data-testid="past-session-form-name"]')?.textContent).toBe('billing api')
     expect(q(r, '[data-testid="past-session-form-folder"]')?.getAttribute('title')).toBe(
@@ -439,5 +439,24 @@ describe('PastSessionsDialog', () => {
     const { r } = render()
     await flush()
     expect(document.activeElement).toBe(q(r, '[data-testid="past-session-search"]'))
+  })
+})
+
+describe('nothing open → placeholder (spec 2026-09-29)', () => {
+  it('opens on the placeholder, with no Open button rendered', async () => {
+    const { r } = render()
+    await flush()
+    expect(q(r, '[data-testid="past-session-placeholder"]')?.textContent).toBe(
+      'Select a session on the left.'
+    )
+    expect(q(r, '[data-testid="past-session-open"]')).toBeNull()
+  })
+
+  it('picking a row replaces the placeholder with that row', async () => {
+    const { r } = render()
+    await flush()
+    act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+    expect(q(r, '[data-testid="past-session-placeholder"]')).toBeNull()
+    expect(q(r, '[data-testid="past-session-open"]')).not.toBeNull()
   })
 })

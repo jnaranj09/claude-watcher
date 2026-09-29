@@ -183,8 +183,9 @@ describe('TemplatesDialog scope filter', () => {
     click(q(r, '[data-template-id="own"]'))
     expect(q<HTMLInputElement>(r, '[data-testid="template-name"]').value).toBe('ops-one')
     chooseOption(r.container, FILTER, 'global')
-    // Back to the empty New form — a row you can no longer see must not stay in the editor.
-    expect(q<HTMLInputElement>(r, '[data-testid="template-name"]').value).toBe('')
+    // Nothing open, the placeholder — a row you can no longer see must not stay in the editor.
+    expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('[data-testid="template-name"]')).toBeNull()
   })
 
   // Saving a row into a DIFFERENT workspace moves it out of the view it was saved from. Without

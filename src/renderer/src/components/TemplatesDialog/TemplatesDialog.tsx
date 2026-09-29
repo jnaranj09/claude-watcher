@@ -38,6 +38,7 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', onClose })
   const selected = templates.find((t) => t.id === dialog.state.selectedId) ?? null
+  const formOpen = dialog.state.creating || selected !== null
   const known = knownWorkspaceIds(workspaces)
   // Opens on the workspace you are working in — the rows you most likely came to edit. Falls
   // back to the `all` entry if that id names no known workspace, so the select can never sit on
@@ -51,7 +52,7 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
   function changeScope(next: ScopeFilterValue): void {
     setScope(next)
     // A row selected in the OLD scope is gone from the list; leaving it in the form means editing
-    // something you can no longer see. Drop back to the empty form instead.
+    // something you can no longer see. Close it: the placeholder.
     dialog.actions.select(null)
   }
 
@@ -80,12 +81,18 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
         </ManageDialog.Header>
         <ManageDialog.Columns>
           <TemplateList templates={templates} workspaces={workspaces} scope={scope} />
-          <TemplateForm
-            key={selected?.id ?? 'new'}
-            template={selected}
-            onSaved={revealSaved}
-            onRemoved={() => dialog.actions.select(null)}
-          />
+          {formOpen ? (
+            <TemplateForm
+              key={selected?.id ?? 'new'}
+              template={selected}
+              onSaved={revealSaved}
+              onRemoved={() => dialog.actions.select(null)}
+            />
+          ) : (
+            <ManageDialog.Placeholder testId="template-placeholder">
+              Select a template on the left, or create a new one.
+            </ManageDialog.Placeholder>
+          )}
         </ManageDialog.Columns>
       </ManageDialog.Frame>
     </ManageDialog.Provider>

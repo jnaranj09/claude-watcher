@@ -204,7 +204,7 @@ describe('WorkspacesDialog', () => {
   })
 
   // Placement is the rule, not a detail (.claude/rules/design.md): Delete sits in the form
-  // footer beside Save, the way TemplateForm and ShortcutRow do it — never back on the list row.
+  // footer beside Save, the way TemplateForm and ShortcutForm do it — never back on the list row.
   // Moving the button into the list turns this red while every behavior test above stays green.
   it('puts Delete in the form footer, not on the list row', () => {
     const { r } = render()
@@ -356,5 +356,29 @@ describe('WorkspacesDialog', () => {
     click(q(r, '[data-testid="workspace-browse"]'))
     await flush()
     expect(pickDirectory).toHaveBeenCalledWith()
+  })
+})
+
+describe('nothing open → placeholder (spec 2026-09-29)', () => {
+  it('opens on the placeholder, with no form field rendered', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="workspace-placeholder"]').textContent).toBe(
+      'Select a workspace on the left, or create a new one.'
+    )
+    expect(r.container.querySelector('#workspace-name')).toBeNull()
+  })
+
+  it('+ New replaces the placeholder with the empty form', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-new"]'))
+    expect(r.container.querySelector('[data-testid="workspace-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#workspace-name')).not.toBeNull()
+  })
+
+  it('picking a row replaces the placeholder with that row', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-select-default"]'))
+    expect(r.container.querySelector('[data-testid="workspace-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#workspace-name')).not.toBeNull()
   })
 })

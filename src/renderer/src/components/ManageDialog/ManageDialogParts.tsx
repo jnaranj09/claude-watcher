@@ -1,5 +1,5 @@
-// ManageDialog — the ONE shell for the Manage dialogs (Templates, Workspaces, Shortcuts, and the
-// Tags / Rules dialogs of spec 2026-09-11). .claude/rules/design.md required the dialogs to share
+// ManageDialog — the ONE shell for every two-column dialog (Templates, Workspaces, Shortcuts, Tags,
+// Rules, Past sessions, and Settings — spec 2026-09-29). .claude/rules/design.md required the dialogs to share
 // one layout, but nothing shared code: each module carried its own copy of the overlay, the panel
 // and all four button styles, and the rule told the next author to copy them again. These parts
 // ARE that layout now, so the rule holds by structure (spec §0, T-15).
@@ -42,7 +42,7 @@ export function ManageDialogProvider({
 }
 
 export interface ManageDialogFrameProps {
-  /** `wide` fits a list with several columns (Shortcuts: name · chord · phrase · edit). */
+  /** `wide` fits a form with long rows (Rules: trigger, conditions, actions). */
   size?: 'standard' | 'wide'
   children: ReactNode
 }
@@ -86,7 +86,7 @@ export interface ManageDialogHeaderProps {
   children?: ReactNode
   /** One line under the title saying what the items DO (Shortcuts). */
   subtitle?: ReactNode
-  /** Buttons left of ✕ (Shortcuts' `Add shortcut`). */
+  /** Buttons left of ✕. Nothing uses it today: `+ New` in the rail is the create control. */
   buttons?: ReactNode
 }
 
@@ -127,6 +127,18 @@ export function ManageDialogHeader({
   )
 }
 
+/** Escape peels ONE layer (UX-DR14): with Delete armed it disarms and stops here, wherever focus
+ *  is inside the right column. Unarmed, it bubbles on to the Frame, which closes the dialog. */
+function useDisarmOnEscape(): (e: KeyboardEvent<HTMLElement>) => void {
+  const { state, actions } = useManageDialogContext()
+  return (e) => {
+    if (e.key === 'Escape' && state.armed) {
+      e.stopPropagation()
+      actions.disarm()
+    }
+  }
+}
+
 export interface ManageDialogFormProps {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   testId?: string
@@ -138,17 +150,7 @@ export function ManageDialogForm({
   testId,
   children
 }: ManageDialogFormProps): JSX.Element {
-  const { state, actions } = useManageDialogContext()
-
-  // Escape peels ONE layer (UX-DR14): with Delete armed it disarms and stops here, wherever focus
-  // is inside the form. Unarmed, it bubbles on to the Frame, which closes the dialog.
-  function handleKeyDown(e: KeyboardEvent<HTMLFormElement>): void {
-    if (e.key === 'Escape' && state.armed) {
-      e.stopPropagation()
-      actions.disarm()
-    }
-  }
-
+  const handleKeyDown = useDisarmOnEscape()
   return (
     <form
       className={styles.form}
@@ -158,6 +160,39 @@ export function ManageDialogForm({
     >
       {children}
     </form>
+  )
+}
+
+/** The right column for a surface with NOTHING to submit — Settings, whose controls persist on
+ *  change. Same scroll region as `Form` (one CSS rule), same Escape-disarm, but a `<div>`. */
+export function ManageDialogPane({
+  testId,
+  children
+}: {
+  testId?: string
+  children: ReactNode
+}): JSX.Element {
+  const handleKeyDown = useDisarmOnEscape()
+  return (
+    <div className={styles.pane} data-testid={testId} onKeyDown={handleKeyDown}>
+      {children}
+    </div>
+  )
+}
+
+/** The right column while NOTHING is open (spec 2026-09-29): one quiet sentence, never an empty
+ *  form. No button — `+ New` in the rail is the one create control. */
+export function ManageDialogPlaceholder({
+  testId,
+  children
+}: {
+  testId: string
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <div className={styles.placeholder} data-testid={testId}>
+      <p className={styles.placeholderText}>{children}</p>
+    </div>
   )
 }
 
@@ -229,7 +264,7 @@ export interface ManageDialogSaveProps {
   testId: string
   disabled: boolean
   /** Omit inside a <ManageDialog.Form> — the button then submits it. Pass it where there is no
-   *  form (Shortcuts' editor card). */
+   *  form. */
   onClick?: () => void
   /** The label. Defaults to `Save`. */
   children?: ReactNode
@@ -396,6 +431,7 @@ export function ManageDialogRow({
         type="button"
         className={styles.rowSelect}
         data-testid={selectTestId}
+        aria-current={state.selectedId === id ? 'page' : undefined}
         {...dataAttributes}
         onClick={() => actions.select(id)}
       >
@@ -428,13 +464,13 @@ function isRowActions(node: ReactNode): boolean {
   return isValidElement(node) && node.type === ManageDialogRowActions
 }
 
-/** `+ New` — back to the empty form. Its SLOT sits at the BOTTOM of the rail (`margin-top: auto`
- *  on the wrapper: a button never carries layout of its own). */
+/** `+ New` — opens the empty New form (`startNew`). Its SLOT sits at the BOTTOM of the rail
+ *  (`margin-top: auto` on the wrapper: a button never carries layout of its own). */
 export function ManageDialogNew({ testId }: { testId: string }): JSX.Element {
   const { actions } = useManageDialogContext()
   return (
     <div className={styles.newSlot}>
-      <Button variant="secondary" testId={testId} onClick={() => actions.select(null)}>
+      <Button variant="secondary" testId={testId} onClick={() => actions.startNew()}>
         + New
       </Button>
     </div>

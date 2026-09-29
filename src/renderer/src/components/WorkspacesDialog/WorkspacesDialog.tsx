@@ -223,6 +223,7 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
   }, [closeRef])
 
   const selected = workspaces.find((w) => w.id === dialog.state.selectedId) ?? null
+  const formOpen = dialog.state.creating || selected !== null
 
   async function commitDelete(id: string): Promise<void> {
     setDeleteBusy(true)
@@ -246,7 +247,7 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // projection alone), so this cannot turn a successful delete into an error. Only on the
       // SUCCESS path — a refused delete cascaded nothing, so re-reading would be pointless work.
       await Promise.all([loadTemplates(), loadShortcuts(), loadTags(), loadRules()])
-      // The deleted row was the selected one: back to the New form. `select` also clears the
+      // The deleted row was the selected one: nothing open, the placeholder. `select` also clears the
       // error line and the armed Delete.
       dialog.actions.select(null)
     } catch (err) {
@@ -278,15 +279,21 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
             </ManageDialog.Rows>
             <ManageDialog.New testId="workspace-new" />
           </ManageDialog.List>
-          <WorkspaceForm
-            key={selected?.id ?? 'new'}
-            workspace={selected}
-            deleteBusy={deleteBusy}
-            onSaved={(saved) => dialog.actions.select(saved.id)}
-            onDelete={() => {
-              if (selected !== null) void commitDelete(selected.id)
-            }}
-          />
+          {formOpen ? (
+            <WorkspaceForm
+              key={selected?.id ?? 'new'}
+              workspace={selected}
+              deleteBusy={deleteBusy}
+              onSaved={(saved) => dialog.actions.select(saved.id)}
+              onDelete={() => {
+                if (selected !== null) void commitDelete(selected.id)
+              }}
+            />
+          ) : (
+            <ManageDialog.Placeholder testId="workspace-placeholder">
+              Select a workspace on the left, or create a new one.
+            </ManageDialog.Placeholder>
+          )}
         </ManageDialog.Columns>
         <ManageDialog.Error testId="workspace-error" />
       </ManageDialog.Frame>

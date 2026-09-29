@@ -202,10 +202,10 @@ export function PastSessionsDialog({
               {pastSessionsCapNote(PAST_SESSIONS_MAX)}
             </p>
           </ManageDialog.List>
-          <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
-            {selected !== null && <PastSessionDetails session={selected} workspaces={workspaces} />}
-            <ManageDialog.Footer>
-              {selected !== null && (
+          {selected !== null ? (
+            <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
+              <PastSessionDetails session={selected} workspaces={workspaces} />
+              <ManageDialog.Footer>
                 <ManageDialog.Delete
                   testId="past-session-forget"
                   label="Forget"
@@ -213,12 +213,16 @@ export function PastSessionsDialog({
                   disabled={busy}
                   onConfirm={() => void confirmForget()}
                 />
-              )}
-              <ManageDialog.Save testId="past-session-open" disabled={selected === null || busy}>
-                Open
-              </ManageDialog.Save>
-            </ManageDialog.Footer>
-          </ManageDialog.Form>
+                <ManageDialog.Save testId="past-session-open" disabled={busy}>
+                  Open
+                </ManageDialog.Save>
+              </ManageDialog.Footer>
+            </ManageDialog.Form>
+          ) : (
+            <ManageDialog.Placeholder testId="past-session-placeholder">
+              Select a session on the left.
+            </ManageDialog.Placeholder>
+          )}
         </ManageDialog.Columns>
         <ManageDialog.Error testId="past-session-error" />
       </ManageDialog.Frame>

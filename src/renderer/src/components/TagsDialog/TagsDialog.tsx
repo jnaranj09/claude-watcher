@@ -57,6 +57,7 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
   )
   const listed = filterByScope(tags, scope, known)
   const selected = tags.find((t) => t.id === dialog.state.selectedId) ?? null
+  const formOpen = dialog.state.creating || selected !== null
 
   // An aria-modal dialog must take focus on mount (WorkspacesDialog's reasoning): the ✕ is the
   // mount-stable target — there is no search box here.
@@ -115,7 +116,13 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
             </ManageDialog.Rows>
             <ManageDialog.New testId="tag-new" />
           </ManageDialog.List>
-          <TagForm key={selected?.id ?? 'new'} tag={selected} onSaved={revealSaved} />
+          {formOpen ? (
+            <TagForm key={selected?.id ?? 'new'} tag={selected} onSaved={revealSaved} />
+          ) : (
+            <ManageDialog.Placeholder testId="tag-placeholder">
+              Select a tag on the left, or create a new one.
+            </ManageDialog.Placeholder>
+          )}
         </ManageDialog.Columns>
         <ManageDialog.Error testId="tag-error" />
       </ManageDialog.Frame>
@@ -170,7 +177,7 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
     setBusy(true)
     try {
       await removeTag(tag.id)
-      // Back to the New form. `select` also clears the error line and the armed Delete; the form
+      // Nothing open: the placeholder. `select` also clears the error line and the armed Delete; the form
       // remounts (its key changes), so there is no busy flag left to reset.
       actions.select(null)
     } catch (err) {

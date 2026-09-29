@@ -166,6 +166,24 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*360px/)
     expect(ruleBody(css, '.newSlot')).toMatch(/margin-top:\s*auto/)
   })
+
+  it('the Pane shares the Form rule: one scroll region, both paddings, scroll padding', () => {
+    const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+    const body = ruleBody(css, '.pane')
+    expect(body).toContain('overflow-y: auto')
+    expect(body).toContain('padding-left: var(--space-2)')
+    expect(body).toContain('padding-right: var(--space-2)')
+    expect(body).toContain('scroll-padding-block: var(--space-2)')
+    expect(ruleBody(css, '.form')).toBe(body)
+  })
+
+  it('the Placeholder text is --text-secondary, centred, and stretches to the row', () => {
+    const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+    const body = ruleBody(css, '.placeholder')
+    expect(body).toContain('color: var(--text-secondary)')
+    expect(body).toContain('align-self: stretch')
+    expect(body).toContain('justify-content: center')
+  })
 })
 
 // The detector only ever saw a selector that starts a line — a descendant target, a selector

@@ -75,14 +75,16 @@ function type(el: HTMLInputElement, value: string): void {
 const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('TemplatesDialog', () => {
-  it('opens on a NEW draft: Save disabled, no Delete, list shows the store rows', () => {
+  it('+ New opens a NEW draft: Save disabled, no Delete, list shows the store rows', () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(1)
     expect(q<HTMLButtonElement>(r, '[data-testid="template-save"]').disabled).toBe(true)
     expect(r.container.querySelector('[data-testid="template-delete"]')).toBeNull()
   })
   it('Browse… fills the folder from pickDirectory; a cancelled picker changes nothing', async () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
     expect(q(r, '[data-testid="template-cwd"]').textContent).toBe('/home/op/blog')
@@ -93,6 +95,7 @@ describe('TemplatesDialog', () => {
   })
   it('a valid new draft saves through window.templates.save with the custom model and mode', async () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     type(q(r, '[data-testid="template-name"]'), 'blog')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
@@ -140,6 +143,7 @@ describe('TemplatesDialog', () => {
   })
   it('a chosen effort reaches window.templates.save; Default sends null', async () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     type(q(r, '[data-testid="template-name"]'), 'blog')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
@@ -179,6 +183,7 @@ describe('TemplatesDialog', () => {
   })
   it('a dirty-but-invalid draft explains WHY Save is disabled; the hint clears when it is fixed', async () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     expect(r.container.querySelector('[data-testid="template-hint"]')).toBeNull() // pristine
     type(q(r, '[data-testid="template-name"]'), 'blog')
     expect(q(r, '[data-testid="template-hint"]').textContent).toBe('Pick a folder.')
@@ -231,6 +236,7 @@ describe('TemplatesDialog', () => {
       })
     )
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     type(q(r, '[data-testid="template-name"]'), 'blog')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
@@ -344,6 +350,7 @@ describe('TemplatesDialog', () => {
   // --- Task 19: the initial prompt and its parameter rows -------------------------------------
   it('typing $1 and $2 in the prompt shows two parameter rows; removing $2 drops the second', () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     const prompt = q<HTMLTextAreaElement>(r, '[data-testid="template-prompt"]')
     const setter = Object.getOwnPropertyDescriptor(
       window.HTMLTextAreaElement.prototype,
@@ -361,6 +368,7 @@ describe('TemplatesDialog', () => {
   })
   it('a gapped prompt says which number is missing, right where Save is disabled', async () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     type(q(r, '[data-testid="template-name"]'), 'tickets')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
@@ -380,6 +388,7 @@ describe('TemplatesDialog', () => {
   })
   it('saves the prompt and its params; Save stays disabled until every row is filled', async () => {
     const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
     type(q(r, '[data-testid="template-name"]'), 'tickets')
     click(q(r, '[data-testid="template-browse"]'))
     await flush()
@@ -405,5 +414,58 @@ describe('TemplatesDialog', () => {
         params: [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 12 }]
       })
     )
+  })
+})
+
+describe('nothing open → placeholder (spec 2026-09-29)', () => {
+  it('opens on the placeholder, with no form field rendered', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="template-placeholder"]').textContent).toBe(
+      'Select a template on the left, or create a new one.'
+    )
+    expect(r.container.querySelector('#template-name')).toBeNull()
+  })
+
+  it('+ New replaces the placeholder with the empty form', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
+    expect(r.container.querySelector('[data-testid="template-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#template-name')).not.toBeNull()
+  })
+
+  it('picking a row replaces the placeholder with that row', () => {
+    const { r } = render()
+    click(q(r, '[data-template-id="a"]'))
+    expect(r.container.querySelector('[data-testid="template-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#template-name')).not.toBeNull()
+  })
+
+  it('a successful delete goes back to the placeholder, not the New form', async () => {
+    const { r } = render()
+    click(q(r, '[data-template-id="a"]'))
+    click(q(r, '[data-testid="template-delete"]'))
+    click(q(r, '[data-testid="template-delete"]'))
+    await flush()
+    expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('#template-name')).toBeNull()
+  })
+
+  // Review Focus 1 — a row removed by ANOTHER flow (a workspace cascade, a second window) while it
+  // is open: its selectedId names nothing, which is nothing open, never a New form.
+  it('a selected row that vanishes from the store shows the placeholder, not a New form', () => {
+    const { r } = render()
+    click(q(r, '[data-template-id="a"]'))
+    expect(r.container.querySelector('#template-name')).not.toBeNull()
+    act(() => templatesStore.getState().hydrate([]))
+    expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('#template-name')).toBeNull()
+  })
+
+  it('changing the scope filter goes back to the placeholder', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="template-new"]'))
+    chooseOption(r.container, 'template-scope-filter', 'global')
+    expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('#template-name')).toBeNull()
   })
 })

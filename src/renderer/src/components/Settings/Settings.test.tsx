@@ -1,14 +1,13 @@
-// Story 2.4 — the Settings UI tests (jsdom `unit` project).
+// Settings — the UI tests (jsdom `unit` project).
 //
 // Renders the SettingsPanel against a stubbed window.settings + the singleton settings store.
-// Asserts (AC-4):
-//   - EXACTLY six controls while the API is off (a sound toggle, the two attention-reminder
-//     dropdowns, a terminal-font-size control, the API toggle and the API port) — no seventh;
-//   - NO hotkey control present (FR-8 row CUT);
-//   - toggling sound calls window.settings.set({ soundEnabled });
-//   - changing font-size calls window.settings.set({ terminalFontSize });
-//   - every control is labeled (accessibility floor).
-// [Source: story 2.4 Task 6.4; AC-4; F3; ColumnHeader.test.tsx render style]
+// Asserts:
+//   - the two-column shell: five categories (Notifications, Appearance, Terminal, Keyboard, API),
+//     opening on Notifications, each showing exactly its own controls (spec 2026-09-29 §3);
+//   - NO global-hotkey control (FR-8 row CUT);
+//   - every control persists through window.settings.set;
+//   - every control is labeled (accessibility floor);
+//   - the API block, the Theme group, and the Keyboard chord recorder (moved from Shortcuts).
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { act } from 'react'
 import { SettingsPanel } from './Settings'
@@ -154,38 +153,6 @@ function blur(el: Element): void {
 }
 
 describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
-  // Story 2.4 froze this panel at two controls (F3 / UX-DR30). Attention reminders (spec
-  // 2026-09-10) deliberately added two dropdowns: how many reminders, and the first delay. The
-  // count is asserted so a fifth control cannot arrive unnoticed.
-  it('renders the sound toggle, the font-size range, the two reminder dropdowns and the API pair — nothing else', () => {
-    stubSettings()
-    stubApi()
-    stubThemes()
-    const { container, unmount } = renderComponent(<SettingsPanel />)
-    cleanup = unmount
-
-    for (const testId of [
-      'settings-sound-toggle',
-      'settings-notifications-toggle',
-      'settings-font-size',
-      'settings-reminder-count',
-      'settings-reminder-first-delay',
-      'settings-api-enabled',
-      'settings-api-port',
-      'settings-theme'
-    ]) {
-      expect(container.querySelector(`[data-testid="${testId}"]`)).not.toBeNull()
-    }
-    const panel = container.querySelector('[data-testid="settings-panel"]')
-    // EIGHT while the API is off: five <input>s (sound, desktop notifications, font size, the API
-    // toggle, the API port) plus the two reminder `Select`s and the Theme Select, which are
-    // `[aria-haspopup="listbox"]` buttons. The token field and its buttons only exist while the
-    // API is ON.
-    expect(panel?.querySelectorAll('input, select, [aria-haspopup="listbox"]').length).toBe(8)
-    // design.md: a native <select> is banned.
-    expect(panel?.querySelectorAll('select').length).toBe(0)
-  })
-
   it('has NO hotkey/keybinding control (FR-8 row CUT)', () => {
     stubSettings()
     stubThemes()
@@ -201,12 +168,10 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
     stubSettings()
     stubApi()
     stubThemes()
-    const { container, unmount } = renderComponent(<SettingsPanel />)
-    cleanup = unmount
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    const { container } = r
     expect(container.querySelector('label[for="settings-sound-enabled"]')).not.toBeNull()
-    expect(container.querySelector('label[for="settings-terminal-font-size"]')).not.toBeNull()
-    expect(container.querySelector('label[for="settings-api-enabled"]')).not.toBeNull()
-    expect(container.querySelector('label[for="settings-api-port"]')).not.toBeNull()
     expect(
       container.querySelector('[data-testid="settings-reminder-count"]')?.getAttribute('aria-label')
     ).toBe('Reminders')
@@ -215,6 +180,11 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
         .querySelector('[data-testid="settings-reminder-first-delay"]')
         ?.getAttribute('aria-label')
     ).toBe('First reminder after')
+    openCategory(r, 'terminal')
+    expect(container.querySelector('label[for="settings-terminal-font-size"]')).not.toBeNull()
+    openCategory(r, 'api')
+    expect(container.querySelector('label[for="settings-api-enabled"]')).not.toBeNull()
+    expect(container.querySelector('label[for="settings-api-port"]')).not.toBeNull()
   })
 })
 
@@ -274,10 +244,13 @@ describe('SettingsPanel — controls persist via window.settings.set (AC-4/5)', 
   it('changing font-size calls window.settings.set({ terminalFontSize })', () => {
     const stub = stubSettings()
     stubThemes()
-    const { container, unmount } = renderComponent(<SettingsPanel />)
-    cleanup = unmount
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    openCategory(r, 'terminal')
 
-    const range = container.querySelector('[data-testid="settings-font-size"]') as HTMLInputElement
+    const range = r.container.querySelector(
+      '[data-testid="settings-font-size"]'
+    ) as HTMLInputElement
     setReactRange(range, '20')
     expect(stub.setCalls).toContainEqual({ terminalFontSize: 20 })
   })
@@ -375,16 +348,16 @@ describe('SettingsPanel — attention reminders (spec 2026-09-10)', () => {
 
   // Controller Ruling 8 (fix round 1): spec §4 says the two reminder rows go directly after
   // Attention sound — sound and reminders are both attention settings, so they belong together.
-  it('the rows appear in order: sound, reminders, first delay, then font size (spec §4)', () => {
+  it('the Notifications rows appear in order: sound, popups, reminders, first delay (spec §4)', () => {
     stubSettings()
     stubThemes()
     const { container, unmount } = renderComponent(<SettingsPanel />)
     cleanup = unmount
     const orderedIds = [
       'settings-sound-toggle',
+      'settings-notifications-toggle',
       'settings-reminder-count',
-      'settings-reminder-first-delay',
-      'settings-font-size'
+      'settings-reminder-first-delay'
     ]
     const panel = container.querySelector('[data-testid="settings-panel"]')
     const seen = [...(panel?.querySelectorAll('[data-testid]') ?? [])]
@@ -403,6 +376,7 @@ describe('SettingsPanel — the local API block', () => {
   function render(): RenderResult {
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'api')
     return r
   }
 
@@ -599,7 +573,7 @@ describe('SettingsPanel — the local API block', () => {
 
   // The block needs a ManageDialog.Provider (Delete/Error read that context and throw without
   // one), but the Provider renders NO DOM — the Settings panel stays the only dialog here.
-  it('the block’s ManageDialog.Provider adds no second dialog', async () => {
+  it('the panel is ONE dialog — the API block adds no second overlay', async () => {
     stubSettings()
     stubApi()
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
@@ -628,6 +602,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     const themes = stubThemes([paper, glass, broken])
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     expect(themes.list).toHaveBeenCalledTimes(1)
     expect(optionValues(r.container, 'settings-theme')).toEqual([
@@ -647,6 +622,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     stubThemes([paper])
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     expect(r.container.querySelector('[data-testid="settings-theme-broken"]')).toBeNull()
   })
@@ -657,6 +633,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     stubThemes([paper])
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     chooseOption(r.container, 'settings-theme', 'paper')
     expect(setCalls).toEqual([{ themeId: 'paper' }])
@@ -668,6 +645,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     const themes = stubThemes([paper])
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     click(q(r, '[data-testid="settings-theme-reload"]'))
     await flush()
@@ -681,6 +659,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     const themes = stubThemes()
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     click(q(r, '[data-testid="settings-theme-open-folder"]'))
     expect(themes.openFolder).toHaveBeenCalledTimes(1)
@@ -693,6 +672,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     themes.openFolder.mockImplementation(() => Promise.reject(new Error('ENOENT: no such file')))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     click(q(r, '[data-testid="settings-theme-open-folder"]'))
     await flush()
@@ -709,6 +689,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Theme "broken" could not be loaded, using Default — missing theme.css'
@@ -734,6 +715,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'remote-css' }))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     // (1) not among the loadable options — only the chosen-but-broken id is pinned in, kept so
     // the picker never sits on a value it does not offer (design.md).
@@ -755,6 +737,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     themes.reload.mockImplementation(() => Promise.reject(new Error('ECONNREFUSED')))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     click(q(r, '[data-testid="settings-theme-reload"]'))
     await flush()
@@ -780,6 +763,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     act(() => settingsStore.getState().hydrate(base))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'api')
     await flush()
     const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
     type(port, '9300')
@@ -800,6 +784,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'api')
     await flush()
     const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
     type(port, '80')
@@ -827,6 +812,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       })
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     chooseOption(r.container, 'settings-theme', 'paper')
     await flush()
@@ -854,6 +840,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     )
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
   })
@@ -864,6 +851,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     stubThemes([glass])
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     expect(r.container.querySelector('[data-testid="settings-theme-transparency"]')).toBeNull()
     act(() =>
@@ -886,6 +874,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     themes.list.mockImplementation(() => Promise.reject(new Error('boom')))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
+    openCategory(r, 'appearance')
     await flush()
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Could not read the themes folder.'
@@ -927,6 +916,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       chooseGlass()
       const r = renderComponent(<SettingsPanel />)
       cleanup = r.unmount
+      openCategory(r, 'appearance')
       await flush()
       expect(optionValues(r.container, 'settings-wallpaper')).toEqual(['graphite', 'aurora'])
       expect(selectedValue(r.container, 'settings-wallpaper')).toBe('graphite')
@@ -939,6 +929,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       chooseGlass()
       const r = renderComponent(<SettingsPanel />)
       cleanup = r.unmount
+      openCategory(r, 'appearance')
       await flush()
       chooseOption(r.container, 'settings-wallpaper', 'aurora')
       expect(setCalls).toEqual([{ wallpaperByTheme: { paper: 'x', 'liquid-glass': 'aurora' } }])
@@ -951,6 +942,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       chooseGlass()
       const r = renderComponent(<SettingsPanel />)
       cleanup = r.unmount
+      openCategory(r, 'appearance')
       await flush()
       expect(wallpaperSelect(r.container)).toBeNull()
     })
@@ -962,6 +954,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'liquid-glass' })) // bundle stays DEFAULT_THEME_BUNDLE
       const r = renderComponent(<SettingsPanel />)
       cleanup = r.unmount
+      openCategory(r, 'appearance')
       await flush()
       expect(wallpaperSelect(r.container)).toBeNull()
     })
@@ -977,6 +970,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       })
       const r = renderComponent(<SettingsPanel />)
       cleanup = r.unmount
+      openCategory(r, 'appearance')
       await flush()
       expect(wallpaperSelect(r.container)).toBeNull()
     })
@@ -987,8 +981,217 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
       stubThemes([two])
       const r = renderComponent(<SettingsPanel />)
       cleanup = r.unmount
+      openCategory(r, 'appearance')
       await flush()
       expect(wallpaperSelect(r.container)).toBeNull()
     })
+  })
+})
+
+// ── Categories (spec 2026-09-29 §3) ───────────────────────────────────────────────────────────
+// Settings is the two-column shell: a rail of categories, the chosen one's controls on the right.
+function renderPanel(): RenderResult {
+  const r = renderComponent(<SettingsPanel onClose={() => {}} />)
+  cleanup = r.unmount
+  return r
+}
+
+function openCategory(r: RenderResult, id: string): void {
+  click(q(r, `[data-testid="settings-category-${id}"] button`))
+}
+
+describe('Settings in categories (spec 2026-09-29 §3)', () => {
+  it('is the shell: settings-overlay > settings-panel, a ✕, and five categories in order', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderPanel()
+    expect(q(r, '[data-testid="settings-overlay"]').getAttribute('role')).toBe('dialog')
+    expect(q(r, '[data-testid="settings-overlay"] [data-testid="settings-panel"]')).toBeTruthy()
+    expect(q(r, '[data-testid="settings-close"]')).toBeTruthy()
+    const rows = [...r.container.querySelectorAll('[data-testid^="settings-category-"]')]
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'Notifications',
+      'Appearance',
+      'Terminal',
+      'Keyboard',
+      'API'
+    ])
+  })
+
+  it('opens on Notifications — never a placeholder', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderPanel()
+    expect(
+      q(r, '[data-testid="settings-category-notifications"]').getAttribute('data-selected')
+    ).toBe('true')
+    expect(
+      q(r, '[data-testid="settings-category-notifications"] button').getAttribute('aria-current')
+    ).toBe('page')
+    expect(q(r, '[data-testid="settings-sound-toggle"]')).toBeTruthy()
+    expect(r.container.querySelector('[data-testid="settings-theme"]')).toBeNull()
+    expect(q(r, 'h3').textContent).toBe('Notifications')
+  })
+
+  const ALL_CONTROLS = [
+    'settings-sound-toggle',
+    'settings-notifications-toggle',
+    'settings-reminder-count',
+    'settings-theme',
+    'settings-theme-reload',
+    'settings-theme-open-folder',
+    'settings-font-size',
+    'chord-recorder',
+    'settings-api-enabled',
+    'settings-api-port'
+  ]
+  it.each([
+    [
+      'notifications',
+      ['settings-sound-toggle', 'settings-notifications-toggle', 'settings-reminder-count']
+    ],
+    ['appearance', ['settings-theme', 'settings-theme-reload', 'settings-theme-open-folder']],
+    ['terminal', ['settings-font-size']],
+    ['keyboard', ['chord-recorder']],
+    ['api', ['settings-api-enabled', 'settings-api-port']]
+  ])('the %s category shows exactly its own controls', (id, ids) => {
+    stubSettings()
+    stubApi()
+    stubThemes()
+    const r = renderPanel()
+    openCategory(r, id)
+    for (const tid of ALL_CONTROLS) {
+      const present = r.container.querySelector(`[data-testid="${tid}"]`) !== null
+      expect(present, tid).toBe(ids.includes(tid))
+    }
+  })
+
+  // Review Focus 3 — the standing theme error is dialog-wide.
+  it('shows the theme error on the error line while another category is open', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([{ id: 'broken', name: 'broken', colorScheme: 'dark', error: 'theme_css_missing' }])
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
+    const r = renderPanel()
+    await flush()
+    openCategory(r, 'api')
+    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
+  })
+
+  // Final review, Important 1 — a category switch disarms, but never wipes the ONE error line: the
+  // refusal it carries still describes the panel (a broken themes folder, a refused port).
+  it('a failed theme list stays on the error line after a category switch', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes()
+    themes.list.mockImplementation(() => Promise.reject(new Error('boom')))
+    const r = renderPanel()
+    await flush()
+    openCategory(r, 'appearance')
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Could not read the themes folder.'
+    )
+  })
+
+  it('a refused port stays on the error line after leaving and coming back to API', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes()
+    const r = renderPanel()
+    openCategory(r, 'api')
+    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
+    type(port, '80')
+    blur(port)
+    openCategory(r, 'terminal')
+    openCategory(r, 'api')
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Port must be between 1024 and 65535.'
+    )
+  })
+
+  // Review Focus 4 — a category switch disarms Regenerate.
+  it('switching category disarms an armed Regenerate', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes()
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    const r = renderPanel()
+    openCategory(r, 'api')
+    await flush()
+    click(q(r, '[data-testid="settings-api-regenerate"]'))
+    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Confirm regenerate')
+    openCategory(r, 'terminal')
+    openCategory(r, 'api')
+    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Regenerate')
+  })
+})
+
+// ── Keyboard: the ONE chord that opens the shortcut box (moved from the Shortcuts dialog) ────
+describe('Settings → Keyboard — the Open shortcuts with recorder', () => {
+  function renderKeyboard(): RenderResult {
+    const r = renderPanel()
+    openCategory(r, 'keyboard')
+    return r
+  }
+  const recorder = (r: RenderResult): HTMLElement => q(r, '[data-testid="chord-recorder"]')
+  function pressKey(r: RenderResult, key: string, init: KeyboardEventInit = {}): void {
+    act(() => {
+      recorder(r).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init }))
+    })
+  }
+
+  it('says what the chord does', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderKeyboard()
+    expect(r.container.textContent).toContain('Opens the shortcut box inside the focused terminal.')
+  })
+
+  it('shows the live chord, and recording one persists expanderKey', () => {
+    const { setCalls } = stubSettings()
+    stubThemes()
+    const r = renderKeyboard()
+    expect(recorder(r).textContent).toContain('Ctrl+Alt+X')
+    click(recorder(r))
+    pressKey(r, 'q', { ctrlKey: true, altKey: true })
+    expect(setCalls).toContainEqual({ expanderKey: 'Q' })
+    expect(settingsStore.getState().expanderKey).toBe('Q')
+  })
+
+  it('refuses an AltGr keystroke and stays armed', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderKeyboard()
+    click(recorder(r))
+    // '@' is what AltGr+2 composes on many layouts: not an A-Z key, so chordFromEvent says no.
+    pressKey(r, '@', { ctrlKey: true, altKey: true })
+    expect(q(r, '[data-testid="chord-hint"]').textContent).toBe('Hold Ctrl+Alt and press a letter.')
+  })
+
+  it('shows the resting help before arming, and the default hint the instant it arms', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderKeyboard()
+    expect(r.container.querySelector('[data-testid="chord-hint"]')).toBeNull()
+    expect(r.container.textContent).toContain('Click, then hold Ctrl+Alt and press a letter.')
+    click(recorder(r))
+    expect(q(r, '[data-testid="chord-hint"]').textContent).toBe(
+      'Press the chord now. Escape cancels.'
+    )
+  })
+
+  it('Escape disarms the recorder in place without committing a chord or closing', () => {
+    const { setCalls } = stubSettings()
+    stubThemes()
+    const onClose = vi.fn()
+    const r = renderComponent(<SettingsPanel onClose={onClose} />)
+    cleanup = r.unmount
+    openCategory(r, 'keyboard')
+    click(recorder(r))
+    pressKey(r, 'Escape')
+    expect(r.container.querySelector('[data-testid="chord-hint"]')).toBeNull()
+    expect(recorder(r).textContent).toContain('Ctrl+Alt+X')
+    expect(setCalls).toEqual([])
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

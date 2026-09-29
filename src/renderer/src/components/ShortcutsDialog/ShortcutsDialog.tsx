@@ -1,29 +1,20 @@
-// Phrase shortcuts — the Manage dialog (modal, z 60 like the other Manage dialogs).
-//
-// Layout: a header that states what a shortcut DOES, then the editor card (only while adding or
-// editing), then the list. The editor is deliberately NOT a row in the list — see ShortcutRow.tsx.
-// So this dialog uses the SHARED ManageDialog pieces — shell, header, buttons, Delete, the error
-// line — but not the list|form split the other Manage dialogs have (Phase-0 plan, P0-1).
-// UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
+// Phrase shortcuts — the Manage dialog (modal, z 60 like the other Manage dialogs). The
+// two-column standard: a rail of shortcuts (name + alias) and the form on the right, the
+// placeholder while nothing is open (spec 2026-09-29 §4). The open chord is set in Settings →
+// Keyboard; the subtitle shows it. UX-DR14: App.tsx guards it against the other modals.
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
-import {
-  selectShortcuts,
-  useShortcuts,
-  saveShortcut,
-  removeShortcut
-} from '../../stores/shortcutsStore'
+import { selectShortcuts, useShortcuts } from '../../stores/shortcutsStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
-import { ShortcutRow, ShortcutEditor } from './ShortcutRow'
+import { ShortcutForm } from './ShortcutForm'
 import { ChordKeys } from './ChordKeys'
-import { KeyChordRecorder } from './KeyChordRecorder'
-import { persistSettingsPatch, selectExpanderKey, useSettings } from '../../stores/settingsStore'
+import { selectExpanderKey, useSettings } from '../../stores/settingsStore'
 import { expanderChord } from '../../../../shared/schemas/settings'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
@@ -35,135 +26,64 @@ import {
   workspaceScope,
   type ScopeFilterValue
 } from '../ScopeFilter/scope'
-import {
-  emptyDraft,
-  toDraft,
-  draftToSaveRequest,
-  shortcutErrorCode,
-  SHORTCUT_DELETE_ERROR_COPY,
-  SHORTCUT_ERROR_COPY,
-  type ShortcutDraft
-} from './shortcutForm'
 import styles from './ShortcutsDialog.module.css'
 
 export interface ShortcutsDialogProps {
   onClose: () => void
 }
 
-/** The sentinel open-editor id for the add-a-shortcut draft (no real id exists yet). */
-const NEW_ROW = 'new'
-
 export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element {
-  // The Manage dialog can show EVERY shortcut regardless of scope (unlike the terminal matcher) —
-  // no makeSelectVisibleShortcuts here. activeWorkspaceId + workspaces feed the header's scope
-  // filter, which is the ONE thing that narrows this list.
+  // The dialog shows EVERY shortcut regardless of scope (unlike the terminal matcher); the
+  // header's scope filter is the ONE thing that narrows the rail.
   const shortcuts = useShortcuts(selectShortcuts)
   const expanderKey = useSettings(selectExpanderKey)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const dialog = useManageDialog({ title: 'Shortcuts', testIdPrefix: 'shortcuts', onClose })
-  // NEW_ROW = the add-a-shortcut draft; a string id = editing that shortcut; null = nothing open.
-  // It is the shell's `selectedId`, so opening, switching or closing the editor also disarms
-  // Delete and clears the error line (`select`).
-  const editingId = dialog.state.selectedId
-  const [draft, setDraft] = useState<ShortcutDraft>(emptyDraft)
   const known = knownWorkspaceIds(workspaces)
-  // Opens on the workspace you are working in; the `all` entry if that id names no known
-  // workspace, so the select never sits on an option it does not offer. Same rule as
-  // TemplatesDialog — the two dialogs must behave identically here.
+  // Opens on the workspace you are working in — same rule as TemplatesDialog.
   const [scope, setScope] = useState<ScopeFilterValue>(() =>
     workspaces.some((w) => w.id === activeWorkspaceId)
       ? workspaceScope(activeWorkspaceId)
       : ALL_SCOPE
   )
+  const selected = shortcuts.find((s) => s.id === dialog.state.selectedId) ?? null
+  const formOpen = dialog.state.creating || selected !== null
+  const listed = filterByScope(shortcuts, scope, known)
 
   function changeScope(next: ScopeFilterValue): void {
     setScope(next)
-    // An editor open on a row from the OLD scope would outlive the list it came from.
-    cancel()
-  }
-
-  function startAdd(): void {
-    dialog.actions.select(NEW_ROW)
-    setDraft(emptyDraft())
-  }
-
-  function startEdit(shortcut: Shortcut): void {
-    dialog.actions.select(shortcut.id)
-    setDraft(toDraft(shortcut))
-  }
-
-  function cancel(): void {
+    // design.md — changing the scope closes whatever was open.
     dialog.actions.select(null)
-    setDraft(emptyDraft())
   }
 
-  function handleSave(): void {
-    const result = draftToSaveRequest(draft)
-    if (!result.ok) return
-    // Changing a row's Workspace can move it out of the view you saved it from, and a row that
-    // vanishes on save reads as a failed save — follow it instead. Read off the draft, which is
-    // what was just written.
-    const saved = scopeOf(draft.workspaceId, known)
-    // void + catch: a rejected save renders a code-mapped message, never the error object
-    // (it can carry operator content).
-    void saveShortcut(result.req)
-      .then(() => {
-        cancel()
-        if (scope !== ALL_SCOPE && scope !== saved) setScope(saved)
-      })
-      .catch((err: unknown) => dialog.actions.setError(SHORTCUT_ERROR_COPY[shortcutErrorCode(err)]))
+  /** design.md — a save that moves a row to another scope follows it. */
+  function revealSaved(saved: Shortcut): void {
+    dialog.actions.select(saved.id)
+    if (filterByScope([saved], scope, known).length === 0) {
+      setScope(scopeOf(saved.workspaceId, known))
+    }
   }
 
-  // R26 — a refused delete keeps the editor open and says so (code → copy, never the error).
-  function handleDelete(id: string): void {
-    void removeShortcut(id)
-      .then(cancel)
-      .catch((err: unknown) =>
-        dialog.actions.setError(SHORTCUT_DELETE_ERROR_COPY[shortcutErrorCode(err)])
-      )
-  }
-
-  // R26 — editing a field clears the error line (Templates/Tags/Rules do the same): a refusal
-  // left up while the operator fixes the alias reads as "still wrong".
-  function changeDraft(next: ShortcutDraft): void {
-    setDraft(next)
-    dialog.actions.setError(null)
-  }
-
-  // The shortcut under edit, if any. The editor card renders it, so the list hides that row —
-  // one thing on screen per shortcut.
-  const editingShortcut = shortcuts.find((s) => s.id === editingId) ?? null
-  const scoped = filterByScope(shortcuts, scope, known)
-  const listed = scoped.filter((s) => s.id !== editingId)
-  // R7 — three empty states (design.md): none at all, none in this scope (below), and — with no
-  // search box here — no third. The scoped count includes the row under edit, so editing a
-  // scope's only row does not call the scope empty.
-  const emptyScopeCopy =
-    scope === 'global'
-      ? 'No global shortcuts'
-      : scope === 'orphans'
-        ? 'No shortcuts without a workspace'
-        : 'No shortcuts in this workspace'
+  // R7 — three empty states (design.md): none at all, none in this scope; no search box here.
+  const emptyCopy =
+    shortcuts.length === 0
+      ? null
+      : scope === 'global'
+        ? 'No global shortcuts'
+        : scope === 'orphans'
+          ? 'No shortcuts without a workspace'
+          : 'No shortcuts in this workspace'
 
   return (
     <ManageDialog.Provider {...dialog}>
-      <ManageDialog.Frame size="wide">
+      <ManageDialog.Frame>
         <ManageDialog.Header
           subtitle={
             <span data-testid="shortcuts-subtitle">
               Press <ChordKeys keys={[expanderChord(expanderKey)]} />, type an alias and its values,
               then Enter to type the result. You press Enter to send.
             </span>
-          }
-          buttons={
-            <ManageDialog.GhostButton
-              testId="shortcuts-add"
-              onClick={startAdd}
-              disabled={editingId === NEW_ROW}
-            >
-              Add shortcut
-            </ManageDialog.GhostButton>
           }
         >
           <ScopeFilter
@@ -176,68 +96,43 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
             ariaLabel="Filter shortcuts by workspace"
           />
         </ManageDialog.Header>
-
-        {/* Its own row, not the subtitle: the subtitle is a <p> and the recorder is a <div>. */}
-        <div className={styles.openWith}>
-          <span className={styles.fieldLabel}>Open with</span>
-          <KeyChordRecorder
-            value={expanderChord(expanderKey)}
-            onChange={(chord) => {
-              // The chord is `Ctrl+Alt+<letter>`; the letter is the last character.
-              void persistSettingsPatch({ expanderKey: chord.slice(-1) })
-            }}
-          />
-        </div>
-
-        {editingId !== null && (
-          <ShortcutEditor
-            shortcut={editingShortcut}
-            draft={draft}
-            onDraftChange={changeDraft}
-            onCancel={cancel}
-            onSave={handleSave}
-            onDelete={() => {
-              if (editingShortcut !== null) handleDelete(editingShortcut.id)
-            }}
-          />
-        )}
-
-        {shortcuts.length === 0 ? (
-          <div className={styles.empty} data-testid="shortcuts-empty">
-            <span className={styles.emptyTitle}>No shortcuts yet</span>
-            <span className={styles.emptyBody}>
-              Add one and give it an alias like <code>ht</code> to type its phrase in any session.
-            </span>
-          </div>
-        ) : scoped.length === 0 ? (
-          <div className={styles.empty} data-testid="shortcuts-empty-scope-box">
-            <span className={styles.emptyTitle} data-testid="shortcuts-empty-scope">
-              {emptyScopeCopy}
-            </span>
-          </div>
-        ) : (
-          <div className={styles.list} role="table" aria-label="Shortcuts">
-            <div className={styles.headRow} role="row">
-              <span>Name</span>
-              <span>Alias</span>
-              <span>Phrase</span>
-              <span />
-            </div>
-            {/* ONE flat rowgroup — no scope sections. Which workspace a row belongs to is the
-                editor's Workspace field; a section header repeated it and cost the list a third
-                of its height. Still a rowgroup so the a11y tree stays table > rowgroup > row. */}
-            <div className={styles.group} role="rowgroup">
-              {listed.map((shortcut) => (
-                <ShortcutRow
-                  key={shortcut.id}
-                  shortcut={shortcut}
-                  onEdit={() => startEdit(shortcut)}
-                />
+        <ManageDialog.Columns>
+          <ManageDialog.List size="wide">
+            <ManageDialog.Rows>
+              {listed.map((s) => (
+                <ManageDialog.Row
+                  key={s.id}
+                  id={s.id}
+                  testId={`shortcut-row-${s.id}`}
+                  selectTestId={`shortcut-select-${s.id}`}
+                >
+                  <span className={styles.rowName}>{s.name}</span>
+                  <span className={styles.rowAlias} data-testid={`shortcut-alias-${s.id}`}>
+                    {s.alias}
+                  </span>
+                </ManageDialog.Row>
               ))}
-            </div>
-          </div>
-        )}
-
+              {shortcuts.length === 0 && (
+                <p className={styles.empty} data-testid="shortcuts-empty">
+                  No shortcuts yet. Add one and give it an alias like <code>ht</code>.
+                </p>
+              )}
+              {emptyCopy !== null && listed.length === 0 && (
+                <p className={styles.empty} data-testid="shortcuts-empty-scope">
+                  {emptyCopy}
+                </p>
+              )}
+            </ManageDialog.Rows>
+            <ManageDialog.New testId="shortcut-new" />
+          </ManageDialog.List>
+          {formOpen ? (
+            <ShortcutForm key={selected?.id ?? 'new'} shortcut={selected} onSaved={revealSaved} />
+          ) : (
+            <ManageDialog.Placeholder testId="shortcut-placeholder">
+              Select a shortcut on the left, or create a new one.
+            </ManageDialog.Placeholder>
+          )}
+        </ManageDialog.Columns>
         <ManageDialog.Error testId="shortcuts-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>

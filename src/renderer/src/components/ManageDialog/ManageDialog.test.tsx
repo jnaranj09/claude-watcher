@@ -281,3 +281,146 @@ describe('ManageDialog — the error line and the selection contract', () => {
     expect(r.container.querySelector('[data-testid="things-error"]')).toBeNull()
   })
 })
+
+function StateProbe(): JSX.Element {
+  const { state, actions } = useManageDialogContext()
+  return (
+    <div>
+      <span data-testid="sp-selected">{state.selectedId ?? 'none'}</span>
+      <span data-testid="sp-creating">{String(state.creating)}</span>
+      <span data-testid="sp-armed">{String(state.armed)}</span>
+      <span data-testid="sp-error">{state.error ?? 'none'}</span>
+      <button type="button" data-testid="sp-new" onClick={() => actions.startNew()}>
+        new
+      </button>
+      <button type="button" data-testid="sp-select" onClick={() => actions.select('a')}>
+        a
+      </button>
+      <button type="button" data-testid="sp-none" onClick={() => actions.select(null)}>
+        none
+      </button>
+      <button type="button" data-testid="sp-arm" onClick={() => actions.arm()}>
+        arm
+      </button>
+      <button type="button" data-testid="sp-fail" onClick={() => actions.setError('x')}>
+        fail
+      </button>
+    </div>
+  )
+}
+
+function StateHarness({ initial }: { initial?: string | null | undefined }): JSX.Element {
+  const dialog = useManageDialog({
+    title: 'Things',
+    testIdPrefix: 'things',
+    onClose: () => {},
+    ...(initial !== undefined ? { initialSelectedId: initial } : {})
+  })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <StateProbe />
+        <ManageDialog.Columns>
+          <ManageDialog.List>
+            <ManageDialog.Rows>
+              <ManageDialog.Row id="a" testId="row-a" selectTestId="select-a">
+                A
+              </ManageDialog.Row>
+            </ManageDialog.Rows>
+            <ManageDialog.New testId="things-new" />
+          </ManageDialog.List>
+          <ManageDialog.Placeholder testId="things-placeholder">
+            Select a thing on the left, or create a new one.
+          </ManageDialog.Placeholder>
+        </ManageDialog.Columns>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+function renderState(initial?: string | null): RenderResult {
+  const r = renderComponent(<StateHarness initial={initial} />)
+  cleanup = r.unmount
+  return r
+}
+
+const text = (r: RenderResult, id: string): string | null =>
+  q(r, `[data-testid="${id}"]`).textContent
+
+describe('ManageDialog — nothing open vs New form (spec 2026-09-29)', () => {
+  it('opens with nothing open and not creating', () => {
+    const r = renderState()
+    expect(text(r, 'sp-selected')).toBe('none')
+    expect(text(r, 'sp-creating')).toBe('false')
+  })
+
+  it('initialSelectedId opens on that row', () => {
+    const r = renderState('a')
+    expect(text(r, 'sp-selected')).toBe('a')
+  })
+
+  it('+ New starts creating, and disarms and clears the error line', () => {
+    const r = renderState()
+    click(q(r, '[data-testid="sp-arm"]'))
+    click(q(r, '[data-testid="sp-fail"]'))
+    click(q(r, '[data-testid="things-new"]'))
+    expect(text(r, 'sp-creating')).toBe('true')
+    expect(text(r, 'sp-selected')).toBe('none')
+    expect(text(r, 'sp-armed')).toBe('false')
+    expect(text(r, 'sp-error')).toBe('none')
+  })
+
+  it('select(id) and select(null) both end creating', () => {
+    const r = renderState()
+    click(q(r, '[data-testid="sp-new"]'))
+    click(q(r, '[data-testid="sp-select"]'))
+    expect(text(r, 'sp-creating')).toBe('false')
+    expect(text(r, 'sp-selected')).toBe('a')
+    click(q(r, '[data-testid="sp-new"]'))
+    click(q(r, '[data-testid="sp-none"]'))
+    expect(text(r, 'sp-creating')).toBe('false')
+    expect(text(r, 'sp-selected')).toBe('none')
+  })
+
+  it('the selected row carries aria-current="page"; the others do not', () => {
+    const r = renderState()
+    expect(q(r, '[data-testid="select-a"]').hasAttribute('aria-current')).toBe(false)
+    click(q(r, '[data-testid="select-a"]'))
+    expect(q(r, '[data-testid="select-a"]').getAttribute('aria-current')).toBe('page')
+  })
+
+  it('Placeholder renders its one sentence', () => {
+    const r = renderState()
+    expect(text(r, 'things-placeholder')).toBe('Select a thing on the left, or create a new one.')
+  })
+})
+
+function PaneHarness(): JSX.Element {
+  const dialog = useManageDialog({ title: 'Things', testIdPrefix: 'things', onClose: () => {} })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <StateProbe />
+        <ManageDialog.Pane testId="things-pane">
+          <ManageDialog.Delete testId="pane-delete" onConfirm={() => {}} />
+        </ManageDialog.Pane>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.Pane', () => {
+  it('is not a form', () => {
+    const r = renderComponent(<PaneHarness />)
+    cleanup = r.unmount
+    expect(q(r, '[data-testid="things-pane"]').tagName).toBe('DIV')
+  })
+
+  it('Escape inside it disarms and stops there', () => {
+    const r = renderComponent(<PaneHarness />)
+    cleanup = r.unmount
+    click(q(r, '[data-testid="sp-arm"]'))
+    key(q(r, '[data-testid="things-pane"]'), 'Escape')
+    expect(text(r, 'sp-armed')).toBe('false')
+  })
+})

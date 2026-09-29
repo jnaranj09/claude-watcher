@@ -79,11 +79,11 @@ function key(el: Element | null, k: string): void {
 describe('ShortcutsDialog — opening another editor disarms Delete (P0-2)', () => {
   it('arming Delete on one shortcut, then editing another, leaves the new editor unarmed', () => {
     render()
-    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-select-sc-1'))
     click(byTestId('shortcut-delete'))
     expect(byTestId('shortcut-delete')?.textContent).toBe('Confirm delete')
 
-    click(byTestId('shortcut-edit-sc-2'))
+    click(byTestId('shortcut-select-sc-2'))
     expect(byTestId('shortcut-delete')?.textContent).toBe('Delete')
   })
 })
@@ -92,7 +92,7 @@ describe('ShortcutsDialog — Escape on an armed Delete disarms instead of closi
   it('does not close the dialog, and disarms the button', () => {
     const onClose = vi.fn()
     render(onClose)
-    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-select-sc-1'))
     click(byTestId('shortcut-delete'))
     expect(byTestId('shortcut-delete')?.textContent).toBe('Confirm delete')
 

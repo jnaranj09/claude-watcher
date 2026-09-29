@@ -1,35 +1,11 @@
-// Story 2.4 — the minimal Settings surface (AC-4).
-//
-// SIX controls, IN ORDER: a SOUND on/off toggle, then (spec 2026-09-10) two ATTENTION-REMINDER
-// dropdowns — how many times a still-blocked session is re-notified, and the first reminder's
-// delay — then a TERMINAL FONT-SIZE control, then (spec 2026-09-20) the THEME group: a picker,
-// Reload themes, Open themes folder, a broken-themes helper line and a transparency hint — then
-// (spec 2026-09-15) the PROGRAMMATIC API block: an on/off toggle, the listener's port, and — only
-// while it is on — the bearer token with Copy and an arm-in-place Regenerate, plus the Swagger
-// docs URL. The reminder rows sit after Attention
-// sound (spec §4): sound and reminders are both attention settings, so they read together;
-// font-size is unrelated and comes last. Story 2.4 froze this panel at exactly two (F3 /
-// UX-DR30); a third "background work gives up after" window was added with the background-work
-// latch and then removed, because claude ANNOUNCES the end of background work itself — a
-// finished task wakes the session, which fires a fresh `Stop` carrying an empty
-// `background_tasks`, and the card corrects itself ~4s later (probe-verified, claude 2.1.250).
-// There was nothing left to time out. The reminder rows use `Select`
-// (`components/Select/Select.tsx`), never a native `<select>` (banned — design.md). The
-// global-hotkey-binding row stays CUT (FR-8 dropped 2026-06-19). Reachable
-// from the header ☰ menu's `Settings…` row (2026-09-14; it was a `⚙` gear, EXPERIENCE.md:33), which
-// App.tsx renders as `SettingsPanel` under the single-modal rule. The `Settings` gear below is kept
-// only for the `#terminals` proof view. Reads the live projection off the
-// renderer settings store and writes back via window.settings.set(...) through
-// `persistSettingsPatch` (optimistic + persist). Changes take effect IMMEDIATELY (AC-5): the
-// sound module reads the live `soundEnabled` on each attention event; `terminalFontSize` is
-// persisted now and Epic-3's terminal will consume it (no terminal to preview yet — F5).
-//
-// Accessibility floor (Task 6.3): every control is labeled (label + control, never color-only)
-// and is keyboard-operable — a real <label> for the sound checkbox and the font-size range, and
-// a <span> + `ariaLabel` for the two reminder `Select` rows (a `<label for>` cannot address
-// `Select`'s button — design.md).
-// [Source: story 2.4 Task 6; AC-4; F3/F5; .claude/rules/state.md; src/renderer/src/styles/
-//  tokens.ts (design tokens — no new colors); ColumnHeader.tsx (component/CSS-module pattern)]
+// Settings — the app's preferences, on the ONE two-column shell (spec 2026-09-29 §3): a rail of
+// categories (Notifications, Appearance, Terminal, Keyboard, API) and the chosen category's
+// controls on the right. Every control persists on change through `persistSettingsPatch`
+// (optimistic + persist), so there is no Save. It opens on Notifications and never shows a
+// placeholder. The panel's ONE error line carries the standing theme error whatever category is
+// open. Dropdowns are `Select` (a native <select> is banned — design.md); labels of a Select are
+// <span>s with `ariaLabel`. Reached from the ☰ menu's `Settings…` row (App.tsx renders
+// `SettingsPanel` from `settingsDialogOpen`); the `Settings` gear below only serves `#terminals`.
 import { useEffect, useState, type JSX } from 'react'
 import {
   useSettings,
@@ -42,6 +18,7 @@ import {
   selectApiPort,
   selectThemeId,
   selectWallpaperByTheme,
+  selectExpanderKey,
   persistSettingsPatch
 } from '../../stores/settingsStore'
 import {
@@ -50,7 +27,8 @@ import {
   REMINDER_COUNT_MAX,
   REMINDER_FIRST_DELAY_OPTIONS,
   API_PORT_MIN,
-  API_PORT_MAX
+  API_PORT_MAX,
+  expanderChord
 } from '../../../../shared/schemas/settings'
 import { useTheme, selectThemeBundle } from '../../stores/themeStore'
 import type { ThemeSummary } from '../../../../shared/schemas/theme'
@@ -60,7 +38,13 @@ import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { Button } from '../Button/Button'
+import { KeyChordRecorder } from '../ShortcutsDialog/KeyChordRecorder'
 import { reminderSummary } from './reminderSummary'
+import {
+  FIRST_SETTINGS_CATEGORY,
+  SETTINGS_CATEGORIES,
+  type SettingsCategoryId
+} from './settingsCategories'
 import { useServerHealth } from '../../hooks/useServerHealth'
 import styles from './Settings.module.css'
 
@@ -74,8 +58,9 @@ const REMINDER_DELAY_OPTIONS: readonly SelectOption<string>[] = REMINDER_FIRST_D
   (m) => ({ value: String(m), label: `${m} min` })
 )
 
-/** The API block's ManageDialog has nothing to close — it renders no Frame and no ✕ (see the
- *  block's comment). A module-level noop keeps `useManageDialog`'s actions memo stable. */
+/** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
+ *  stable. (The header ✕ always renders; with NO_CLOSE it does nothing — the real app always
+ *  passes `onClose`.) */
 const NO_CLOSE = (): void => {}
 
 /**
@@ -99,16 +84,24 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const reminderCount = useSettings(selectReminderCount)
   const reminderFirstDelayMinutes = useSettings(selectReminderFirstDelayMinutes)
 
-  // ── Programmatic API (spec 2026-09-15) ────────────────────────────────────────────────────
-  // The block's own ManageDialog state: it supplies the armed `Regenerate` and the one error
-  // line. `onClose` is NO_CLOSE — the block renders no Frame and no ✕, so `close()` is never
-  // reachable, and a module constant keeps `actions` memo-stable for the effect below.
-  const apiDialog = useManageDialog({
-    title: 'API',
-    testIdPrefix: 'settings-api',
-    onClose: NO_CLOSE
+  // ONE ManageDialog for the whole panel (spec 2026-09-29 §3): the category rail is its selection
+  // (opens on the first category, so there is never a placeholder), Regenerate is its one armable
+  // control, and its error line is the panel's one error line.
+  const dialog = useManageDialog({
+    title: 'Settings',
+    testIdPrefix: 'settings',
+    onClose: onClose ?? NO_CLOSE,
+    initialSelectedId: FIRST_SETTINGS_CATEGORY,
+    // A category switch disarms Regenerate but keeps the error line: it describes the panel.
+    keepErrorOnSelect: true
   })
-  const { actions: apiActions } = apiDialog
+  const { actions: apiActions } = dialog
+  const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
+  const categoryLabel =
+    SETTINGS_CATEGORIES.find((c) => c.id === category)?.label ?? SETTINGS_CATEGORIES[0]?.label
+  const expanderKey = useSettings(selectExpanderKey)
+
+  // ── Programmatic API (spec 2026-09-15) ────────────────────────────────────────────────────
   const apiEnabled = useSettings(selectApiEnabled)
   const apiPort = useSettings(selectApiPort)
   // The port is edited as TEXT and committed on blur, so a half-typed `9` never reaches the
@@ -191,7 +184,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // error line in place of the API/theme-action error (`themeError ?? state.error`). It used to be
   // copied INTO that state, where any flow that cleared the line (a good port, the API switched
   // off, a regenerate) wiped it while the theme was still broken.
-  const errorLine = themeError ?? apiDialog.state.error
+  const errorLine = themeError ?? dialog.state.error
 
   function pickTheme(next: string): void {
     setThemeSwitching(true)
@@ -298,302 +291,317 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   }
 
   return (
-    <div
-      className={styles.overlay}
-      data-testid="settings-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Settings"
-    >
-      <div className={styles.panel} data-testid="settings-panel">
-        <div className={styles.header}>
-          <span className={styles.title}>Settings</span>
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon
-              testId="settings-close"
-              onClick={onClose}
-              aria-label="Close settings"
-            >
-              ✕
-            </Button>
-          )}
-        </div>
-
-        {/* Control 1 — SOUND on/off (a labeled native checkbox; keyboard-operable). */}
-        <div className={styles.row}>
-          <label className={styles.label} htmlFor="settings-sound-enabled">
-            Attention sound
-          </label>
-          <div className={styles.controlGroup}>
-            <input
-              id="settings-sound-enabled"
-              type="checkbox"
-              data-testid="settings-sound-toggle"
-              checked={soundEnabled}
-              onChange={(e) => {
-                // Persist + apply immediately. The sound module reads the live flag (AC-5).
-                void persistSettingsPatch({ soundEnabled: e.target.checked })
-              }}
-            />
-          </div>
-        </div>
-
-        {/* UX-13 — desktop POPUPS on/off (the first alert and every reminder). The sound above is
-            its own toggle. Main reads the setting live on every alert. */}
-        <div className={styles.row}>
-          <label className={styles.label} htmlFor="settings-notifications-enabled">
-            Desktop notifications
-          </label>
-          <div className={styles.controlGroup}>
-            <input
-              id="settings-notifications-enabled"
-              type="checkbox"
-              data-testid="settings-notifications-toggle"
-              checked={notificationsEnabled}
-              onChange={(e) => {
-                void persistSettingsPatch({ notificationsEnabled: e.target.checked })
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Control 2 — ATTENTION REMINDERS: how many times a session still blocked on a
-            permission prompt or a question is re-notified (spec 2026-09-10). 0 = Off. Sits
-            directly after Attention sound (spec §4) — both are attention settings. The label
-            is a <span>: a <label for> cannot address the Select's button (design.md). */}
-        <div className={styles.row}>
-          <span className={styles.label}>Reminders</span>
-          <div className={styles.controlGroup}>
-            <Select
-              value={String(reminderCount)}
-              options={REMINDER_COUNT_OPTIONS}
-              onChange={(next) => {
-                const n = Number(next)
-                if (Number.isInteger(n)) void persistSettingsPatch({ reminderCount: n })
-              }}
-              ariaLabel="Reminders"
-              testId="settings-reminder-count"
-            />
-          </div>
-        </div>
-
-        {/* Control 3 — the first reminder's delay; every later gap doubles. NOT rendered when
-            reminders are Off (design.md: a control the operator must not use is not rendered). */}
-        {reminderCount > 0 && (
-          <div className={styles.row}>
-            <span className={styles.label}>First reminder after</span>
-            <div className={styles.controlGroup}>
-              <Select
-                value={String(reminderFirstDelayMinutes)}
-                options={REMINDER_DELAY_OPTIONS}
-                onChange={(next) => {
-                  const minutes = REMINDER_FIRST_DELAY_OPTIONS.find((m) => String(m) === next)
-                  if (minutes !== undefined) {
-                    void persistSettingsPatch({ reminderFirstDelayMinutes: minutes })
-                  }
-                }}
-                ariaLabel="First reminder after"
-                testId="settings-reminder-first-delay"
-              />
-            </div>
-          </div>
-        )}
-
-        <p className={styles.hint} data-testid="settings-reminder-summary">
-          {reminderSummary(reminderCount, reminderFirstDelayMinutes)}
-        </p>
-
-        {/* Control 4 — TERMINAL FONT-SIZE (a labeled range + readout; keyboard-operable). */}
-        <div className={styles.row}>
-          <label className={styles.label} htmlFor="settings-terminal-font-size">
-            Terminal font size
-          </label>
-          <div className={styles.controlGroup}>
-            <input
-              id="settings-terminal-font-size"
-              type="range"
-              data-testid="settings-font-size"
-              min={TERMINAL_FONT_SIZE_MIN}
-              max={TERMINAL_FONT_SIZE_MAX}
-              step={1}
-              value={terminalFontSize}
-              onChange={(e) => {
-                const next = Number(e.target.value)
-                if (Number.isFinite(next)) {
-                  void persistSettingsPatch({ terminalFontSize: next })
-                }
-              }}
-            />
-            <span className={styles.fontSizeValue} data-testid="settings-font-size-value">
-              {terminalFontSize}px
-            </span>
-          </div>
-        </div>
-
-        {/* The Provider wraps the Theme and API groups: both feed the panel's ONE error line.
-            `ManageDialog.Delete` and `.Error` read the ManageDialog context and THROW without
-            one, and SettingsPanel is not a Manage dialog. The Provider itself renders
-            `<ManageDialogContext>` and nothing else — no overlay, no role=dialog, no Escape
-            handler — so the panel is still the only dialog here, and `title`/`testIdPrefix` are
-            inert (only Frame/Header/Close read them). `state.armed` is ONE flag per Provider and
-            Regenerate is the block's only armable control; a second one would need its own
-            Provider. */}
-        <ManageDialog.Provider {...apiDialog} state={{ ...apiDialog.state, error: errorLine }}>
-          {/* Custom themes — the picker (a Select; never a native <select>), a Wallpaper picker when
-              the applied theme lists 2+ (spec 2026-09-24), the two actions, the
-              broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
-          <div className={styles.row}>
-            <span className={styles.label}>Theme</span>
-            <div className={styles.controlGroup}>
-              <Select
-                value={themeId}
-                options={themeOptions}
-                onChange={pickTheme}
-                ariaLabel="Theme"
-                testId="settings-theme"
-              />
-            </div>
-          </div>
-          {wallpaperOptions.length >= 2 && appliedWallpaper !== null && (
-            <div className={styles.row}>
-              <span className={styles.label}>Wallpaper</span>
-              <div className={styles.controlGroup}>
-                <Select
-                  value={appliedWallpaper}
-                  options={wallpaperOptions}
-                  onChange={(next) =>
-                    void persistSettingsPatch({
-                      wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next }
-                    })
-                  }
-                  ariaLabel="Wallpaper"
-                  testId="settings-wallpaper"
-                />
-              </div>
-            </div>
-          )}
-          <div className={styles.themeActions}>
-            <ManageDialog.GhostButton
-              testId="settings-theme-reload"
-              onClick={() => void reloadThemes()}
-            >
-              Reload themes
-            </ManageDialog.GhostButton>
-            <ManageDialog.GhostButton
-              testId="settings-theme-open-folder"
-              onClick={() => void openThemesFolder()}
-            >
-              Open themes folder
-            </ManageDialog.GhostButton>
-          </div>
-          {brokenLine !== null && (
-            <p className={styles.hint} data-testid="settings-theme-broken">
-              {brokenLine}
-            </p>
-          )}
-          {bundle.terminal.allowTransparency === true && (
-            <p className={styles.hint} data-testid="settings-theme-transparency">
-              Transparency applies to terminals opened from now on.
-            </p>
-          )}
-
-          {/* Control 5 — the PROGRAMMATIC API, off by default. The token, its buttons and the docs
-              URL are only rendered while it is on (design.md: a control the operator must not use
-              is not rendered). */}
-          <div className={styles.row}>
-            <label className={styles.label} htmlFor="settings-api-enabled">
-              Local API
-            </label>
-            <div className={styles.controlGroup}>
-              <input
-                id="settings-api-enabled"
-                type="checkbox"
-                data-testid="settings-api-enabled"
-                checked={apiEnabled}
-                onChange={(e) => setApiEnabled(e.target.checked)}
-              />
-            </div>
-          </div>
-
-          <div className={styles.row}>
-            <label className={styles.label} htmlFor="settings-api-port">
-              API port
-            </label>
-            <div className={styles.controlGroup}>
-              <span className={styles.portField}>
-                <TextInput
-                  id="settings-api-port"
-                  testId="settings-api-port"
-                  value={portValue}
-                  invalid={portInvalid}
-                  onChange={(next) => {
-                    setPortDraft(next)
-                    setPortInvalid(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitPort()
-                  }}
-                  inputMode="numeric"
-                  onBlur={commitPort}
-                />
-              </span>
-            </div>
-          </div>
-
-          {apiEnabled && (
-            <>
-              <div className={styles.row}>
-                <label className={styles.label} htmlFor="settings-api-token">
-                  Token
-                </label>
-                <div className={styles.controlGroup}>
-                  {/* readOnly, not disabled — a disabled field cannot be selected, and a token
-                      you cannot select is one you cannot copy by hand. */}
-                  <span className={styles.tokenField}>
-                    <TextInput
-                      id="settings-api-token"
-                      testId="settings-api-token"
-                      value={token ?? ''}
-                      onChange={() => {}}
-                      readOnly
+    <ManageDialog.Provider {...dialog} state={{ ...dialog.state, error: errorLine }}>
+      <ManageDialog.Frame>
+        <ManageDialog.Header />
+        <ManageDialog.Columns>
+          <ManageDialog.List>
+            <ManageDialog.Rows>
+              {SETTINGS_CATEGORIES.map((c) => (
+                <ManageDialog.Row key={c.id} id={c.id} testId={`settings-category-${c.id}`}>
+                  {c.label}
+                </ManageDialog.Row>
+              ))}
+            </ManageDialog.Rows>
+          </ManageDialog.List>
+          <ManageDialog.Pane testId={`settings-pane-${category}`}>
+            <h3 className={styles.categoryTitle}>{categoryLabel}</h3>
+            {category === 'notifications' && (
+              <>
+                {/* Control 1 — SOUND on/off (a labeled native checkbox; keyboard-operable). */}
+                <div className={styles.row}>
+                  <label className={styles.label} htmlFor="settings-sound-enabled">
+                    Attention sound
+                  </label>
+                  <div className={styles.controlGroup}>
+                    <input
+                      id="settings-sound-enabled"
+                      type="checkbox"
+                      data-testid="settings-sound-toggle"
+                      checked={soundEnabled}
+                      onChange={(e) => {
+                        // Persist + apply immediately. The sound module reads the live flag (AC-5).
+                        void persistSettingsPatch({ soundEnabled: e.target.checked })
+                      }}
                     />
-                  </span>
-                  <ManageDialog.GhostButton
-                    testId="settings-api-copy"
-                    onClick={() => void window.clipboard.writeText(token ?? '')}
-                  >
-                    Copy
-                  </ManageDialog.GhostButton>
-                  {/* Destructive: it invalidates every client holding the old token, so it arms
-                      in place through the ONE component that owns those classes (design.md). */}
-                  <ManageDialog.Delete
-                    testId="settings-api-regenerate"
-                    label="Regenerate"
-                    confirmLabel="Confirm regenerate"
-                    onConfirm={() => void regenerateToken()}
-                  />
+                  </div>
                 </div>
-              </div>
-              {/* R11 — a listener that did not bind has no Docs URL to offer. The next change
-                  in this panel retries the bind. */}
-              {apiDown !== null ? (
-                <p className={styles.hint} data-testid="settings-api-down">
-                  {apiDown}
+
+                {/* UX-13 — desktop POPUPS on/off (the first alert and every reminder). The sound above is
+                    its own toggle. Main reads the setting live on every alert. */}
+                <div className={styles.row}>
+                  <label className={styles.label} htmlFor="settings-notifications-enabled">
+                    Desktop notifications
+                  </label>
+                  <div className={styles.controlGroup}>
+                    <input
+                      id="settings-notifications-enabled"
+                      type="checkbox"
+                      data-testid="settings-notifications-toggle"
+                      checked={notificationsEnabled}
+                      onChange={(e) => {
+                        void persistSettingsPatch({ notificationsEnabled: e.target.checked })
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Control 2 — ATTENTION REMINDERS: how many times a session still blocked on a
+                    permission prompt or a question is re-notified (spec 2026-09-10). 0 = Off. Sits
+                    directly after Attention sound (spec §4) — both are attention settings. The label
+                    is a <span>: a <label for> cannot address the Select's button (design.md). */}
+                <div className={styles.row}>
+                  <span className={styles.label}>Reminders</span>
+                  <div className={styles.controlGroup}>
+                    <Select
+                      value={String(reminderCount)}
+                      options={REMINDER_COUNT_OPTIONS}
+                      onChange={(next) => {
+                        const n = Number(next)
+                        if (Number.isInteger(n)) void persistSettingsPatch({ reminderCount: n })
+                      }}
+                      ariaLabel="Reminders"
+                      testId="settings-reminder-count"
+                    />
+                  </div>
+                </div>
+
+                {/* Control 3 — the first reminder's delay; every later gap doubles. NOT rendered when
+                    reminders are Off (design.md: a control the operator must not use is not rendered). */}
+                {reminderCount > 0 && (
+                  <div className={styles.row}>
+                    <span className={styles.label}>First reminder after</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={String(reminderFirstDelayMinutes)}
+                        options={REMINDER_DELAY_OPTIONS}
+                        onChange={(next) => {
+                          const minutes = REMINDER_FIRST_DELAY_OPTIONS.find(
+                            (m) => String(m) === next
+                          )
+                          if (minutes !== undefined) {
+                            void persistSettingsPatch({ reminderFirstDelayMinutes: minutes })
+                          }
+                        }}
+                        ariaLabel="First reminder after"
+                        testId="settings-reminder-first-delay"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <p className={styles.hint} data-testid="settings-reminder-summary">
+                  {reminderSummary(reminderCount, reminderFirstDelayMinutes)}
                 </p>
-              ) : (
-                <p className={styles.hint}>
-                  Docs: <span data-testid="settings-api-docs-url">{docsUrl}</span>
-                </p>
-              )}
-            </>
-          )}
-          <ManageDialog.Error testId="settings-error" />
-        </ManageDialog.Provider>
-      </div>
-    </div>
+              </>
+            )}
+            {category === 'appearance' && (
+              <>
+                {/* Custom themes — the picker (a Select; never a native <select>), a Wallpaper picker when
+                    the applied theme lists 2+ (spec 2026-09-24), the two actions, the
+                    broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
+                <div className={styles.row}>
+                  <span className={styles.label}>Theme</span>
+                  <div className={styles.controlGroup}>
+                    <Select
+                      value={themeId}
+                      options={themeOptions}
+                      onChange={pickTheme}
+                      ariaLabel="Theme"
+                      testId="settings-theme"
+                    />
+                  </div>
+                </div>
+                {wallpaperOptions.length >= 2 && appliedWallpaper !== null && (
+                  <div className={styles.row}>
+                    <span className={styles.label}>Wallpaper</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={appliedWallpaper}
+                        options={wallpaperOptions}
+                        onChange={(next) =>
+                          void persistSettingsPatch({
+                            wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next }
+                          })
+                        }
+                        ariaLabel="Wallpaper"
+                        testId="settings-wallpaper"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className={styles.themeActions}>
+                  <ManageDialog.GhostButton
+                    testId="settings-theme-reload"
+                    onClick={() => void reloadThemes()}
+                  >
+                    Reload themes
+                  </ManageDialog.GhostButton>
+                  <ManageDialog.GhostButton
+                    testId="settings-theme-open-folder"
+                    onClick={() => void openThemesFolder()}
+                  >
+                    Open themes folder
+                  </ManageDialog.GhostButton>
+                </div>
+                {brokenLine !== null && (
+                  <p className={styles.hint} data-testid="settings-theme-broken">
+                    {brokenLine}
+                  </p>
+                )}
+                {bundle.terminal.allowTransparency === true && (
+                  <p className={styles.hint} data-testid="settings-theme-transparency">
+                    Transparency applies to terminals opened from now on.
+                  </p>
+                )}
+              </>
+            )}
+            {category === 'terminal' && (
+              <>
+                {/* Control 4 — TERMINAL FONT-SIZE (a labeled range + readout; keyboard-operable). */}
+                <div className={styles.row}>
+                  <label className={styles.label} htmlFor="settings-terminal-font-size">
+                    Terminal font size
+                  </label>
+                  <div className={styles.controlGroup}>
+                    <input
+                      id="settings-terminal-font-size"
+                      type="range"
+                      data-testid="settings-font-size"
+                      min={TERMINAL_FONT_SIZE_MIN}
+                      max={TERMINAL_FONT_SIZE_MAX}
+                      step={1}
+                      value={terminalFontSize}
+                      onChange={(e) => {
+                        const next = Number(e.target.value)
+                        if (Number.isFinite(next)) {
+                          void persistSettingsPatch({ terminalFontSize: next })
+                        }
+                      }}
+                    />
+                    <span className={styles.fontSizeValue} data-testid="settings-font-size-value">
+                      {terminalFontSize}px
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+            {category === 'keyboard' && (
+              <>
+                <div className={styles.row}>
+                  <span className={styles.label}>Open shortcuts with</span>
+                  <div className={styles.controlGroup}>
+                    <KeyChordRecorder
+                      value={expanderChord(expanderKey)}
+                      onChange={(chord) => {
+                        // The chord is `Ctrl+Alt+<letter>`; the letter is the last character.
+                        void persistSettingsPatch({ expanderKey: chord.slice(-1) })
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className={styles.hint}>Opens the shortcut box inside the focused terminal.</p>
+              </>
+            )}
+            {category === 'api' && (
+              <>
+                {/* Control 5 — the PROGRAMMATIC API, off by default. The token, its buttons and the docs
+                    URL are only rendered while it is on (design.md: a control the operator must not use
+                    is not rendered). */}
+                <div className={styles.row}>
+                  <label className={styles.label} htmlFor="settings-api-enabled">
+                    Local API
+                  </label>
+                  <div className={styles.controlGroup}>
+                    <input
+                      id="settings-api-enabled"
+                      type="checkbox"
+                      data-testid="settings-api-enabled"
+                      checked={apiEnabled}
+                      onChange={(e) => setApiEnabled(e.target.checked)}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.row}>
+                  <label className={styles.label} htmlFor="settings-api-port">
+                    API port
+                  </label>
+                  <div className={styles.controlGroup}>
+                    <span className={styles.portField}>
+                      <TextInput
+                        id="settings-api-port"
+                        testId="settings-api-port"
+                        value={portValue}
+                        invalid={portInvalid}
+                        onChange={(next) => {
+                          setPortDraft(next)
+                          setPortInvalid(false)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitPort()
+                        }}
+                        inputMode="numeric"
+                        onBlur={commitPort}
+                      />
+                    </span>
+                  </div>
+                </div>
+
+                {apiEnabled && (
+                  <>
+                    <div className={styles.row}>
+                      <label className={styles.label} htmlFor="settings-api-token">
+                        Token
+                      </label>
+                      <div className={styles.controlGroup}>
+                        {/* readOnly, not disabled — a disabled field cannot be selected, and a token
+                            you cannot select is one you cannot copy by hand. */}
+                        <span className={styles.tokenField}>
+                          <TextInput
+                            id="settings-api-token"
+                            testId="settings-api-token"
+                            value={token ?? ''}
+                            onChange={() => {}}
+                            readOnly
+                          />
+                        </span>
+                        <ManageDialog.GhostButton
+                          testId="settings-api-copy"
+                          onClick={() => void window.clipboard.writeText(token ?? '')}
+                        >
+                          Copy
+                        </ManageDialog.GhostButton>
+                        {/* Destructive: it invalidates every client holding the old token, so it arms
+                            in place through the ONE component that owns those classes (design.md). */}
+                        <ManageDialog.Delete
+                          testId="settings-api-regenerate"
+                          label="Regenerate"
+                          confirmLabel="Confirm regenerate"
+                          onConfirm={() => void regenerateToken()}
+                        />
+                      </div>
+                    </div>
+                    {/* R11 — a listener that did not bind has no Docs URL to offer. The next change
+                        in this panel retries the bind. */}
+                    {apiDown !== null ? (
+                      <p className={styles.hint} data-testid="settings-api-down">
+                        {apiDown}
+                      </p>
+                    ) : (
+                      <p className={styles.hint}>
+                        Docs: <span data-testid="settings-api-docs-url">{docsUrl}</span>
+                      </p>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </ManageDialog.Pane>
+        </ManageDialog.Columns>
+        <ManageDialog.Error testId="settings-error" />
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
   )
 }
 

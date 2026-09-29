@@ -14,6 +14,7 @@ in this tree. This file is the design rule set that IS.)
 
 ```tsx
 const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', onClose })
+const formOpen = dialog.state.creating || selected !== null
 
 <ManageDialog.Provider {...dialog}>
   <ManageDialog.Frame>
@@ -30,21 +31,52 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
             {/* <ManageDialog.RowActions> ONLY for actions the form does not own */}
           </ManageDialog.Row>
         </ManageDialog.Rows>
-        <ManageDialog.New testId="template-new" /> {/* bottom of the rail */}
+        <ManageDialog.New testId="template-new" /> {/* bottom of the rail; startNew() */}
       </ManageDialog.List>
-      <ManageDialog.Form onSubmit={submit}>
-        …fields…
-        <ManageDialog.Footer>
-          {/* flex, justify-content: flex-end */}
-          <ManageDialog.Delete testId="template-delete" onConfirm={remove} />
-          <ManageDialog.Save testId="template-save" disabled={!canSave} />
-        </ManageDialog.Footer>
-      </ManageDialog.Form>
+      {formOpen ? (
+        <ManageDialog.Form onSubmit={submit}>
+          …fields…
+          <ManageDialog.Footer>
+            {/* flex, justify-content: flex-end */}
+            <ManageDialog.Delete testId="template-delete" onConfirm={remove} />
+            <ManageDialog.Save testId="template-save" disabled={!canSave} />
+          </ManageDialog.Footer>
+        </ManageDialog.Form>
+      ) : (
+        <ManageDialog.Placeholder testId="template-placeholder">
+          Select a template on the left, or create a new one.
+        </ManageDialog.Placeholder>
+      )}
     </ManageDialog.Columns>
     <ManageDialog.Error testId="template-error" />
   </ManageDialog.Frame>
 </ManageDialog.Provider>
 ```
+
+## Two-column dialogs (the standard)
+
+Every configuration surface in this app is `rail | right column` on `ManageDialog` — the Manage
+dialogs, Past sessions, Shortcuts and Settings (spec 2026-09-29). There is no second layout.
+
+- **The right column is one of three things**: the PLACEHOLDER (nothing open), a FORM (a row, or
+  the New form), or a PANE of controls (a settings-like surface with no Save). It is **never an
+  empty form**: an empty form with nothing selected reads as "is this a record or a create?".
+- **Nothing open ≠ New form.** `select(null)` closes what was open (→ `ManageDialog.Placeholder`);
+  `+ New` calls `startNew()` (`state.creating`). A dialog renders its form only while
+  `state.creating || selected !== null` — a `selectedId` whose row is gone counts as nothing open.
+- **Where each flow lands:** opening → the placeholder; `+ New` → the New form; a save → that row
+  (the scope follows it); a delete / forget → the placeholder; a scope change → the placeholder.
+- **The placeholder is ONE sentence**, `--text-secondary`, centred: `Select a <thing> on the left,
+or create a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it: `+ New`
+  at the bottom of the rail is the only create control.
+- **A settings-like surface uses CATEGORIES as its rail rows** (Settings: Notifications,
+  Appearance, Terminal, Keyboard, API) and opens on the first one (`initialSelectedId`), so it
+  never shows a placeholder. Its right column is `ManageDialog.Pane` (same scroll region as
+  `Form`, no submit), headed by the category name. A new setting goes into an existing category;
+  a new category is a design question.
+- **No exceptions.** Shortcuts was one (a table with an editor card above it) and was rebuilt;
+  a new surface that "needs" a table or a card is a design question, not a reason for a second
+  layout.
 
 ## The rules
 
@@ -298,6 +330,8 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
 
 ## The Past sessions dialog and session exits
 
+- **Nothing selected shows the placeholder** ("Select a session on the left."), never a disabled
+  Open.
 - **One error line, same rule as every Manage dialog:** a failed history load sets it to
   `Could not load past sessions` (`ManageDialog.Error`, `role="alert"`) — never a thrown
   `error.message` — and the load-failed state suppresses the empty-list sentence so the two never

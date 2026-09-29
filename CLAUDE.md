@@ -108,9 +108,12 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
    renderer Zustand; derived = narrow selectors (never persisted). Inject `now()` for
    determinism.
 6. **UI shape** (`.claude/rules/design.md`). The Manage dialogs (Templates / Shortcuts /
-   Workspaces) share ONE shell, `components/ManageDialog/` — a header scope dropdown, a FLAT
+   Workspaces / Tags / Rules / Past sessions) and Settings share ONE shell, `components/ManageDialog/` — a header scope dropdown, a FLAT
    row list (never sections; row actions only in `ManageDialog.RowActions`), a form, and a
-   `[Delete] [Save]` footer. Destructive actions arm
+   `[Delete] [Save]` footer. **The right column is never an empty form**: nothing open shows
+   `ManageDialog.Placeholder`, `+ New` calls `startNew()`. **Settings and Shortcuts are the same
+   shell** — Settings with a rail of categories and a `Pane`, opening on the first (spec
+   `2026-09-29-two-column-dialogs-design.md`). Destructive actions arm
    in place and are red-outlined at rest; a workspace is always drawn with `WorkspaceDot`.
    **A native `<select>` is banned** — Chromium paints its popup from the desktop's GTK theme,
    so it comes up light on a dark app; use `components/Select/Select.tsx`. **A bare

@@ -252,7 +252,7 @@ describe('RulesDialog', () => {
     expect(q(r, '[data-testid="rule-error"]').textContent).toMatch(/cannot see/)
   })
 
-  it('Delete arms, confirms, and returns to the empty form', async () => {
+  it('Delete arms, confirms, and returns to the placeholder', async () => {
     const { r } = render()
     chooseOption(r.container, 'rule-scope-filter', 'all')
     click(q(r, '[data-testid="rule-select-ra"]'))
@@ -260,7 +260,8 @@ describe('RulesDialog', () => {
     click(q(r, '[data-testid="rule-delete"]'))
     await flush()
     expect(remove).toHaveBeenCalledWith('ra')
-    expect(q<HTMLInputElement>(r, '[data-testid="rule-name"]').value).toBe('')
+    expect(q(r, '[data-testid="rule-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('[data-testid="rule-name"]')).toBeNull()
   })
 
   it('closes on Escape', () => {
@@ -289,6 +290,32 @@ describe('RulesDialog', () => {
     click(q(r, '[data-testid="rule-select-ra"]'))
     expect(q<HTMLInputElement>(r, '[data-testid="rule-name"]').value).toBe('zeta runs first')
     chooseOption(r.container, 'rule-scope-filter', 'ws:w1')
-    expect(q<HTMLInputElement>(r, '[data-testid="rule-name"]').value).toBe('')
+    expect(q(r, '[data-testid="rule-placeholder"]')).toBeTruthy()
+    expect(r.container.querySelector('[data-testid="rule-name"]')).toBeNull()
+  })
+})
+
+describe('nothing open → placeholder (spec 2026-09-29)', () => {
+  it('opens on the placeholder, with no form field rendered', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="rule-placeholder"]').textContent).toBe(
+      'Select a rule on the left, or create a new one.'
+    )
+    expect(r.container.querySelector('#rule-name')).toBeNull()
+  })
+
+  it('+ New replaces the placeholder with the empty form', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="rule-new"]'))
+    expect(r.container.querySelector('[data-testid="rule-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#rule-name')).not.toBeNull()
+  })
+
+  it('picking a row replaces the placeholder with that row', () => {
+    const { r } = render()
+    chooseOption(r.container, 'rule-scope-filter', 'all')
+    click(q(r, '[data-testid="rule-select-ra"]'))
+    expect(r.container.querySelector('[data-testid="rule-placeholder"]')).toBeNull()
+    expect(r.container.querySelector('#rule-name')).not.toBeNull()
   })
 })

@@ -49,6 +49,7 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
   const listed = filterByScope(rules, scope, known)
   const broken = new Set(brokenIds)
   const selected = rules.find((r) => r.id === dialog.state.selectedId) ?? null
+  const formOpen = dialog.state.creating || selected !== null
 
   // An aria-modal dialog must take focus on mount: the ✕ is the mount-stable target.
   useEffect(() => {
@@ -169,7 +170,13 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
             </ManageDialog.Rows>
             <ManageDialog.New testId="rule-new" />
           </ManageDialog.List>
-          <RuleForm key={selected?.id ?? 'new'} rule={selected} onSaved={revealSaved} />
+          {formOpen ? (
+            <RuleForm key={selected?.id ?? 'new'} rule={selected} onSaved={revealSaved} />
+          ) : (
+            <ManageDialog.Placeholder testId="rule-placeholder">
+              Select a rule on the left, or create a new one.
+            </ManageDialog.Placeholder>
+          )}
         </ManageDialog.Columns>
         <ManageDialog.Error testId="rule-error" />
       </ManageDialog.Frame>

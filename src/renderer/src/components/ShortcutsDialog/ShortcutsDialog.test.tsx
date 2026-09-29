@@ -1,10 +1,10 @@
-// Phrase shortcuts — the Manage dialog (a list, plus a separate editor card).
+// Phrase shortcuts — the Manage dialog on the two-column standard (spec 2026-09-29 §4): a rail
+// of name + alias, the form on the right, the placeholder while nothing is open.
 //
-// Covers: the list shows name/alias/phrase; the empty state; add → type an alias → Save calls
-// window.shortcuts.save with the alias lowercased; a placeholder gap disables Save; the
-// two-step delete; the store's alias_taken error copy; the layout/onboarding contract — the
-// edited row leaves the list; and the header's ONE "Open with" chord recorder, which reads and
-// patches the single expanderKey setting (an AltGr keystroke is refused there too).
+// Covers: the rail and the form; the empty state; + New → type an alias → Save calls
+// window.shortcuts.save with the alias lowercased; a placeholder gap disables Save; the two-step
+// delete; the store's alias_taken error copy; the subtitle naming the open chord. The chord
+// RECORDER moved to Settings → Keyboard, and its tests with it (Settings.test.tsx).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -80,31 +80,13 @@ function type(el: Element | null, value: string): void {
   })
 }
 
-/** Press one key at the recorder. `init` carries the modifiers. */
-function pressKey(key: string, init: KeyboardEventInit = {}): void {
-  act(() => {
-    byTestId('chord-recorder')?.dispatchEvent(
-      new KeyboardEvent('keydown', { key, bubbles: true, ...init })
-    )
-  })
-}
-
-/** Arm the recorder. */
-function arm(): void {
-  click(byTestId('chord-recorder'))
-}
-
-/** Press one Ctrl+Alt chord at the (already armed) recorder. */
-function chord(key: string): void {
-  pressKey(key, { ctrlKey: true, altKey: true })
-}
-
 describe('ShortcutsDialog', () => {
-  it('lists the saved shortcuts with their name, alias and phrase', () => {
+  it('the rail lists name and alias; the phrase shows in the form', () => {
     render()
-    expect(document.body.textContent).toContain('approve')
+    expect(byTestId('shortcut-row-sc-1')?.textContent).toContain('approve')
     expect(byTestId('shortcut-alias-sc-1')?.textContent).toBe('ap')
-    expect(document.body.textContent).toContain('I explicitly approve')
+    click(byTestId('shortcut-select-sc-1'))
+    expect((byTestId('shortcut-text-input') as HTMLInputElement).value).toBe('I explicitly approve')
   })
 
   it('shows an empty state when there are none', () => {
@@ -115,7 +97,7 @@ describe('ShortcutsDialog', () => {
 
   it('the editor has an Alias field and Save sends it lowercased', () => {
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'help desk')
     type(byTestId('shortcut-alias-input'), 'HT')
     type(byTestId('shortcut-text-input'), 'work on help desk ticket $1')
@@ -130,7 +112,7 @@ describe('ShortcutsDialog', () => {
 
   it('Save stays disabled on a placeholder gap', () => {
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'x')
     type(byTestId('shortcut-alias-input'), 'x')
     type(byTestId('shortcut-text-input'), 'do $2')
@@ -140,7 +122,7 @@ describe('ShortcutsDialog', () => {
   it('renders the store alias_taken error as copy', async () => {
     saveMock.mockImplementationOnce(() => Promise.reject(new Error('shortcut_alias_taken')))
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'x')
     type(byTestId('shortcut-alias-input'), 'ap')
     type(byTestId('shortcut-text-input'), 'y')
@@ -151,48 +133,6 @@ describe('ShortcutsDialog', () => {
     )
   })
 
-  it('the header shows the open chord and the recorder patches expanderKey', () => {
-    render()
-    expect(byTestId('chord-recorder')?.textContent).toContain('Ctrl+Alt+X')
-    arm()
-    chord('q')
-    const settingsSet = (window as unknown as { settings: { set: ReturnType<typeof vi.fn> } })
-      .settings.set
-    expect(settingsSet).toHaveBeenCalledWith({ expanderKey: 'Q' })
-    expect(settingsStore.getState().expanderKey).toBe('Q')
-  })
-
-  it('the recorder refuses an AltGr keystroke and stays armed', () => {
-    render()
-    arm()
-    // '@' is what AltGr+2 composes on many layouts: not an A-Z key, so chordFromEvent says no.
-    pressKey('@', { ctrlKey: true, altKey: true })
-    expect(byTestId('chord-hint')?.textContent).toBe('Hold Ctrl+Alt and press a letter.')
-  })
-
-  it('shows the resting help before arming, and the default hint the instant it arms', () => {
-    render()
-    // Resting: the recorder is not armed yet, so there is no chord-hint element at all.
-    expect(byTestId('chord-hint')).toBeNull()
-    expect(document.body.textContent).toContain('Click, then hold Ctrl+Alt and press a letter.')
-    arm()
-    // Armed, before any keystroke: the default coaching line, not the AltGr/invalid hint.
-    expect(byTestId('chord-hint')?.textContent).toBe('Press the chord now. Escape cancels.')
-  })
-
-  it('Escape disarms the recorder in place without committing a chord', () => {
-    render()
-    arm()
-    pressKey('Escape')
-    // Disarmed: back to the resting label (the still-live expanderKey chord), no hint element.
-    expect(byTestId('chord-hint')).toBeNull()
-    expect(byTestId('chord-recorder')?.textContent).toContain('Ctrl+Alt+X')
-    // The part that matters: Escape must never commit a chord.
-    const settingsSet = (window as unknown as { settings: { set: ReturnType<typeof vi.fn> } })
-      .settings.set
-    expect(settingsSet).not.toHaveBeenCalled()
-  })
-
   it('the subtitle names the live chord', () => {
     render()
     expect(byTestId('shortcuts-subtitle')?.textContent).toContain('Ctrl+Alt+X')
@@ -200,7 +140,7 @@ describe('ShortcutsDialog', () => {
 
   it('deletes only after a confirm click', () => {
     render()
-    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-select-sc-1'))
     click(byTestId('shortcut-delete'))
     expect(removeMock).not.toHaveBeenCalled()
     click(byTestId('shortcut-delete'))
@@ -208,33 +148,29 @@ describe('ShortcutsDialog', () => {
   })
 
   // --- layout / onboarding -------------------------------------------------------------------
-  // The editor is a card of its own, not a row in the list: the edited shortcut leaves the list
-  // while it is open, so it is never on screen twice.
-  it('moves the edited shortcut into the editor and out of the list', () => {
+  // The rail keeps every row; the open one is marked selected, and its form is on the right.
+  it('the open row stays in the rail, marked selected', () => {
     render()
-    expect(byTestId('shortcut-row-sc-1')).not.toBeNull()
-
-    click(byTestId('shortcut-edit-sc-1'))
-    expect(byTestId('shortcut-row-editing')).not.toBeNull()
-    expect(byTestId('shortcut-row-sc-1')).toBeNull()
-
-    click(byTestId('shortcut-cancel'))
-    expect(byTestId('shortcut-row-sc-1')).not.toBeNull()
+    click(byTestId('shortcut-select-sc-1'))
+    expect(byTestId('shortcut-row-sc-1')?.getAttribute('data-selected')).toBe('true')
+    expect(byTestId('shortcut-form')).not.toBeNull()
   })
 
-  it('disables Add while the new-shortcut editor is open', () => {
+  // No Cancel (spec 2026-09-29 §4): picking another row, or + New, drops the draft.
+  it('picking a row drops an unsaved New draft, and + New starts clean again', () => {
     render()
-    click(byTestId('shortcuts-add'))
-    expect((byTestId('shortcuts-add') as HTMLButtonElement | null)?.disabled).toBe(true)
-
-    click(byTestId('shortcut-cancel'))
-    expect((byTestId('shortcuts-add') as HTMLButtonElement | null)?.disabled).toBe(false)
+    click(byTestId('shortcut-new'))
+    type(byTestId('shortcut-name-input'), 'half typed')
+    click(byTestId('shortcut-select-sc-1'))
+    expect((byTestId('shortcut-name-input') as HTMLInputElement).value).toBe('approve')
+    click(byTestId('shortcut-new'))
+    expect((byTestId('shortcut-name-input') as HTMLInputElement).value).toBe('')
   })
 
   it('says what a shortcut does, and that nothing is sent for you', () => {
     render()
     expect(document.body.textContent).toContain('You press Enter to send.')
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     expect(document.body.textContent).toContain('Typed into the session, never sent.')
   })
 
@@ -249,7 +185,7 @@ describe('ShortcutsDialog', () => {
     )
     act(() => shortcutsStore.setState({ shortcuts: [], loaded: true }))
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'approve')
     type(byTestId('shortcut-alias-input'), 'ap')
     type(byTestId('shortcut-text-input'), 'I explicitly approve')
@@ -286,7 +222,7 @@ describe('ShortcutsDialog', () => {
   it('clears the error line when a field changes', async () => {
     saveMock.mockImplementationOnce(() => Promise.reject(new Error('shortcut_alias_taken')))
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'x')
     type(byTestId('shortcut-alias-input'), 'ap')
     type(byTestId('shortcut-text-input'), 'y')
@@ -300,7 +236,7 @@ describe('ShortcutsDialog', () => {
   // R26 — Save greyed with no reason: `deploy-prod` fails the alias rule silently.
   it('says why Save is disabled for an alias with a hyphen', () => {
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'deploy')
     type(byTestId('shortcut-alias-input'), 'deploy-prod')
     type(byTestId('shortcut-text-input'), 'deploy it')
@@ -312,7 +248,7 @@ describe('ShortcutsDialog', () => {
 
   it('names the placeholder gap as the reason', () => {
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     type(byTestId('shortcut-name-input'), 'x')
     type(byTestId('shortcut-alias-input'), 'x')
     type(byTestId('shortcut-text-input'), 'do $2')
@@ -321,7 +257,7 @@ describe('ShortcutsDialog', () => {
 
   it('shows no reason before anything was typed', () => {
     render()
-    click(byTestId('shortcuts-add'))
+    click(byTestId('shortcut-new'))
     expect(byTestId('shortcut-hint')).toBeNull()
   })
 
@@ -334,12 +270,12 @@ describe('ShortcutsDialog', () => {
       )
     )
     render()
-    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-select-sc-1'))
     click(byTestId('shortcut-delete'))
     click(byTestId('shortcut-delete'))
     await act(async () => {})
     expect(byTestId('shortcuts-error')?.textContent).toBe(STORE_WRITE_FAILED_COPY)
-    expect(byTestId('shortcut-row-editing')).not.toBeNull()
+    expect(byTestId('shortcut-form')).not.toBeNull()
     expect(warn).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_remove_failed')
   })
 
@@ -347,10 +283,72 @@ describe('ShortcutsDialog', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     removeMock.mockImplementationOnce(() => Promise.reject(new Error('secret phrase')))
     render()
-    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-select-sc-1'))
     click(byTestId('shortcut-delete'))
     click(byTestId('shortcut-delete'))
     await act(async () => {})
     expect(byTestId('shortcuts-error')?.textContent).toBe('Could not delete the shortcut.')
+  })
+})
+
+describe('Shortcuts on the two-column standard (spec 2026-09-29 §4)', () => {
+  it('opens on the placeholder beside a rail of rows: name + alias', () => {
+    render()
+    expect(byTestId('shortcut-placeholder')?.textContent).toBe(
+      'Select a shortcut on the left, or create a new one.'
+    )
+    expect(byTestId('shortcut-row-sc-1')?.textContent).toContain('approve')
+    expect(byTestId('shortcut-alias-sc-1')?.textContent).toBe('ap')
+    expect(document.querySelector('[role="table"]')).toBeNull()
+  })
+
+  it('has no Add shortcut, no Edit, no Cancel, no Open-with row', () => {
+    render()
+    click(byTestId('shortcut-select-sc-1'))
+    for (const gone of [
+      'shortcuts-add',
+      'shortcut-edit-sc-1',
+      'shortcut-cancel',
+      'chord-recorder'
+    ]) {
+      expect(byTestId(gone)).toBeNull()
+    }
+  })
+
+  it('picking a row opens its form; the footer is [Delete] [Save]', () => {
+    render()
+    click(byTestId('shortcut-select-sc-1'))
+    expect((byTestId('shortcut-name-input') as HTMLInputElement).value).toBe('approve')
+    const del = byTestId('shortcut-delete')
+    const save = byTestId('shortcut-save')
+    expect(save?.textContent).toBe('Save')
+    expect(del?.parentElement).toBe(save?.parentElement)
+    expect(
+      (del?.compareDocumentPosition(save as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('+ New opens an empty form with no Delete', () => {
+    render()
+    click(byTestId('shortcut-new'))
+    expect((byTestId('shortcut-name-input') as HTMLInputElement).value).toBe('')
+    expect(byTestId('shortcut-delete')).toBeNull()
+  })
+
+  it('saving a new shortcut selects it (the form stays on the saved row)', async () => {
+    const saved = { id: 'sc-9', name: 'deploy', alias: 'dp', text: 'ship it', workspaceId: null }
+    saveMock.mockImplementation(() => Promise.resolve({ saved, shortcuts: [A, saved] }))
+    render()
+    click(byTestId('shortcut-new'))
+    type(byTestId('shortcut-name-input'), 'deploy')
+    type(byTestId('shortcut-alias-input'), 'dp')
+    type(byTestId('shortcut-text-input'), 'ship it')
+    click(byTestId('shortcut-save'))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect((byTestId('shortcut-name-input') as HTMLInputElement).value).toBe('deploy')
+    expect(byTestId('shortcut-row-sc-9')?.getAttribute('data-selected')).toBe('true')
   })
 })

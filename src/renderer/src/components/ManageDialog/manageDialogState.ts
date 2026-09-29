@@ -9,9 +9,11 @@
 import { createContext, use, useMemo, useRef, useState, type RefObject } from 'react'
 
 export interface ManageDialogState {
-  /** The row the form edits, or null for the empty New form. A dialog with its own "new draft"
-   *  sentinel (Shortcuts: `'new'`) stores that here too. */
+  /** The row the form edits, or null (nothing open, or the New form — see `creating`). */
   selectedId: string | null
+  /** True while the New form is open (`+ New`). `selectedId: null` + `creating: false` is
+   *  NOTHING open — the right column shows `ManageDialog.Placeholder` (spec 2026-09-29 §1). */
+  creating: boolean
   /** True between the first press of Delete and the second (`Confirm delete`). */
   armed: boolean
   /** The ONE error line's operator copy, or null. Never a raw `error.message` (design.md). */
@@ -19,9 +21,12 @@ export interface ManageDialogState {
 }
 
 export interface ManageDialogActions {
-  /** Select a row (null = the New form). Also disarms Delete and clears the error line: both
-   *  belonged to the row that was open, not to the one being opened. */
+  /** Open a row, or close what was open (null → the placeholder). Ends creating, disarms Delete
+   *  and clears the error line: both belonged to the row that was open, not to the one being
+   *  opened. */
   select: (id: string | null) => void
+  /** `+ New`: open the empty New form. Disarms Delete and clears the error line. */
+  startNew: () => void
   /** The first press of Delete. Clears the error line — arming starts a new flow. */
   arm: () => void
   disarm: () => void
@@ -50,12 +55,25 @@ export interface UseManageDialogOptions {
   title: string
   testIdPrefix: string
   onClose: () => void
+  /** The row open on mount. Settings opens on its first category; Manage dialogs open on nothing. */
+  initialSelectedId?: string | null
+  /** `select` keeps the error line. Settings: its rail rows are PAGES of one surface, so a
+   *  refusal (a port out of range, an unreadable themes folder) still describes the panel after a
+   *  category switch. A Manage dialog's rows are separate records, whose errors do not carry. */
+  keepErrorOnSelect?: boolean
 }
 
 /** Create the shell's state for one dialog. Spread the result into <ManageDialog.Provider>. */
 export function useManageDialog(options: UseManageDialogOptions): ManageDialogContextValue {
-  const { title, testIdPrefix, onClose } = options
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const {
+    title,
+    testIdPrefix,
+    onClose,
+    initialSelectedId = null,
+    keepErrorOnSelect = false
+  } = options
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId)
+  const [creating, setCreating] = useState(false)
   const [armed, setArmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
@@ -64,6 +82,13 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
     () => ({
       select: (id) => {
         setSelectedId(id)
+        setCreating(false)
+        setArmed(false)
+        if (!keepErrorOnSelect) setError(null)
+      },
+      startNew: () => {
+        setSelectedId(null)
+        setCreating(true)
         setArmed(false)
         setError(null)
       },
@@ -75,11 +100,11 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
       setError: (message) => setError(message),
       close: () => onClose()
     }),
-    [onClose]
+    [onClose, keepErrorOnSelect]
   )
 
   return {
-    state: { selectedId, armed, error },
+    state: { selectedId, creating, armed, error },
     actions,
     meta: { title, testIdPrefix, closeRef }
   }
