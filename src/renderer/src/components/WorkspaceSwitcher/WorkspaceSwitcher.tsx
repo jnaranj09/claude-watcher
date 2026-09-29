@@ -64,6 +64,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
   const workingCounts = useBoard(useShallow(selectWorkingCountByWorkspace))
 
   const active = workspaces.find((w) => w.id === activeId) ?? null
+  const others = workspaces.filter((w) => w.id !== activeId)
   const activeName = active?.name ?? 'Workspace'
   const activeTotal = totals[activeId] ?? 0
   const here = counts[activeId] ?? 0
@@ -185,7 +186,9 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
       )}
       {open && (
         <div className={styles.menu} role="menu" onKeyDown={handleMenuKeyDown}>
-          {workspaces.map((w) => {
+          {/* The OTHER workspaces only: the button already names the active one, and listing it
+              again read as a duplicate (operator, 2026-09-28). */}
+          {others.map((w) => {
             const total = totals[w.id] ?? 0
             const needsYou = counts[w.id] ?? 0
             const working = workingCounts[w.id] ?? 0
@@ -197,7 +200,6 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                 role="menuitem"
                 className={styles.row}
                 data-testid={`workspace-row-${w.id}`}
-                aria-current={w.id === activeId}
                 aria-label={describeCounts(w.name, total, working, needsYou)}
                 onClick={() => pick(w.id)}
               >
@@ -222,7 +224,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
               </button>
             )
           })}
-          <div className={styles.divider} role="separator" />
+          {others.length > 0 && <div className={styles.divider} role="separator" />}
           <button
             type="button"
             role="menuitem"

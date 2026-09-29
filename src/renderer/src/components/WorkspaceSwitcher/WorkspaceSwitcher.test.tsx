@@ -289,7 +289,7 @@ describe('WorkspaceSwitcher', () => {
       )
     ).toBe(true)
     click(q(r, '[data-testid="workspace-switcher"]'))
-    for (const id of ['default', 'w1']) {
+    for (const id of ['w1']) {
       expect(
         inOrder(
           `[data-testid="workspace-row-count-${id}"]`,
@@ -298,6 +298,25 @@ describe('WorkspaceSwitcher', () => {
         )
       ).toBe(true)
     }
+  })
+
+  // The button already names the active workspace: listing it again read as a duplicate
+  // (operator, 2026-09-28).
+  it('lists only the OTHER workspaces, never the active one', () => {
+    seedNeedsYou('default', 'a')
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(r.container.querySelector('[data-testid="workspace-row-default"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="workspace-row-w1"]')).not.toBeNull()
+  })
+
+  it('with no other workspace, the menu holds Manage only and no divider', () => {
+    workspacesStore.setState({ workspaces: rows.filter((w) => w.id === 'default') })
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(r.container.querySelectorAll('[role="menuitem"]')).toHaveLength(1)
+    expect(r.container.querySelector('[data-testid="workspace-manage"]')).not.toBeNull()
+    expect(r.container.querySelector('[role="separator"]')).toBeNull()
   })
 
   it('lists every workspace with its own count and switches on click', async () => {

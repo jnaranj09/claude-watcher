@@ -409,6 +409,9 @@ fixed height with room around the text, and that is what Button draws.
   card's reveal-on-hover — goes on a WRAPPER at the call site. The moment a button takes a class
   from its caller, the copies this replaced come back through it.
 - **Refs go through `buttonRef`**; whoever opens a popover owns the refocus, not the button.
+- **The workspace switcher's menu lists only the OTHER workspaces.** The button already names the
+  active one with its counts; listing it again read as a duplicate (operator, 2026-09-28). With no
+  other workspace the menu is `Manage workspaces…` alone, with no divider.
 - **The workspace switcher is not a Button.** It is a compound pill (dot, name, count, the
   "elsewhere" tab) with its own glass in the liquid-glass theme; it only matches Button's `md`
   height.

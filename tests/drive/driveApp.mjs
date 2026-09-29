@@ -247,16 +247,19 @@ export async function activeWorkspace(page) {
   return ((await switcher(page).getAttribute('aria-label')) ?? '').split(',')[0]
 }
 
+/** Every workspace name, the active one first (the menu lists only the OTHER ones). */
 export async function workspaceNames(page) {
+  const active = await activeWorkspace(page)
   await openSwitcher(page)
-  const names = await menu(page)
+  const others = await menu(page)
     .locator('[role="menuitem"][aria-label]')
     .evaluateAll((els) => els.map((e) => (e.getAttribute('aria-label') ?? '').split(',')[0]))
   await closeSwitcher(page)
-  return names
+  return [active, ...others]
 }
 
 export async function switchWorkspace(page, name) {
+  if ((await activeWorkspace(page)) === name) return // the menu does not list the active one
   await openSwitcher(page)
   await menu(page).locator(`[role="menuitem"][aria-label^="${name},"]`).click()
   await page.waitForFunction(
