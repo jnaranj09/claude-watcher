@@ -50,3 +50,21 @@
 .rose {
   color: var(--tag-rose-text);
 }
+.red {
+  color: var(--tag-red-text);
+}
+.lime {
+  color: var(--tag-lime-text);
+}
+.teal {
+  color: var(--tag-teal-text);
+}
+.cyan {
+  color: var(--tag-cyan-text);
+}
+.indigo {
+  color: var(--tag-indigo-text);
+}
+.pink {
+  color: var(--tag-pink-text);
+}

@@ -24,7 +24,7 @@ describe('tags IPC handler logic — parse-and-throw on the arg (untrusted cross
 
   it('a MALFORMED arg throws and does NOT mutate', () => {
     const h = createTagsIpcHandlers(createTagsStore())
-    expect(() => h.save({ name: 'x', color: 'teal', workspaceId: null })).toThrow()
+    expect(() => h.save({ name: 'x', color: 'chartreuse', workspaceId: null })).toThrow()
     expect(() => h.save('nope')).toThrow()
     expect(() => h.remove({ id: '' })).toThrow()
     expect(h.list()).toEqual([])

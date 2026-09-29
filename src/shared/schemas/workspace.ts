@@ -15,9 +15,26 @@ import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from './launch'
 export const DEFAULT_WORKSPACE_ID = 'default'
 export const DEFAULT_WORKSPACE_NAME = 'Default'
 
-/** The switcher/badge dot. Enum-locked: these are OUR tokens, not external input, so an unknown
- *  color is a corrupt file, not a forward-compatible addition. */
-export const WORKSPACE_COLORS = ['slate', 'blue', 'green', 'amber', 'violet', 'rose'] as const
+/** The workspace tint (and, through TAG_COLORS, the tag hue). Enum-locked: these are OUR tokens,
+ *  not external input, so an unknown color is a corrupt file, not a forward-compatible addition.
+ *  Ordered by hue (slate first, the default) so a picker reads as a colour wheel. A new entry owes
+ *  its tokens in tokens.ts / tokens.css, a class in TagChip / TagIndicator / WorkspaceTint, and
+ *  values in the Paper and Liquid Glass themes; the tests iterate this list. Only ADD — a removed
+ *  name fails every file that stored it closed. */
+export const WORKSPACE_COLORS = [
+  'slate',
+  'red',
+  'amber',
+  'lime',
+  'green',
+  'teal',
+  'cyan',
+  'blue',
+  'indigo',
+  'violet',
+  'pink',
+  'rose'
+] as const
 export type WorkspaceColor = (typeof WORKSPACE_COLORS)[number]
 
 export const WORKSPACE_NAME_MAX_LENGTH = SESSION_NAME_MAX_LENGTH

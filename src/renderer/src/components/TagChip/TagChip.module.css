@@ -70,6 +70,36 @@
   border-color: var(--tag-rose-border);
   color: var(--tag-rose-text);
 }
+.red {
+  background: var(--tag-red-fill);
+  border-color: var(--tag-red-border);
+  color: var(--tag-red-text);
+}
+.lime {
+  background: var(--tag-lime-fill);
+  border-color: var(--tag-lime-border);
+  color: var(--tag-lime-text);
+}
+.teal {
+  background: var(--tag-teal-fill);
+  border-color: var(--tag-teal-border);
+  color: var(--tag-teal-text);
+}
+.cyan {
+  background: var(--tag-cyan-fill);
+  border-color: var(--tag-cyan-border);
+  color: var(--tag-cyan-text);
+}
+.indigo {
+  background: var(--tag-indigo-fill);
+  border-color: var(--tag-indigo-border);
+  color: var(--tag-indigo-text);
+}
+.pink {
+  background: var(--tag-pink-fill);
+  border-color: var(--tag-pink-border);
+  color: var(--tag-pink-text);
+}
 
 /* The `+N` overflow chip: no hue (it is not a tag), dashed so it reads as "more", and an OPAQUE
  * --bg-surface fill so its --text-secondary digits clear 4.5:1 on every surface, the gold

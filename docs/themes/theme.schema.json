@@ -210,6 +210,78 @@
           "type": "string",
           "maxLength": 500
         },
+        "tag-red-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-red-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-red-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-lime-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-lime-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-lime-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-teal-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-teal-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-teal-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-cyan-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-cyan-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-cyan-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-indigo-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-indigo-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-indigo-text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-pink-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-pink-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "tag-pink-text": {
+          "type": "string",
+          "maxLength": 500
+        },
         "workspace-slate-fill": {
           "type": "string",
           "maxLength": 500
@@ -255,6 +327,54 @@
           "maxLength": 500
         },
         "workspace-rose-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-red-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-red-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-lime-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-lime-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-teal-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-teal-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-cyan-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-cyan-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-indigo-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-indigo-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-pink-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-pink-border": {
           "type": "string",
           "maxLength": 500
         },

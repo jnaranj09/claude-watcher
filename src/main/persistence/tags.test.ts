@@ -74,7 +74,7 @@ describe('createTagsStore — load', () => {
   it('corrupt file: backup + empty + code, and the log never carries a name', () => {
     const { store, fake, log } = make({
       version: 1,
-      tags: [{ id: 'x', name: 'secret-client', color: 'teal', workspaceId: null }]
+      tags: [{ id: 'x', name: 'secret-client', color: 'chartreuse', workspaceId: null }]
     })
     expect(store.list()).toEqual([])
     expect(fake.backups()).toBe(1)

@@ -119,6 +119,24 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `tag-rose-fill` | Rose tag chip fill | `#443336` |
 | `tag-rose-border` | Rose tag chip border and rail indicator stroke | `#81515d` |
 | `tag-rose-text` | Rose tag chip text | `#f5a9be` |
+| `tag-red-fill` | Red tag chip fill | `#44322e` |
+| `tag-red-border` | Red tag chip border and rail indicator stroke | `#804f48` |
+| `tag-red-text` | Red tag chip text | `#f5a59a` |
+| `tag-lime-fill` | Lime tag chip fill | `#3c402f` |
+| `tag-lime-border` | Lime tag chip border and rail indicator stroke | `#6b7749` |
+| `tag-lime-text` | Lime tag chip text | `#d1e79d` |
+| `tag-teal-fill` | Teal tag chip fill | `#35413d` |
+| `tag-teal-border` | Teal tag chip border and rail indicator stroke | `#567871` |
+| `tag-teal-text` | Teal tag chip text | `#afe9e0` |
+| `tag-cyan-fill` | Cyan tag chip fill | `#334040` |
+| `tag-cyan-border` | Cyan tag chip border and rail indicator stroke | `#51767b` |
+| `tag-cyan-text` | Cyan tag chip text | `#a6e5f0` |
+| `tag-indigo-fill` | Indigo tag chip fill | `#373742` |
+| `tag-indigo-border` | Indigo tag chip border and rail indicator stroke | `#5a5c81` |
+| `tag-indigo-text` | Indigo tag chip text | `#b6baf9` |
+| `tag-pink-fill` | Pink tag chip fill | `#453c40` |
+| `tag-pink-border` | Pink tag chip border and rail indicator stroke | `#826a7a` |
+| `tag-pink-text` | Pink tag chip text | `#f8d1ed` |
 | `workspace-slate-fill` | Slate workspace tint fill — the switcher, its menu rows, the Workspaces dialog rows and every workspace name box (default: the hue mixed 14% over the theme bg-surface-raised; the borders 40%) | `color-mix(in srgb, #7f849c 14%, var(--bg-surface-raised))` |
 | `workspace-slate-border` | Slate workspace tint border | `color-mix(in srgb, #7f849c 40%, var(--bg-surface-raised))` |
 | `workspace-blue-fill` | Blue workspace tint fill | `color-mix(in srgb, #89b4fa 14%, var(--bg-surface-raised))` |
@@ -131,6 +149,18 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `workspace-violet-border` | Violet workspace tint border | `color-mix(in srgb, #cba6f7 40%, var(--bg-surface-raised))` |
 | `workspace-rose-fill` | Rose workspace tint fill | `color-mix(in srgb, #f38ba8 14%, var(--bg-surface-raised))` |
 | `workspace-rose-border` | Rose workspace tint border | `color-mix(in srgb, #f38ba8 40%, var(--bg-surface-raised))` |
+| `workspace-red-fill` | Red workspace tint fill | `color-mix(in srgb, #f28779 14%, var(--bg-surface-raised))` |
+| `workspace-red-border` | Red workspace tint border | `color-mix(in srgb, #f28779 40%, var(--bg-surface-raised))` |
+| `workspace-lime-fill` | Lime workspace tint fill | `color-mix(in srgb, #c2df7c 14%, var(--bg-surface-raised))` |
+| `workspace-lime-border` | Lime workspace tint border | `color-mix(in srgb, #c2df7c 40%, var(--bg-surface-raised))` |
+| `workspace-teal-fill` | Teal workspace tint fill | `color-mix(in srgb, #94e2d5 14%, var(--bg-surface-raised))` |
+| `workspace-teal-border` | Teal workspace tint border | `color-mix(in srgb, #94e2d5 40%, var(--bg-surface-raised))` |
+| `workspace-cyan-fill` | Cyan workspace tint fill | `color-mix(in srgb, #89dceb 14%, var(--bg-surface-raised))` |
+| `workspace-cyan-border` | Cyan workspace tint border | `color-mix(in srgb, #89dceb 40%, var(--bg-surface-raised))` |
+| `workspace-indigo-fill` | Indigo workspace tint fill | `color-mix(in srgb, #9ea3f7 14%, var(--bg-surface-raised))` |
+| `workspace-indigo-border` | Indigo workspace tint border | `color-mix(in srgb, #9ea3f7 40%, var(--bg-surface-raised))` |
+| `workspace-pink-fill` | Pink workspace tint fill | `color-mix(in srgb, #f5c2e7 14%, var(--bg-surface-raised))` |
+| `workspace-pink-border` | Pink workspace tint border | `color-mix(in srgb, #f5c2e7 40%, var(--bg-surface-raised))` |
 | `font-ui` | The UI font stack | `system-ui, 'Noto Sans', 'Segoe UI', sans-serif` |
 | `font-mono` | The monospace stack for paths, ids and the terminal chrome | `'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace` |
 | `font-size-display` | Display size: the empty-board headline | `20px` |

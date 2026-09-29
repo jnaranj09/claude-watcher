@@ -38,7 +38,19 @@
     "workspace-violet-fill": "rgba(203, 166, 247, 0.18)",
     "workspace-violet-border": "rgba(203, 166, 247, 0.45)",
     "workspace-rose-fill": "rgba(243, 139, 168, 0.18)",
-    "workspace-rose-border": "rgba(243, 139, 168, 0.45)"
+    "workspace-rose-border": "rgba(243, 139, 168, 0.45)",
+    "workspace-red-fill": "rgba(242, 135, 121, 0.18)",
+    "workspace-red-border": "rgba(242, 135, 121, 0.45)",
+    "workspace-lime-fill": "rgba(194, 223, 124, 0.18)",
+    "workspace-lime-border": "rgba(194, 223, 124, 0.45)",
+    "workspace-teal-fill": "rgba(148, 226, 213, 0.18)",
+    "workspace-teal-border": "rgba(148, 226, 213, 0.45)",
+    "workspace-cyan-fill": "rgba(137, 220, 235, 0.18)",
+    "workspace-cyan-border": "rgba(137, 220, 235, 0.45)",
+    "workspace-indigo-fill": "rgba(158, 163, 247, 0.18)",
+    "workspace-indigo-border": "rgba(158, 163, 247, 0.45)",
+    "workspace-pink-fill": "rgba(245, 194, 231, 0.18)",
+    "workspace-pink-border": "rgba(245, 194, 231, 0.45)"
   },
   "terminal": {
     "background": "rgba(0,0,0,0)",

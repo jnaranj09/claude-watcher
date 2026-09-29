@@ -185,7 +185,7 @@ describe('ApiWorkspaceSchema', () => {
     expect(ApiWorkspaceSchema.safeParse({ ...WS, defaultCwd: '/w' }).success).toBe(false)
   })
   it('color is one of the workspace colors', () => {
-    expect(ApiWorkspaceSchema.safeParse({ ...WS, color: 'pink' }).success).toBe(false)
+    expect(ApiWorkspaceSchema.safeParse({ ...WS, color: 'chartreuse' }).success).toBe(false)
   })
 })
 

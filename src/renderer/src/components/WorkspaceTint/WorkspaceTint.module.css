@@ -27,6 +27,30 @@
   --ws-fill: var(--workspace-rose-fill);
   --ws-border: var(--workspace-rose-border);
 }
+.red {
+  --ws-fill: var(--workspace-red-fill);
+  --ws-border: var(--workspace-red-border);
+}
+.lime {
+  --ws-fill: var(--workspace-lime-fill);
+  --ws-border: var(--workspace-lime-border);
+}
+.teal {
+  --ws-fill: var(--workspace-teal-fill);
+  --ws-border: var(--workspace-teal-border);
+}
+.cyan {
+  --ws-fill: var(--workspace-cyan-fill);
+  --ws-border: var(--workspace-cyan-border);
+}
+.indigo {
+  --ws-fill: var(--workspace-indigo-fill);
+  --ws-border: var(--workspace-indigo-border);
+}
+.pink {
+  --ws-fill: var(--workspace-pink-fill);
+  --ws-border: var(--workspace-pink-border);
+}
 /* Global and (no workspace) are not workspaces and have no colour. Custom properties INHERIT, so
    this RESETS them (the guaranteed-invalid value): a Global label inside a tinted row must fall
    back to its own default, not take the row's colour. */

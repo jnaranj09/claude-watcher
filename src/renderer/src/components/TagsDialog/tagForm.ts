@@ -10,7 +10,13 @@ export const TAG_COLOR_LABELS: Record<TagColor, string> = {
   green: 'Green',
   amber: 'Amber',
   violet: 'Violet',
-  rose: 'Rose'
+  rose: 'Rose',
+  red: 'Red',
+  lime: 'Lime',
+  teal: 'Teal',
+  cyan: 'Cyan',
+  indigo: 'Indigo',
+  pink: 'Pink'
 }
 
 const ERROR_COPY: Record<string, string> = {
