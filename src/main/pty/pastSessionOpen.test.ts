@@ -24,6 +24,7 @@ function deps(over: Partial<PastSessionOpenDeps> = {}): PastSessionOpenDeps & {
     isDirectory: () => true,
     isLive: () => false,
     transcriptExists: () => true,
+    runningElsewhere: () => false,
     tagExists: (id) => id === 't-live',
     ...over,
     // Always the mock: no test in this file overrides launch, and keeping it last (rather than
@@ -64,6 +65,21 @@ describe('openPastSession', () => {
   it('folder_missing: the cwd is gone or not a directory', () => {
     const d = deps({ isDirectory: () => false })
     expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'folder_missing' })
+    expect(d.launch).not.toHaveBeenCalled()
+  })
+  it('UX-14 session_running_elsewhere: a live claude outside the app holds the id; nothing launched', () => {
+    const asked: string[] = []
+    const d = deps({
+      runningElsewhere: (id) => {
+        asked.push(id)
+        return true
+      }
+    })
+    expect(openPastSession({ id: 'sess-A' }, d)).toEqual({
+      ok: false,
+      code: 'session_running_elsewhere'
+    })
+    expect(asked).toEqual(['sess-A'])
     expect(d.launch).not.toHaveBeenCalled()
   })
   it('UX-08 transcript_missing: claude no longer has the conversation; nothing launched', () => {
@@ -164,6 +180,15 @@ describe('resumeTerminalSession', () => {
       ok: false,
       code: 'transcript_missing'
     })
+  })
+
+  it('carries the Open refusals (session_running_elsewhere) — UX-14', () => {
+    const d = resumeDeps({ runningElsewhere: () => true })
+    expect(resumeTerminalSession({ terminalId: 'term-dead' }, d)).toEqual({
+      ok: false,
+      code: 'session_running_elsewhere'
+    })
+    expect(d.launch).not.toHaveBeenCalled()
   })
 
   it('parse-and-throws a malformed arg', () => {

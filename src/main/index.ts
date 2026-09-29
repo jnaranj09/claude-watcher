@@ -177,6 +177,7 @@ import {
 } from './pty/pastSessionOpen'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { createProcessSessionSourceFromFs } from './pty/claudeSessionFile'
+import { createRunningElsewhereCheckFromFs } from './pty/runningElsewhere'
 import {
   SessionLaunchSchema,
   SessionRenameSchema,
@@ -425,6 +426,8 @@ const orphanRegistry = createOrphanRegistry({
 // Session-rebind PART 2b — claude's own per-process records (`~/.claude/sessions/<pid>.json`),
 // the exact "this pty now runs id B" proof. Read only when an unknown id posts a status hook.
 const processSessions = createProcessSessionSourceFromFs()
+// UX-14 — Open/Resume refuse an id a live claude outside the app already runs (fails open).
+const runningElsewhere = createRunningElsewhereCheckFromFs()
 
 // Transcript watchers — per-window handles, disposed in teardownWatchFeed so no fs watch
 // outlives its window. Same lifetime contract as hookServers below.
@@ -2610,6 +2613,7 @@ function registerLaunchIpc(): void {
         return false // missing / unreadable — never throws, never logs the path
       }
     },
+    runningElsewhere: (id) => runningElsewhere.isRunningElsewhere(id),
     tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
     launch: (req) => service.launch(req)
   })

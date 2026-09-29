@@ -35,7 +35,9 @@ const RESUME_ERROR_COPY: Readonly<Record<string, string>> = {
   not_found: 'This conversation is no longer in Past sessions.',
   folder_missing: 'Its folder no longer exists.',
   already_open: 'This conversation is already open.',
-  transcript_missing: 'Claude no longer has this conversation.'
+  transcript_missing: 'Claude no longer has this conversation.',
+  session_running_elsewhere:
+    'This conversation is running in another terminal. Close it there first.'
 }
 
 /** Matched with `includes` (Electron wraps an invoke rejection — the `copyFor` precedent). */

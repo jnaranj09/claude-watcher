@@ -200,6 +200,10 @@ export interface ProcessSessionRecords {
  * so the caller can re-key it), or `null` when no launched process claims that id — which is
  * what an external session looks like, so the Story-3.3 ship gate holds.
  *
+ * The records source lists only each terminal's OWN (outermost) claude — a nested `claude -p`
+ * is never a proof (R18). EXACTLY ONE outermost claude, in exactly one terminal, must name the
+ * id; zero or more than one is no pid proof, and the caller falls back to the cwd heuristic.
+ *
  * A terminal ALREADY bound to `newSessionId` is never a match: re-keying a card onto its own
  * id would create it and then delete it. A dead pty is skipped without consulting the records
  * (its card is removed by the stop/exit path).
@@ -212,13 +216,16 @@ export function claimByProcess(
   pids: LaunchPids,
   records: ProcessSessionRecords
 ): LaunchBinding | null {
+  let match: LaunchBinding | null = null
   for (const launch of launches) {
     if (launch.sessionId === newSessionId) continue
     const leaderPid = pids.pidOf(launch.terminalId)
     if (leaderPid === null) continue
-    if (records.currentSessionIdsUnder(leaderPid).includes(newSessionId)) {
-      return { terminalId: launch.terminalId, sessionId: launch.sessionId }
-    }
+    const named = records.currentSessionIdsUnder(leaderPid).filter((id) => id === newSessionId)
+    if (named.length === 0) continue
+    // R18 — never adopt on ambiguity: two outermost claudes naming the id, or two terminals.
+    if (named.length > 1 || match !== null) return null
+    match = { terminalId: launch.terminalId, sessionId: launch.sessionId }
   }
-  return null
+  return match
 }

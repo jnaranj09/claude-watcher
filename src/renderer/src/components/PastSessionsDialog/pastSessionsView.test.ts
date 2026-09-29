@@ -62,6 +62,9 @@ describe('pastSessionsView', () => {
     expect(pastSessionErrorMessage(new Error('transcript_missing'))).toBe(
       'Claude no longer has this conversation. Forget it to remove it from the list'
     )
+    expect(pastSessionErrorMessage(new Error('session_running_elsewhere'))).toBe(
+      'This session is running in another terminal. Close it there first'
+    )
     expect(pastSessionErrorMessage(new Error('/home/op leaked'))).toBe('Could not open the session')
     expect(pastSessionErrorMessage('x')).toBe('Could not open the session')
   })

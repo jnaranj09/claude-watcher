@@ -32,13 +32,14 @@ onHookEvent(r.data)
 Every EXTERNAL input is validated at exactly ONE boundary, and the boundary
 **fails closed**. Pick the failure mode per boundary:
 
-| Boundary                                                | On bad input                                                                                                                                                    |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| claude hook POST (`127.0.0.1:9279`)                     | respond 400 + DROP the body + log by path → keep the other sessions (`hookEvent.ts` + `hookServer.ts`)                                                          |
-| persisted file read (Epic 2+)                           | back up the bad file + start fresh (never crash on corrupt prefs)                                                                                               |
-| claude session record (`~/.claude/sessions/<pid>.json`) | DROP the record quietly — no adoption, NO log (it carries cwd + name); the session-rebind falls back to the cwd heuristic (`src/main/pty/claudeSessionFile.ts`) |
-| renderer → main IPC arg                                 | `Schema.parse(raw)` → THROW a typed error (untrusted cross-process input)                                                                                       |
-| main → renderer delta                                   | validate AT SOURCE before sending (don't ship garbage downstream)                                                                                               |
+| Boundary                                                | On bad input                                                                                                                                                                                    |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| claude hook POST (`127.0.0.1:9279`)                     | respond 400 + DROP the body + log by path → keep the other sessions (`hookEvent.ts` + `hookServer.ts`)                                                                                          |
+| persisted file read (Epic 2+)                           | back up the bad file + start fresh (never crash on corrupt prefs)                                                                                                                               |
+| claude session record (`~/.claude/sessions/<pid>.json`) | DROP the record quietly — no adoption, NO log (it carries cwd + name); the session-rebind falls back to the cwd heuristic (`src/main/pty/claudeSessionFile.ts`)                                 |
+| claude session record, running-elsewhere scan           | SKIP the record quietly; the scan answers ONE boolean (id match + live pid), never returns cwd/name/pid, and FAILS OPEN if the dir cannot be listed (`src/main/pty/runningElsewhere.ts`, UX-14) |
+| renderer → main IPC arg                                 | `Schema.parse(raw)` → THROW a typed error (untrusted cross-process input)                                                                                                                       |
+| main → renderer delta                                   | validate AT SOURCE before sending (don't ship garbage downstream)                                                                                                                               |
 
 (The c9watch `watch`-line and `list`-snapshot rows are RETIRED — Story 6.4 removed the
 CLI. The native engine's external inputs are the hook POST, the transcript tail

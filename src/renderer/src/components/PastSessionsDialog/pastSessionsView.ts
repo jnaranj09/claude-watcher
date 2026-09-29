@@ -44,7 +44,10 @@ const ERROR_COPY: Readonly<Record<string, string>> = {
   folder_missing: 'That folder no longer exists',
   already_open: 'That session is already open',
   // UX-08 — claude deleted the conversation (its own history cleanup), or never wrote one.
-  transcript_missing: 'Claude no longer has this conversation. Forget it to remove it from the list'
+  transcript_missing:
+    'Claude no longer has this conversation. Forget it to remove it from the list',
+  // UX-14 — a claude the app did not launch holds this conversation right now.
+  session_running_elsewhere: 'This session is running in another terminal. Close it there first'
 }
 
 /**

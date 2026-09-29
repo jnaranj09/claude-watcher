@@ -208,6 +208,27 @@ describe("claimByProcess (Part 2b — the EXACT proof from claude's own per-proc
     )
     expect(claim).toBeNull()
   })
+
+  // R18 — never adopt on ambiguity. Two candidates for one id is not a proof.
+  it('refuses when TWO launched terminals record the incoming id (ambiguous — no pid proof)', () => {
+    const claim = claimByProcess(
+      'sess-new',
+      launches,
+      pids({ 'term-1': 111, 'term-2': 222 }),
+      recorded({ 111: ['sess-new'], 222: ['sess-new'] })
+    )
+    expect(claim).toBeNull()
+  })
+
+  it('refuses when one terminal records the incoming id twice (two outermost claudes — ambiguous)', () => {
+    const claim = claimByProcess(
+      'sess-new',
+      launches,
+      pids({ 'term-1': 111 }),
+      recorded({ 111: ['sess-new', 'sess-new'] })
+    )
+    expect(claim).toBeNull()
+  })
 })
 
 describe('OrphanRegistry.claim — a refusal caused by the window ALONE is reported', () => {

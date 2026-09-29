@@ -319,6 +319,9 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
   with no other notice. A live session is never listed and never counted against the cap.
 - **`transcript_missing` points at Forget:** "Claude no longer has this conversation. Forget it to
   remove it from the list" — claude deleted the transcript, so a resume could only fail.
+- **`session_running_elsewhere` names where to act:** "This session is running in another
+  terminal. Close it there first" (the dead pane: "This conversation is running in another
+  terminal. Close it there first.") — UX-14, a claude outside the app holds the id.
 - **A pending rename draws `⟳` after the name**, in `--text-secondary`, titled "Claude applies
   this name on your next prompt" (`NameSyncMark`, on `SessionCard` and `FocusedSession`) — it
   clears itself the moment the hook server pushes the name to claude.

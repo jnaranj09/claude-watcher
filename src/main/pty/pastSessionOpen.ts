@@ -14,6 +14,7 @@ export type PastSessionOpenCode =
   | 'folder_missing'
   | 'already_open'
   | 'transcript_missing'
+  | 'session_running_elsewhere'
 
 export interface PastSessionOpenDeps {
   get(id: string): PastSession | null
@@ -23,6 +24,9 @@ export interface PastSessionOpenDeps {
   isLive(sessionId: string): boolean
   /** Production: `statSync(path).isFile()` inside a try (a missing path is `false`). */
   transcriptExists(path: string): boolean
+  /** UX-14: a LIVE claude process anywhere records this id (runningElsewhere.ts). A boolean only;
+   *  fails open. */
+  runningElsewhere(sessionId: string): boolean
   /** A tag deleted since the archive is dropped from the resumed card (spec: surviving tags only). */
   tagExists(tagId: string): boolean
   launch(req: LaunchRequest): { terminalId: string }
@@ -43,6 +47,9 @@ export function openPastSession(raw: unknown, deps: PastSessionOpenDeps): PastSe
   if (record === null) return { ok: false, code: 'not_found' }
   if (!deps.isDirectory(record.cwd)) return { ok: false, code: 'folder_missing' }
   if (deps.isLive(id)) return { ok: false, code: 'already_open' }
+  // UX-14 — the conversation is running in a claude the app did not launch (another terminal,
+  // another profile). A second claude on it would write the same transcript.
+  if (deps.runningElsewhere(id)) return { ok: false, code: 'session_running_elsewhere' }
   // UX-08 — claude cleaned its history, or the session ended before claude wrote a transcript.
   // `claude --resume` would print "no conversation found" and exit, and that exit archived the
   // record again as the newest one: a loop. Refuse, and the dialog points at Forget.

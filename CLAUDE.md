@@ -211,7 +211,11 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   leftover live record into a normal one (`code=past_sessions_recovered_live`). **Open does NOT
   remove the record** (UX-02) — the resumed card's live record replaces it. **Open refuses
   `transcript_missing`** when the record's `transcriptPath` file is gone (UX-08; a record with no
-  path is not checked). **SIGTERM cannot be caught:** Electron's own handler turns it into
+  path is not checked). **Open and the dead pane's Resume refuse `session_running_elsewhere`** (UX-14) when a
+  LIVE claude anywhere records that id in `~/.claude/sessions/<pid>.json` (`pty/runningElsewhere.ts`:
+  id match + `kill(pid, 0)`, EPERM = alive). It is the one reader that opens EVERY record, so it
+  returns one boolean — never the cwd, name or pid — and FAILS OPEN on an unlistable directory
+  (claude is the final judge). **SIGTERM cannot be caught:** Electron's own handler turns it into
   `app.quit()`, so a logout or `kill` with live sessions stops at the quit guard until the session
   manager SIGKILLs the app (drive run 2026-09-28; `process.on('SIGTERM')` never fired, even
   registered after app-ready). The live records are what cover that case.
@@ -232,7 +236,12 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   Adoption is tried with an EXACT proof first: claude 2.1.257 records each live process's
   current id in `~/.claude/sessions/<pid>.json` (`src/main/pty/claudeSessionFile.ts`, the
   THIRD fail-closed Zod boundary — never log it, it carries cwd + name), and a launched
-  terminal whose process tree records the unknown id adopts it — no cwd, no window. The
+  terminal whose process tree records the unknown id adopts it — no cwd, no window. Only the
+  terminal's OWN claude counts (R18): the OUTERMOST one, with no other claude (a recorded pid or
+  a `/proc` `Name: claude`) between it and the pty leader. A nested `claude -p` run by claude's
+  Bash tool records its own id under the same leader (live check 2026-09-28, claude 2.1.284) and
+  is never a proof; an unreadable ancestor, or two outermost claudes / two terminals naming the
+  id, is no pid proof either — the cwd heuristic decides. The
   older cwd + single-match + alive + 5-minute-window heuristic remains as the fallback; it
   froze a monitor session for hours on 2026-09-01 when the first accepted hook came 24 min
   after `/clear`, which is why the exact proof exists. Log codes: `hook_sessionend_pty_alive`,
@@ -409,7 +418,7 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   `TOKEN_DOCS`), `docs/themes/theme.schema.json` (`z.toJSONSchema`), `examples/builtin-dark`
   (asserted equal to `TOKENS` + `xtermTheme`). Regenerate with `npm run gen:theme-docs`; the test
   fails while the committed files differ. Rescan is on start, on Settings open and on `Reload
-  themes` — there is no file watcher (IdeasBoard).
+themes` — there is no file watcher (IdeasBoard).
 
 ### node-pty + packaging (a day-costing gotcha)
 

@@ -23,16 +23,28 @@ const CHILD = 40001 // a claude that is a CHILD of the leader (a non-exec'ing sh
 const STRANGER = 50001 // an unrelated claude process (a manual `claude` elsewhere)
 const ELECTRON = 2310186 // the leader's parent — above the PTY, never "under" it
 
-/** `/proc/<pid>/status` blobs: the PPid chain the ancestry walk reads. */
-function readStatusFrom(table: Readonly<Record<number, number>>): ReadStatus {
+const SHELL = 40002 // a shell claude's Bash tool runs (between an outer and a nested claude)
+const NESTED = 40003 // a `claude -p` that an outer claude's Bash tool started (R18)
+
+/** `/proc/<pid>/status` blobs: the PPid chain the ancestry walk reads, and each process's
+ *  `Name:` (a bare number means a process named `claude`). */
+function readStatusFrom(
+  table: Readonly<Record<number, number | readonly [ppid: number, name: string]>>
+): ReadStatus {
   return (pid) => {
-    const ppid = table[pid]
-    if (ppid === undefined) throw new Error('ENOENT')
-    return `Name:\tclaude\nPid:\t${pid}\nPPid:\t${ppid}\n`
+    const entry = table[pid]
+    if (entry === undefined) throw new Error('ENOENT')
+    const [ppid, name] = typeof entry === 'number' ? [entry, 'claude'] : entry
+    return `Name:\t${name}\nPid:\t${pid}\nPPid:\t${ppid}\n`
   }
 }
 
-const TREE = readStatusFrom({ [LEADER]: ELECTRON, [CHILD]: LEADER, [STRANGER]: 1 })
+// The shell-did-not-exec shape: the PTY leader is a `bash`, claude is its child.
+const TREE = readStatusFrom({
+  [LEADER]: [ELECTRON, 'bash'],
+  [CHILD]: LEADER,
+  [STRANGER]: 1
+})
 
 function record(pid: number, sessionId: string): string {
   return JSON.stringify({ pid, sessionId, cwd: '/home/operator/project', name: 'ZYPF' })
@@ -140,12 +152,83 @@ describe('createProcessSessionSource — the exact "pid P now runs session B" pr
     expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
   })
 
-  it('collects every id under the leader (a nested claude keeps its own record)', () => {
-    const { source } = sourceOver({
-      [`${LEADER}.json`]: record(LEADER, 'sess-B'),
-      [`${CHILD}.json`]: record(CHILD, 'sess-nested')
+  // R18 — only the terminal's OWN claude (the OUTERMOST one) is a proof. A claude that another
+  // claude started (its Bash tool running `claude -p`) records its own id under the same leader.
+  // Live tree 2026-09-28, claude 2.1.284: claude(leader) → bash → claude -p → npm exec claude.
+  const NESTED_TREE = readStatusFrom({
+    [LEADER]: ELECTRON, // the login shell exec'd claude: the leader IS claude
+    [SHELL]: [LEADER, 'bash'],
+    [NESTED]: SHELL
+  })
+
+  it('drops a NESTED claude: its record sits under the leader, but another claude is above it', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: record(LEADER, 'sess-B'),
+        [`${NESTED}.json`]: record(NESTED, 'sess-nested')
+      },
+      NESTED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['sess-B'])
+  })
+
+  it('drops a nested claude even when the outer claude left no readable record (its Name says claude)', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: '{ not json',
+        [`${NESTED}.json`]: record(NESTED, 'sess-nested')
+      },
+      NESTED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+  })
+
+  it('drops a nested claude whose outer claude has a record but a different process Name', () => {
+    const tree = readStatusFrom({
+      [LEADER]: [ELECTRON, 'bash'],
+      [CHILD]: [LEADER, 'node'], // an npm-installed outer claude that kept node's name
+      [SHELL]: [CHILD, 'bash'],
+      [NESTED]: SHELL
     })
-    expect([...source.currentSessionIdsUnder(LEADER)].sort()).toEqual(['sess-B', 'sess-nested'])
+    const { source } = sourceOver(
+      {
+        [`${CHILD}.json`]: record(CHILD, 'sess-B'),
+        [`${NESTED}.json`]: record(NESTED, 'sess-nested')
+      },
+      tree
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['sess-B'])
+  })
+
+  it('drops a candidate when a process between it and the leader cannot be read (fail closed)', () => {
+    const tree = readStatusFrom({ [LEADER]: [ELECTRON, 'bash'], [NESTED]: SHELL }) // SHELL gone
+    const gated: ReadStatus = (pid) => (pid === SHELL ? '' : tree(pid))
+    const { source } = sourceOver({ [`${NESTED}.json`]: record(NESTED, 'sess-x') }, gated)
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+  })
+
+  it('drops a candidate when an ancestor has no readable Name (cannot tell it is not claude)', () => {
+    const tree = readStatusFrom({ [LEADER]: [ELECTRON, 'bash'], [NESTED]: SHELL, [SHELL]: LEADER })
+    const noName: ReadStatus = (pid) =>
+      pid === SHELL ? `Pid:\t${SHELL}\nPPid:\t${LEADER}\n` : tree(pid)
+    const { source } = sourceOver({ [`${NESTED}.json`]: record(NESTED, 'sess-x') }, noName)
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+  })
+
+  it("keeps every OUTERMOST claude (two siblings under a shell leader) — ambiguity is the caller's call", () => {
+    const tree = readStatusFrom({
+      [LEADER]: [ELECTRON, 'bash'],
+      [CHILD]: LEADER,
+      [NESTED]: LEADER
+    })
+    const { source } = sourceOver(
+      {
+        [`${CHILD}.json`]: record(CHILD, 'sess-a'),
+        [`${NESTED}.json`]: record(NESTED, 'sess-b')
+      },
+      tree
+    )
+    expect([...source.currentSessionIdsUnder(LEADER)].sort()).toEqual(['sess-a', 'sess-b'])
   })
 })
 

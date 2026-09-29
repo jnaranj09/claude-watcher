@@ -96,7 +96,7 @@ export class TgidParseError extends Error {
  * Returns the trimmed VALUE, or `undefined` if the field is absent. NEVER echoes
  * the blob anywhere (no logging here). `noUncheckedIndexedAccess`-safe.
  */
-function parseStatusField(statusBlob: string, field: string): string | undefined {
+export function parseStatusField(statusBlob: string, field: string): string | undefined {
   // `/proc/<pid>/status` lines are `Field:` + whitespace + value. Match at line
   // start to avoid a field name appearing inside another field's value.
   const lines = statusBlob.split('\n')
