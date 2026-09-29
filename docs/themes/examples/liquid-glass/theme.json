@@ -26,7 +26,19 @@
     "rounded-md": "12px",
     "rounded-lg": "18px",
     "shadow-dialog": "0 30px 70px rgba(0,0,0,0.55)",
-    "shadow-pop": "0 20px 48px rgba(0,0,0,0.5)"
+    "shadow-pop": "0 20px 48px rgba(0,0,0,0.5)",
+    "workspace-slate-fill": "rgba(127, 132, 156, 0.18)",
+    "workspace-slate-border": "rgba(127, 132, 156, 0.45)",
+    "workspace-blue-fill": "rgba(137, 180, 250, 0.18)",
+    "workspace-blue-border": "rgba(137, 180, 250, 0.45)",
+    "workspace-green-fill": "rgba(166, 227, 161, 0.18)",
+    "workspace-green-border": "rgba(166, 227, 161, 0.45)",
+    "workspace-amber-fill": "rgba(249, 226, 175, 0.18)",
+    "workspace-amber-border": "rgba(249, 226, 175, 0.45)",
+    "workspace-violet-fill": "rgba(203, 166, 247, 0.18)",
+    "workspace-violet-border": "rgba(203, 166, 247, 0.45)",
+    "workspace-rose-fill": "rgba(243, 139, 168, 0.18)",
+    "workspace-rose-border": "rgba(243, 139, 168, 0.45)"
   },
   "terminal": {
     "background": "rgba(0,0,0,0)",

@@ -119,6 +119,18 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `tag-rose-fill` | Rose tag chip fill | `#443336` |
 | `tag-rose-border` | Rose tag chip border and rail indicator stroke | `#81515d` |
 | `tag-rose-text` | Rose tag chip text | `#f5a9be` |
+| `workspace-slate-fill` | Slate workspace tint fill — the switcher, its menu rows, the Workspaces dialog rows and every workspace name box (opaque, composited over bg-surface-raised) | `#383737` |
+| `workspace-slate-border` | Slate workspace tint border | `#4d4f56` |
+| `workspace-blue-fill` | Blue workspace tint fill | `#393e45` |
+| `workspace-blue-border` | Blue workspace tint border | `#51627b` |
+| `workspace-green-fill` | Green workspace tint fill | `#3d4538` |
+| `workspace-green-border` | Green workspace tint border | `#5d7558` |
+| `workspace-amber-fill` | Amber workspace tint fill | `#49453a` |
+| `workspace-amber-border` | Amber workspace tint border | `#7e745d` |
+| `workspace-violet-fill` | Violet workspace tint fill | `#423c44` |
+| `workspace-violet-border` | Violet workspace tint border | `#6c5c7a` |
+| `workspace-rose-fill` | Rose workspace tint fill | `#483839` |
+| `workspace-rose-border` | Rose workspace tint border | `#7c515b` |
 | `font-ui` | The UI font stack | `system-ui, 'Noto Sans', 'Segoe UI', sans-serif` |
 | `font-mono` | The monospace stack for paths, ids and the terminal chrome | `'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace` |
 | `font-size-display` | Display size: the empty-board headline | `20px` |

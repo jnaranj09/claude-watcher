@@ -96,6 +96,22 @@ export const TOKENS = {
   'tag-rose-border': '#81515d',
   'tag-rose-text': '#f5a9be',
 
+  // ── Workspace tint (spec 2026-09-29) — a workspace is a LIGHT tint of the control that names it,
+  //    never a dot (a small coloured circle reads as status). The hue pre-composited over
+  //    bg-surface-raised: fill 14%, border 40%. Separate from the tag tokens on purpose. ─────────
+  'workspace-slate-fill': '#383737',
+  'workspace-slate-border': '#4d4f56',
+  'workspace-blue-fill': '#393e45',
+  'workspace-blue-border': '#51627b',
+  'workspace-green-fill': '#3d4538',
+  'workspace-green-border': '#5d7558',
+  'workspace-amber-fill': '#49453a',
+  'workspace-amber-border': '#7e745d',
+  'workspace-violet-fill': '#423c44',
+  'workspace-violet-border': '#6c5c7a',
+  'workspace-rose-fill': '#483839',
+  'workspace-rose-border': '#7c515b',
+
   // ── Typography: families ───────────────────────────────────────────────────
   'font-ui': "system-ui, 'Noto Sans', 'Segoe UI', sans-serif",
   'font-mono': "'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace",

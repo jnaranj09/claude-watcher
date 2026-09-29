@@ -210,6 +210,54 @@
           "type": "string",
           "maxLength": 500
         },
+        "workspace-slate-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-slate-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-blue-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-blue-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-green-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-green-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-amber-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-amber-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-violet-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-violet-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-rose-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "workspace-rose-border": {
+          "type": "string",
+          "maxLength": 500
+        },
         "font-ui": {
           "type": "string",
           "maxLength": 500
