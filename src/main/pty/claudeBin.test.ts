@@ -417,11 +417,11 @@ describe('composeClaudeCommand', () => {
     })
 
     describe('the --resume form (past sessions, D-1)', () => {
-      it('composes `claude --resume <id>` with NO --session-id, NO -n and NO prompt', () => {
+      it('composes `claude --resume <id> -n <name>` with NO --session-id, NO template flags and NO prompt', () => {
         const cmd = composeClaudeCommand(
           spec({
             resume: true,
-            displayName: 'ignored on resume',
+            displayName: 'renamed',
             hookSettingsPath: '/h/hooks.json',
             appendSystemPrompt: 'nudge',
             model: 'opus',
@@ -431,22 +431,45 @@ describe('composeClaudeCommand', () => {
           })
         )
         expect(cmd).toBe(
-          `'${BIN}' --resume '${SID}' --settings '/h/hooks.json' --append-system-prompt 'nudge'`
+          `'${BIN}' --resume '${SID}' -n 'renamed' --settings '/h/hooks.json' --append-system-prompt 'nudge'`
         )
         expect(cmd).not.toContain('--session-id')
-        expect(cmd).not.toContain(' -n ')
         expect(cmd).not.toContain('--model')
         expect(cmd).not.toContain(' -- ')
       })
 
-      it('under a real shell hands claude exactly [--resume, <id>, --settings, <path>]', () => {
-        const cmd = composeClaudeCommand(
-          spec({ resume: true, claudeCommand: stub, hookSettingsPath: '/tmp/a b/hooks.json' })
-        )
-        const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
-          .split('\n')
-          .filter((l) => l !== '')
-        expect(argv).toEqual(['--resume', SID, '--settings', '/tmp/a b/hooks.json'])
+      // R3: a rename made just before an archive never reached claude (it rides the NEXT prompt),
+      // so a resume without `-n` came back under claude's OLD name and the card reverted to it.
+      // Probe 2026-09-28, claude 2.1.284: `--resume <id> -n <name>` is accepted, keeps the id and
+      // applies the name (sessions/<pid>.json, the transcript's custom-title, the terminal title).
+      it('under a real shell hands claude exactly [--resume, <id>, -n, <name>, --settings, <path>]', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'c9-name-'))
+        const marker = join(dir, 'pwned')
+        try {
+          const hostile = `it's mine'; touch '${marker}'; $(touch '${marker}')`
+          const cmd = composeClaudeCommand(
+            spec({
+              resume: true,
+              claudeCommand: stub,
+              displayName: hostile,
+              hookSettingsPath: '/tmp/a b/hooks.json'
+            })
+          )
+          const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+            .split('\n')
+            .filter((l) => l !== '')
+          expect(argv).toEqual([
+            '--resume',
+            SID,
+            '-n',
+            hostile,
+            '--settings',
+            '/tmp/a b/hooks.json'
+          ])
+          expect(existsSync(marker)).toBe(false)
+        } finally {
+          rmSync(dir, { recursive: true, force: true })
+        }
       })
 
       // SEC-1: a forged hook session_id can be adopted onto a card, archived, and reopened with

@@ -1127,6 +1127,60 @@ describe('past sessions — resume and launchedAt', () => {
     expect(spawn).toHaveBeenLastCalledWith('sess-B', 'old name', NO_LAUNCH_FLAGS, null, true)
   })
 
+  // R3: a resume now passes `-n <name>`, so the name it passes must be the one the card LAST had.
+  // The recipe's name is frozen at Open; a rename (in-app, or claude's own `/rename` read back)
+  // made in the resumed run lives only in the card and its past-sessions record. A dead-pane
+  // Reopen that passed the frozen name would rename claude BACK.
+  it('a resume spawns with the name the card last had (resumeName), not the frozen recipe name', () => {
+    const { manager: tm } = fakeTerminalManager({ t1: 100 })
+    const spawn = vi.fn(() => ({ file: 'sh' }))
+    const names = new Map<string, string>([['sess-A', 'renamed later']])
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
+      spawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't1',
+      newSessionId: () => 'fresh',
+      now: () => 777,
+      platform: 'linux',
+      resumeName: (id) => names.get(id) ?? null
+    })
+    const { terminalId } = svc.launch({ cwd: '/c', name: 'old name', resumeSessionId: 'sess-A' })
+
+    const minted = svc.mintSpawn(terminalId)
+
+    expect(spawn).toHaveBeenLastCalledWith('sess-A', 'renamed later', NO_LAUNCH_FLAGS, null, true)
+    expect(minted?.displayName).toBe('renamed later') // the card is born with the same name
+
+    names.clear() // no record (hidden, or never written) → the recipe's name
+    svc.mintSpawn(terminalId)
+    expect(spawn).toHaveBeenLastCalledWith('sess-A', 'old name', NO_LAUNCH_FLAGS, null, true)
+  })
+
+  it('a FRESH launch never consults resumeName', () => {
+    const { manager: tm } = fakeTerminalManager({ t1: 100 })
+    const spawn = vi.fn(() => ({ file: 'sh' }))
+    const resumeName = vi.fn(() => 'wrong')
+    const svc = createLaunchService({
+      terminalManager: tm,
+      launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
+      spawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't1',
+      newSessionId: () => 'fresh',
+      now: () => 777,
+      platform: 'linux',
+      resumeName
+    })
+    const { terminalId } = svc.launch({ cwd: '/c', name: 'typed' })
+    svc.mintSpawn(terminalId)
+    expect(resumeName).not.toHaveBeenCalled()
+    expect(spawn).toHaveBeenLastCalledWith('fresh', 'typed', NO_LAUNCH_FLAGS, null, false)
+  })
+
   it('a /clear rebind never turns a FRESH launch into a resume', () => {
     const { manager: tm } = fakeTerminalManager({ t2: 100 })
     let s = 0

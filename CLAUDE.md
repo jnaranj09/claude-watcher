@@ -190,7 +190,11 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   that record (`deleteTerminalSession`; the renderer's `sessionId` is only a hint). Delete
   never touches claude's own files. `Past sessions…` (last ☰ row) reopens a record as a live card
   with `claude --resume <id>` (the launch service's `resumeSessionId`; the minted id IS the
-  record's id — probe-verified 2026-09-18 on claude 2.1.277 that `--resume` keeps it). The
+  record's id — probe-verified 2026-09-18 on claude 2.1.277 that `--resume` keeps it). A resume
+  passes `-n <name>` too (R3), and the name is the RECORD's (`resumeName`), not the frozen recipe's:
+  a rename made before the archive never reached claude, and a dead-pane Reopen must not rename
+  claude back (probe 2026-09-28, claude 2.1.284: `--resume <id> -n <name>` keeps the id and applies
+  the name; below that, not probed). The
   `session.removed` from a late `SessionEnd` stays idempotent (no card ⇒ no record, no log).
 - **A card on the board ALREADY has its record, marked `live` (UX-01):** `livePastSessions.ts`,
   fed from `handleDelta` and from the hook ingest's `transcript_path`, writes it at launch and on
@@ -208,7 +212,8 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **A rename waits for the next prompt, and the card says so:** `Session.nameSyncPending` (set by
   an in-app rename, cleared when the hook server takes the pending title) draws the `⟳` mark;
   `pendingTitles.rebind` moves a pending rename with the card on `/clear` (`adoptCard`), which is
-  what fixed "rename, then /clear, then the card reverts".
+  what fixed "rename, then /clear, then the card reverts". A rename of an id the reducer does not
+  hold queues NO push (R17, `hooks/renameLaunched.ts`): nothing would ever take it.
 - **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
   card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate). They
   also start NO transcript tail, and their raw `session_id` is

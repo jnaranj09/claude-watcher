@@ -215,8 +215,8 @@ export interface LaunchServiceOptions {
    *
    *  Past sessions (D-1): `resume` is true iff this launch's override carries a `resume`
    *  decision — the factory composes `claude --resume <sessionId>` instead of
-   *  `--session-id <sessionId>` (claudeBin.ts `ClaudeCommandSpec.resume`), dropping `-n`, the
-   *  template flags and the positional prompt. */
+   *  `--session-id <sessionId>` (claudeBin.ts `ClaudeCommandSpec.resume`), keeping `-n` (R3) and
+   *  dropping the template flags and the positional prompt. */
   spawn: (
     sessionId: string,
     displayName: string,
@@ -247,6 +247,11 @@ export interface LaunchServiceOptions {
   onCorrelated?: (binding: { terminalId: string; sessionId: string }) => void
   /** Code-only log sink (Guardrail #6) — NEVER a path/pty/session value. Defaults to console.warn. */
   log?: (message: string) => void
+  /** Past sessions (R3) — the name the card LAST had for a resumed session id (main: its
+   *  past-sessions record), or null. A resume passes it as `-n`; the recipe's name is frozen at
+   *  Open and a Reopen that passed it would rename claude back. Null/omitted ⇒ the recipe's name.
+   *  Never consulted for a fresh launch. */
+  resumeName?: (sessionId: string) => string | null
 }
 
 /** One in-flight (or completed) app launch awaiting / holding its Tgid correlation. Internal. */
@@ -454,13 +459,16 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // sessions: a resume launch mints THAT id instead — claude already holds it, and a
     // dead-pane Reopen must resume the SAME conversation, never a fresh one.
     const sessionId = override.resume?.sessionId ?? newSessionId()
+    // R3 — a resume passes `-n` too, so it must carry the card's LATEST name, not the recipe's.
+    const displayName =
+      override.resume !== null ? (options.resumeName?.(sessionId) ?? override.name) : override.name
     // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
     // generating its own title that would then disagree with the board card. Session templates:
     // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them. The
     // resume flag tells the factory to compose `claude --resume <id>` instead.
     const base = options.spawn(
       sessionId,
-      override.name,
+      displayName,
       override.flags,
       override.initialPrompt,
       override.resume !== null
@@ -502,7 +510,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     return {
       sessionId,
       spawn,
-      displayName: override.name,
+      displayName,
       templateId: override.templateId,
       initialPrompt: override.initialPrompt,
       workspaceId: override.workspaceId,

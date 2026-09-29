@@ -166,10 +166,12 @@ export interface ClaudeCommandSpec {
    *  PARTLY caller-supplied and this quoting is the last line of defence. */
   initialPrompt: string | null
   /** Past sessions (D-1): `claude --resume <sessionId>` instead of `--session-id <sessionId>`.
-   *  Claude already holds the custom title and the conversation, so `-n`, the template flags and
-   *  the positional prompt are DROPPED; `--settings` (hooks) and `--append-system-prompt` stay,
-   *  they are per-spawn app concerns. Probe-verified 2026-09-18: the resumed session keeps
-   *  the same id, so the minted identity IS `sessionId`. */
+   *  The template flags and the positional prompt are DROPPED; `--settings`, `--append-system-prompt`
+   *  and `-n` stay. `-n` (R3) carries a rename claude never got: a rename rides the NEXT prompt,
+   *  so one made just before an archive was lost on resume. Probe-verified 2026-09-18: the resumed
+   *  session keeps the same id, so the minted identity IS `sessionId`. Probe 2026-09-28 (claude
+   *  2.1.284): `--resume <id> -n <name>` is accepted, keeps the id, and applies the name
+   *  (sessions/<pid>.json, the transcript's custom-title, the terminal title). */
   resume: boolean
 }
 
@@ -244,6 +246,7 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
   if (spec.resume) {
     return (
       `${shellQuote(spec.claudeCommand)} --resume ${shellQuote(spec.sessionId)}` +
+      flagArg('-n', spec.displayName) +
       flagArg('--settings', spec.hookSettingsPath) +
       flagArg('--append-system-prompt', spec.appendSystemPrompt)
     )

@@ -270,6 +270,7 @@ import {
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
 // UserPromptSubmit hook POST (the only way to rename an already-running session).
 import { createPendingTitles } from './hooks/pendingTitles'
+import { renameLaunched as renameLaunchedCard } from './hooks/renameLaunched'
 // Name-sync — the read-back decision (claude is the authority on its own name). Pure + here
 // rather than inline, so it is testable: nothing can import index.ts.
 import { titleReadBackRename } from './hooks/titleReadBack'
@@ -870,14 +871,10 @@ function registerWatchFeed(window: BrowserWindow): void {
     // ordinary `session.updated`. The tracker does NOT re-stamp `enteredColumnAt` here because the
     // status is unchanged (attention.ts stamps on a COLUMN change only) — the board keeps its
     // order, which is the behavior confirmed during A1 planning.
+    // Name-sync — claude is renamed by ANSWERING its next `UserPromptSubmit` POST with this name,
+    // pushed once by the hook server, then cleared. Queued only when the card exists (R17).
     renameLaunched: (sessionId, name) => {
-      // true = the ⟳ mark until the push is taken
-      reducer.renameSession(sessionId, name, true).forEach(handleDelta)
-      // Name-sync — the card is renamed above; claude is renamed by ANSWERING its next
-      // `UserPromptSubmit` POST with this name (the app cannot rename a running session any
-      // other way). Recorded here, pushed once by the hook server, then cleared. Until the
-      // operator submits their next prompt the two names disagree — an accepted limit.
-      pendingTitles.set(sessionId, name)
+      renameLaunchedCard({ reducer, pendingTitles, handleDelta }, sessionId, name)
     },
     // Workspaces — same handleDelta chokepoint as every other seam action; the moved card
     // reaches the renderer as an ordinary `session.updated`. The target workspace's existence is
@@ -2235,7 +2232,7 @@ function rawClaudeSpawn(
         // none, so for them the composed command stays byte-identical to before.
         initialPrompt,
         // Past sessions (D-1) — a resume composes `claude --resume <id>` instead (claudeBin.ts
-        // drops `-n`, the template flags and the positional prompt for that form).
+        // keeps `-n` (R3) and drops the template flags and the positional prompt for that form).
         resume
       })
     ],
@@ -2412,6 +2409,9 @@ function registerLaunchIpc(): void {
     // Story 6.2 — the spawn FACTORY (not a static config): composes the raw-claude command for
     // each freshly-minted session id at actual-spawn time (mintSpawn).
     spawn: rawClaudeSpawn,
+    // R3 — a resume's `-n` is the card's LATEST name: its past-sessions record (live or archived)
+    // follows every rename, the recipe's name is frozen at Open.
+    resumeName: (sessionId) => pastSessionsStore?.get(sessionId)?.name ?? null,
     // Story 5.5 — the ONLY `/proc` seam the correlation needs now: status (for the session's Tgid
     // + the PPid ancestry walk up to the PTY leader). The pre-5.5 comm/children readers are gone.
     readStatus: readStatusFromProc,
