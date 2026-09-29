@@ -3,7 +3,11 @@
 import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import {
+  SHORTCUT_ALIAS_MAX_LENGTH,
+  SHORTCUT_NAME_MAX_LENGTH,
+  SHORTCUT_TEXT_MAX_LENGTH,
   ShortcutSaveSchema,
+  scanPlaceholders,
   type Shortcut,
   type ShortcutSaveRequest
 } from '../../../../shared/schemas/shortcut'
@@ -56,6 +60,38 @@ export function draftToSaveRequest(draft: ShortcutDraft): DraftResult {
   return { ok: true, req: parsed.data }
 }
 
+/**
+ * R26 — WHY Save is disabled, as operator copy, or null when the draft saves. Runs the same schema
+ * as `draftToSaveRequest` and picks the sentence by the failing FIELD (the issue path) plus the
+ * draft's own shape — never the ZodError's message, which is our copy for logs, not the operator.
+ */
+export function shortcutDraftProblem(draft: ShortcutDraft): string | null {
+  const parsed = ShortcutSaveSchema.safeParse({
+    name: draft.name,
+    alias: draft.alias,
+    text: draft.text,
+    workspaceId: draft.workspaceId
+  })
+  if (parsed.success) return null
+  const field = String(parsed.error.issues[0]?.path[0] ?? '')
+  if (field === 'name')
+    return `Give the shortcut a name, up to ${SHORTCUT_NAME_MAX_LENGTH} characters.`
+  if (field === 'alias') {
+    return draft.alias.trim() === ''
+      ? 'Give the shortcut an alias.'
+      : `The alias is letters and digits only, up to ${SHORTCUT_ALIAS_MAX_LENGTH}.`
+  }
+  if (field === 'text') {
+    if (draft.text.trim() === '') return 'Type the phrase.'
+    const { numbers } = scanPlaceholders(draft.text)
+    for (let n = 1; n <= numbers.size; n++) {
+      if (!numbers.has(n)) return 'Use $1, $2… in order, with no gap.'
+    }
+    return `The phrase is one line, up to ${SHORTCUT_TEXT_MAX_LENGTH} characters.`
+  }
+  return 'Finish the shortcut before saving.'
+}
+
 // Task 11 — workspaceId IS part of this comparison now: the scope select is a real control, so
 // changing ONLY the scope must mark the draft dirty or the operator has no way to save the
 // change they just made (Save stays disabled forever).
@@ -96,4 +132,10 @@ export const SHORTCUT_ERROR_COPY: Record<ShortcutErrorCode, string> = {
   shortcut_not_found: 'That shortcut no longer exists.',
   [STORE_WRITE_FAILED]: STORE_WRITE_FAILED_COPY,
   unknown: 'Could not save the shortcut.'
+}
+
+/** R26 — a refused DELETE. Its own table: the save table's fallback says "save". */
+export const SHORTCUT_DELETE_ERROR_COPY: Record<ShortcutErrorCode, string> = {
+  ...SHORTCUT_ERROR_COPY,
+  unknown: 'Could not delete the shortcut.'
 }

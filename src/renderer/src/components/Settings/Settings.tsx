@@ -179,17 +179,23 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // same code a full package validation (manifest + CSS + assets, themeScanner.ts scan()) would
   // have found, whether the mismatch was discovered at startup or after a Reload.
   const chosenReason = chosenSummary?.error !== undefined ? themeErrorCopy(chosenSummary) : null
+  // R12 (related) — a pick in flight: the setting changes at once (optimistic), the bundle lands
+  // when main answers. Main applies BEFORE it answers the settings write, so once the write
+  // resolves the bundle says the real outcome; until then a mismatch is not a failure.
+  const [themeSwitching, setThemeSwitching] = useState(false)
   const themeError =
-    bundle.id !== themeId
+    bundle.id !== themeId && !themeSwitching
       ? `Theme "${chosenName}" could not be loaded, using Default${chosenReason !== null ? ` — ${chosenReason}` : ''}`
       : null
-  // Derived → the shared error line, adjusted DURING RENDER against the previous value (the React
-  // docs' "adjusting state when a prop changes" pattern EmbeddedTerminal already uses), not in an
-  // effect (react-hooks/set-state-in-effect).
-  const [prevThemeError, setPrevThemeError] = useState<string | null>(null)
-  if (prevThemeError !== themeError) {
-    setPrevThemeError(themeError)
-    apiActions.setError(themeError)
+  // R12 — the theme error is a STANDING condition, derived on every render and shown on the ONE
+  // error line in place of the API/theme-action error (`themeError ?? state.error`). It used to be
+  // copied INTO that state, where any flow that cleared the line (a good port, the API switched
+  // off, a regenerate) wiped it while the theme was still broken.
+  const errorLine = themeError ?? apiDialog.state.error
+
+  function pickTheme(next: string): void {
+    setThemeSwitching(true)
+    void persistSettingsPatch({ themeId: next }).finally(() => setThemeSwitching(false))
   }
 
   async function reloadThemes(): Promise<void> {
@@ -435,7 +441,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             inert (only Frame/Header/Close read them). `state.armed` is ONE flag per Provider and
             Regenerate is the block's only armable control; a second one would need its own
             Provider. */}
-        <ManageDialog.Provider {...apiDialog}>
+        <ManageDialog.Provider {...apiDialog} state={{ ...apiDialog.state, error: errorLine }}>
           {/* Custom themes — the picker (a Select; never a native <select>), a Wallpaper picker when
               the applied theme lists 2+ (spec 2026-09-24), the two actions, the
               broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
@@ -445,7 +451,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
               <Select
                 value={themeId}
                 options={themeOptions}
-                onChange={(next) => void persistSettingsPatch({ themeId: next })}
+                onChange={pickTheme}
                 ariaLabel="Theme"
                 testId="settings-theme"
               />

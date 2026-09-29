@@ -135,6 +135,7 @@ function render(props: {
   onNewSession?: () => void
   onPickTemplate?: (template: Template) => void
   onManageTemplates?: () => void
+  onResume?: (terminalId: string) => Promise<void>
 }): RenderResult {
   const r = renderComponent(<EmbeddedTerminal {...props} />)
   cleanup = r.unmount
@@ -361,7 +362,7 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4 / Story 6.1 one-button o
     act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 137 }))
     const dead = r.container.querySelector('[data-testid="dead-terminal"]')
     expect(dead).not.toBeNull()
-    expect(dead?.textContent).toContain('Terminal exited.')
+    expect(dead?.textContent).toContain('Terminal exited with code 137.')
     // Story 6.1: EXACTLY ONE button — label "New session", testid dead-new-session. No Reopen/Stop.
     const buttons = [...(dead?.querySelectorAll('button') ?? [])]
     expect(buttons.length).toBe(1)
@@ -415,6 +416,101 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4 / Story 6.1 one-button o
     // Dead pane gone; open() called again (a fresh pty into the same pane — today's Reopen path).
     expect(r.container.querySelector('[data-testid="dead-terminal"]')).toBeNull()
     expect(fakes.open.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// UX-10 — the dead pane names WHY claude stopped (exit code or signal: state, never pty content or
+// a path), and offers Resume, which REPLACES the pane (the caller drops it on success).
+describe('EmbeddedTerminal — dead pane: exit reason + Resume (UX-10)', () => {
+  const reason = (r: RenderResult): string | null | undefined =>
+    r.container.querySelector('[data-testid="dead-terminal-reason"]')?.textContent
+
+  it('names the exit code, as Claude on the focused surface', () => {
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn() })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+    expect(reason(r)).toBe('Claude exited with code 1.')
+  })
+
+  it('names a known signal by name and number', () => {
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn() })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 0, signal: 9 }))
+    expect(reason(r)).toBe('Claude was stopped by SIGKILL (signal 9).')
+  })
+
+  it('names an unknown signal by number only', () => {
+    const r = render({ terminalId: 't-1' })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 0, signal: 40 }))
+    expect(reason(r)).toBe('Terminal was stopped by signal 40.')
+  })
+
+  it('offers Resume beside New session only when the caller can resume', () => {
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn(), onResume: vi.fn() })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+    const dead = r.container.querySelector('[data-testid="dead-terminal"]')
+    const ids = [...(dead?.querySelectorAll('button') ?? [])].map((b) =>
+      b.getAttribute('data-testid')
+    )
+    expect(ids).toEqual(['dead-resume', 'dead-new-session'])
+    expect(r.container.querySelector('[data-testid="dead-resume"]')?.textContent).toBe(
+      'Resume conversation'
+    )
+  })
+
+  it('Resume hands this terminal id to the caller, once, while in flight', async () => {
+    let finish: (() => void) | undefined
+    const onResume = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn(), onResume })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+    const btn = r.container.querySelector('[data-testid="dead-resume"]') as HTMLButtonElement
+    act(() => btn.click())
+    act(() => btn.click())
+    expect(onResume).toHaveBeenCalledTimes(1)
+    expect(onResume).toHaveBeenCalledWith('t-1')
+    expect(btn.disabled).toBe(true)
+    await act(async () => {
+      finish?.()
+      await Promise.resolve()
+    })
+  })
+
+  it('a refused Resume shows mapped copy in the pane, never the message', async () => {
+    const onResume = vi.fn(() =>
+      Promise.reject(
+        new Error("Error invoking remote method 'x': Error: transcript_missing /home/secret")
+      )
+    )
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn(), onResume })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+    await act(async () => {
+      ;(r.container.querySelector('[data-testid="dead-resume"]') as HTMLButtonElement).click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const error = r.container.querySelector('[data-testid="dead-resume-error"]')
+    expect(error?.textContent).toBe('Claude no longer has this conversation.')
+    expect(r.container.textContent).not.toContain('/home/secret')
+    expect(
+      (r.container.querySelector('[data-testid="dead-resume"]') as HTMLButtonElement).disabled
+    ).toBe(false)
+  })
+
+  it('an unknown refusal gets the generic line', async () => {
+    const onResume = vi.fn(() => Promise.reject(new Error('boom')))
+    const r = render({ terminalId: 't-1', onNewSession: vi.fn(), onResume })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+    await act(async () => {
+      ;(r.container.querySelector('[data-testid="dead-resume"]') as HTMLButtonElement).click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(r.container.querySelector('[data-testid="dead-resume-error"]')?.textContent).toBe(
+      'Could not resume the conversation.'
+    )
   })
 })
 

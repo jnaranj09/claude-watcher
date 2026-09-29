@@ -40,6 +40,7 @@ import {
   toDraft,
   draftToSaveRequest,
   shortcutErrorCode,
+  SHORTCUT_DELETE_ERROR_COPY,
   SHORTCUT_ERROR_COPY,
   type ShortcutDraft
 } from './shortcutForm'
@@ -114,18 +115,36 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
       .catch((err: unknown) => dialog.actions.setError(SHORTCUT_ERROR_COPY[shortcutErrorCode(err)]))
   }
 
+  // R26 — a refused delete keeps the editor open and says so (code → copy, never the error).
   function handleDelete(id: string): void {
-    void removeShortcut(id).then(cancel)
+    void removeShortcut(id)
+      .then(cancel)
+      .catch((err: unknown) =>
+        dialog.actions.setError(SHORTCUT_DELETE_ERROR_COPY[shortcutErrorCode(err)])
+      )
+  }
+
+  // R26 — editing a field clears the error line (Templates/Tags/Rules do the same): a refusal
+  // left up while the operator fixes the alias reads as "still wrong".
+  function changeDraft(next: ShortcutDraft): void {
+    setDraft(next)
+    dialog.actions.setError(null)
   }
 
   // The shortcut under edit, if any. The editor card renders it, so the list hides that row —
   // one thing on screen per shortcut.
   const editingShortcut = shortcuts.find((s) => s.id === editingId) ?? null
-  const listed = filterByScope(
-    shortcuts.filter((s) => s.id !== editingId),
-    scope,
-    known
-  )
+  const scoped = filterByScope(shortcuts, scope, known)
+  const listed = scoped.filter((s) => s.id !== editingId)
+  // R7 — three empty states (design.md): none at all, none in this scope (below), and — with no
+  // search box here — no third. The scoped count includes the row under edit, so editing a
+  // scope's only row does not call the scope empty.
+  const emptyScopeCopy =
+    scope === 'global'
+      ? 'No global shortcuts'
+      : scope === 'orphans'
+        ? 'No shortcuts without a workspace'
+        : 'No shortcuts in this workspace'
 
   return (
     <ManageDialog.Provider {...dialog}>
@@ -174,7 +193,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
           <ShortcutEditor
             shortcut={editingShortcut}
             draft={draft}
-            onDraftChange={setDraft}
+            onDraftChange={changeDraft}
             onCancel={cancel}
             onSave={handleSave}
             onDelete={() => {
@@ -188,6 +207,12 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
             <span className={styles.emptyTitle}>No shortcuts yet</span>
             <span className={styles.emptyBody}>
               Add one and give it an alias like <code>ht</code> to type its phrase in any session.
+            </span>
+          </div>
+        ) : scoped.length === 0 ? (
+          <div className={styles.empty} data-testid="shortcuts-empty-scope-box">
+            <span className={styles.emptyTitle} data-testid="shortcuts-empty-scope">
+              {emptyScopeCopy}
             </span>
           </div>
         ) : (

@@ -135,6 +135,8 @@ export const CH = {
   pastSessionsList: 'past-sessions:list',
   pastSessionsForget: 'past-sessions:forget',
   pastSessionOpen: 'past-sessions:open',
+  // UX-10 — the dead pane's Resume: the conversation a dead terminal last ran (main resolves it).
+  pastSessionResumeTerminal: 'past-sessions:resume-terminal',
   // Rules — the rule list's invokes (main-owned, run-ordered file; the renderer holds a projection
   // in rulesStore.ts). `rules:move` is the only reorder: list order IS run order (spec T-14).
   rulesList: 'rules:list',
@@ -729,13 +731,14 @@ export type PastSessionOpenResult = { terminalId: string; workspaceId: string; n
 export type {
   PastSession,
   PastSessionForgetRequest,
-  PastSessionOpenRequest
+  PastSessionOpenRequest,
+  PastSessionResumeTerminalRequest
 } from '../schemas/pastSession'
 
 // Workspaces — `session:set-workspace` request. Defined (via z.infer) at
 // `../schemas/launch.ts#SessionSetWorkspaceSchema`; re-exported here so preload/main import the
 // request type from the SAME place they import every other CH.* payload type.
-export type { SessionSetWorkspaceRequest } from '../schemas/launch'
+export type { SessionSetWorkspaceRequest, SessionPickDirectoryRequest } from '../schemas/launch'
 
 /**
  * `session:seen` request — the viewed session's stable id (the launch-minted uuid; NEVER a
@@ -840,6 +843,8 @@ export type TerminalExitEvent = {
   terminalId: string
   /** The PTY exit code (0 = clean exit; non-zero = error/crash). */
   exitCode: number
+  /** UX-10 — the signal that ended the process (≥ 1), absent on a plain exit. State only. */
+  signal?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -894,6 +899,8 @@ export type TerminalPortOutput = {
 export type TerminalPortExit = {
   type: 'exit'
   exitCode: number
+  /** UX-10 — the signal that ended the process (≥ 1), absent on a plain exit. */
+  signal?: number
 }
 
 /** Messages MAIN posts to the renderer over the port. */

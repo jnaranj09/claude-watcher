@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_WORKSPACE_ID } from '../../shared/schemas/workspace'
 import { WORKSPACE_ERROR, createWorkspacesStore } from './workspaces'
-import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './workspacesIpc'
+import {
+  createWorkspacesIpcHandlers,
+  parseSessionWorkspaceMove,
+  pickDirectoryDefaultPath
+} from './workspacesIpc'
 
 function store(): ReturnType<typeof createWorkspacesStore> {
   let n = 0
@@ -79,5 +83,39 @@ describe('parseSessionWorkspaceMove', () => {
     ).toThrow()
     expect(() => parseSessionWorkspaceMove(s, { sessionId: 's' })).toThrow()
     expect(() => parseSessionWorkspaceMove(s, null)).toThrow()
+  })
+})
+
+// R26 — the folder picker opens at the EDITED workspace's folder. The renderer sends an id, never a
+// path; main reads the folder from its own store.
+describe('pickDirectoryDefaultPath', () => {
+  function seeded(): ReturnType<typeof store> {
+    const s = store()
+    s.save({ name: 'Ops', color: 'blue', defaultCwd: '/srv/ops' })
+    s.save({ name: 'Web', color: 'green', defaultCwd: '/srv/web' })
+    s.setActive('w2')
+    return s
+  }
+
+  it('uses the named workspace folder', () => {
+    expect(pickDirectoryDefaultPath(seeded(), { workspaceId: 'w1' })).toBe('/srv/ops')
+  })
+
+  it('uses the active workspace folder with no arg', () => {
+    expect(pickDirectoryDefaultPath(seeded(), undefined)).toBe('/srv/web')
+  })
+
+  it('falls back to the active workspace for an unknown id', () => {
+    expect(pickDirectoryDefaultPath(seeded(), { workspaceId: 'gone' })).toBe('/srv/web')
+  })
+
+  it('answers null when the workspace has no folder', () => {
+    expect(pickDirectoryDefaultPath(store(), undefined)).toBeNull()
+  })
+
+  it('throws on a malformed arg', () => {
+    expect(() => pickDirectoryDefaultPath(seeded(), { workspaceId: '' })).toThrow()
+    expect(() => pickDirectoryDefaultPath(seeded(), { workspaceId: 'w1', path: '/etc' })).toThrow()
+    expect(() => pickDirectoryDefaultPath(seeded(), 'w1')).toThrow()
   })
 })

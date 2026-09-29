@@ -54,6 +54,7 @@ import { selectActiveWorkspaceId, useWorkspaces } from '../stores/workspacesStor
 import { TerminalContextMenu } from './TerminalContextMenu'
 import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
 import { Button } from '../components/Button/Button'
+import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
 import styles from './EmbeddedTerminal.module.css'
 
 export interface EmbeddedTerminalProps {
@@ -79,11 +80,20 @@ export interface EmbeddedTerminalProps {
    *  branch; the plain-shell fallback below has no App seams and ignores them. */
   onPickTemplate?: (template: Template) => void
   onManageTemplates?: () => void
+  /** UX-10 — resume the conversation this (dead) terminal last ran. The caller opens it as a NEW
+   *  terminal and DROPS this one (Resume replaces the dead pane). Rejects with a code on refusal,
+   *  which the pane maps to copy. Absent (the plain-shell view) ⇒ no Resume button. */
+  onResume?: (terminalId: string) => Promise<void>
 }
 
 /** The local dead-terminal state — the ONLY React state here before the clipboard feature
  *  (per-terminal pane state, AC-4). The xterm instance itself is NEVER in React state (terminal.md). */
-type DeadState = { exitCode: number } | null
+type DeadState = ExitInfo | null
+
+/** The exit as the pane keeps it: the signal only when one ended the process. */
+function deadFrom(exitCode: number, signal: number | undefined): ExitInfo {
+  return signal !== undefined && signal > 0 ? { exitCode, signal } : { exitCode }
+}
 
 /**
  * Context menu open state — the position + entry-enable flags for the Copy/Paste menu.
@@ -125,7 +135,8 @@ export function EmbeddedTerminal({
   takeFocus = active,
   onNewSession,
   onPickTemplate,
-  onManageTemplates
+  onManageTemplates,
+  onResume
 }: EmbeddedTerminalProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -350,7 +361,7 @@ export function EmbeddedTerminal({
         } else {
           // type === 'exit' — the pty exited; the durable dead-terminal push also arrives over
           // CH.terminalExit (onExit below). Either path flips the pane.
-          setDead({ exitCode: m.exitCode })
+          setDead(deadFrom(m.exitCode, m.signal))
         }
       }
       port.start()
@@ -369,7 +380,7 @@ export function EmbeddedTerminal({
     // The durable dead-terminal signal (CH.terminalExit) — drives the pane even if the port is
     // already gone. PER-TERMINAL local state; the board + siblings are untouched (AC-4).
     const offExit = window.terminal.onExit((info: TerminalExitEvent) => {
-      if (info.terminalId === terminalId) setDead({ exitCode: info.exitCode })
+      if (info.terminalId === terminalId) setDead(deadFrom(info.exitCode, info.signal))
     })
 
     const ro = new ResizeObserver(() => doFit())
@@ -558,6 +569,22 @@ export function EmbeddedTerminal({
     setOpenNonce((n) => n + 1)
   }
 
+  // UX-10 — Resume from the dead pane. One press at a time; a refusal is mapped copy on the
+  // pane's own line (never the thrown message). On success the caller drops this pane.
+  const [resuming, setResuming] = useState(false)
+  const [resumeError, setResumeError] = useState<string | null>(null)
+  const resume = (): void => {
+    if (onResume === undefined || resuming) return
+    setResuming(true)
+    setResumeError(null)
+    onResume(terminalId)
+      .catch((err: unknown) => {
+        console.warn('[claude-watcher][terminal] code=resume_failed')
+        setResumeError(resumeErrorCopy(err))
+      })
+      .finally(() => setResuming(false))
+  }
+
   // ── Terminal clipboard feature — context menu action handlers ─────────────
   //
   // These use `termRef.current` (a ref, not state) so they stay stable across renders
@@ -636,11 +663,21 @@ export function EmbeddedTerminal({
       {expanderOpen && (
         <ExpanderBox shortcuts={shortcuts} onExpand={handleExpand} onClose={handleExpanderClose} />
       )}
-      {/* Story 6.1 — the dead pane shows exactly ONE action: New session. */}
+      {/* Story 6.1 — the dead pane: why it stopped (UX-10 — the exit code or signal, never pty
+          content), then New session; plus Resume when the caller can resume (UX-10). */}
       {dead !== null && (
         <div className={styles.dead} role="alert" data-testid="dead-terminal">
-          <span className={styles.deadMessage}>Terminal exited.</span>
+          <span className={styles.deadMessage} data-testid="dead-terminal-reason">
+            {exitReasonCopy(onNewSession !== undefined ? 'Claude' : 'Terminal', dead)}
+          </span>
           <div className={styles.deadActions}>
+            {onResume !== undefined && (
+              // Resume REPLACES this pane (the caller drops it on success). Secondary: the
+              // `+ New session` beside it stays the surface's one primary.
+              <Button variant="secondary" testId="dead-resume" disabled={resuming} onClick={resume}>
+                Resume conversation
+              </Button>
+            )}
             {onNewSession !== undefined ? (
               // Session-templates parity — the dead pane shows the SAME `+ New session` popover
               // button as the header and the empty board (ONE component, ONE behaviour; the
@@ -669,6 +706,11 @@ export function EmbeddedTerminal({
               </Button>
             )}
           </div>
+          {resumeError !== null && (
+            <p className={styles.deadError} data-testid="dead-resume-error">
+              {resumeError}
+            </p>
+          )}
         </div>
       )}
       {/* Terminal clipboard feature — context menu portal (renders into document.body via

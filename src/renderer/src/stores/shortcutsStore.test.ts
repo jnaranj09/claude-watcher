@@ -87,11 +87,11 @@ describe('shortcutsStore', () => {
     ).rejects.toThrow('shortcut_alias_taken')
   })
 
-  it('swallows a remove failure with a code', async () => {
+  it('logs a remove failure by code and RETHROWS it for the dialog', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     shortcutsStore.setState({ shortcuts: [A], loaded: true })
     fakeBridge({ remove: vi.fn(() => Promise.reject(new Error('boom'))) })
-    await removeShortcut('sc-1')
+    await expect(removeShortcut('sc-1')).rejects.toThrow('boom')
     expect(warn).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_remove_failed')
   })
 })

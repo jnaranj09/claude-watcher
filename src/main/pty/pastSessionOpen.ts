@@ -2,7 +2,11 @@
 // extracted (the launchMint.ts / launchRemoval.ts precedent) so it is unit-testable without
 // Electron. index.ts binds it to CH.pastSessionOpen with the real store, fs, reducer and launch
 // service. NEVER log the record's cwd or name — the outcome carries a CODE the dialog maps to copy.
-import { PastSessionOpenSchema, type PastSession } from '../../shared/schemas/pastSession'
+import {
+  PastSessionOpenSchema,
+  PastSessionResumeTerminalSchema,
+  type PastSession
+} from '../../shared/schemas/pastSession'
 import { NO_LAUNCH_FLAGS, type LaunchRequest } from './launchSession'
 
 export type PastSessionOpenCode =
@@ -54,4 +58,29 @@ export function openPastSession(raw: unknown, deps: PastSessionOpenDeps): PastSe
     flags: NO_LAUNCH_FLAGS
   })
   return { ok: true, terminalId, workspaceId: record.workspaceId, name: record.name }
+}
+
+export interface ResumeTerminalDeps extends PastSessionOpenDeps {
+  /** The id the terminal LAST ran — the launch override's `lastSessionId` (moved by `/clear`), or
+   *  null for a terminal the launch service never saw (a plain shell). */
+  lastSessionIdFor(terminalId: string): string | null
+  /** True while the terminal's pty is still running: only a DEAD pane resumes. */
+  isTerminalLive(terminalId: string): boolean
+}
+
+/**
+ * UX-10 — the dead pane's Resume. Only the TERMINAL id crosses the seam (the renderer's binding
+ * died with the card); the session id comes from main's own launch record, and the resume then
+ * runs through `openPastSession` — the same record, folder, live and transcript checks, the same
+ * recipe. The renderer opens the new terminal and drops the dead pane (Resume replaces it).
+ */
+export function resumeTerminalSession(
+  raw: unknown,
+  deps: ResumeTerminalDeps
+): PastSessionOpenOutcome {
+  const { terminalId } = PastSessionResumeTerminalSchema.parse(raw)
+  if (deps.isTerminalLive(terminalId)) return { ok: false, code: 'already_open' }
+  const id = deps.lastSessionIdFor(terminalId)
+  if (id === null) return { ok: false, code: 'not_found' }
+  return openPastSession({ id }, deps)
 }

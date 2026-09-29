@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
-import { openPastSession, type PastSessionOpenDeps } from './pastSessionOpen'
+import { openPastSession, resumeTerminalSession, type PastSessionOpenDeps } from './pastSessionOpen'
 import type { PastSession } from '../../shared/schemas/pastSession'
 import type { LaunchRequest } from './launchSession'
 
@@ -102,6 +102,74 @@ describe('openPastSession', () => {
     const d = deps()
     expect(() => openPastSession({ id: '' }, d)).toThrow()
     expect(() => openPastSession('sess-A', d)).toThrow()
+    expect(d.launch).not.toHaveBeenCalled()
+  })
+})
+
+// UX-10 — the dead pane's Resume. The renderer sends only the terminal id; main resolves the id
+// the terminal LAST ran (the launch override's lastSessionId, moved by /clear) and runs Open.
+describe('resumeTerminalSession', () => {
+  function resumeDeps(
+    over: Partial<PastSessionOpenDeps> & {
+      lastSessionIdFor?: (terminalId: string) => string | null
+      isTerminalLive?: (terminalId: string) => boolean
+    } = {}
+  ): ReturnType<typeof deps> & {
+    lastSessionIdFor: (terminalId: string) => string | null
+    isTerminalLive: (terminalId: string) => boolean
+  } {
+    const { lastSessionIdFor, isTerminalLive, ...rest } = over
+    return {
+      ...deps(rest),
+      lastSessionIdFor: lastSessionIdFor ?? ((t) => (t === 'term-dead' ? 'sess-A' : null)),
+      isTerminalLive: isTerminalLive ?? (() => false)
+    }
+  }
+
+  it('resumes the id the terminal last ran, through the Open checks', () => {
+    const d = resumeDeps()
+    expect(resumeTerminalSession({ terminalId: 'term-dead' }, d)).toEqual({
+      ok: true,
+      terminalId: 'term-9',
+      workspaceId: 'w1',
+      name: 'billing api'
+    })
+    expect(d.launch).toHaveBeenCalledWith(expect.objectContaining({ resumeSessionId: 'sess-A' }))
+  })
+
+  it('not_found: a terminal with no launch record (a plain shell), nothing launched', () => {
+    const d = resumeDeps()
+    expect(resumeTerminalSession({ terminalId: 'term-shell' }, d)).toEqual({
+      ok: false,
+      code: 'not_found'
+    })
+    expect(d.launch).not.toHaveBeenCalled()
+  })
+
+  it('already_open: the terminal is still alive, nothing launched', () => {
+    const d = resumeDeps({ isTerminalLive: () => true })
+    expect(resumeTerminalSession({ terminalId: 'term-dead' }, d)).toEqual({
+      ok: false,
+      code: 'already_open'
+    })
+    expect(d.launch).not.toHaveBeenCalled()
+  })
+
+  it('carries the Open refusals (transcript_missing)', () => {
+    const d = resumeDeps({
+      get: (id) => (id === 'sess-A' ? { ...RECORD, transcriptPath: '/gone.jsonl' } : null),
+      transcriptExists: () => false
+    })
+    expect(resumeTerminalSession({ terminalId: 'term-dead' }, d)).toEqual({
+      ok: false,
+      code: 'transcript_missing'
+    })
+  })
+
+  it('parse-and-throws a malformed arg', () => {
+    const d = resumeDeps()
+    expect(() => resumeTerminalSession({ terminalId: '' }, d)).toThrow()
+    expect(() => resumeTerminalSession({ terminalId: 't', id: 'sess-A' }, d)).toThrow()
     expect(d.launch).not.toHaveBeenCalled()
   })
 })

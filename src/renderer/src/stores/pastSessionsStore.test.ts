@@ -3,7 +3,8 @@ import {
   pastSessionsStore,
   loadPastSessions,
   forgetPastSession,
-  openPastSession
+  openPastSession,
+  resumeDeadTerminal
 } from './pastSessionsStore'
 import { boardStore } from './boardStore'
 import { workspacesStore } from './workspacesStore'
@@ -66,5 +67,47 @@ describe('pastSessionsStore', () => {
   it('open rethrows the code so the dialog can map it to copy', async () => {
     stub('pastSessions', { open: vi.fn(() => Promise.reject(new Error('folder_missing'))) })
     await expect(openPastSession('s1')).rejects.toThrow('folder_missing')
+  })
+})
+
+// UX-10 (decided: Resume REPLACES the dead pane) — the dead pane's Resume opens the conversation
+// its terminal last ran as a NEW terminal and drops the dead one, so dead panes never pile up.
+describe('resumeDeadTerminal', () => {
+  it('opens the resumed terminal, takes the view and forgets the dead pane', async () => {
+    const setActive = vi.fn(() => Promise.resolve({ activeId: 'w1', workspaces: [] }))
+    stub('workspaces', { setActive })
+    const resumeTerminal = vi.fn(() =>
+      Promise.resolve({ terminalId: 'term-new', workspaceId: 'w1', name: 'a' })
+    )
+    stub('pastSessions', { resumeTerminal })
+    boardStore.setState({
+      viewMode: 'focused',
+      focusedTerminalId: 'term-dead',
+      launchedTerminals: {
+        'term-dead': { terminalId: 'term-dead', launchedAt: 1, label: 'a', workspaceId: 'w1' }
+      }
+    })
+    await resumeDeadTerminal('term-dead')
+    expect(resumeTerminal).toHaveBeenCalledWith('term-dead')
+    expect(setActive).toHaveBeenCalledWith('w1')
+    expect(boardStore.getState().focusedTerminalId).toBe('term-new')
+    expect(boardStore.getState().viewMode).toBe('focused')
+    expect(Object.keys(boardStore.getState().launchedTerminals)).toEqual(['term-new'])
+  })
+
+  it('a refusal rethrows and keeps the dead pane', async () => {
+    stub('pastSessions', {
+      resumeTerminal: vi.fn(() => Promise.reject(new Error('transcript_missing')))
+    })
+    boardStore.setState({
+      viewMode: 'focused',
+      focusedTerminalId: 'term-dead',
+      launchedTerminals: {
+        'term-dead': { terminalId: 'term-dead', launchedAt: 1, label: 'a', workspaceId: 'default' }
+      }
+    })
+    await expect(resumeDeadTerminal('term-dead')).rejects.toThrow('transcript_missing')
+    expect(boardStore.getState().focusedTerminalId).toBe('term-dead')
+    expect(Object.keys(boardStore.getState().launchedTerminals)).toEqual(['term-dead'])
   })
 })

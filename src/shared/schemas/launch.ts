@@ -170,6 +170,15 @@ export const SessionLaunchFromTemplateSchema = z.object({
 export type SessionLaunchFromTemplateArg = z.infer<typeof SessionLaunchFromTemplateSchema>
 
 /** Past sessions — `session:archive` arg. UNTRUSTED; a blank terminalId fails closed. */
+/** R26 — `session:pick-directory`'s OPTIONAL arg: open the picker at this workspace's default
+ *  folder. An id, never a path — main reads the folder from its own store. `.strict()` so a
+ *  smuggled `defaultPath` fails closed instead of being ignored. */
+export const SessionPickDirectorySchema = z
+  .object({ workspaceId: z.string().min(1) })
+  .strict()
+  .optional()
+export type SessionPickDirectoryRequest = NonNullable<z.infer<typeof SessionPickDirectorySchema>>
+
 export const SessionArchiveSchema = z.object({ terminalId: z.string().min(1) })
 export type SessionArchiveArg = z.infer<typeof SessionArchiveSchema>
 /** Past sessions — `session:delete` arg. `sessionId` is the renderer's HINT (null = it knows no

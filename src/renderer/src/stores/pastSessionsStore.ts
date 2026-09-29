@@ -68,6 +68,22 @@ export async function openPastSession(id: string): Promise<PastSessionOpenResult
 }
 
 /**
+ * UX-10 (decided 2026-09-28: Resume REPLACES the dead pane) — resume the conversation a dead
+ * terminal last ran. Main resolves the id from its own launch record (the renderer's binding died
+ * with the card) and runs the same checks as Open; this opens the new terminal exactly like Open
+ * does, THEN forgets the dead one, so dead panes never pile up. Rethrows the code for the pane's
+ * own error line; a refusal leaves the dead pane as it was.
+ */
+export async function resumeDeadTerminal(terminalId: string): Promise<void> {
+  const result = await window.pastSessions.resumeTerminal(terminalId)
+  if (workspacesStore.getState().activeId !== result.workspaceId) {
+    await setActiveWorkspace(result.workspaceId)
+  }
+  boardStore.getState().openLaunchedTerminal(result.terminalId, result.name, result.workspaceId)
+  boardStore.getState().forgetLaunchedTerminal(terminalId)
+}
+
+/**
  * Spec Open step 3 — Open was refused `already_open`: the session is live on the board, so take
  * the operator to ITS card instead, exactly like a card click (`activateCard`: select, acknowledge,
  * show its own terminal in the focused view). The card's workspace (session truth, which may

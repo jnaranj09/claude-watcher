@@ -88,6 +88,13 @@ const dialog = useManageDialog({ title: 'Templates', testIdPrefix: 'templates', 
 - **One error line per dialog**, `role="alert"`, shared by every flow in it. Never a
   second error surface per section, and never render a thrown `error.message` — map the
   code to operator copy first (see the `copyFor`/`templateErrorMessage` precedent).
+  Editing any field of the form clears it (R26). A refused Delete says so too — a store that
+  swallows the rejection closes the form as if it had worked.
+- **A greyed Save says why**: once the form is dirty, a muted `ManageDialog.Hint` (NOT the
+  `role="alert"` line) names the failing field — Templates, Rules, Shortcuts (`shortcut-hint`,
+  R26). Pick the sentence by the Zod issue PATH plus the draft's own shape, never the message.
+- **A scope change in a form resets what the new scope cannot see** (R15, Rules: `rescopeDraft`).
+  A dropdown left on a value it no longer offers draws blank and the save fails out of scope.
 - **Every interactive control gets `:focus-visible`** in the module's shared outline
   group. A button gets it from `Button`; a non-button control (a row select, a menu item) joins
   its module's selector list.
@@ -315,6 +322,13 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
 - **A pending rename draws `⟳` after the name**, in `--text-secondary`, titled "Claude applies
   this name on your next prompt" (`NameSyncMark`, on `SessionCard` and `FocusedSession`) — it
   clears itself the moment the hook server pushes the name to claude.
+- **A dead pane says WHY claude stopped** (UX-10), by exit code or signal only, never pty
+  content or a path: `Claude exited with code 1.` /
+  `Claude was stopped by SIGKILL (signal 9).` (`terminal/exitReason.ts`). Its actions:
+  `[Resume conversation]` (secondary) `[+ New session]` (the primary). **Resume REPLACES the dead pane**: main resolves the id the terminal last ran
+  (`CH.pastSessionResumeTerminal`, the launch override's `lastSessionId`) and runs the Open
+  checks; the renderer opens the new terminal, then forgets the dead one (`resumeDeadTerminal`).
+  A refusal is mapped copy on the pane's own line. The plain-shell `#terminals` view has no Resume.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 
@@ -457,4 +471,6 @@ and assert on its text instead.
   structure (row count vs container child count).
 - Don't reach for a new dialog shell. A Manage dialog is `ManageDialog.Frame`: `z-index: 60`,
   single-modal (App.tsx `isModalOpen()` guards it against the other modals — a new dialog
-  adds its open flag there), and Escape-closable.
+  adds its open flag to `isDialogOpen()` there), and Escape-closable. The Delete confirm and the
+  Quit guard count as modals too (R9): no opener fires over them, the page behind is `inert`, and
+  the Quit guard closes an open Delete confirm.

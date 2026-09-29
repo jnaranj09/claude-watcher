@@ -94,7 +94,11 @@ import { createSettingsStore, type SettingsStore } from './persistence/settings'
 import { createElectronSettingsBlobStore } from './persistence/electronSettingsBlobStore'
 import { SettingsPatchSchema, DEFAULT_SETTINGS } from '../shared/schemas/settings'
 import { createWorkspacesStore, type WorkspacesStore } from './persistence/workspaces'
-import { createWorkspacesIpcHandlers, parseSessionWorkspaceMove } from './persistence/workspacesIpc'
+import {
+  createWorkspacesIpcHandlers,
+  parseSessionWorkspaceMove,
+  pickDirectoryDefaultPath
+} from './persistence/workspacesIpc'
 import { createElectronWorkspacesBlobStore } from './persistence/electronWorkspacesBlobStore'
 import {
   createTemplatesStore,
@@ -166,7 +170,11 @@ import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
 // Past sessions (D-1) — the extracted "can this record be reopened?" decision
 // (unit-tested in pastSessionOpen.test.ts, mirroring the launchMint/launchRemoval extraction).
-import { openPastSession } from './pty/pastSessionOpen'
+import {
+  openPastSession,
+  resumeTerminalSession,
+  type PastSessionOpenDeps
+} from './pty/pastSessionOpen'
 import { readStatusFromProc } from './pty/pidCorrelation'
 import { createProcessSessionSourceFromFs } from './pty/claudeSessionFile'
 import {
@@ -1909,7 +1917,7 @@ function registerTerminalIpc(): void {
       console.log(`[c9watch][pty] code=interrupt_key_seen session=${sessionId}`)
       launchBoardSeams.get(wc)?.interruptLaunched(sessionId)
     },
-    onExit: (terminalId, exitCode) => {
+    onExit: (terminalId, exitCode, signal) => {
       const wc = terminalOwners.get(terminalId)
       terminalOwners.delete(terminalId)
       // Story 3.4 (FR-16) / Story 5.4 — a launched `claude` that exits FOR REAL drops its
@@ -1929,7 +1937,10 @@ function registerTerminalIpc(): void {
       // the renderer receives CH.terminalExit (the pane flips dead) before `session.removed`
       // (the card vanishes). A malformed exit never crosses the seam.
       if (wc && !wc.isDestroyed()) {
-        const r = TerminalExitSchema.safeParse({ terminalId, exitCode })
+        // UX-10 — the signal (when one ended it) so the dead pane can name it. State only.
+        const r = TerminalExitSchema.safeParse(
+          signal === undefined ? { terminalId, exitCode } : { terminalId, exitCode, signal }
+        )
         if (!r.success) {
           const issue = r.error.issues[0]
           console.error(
@@ -2443,7 +2454,7 @@ function registerLaunchIpc(): void {
   // session:pick-directory — open the NATIVE KDE directory chooser in MAIN and return the chosen
   // path, or null on cancel (UX-DR23). The renderer NEVER opens a dialog itself. Modal-to-window
   // (pass the owning BrowserWindow) on KDE. This is an invoke (returns the value directly).
-  ipcMain.handle(CH.sessionPickDirectory, async (event) => {
+  ipcMain.handle(CH.sessionPickDirectory, async (event, raw: unknown) => {
     // Story 5.4 — TEST-ONLY seam (mirrors the C9_SMOKE env gate): when C9_TEST_PICK_DIR is set,
     // bypass the native KDE dialog (which Playwright cannot drive) and return that path. This
     // exists SOLELY so the launch-path e2e can exercise `+ New session → claude` end-to-end on the
@@ -2451,14 +2462,13 @@ function registerLaunchIpc(): void {
     const testPickDir = process.env.C9_TEST_PICK_DIR
     if (testPickDir !== undefined && testPickDir !== '') return testPickDir
     const owner = BrowserWindow.fromWebContents(event.sender)
-    // Workspaces — open the picker at the active workspace's default folder when it has one.
-    // Read from MAIN's own store (the renderer never sends it) and NEVER logged.
-    const defaultPath = requireWorkspacesStore().get(
-      requireWorkspacesStore().activeId()
-    )?.defaultCwd
+    // Workspaces — open the picker at a workspace's default folder when it has one: the one the
+    // Workspaces dialog is editing (R26, by id), else the active one. Read from MAIN's own store
+    // (the renderer never sends a path) and NEVER logged. A malformed arg rejects the invoke.
+    const defaultPath = pickDirectoryDefaultPath(requireWorkspacesStore(), raw)
     const dialogOptions: Electron.OpenDialogOptions = {
       properties: ['openDirectory'],
-      ...(defaultPath !== null && defaultPath !== undefined ? { defaultPath } : {})
+      ...(defaultPath !== null ? { defaultPath } : {})
     }
     // showOpenDialog accepts an optional parent window; pass it so the dialog is modal-to-window.
     const result = owner
@@ -2582,29 +2592,49 @@ function registerLaunchIpc(): void {
   // the extracted module; this binds the real seams. A refusal THROWS its code (the templates
   // precedent: `template_not_found`), which the dialog maps to copy. The same version gate as
   // session:launch runs first: `--resume` is no older than the flags the gate already covers.
+  // The real seams behind an Open — shared by the Past sessions dialog and the dead pane's Resume.
+  const pastSessionOpenDeps = (service: LaunchService): PastSessionOpenDeps => ({
+    get: (id) => requirePastSessionsStore().get(id),
+    isDirectory: (path) => {
+      try {
+        return statSync(path).isDirectory()
+      } catch {
+        return false // missing / unreadable — never throws, never logs the path
+      }
+    },
+    isLive: isSessionLive,
+    transcriptExists: (path) => {
+      try {
+        return statSync(path).isFile()
+      } catch {
+        return false // missing / unreadable — never throws, never logs the path
+      }
+    },
+    tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
+    launch: (req) => service.launch(req)
+  })
+
   ipcMain.handle(CH.pastSessionOpen, (_event, raw: unknown): PastSessionOpenResult => {
     if (launchService === null) throw new Error('launch service not initialized')
     if (!claudeVersionAllowsLaunch()) throw new Error('claude version below the supported minimum')
+    const out = openPastSession(raw, pastSessionOpenDeps(launchService))
+    if (!out.ok) throw new Error(out.code)
+    return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
+  })
+
+  // past-sessions:resume-terminal (UX-10) — the dead pane's Resume. UNTRUSTED arg (parse-and-throw
+  // inside resumeTerminalSession). Only the terminal id crosses: the session id is the launch
+  // override's `lastSessionId` (main's own record, moved by /clear), then the same Open checks and
+  // the same version gate. A refusal THROWS its code; the pane maps it to copy.
+  ipcMain.handle(CH.pastSessionResumeTerminal, (_event, raw: unknown): PastSessionOpenResult => {
+    if (launchService === null) throw new Error('launch service not initialized')
+    if (!claudeVersionAllowsLaunch()) throw new Error('claude version below the supported minimum')
     const service = launchService
-    const out = openPastSession(raw, {
-      get: (id) => requirePastSessionsStore().get(id),
-      isDirectory: (path) => {
-        try {
-          return statSync(path).isDirectory()
-        } catch {
-          return false // missing / unreadable — never throws, never logs the path
-        }
-      },
-      isLive: isSessionLive,
-      transcriptExists: (path) => {
-        try {
-          return statSync(path).isFile()
-        } catch {
-          return false // missing / unreadable — never throws, never logs the path
-        }
-      },
-      tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
-      launch: (req) => service.launch(req)
+    const out = resumeTerminalSession(raw, {
+      ...pastSessionOpenDeps(service),
+      lastSessionIdFor: (terminalId) =>
+        service.peekSpawnOverride(terminalId)?.lastSessionId ?? null,
+      isTerminalLive: (terminalId) => terminalManager?.has(terminalId) ?? false
     })
     if (!out.ok) throw new Error(out.code)
     return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }

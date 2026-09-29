@@ -57,7 +57,9 @@ export const TerminalStopSchema = z.object({
  *  exit event never crosses the seam). exitCode is an integer. */
 export const TerminalExitSchema = z.object({
   terminalId: TerminalIdSchema,
-  exitCode: z.number().int()
+  exitCode: z.number().int(),
+  /** UX-10 — the signal that ended the process; absent on a plain exit (0 never crosses). */
+  signal: z.number().int().min(1).optional()
 })
 
 /**

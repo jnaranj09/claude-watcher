@@ -304,4 +304,57 @@ describe('WorkspacesDialog', () => {
     })
     expect(onClose).toHaveBeenCalled()
   })
+
+  // R26 — the error line clears when the operator starts fixing the name (Templates/Tags/Rules
+  // already did).
+  it('clears the error line when the name changes', async () => {
+    save.mockRejectedValueOnce(new Error('workspace_name_taken'))
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-new"]'))
+    type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
+    click(q(r, '[data-testid="workspace-submit"]'))
+    await flush()
+    expect(r.container.querySelector('[data-testid="workspace-error"]')).not.toBeNull()
+    type(q(r, '[data-testid="workspace-name-input"]'), 'Ops 2')
+    expect(r.container.querySelector('[data-testid="workspace-error"]')).toBeNull()
+  })
+
+  // R26 — a default folder could be set but never removed again.
+  it('clears the default folder back to None and saves null', async () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
+    click(q(r, '[data-testid="workspace-clear-folder"]'))
+    expect(q(r, '[data-testid="workspace-default-cwd"]').textContent).toBe('None')
+    click(q(r, '[data-testid="workspace-submit"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'w1', defaultCwd: null }))
+  })
+
+  it('offers no Clear while the folder is None', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-select-default"]'))
+    expect(r.container.querySelector('[data-testid="workspace-clear-folder"]')).toBeNull()
+  })
+
+  // R26 — Choose… opened at the ACTIVE workspace's folder, not the one being edited. Main reads
+  // the folder from its own store by id; the renderer never sends a path.
+  it('Choose… asks main to open at the edited workspace', async () => {
+    const pickDirectory = vi.fn(() => Promise.resolve(null))
+    ;(window as unknown as { launch: unknown }).launch = { pickDirectory }
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
+    click(q(r, '[data-testid="workspace-browse"]'))
+    await flush()
+    expect(pickDirectory).toHaveBeenCalledWith({ workspaceId: 'w1' })
+  })
+
+  it('Choose… on a new workspace sends no id', async () => {
+    const pickDirectory = vi.fn(() => Promise.resolve(null))
+    ;(window as unknown as { launch: unknown }).launch = { pickDirectory }
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-new"]'))
+    click(q(r, '[data-testid="workspace-browse"]'))
+    await flush()
+    expect(pickDirectory).toHaveBeenCalledWith()
+  })
 })

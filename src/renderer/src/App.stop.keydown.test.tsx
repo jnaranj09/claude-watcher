@@ -57,6 +57,7 @@ interface QuitBridge {
 }
 
 let cancelSpy: ReturnType<typeof vi.fn>
+let guardShow: ((p: QuitGuardPayload) => void) | undefined
 let cleanup: (() => void) | undefined
 
 function stubQuit(): void {
@@ -65,7 +66,10 @@ function stubQuit(): void {
     requestQuit: vi.fn().mockResolvedValue(undefined) as unknown as () => Promise<void>,
     confirm: vi.fn().mockResolvedValue(undefined) as unknown as () => Promise<void>,
     cancel: cancelSpy as unknown as () => Promise<void>,
-    onGuardShow: vi.fn(() => () => {})
+    onGuardShow: vi.fn((cb: (p: QuitGuardPayload) => void) => {
+      guardShow = cb
+      return () => {}
+    })
   }
   ;(window as unknown as { quit: QuitBridge }).quit = bridge
 }
@@ -388,5 +392,90 @@ describe('App keydown — Esc with the Delete-confirm open (D-5)', () => {
     })
 
     expect(cancelSpy).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R9 — the Delete confirm and the Quit guard are modals too (UX-DR14 single-modal rule)
+// ---------------------------------------------------------------------------
+
+describe('App — the Delete confirm and Quit guard join the single-modal rule (R9)', () => {
+  function openConfirm(): void {
+    act(() => {
+      boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'term-r9' })
+      boardStore.getState().showStopConfirm({
+        terminalId: 'term-r9',
+        sessionId: 'sess-r9',
+        sessionName: 'r9'
+      })
+    })
+  }
+
+  it('Ctrl+N does not open the folder picker over the Delete confirm', async () => {
+    await renderApp()
+    openConfirm()
+    await act(async () => {
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true })
+      )
+      await Promise.resolve()
+    })
+    expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+  })
+
+  it('Ctrl+N does not open the folder picker over the Quit guard', async () => {
+    await renderApp()
+    act(() => boardStore.getState().showQuitGuard(makeGuardPayload()))
+    await act(async () => {
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true })
+      )
+      await Promise.resolve()
+    })
+    expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+  })
+
+  it('the header behind the Delete confirm is inert, so Tab cannot walk out to the terminal', async () => {
+    const r = await renderApp()
+    openConfirm()
+    const header = r.container.querySelector('[data-testid="app-header"]')
+    expect(header?.hasAttribute('inert')).toBe(true)
+  })
+
+  it('the header behind the Quit guard is inert', async () => {
+    const r = await renderApp()
+    act(() => boardStore.getState().showQuitGuard(makeGuardPayload()))
+    const header = r.container.querySelector('[data-testid="app-header"]')
+    expect(header?.hasAttribute('inert')).toBe(true)
+  })
+
+  it('the Quit guard closes an open Delete confirm (never two stacked)', async () => {
+    await renderApp()
+    openConfirm()
+    act(() => guardShow?.(makeGuardPayload()))
+    expect(boardStore.getState().quitGuard).not.toBeNull()
+    expect(boardStore.getState().stopConfirm).toBeNull()
+  })
+
+  it('Esc still cancels the Delete confirm first', async () => {
+    await renderApp()
+    openConfirm()
+    await act(async () => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(boardStore.getState().stopConfirm).toBeNull()
+    expect(boardStore.getState().viewMode).toBe('focused')
+  })
+
+  it('Esc still cancels the Quit guard', async () => {
+    await renderApp()
+    act(() => boardStore.getState().showQuitGuard(makeGuardPayload()))
+    await act(async () => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(boardStore.getState().quitGuard).toBeNull()
+    expect(cancelSpy).toHaveBeenCalled()
   })
 })

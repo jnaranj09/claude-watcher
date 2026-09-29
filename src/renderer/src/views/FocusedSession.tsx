@@ -21,6 +21,8 @@ import { useCallback, useLayoutEffect, useState, type JSX } from 'react'
 import type { Template } from '../../../shared/ipc/contract'
 import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
+// UX-10 — the dead pane's Resume: opens the conversation as a new terminal and drops the dead one.
+import { resumeDeadTerminal } from '../stores/pastSessionsStore'
 import { AttentionRail } from '../components/attention/AttentionRail'
 import { NameSyncMark } from '../components/SessionCard/SessionCard'
 import { StatusDot, type DotStatus } from '../components/StatusDot/StatusDot'
@@ -249,6 +251,7 @@ export function FocusedSession({
               active={terminalId === focusedTerminalId}
               takeFocus={viewShown && terminalId === focusedTerminalId}
               onNewSession={onNewSession}
+              onResume={resumeDeadTerminal}
               {...(onPickTemplate ? { onPickTemplate } : {})}
               {...(onManageTemplates ? { onManageTemplates } : {})}
             />

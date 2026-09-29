@@ -58,10 +58,13 @@ export async function saveShortcut(req: ShortcutSaveRequest): Promise<Shortcut> 
   return result.saved
 }
 
+/** Logs a code and RETHROWS, like `saveShortcut`: the dialog maps the code to copy (R26 — a
+ *  swallowed refusal closed the editor as if the delete had worked). */
 export async function removeShortcut(id: string): Promise<void> {
   try {
     shortcutsStore.getState().hydrate(await window.shortcuts.remove(id))
-  } catch {
+  } catch (err) {
     console.warn(`${LOG_PREFIX} code=shortcuts_remove_failed`)
+    throw err
   }
 }

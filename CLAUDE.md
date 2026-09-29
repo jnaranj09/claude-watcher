@@ -196,6 +196,12 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   claude back (probe 2026-09-28, claude 2.1.284: `--resume <id> -n <name>` keeps the id and applies
   the name; below that, not probed). The
   `session.removed` from a late `SessionEnd` stays idempotent (no card ⇒ no record, no log).
+- **A dead pane names the exit and can Resume in place of itself (UX-10):** the pty's exit code or
+  signal rides `CH.terminalExit` / the port's `exit` message (`signal` only when ≥ 1; state, never
+  content). `Resume conversation` calls `CH.pastSessionResumeTerminal` with the TERMINAL id only —
+  main takes the override's `lastSessionId` and runs `openPastSession`'s checks
+  (`resumeTerminalSession`); the renderer opens the new terminal and forgets the dead one, so dead
+  panes never accumulate. `+ New session` from a dead pane still leaves it mounted.
 - **A card on the board ALREADY has its record, marked `live` (UX-01):** `livePastSessions.ts`,
   fed from `handleDelta` and from the hook ingest's `transcript_path`, writes it at launch and on
   every change of name / folder / workspace / tags / transcript, plus at most once a minute to

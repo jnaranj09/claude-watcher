@@ -102,6 +102,10 @@ describe('TerminalStopSchema / TerminalExitSchema', () => {
     })
     expect(TerminalExitSchema.parse({ terminalId: 't', exitCode: 137 }).exitCode).toBe(137)
     expect(() => TerminalExitSchema.parse({ terminalId: 't', exitCode: 1.5 })).toThrow()
+    // UX-10 — an optional signal (≥ 1), an integer like the code.
+    expect(TerminalExitSchema.parse({ terminalId: 't', exitCode: 0, signal: 9 }).signal).toBe(9)
+    expect(() => TerminalExitSchema.parse({ terminalId: 't', exitCode: 0, signal: 0 })).toThrow()
+    expect(() => TerminalExitSchema.parse({ terminalId: 't', exitCode: 0, signal: 1.5 })).toThrow()
   })
 })
 

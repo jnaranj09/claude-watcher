@@ -763,6 +763,85 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(r.container.textContent).not.toContain('ECONNREFUSED')
   })
 
+  // R12 — the theme error is a STANDING condition, not an event: an unrelated flow that clears the
+  // shared line (a good port, the API switched off) must not hide it while the theme is still broken.
+  it('a still-broken theme keeps its error line through an API change that clears the line', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([broken])
+    const base: Settings = { ...DEFAULT_SETTINGS, themeId: 'broken', apiEnabled: true }
+    // Main's answer keeps the broken theme chosen (the stub's default answer would reset it).
+    ;(window as unknown as { settings: SettingsBridge }).settings.set = (patch) =>
+      Promise.resolve({
+        ...base,
+        apiPort: patch.apiPort ?? base.apiPort,
+        apiEnabled: patch.apiEnabled ?? base.apiEnabled
+      })
+    act(() => settingsStore.getState().hydrate(base))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
+    type(port, '9300')
+    blur(port)
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Theme "broken" could not be loaded, using Default — missing theme.css'
+    )
+    click(q(r, '[data-testid="settings-api-enabled"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
+  })
+
+  it('an API refusal still shows once the theme loads again', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([broken])
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
+    type(port, '80')
+    blur(port)
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'default' }))
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Port must be between 1024 and 65535.'
+    )
+  })
+
+  // R12 (related) — picking a theme updates the setting at once, and the bundle lands a moment
+  // later: the gap read as "could not be loaded" on every switch.
+  it('no false alarm while a theme switch is in flight; the real outcome shows after', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes([paper])
+    let answer: (() => void) | undefined
+    const bridge = (window as unknown as { settings: SettingsBridge }).settings
+    const realSet = bridge.set
+    bridge.set = (patch) =>
+      new Promise((resolve) => {
+        answer = () => void realSet(patch).then(resolve)
+      })
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    await flush()
+    chooseOption(r.container, 'settings-theme', 'paper')
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+    // Main answered without a paper bundle: the theme really failed, so now it is said.
+    await act(async () => {
+      answer?.()
+      await Promise.resolve()
+    })
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toContain(
+      'Theme "Paper" could not be loaded'
+    )
+  })
+
   it('no error line when the chosen theme is the applied one', async () => {
     stubSettings()
     stubApi()

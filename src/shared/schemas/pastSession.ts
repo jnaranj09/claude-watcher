@@ -46,6 +46,11 @@ export type PastSessionForgetRequest = z.infer<typeof PastSessionForgetSchema>
 export const PastSessionOpenSchema = z.object({ id: PastSessionIdSchema })
 export type PastSessionOpenRequest = z.infer<typeof PastSessionOpenSchema>
 
+/** UX-10 — `past-sessions:resume-terminal`: resume what a DEAD terminal last ran. Only the
+ *  terminal id crosses: main resolves the session id from its own launch record. */
+export const PastSessionResumeTerminalSchema = z.object({ terminalId: z.string().min(1) }).strict()
+export type PastSessionResumeTerminalRequest = z.infer<typeof PastSessionResumeTerminalSchema>
+
 export const PAST_SESSIONS_FILE_VERSION = 1 as const
 /** Newest first; the 201st archive drops the oldest (D-9). */
 export const PAST_SESSIONS_MAX = 200

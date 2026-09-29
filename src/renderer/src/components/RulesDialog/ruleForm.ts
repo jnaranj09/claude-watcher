@@ -16,6 +16,7 @@ import {
   type TimeRuleMinutes
 } from '../../../../shared/schemas/rule'
 import { patternCompiles } from '../../../../shared/rules/matchText'
+import { inRuleScope } from '../../../../shared/rules/ruleRefs'
 
 export const COLUMN_LABELS: Record<Column, string> = {
   working: 'Working',
@@ -133,6 +134,41 @@ export function conditionFor(
     case 'folder':
     case 'name':
       return { kind, mode: 'contains', pattern: '' }
+  }
+}
+
+interface ScopedRef {
+  id: string
+  workspaceId: string | null
+}
+
+/**
+ * R15 — the draft moved to `workspaceId`. Every tag / template ref the new scope can still see
+ * (`inRuleScope`, the ONE predicate) is kept; the rest reset to the first item it can see, or ''
+ * when there is none (validation then asks for one). Without it the dropdown showed a blank value
+ * the new scope does not offer and Save failed `rule_ref_out_of_scope`.
+ */
+export function rescopeDraft(
+  draft: RuleDraft,
+  workspaceId: string | null,
+  tags: readonly ScopedRef[],
+  templates: readonly ScopedRef[]
+): RuleDraft {
+  const visible = (items: readonly ScopedRef[]): string[] =>
+    items.filter((i) => inRuleScope(workspaceId, i.workspaceId)).map((i) => i.id)
+  const tagIds = visible(tags)
+  const templateIds = visible(templates)
+  const keep = (id: string, ids: string[]): string => (ids.includes(id) ? id : (ids[0] ?? ''))
+  return {
+    ...draft,
+    workspaceId,
+    conditions: draft.conditions.map((c): RuleCondition => {
+      if (c.kind === 'has-tag' || c.kind === 'lacks-tag')
+        return { ...c, tagId: keep(c.tagId, tagIds) }
+      if (c.kind === 'template') return { ...c, templateId: keep(c.templateId, templateIds) }
+      return c
+    }),
+    actions: draft.actions.map((a): RuleAction => ({ ...a, tagId: keep(a.tagId, tagIds) }))
   }
 }
 

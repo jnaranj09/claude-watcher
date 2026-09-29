@@ -29,6 +29,7 @@ import {
   emptyDraft,
   isDraftDirty,
   minutesFrom,
+  rescopeDraft,
   ruleErrorMessage,
   toDraft,
   triggerFor,
@@ -137,7 +138,12 @@ export function RuleForm({ rule, onSaved }: RuleFormProps): JSX.Element {
             adornment: <WorkspaceDot tone={w.color} />
           }))
         ]}
-        onChange={(next) => patch({ workspaceId: next === GLOBAL_SCOPE ? null : next })}
+        onChange={(next) => {
+          // R15 — refs the new scope cannot see reset with it (rescopeDraft), never left blank.
+          const workspaceId = next === GLOBAL_SCOPE ? null : next
+          setDraft((d) => rescopeDraft(d, workspaceId, allTags, allTemplates))
+          actions.setError(null)
+        }}
         ariaLabel="Workspace"
         testId="rule-scope"
       />

@@ -59,7 +59,7 @@ export interface TerminalManagerOptions {
   flowControl?: Pick<FlowControlOptions, 'highWater' | 'lowWater'>
   /** Push a dead-terminal signal toward the renderer (validated-at-source IPC send lives
    *  in the caller). One dying pty → this fires ONCE per terminal; never throws out. */
-  onExit: (terminalId: string, exitCode: number) => void
+  onExit: (terminalId: string, exitCode: number, signal?: number) => void
   /**
    * Observe terminal INPUT on its way to the pty, before it is written.
    *
@@ -380,16 +380,21 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     // dead pty.kill() is a harmless no-op) and fire onExit ONCE. One dying pty never takes
     // the board/window down (PRECEDENCE #2). Also push the exit in-band over the port so the
     // renderer sees it while draining the byte stream.
-    const ptyExitDisposable = term.onExit(({ exitCode }) => {
+    const ptyExitDisposable = term.onExit(({ exitCode, signal }) => {
       const liveNow = terminals.get(terminalId)
+      // UX-10 — a signal (≥ 1) rides along so the dead pane can name it; 0/none is a plain exit.
+      const signaled = signal !== undefined && signal > 0
       try {
         // After a re-attach, liveNow.port is the NEW port — exit message goes to the live mount.
-        liveNow?.port.postMessage({ type: 'exit', exitCode })
+        liveNow?.port.postMessage(
+          signaled ? { type: 'exit', exitCode, signal } : { type: 'exit', exitCode }
+        )
       } catch {
         /* the port may already be gone; the IPC onExit below is the durable signal */
       }
       if (liveNow) teardown(terminalId, liveNow)
-      options.onExit(terminalId, exitCode)
+      if (signaled) options.onExit(terminalId, exitCode, signal)
+      else options.onExit(terminalId, exitCode)
     })
 
     // port input from the renderer: keystrokes → pty.write; ACK → flow.onAck. The port is a

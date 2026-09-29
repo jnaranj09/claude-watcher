@@ -107,10 +107,9 @@ import { StorageNotice } from './components/StorageNotice/StorageNotice'
 import { themeStore } from './stores/themeStore'
 import styles from './App.module.css'
 
-/** UX-DR14 single-modal rule: the name prompt and the Templates/Shortcuts/Workspaces/Tags/Rules/
- *  Settings/Past-sessions dialogs never co-exist. A MODULE-LEVEL function (not a component-body
- *  const) so the `[]`-deps useCallbacks that call it stay free of exhaustive-deps warnings. */
-function isModalOpen(): boolean {
+/** The name prompt and the Manage/Settings/Past-sessions dialogs — the modals the page-body
+ *  Escape closes all at once (the Delete confirm and the Quit guard each have their own Escape). */
+function isDialogOpen(): boolean {
   const s = boardStore.getState()
   return (
     s.sessionNamePrompt !== null ||
@@ -122,6 +121,15 @@ function isModalOpen(): boolean {
     s.settingsDialogOpen ||
     s.pastSessionsDialogOpen
   )
+}
+
+/** UX-DR14 single-modal rule: no two modals ever co-exist — the dialogs above, the Delete confirm
+ *  and the Quit guard (R9: those two were outside the rule, so Ctrl+N opened the picker over
+ *  either). A MODULE-LEVEL function (not a component-body const) so the `[]`-deps useCallbacks
+ *  that call it stay free of exhaustive-deps warnings. */
+function isModalOpen(): boolean {
+  const s = boardStore.getState()
+  return isDialogOpen() || s.stopConfirm !== null || s.quitGuard !== null
 }
 
 function App(): React.JSX.Element {
@@ -287,6 +295,9 @@ function App(): React.JSX.Element {
       boardStore.getState().closeRulesDialog()
       boardStore.getState().closeSettingsDialog()
       boardStore.getState().closePastSessionsDialog()
+      // R9 — the Delete confirm too: a Delete confirmed under the guard would act on a session
+      // main already counted in the guard's list.
+      boardStore.getState().clearStopConfirm()
       boardStore.getState().showQuitGuard(payload)
     })
     return off
@@ -574,7 +585,7 @@ function App(): React.JSX.Element {
         // Shortcuts/Workspaces dialogs never co-exist (every open call site guards on
         // isModalOpen()), so calling every closer is safe and covers the case where focus sits
         // on the page BODY — the dialog's own onKeyDown never sees that keydown.
-        if (isModalOpen()) {
+        if (isDialogOpen()) {
           boardStore.getState().clearSessionNamePrompt()
           boardStore.getState().closeTemplatesDialog()
           boardStore.getState().closeShortcutsDialog()
@@ -667,7 +678,11 @@ function App(): React.JSX.Element {
     tagsDialogOpen ||
     rulesDialogOpen ||
     settingsDialogOpen ||
-    pastSessionsDialogOpen
+    pastSessionsDialogOpen ||
+    // R9 — the Delete confirm and the Quit guard are modals too: Shift+Tab out of the confirm
+    // reached the live terminal behind it.
+    stopConfirm !== null ||
+    quitGuard !== null
 
   return (
     <div className={styles.app}>

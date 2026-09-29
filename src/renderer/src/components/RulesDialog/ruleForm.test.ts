@@ -5,6 +5,7 @@ import {
   conditionFor,
   emptyDraft,
   isDraftDirty,
+  rescopeDraft,
   minutesFrom,
   ruleErrorMessage,
   toDraft,
@@ -141,5 +142,51 @@ describe('copy', () => {
   it('"Used by N rules" is singular and plural', () => {
     expect(usedByRulesCopy(1)).toBe('Used by 1 rule. Change or delete it first.')
     expect(usedByRulesCopy(3)).toBe('Used by 3 rules. Change or delete them first.')
+  })
+})
+
+// R15 — the pure half: a scope change keeps every ref the new scope can see, and resets the rest
+// to the first visible item ('' when there is none, which validation then asks for).
+describe('rescopeDraft', () => {
+  const tags = [
+    { id: 't-ops', workspaceId: 'w1' },
+    { id: 't-pending', workspaceId: null }
+  ]
+  const templates = [
+    { id: 'tpl-ops', workspaceId: 'w1' },
+    { id: 'tpl-web', workspaceId: 'w2' }
+  ]
+  const draft: RuleDraft = {
+    ...emptyDraft(),
+    workspaceId: 'w1',
+    conditions: [
+      { kind: 'has-tag', tagId: 't-ops' },
+      { kind: 'lacks-tag', tagId: 't-pending' },
+      { kind: 'template', templateId: 'tpl-ops' },
+      { kind: 'name', mode: 'contains', pattern: 'api' }
+    ],
+    actions: [{ kind: 'add-tag', tagId: 't-ops' }]
+  }
+
+  it('resets out-of-scope refs and keeps the visible ones', () => {
+    const next = rescopeDraft(draft, null, tags, templates)
+    expect(next.workspaceId).toBeNull()
+    expect(next.conditions).toEqual([
+      { kind: 'has-tag', tagId: 't-pending' },
+      { kind: 'lacks-tag', tagId: 't-pending' },
+      { kind: 'template', templateId: '' },
+      { kind: 'name', mode: 'contains', pattern: 'api' }
+    ])
+    expect(next.actions).toEqual([{ kind: 'add-tag', tagId: 't-pending' }])
+  })
+
+  it('changes nothing but the scope when every ref stays visible', () => {
+    const next = rescopeDraft(draft, 'w1', tags, templates)
+    expect(next).toEqual(draft)
+  })
+
+  it('picks the new workspace’s own template', () => {
+    const next = rescopeDraft(draft, 'w2', tags, templates)
+    expect(next.conditions[2]).toEqual({ kind: 'template', templateId: 'tpl-web' })
   })
 })

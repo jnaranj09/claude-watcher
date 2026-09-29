@@ -90,11 +90,25 @@ function WorkspaceForm({
 
   async function browse(): Promise<void> {
     try {
-      const cwd = await window.launch.pickDirectory()
-      if (cwd !== null) setDefaultCwd(cwd)
+      // R26 — open at the EDITED workspace's folder: main reads it from its own store by id (the
+      // renderer never sends a path). A new workspace has no id yet — main uses the active one.
+      const cwd = await (workspace === null
+        ? window.launch.pickDirectory()
+        : window.launch.pickDirectory({ workspaceId: workspace.id }))
+      if (cwd !== null) changeFolder(cwd)
     } catch {
       console.warn('[claude-watcher][workspaces] code=pick_directory_failed')
     }
+  }
+
+  // R26 — editing a field clears the error line (Templates/Tags/Rules do the same).
+  function changeName(next: string): void {
+    setName(next)
+    actions.setError(null)
+  }
+  function changeFolder(next: string | null): void {
+    setDefaultCwd(next)
+    actions.setError(null)
   }
 
   const trimmed = name.trim()
@@ -125,7 +139,7 @@ function WorkspaceForm({
         testId="workspace-name-input"
         maxLength={WORKSPACE_NAME_MAX_LENGTH}
         value={name}
-        onChange={setName}
+        onChange={changeName}
       />
 
       <ManageDialog.Label>Color</ManageDialog.Label>
@@ -139,7 +153,10 @@ function WorkspaceForm({
               aria-label={c}
               data-testid={`workspace-color-${c}`}
               checked={color === c}
-              onChange={() => setColor(c)}
+              onChange={() => {
+                setColor(c)
+                actions.setError(null)
+              }}
             />
             <WorkspaceDot tone={c} />
           </label>
@@ -154,6 +171,15 @@ function WorkspaceForm({
         <ManageDialog.GhostButton testId="workspace-browse" onClick={() => void browse()}>
           Choose…
         </ManageDialog.GhostButton>
+        {/* R26 — the way back to None. Not rendered while there is nothing to clear. */}
+        {defaultCwd !== null && (
+          <ManageDialog.GhostButton
+            testId="workspace-clear-folder"
+            onClick={() => changeFolder(null)}
+          >
+            Clear
+          </ManageDialog.GhostButton>
+        )}
       </div>
 
       {/* The cascade warning — the one thing this Delete says that Templates' does not, because

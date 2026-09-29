@@ -16,6 +16,7 @@ import type {
   SettingsPatch,
   TerminalExitEvent,
   SessionPickDirectoryResult,
+  SessionPickDirectoryRequest,
   SessionLaunchResult,
   LaunchCorrelatedEvent,
   LaunchRequestedEvent,
@@ -106,7 +107,8 @@ declare global {
     // native picker + the raw `claude` launch ONLY through this typed bridge (never a dialog or
     // ipcRenderer directly — F2/F8). Both are typed invokes over CH.sessionPickDirectory/Launch.
     launch: {
-      pickDirectory(): Promise<SessionPickDirectoryResult>
+      // R26 — `req` names the workspace whose default folder the picker opens at (never a path).
+      pickDirectory(req?: SessionPickDirectoryRequest): Promise<SessionPickDirectoryResult>
       // Session-naming: `name` is the operator-typed label from the create-time prompt.
       launch(cwd: string, name: string): Promise<SessionLaunchResult>
       // Session-naming A2 — retitle an EXISTING session by its stable session id. Rejects on an
@@ -154,6 +156,8 @@ declare global {
       list(): Promise<PastSession[]>
       forget(id: string): Promise<PastSession[]>
       open(id: string): Promise<PastSessionOpenResult>
+      // UX-10 — the dead pane's Resume (main resolves the session id from the terminal).
+      resumeTerminal(terminalId: string): Promise<PastSessionOpenResult>
     }
     // Phrase shortcuts — mirrors src/preload/index.ts `shortcutsApi`. The renderer reaches the
     // shortcuts store ONLY through this typed bridge (never electron-store, never ipcRenderer).

@@ -163,4 +163,32 @@ describe('ShortcutsDialog scope filter', () => {
     chooseOption(r.container, FILTER, 'global')
     expect(r.container.querySelector('[data-testid="shortcut-row-editing"]')).toBeNull()
   })
+
+  // R7 — three empty states, three sentences (design.md). With shortcuts saved but none in the
+  // scope the dialog opened on, a bare table header read as a broken list.
+  it('says the workspace has no shortcuts when the scope is empty', () => {
+    seed([GLOBAL])
+    const r = render()
+    expect(q(r, '[data-testid="shortcuts-empty-scope"]').textContent).toBe(
+      'No shortcuts in this workspace'
+    )
+    expect(r.container.querySelector('[data-testid="shortcuts-empty"]')).toBeNull()
+    expect(r.container.querySelector('[role="table"]')).toBeNull()
+  })
+
+  it('says there are no global shortcuts when Global is empty', () => {
+    seed([OWN])
+    const r = render()
+    chooseOption(r.container, FILTER, 'global')
+    expect(q(r, '[data-testid="shortcuts-empty-scope"]').textContent).toBe('No global shortcuts')
+  })
+
+  // Editing the scope's only row hides it from the list (the editor holds it) — that is not an
+  // empty scope, and saying so under the open editor would be false.
+  it('does not call the scope empty while its only row is in the editor', () => {
+    seed([GLOBAL, OWN])
+    const r = render()
+    click(q(r, '[data-testid="shortcut-edit-own"]'))
+    expect(r.container.querySelector('[data-testid="shortcuts-empty-scope"]')).toBeNull()
+  })
 })

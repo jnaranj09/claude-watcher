@@ -201,6 +201,31 @@ describe('RulesDialog', () => {
     expect(optionValues(r.container, 'rule-action-tag-0')).toEqual(['t-ops', 't-pending'])
   })
 
+  // R15 — moving a rule to a workspace that cannot see its tag left the dropdown blank and Save
+  // failing `rule_ref_out_of_scope`. The ref resets to the first tag the new scope can see.
+  it('changing Workspace resets a tag the new scope cannot see', async () => {
+    const { r } = render()
+    click(q(r, '[data-testid="rule-new"]'))
+    type(q(r, '[data-testid="rule-name"]'), 'moved')
+    chooseOption(r.container, 'rule-scope', 'w1')
+    click(q(r, '[data-testid="rule-add-action"]'))
+    chooseOption(r.container, 'rule-action-tag-0', 't-ops')
+    click(q(r, '[data-testid="rule-add-condition"]'))
+    chooseOption(r.container, 'rule-condition-tag-0', 't-ops')
+    chooseOption(r.container, 'rule-scope', 'global')
+    expect(selectedValue(r.container, 'rule-action-tag-0')).toBe('t-pending')
+    expect(selectedValue(r.container, 'rule-condition-tag-0')).toBe('t-pending')
+    click(q(r, '[data-testid="rule-save"]'))
+    await flush()
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: null,
+        conditions: [{ kind: 'has-tag', tagId: 't-pending' }],
+        actions: [{ kind: 'add-tag', tagId: 't-pending' }]
+      })
+    )
+  })
+
   it('an invalid regex blocks Save and says why', () => {
     const { r } = render()
     click(q(r, '[data-testid="rule-new"]'))

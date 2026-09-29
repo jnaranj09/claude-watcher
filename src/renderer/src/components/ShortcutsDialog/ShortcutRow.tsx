@@ -14,8 +14,13 @@ import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
 import { SHORTCUT_ALIAS_MAX_LENGTH } from '../../../../shared/schemas/shortcut'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
-import { ManageDialog } from '../ManageDialog/ManageDialog'
-import { draftToSaveRequest, isDraftDirty, type ShortcutDraft } from './shortcutForm'
+import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
+import {
+  draftToSaveRequest,
+  isDraftDirty,
+  shortcutDraftProblem,
+  type ShortcutDraft
+} from './shortcutForm'
 import { Select } from '../Select/Select'
 import { WorkspaceDot } from '../WorkspaceDot/WorkspaceDot'
 import { TextInput } from '../TextInput/TextInput'
@@ -65,8 +70,12 @@ export function ShortcutEditor({
 }: ShortcutEditorProps): JSX.Element {
   // Workspaces (Task 11) — the scope select's options. useShallow: selectWorkspaces returns array.
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
+  const { state } = useManageDialogContext()
   const valid = draftToSaveRequest(draft).ok
   const dirty = isDraftDirty(draft, shortcut)
+  // R26 — why Save is greyed, once the operator has edited something. A muted hint, NOT the
+  // role=alert error line (reserved for main's refusals) — TemplateForm's precedent.
+  const problem = dirty && !valid && state.error === null ? shortcutDraftProblem(draft) : null
 
   return (
     <div className={styles.editor} data-testid="shortcut-row-editing">
@@ -146,6 +155,8 @@ export function ShortcutEditor({
           testId="shortcut-scope"
         />
       </div>
+
+      {problem !== null && <ManageDialog.Hint testId="shortcut-hint">{problem}</ManageDialog.Hint>}
 
       <div className={styles.editorActions}>
         {shortcut !== null && <ManageDialog.Delete testId="shortcut-delete" onConfirm={onDelete} />}

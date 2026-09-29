@@ -7,6 +7,7 @@ import {
   WorkspaceSetActiveSchema
 } from '../../shared/schemas/workspace'
 import {
+  SessionPickDirectorySchema,
   SessionSetWorkspaceSchema,
   type SessionSetWorkspaceRequest
 } from '../../shared/schemas/launch'
@@ -53,4 +54,18 @@ export function parseSessionWorkspaceMove(
   const move = SessionSetWorkspaceSchema.parse(raw)
   if (store.get(move.workspaceId) === null) throw new Error(WORKSPACE_ERROR.notFound)
   return move
+}
+
+/**
+ * R26 — where the folder picker opens: the named workspace's default folder, else the ACTIVE
+ * workspace's (no arg — a new workspace, a plain `+ New session` — or an id that is gone), else
+ * null (the OS default). The arg is UNTRUSTED and parse-and-throws; the answer is read from main's
+ * own store, so the renderer can steer the picker only between folders the operator saved.
+ * NEVER logged — it is a path.
+ */
+export function pickDirectoryDefaultPath(store: WorkspacesStore, raw: unknown): string | null {
+  const req = SessionPickDirectorySchema.parse(raw)
+  const named = req === undefined ? null : store.get(req.workspaceId)
+  const workspace = named ?? store.get(store.activeId())
+  return workspace?.defaultCwd ?? null
 }

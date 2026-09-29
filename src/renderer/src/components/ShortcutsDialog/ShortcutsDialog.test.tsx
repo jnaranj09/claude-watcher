@@ -16,6 +16,7 @@ import { settingsStore } from '../../stores/settingsStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
 import type { SettingsPatch } from '../../../../shared/schemas/settings'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 const A = {
   id: 'sc-1',
@@ -278,5 +279,78 @@ describe('ShortcutsDialog', () => {
     // selectable from its own `(no workspace)` entry in the header dropdown.
     expect(byTestId('shortcut-row-orphan')?.textContent).toContain('Orphan')
     expect(optionValues(document, 'shortcut-scope-filter')).toContain('orphans')
+  })
+
+  // R26 — the error line clears when the operator starts fixing the field (Templates/Tags/Rules
+  // already did; this dialog left the refusal up while the alias was being changed).
+  it('clears the error line when a field changes', async () => {
+    saveMock.mockImplementationOnce(() => Promise.reject(new Error('shortcut_alias_taken')))
+    render()
+    click(byTestId('shortcuts-add'))
+    type(byTestId('shortcut-name-input'), 'x')
+    type(byTestId('shortcut-alias-input'), 'ap')
+    type(byTestId('shortcut-text-input'), 'y')
+    click(byTestId('shortcut-save'))
+    await act(async () => {})
+    expect(byTestId('shortcuts-error')).not.toBeNull()
+    type(byTestId('shortcut-alias-input'), 'ap2')
+    expect(byTestId('shortcuts-error')).toBeNull()
+  })
+
+  // R26 — Save greyed with no reason: `deploy-prod` fails the alias rule silently.
+  it('says why Save is disabled for an alias with a hyphen', () => {
+    render()
+    click(byTestId('shortcuts-add'))
+    type(byTestId('shortcut-name-input'), 'deploy')
+    type(byTestId('shortcut-alias-input'), 'deploy-prod')
+    type(byTestId('shortcut-text-input'), 'deploy it')
+    expect((byTestId('shortcut-save') as HTMLButtonElement).disabled).toBe(true)
+    expect(byTestId('shortcut-hint')?.textContent).toBe(
+      'The alias is letters and digits only, up to 20.'
+    )
+  })
+
+  it('names the placeholder gap as the reason', () => {
+    render()
+    click(byTestId('shortcuts-add'))
+    type(byTestId('shortcut-name-input'), 'x')
+    type(byTestId('shortcut-alias-input'), 'x')
+    type(byTestId('shortcut-text-input'), 'do $2')
+    expect(byTestId('shortcut-hint')?.textContent).toBe('Use $1, $2… in order, with no gap.')
+  })
+
+  it('shows no reason before anything was typed', () => {
+    render()
+    click(byTestId('shortcuts-add'))
+    expect(byTestId('shortcut-hint')).toBeNull()
+  })
+
+  // R26 — a refused delete was swallowed and the editor closed as if it had worked.
+  it('a refused delete says so and keeps the editor open', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    removeMock.mockImplementationOnce(() =>
+      Promise.reject(
+        new Error("Error invoking remote method 'shortcuts:remove': Error: store_write_failed")
+      )
+    )
+    render()
+    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-delete'))
+    click(byTestId('shortcut-delete'))
+    await act(async () => {})
+    expect(byTestId('shortcuts-error')?.textContent).toBe(STORE_WRITE_FAILED_COPY)
+    expect(byTestId('shortcut-row-editing')).not.toBeNull()
+    expect(warn).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_remove_failed')
+  })
+
+  it('an unknown delete failure gets delete copy, never the message', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    removeMock.mockImplementationOnce(() => Promise.reject(new Error('secret phrase')))
+    render()
+    click(byTestId('shortcut-edit-sc-1'))
+    click(byTestId('shortcut-delete'))
+    click(byTestId('shortcut-delete'))
+    await act(async () => {})
+    expect(byTestId('shortcuts-error')?.textContent).toBe('Could not delete the shortcut.')
   })
 })

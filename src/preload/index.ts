@@ -14,6 +14,7 @@ import type {
   SettingsPatch,
   TerminalExitEvent,
   SessionPickDirectoryResult,
+  SessionPickDirectoryRequest,
   SessionLaunchRequest,
   SessionLaunchResult,
   SessionRenameRequest,
@@ -53,6 +54,7 @@ import type {
   PastSession,
   PastSessionForgetRequest,
   PastSessionOpenRequest,
+  PastSessionResumeTerminalRequest,
   PastSessionOpenResult,
   ThemeSummary,
   ThemeBundle,
@@ -261,8 +263,12 @@ export type TerminalApi = typeof terminalApi
 const launchApi = {
   /** Open the native KDE directory chooser (MAIN). Resolves to the chosen path, or null on
    *  cancel (cancel ⇒ no-op — UX-DR23). The renderer NEVER opens a dialog itself. */
-  pickDirectory(): Promise<SessionPickDirectoryResult> {
-    return ipcRenderer.invoke(CH.sessionPickDirectory)
+  pickDirectory(req?: SessionPickDirectoryRequest): Promise<SessionPickDirectoryResult> {
+    // R26 — `req` names the workspace whose default folder the picker opens at (an id, never a
+    // path). Omitted ⇒ the active workspace's. Main parse-and-throws it.
+    return req === undefined
+      ? ipcRenderer.invoke(CH.sessionPickDirectory)
+      : ipcRenderer.invoke(CH.sessionPickDirectory, req)
   },
   /** Launch raw `claude` in `cwd` under the operator-typed `name` (from the create-time prompt;
    *  prefilled with the cwd basename). Main validates BOTH (parse-and-throw on bad input),
@@ -380,6 +386,12 @@ const pastSessionsApi = {
   open(id: string): Promise<PastSessionOpenResult> {
     const req: PastSessionOpenRequest = { id }
     return ipcRenderer.invoke(CH.pastSessionOpen, req)
+  },
+  /** UX-10 — resume the conversation a DEAD terminal last ran (main resolves the id from its own
+   *  launch record). Same refusals as `open`; resolves with the launch to open. */
+  resumeTerminal(terminalId: string): Promise<PastSessionOpenResult> {
+    const req: PastSessionResumeTerminalRequest = { terminalId }
+    return ipcRenderer.invoke(CH.pastSessionResumeTerminal, req)
   }
 }
 export type PastSessionsApi = typeof pastSessionsApi

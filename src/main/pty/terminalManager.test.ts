@@ -24,7 +24,7 @@ import type {
 function makeFakePty(): {
   pty: IPtyLike
   emitData: (data: string) => void
-  emitExit: (exitCode: number) => void
+  emitExit: (exitCode: number, signal?: number) => void
   writes: string[]
   resizes: Array<{ cols: number; rows: number }>
   pauseCount: () => number
@@ -63,7 +63,8 @@ function makeFakePty(): {
   return {
     pty,
     emitData: (data) => dataCb?.(data),
-    emitExit: (exitCode) => exitCb?.({ exitCode }),
+    emitExit: (exitCode, signal) =>
+      exitCb?.(signal === undefined ? { exitCode } : { exitCode, signal }),
     writes,
     resizes,
     pauseCount: () => pauses,
@@ -248,6 +249,38 @@ describe('createTerminalManager — dead terminal: a pty exit signals onExit (AC
     expect(fakePort.closed()).toBe(true)
     // The exit was also pushed in-band over the port.
     expect(fakePort.posts).toContainEqual({ type: 'exit', exitCode: 137 })
+  })
+
+  // UX-10 — the dead pane names a signal. node-pty reports it beside the exit code; a signal of 0
+  // (or none) is a plain exit and is not passed on.
+  it('a pty killed by a signal passes the signal on, in-band and to onExit', () => {
+    const onExit = vi.fn()
+    const fakePty = makeFakePty()
+    const fakePort = makeFakePort([])
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit
+    })
+    mgr.open('t1', fakePort.port, 80, 24)
+    fakePty.emitExit(0, 9)
+    expect(onExit).toHaveBeenCalledWith('t1', 0, 9)
+    expect(fakePort.posts).toContainEqual({ type: 'exit', exitCode: 0, signal: 9 })
+  })
+
+  it('a signal of 0 is a plain exit: no signal passed on', () => {
+    const onExit = vi.fn()
+    const fakePty = makeFakePty()
+    const fakePort = makeFakePort([])
+    const mgr = createTerminalManager({
+      ptyFactory: () => fakePty.pty,
+      spawnDefaults: SPAWN_DEFAULTS,
+      onExit
+    })
+    mgr.open('t1', fakePort.port, 80, 24)
+    fakePty.emitExit(3, 0)
+    expect(onExit).toHaveBeenCalledWith('t1', 3)
+    expect(fakePort.posts).toContainEqual({ type: 'exit', exitCode: 3 })
   })
 
   it('a spawn failure degrades to onExit(terminalId, 1) and NEVER throws (never-crash)', () => {
