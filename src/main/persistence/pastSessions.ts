@@ -5,6 +5,7 @@
 import {
   EMPTY_PAST_SESSIONS_FILE,
   PAST_SESSIONS_FILE_VERSION,
+  PAST_SESSIONS_HIDDEN_MAX,
   PAST_SESSIONS_MAX,
   PastSessionsFileSchema,
   type PastSession,
@@ -134,11 +135,21 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     return record
   }
 
-  /** Keep the newest `PAST_SESSIONS_MAX` ended records. A live one is never evicted: it is a
-   *  session still running, and evicting it would lose it the moment the app dies. */
+  /** Keep the newest `PAST_SESSIONS_MAX` ended VISIBLE records. A live one is never evicted: it
+   *  is a session still running, and evicting it would lose it the moment the app dies. A HIDDEN
+   *  one (UX-03, its workspace is gone) is not counted — a row the dialog cannot show must not
+   *  evict one it can — and has its own `PAST_SESSIONS_HIDDEN_MAX`, oldest dropped, so the file
+   *  stays bounded. */
   function trim(): void {
     const endedRecords = all().filter((r) => r.live !== true)
-    for (const stale of endedRecords.slice(PAST_SESSIONS_MAX)) byId.delete(stale.id)
+    const visible = endedRecords.filter((r) => workspaceExists(r.workspaceId))
+    const hiddenRecords = endedRecords.filter((r) => !workspaceExists(r.workspaceId))
+    for (const stale of visible.slice(PAST_SESSIONS_MAX)) byId.delete(stale.id)
+    const staleHidden = hiddenRecords.slice(PAST_SESSIONS_HIDDEN_MAX)
+    for (const stale of staleHidden) byId.delete(stale.id)
+    if (staleHidden.length > 0) {
+      log(`${LOG_PREFIX} code=past_sessions_hidden_trimmed count=${staleHidden.length}`)
+    }
   }
 
   /** The new record, keeping the transcript path an earlier write learned: the hook that

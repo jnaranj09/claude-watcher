@@ -56,7 +56,9 @@ afterEach(() => {
     launchedTerminals: {},
     viewMode: 'board',
     focusedTerminalId: null,
-    selectedId: null
+    selectedId: null,
+    settingsDialogOpen: false,
+    stopConfirm: null
   })
 })
 
@@ -96,5 +98,29 @@ describe('openFromNotification (R29)', () => {
     await openFromNotification(ID)
     expect(setActive).not.toHaveBeenCalled()
     expect(boardStore.getState().focusedTerminalId).toBe('t-other')
+  })
+
+  // UX-DR14 single-modal rule: a click while a modal is open must not pull the view out from under
+  // it. The card in the ACTIVE workspace is selected (a cue once the modal closes); nothing else.
+  it('a modal is open: no switch, no view change — only a card in the active workspace is selected', async () => {
+    seed('default')
+    boardStore.setState({ settingsDialogOpen: true })
+    await openFromNotification(ID)
+    expect(setActive).not.toHaveBeenCalled()
+    expect(boardStore.getState().viewMode).toBe('focused')
+    expect(boardStore.getState().focusedTerminalId).toBe('t-other')
+    expect(boardStore.getState().selectedId).toBe(ID)
+  })
+
+  it('a modal is open and the card is in ANOTHER workspace: nothing changes at all', async () => {
+    seed('w1')
+    boardStore.setState({
+      stopConfirm: { sessionId: null, terminalId: 't-other', sessionName: 'other' }
+    })
+    await openFromNotification(ID)
+    expect(setActive).not.toHaveBeenCalled()
+    expect(workspacesStore.getState().activeId).toBe('default')
+    expect(boardStore.getState().focusedTerminalId).toBe('t-other')
+    expect(boardStore.getState().selectedId).toBeNull()
   })
 })

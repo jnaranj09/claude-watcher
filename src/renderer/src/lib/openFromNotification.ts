@@ -7,13 +7,23 @@
 // owns the pointer, and only a CONFIRMED switch re-points the focused view — WorkspaceSwitcher's
 // rule), then `activateCard`, which selects, acknowledges and opens the session's own terminal
 // (or stays on the board when the card has no terminal yet). A card that already left is a no-op.
+//
+// UX-DR14 — while ANY modal is open (`isModalOpen`, the same check App's openers use) the click
+// does not switch workspace or change the view: that would pull the page out from under a dialog
+// the operator is using. It only SELECTS the card, and only when it is in the active workspace
+// (a card in another workspace is not on screen, so selecting it would change nothing visible).
 import { boardStore } from '../stores/boardStore'
 import { setActiveWorkspace, workspacesStore } from '../stores/workspacesStore'
+import { isModalOpen } from './modals'
 
 export async function openFromNotification(id: string): Promise<void> {
   const session = boardStore.getState().sessionsById[id]
   if (session === undefined) return
   const workspaceId = session.workspaceId
+  if (isModalOpen()) {
+    if (workspacesStore.getState().activeId === workspaceId) boardStore.getState().setSelected(id)
+    return
+  }
   if (workspacesStore.getState().activeId !== workspaceId) {
     await setActiveWorkspace(workspaceId)
     // `setActiveWorkspace` swallows an IPC failure: only the value main confirmed counts.

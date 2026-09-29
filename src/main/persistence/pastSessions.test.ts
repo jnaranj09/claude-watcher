@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createPastSessionsStore, type PastSessionsBlobStore } from './pastSessions'
 import { createWorkspacesStore } from './workspaces'
-import { PAST_SESSIONS_MAX, type PastSessionsFile } from '../../shared/schemas/pastSession'
+import {
+  PAST_SESSIONS_HIDDEN_MAX,
+  PAST_SESSIONS_MAX,
+  type PastSessionsFile
+} from '../../shared/schemas/pastSession'
 
 const ROW = {
   id: 's1',
@@ -86,6 +90,53 @@ describe('createPastSessionsStore — load', () => {
       workspaceExists: () => true
     })
     expect(restored.list().map((s) => s.id)).toEqual(['s1'])
+  })
+  it('UX-03: a hidden record does not count toward the cap — it never evicts a visible one', () => {
+    // 5 hidden records NEWER than every visible one: counted with them, they used to push the 5
+    // oldest visible records out, and the dialog lost sessions to rows it cannot even show.
+    const hiddenRows = Array.from({ length: 5 }, (_, i) => ({
+      ...ROW,
+      id: `h${i}`,
+      workspaceId: 'gone',
+      endedAt: 10_000 + i
+    }))
+    const fake = fakeBlob({ version: 1, sessions: hiddenRows })
+    const store = createPastSessionsStore({
+      blobStore: fake.blobStore,
+      workspaceExists: (id) => id === 'default'
+    })
+    for (let i = 0; i < PAST_SESSIONS_MAX; i++) {
+      store.archive({ ...ROW, id: `s${i}`, endedAt: i })
+    }
+    expect(store.list()).toHaveLength(PAST_SESSIONS_MAX)
+    expect(store.list().at(-1)?.id).toBe('s0')
+    const inFile = (fake.current() as PastSessionsFile).sessions.map((s) => s.id)
+    expect(inFile.filter((id) => id.startsWith('h'))).toHaveLength(5)
+  })
+  it('UX-03: hidden records have their OWN cap — the oldest hidden drop, visible ones stay', () => {
+    const hiddenRows = Array.from({ length: PAST_SESSIONS_HIDDEN_MAX + 2 }, (_, i) => ({
+      ...ROW,
+      id: `h${i}`,
+      workspaceId: 'gone',
+      endedAt: 10 + i
+    }))
+    const fake = fakeBlob({ version: 1, sessions: [...hiddenRows, { ...ROW, endedAt: 1 }] })
+    const log = vi.fn()
+    const store = createPastSessionsStore({
+      blobStore: fake.blobStore,
+      log,
+      workspaceExists: (id) => id === 'default'
+    })
+    const inFile = (fake.current() as PastSessionsFile).sessions.map((s) => s.id)
+    expect(inFile.filter((id) => id.startsWith('h'))).toHaveLength(PAST_SESSIONS_HIDDEN_MAX)
+    expect(inFile).not.toContain('h0')
+    expect(inFile).not.toContain('h1')
+    expect(inFile).toContain(`h${PAST_SESSIONS_HIDDEN_MAX + 1}`)
+    // The one visible record is OLDER than every hidden one and still survives.
+    expect(store.list().map((s) => s.id)).toEqual(['s1'])
+    expect(log).toHaveBeenCalledWith(
+      '[claude-watcher][past-sessions] code=past_sessions_hidden_trimmed count=2'
+    )
   })
   it('UX-01: a record still marked live on load is a crash leftover — it becomes a normal record', () => {
     const fake = fakeBlob({ version: 1, sessions: [{ ...ROW, live: true, endedAt: 555 }] })

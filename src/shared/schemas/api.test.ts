@@ -133,7 +133,7 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       ApiErrorBodySchema.safeParse({ error: { code: 'internal', message: 'x' } }).success
     ).toBe(false)
   })
-  it('holds all 19 codes the API uses', () => {
+  it('holds all 20 codes the API uses', () => {
     expect([...API_ERROR_CODES]).toEqual([
       'unauthorized',
       'invalid_json',
@@ -150,6 +150,7 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       'session_not_found',
       'method_not_allowed',
       'claude_version',
+      'hooks_unavailable',
       'no_window',
       'too_many_streams',
       'spawn_timeout',

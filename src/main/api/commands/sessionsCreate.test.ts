@@ -261,6 +261,39 @@ describe('POST /v1/sessions', () => {
     ).toMatchObject({ status: 409, code: 'folder_missing' })
   })
 
+  // SEC-6 — with the hook port held by another program, main spawns claude WITHOUT `--settings`
+  // (its prompts must never reach a stranger's listener), so the card would never move. The
+  // create refuses instead of answering a 201 for a card an automation can never watch.
+  it('503 hooks_unavailable when the hook server is not bound, and nothing is launched', async () => {
+    const seam = makeFakeSeam()
+    const { ctx } = makeFakeContext({ seam, templates: [T], hooksListening: false })
+    expect(await run(ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })).toMatchObject({
+      status: 503,
+      code: 'hooks_unavailable'
+    })
+    expect(seam.launches).toHaveLength(0)
+  })
+
+  it('hooks_unavailable sits after the 400s, the 409 and claude_version, BEFORE no_window', async () => {
+    const bad = makeFakeContext({ templates: [T], hooksListening: false })
+    expect(await run(bad.ctx, { templateId: 'tpl', name: 'n', args: ['x'] })).toMatchObject({
+      status: 400,
+      code: 'arg_invalid'
+    })
+    const gone = makeFakeContext({ templates: [T], hooksListening: false, folderExists: false })
+    expect(
+      await run(gone.ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).toMatchObject({ status: 409, code: 'folder_missing' })
+    const old = makeFakeContext({ templates: [T], hooksListening: false, claudeOk: false })
+    expect(
+      await run(old.ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).toMatchObject({ status: 503, code: 'claude_version' })
+    const noWin = makeFakeContext({ templates: [T], hooksListening: false, seam: null })
+    expect(
+      await run(noWin.ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).toMatchObject({ status: 503, code: 'hooks_unavailable' })
+  })
+
   it('declares 409 in its error statuses (the OpenAPI document reads them)', () => {
     expect(sessionsCreateCommand.errorStatuses).toContain(409)
   })

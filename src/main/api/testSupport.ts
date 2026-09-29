@@ -74,6 +74,8 @@ export interface FakeContextSeed {
   claudeOk: boolean
   /** What `ctx.isDirectory` answers for every path (UX-11). Default true. */
   folderExists: boolean
+  /** What `ctx.hooksListening` answers (SEC-6). Default true. */
+  hooksListening: boolean
 }
 
 export function makeFakeContext(over: Partial<FakeContextSeed> = {}): {
@@ -100,6 +102,7 @@ export function makeFakeContext(over: Partial<FakeContextSeed> = {}): {
     },
     claudeVersionAllowsLaunch: () => over.claudeOk ?? true,
     isDirectory: () => over.folderExists ?? true,
+    hooksListening: () => over.hooksListening ?? true,
     now: () => 1000,
     spawnTimeoutMs: 50,
     log: (m) => log.push(m)

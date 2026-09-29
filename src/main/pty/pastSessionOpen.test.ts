@@ -2,6 +2,7 @@ import { describe, it, expect, vi, type Mock } from 'vitest'
 import { openPastSession, resumeTerminalSession, type PastSessionOpenDeps } from './pastSessionOpen'
 import type { PastSession } from '../../shared/schemas/pastSession'
 import type { LaunchRequest } from './launchSession'
+import { createPastSessionsStore } from '../persistence/pastSessions'
 
 const RECORD: PastSession = {
   id: 'sess-A',
@@ -52,10 +53,19 @@ describe('openPastSession', () => {
       flags: { model: null, permissionMode: null, effort: null }
     })
   })
-  it('UX-02: the record is NOT removed on Open — the deps offer no way to remove it', () => {
-    // A crash while the resumed session runs used to lose the record for good. The resumed
-    // card's live record overwrites it by id instead (livePastSessions.ts).
-    expect(Object.keys(deps())).not.toContain('remove')
+  it('UX-02: the record is still in the history after Open (a real store, a removal spy)', () => {
+    // A crash while the resumed session runs used to lose the record for good: Open removed it,
+    // "the next archive writes it again". The resumed card's live record overwrites it by id
+    // instead (livePastSessions.ts). Drive a REAL store and hand the decision a `remove` it could
+    // reach, so a reintroduced removal — through the deps or the store — turns this red.
+    const store = createPastSessionsStore({ workspaceExists: () => true })
+    store.archive(RECORD)
+    const removeSpy = vi.spyOn(store, 'remove')
+    const withStore = { ...deps({ get: (id) => store.get(id) }), remove: store.remove }
+    expect(openPastSession({ id: 'sess-A' }, withStore)).toMatchObject({ ok: true })
+    expect(removeSpy).not.toHaveBeenCalled()
+    expect(store.get('sess-A')).toEqual(RECORD)
+    expect(store.list().map((r) => r.id)).toEqual(['sess-A'])
   })
   it('not_found: unknown id, nothing launched', () => {
     const d = deps()

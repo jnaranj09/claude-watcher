@@ -1,8 +1,9 @@
 # Rule: state ownership
 
-> NOTE: Zustand is NOT installed yet (it arrives in Epic 1). This file is the
-> STANDARD the Epic-1 renderer store MUST follow — not a description of code that
-> exists today.
+> NOTE: Zustand 5 is installed; the renderer's view-state store is
+> `src/renderer/src/stores/boardStore.ts` (plus the workspaces/theme stores beside it). The
+> "c9watch feed" wording below is historical: session truth now comes from the launch synthesis
+> and the hook ingest (CLAUDE.md, "The native session engine").
 
 ## Ownership taxonomy (who owns what)
 

@@ -144,7 +144,9 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   record exist. `launchService.launch` takes a REQUIRED `isDirectory` and throws `folder_missing`
   (no recipe, no card); an in-app launch explains it with a native error box (the version gate's
   precedent — the renderer swallows a rejected invoke), and `POST /v1/sessions` answers 409
-  `folder_missing` before the 503s. A Reopen of a dead pane is NOT checked.
+  `folder_missing` before the 503s. A Reopen of a dead pane is NOT checked. With the hook server
+  unbound (SEC-6) the create answers 503 `hooks_unavailable` (`ApiContext.hooksListening`, after
+  `claude_version`, before `no_window`) instead of a 201 for a card that could never move.
 - **Identity is minted at launch:** the app spawns `claude --session-id <uuid>` with a
   caller-minted UUID (verified on claude 2.1.199), so the terminal↔session binding is
   EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
@@ -165,7 +167,8 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
   additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
   NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
-  `hookStatus.ts` is the ONLY event→status mapping. **No bind, no `--settings` (SEC-6):**
+  `hookStatus.ts` is the ONLY hook-event→status mapping (`pty/approvalKey.ts` is the one
+  keystroke→status mapping, R4). **No bind, no `--settings` (SEC-6):**
   `hookSettingsPathIfListening` gives claude the settings file ONLY while THIS process's hook
   server is bound (`src/main/serverHealth.ts`, fed by `createHookServer`'s `onListening` /
   `onError`). A port another program holds would otherwise receive every prompt; instead the
@@ -205,7 +208,9 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **A card on the board ALREADY has its record, marked `live` (UX-01):** `livePastSessions.ts`,
   fed from `handleDelta` and from the hook ingest's `transcript_path`, writes it at launch and on
   every change of name / folder / workspace / tags / transcript, plus at most once a minute to
-  keep `endedAt` fresh. `list()` hides a live record and the 200 cap never evicts one; an archive
+  keep `endedAt` fresh. `list()` hides a live record and the 200 cap never evicts one — nor counts a
+  HIDDEN one (UX-03), which has its own cap (`PAST_SESSIONS_HIDDEN_MAX` 200, oldest dropped,
+  `code=past_sessions_hidden_trimmed`) so the file stays bounded; an archive
   overwrites it by id; the old id of a `/clear` rebind is dropped (`dropLive`). A crash, SIGKILL
   or power loss therefore still leaves the session in Past sessions: the next start turns a
   leftover live record into a normal one (`code=past_sessions_recovered_live`). **Open does NOT
@@ -289,9 +294,11 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **A notification CLICK raises the window and opens the session** (UX-12 / R29 — overrides the old
   AR-8 / FR-9 "never raise, only select"): `kde/notificationActivate.ts` restores + shows + focuses,
   then pushes `CH.attentionActivate`; the renderer's `lib/openFromNotification.ts` switches to the
-  session's workspace (only once main confirms) and runs `activateCard`. It is the operator's own
-  action, like the Quit guard's raise — a SESSION EVENT still never raises the window. The notifier
-  holds each shown popup until it is clicked (cap 50, R21): an unreferenced one can lose its click.
+  session's workspace (only once main confirms) and runs `activateCard` — unless a modal is open
+  (`lib/modals.ts` `isModalOpen`, UX-DR14): then it only selects a card of the active workspace.
+  It is the operator's own action, like the Quit guard's raise — a SESSION EVENT still never
+  raises the window. The notifier holds each shown popup until it is clicked (cap 50, R21): an
+  unreferenced one can lose its click.
 - **`Template.workspaceId` / `Shortcut.workspaceId` use `.nullable().default(null)`** (null =
   GLOBAL) and the file versions stay `TEMPLATES_FILE_VERSION = 1` / `SHORTCUTS_FILE_VERSION = 3`
   (v2 → v3 is the ONE migration, in `parseShortcutsFile`; a chord sequence became an alias).

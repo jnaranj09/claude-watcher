@@ -70,7 +70,9 @@ export const sessionsCreateCommand = defineCommand({
     "The prompt is the template's own `initialPrompt` (written in the app). `args` fill `$1..$n` in order; " +
     "each value must match the template param's regex and max length. The card lands in the template's " +
     'workspace, or the active one for a global template. Returns once the session id is bound (≤ 5 s). ' +
-    "409 `folder_missing`: the template's folder no longer exists (deleted, renamed or unmounted).",
+    "409 `folder_missing`: the template's folder no longer exists (deleted, renamed or unmounted). " +
+    '503 `hooks_unavailable`: the app is not receiving claude hooks (its hook port is taken), so the ' +
+    'card could never report a status — retry once the app shows its hooks healthy.',
   params: EmptySchema,
   query: EmptySchema,
   body: SessionsCreateBodySchema,
@@ -117,6 +119,11 @@ export const sessionsCreateCommand = defineCommand({
     // 503s are RETRYABLE and come last among the refusals: a caller whose request is malformed
     // should learn that whether or not a window happens to be open right now.
     if (!ctx.claudeVersionAllowsLaunch()) return err(503, 'claude_version')
+    // SEC-6 — the hook port is held by another program (or the server failed), so main would
+    // spawn claude WITHOUT `--settings` and the card could never move. A 201 for a card nobody can
+    // watch is the silent failure the server-health banner exists to prevent; an HTTP caller never
+    // sees that banner, so it gets this code. Retryable: freeing the port and restarting fixes it.
+    if (!ctx.hooksListening()) return err(503, 'hooks_unavailable')
     const seam = ctx.seam()
     if (seam === null) return err(503, 'no_window')
     // A template scoped to a workspace lands there; a GLOBAL one (null) lands in whatever the

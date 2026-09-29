@@ -246,7 +246,7 @@ import { ClipboardWriteTextSchema } from '../shared/schemas/clipboard'
 import { LinkOpenExternalSchema } from '../shared/schemas/link'
 import { createExternalLinks, installLinkGuards } from './links/externalLinks'
 import { applicationMenuTemplate, installDevToolsToggle } from './appMenu/appMenu'
-import { registerSmokeIpc } from './smoke/smokeIpc'
+import { containSmokeReport, registerSmokeIpc } from './smoke/smokeIpc'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
 // The hook server binds a localhost HTTP listener; hook events flow through the SAME
 // handleDelta chokepoint as c9watch deltas (same enrich/column/tray treatment).
@@ -1489,7 +1489,16 @@ function registerPtyIpc(): void {
     ptyStart,
     ptyInput,
     ptyResize,
-    report: (evt, report: SmokeReport) => void smokeReport(evt, report)
+    // A rejected report must not vanish: log a code and exit non-zero (the runner reads a fail).
+    report: (evt, report: SmokeReport) =>
+      void containSmokeReport(() => smokeReport(evt, report), {
+        log: (m) => console.error(m),
+        exit: (code) => {
+          // The same hard fallback smokeReport's own exit uses (Wayland teardown can linger).
+          app.exit(code)
+          setTimeout(() => process.exit(code), 250)
+        }
+      })
   })
 }
 
@@ -3244,6 +3253,8 @@ app
             claudeVersionAllowsLaunch: claudeVersionAllowsApiLaunch,
             // UX-11 — `409 folder_missing` before the launch, never a 201 for a card that dies.
             isDirectory: isExistingDirectory,
+            // SEC-6 — the same bind signal `hookSettingsPathForSpawn` reads: no bind, no create.
+            hooksListening: () => serverHealth.hookListening(),
             now: Date.now,
             spawnTimeoutMs: API_SPAWN_TIMEOUT_MS,
             log: apiLog

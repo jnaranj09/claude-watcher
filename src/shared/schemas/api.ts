@@ -53,6 +53,7 @@ export const API_ERROR_CODES = [
   'session_not_found',
   'method_not_allowed',
   'claude_version',
+  'hooks_unavailable',
   'no_window',
   'too_many_streams',
   'spawn_timeout',

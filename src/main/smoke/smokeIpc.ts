@@ -40,3 +40,20 @@ export function registerSmokeIpc(
   ipc.on(CH.ptyResize, handlers.ptyResize)
   ipc.on(CH.smokeReport, handlers.report)
 }
+
+/**
+ * Run the smoke report and CONTAIN a rejection: log a code (never the thrown value — it can quote
+ * a path) and exit non-zero, so the smoke runner reads a failure instead of hanging on a process
+ * whose report died silently. A report that resolves has already exited on its own verdict.
+ */
+export async function containSmokeReport(
+  run: () => Promise<void>,
+  deps: { log: (message: string) => void; exit: (code: number) => void }
+): Promise<void> {
+  try {
+    await run()
+  } catch {
+    deps.log('[claude-watcher][smoke] code=smoke_report_failed')
+    deps.exit(1)
+  }
+}

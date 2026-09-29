@@ -106,31 +106,8 @@ import { useStorageHealth } from './hooks/useStorageHealth'
 import { StorageNotice } from './components/StorageNotice/StorageNotice'
 import { themeStore } from './stores/themeStore'
 import styles from './App.module.css'
-
-/** The name prompt and the Manage/Settings/Past-sessions dialogs — the modals the page-body
- *  Escape closes all at once (the Delete confirm and the Quit guard each have their own Escape). */
-function isDialogOpen(): boolean {
-  const s = boardStore.getState()
-  return (
-    s.sessionNamePrompt !== null ||
-    s.templatesDialogOpen ||
-    s.shortcutsDialogOpen ||
-    s.workspacesDialogOpen ||
-    s.tagsDialogOpen ||
-    s.rulesDialogOpen ||
-    s.settingsDialogOpen ||
-    s.pastSessionsDialogOpen
-  )
-}
-
-/** UX-DR14 single-modal rule: no two modals ever co-exist — the dialogs above, the Delete confirm
- *  and the Quit guard (R9: those two were outside the rule, so Ctrl+N opened the picker over
- *  either). A MODULE-LEVEL function (not a component-body const) so the `[]`-deps useCallbacks
- *  that call it stay free of exhaustive-deps warnings. */
-function isModalOpen(): boolean {
-  const s = boardStore.getState()
-  return isDialogOpen() || s.stopConfirm !== null || s.quitGuard !== null
-}
+// UX-DR14 single-modal rule — shared with the notification click (lib/openFromNotification.ts).
+import { isDialogOpen, isModalOpen } from './lib/modals'
 
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.

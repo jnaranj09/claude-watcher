@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { CH } from '../../shared/ipc/contract'
-import { registerSmokeIpc, type SmokeIpcHandlers, type SmokeIpcTarget } from './smokeIpc'
+import {
+  containSmokeReport,
+  registerSmokeIpc,
+  type SmokeIpcHandlers,
+  type SmokeIpcTarget
+} from './smokeIpc'
 
 function recordingIpc(): { ipc: SmokeIpcTarget; channels: string[] } {
   const channels: string[] = []
@@ -36,5 +41,29 @@ describe('registerSmokeIpc', () => {
       CH.ptyResize,
       CH.smokeReport
     ])
+  })
+})
+
+describe('containSmokeReport', () => {
+  it('a rejected report logs a CODE only and exits non-zero — never a discarded rejection', async () => {
+    const log: string[] = []
+    const exits: number[] = []
+    await containSmokeReport(() => Promise.reject(new Error('/home/op/secret path')), {
+      log: (m) => log.push(m),
+      exit: (code) => exits.push(code)
+    })
+    expect(exits).toEqual([1])
+    expect(log).toEqual(['[claude-watcher][smoke] code=smoke_report_failed'])
+  })
+
+  it('a report that resolves exits nothing here (it exits itself) and logs nothing', async () => {
+    const log: string[] = []
+    const exits: number[] = []
+    await containSmokeReport(() => Promise.resolve(), {
+      log: (m) => log.push(m),
+      exit: (code) => exits.push(code)
+    })
+    expect(exits).toEqual([])
+    expect(log).toEqual([])
   })
 })

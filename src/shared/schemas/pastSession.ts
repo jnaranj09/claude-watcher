@@ -54,6 +54,10 @@ export type PastSessionResumeTerminalRequest = z.infer<typeof PastSessionResumeT
 export const PAST_SESSIONS_FILE_VERSION = 1 as const
 /** Newest first; the 201st archive drops the oldest (D-9). */
 export const PAST_SESSIONS_MAX = 200
+/** UX-03 — records whose workspace is gone are HIDDEN and kept for a workspaces-backup restore.
+ *  They do not count toward `PAST_SESSIONS_MAX` (a row the dialog cannot show must never evict one
+ *  it can), so they carry their own cap: past it the oldest hidden record is dropped. */
+export const PAST_SESSIONS_HIDDEN_MAX = 200
 
 export const PastSessionsFileSchema = z.object({
   version: z.literal(PAST_SESSIONS_FILE_VERSION),

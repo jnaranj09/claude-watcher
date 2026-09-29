@@ -36,6 +36,9 @@ export interface ApiContext {
   claudeVersionAllowsLaunch(): boolean
   /** UX-11 — true iff `path` is an existing directory. Never throws; the path is never logged. */
   isDirectory(path: string): boolean
+  /** SEC-6 — true only while THIS process's hook server is bound (`serverHealth.hookListening`).
+   *  Without it a spawn gets no `--settings`, so a card could never move. */
+  hooksListening(): boolean
   now(): number
   spawnTimeoutMs: number
   /** Code-only log sink. */
