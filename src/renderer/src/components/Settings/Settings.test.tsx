@@ -62,7 +62,8 @@ function stubSettings(): { setCalls: SettingsPatch[] } {
         apiEnabled: patch.apiEnabled ?? DEFAULT_SETTINGS.apiEnabled,
         apiPort: patch.apiPort ?? DEFAULT_SETTINGS.apiPort,
         themeId: patch.themeId ?? DEFAULT_SETTINGS.themeId,
-        wallpaperByTheme: patch.wallpaperByTheme ?? DEFAULT_SETTINGS.wallpaperByTheme
+        wallpaperByTheme: patch.wallpaperByTheme ?? DEFAULT_SETTINGS.wallpaperByTheme,
+        notificationsEnabled: patch.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled
       }
       return merged
     }
@@ -165,6 +166,7 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
 
     for (const testId of [
       'settings-sound-toggle',
+      'settings-notifications-toggle',
       'settings-font-size',
       'settings-reminder-count',
       'settings-reminder-first-delay',
@@ -175,10 +177,11 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
       expect(container.querySelector(`[data-testid="${testId}"]`)).not.toBeNull()
     }
     const panel = container.querySelector('[data-testid="settings-panel"]')
-    // SEVEN while the API is off: four <input>s (sound, font size, the API toggle, the API port)
-    // plus the two reminder `Select`s and the Theme Select, which are `[aria-haspopup="listbox"]`
-    // buttons. The token field and its buttons only exist while the API is ON.
-    expect(panel?.querySelectorAll('input, select, [aria-haspopup="listbox"]').length).toBe(7)
+    // EIGHT while the API is off: five <input>s (sound, desktop notifications, font size, the API
+    // toggle, the API port) plus the two reminder `Select`s and the Theme Select, which are
+    // `[aria-haspopup="listbox"]` buttons. The token field and its buttons only exist while the
+    // API is ON.
+    expect(panel?.querySelectorAll('input, select, [aria-haspopup="listbox"]').length).toBe(8)
     // design.md: a native <select> is banned.
     expect(panel?.querySelectorAll('select').length).toBe(0)
   })
@@ -252,6 +255,20 @@ describe('SettingsPanel — controls persist via window.settings.set (AC-4/5)', 
     // Default is ON; toggling sets it OFF.
     setReactCheckbox(toggle, false)
     expect(stub.setCalls).toContainEqual({ soundEnabled: false })
+  })
+
+  it('toggling desktop notifications calls window.settings.set({ notificationsEnabled }) (UX-13)', () => {
+    const stub = stubSettings()
+    stubThemes()
+    const { container, unmount } = renderComponent(<SettingsPanel />)
+    cleanup = unmount
+
+    const toggle = container.querySelector(
+      '[data-testid="settings-notifications-toggle"]'
+    ) as HTMLInputElement
+    expect(toggle.checked).toBe(true)
+    setReactCheckbox(toggle, false)
+    expect(stub.setCalls).toContainEqual({ notificationsEnabled: false })
   })
 
   it('changing font-size calls window.settings.set({ terminalFontSize })', () => {

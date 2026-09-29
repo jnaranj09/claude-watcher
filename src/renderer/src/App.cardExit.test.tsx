@@ -93,7 +93,8 @@ beforeEach(() => {
   }
   ;(window as unknown as { attention: unknown }).attention = {
     onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {})
+    onReminder: vi.fn(() => () => {}),
+    reportFocusedTerminal: vi.fn()
   }
   ;(window as unknown as { settings: unknown }).settings = {
     get: vi.fn(() =>

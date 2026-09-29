@@ -17,7 +17,11 @@ function fakeNotifier(): { notifier: Pick<AttentionNotifier, 'remind'>; calls: R
   return { notifier: { remind: (input) => calls.push(input) }, calls }
 }
 
-function setup(overrides: { isLaunched?: (id: string) => boolean; isDestroyed?: () => boolean }): {
+function setup(overrides: {
+  isLaunched?: (id: string) => boolean
+  isViewing?: (id: string) => boolean
+  isDestroyed?: () => boolean
+}): {
   sink: ReturnType<typeof createReminderSink>
   remindCalls: ReminderInput[]
   sendCalls: AttentionReminderPayload[]
@@ -28,6 +32,7 @@ function setup(overrides: { isLaunched?: (id: string) => boolean; isDestroyed?: 
   const logs: string[] = []
   const sink = createReminderSink({
     isLaunched: overrides.isLaunched ?? (() => true),
+    isViewing: overrides.isViewing ?? (() => false),
     notifier,
     send: (payload) => sendCalls.push(payload),
     isDestroyed: overrides.isDestroyed ?? (() => false),
@@ -96,5 +101,12 @@ describe('createReminderSink — the extracted production remind callback (F1)',
     expect(logs).toEqual([
       '[claude-watcher][reminders] dropped attention:reminder path=id code=too_small'
     ])
+  })
+
+  it('the session the operator is looking at gets no popup and no sound push (UX-13)', () => {
+    const { sink, remindCalls, sendCalls } = setup({ isViewing: (id) => id === ID })
+    sink(launchedSession(ID, { status: 'NeedsPermission' }), { waitedMs: 120_000 })
+    expect(remindCalls).toEqual([])
+    expect(sendCalls).toEqual([])
   })
 })

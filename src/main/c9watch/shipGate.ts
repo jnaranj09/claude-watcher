@@ -39,3 +39,16 @@ export function shouldShipToBoard(
 ): boolean {
   return isLaunched(event.id)
 }
+
+/**
+ * Whether an `attention.raised` is EMITTED (the renderer's sound + the OS popup): only for a
+ * launched session, and never for the one the operator is looking at right now (UX-13,
+ * `kde/viewedSession.ts`). The tracker still COMPUTES the raise; only the alert is skipped.
+ */
+export function shouldEmitRaise(
+  id: string,
+  isLaunched: (id: string) => boolean,
+  isViewing: (id: string) => boolean
+): boolean {
+  return isLaunched(id) && !isViewing(id)
+}

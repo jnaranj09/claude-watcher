@@ -1,11 +1,11 @@
 // Story 2.2 — the KDE attention notifier (MAIN process only).
 //
 // Fires ONE Electron `Notification` (→ libnotify on KDE) per `attention.raised` the
-// Story-1.2 tracker emits. INFORMATIONAL ONLY: activating the notification NEVER summons,
-// raises, or focuses the cockpit window and sends NO input to the agent (FROZEN F1 / AC-4;
-// AR-8 self-raise CUT 2026-06-19). Activation MAY emit the FR-9 in-app jump-to-card signal
-// (a renderer `selectedId` view-state push), but that is the WIRING's responsibility (an
-// injected `onActivate` callback) — this module constructs no window self-raise anywhere.
+// Story-1.2 tracker emits. It sends NO input to the agent. Activating (clicking) a notification
+// calls the injected `onActivate`; the WIRING (`notificationActivate.ts`) raises the window and
+// opens the session (UX-12 / R29 in docs/reports/2026-09-23-bug-hunt — this overrides the old
+// AR-8 "never raise" cut: a click is the operator's own action, like the Quit guard's raise).
+// This module itself touches no window.
 //
 // FIRES 1:1 off the tracker's already-debounced output (FROZEN F2 / AC-1): the Story-1.2
 // per-session ~700ms attention-emission debounce is the SOLE storm-suppression authority for
@@ -34,21 +34,19 @@ import type { AttentionRaisedEvent } from '../../shared/ipc/contract'
  * The minimal surface this module needs off an Electron `Notification`. Kept tiny so the
  * test fake implements exactly this — and so NO Electron import sits on the unit-test path.
  * `show()` is the only call we make; activation is wired via `onActivate` on the factory
- * options (NOT a window-raising `.on('click')` handler — AC-4).
+ * options.
  */
 export interface NotificationLike {
   show(): void
 }
 
 /** The fields the factory needs to construct a notification. `onActivate` is invoked when
- *  the user activates the notification — it may ONLY emit the FR-9 jump-to-card signal
- *  (it must NEVER raise/focus the window — AC-4). The default Electron factory wires it to
- *  the notification's `click` event WITHOUT any `window.show()/.focus()`. */
+ *  the user activates the notification. The default Electron factory wires it to the
+ *  notification's `click` event. */
 export interface NotificationOptions {
   title: string
   body: string
-  /** Called on activation (click). The wiring passes a handler that emits the in-app
-   *  jump-to-card signal; it NEVER raises the window. Optional — omit for a pure alert. */
+  /** Called on activation (click). Optional — omit for a pure alert. */
   onActivate?: () => void
 }
 
@@ -60,10 +58,13 @@ export type NotificationFactory = (opts: NotificationOptions) => NotificationLik
 export interface AttentionNotifierOptions {
   /** The notification factory (DI seam). Defaults to the real Electron wrapper below. */
   notificationFactory?: NotificationFactory
-  /** Called on activation with the raised event's `id` — the wiring emits the FR-9
-   *  jump-to-card signal here. Informational only: it must NEVER raise/focus the window
-   *  (AC-4). Optional — omit to fire pure alerts with no activation behavior. */
+  /** Called on activation with the raised event's `id` — the wiring raises the window and
+   *  opens that session (UX-12 / R29). Optional — omit to fire pure alerts. */
   onActivate?: (id: string) => void
+  /** Whether desktop popups are on (`settings.notificationsEnabled`, UX-13). Read on EVERY
+   *  notify/remind, so a change applies without a restart. Off = no popup; the sound is a
+   *  separate setting in the renderer. Defaults to always on. */
+  enabled?: () => boolean
   /** Log sink — PATH/identity + code only, NEVER a session value (Guardrail #6). Defaults
    *  to console.warn. Injectable so tests can spy without a real console write. */
   log?: (message: string) => void
@@ -77,15 +78,21 @@ export interface AttentionNotifier {
    *  same activation as the first alert; the body adds the minutes waited. NEVER throws. Called
    *  only by the reminder scheduler (src/main/kde/attentionReminders.ts). */
   remind(input: ReminderInput): void
+  /** How many shown notifications are still held (R21). For the tests. */
+  retainedCount(): number
 }
+
+/** How many shown notifications the notifier keeps a reference to (R21). A notification that was
+ *  shown and never clicked stays in KDE's history, where a click must still work; past this many
+ *  the OLDEST reference is dropped. */
+export const MAX_RETAINED_NOTIFICATIONS = 50
 
 /**
  * The default factory — a thin wrapper over Electron's `Notification`. This is the ONLY
  * place Electron's `Notification` is constructed, and it is NOT on the unit-test path (the
  * test injects its own factory, so this body never runs there). It gates on
  * `Notification.isSupported()` (returns `null` when unsupported → graceful no-op) and wires
- * activation to the `click` event WITHOUT any window self-raise (AC-4) — `click` only invokes
- * the caller's `onActivate`.
+ * activation to the `click` event — `click` only invokes the caller's `onActivate`.
  *
  * The top-level `import { Notification } from 'electron'` resolves to a path string under a
  * bare node runtime (so `Notification` is `undefined` in the unit test), but the import itself
@@ -96,8 +103,6 @@ export const electronNotificationFactory: NotificationFactory = (opts) => {
   if (!Notification.isSupported()) return null
   const n = new Notification({ title: opts.title, body: opts.body })
   if (opts.onActivate) {
-    // INFORMATIONAL ONLY (AC-4): the click handler ONLY emits the FR-9 jump-to-card signal.
-    // It NEVER calls window.show()/.focus()/.restore() or app.focus() — no self-raise.
     n.on('click', () => opts.onActivate?.())
   }
   return n
@@ -193,20 +198,39 @@ export function buildReminderContent(input: ReminderInput): { title: string; bod
 export function createAttentionNotifier(options: AttentionNotifierOptions = {}): AttentionNotifier {
   const notificationFactory = options.notificationFactory ?? electronNotificationFactory
   const onActivate = options.onActivate
+  const enabled = options.enabled ?? ((): boolean => true)
+  // R21: a shown Notification nobody references can be garbage-collected, and its click
+  // listener goes with it — a click on an older popup then did nothing. Hold each one until it
+  // is clicked, capped (oldest dropped first) so a never-clicked series cannot grow forever.
+  const retained = new Set<NotificationLike>()
   // never-log-the-parsed-value: identity (id) + code ONLY — never a session value.
   const log = options.log ?? ((message: string): void => console.warn(message))
 
-  /** Build + show one notification. Activation emits the FR-9 jump-to-card signal ONLY (no
-   *  window raise — AC-4). A null factory return = unsupported platform → graceful no-op. */
+  /** Build + show one notification. A null factory return = unsupported platform → graceful
+   *  no-op. */
   function show(id: string, content: { title: string; body: string }): void {
-    const n = notificationFactory({
+    const n: NotificationLike | null = notificationFactory({
       ...content,
-      ...(onActivate ? { onActivate: () => onActivate(id) } : {})
+      ...(onActivate
+        ? {
+            onActivate: () => {
+              if (n !== null) retained.delete(n)
+              onActivate(id)
+            }
+          }
+        : {})
     })
-    n?.show()
+    if (n === null) return
+    n.show()
+    retained.add(n)
+    if (retained.size > MAX_RETAINED_NOTIFICATIONS) {
+      const oldest = retained.values().next().value
+      if (oldest !== undefined) retained.delete(oldest)
+    }
   }
 
   function notify(raised: AttentionRaisedEvent): void {
+    if (!enabled()) return
     try {
       show(raised.id, buildNotificationContent(raised))
     } catch {
@@ -217,6 +241,7 @@ export function createAttentionNotifier(options: AttentionNotifierOptions = {}):
   }
 
   function remind(input: ReminderInput): void {
+    if (!enabled()) return
     try {
       show(input.id, buildReminderContent(input))
     } catch {
@@ -225,5 +250,5 @@ export function createAttentionNotifier(options: AttentionNotifierOptions = {}):
     }
   }
 
-  return { notify, remind }
+  return { notify, remind, retainedCount: () => retained.size }
 }

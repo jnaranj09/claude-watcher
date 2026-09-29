@@ -54,7 +54,7 @@ import {
 } from '../shared/schemas/terminal'
 // Story 1.4 fix — validate-at-source for the watch:status connection-state push.
 // Story 2.2 — validate-at-source for the FR-9 attention:activate push.
-import { WatchStatusSchema, AttentionActivateSchema } from '../shared/schemas/watchDelta'
+import { WatchStatusSchema, ViewFocusedTerminalSchema } from '../shared/schemas/watchDelta'
 // Story 2.2 — the KDE attention notifier (Electron Notification → libnotify), behind a DI
 // seam. Fires 1:1 off the tracker's attention.raised; informational only (NO self-raise).
 import { createAttentionNotifier } from './kde/notifications'
@@ -62,6 +62,8 @@ import { createAttentionNotifier } from './kde/notifications'
 import { createAttentionReminders, type AttentionReminders } from './kde/attentionReminders'
 // F1 (final-review fix wave) — the extracted, independently-tested `remind` callback body.
 import { createReminderSink } from './kde/reminderSink'
+import { createNotificationActivate } from './kde/notificationActivate'
+import { isViewingSession } from './kde/viewedSession'
 // Story 2.3 — the tray + PAINTED-badge controller (behind a DI seam, mirrors the notifier) +
 // the pure badge-count fn. The count = needs-you + idle, derived from the SAME reducer map +
 // columnForStatus the board uses (single source of truth). Tray is badge + menu only (NO
@@ -74,7 +76,7 @@ import { enrichDelta } from './c9watch/enrichDelta'
 // Story 3.3 (FR-1 amended) — the BOARD-SHIP membership gate (pure; reads only the event id +
 // the launched-set predicate). Drops external/Konsole deltas at the ship chokepoint so the
 // board shows ONLY app-launched sessions. Kept in its own pure module for unit coverage.
-import { shouldShipToBoard } from './c9watch/shipGate'
+import { shouldEmitRaise, shouldShipToBoard } from './c9watch/shipGate'
 // The session reducer — the authoritative Map<id,Session> + typed session deltas.
 // Story 6.4: the c9watch CLI feed is RETIRED; sessions are born at spawn
 // (upsertLaunched, Story 6.2) and transitioned/removed by hooks + stop/exit
@@ -430,6 +432,11 @@ const trays = new Map<Electron.WebContents, TrayController>()
 // in a map so teardownWatchFeed can clear its timers; none may fire into a closed window.
 const reminderSchedulers = new Map<Electron.WebContents, AttentionReminders>()
 
+// UX-13 — the terminal each window's renderer shows in its focused view (null on the board),
+// pushed over CH.viewFocusedTerminal. Read by `isViewingSession` so the alert for the session the
+// operator is typing in is skipped. Deleted in teardownWatchFeed.
+const focusedTerminals = new Map<Electron.WebContents, string | null>()
+
 // Rules — one engine per window (spec §2.6, settled in the Phase 2 plan): the reducer is per
 // window, so the engine lives exactly as long as the sessions it tags. Created in
 // registerWatchFeed, disposed in teardownWatchFeed (mirrors reminderSchedulers).
@@ -583,28 +590,36 @@ function registerWatchFeed(window: BrowserWindow): void {
   // app-global telemetry IPC handler can look up columnOf/enteredColumnAt. Same lifetime
   // as the feed; removed in teardownWatchFeed (below).
   trackers.set(wc, tracker)
+  // UX-13 — is the operator looking at this session right now (window focused, its terminal in
+  // the focused view)? Then neither the first alert nor a reminder fires for it.
+  const isViewing = (id: string): boolean =>
+    isViewingSession(id, {
+      windowFocused: () => {
+        if (wc.isDestroyed()) return false
+        return BrowserWindow.fromWebContents(wc)?.isFocused() ?? false
+      },
+      focusedTerminalId: () => focusedTerminals.get(wc) ?? null,
+      sessionIdFor: (terminalId) => launchService?.sessionIdFor(terminalId) ?? null
+    })
   // Story 2.2 — one notifier per window (same lifetime as the reducer/tracker/feed). It
   // fires a KDE notification 1:1 off the tracker's attention.raised (no extra debounce — the
   // tracker's per-session ~700ms emission debounce is the sole storm-suppression authority).
-  // INFORMATIONAL ONLY: activating the notification emits the FR-9 in-app jump-to-card signal
-  // (CH.attentionActivate, validated AT SOURCE) and NEVER raises/focuses the window (AR-8 cut).
+  // A click raises the window and opens the session (UX-12 / R29, notificationActivate.ts).
+  // `settings.notificationsEnabled` off = no popup (UX-13); read live on every alert.
   const notifier = createAttentionNotifier({
-    onActivate: (id) => {
-      if (wc.isDestroyed()) return
-      // Validate AT SOURCE before send (renderer-facing delta; zod-boundaries.md). On a bad
-      // id, drop + log by PATH + CODE only — never the value (the id is an opaque UUID, but
-      // a blank id has no value to leak either). NO window raise anywhere on this path.
-      const r = AttentionActivateSchema.safeParse({ id })
-      if (!r.success) {
-        const issue = r.error.issues[0]
-        console.error(
-          `[c9watch][attention] dropped attention:activate path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
-        )
-        return
-      }
-      // Re-check the destroyed window per send (mirrors the other sends). CH.* const.
-      if (!wc.isDestroyed()) wc.send(CH.attentionActivate, r.data)
-    },
+    onActivate: createNotificationActivate({
+      isDestroyed: () => wc.isDestroyed(),
+      raise: () => {
+        const win = BrowserWindow.fromWebContents(wc)
+        if (win === null || win.isDestroyed()) return
+        if (win.isMinimized()) win.restore()
+        win.show()
+        win.focus()
+      },
+      send: (payload) => wc.send(CH.attentionActivate, payload),
+      log: (message) => console.warn(message)
+    }),
+    enabled: () => (settingsStore?.get() ?? DEFAULT_SETTINGS).notificationsEnabled,
     // never-log-the-parsed-value: id + code only, never a session value (Guardrail #6).
     log: (message) => console.warn(message)
   })
@@ -630,6 +645,7 @@ function registerWatchFeed(window: BrowserWindow): void {
     // of a copy of this body living only in the pipeline test's fixture.
     remind: createReminderSink({
       isLaunched: (id) => launchedSet.has(id),
+      isViewing,
       notifier,
       send: (payload) => wc.send(CH.attentionReminder, payload),
       isDestroyed: () => wc.isDestroyed(),
@@ -763,7 +779,8 @@ function registerWatchFeed(window: BrowserWindow): void {
         // is gated here, never the computation, and the frozen AttentionEvent union is NOT
         // reshaped.
         for (const raised of raisedEvents) {
-          if (!launchedSet.has(raised.id)) continue
+          // UX-13 — no sound and no popup for the session the operator is looking at.
+          if (!shouldEmitRaise(raised.id, (id) => launchedSet.has(id), isViewing)) continue
           if (!wc.isDestroyed()) wc.send(CH.watchEvents, { epoch: delta.epoch, event: raised })
           // Story 2.2 — fire the KDE notification 1:1 off this SAME attention.raised (the
           // raisedEvents array is already debounced by the tracker; add NO second debounce).
@@ -1205,6 +1222,7 @@ function teardownWatchFeed(wc: Electron.WebContents): void {
     ruleEngines.delete(wc)
     rulesEngine.dispose()
   }
+  focusedTerminals.delete(wc)
   // Story 3.5 (SM-2) — remove the per-window tracker reference (same lifetime as the feed).
   // The telemetry IPC handler will see no tracker for a destroyed window → graceful no-op.
   trackers.delete(wc)
@@ -1932,6 +1950,22 @@ function registerTerminalIpc(): void {
     },
     // never-log-the-value: a code= ONLY, never a pty/session value (Guardrail #6).
     log: (message) => console.warn(message)
+  })
+
+  // view:focused-terminal (UX-13) — the renderer reports which terminal its focused view shows
+  // (null on the board). View-state only; read by `isViewingSession` to skip the alert for the
+  // session the operator is typing in. A malformed push is dropped, logged by PATH + CODE.
+  ipcMain.on(CH.viewFocusedTerminal, (event, raw: unknown) => {
+    const parsed = ViewFocusedTerminalSchema.safeParse(raw)
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      console.error(
+        `[claude-watcher][view] dropped view:focused-terminal path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+      )
+      return
+    }
+    // Only a window with a live feed; a late push after teardown must not re-add its entry.
+    if (reducers.has(event.sender)) focusedTerminals.set(event.sender, parsed.data.terminalId)
   })
 
   // terminal:open — create a MessageChannel, wire its MAIN end (port1) to a fresh pty via the

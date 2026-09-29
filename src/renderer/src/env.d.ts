@@ -70,11 +70,13 @@ declare global {
       onStatus(cb: (status: WatchStatus) => void): () => void
     }
     // Story 2.2 (FR-9) — mirrors src/preload/index.ts `attentionApi`. The in-app
-    // jump-to-card subscription (the operator activated a notification). View-state only.
+    // open-the-session subscription (the operator clicked a notification).
     attention: {
       onActivate(cb: (payload: AttentionActivatePayload) => void): () => void
       // Attention reminders — mirrors src/preload/index.ts `attentionApi.onReminder`.
       onReminder(cb: (payload: AttentionReminderPayload) => void): () => void
+      // UX-13 — mirrors src/preload/index.ts `attentionApi.reportFocusedTerminal`.
+      reportFocusedTerminal(terminalId: string | null): void
     }
     // Story 2.4 — mirrors src/preload/index.ts `settingsApi`. The renderer reads/writes
     // settings ONLY through this typed bridge (never electron-store directly — F4). MAIN

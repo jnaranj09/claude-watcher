@@ -39,6 +39,8 @@ export interface SettingsState {
   themeId: string
   /** Theme wallpapers — theme id → picked wallpaper id (spec 2026-09-24). */
   wallpaperByTheme: Readonly<Record<string, string>>
+  /** UX-13 — desktop popups on/off (default ON). Main reads its own copy; this drives Settings. */
+  notificationsEnabled: boolean
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
@@ -67,6 +69,7 @@ export function createSettingsStore(): SettingsStoreApi {
     apiPort: DEFAULT_SETTINGS.apiPort,
     themeId: DEFAULT_SETTINGS.themeId,
     wallpaperByTheme: DEFAULT_SETTINGS.wallpaperByTheme,
+    notificationsEnabled: DEFAULT_SETTINGS.notificationsEnabled,
     loaded: false,
 
     hydrate: (settings) => {
@@ -80,6 +83,7 @@ export function createSettingsStore(): SettingsStoreApi {
         apiPort: settings.apiPort,
         themeId: settings.themeId,
         wallpaperByTheme: settings.wallpaperByTheme,
+        notificationsEnabled: settings.notificationsEnabled,
         loaded: true
       })
     },
@@ -101,6 +105,9 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.themeId !== undefined ? { themeId: patch.themeId } : {}),
         ...(patch.wallpaperByTheme !== undefined
           ? { wallpaperByTheme: patch.wallpaperByTheme }
+          : {}),
+        ...(patch.notificationsEnabled !== undefined
+          ? { notificationsEnabled: patch.notificationsEnabled }
           : {})
       })
     }
@@ -113,6 +120,9 @@ export function createSettingsStore(): SettingsStoreApi {
 
 /** The live sound toggle (primitive — safe without useShallow). */
 export const selectSoundEnabled = (state: SettingsState): boolean => state.soundEnabled
+/** UX-13 — the live desktop-popup toggle (primitive). */
+export const selectNotificationsEnabled = (state: SettingsState): boolean =>
+  state.notificationsEnabled
 /** The live terminal font-size (primitive). */
 export const selectTerminalFontSize = (state: SettingsState): number => state.terminalFontSize
 /** Attention reminders — the live reminder count (primitive; 0 = off). */

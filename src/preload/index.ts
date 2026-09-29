@@ -8,6 +8,7 @@ import type {
   WatchEventsPayload,
   WatchStatus,
   AttentionActivatePayload,
+  ViewFocusedTerminalPayload,
   AttentionReminderPayload,
   Settings,
   SettingsPatch,
@@ -130,8 +131,7 @@ export type WatchApi = typeof watchApi
 // in-app jump-to-card signal. The renderer subscribes via `window.attention.onActivate(...)`
 // and NEVER touches ipcRenderer directly (contextIsolation stays ON). Mirrors `watchApi`'s
 // subscribe-returns-unsubscribe pattern. `CH.attentionActivate` is a const, never a literal.
-// INFORMATIONAL ONLY: this carries the session `id` so the renderer can SELECT the card; it
-// does NOT raise/focus the window (AR-8 self-raise cut).
+// It carries the session `id` so the renderer can open that session (main raised the window).
 const attentionApi = {
   /** Subscribe to the in-app jump-to-card signal (the operator activated a notification).
    *  Returns an unsubscribe fn. `CH.attentionActivate` is a const, never a literal. */
@@ -148,6 +148,13 @@ const attentionApi = {
     const listener = (_evt: unknown, payload: AttentionReminderPayload): void => cb(payload)
     ipcRenderer.on(CH.attentionReminder, listener)
     return () => ipcRenderer.removeListener(CH.attentionReminder, listener)
+  },
+
+  /** UX-13 — tell main which terminal the focused view shows (null on the board), so the alert
+   *  for the session the operator is typing in is skipped. `CH.viewFocusedTerminal` const. */
+  reportFocusedTerminal(terminalId: string | null): void {
+    const payload: ViewFocusedTerminalPayload = { terminalId }
+    ipcRenderer.send(CH.viewFocusedTerminal, payload)
   }
 }
 

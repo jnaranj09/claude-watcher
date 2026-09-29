@@ -41,7 +41,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       apiEnabled: false,
       apiPort: 9281,
       themeId: 'default',
-      wallpaperByTheme: {}
+      wallpaperByTheme: {},
+      notificationsEnabled: true
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -366,5 +367,19 @@ describe('settings.wallpaperByTheme (theme wallpapers, additive on v1)', () => {
   })
   it('DEFAULT_SETTINGS.wallpaperByTheme is {}', () => {
     expect(DEFAULT_SETTINGS.wallpaperByTheme).toEqual({})
+  })
+})
+
+describe('settings.notificationsEnabled (UX-13, additive on v1)', () => {
+  it('a v1 blob written before the toggle existed keeps its popups ON', () => {
+    const old: Record<string, unknown> = { ...DEFAULT_SETTINGS }
+    delete old.notificationsEnabled
+    expect(parseSettings(old).notificationsEnabled).toBe(true)
+  })
+  it('a patch carries it, and a patch without it does not fill it', () => {
+    expect(SettingsPatchSchema.parse({ notificationsEnabled: false })).toEqual({
+      notificationsEnabled: false
+    })
+    expect(SettingsPatchSchema.parse({ soundEnabled: true })).toEqual({ soundEnabled: true })
   })
 })

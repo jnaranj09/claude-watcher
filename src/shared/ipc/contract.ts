@@ -158,15 +158,18 @@ export const CH = {
   // see `WatchStatus` below for why this is a dedicated channel, not a union member.
   watchStatus: 'watch:status',
   // Story 2.2 (FR-9) — the in-app jump-to-card push. Fired by main when the operator
-  // ACTIVATES an attention notification (informational only — NO window self-raise,
-  // AR-8 cut). Carries only the stable session `id`; the renderer selects that card if
-  // it is present on the board, else no-ops. See `AttentionActivatePayload` below.
+  // ACTIVATES (clicks) an attention notification, after main raised the window (UX-12). Carries
+  // only the stable session `id`; the renderer switches to its workspace and opens it, else
+  // no-ops (R29). See `AttentionActivatePayload` below.
   attentionActivate: 'attention:activate',
   // Attention reminders (spec 2026-09-10) — main pushes one each time it re-notifies a session
   // still blocked on you (a permission prompt or a question), so the renderer plays the attention
   // sound. NOT an `attention.raised`: the AttentionEvent union is frozen and a reminder is not a
   // new entry. Carries only the session `id`. See `AttentionReminderPayload` below.
   attentionReminder: 'attention:reminder',
+  // UX-13 — renderer → main: the terminal the focused view shows (null on the board), so main can
+  // skip the alert for the session the operator is typing in. See `ViewFocusedTerminalPayload`.
+  viewFocusedTerminal: 'view:focused-terminal',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
 
@@ -518,16 +521,24 @@ export type WatchStatus = {
  * Story 2.2 (FR-9) — `attention:activate` push payload: main → renderer.
  *
  * Fired when the operator ACTIVATES an attention notification. It carries ONLY the
- * stable session `id` (the UUID, never `pid`) — the renderer locates-and-highlights
- * that card if it is still on the board, else no-ops. This is an in-app VIEW-STATE
- * signal (a `selectedId` in the board store), NOT a window raise/navigation/agent
- * input: the app NEVER summons or focuses its own window (AR-8 self-raise cut,
- * 2026-06-19). Validated AT SOURCE in main before send (renderer-facing delta;
- * .claude/rules/zod-boundaries.md). [Source: story 2.2 Task 1.1; AC-5/AC-8; FROZEN F3]
+ * stable session `id` (the UUID, never `pid`) — the renderer switches to that session's
+ * workspace and opens it if it is still on the board, else no-ops (R29,
+ * `openFromNotification.ts`). Main has already raised the window (UX-12 — the click is the
+ * operator's own action; a session EVENT still never raises it). Never agent input. Validated
+ * AT SOURCE in main before send (renderer-facing delta; .claude/rules/zod-boundaries.md).
  */
 export type AttentionActivatePayload = {
   /** The activated session's stable id (UUID). Never key on pid. */
   id: string
+}
+
+/**
+ * `view:focused-terminal` payload: renderer → main (UX-13). The terminal the focused view shows,
+ * or null while the board is shown. View-state only; main resolves the session from its own
+ * launch binding. Parsed with `ViewFocusedTerminalSchema` (renderer → main IPC arg).
+ */
+export type ViewFocusedTerminalPayload = {
+  terminalId: string | null
 }
 
 /**

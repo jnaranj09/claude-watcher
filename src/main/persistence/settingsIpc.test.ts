@@ -46,7 +46,8 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       apiEnabled: false,
       apiPort: 9281,
       themeId: 'default',
-      wallpaperByTheme: {}
+      wallpaperByTheme: {},
+      notificationsEnabled: true
     })
     expect(get()).toEqual(result)
   })

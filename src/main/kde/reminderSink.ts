@@ -17,6 +17,9 @@ import type { AttentionNotifier } from './notifications'
 export interface ReminderSinkOptions {
   /** The same launched-only membership rule as the first alert (Story 3.3). */
   isLaunched: (id: string) => boolean
+  /** UX-13 — the operator is looking at this session right now (`kde/viewedSession.ts`): no
+   *  popup and no sound for it. The series goes on; a later reminder fires once they look away. */
+  isViewing: (id: string) => boolean
   /** Only the method this sink calls — keeps the test surface minimal. */
   notifier: Pick<AttentionNotifier, 'remind'>
   /** Push the validated payload to the window. A `CH.*` const at the call site (no-literal-channels). */
@@ -39,6 +42,7 @@ export function createReminderSink(
     // The SAME launched-only gate as the first alert (Story 3.3): one membership rule for
     // every attention consumer.
     if (!options.isLaunched(session.id)) return
+    if (options.isViewing(session.id)) return
     options.notifier.remind({
       id: session.id,
       sessionName: session.sessionName,

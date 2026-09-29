@@ -15,7 +15,7 @@
 //       false until its id enters the set) — modeled by an empty / partial launched-set.
 // [Source: story 3.3 Task 1/6; AC-2; F1/F3; src/main/c9watch/shipGate.ts]
 import { describe, it, expect } from 'vitest'
-import { shouldShipToBoard } from './shipGate'
+import { shouldEmitRaise, shouldShipToBoard } from './shipGate'
 import type {
   SessionUpdatedEvent,
   SessionRemovedEvent,
@@ -101,5 +101,18 @@ describe('shouldShipToBoard — ship ONLY launched-set members (Story 3.3 / AC-2
     expect(shouldShipToBoard(updated('a'), isLaunched)).toBe(true)
     expect(shouldShipToBoard(updated('b'), isLaunched)).toBe(false)
     expect(shouldShipToBoard(updated('c'), isLaunched)).toBe(true)
+  })
+})
+
+describe('shouldEmitRaise — no alert for the session in view (UX-13)', () => {
+  const launched = (id: string): boolean => id !== 'external'
+  it('a launched session nobody is looking at alerts', () => {
+    expect(shouldEmitRaise('a', launched, () => false)).toBe(true)
+  })
+  it('the session the operator is looking at does NOT alert', () => {
+    expect(shouldEmitRaise('a', launched, (id) => id === 'a')).toBe(false)
+  })
+  it('an external session never alerts', () => {
+    expect(shouldEmitRaise('external', launched, () => false)).toBe(false)
   })
 })

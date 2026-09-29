@@ -118,7 +118,10 @@ export const SettingsSchema = z.object({
   // matter: main falls back to Default and keeps this value (D-7).
   themeId: ThemeIdSchema.default(DEFAULT_THEME_ID),
   // Theme wallpapers (spec 2026-09-24). Additive on v1, same `.default()` reasoning as above.
-  wallpaperByTheme: WallpaperByThemeSchema.default({})
+  wallpaperByTheme: WallpaperByThemeSchema.default({}),
+  // UX-13 — desktop popups (first alert + reminders) on/off. The sound is `soundEnabled`. Additive
+  // on v1, same `.default()` reasoning as above: an older file keeps its popups on.
+  notificationsEnabled: z.boolean().default(true)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -145,7 +148,8 @@ export const SettingsPatchSchema = z
     apiEnabled: z.boolean(),
     apiPort: ApiPortSchema,
     themeId: ThemeIdSchema,
-    wallpaperByTheme: WallpaperByThemeSchema
+    wallpaperByTheme: WallpaperByThemeSchema,
+    notificationsEnabled: z.boolean()
   })
   .partial()
 
@@ -165,7 +169,8 @@ export const DEFAULT_SETTINGS: Settings = {
   apiEnabled: false,
   apiPort: DEFAULT_API_PORT,
   themeId: DEFAULT_THEME_ID,
-  wallpaperByTheme: {}
+  wallpaperByTheme: {},
+  notificationsEnabled: true
 }
 
 /**

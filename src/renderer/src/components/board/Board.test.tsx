@@ -518,6 +518,18 @@ describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
     expect(workingCol?.querySelector('[data-selected="true"]')).not.toBeNull()
   })
 
+  it('an attention:activate push OPENS the session in its terminal, not just a selection (R29)', () => {
+    const bridges = stubBridges()
+    const st = boardStore.getState()
+    st.applyWatchEvent(updated(1, 'w', 'working', 100, { sessionName: 'web' }))
+    st.addCorrelation('w', 't-w')
+    const { unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    act(() => bridges.pushActivate('w'))
+    expect(boardStore.getState().viewMode).toBe('focused')
+    expect(boardStore.getState().focusedTerminalId).toBe('t-w')
+  })
+
   it('an attention:activate push for an ABSENT id is a NO-OP (no card selected; no raise)', () => {
     const bridges = stubBridges()
     boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))

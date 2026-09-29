@@ -15,6 +15,7 @@
 // [Source: story 2.2 Task 6.1; AC-1/3/4/6/7; .claude/rules/zod-boundaries.md#Never-log]
 import { describe, it, expect, vi } from 'vitest'
 import {
+  MAX_RETAINED_NOTIFICATIONS,
   createAttentionNotifier,
   buildNotificationContent,
   buildReminderContent,
@@ -206,8 +207,8 @@ describe('attention notifier — PRIVACY: never leaks pendingToolInput/firstProm
   })
 })
 
-describe('attention notifier — informational only, NO self-raise; activation = jump-to-card only (AC-4)', () => {
-  it('activating the notification emits ONLY the FR-9 signal (the id), never a window raise', () => {
+describe('attention notifier — activation hands the id to the wiring (UX-12 / R29)', () => {
+  it('activating the notification calls onActivate with the id (the wiring raises + opens)', () => {
     const fake = makeFakeFactory()
     const onActivate = vi.fn()
     const notifier = createAttentionNotifier({
@@ -215,7 +216,6 @@ describe('attention notifier — informational only, NO self-raise; activation =
       onActivate
     })
     notifier.notify(raised({ id: 'sess-42' }))
-    // The seam has NO window-raise surface; onActivate is the ONLY activation behavior.
     // Simulate the user activating the notification by invoking the wired handler.
     expect(typeof fake.last()?.onActivate).toBe('function')
     fake.last()?.onActivate?.()
@@ -374,5 +374,74 @@ describe('notifier.remind — one popup, same jump-to-card, never throws', () =>
     const message = String(log.mock.calls[0]?.[0])
     expect(message).toBe('[claude-watcher][reminders] id=id-1 code=remind_failed')
     expect(message).not.toContain('webapp')
+  })
+})
+
+describe('notifier — keeps each shown popup until it is clicked (R21)', () => {
+  it('a shown notification is held until its click', () => {
+    const fake = makeFakeFactory()
+    const notifier = createAttentionNotifier({
+      notificationFactory: fake.factory,
+      onActivate: vi.fn()
+    })
+    notifier.notify(raised({ id: 'a' }))
+    const first = fake.last()
+    notifier.notify(raised({ id: 'b' }))
+    expect(notifier.retainedCount()).toBe(2)
+    first?.onActivate?.()
+    expect(notifier.retainedCount()).toBe(1)
+  })
+
+  it('a reminder popup is held the same way', () => {
+    const fake = makeFakeFactory()
+    const notifier = createAttentionNotifier({
+      notificationFactory: fake.factory,
+      onActivate: vi.fn()
+    })
+    notifier.remind({
+      id: 'a',
+      sessionName: 's',
+      projectPath: '/p',
+      status: 'NeedsPermission',
+      waitedMs: 60_000
+    })
+    expect(notifier.retainedCount()).toBe(1)
+  })
+
+  it(`holds at most ${MAX_RETAINED_NOTIFICATIONS}, dropping the oldest`, () => {
+    const fake = makeFakeFactory()
+    const notifier = createAttentionNotifier({ notificationFactory: fake.factory })
+    for (let i = 0; i < MAX_RETAINED_NOTIFICATIONS + 5; i++)
+      notifier.notify(raised({ id: `s${i}` }))
+    expect(notifier.retainedCount()).toBe(MAX_RETAINED_NOTIFICATIONS)
+  })
+
+  it('an unsupported platform (null factory) holds nothing', () => {
+    const notifier = createAttentionNotifier({ notificationFactory: () => null })
+    notifier.notify(raised())
+    expect(notifier.retainedCount()).toBe(0)
+  })
+})
+
+describe('notifier — the desktop notifications setting (UX-13)', () => {
+  it('off: neither the first alert nor a reminder shows a popup; read live on every call', () => {
+    const fake = makeFakeFactory()
+    let on = false
+    const notifier = createAttentionNotifier({
+      notificationFactory: fake.factory,
+      enabled: () => on
+    })
+    notifier.notify(raised())
+    notifier.remind({
+      id: 'a',
+      sessionName: 's',
+      projectPath: '/p',
+      status: 'NeedsPermission',
+      waitedMs: 60_000
+    })
+    expect(fake.showCalls).toBe(0)
+    on = true
+    notifier.notify(raised())
+    expect(fake.showCalls).toBe(1)
   })
 })

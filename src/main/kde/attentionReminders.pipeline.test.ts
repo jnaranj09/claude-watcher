@@ -50,6 +50,7 @@ function pipeline(isLaunched: (id: string) => boolean = () => true): {
     // validate-at-source send, not a copy of the callback body.
     remind: createReminderSink({
       isLaunched,
+      isViewing: () => false,
       notifier,
       send: () => {}, // this pipeline asserts on the OS popup (`shown()`), not the IPC push
       isDestroyed: () => false

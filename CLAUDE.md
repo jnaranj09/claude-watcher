@@ -252,7 +252,17 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **Alerts are global, cards are scoped.** `notifier.notify` and the `computeBadgeCount` call
   (`src/main/kde/badge.ts`) in `src/main/index.ts` must stay unfiltered — the per-workspace badge
   is a renderer selector (`selectNeedsYouCountByWorkspace`). Do NOT add a workspace filter in
-  main; it would be a drift-prone duplicate.
+  main; it would be a drift-prone duplicate. The ONLY skips (group 10 of the 2026-09-23 bug
+  hunt, UX-13): the session the operator is LOOKING AT gets no popup, sound or reminder
+  (`kde/viewedSession.ts` — window focused AND that session's terminal in the focused view,
+  pushed over `CH.viewFocusedTerminal`; one gate, `shouldEmitRaise`, plus the reminder sink), and
+  `settings.notificationsEnabled` off stops the popups only (the sound is `soundEnabled`).
+- **A notification CLICK raises the window and opens the session** (UX-12 / R29 — overrides the old
+  AR-8 / FR-9 "never raise, only select"): `kde/notificationActivate.ts` restores + shows + focuses,
+  then pushes `CH.attentionActivate`; the renderer's `lib/openFromNotification.ts` switches to the
+  session's workspace (only once main confirms) and runs `activateCard`. It is the operator's own
+  action, like the Quit guard's raise — a SESSION EVENT still never raises the window. The notifier
+  holds each shown popup until it is clicked (cap 50, R21): an unreferenced one can lose its click.
 - **`Template.workspaceId` / `Shortcut.workspaceId` use `.nullable().default(null)`** (null =
   GLOBAL) and the file versions stay `TEMPLATES_FILE_VERSION = 1` / `SHORTCUTS_FILE_VERSION = 3`
   (v2 → v3 is the ONE migration, in `parseShortcutsFile`; a chord sequence became an alias).

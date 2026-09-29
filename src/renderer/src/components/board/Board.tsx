@@ -42,6 +42,7 @@ import { clearFilterHint, hiddenByFilterSentence } from '../../lib/filterCopy'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
+import { openFromNotification } from '../../lib/openFromNotification'
 import styles from './Board.module.css'
 
 /** The FIXED slot order: left flank · center hero · right flank. The hero is PINNED to
@@ -155,17 +156,17 @@ export function Board({
   // for session truth — this is purely an alert side effect (NO self-raise; frozen union intact).
   useAttentionSound()
 
-  // Story 2.2 (FR-9) — subscribe to the in-app jump-to-card signal (the operator activated a
-  // notification). Set the board selection to the originating card; the store no-ops if that
-  // card is not present. INFORMATIONAL ONLY: this locates-and-highlights the card — it does NOT
-  // raise/focus the window and sends no input to the agent. Returns the unsubscribe on unmount.
+  // Story 2.2 (FR-9) — subscribe to the notification-click signal. Main has raised the window
+  // (UX-12); this switches to the session's workspace and opens it (R29, openFromNotification.ts).
+  // A card that already left is a no-op. Sends no input to the agent. Board stays mounted in the
+  // focused view (hidden), so this subscription is always live.
   // Story 3.3 — NO renderer-side launched-vs-external filter here: main GATES the attention
   // emission at the source (index.ts onDelta), so an external session never creates a
   // notification → never produces a jump-to-card signal. This subscription already only ever
   // sees LAUNCHED activations. Do NOT add a redundant filter (it would be a second, drift-prone
   // membership source — the renderer has no launched-set; main owns it).
   useEffect(() => {
-    const off = window.attention.onActivate(({ id }) => boardStore.getState().setSelected(id))
+    const off = window.attention.onActivate(({ id }) => void openFromNotification(id))
     return off
   }, [])
 

@@ -85,3 +85,13 @@ export const AttentionActivateSchema = z.object({
 export const AttentionReminderSchema = z.object({
   id: z.string().min(1)
 })
+
+/**
+ * UX-13 — the renderer → main `view:focused-terminal` push (untrusted cross-process input). A
+ * terminal id or null (the board). `.strict()`: nothing else rides it.
+ */
+export const ViewFocusedTerminalSchema = z
+  .object({
+    terminalId: z.string().min(1).max(200).nullable()
+  })
+  .strict()

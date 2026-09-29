@@ -34,6 +34,7 @@ import { useEffect, useState, type JSX } from 'react'
 import {
   useSettings,
   selectSoundEnabled,
+  selectNotificationsEnabled,
   selectTerminalFontSize,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
@@ -93,6 +94,7 @@ function tokenErrorCopy(error: unknown, fallback: string): string {
  *  change. */
 export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Element {
   const soundEnabled = useSettings(selectSoundEnabled)
+  const notificationsEnabled = useSettings(selectNotificationsEnabled)
   const terminalFontSize = useSettings(selectTerminalFontSize)
   const reminderCount = useSettings(selectReminderCount)
   const reminderFirstDelayMinutes = useSettings(selectReminderFirstDelayMinutes)
@@ -328,6 +330,25 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
               onChange={(e) => {
                 // Persist + apply immediately. The sound module reads the live flag (AC-5).
                 void persistSettingsPatch({ soundEnabled: e.target.checked })
+              }}
+            />
+          </div>
+        </div>
+
+        {/* UX-13 — desktop POPUPS on/off (the first alert and every reminder). The sound above is
+            its own toggle. Main reads the setting live on every alert. */}
+        <div className={styles.row}>
+          <label className={styles.label} htmlFor="settings-notifications-enabled">
+            Desktop notifications
+          </label>
+          <div className={styles.controlGroup}>
+            <input
+              id="settings-notifications-enabled"
+              type="checkbox"
+              data-testid="settings-notifications-toggle"
+              checked={notificationsEnabled}
+              onChange={(e) => {
+                void persistSettingsPatch({ notificationsEnabled: e.target.checked })
               }}
             />
           </div>

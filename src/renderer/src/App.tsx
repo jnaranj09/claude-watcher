@@ -95,6 +95,8 @@ import { acknowledgeSession } from './utils/acknowledgeSession'
 // focused view's active YourTurn session with the window focused, marks it seen via main
 // (window.launch.markSeen). Mounted once here — see useSessionSeen.ts for the full rule.
 import { useSessionSeen } from './hooks/useSessionSeen'
+// UX-13 — report the focused-view terminal so main can skip the alert for the session in view.
+import { useReportFocusedTerminal } from './hooks/useReportFocusedTerminal'
 // Custom themes — writes the applied bundle into <head> and the root color-scheme (T13).
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useServerHealth } from './hooks/useServerHealth'
@@ -124,6 +126,7 @@ function isModalOpen(): boolean {
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
   useSessionSeen()
+  useReportFocusedTerminal()
 
   // Custom themes — write the applied bundle into <head> and the root color-scheme.
   useApplyTheme()

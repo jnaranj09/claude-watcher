@@ -110,7 +110,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       apiEnabled: false,
       apiPort: 9281,
       themeId: 'default',
-      wallpaperByTheme: {}
+      wallpaperByTheme: {},
+      notificationsEnabled: true
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
@@ -141,7 +142,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       apiEnabled: false,
       apiPort: 9281,
       themeId: 'default',
-      wallpaperByTheme: {}
+      wallpaperByTheme: {},
+      notificationsEnabled: true
     })
   })
 })

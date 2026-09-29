@@ -41,7 +41,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       apiEnabled: false,
       apiPort: DEFAULT_SETTINGS.apiPort,
       themeId: 'default',
-      wallpaperByTheme: {}
+      wallpaperByTheme: {},
+      notificationsEnabled: true
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
