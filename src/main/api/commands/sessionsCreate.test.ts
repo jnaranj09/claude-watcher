@@ -204,6 +204,67 @@ describe('POST /v1/sessions', () => {
     expect(seam.launches).toHaveLength(0)
   })
 
+  // UX-11 — a template whose folder was deleted, renamed or unmounted is refused BEFORE the
+  // launch: node-pty spawns into a missing cwd without throwing, the child fails its chdir and
+  // exits, and the caller used to get a 201 for a card that flashed and died.
+  it('409 folder_missing when the template folder is gone, and nothing is launched', async () => {
+    const seam = makeFakeSeam()
+    const seen: string[] = []
+    const { ctx } = makeFakeContext({ seam, templates: [T], folderExists: false })
+    const probe: ApiContext = {
+      ...ctx,
+      isDirectory: (p) => {
+        seen.push(p)
+        return ctx.isDirectory(p)
+      }
+    }
+    expect(
+      await run(probe, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).toMatchObject({ status: 409, code: 'folder_missing' })
+    expect(seen).toEqual(['/w'])
+    expect(seam.launches).toHaveLength(0)
+  })
+
+  it('409 folder_missing when the folder vanishes between the check and the launch', async () => {
+    // The launch service refuses the same folder again (its own preflight); that throw must
+    // become the same 409, not a 500.
+    const seam = makeFakeSeam()
+    seam.requestLaunch = () => {
+      throw new Error('folder_missing')
+    }
+    const { ctx } = makeFakeContext({ seam, templates: [T] })
+    expect(await run(ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })).toMatchObject({
+      status: 409,
+      code: 'folder_missing'
+    })
+    seam.requestLaunch = () => {
+      throw new Error('boom')
+    }
+    await expect(
+      run(ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).rejects.toThrow('boom')
+  })
+
+  it('folder_missing comes after the 400s and BEFORE the retryable 503s', async () => {
+    const bad = makeFakeContext({ templates: [T], folderExists: false })
+    expect(await run(bad.ctx, { templateId: 'tpl', name: 'n', args: ['x'] })).toMatchObject({
+      status: 400,
+      code: 'arg_invalid'
+    })
+    const old = makeFakeContext({ templates: [T], folderExists: false, claudeOk: false })
+    expect(
+      await run(old.ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).toMatchObject({ status: 409, code: 'folder_missing' })
+    const noWin = makeFakeContext({ templates: [T], folderExists: false, seam: null })
+    expect(
+      await run(noWin.ctx, { templateId: 'tpl', name: 'n', args: ['HT-1', 'acme'] })
+    ).toMatchObject({ status: 409, code: 'folder_missing' })
+  })
+
+  it('declares 409 in its error statuses (the OpenAPI document reads them)', () => {
+    expect(sessionsCreateCommand.errorStatuses).toContain(409)
+  })
+
   it('503 claude_version and 503 no_window', async () => {
     const a = makeFakeContext({ templates: [T], claudeOk: false })
     expect(

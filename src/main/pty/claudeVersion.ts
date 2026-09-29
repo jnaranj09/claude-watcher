@@ -115,3 +115,72 @@ export function tooOldMessage(found: ClaudeVersion, min: ClaudeVersion): string 
     `Update claude, then try again.`
   )
 }
+
+/**
+ * How long an API create reuses a non-ok verdict before probing again. The probe is a blocking
+ * `$SHELL -l -c "claude --version"` on main's event loop (up to its 10 s timeout); a client
+ * retrying a 503 must not pay it — or make main pay it — on every request (R25).
+ */
+export const API_VERSION_REFUSAL_TTL_MS = 30_000
+
+export interface ClaudeVersionGateDeps {
+  /** Raw `claude --version` output, or null when the binary could not be run. */
+  readRaw: () => string | null
+  now: () => number
+  /** Explain a refusal to the operator (a native error box in main). IN-APP launches only. */
+  showTooOld: (message: string) => void
+  /** Code-only log sink. */
+  log: (message: string) => void
+}
+
+export interface ClaudeVersionGateHandle {
+  /** `+ New session`, a template, a past session: the operator is looking, so a refusal gets the
+   *  box. Always re-probes a refusal, so upgrading claude unblocks the very next click. */
+  allowsInteractiveLaunch(): boolean
+  /** `POST /v1/sessions`: the caller gets its own 503, so NO box — ever. A non-ok verdict younger
+   *  than `API_VERSION_REFUSAL_TTL_MS` is reused instead of re-probing. */
+  allowsApiLaunch(): boolean
+}
+
+/**
+ * The gate with its caching and its two faces (R25). Only an `ok` verdict is cached for good;
+ * a refusal or an unknown is remembered for the API path alone, with a timestamp.
+ */
+export function createClaudeVersionGate(deps: ClaudeVersionGateDeps): ClaudeVersionGateHandle {
+  let okCached = false
+  let lastNonOk: { gate: VersionGate; at: number } | null = null
+
+  function probe(): VersionGate {
+    const gate = gateClaudeVersion(deps.readRaw())
+    if (gate.kind === 'ok') {
+      okCached = true
+      lastNonOk = null
+    } else {
+      lastNonOk = { gate, at: deps.now() }
+      deps.log(
+        gate.kind === 'unknown'
+          ? '[c9watch][version] code=claude_version_unknown_allowing_launch'
+          : '[c9watch][version] code=claude_version_too_old'
+      )
+    }
+    return gate
+  }
+
+  return {
+    allowsInteractiveLaunch() {
+      if (okCached) return true
+      const gate = probe()
+      if (gate.kind !== 'tooOld') return true // ok, or FAIL-OPEN on unknown
+      deps.showTooOld(tooOldMessage(gate.version, gate.min))
+      return false
+    },
+    allowsApiLaunch() {
+      if (okCached) return true
+      const fresh =
+        lastNonOk !== null && deps.now() - lastNonOk.at < API_VERSION_REFUSAL_TTL_MS
+          ? lastNonOk.gate
+          : probe()
+      return fresh.kind !== 'tooOld'
+    }
+  }
+}

@@ -117,6 +117,46 @@ describe('GET /v1/sessions/{id}/events', () => {
     expect(s.server.streams()).toBe(0)
   })
 
+  // R8 — `/clear` moves the card to a NEW id. The old id's stream must say so, as its own
+  // frame, and then close: never `session.removed` (the card was not deleted) and never a silent
+  // switch to the new id on the old stream (the caller re-subscribes to the id it was given).
+  it('a /clear rebind sends session.rebound {id,newId} as the LAST frame, then closes', async () => {
+    const seam = makeFakeSeam([S])
+    const { ctx } = makeFakeContext({ seam })
+    const s = await startTestServer([sessionsEventsCommand], ctx, { pingMs: 100_000 })
+    server = s.server
+    const done = collect(s.url, '/v1/sessions/s1/events')
+    await vi.waitFor(() => expect(s.server.streams()).toBe(1))
+    // Another session's rebind is not this stream's business.
+    seam.emit({ type: 'session.rebound', id: 'other', newId: 'n-0' })
+    seam.emit({ type: 'session.rebound', id: 's1', newId: 'n-1' })
+    // The removal of the old id that follows the rebind in main must NOT reach this stream.
+    seam.emit({ type: 'session.removed', id: 's1', sessionName: 'HT-1', projectPath: '/w' })
+    const r = await done
+    expect(r.ended).toBe(true)
+    const frames = r.text.trim().split('\n\n')
+    expect(frames).toHaveLength(2)
+    expect(frames[1]).toBe('id: 2\nevent: session.rebound\ndata: {"id":"s1","newId":"n-1"}')
+    expect(r.text).not.toContain('session.removed')
+    expect(s.server.streams()).toBe(0)
+    expect(seam.subscriberCount()).toBe(0)
+  })
+
+  it('a rebound frame that fails its own schema closes the stream WITHOUT a frame', async () => {
+    // Validate at source: an empty newId is not a frame a client can act on.
+    const seam = makeFakeSeam([S])
+    const { ctx, log } = makeFakeContext({ seam })
+    const s = await startTestServer([sessionsEventsCommand], ctx, { pingMs: 100_000 })
+    server = s.server
+    const done = collect(s.url, '/v1/sessions/s1/events')
+    await vi.waitFor(() => expect(s.server.streams()).toBe(1))
+    seam.emit({ type: 'session.rebound', id: 's1', newId: '' })
+    const r = await done
+    expect(r.ended).toBe(true)
+    expect(r.text).not.toContain('session.rebound')
+    expect(log.some((l) => l.includes('code=rebound_frame_invalid'))).toBe(true)
+  })
+
   it('a client disconnect unsubscribes', async () => {
     const seam = makeFakeSeam([S])
     const { ctx } = makeFakeContext({ seam })

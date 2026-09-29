@@ -188,6 +188,11 @@ export interface LaunchServiceOptions {
   terminalManager: LaunchTerminalManager
   /** The launched-set this service POPULATES on a landed join (Task 4). */
   launchedSet: LaunchedSet
+  /** UX-11 — the launch PREFLIGHT: true iff `cwd` is an existing directory. REQUIRED, so no
+   *  construction can forget it. node-pty spawns into a missing cwd without throwing; the child
+   *  fails its chdir and exits AFTER the card was synthesized and a record written. Main injects a
+   *  `statSync().isDirectory()` that never throws and never logs the path. */
+  isDirectory: (path: string) => boolean
   /** Story 6.2 — the raw-claude spawn FACTORY (was a static config). Called ONCE per ACTUAL
    *  pty spawn with the freshly-minted session id, so the composed command pins claude to the
    *  app-minted identity (`$SHELL -l -c "claude --session-id '<uuid>'"` in production —
@@ -354,6 +359,20 @@ function defaultNewTerminalId(): string {
  * injected pidCorrelation readers, time + ids + platform are injected. Every correlation step
  * is wrapped so one bad session never escapes (never-crash).
  */
+/** UX-11 — the code `launch()` throws for a cwd that is not an existing directory. */
+export const LAUNCH_FOLDER_MISSING = 'folder_missing'
+
+/** True iff `err` is `launch()`'s folder refusal (and not some other failure). */
+export function isFolderMissing(err: unknown): boolean {
+  return err instanceof Error && err.message === LAUNCH_FOLDER_MISSING
+}
+
+/** The in-app launch's error box text (the renderer swallows a rejected launch invoke, so main
+ *  explains it — the version gate's precedent). Names no path. */
+export const FOLDER_MISSING_MESSAGE =
+  'The folder this session starts in no longer exists. It may have been deleted, renamed or ' +
+  'unmounted.\n\nPick another folder, or edit the template.'
+
 export function createLaunchService(options: LaunchServiceOptions): LaunchService {
   const log = options.log ?? ((message: string): void => console.warn(message))
   const now = options.now ?? Date.now
@@ -383,6 +402,10 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
   const bindingWaiters = new Map<string, Set<(sessionId: string) => void>>()
 
   function launch(req: LaunchRequest): LaunchOutcome {
+    // UX-11 — refuse a folder that was deleted, renamed or unmounted BEFORE anything is
+    // registered: no recipe, no terminalId, so no card, no record and no pane. The thrown code is
+    // the signal (the templates precedent); the path is never in it and never logged.
+    if (!options.isDirectory(req.cwd)) throw new Error(LAUNCH_FOLDER_MISSING)
     const terminalId = newTerminalId()
     // Register the durable spawn recipe main consumes on terminal:open (the renderer opens the
     // EmbeddedTerminal against this terminalId, which triggers terminal:open in main; main calls

@@ -164,6 +164,29 @@ describe('buildOpenApiDocument', () => {
     expect(props['name']?.description).toContain('control characters')
   })
 
+  it('documents 409 folder_missing on sessions.create (UX-11)', () => {
+    const conflict = doc.paths['/v1/sessions']?.post?.responses['409'] as {
+      description: string
+      content: Record<string, { schema: unknown }>
+    }
+    expect(conflict.description).toBe('Conflict')
+    expect(conflict.content['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/ApiError'
+    })
+    expect(API_ERROR_CODES).toContain('folder_missing')
+  })
+
+  it('hoists the SSE frame shapes and names session.rebound in the events description (R8)', () => {
+    expect(Object.keys(doc.components.schemas)).toEqual(
+      expect.arrayContaining(['ApiSessionRemoved', 'ApiSessionRebound'])
+    )
+    const rebound = doc.components.schemas['ApiSessionRebound']
+    expect(rebound?.['required']).toEqual(['id', 'newId'])
+    expect(rebound?.['additionalProperties']).toBe(false)
+    const events = doc.paths['/v1/sessions/{id}/events']?.get as { description: string }
+    expect(events.description).toContain('session.rebound')
+  })
+
   it('publishes ONLY the error codes the server can emit', () => {
     const error = doc.components.schemas['ApiError']?.['properties'] as Record<
       string,

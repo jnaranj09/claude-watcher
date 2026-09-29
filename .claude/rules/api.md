@@ -82,6 +82,12 @@ hidden), while `viewMode`, `focusedTerminalId` and the active workspace are left
 appears in the TEMPLATE's workspace and the operator opens it when they choose. An external caller
 must not be able to yank someone out of the session they are typing in.
 
+**A create's refusals are the caller's, never the operator's.** A template folder that is gone
+(deleted, renamed, unmounted) is 409 `folder_missing`, decided after the 400s and BEFORE the 503s
+(UX-11; the launch service refuses it again as the backstop, mapped to the same 409). A too-old
+claude is 503 `claude_version` with NO desktop error box, and a refusal is reused for 30 s rather
+than re-running the blocking `$SHELL -l` probe on every retry (R25, `createClaudeVersionGate`).
+
 **The wire session is STATE ONLY** (`apiSession.ts` → `.strict()` `ApiSessionSchema`): `id`,
 `sessionName`, `status`, `column`, `enteredColumnAt`, `workspaceId`, `tagIds`, `projectPath` and
 `pendingToolName` (a tool's
@@ -140,8 +146,15 @@ handing the operator a token that exists only in this process would be a lie.
   delta from slipping ahead of the snapshot, and it is what stops a client that disconnects inside
   that window from parking the unsubscribe on a drained array (the hub would then hold the
   subscription for the window's whole life, invisibly — a send on a dead sink is a silent no-op).
-- **`session.removed` is the LAST frame**, then the server closes. The card is gone; there is
-  nothing further to report on that id.
+- **The LAST frame is `session.removed` or `session.rebound`**, then the server closes.
+  `session.removed` (`{ id }`): the card is gone. `session.rebound` (`{ id, newId }`, R8): claude
+  changed the id mid-run (`/clear`) and the card now lives under `newId` — the client re-subscribes.
+  A stream NEVER follows the new id itself (the caller asked for THIS id), and a rebind is NEVER
+  sent as `session.removed` (nothing was deleted). `adoptCard` emits the rebound BEFORE the old
+  id's removal, so the stream ends on it and never sees that removal. Both frame shapes are
+  `.strict()` schemas in `api.ts`, hoisted into the OpenAPI components (`ApiSessionRemoved`,
+  `ApiSessionRebound`); the rebound frame is validated at source — a miss ends the stream with no
+  frame (`code=rebound_frame_invalid`).
 - **NO REPLAY.** `Last-Event-ID` is ignored. The ids are a per-stream counter, not a log offset.
 - **32 streams app-wide** (`API_SSE_MAX_STREAMS`), counted as STARTED sinks; past it the answer is
   503 `too_many_streams` rather than a leaked file descriptor. A `: ping` comment every 15 s keeps

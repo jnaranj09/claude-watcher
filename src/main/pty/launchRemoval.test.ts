@@ -64,6 +64,7 @@ function realLaunchService(newSessionId: () => string): LaunchService {
   return createLaunchService({
     terminalManager: { pidOf: () => null },
     launchedSet: createLaunchedSet(),
+    isDirectory: () => true,
     spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
     readStatus: () => {
       throw new Error('ENOENT') // never consulted on the removal path
@@ -347,6 +348,7 @@ function multiLaunchService(): LaunchService {
   return createLaunchService({
     terminalManager: { pidOf: () => null },
     launchedSet: createLaunchedSet(),
+    isDirectory: () => true,
     spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
     readStatus: () => {
       throw new Error('ENOENT')

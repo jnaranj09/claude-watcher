@@ -12,7 +12,7 @@ import type { ApiSeam } from './apiSeam'
 export type ApiOk<O> = { ok: true; status: 200 | 201; body: O }
 export type ApiErr = {
   ok: false
-  status: 400 | 401 | 404 | 405 | 500 | 503 | 504
+  status: 400 | 401 | 404 | 405 | 409 | 500 | 503 | 504
   code: ApiErrorCode
   /** The Zod issue PATH that failed — never the value that failed it. */
   path?: string
@@ -34,6 +34,8 @@ export interface ApiContext {
   templates: Pick<TemplatesStore, 'get' | 'list'>
   workspaces: Pick<WorkspacesStore, 'activeId' | 'get' | 'list'>
   claudeVersionAllowsLaunch(): boolean
+  /** UX-11 — true iff `path` is an existing directory. Never throws; the path is never logged. */
+  isDirectory(path: string): boolean
   now(): number
   spawnTimeoutMs: number
   /** Code-only log sink. */

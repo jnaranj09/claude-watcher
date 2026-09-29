@@ -1,13 +1,15 @@
 // Claude version gate. Two things are worth guarding here: that a genuinely too-old claude is
 // BLOCKED (the spawn does not degrade — it dies on an unknown flag), and that an unreadable
 // version is ALLOWED (a false block would brick a working install).
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   parseClaudeVersion,
   compareVersions,
   gateClaudeVersion,
   formatVersion,
   tooOldMessage,
+  createClaudeVersionGate,
+  API_VERSION_REFUSAL_TTL_MS,
   MIN_CLAUDE_VERSION,
   type ClaudeVersion
 } from './claudeVersion'
@@ -134,5 +136,97 @@ describe('tooOldMessage', () => {
 describe('formatVersion', () => {
   it('renders the dotted form used in every operator-facing string', () => {
     expect(formatVersion(v(2, 1, 245))).toBe('2.1.245')
+  })
+})
+
+// R25 — the gate has TWO callers that must fail differently. An in-app launch explains itself
+// with a native error box (the renderer swallows a rejected invoke); an API create answers its
+// own 503 `claude_version` and must NEVER put a box on the operator's desktop — a retrying
+// client used to stack one per request, each after a blocking `$SHELL -l` probe.
+describe('createClaudeVersionGate', () => {
+  const OLD = '2.1.100 (Claude Code)'
+  const NEW = '2.1.300 (Claude Code)'
+  function gate(
+    raw: string | null,
+    t = { now: 0 }
+  ): {
+    g: ReturnType<typeof createClaudeVersionGate>
+    readRaw: ReturnType<typeof vi.fn<() => string | null>>
+    showTooOld: ReturnType<typeof vi.fn<(m: string) => void>>
+    log: ReturnType<typeof vi.fn<(m: string) => void>>
+    t: { now: number }
+  } {
+    const readRaw = vi.fn<() => string | null>(() => raw)
+    const showTooOld = vi.fn<(m: string) => void>()
+    const log = vi.fn<(m: string) => void>()
+    const g = createClaudeVersionGate({ readRaw, now: () => t.now, showTooOld, log })
+    return { g, readRaw, showTooOld, log, t }
+  }
+
+  it('an API create against a too-old claude is refused WITHOUT an error box', () => {
+    const { g, showTooOld } = gate(OLD)
+    expect(g.allowsApiLaunch()).toBe(false)
+    expect(showTooOld).not.toHaveBeenCalled()
+  })
+
+  it('an in-app launch against a too-old claude is refused WITH the error box', () => {
+    const { g, showTooOld } = gate(OLD)
+    expect(g.allowsInteractiveLaunch()).toBe(false)
+    expect(showTooOld).toHaveBeenCalledTimes(1)
+    expect(showTooOld.mock.calls[0]?.[0]).toContain('2.1.100')
+  })
+
+  it('API retries inside the TTL reuse the refusal instead of re-probing the shell', () => {
+    const { g, readRaw, t } = gate(OLD)
+    expect(g.allowsApiLaunch()).toBe(false)
+    t.now = API_VERSION_REFUSAL_TTL_MS - 1
+    expect(g.allowsApiLaunch()).toBe(false)
+    expect(g.allowsApiLaunch()).toBe(false)
+    expect(readRaw).toHaveBeenCalledTimes(1)
+    t.now = API_VERSION_REFUSAL_TTL_MS
+    expect(g.allowsApiLaunch()).toBe(false)
+    expect(readRaw).toHaveBeenCalledTimes(2)
+  })
+
+  it('an in-app launch ALWAYS re-probes a refusal, so an upgrade unblocks at once', () => {
+    let raw: string | null = OLD
+    const readRaw = vi.fn(() => raw)
+    const g = createClaudeVersionGate({
+      readRaw,
+      now: () => 0,
+      showTooOld: () => {},
+      log: () => {}
+    })
+    expect(g.allowsApiLaunch()).toBe(false)
+    raw = NEW
+    expect(g.allowsInteractiveLaunch()).toBe(true)
+    // …and the in-app probe's ok verdict is shared: the API is unblocked too, with no probe.
+    expect(g.allowsApiLaunch()).toBe(true)
+    expect(readRaw).toHaveBeenCalledTimes(2)
+  })
+
+  it('an ok verdict is cached for both callers', () => {
+    const { g, readRaw } = gate(NEW)
+    expect(g.allowsApiLaunch()).toBe(true)
+    expect(g.allowsInteractiveLaunch()).toBe(true)
+    expect(g.allowsApiLaunch()).toBe(true)
+    expect(readRaw).toHaveBeenCalledTimes(1)
+  })
+
+  it('an unreadable version is ALLOWED (fail-open) and never shows a box', () => {
+    const { g, showTooOld } = gate(null)
+    expect(g.allowsApiLaunch()).toBe(true)
+    expect(g.allowsInteractiveLaunch()).toBe(true)
+    expect(showTooOld).not.toHaveBeenCalled()
+  })
+
+  it('logs a code only — never the raw version output', () => {
+    const { g, log } = gate('2.1.100 (Claude Code) /home/op/secret')
+    g.allowsApiLaunch()
+    g.allowsInteractiveLaunch()
+    for (const [line] of log.mock.calls) {
+      expect(String(line)).toMatch(/code=/)
+      expect(String(line)).not.toContain('/home/op')
+    }
   })
 })

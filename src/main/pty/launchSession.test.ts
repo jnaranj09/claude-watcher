@@ -32,6 +32,8 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import {
   createLaunchService,
+  isFolderMissing,
+  LAUNCH_FOLDER_MISSING,
   NO_LAUNCH_FLAGS,
   type LaunchService,
   type LaunchTerminalManager,
@@ -131,6 +133,7 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => `t-${++n}`,
@@ -167,11 +170,61 @@ describe('launchSession.launch — raw claude via the REUSED terminal manager (A
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       platform: 'linux'
     })
     expect(svc.peekSpawnOverride('host-term-0')).toBeNull()
+  })
+})
+
+// UX-11 — the launch PREFLIGHT. node-pty spawns into a missing cwd without throwing; the child
+// fails its chdir and exits, after the card was synthesized and a past-session record written.
+// So the service refuses a missing folder BEFORE it registers anything.
+describe('launchSession.launch — folder preflight (UX-11)', () => {
+  function svcWith(isDirectory: (p: string) => boolean): LaunchService {
+    return createLaunchService({
+      terminalManager: fakeTerminalManager({}).manager,
+      launchedSet: createLaunchedSet(),
+      isDirectory,
+      spawn: shellClaudeSpawn,
+      readStatus: readStatusFrom({}),
+      newTerminalId: () => 't-1',
+      now: () => 0,
+      platform: 'linux'
+    })
+  }
+
+  it('throws folder_missing and registers NO recipe when the cwd is not a directory', () => {
+    const seen: string[] = []
+    const svc = svcWith((p) => {
+      seen.push(p)
+      return false
+    })
+    expect(() => svc.launch({ cwd: '/gone', name: 'x' })).toThrow(LAUNCH_FOLDER_MISSING)
+    expect(seen).toEqual(['/gone'])
+    expect(svc.peekSpawnOverride('t-1')).toBeNull()
+    expect(svc.mintSpawn('t-1')).toBeNull()
+  })
+
+  it('isFolderMissing recognises exactly that refusal', () => {
+    const svc = svcWith(() => false)
+    let caught: unknown = null
+    try {
+      svc.launch({ cwd: '/gone', name: 'x' })
+    } catch (e) {
+      caught = e
+    }
+    expect(isFolderMissing(caught)).toBe(true)
+    expect(isFolderMissing(new Error('other'))).toBe(false)
+    expect(isFolderMissing('folder_missing')).toBe(false)
+  })
+
+  it('an existing folder launches as before', () => {
+    const svc = svcWith(() => true)
+    expect(svc.launch({ cwd: '/w', name: 'x' })).toEqual({ terminalId: 't-1' })
+    expect(svc.peekSpawnOverride('t-1')?.cwd).toBe('/w')
   })
 })
 
@@ -187,6 +240,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
     const svc = createLaunchService({
       terminalManager: fakeTerminalManager({ 't-1': LEADER_PID }).manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => `t-${++n}`,
@@ -340,6 +394,7 @@ describe('launchSession — the operator-typed session name (session-naming)', (
     return createLaunchService({
       terminalManager: manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't-1',
@@ -389,6 +444,7 @@ describe('launchSession — the operator-typed session name (session-naming)', (
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => `t-${++t}`,
@@ -426,6 +482,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-1',
@@ -452,6 +509,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({
         [OTHER_REPORTED]: status(OTHER_REPORTED, OTHER_TGID, OTHER_TGID, 'MainThread'),
@@ -473,6 +531,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-1',
@@ -495,6 +554,7 @@ describe('launchSession — optimistic card + the subtree-ancestry join (Story 5
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: (pid: number): string => {
         const blob = tableRef.current[pid]
@@ -530,6 +590,7 @@ describe('launchSession — never-crash / fail-closed', () => {
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       // the FIRST session's pid is gone (readStatus throws → matched:false); the SECOND session
       // is a real descendant of the PTY leader → matches.
@@ -554,6 +615,7 @@ describe('launchSession — never-crash / fail-closed', () => {
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-2',
@@ -574,6 +636,7 @@ describe('launchSession — Linux gate (/proc is Linux)', () => {
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-1',
@@ -593,6 +656,7 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-1',
@@ -616,6 +680,7 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-1',
@@ -634,6 +699,7 @@ describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: set,
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => 't-1',
@@ -657,6 +723,7 @@ describe('launchSession — forget (drops correlation tracking, KEEPS the recipe
     const svc = createLaunchService({
       terminalManager: manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't-1',
@@ -703,6 +770,7 @@ describe('Session-rebind — terminalIdFor / rebind (claude changes its own id m
     return createLaunchService({
       terminalManager: fakeTerminalManager({ 't-1': LEADER_PID }).manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't-1',
@@ -788,6 +856,7 @@ describe('Session-rebind — bindings() lists every live terminal → session bi
     return createLaunchService({
       terminalManager: fakeTerminalManager({ 't-1': LEADER_PID, 't-2': LEADER_PID + 1 }).manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: shellClaudeSpawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => `t-${++t}`,
@@ -835,6 +904,7 @@ describe('session templates — launch flags reach spawn()', () => {
     const svc = createLaunchService({
       terminalManager: fakeTerminalManager({ 't-1': LEADER_PID, 't-2': LEADER_PID }).manager,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: (sessionId, _name, flags) => {
         seen.push(flags)
         return { file: 'sh', args: ['-l', '-c', `claude --session-id '${sessionId}'`] }
@@ -889,6 +959,7 @@ function makeService(): { svc: LaunchService; spawn: Mock } {
   const svc = createLaunchService({
     terminalManager: { pidOf: () => null } satisfies LaunchTerminalManager,
     launchedSet: createLaunchedSet(),
+    isDirectory: () => true,
     spawn,
     readStatus: readStatusFrom({}),
     newTerminalId: () => 't-1',
@@ -998,6 +1069,7 @@ describe('past sessions — resume and launchedAt', () => {
     const svc = createLaunchService({
       terminalManager: tm,
       launchedSet,
+      isDirectory: () => true,
       spawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't1',
@@ -1030,6 +1102,7 @@ describe('past sessions — resume and launchedAt', () => {
     const svc = createLaunchService({
       terminalManager: tm,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't1',
@@ -1060,6 +1133,7 @@ describe('past sessions — resume and launchedAt', () => {
     const svc = createLaunchService({
       terminalManager: tm,
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: vi.fn(() => ({ file: 'sh' })),
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't2',
@@ -1082,6 +1156,7 @@ describe('past sessions — resume and launchedAt', () => {
     const svc = createLaunchService({
       terminalManager: tm,
       launchedSet,
+      isDirectory: () => true,
       spawn,
       readStatus: readStatusFrom({}),
       newTerminalId: () => 't2',

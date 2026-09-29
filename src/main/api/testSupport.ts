@@ -72,6 +72,8 @@ export interface FakeContextSeed {
   workspaces: Workspace[]
   activeWorkspaceId: string
   claudeOk: boolean
+  /** What `ctx.isDirectory` answers for every path (UX-11). Default true. */
+  folderExists: boolean
 }
 
 export function makeFakeContext(over: Partial<FakeContextSeed> = {}): {
@@ -97,6 +99,7 @@ export function makeFakeContext(over: Partial<FakeContextSeed> = {}): {
       list: () => [...workspaces]
     },
     claudeVersionAllowsLaunch: () => over.claudeOk ?? true,
+    isDirectory: () => over.folderExists ?? true,
     now: () => 1000,
     spawnTimeoutMs: 50,
     log: (m) => log.push(m)

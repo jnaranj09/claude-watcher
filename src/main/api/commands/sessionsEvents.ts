@@ -1,5 +1,6 @@
 // Programmatic API — `GET /v1/sessions/{id}/events`. The SSE stream for ONE session: a snapshot
-// frame, then that session's own deltas, then `session.removed` and the server closes.
+// frame, then that session's own deltas, then `session.removed` — or, when `/clear` moved the card
+// to a new id, `session.rebound` (R8) — and the server closes.
 //
 // EVERY error this route can answer is returned BEFORE `sink.start()`, so it lands as plain JSON
 // with a real status code. Once the stream has started there is no response left to put an error
@@ -20,7 +21,11 @@
 // event; the ONE failure it can hit — a delta that no longer fits the wire shape — is logged by
 // `projectApiSessionFromEvent` itself, by code, which is why `ctx.log` is handed to it.
 // [.claude/rules/zod-boundaries.md; src/main/api/apiSession.ts; src/main/api/apiServer.ts]
-import { EmptySchema, SessionIdParamsSchema } from '../../../shared/schemas/api'
+import {
+  ApiSessionReboundSchema,
+  EmptySchema,
+  SessionIdParamsSchema
+} from '../../../shared/schemas/api'
 import { projectApiSessionFromEvent } from '../apiSession'
 import { defineCommand } from '../registry'
 
@@ -31,8 +36,11 @@ export const sessionsEventsCommand = defineCommand({
   summary: 'Server-sent events for one session',
   description:
     '`text/event-stream`. First frame: `event: session.updated` with the current ApiSession. Then every ' +
-    'later `session.updated` (ApiSession) and finally `session.removed` (`{ id }`), after which the server ' +
-    'closes the stream. A `: ping` comment every 15 s. `Last-Event-ID` is ignored (no replay).',
+    'later `session.updated` (ApiSession) and finally ONE of: `session.removed` (ApiSessionRemoved, the ' +
+    'card is gone) or `session.rebound` (ApiSessionRebound, `{ id, newId }`: claude changed the ' +
+    "session's id — `/clear` — and the card now lives under `newId`; subscribe to that id to keep " +
+    'following it). The server closes the stream after either. A `: ping` comment every 15 s. ' +
+    '`Last-Event-ID` is ignored (no replay).',
   params: SessionIdParamsSchema,
   query: EmptySchema,
   body: null,
@@ -48,6 +56,16 @@ export const sessionsEventsCommand = defineCommand({
     sink.start()
     const off = seam.onEvent((event) => {
       if (event.id !== params.id) return
+      if (event.type === 'session.rebound') {
+        // R8 — the LAST frame: the card moved to `newId`. Never followed on this stream (the
+        // caller asked for THIS id) and never sent as `session.removed` (nothing was deleted).
+        // Validated at source; a miss ends the stream with no frame and a code-only log.
+        const frame = ApiSessionReboundSchema.safeParse({ id: event.id, newId: event.newId })
+        if (frame.success) sink.send('session.rebound', frame.data, ++counter)
+        else ctx.log('[claude-watcher][api] code=rebound_frame_invalid')
+        sink.end()
+        return
+      }
       if (event.type === 'session.removed') {
         // The last frame of this stream's life: the card is gone, so there is nothing further to
         // report. `end()` runs the close callbacks, which is what drops this very subscription.

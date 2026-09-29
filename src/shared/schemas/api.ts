@@ -46,6 +46,7 @@ export const API_ERROR_CODES = [
   'template_has_no_prompt',
   'prompt_too_long',
   'template_workspace_gone',
+  'folder_missing',
   'not_found',
   'template_not_found',
   'workspace_not_found',
@@ -107,6 +108,20 @@ export const ApiSessionSchema = z
   })
   .strict()
 export type ApiSession = z.infer<typeof ApiSessionSchema>
+
+/** SSE `session.removed` data — the card is gone. The LAST frame of that id's stream. */
+export const ApiSessionRemovedSchema = z.object({ id: z.string().min(1) }).strict()
+export type ApiSessionRemoved = z.infer<typeof ApiSessionRemovedSchema>
+
+/**
+ * SSE `session.rebound` data (R8). claude changed the session's id mid-run (`/clear`) and the card
+ * followed it: `id` is the id this stream was opened on, `newId` the one the card has now. It is
+ * the LAST frame of that stream — the client re-subscribes to `newId`. STATE only: two uuids.
+ */
+export const ApiSessionReboundSchema = z
+  .object({ id: z.string().min(1), newId: z.string().min(1) })
+  .strict()
+export type ApiSessionRebound = z.infer<typeof ApiSessionReboundSchema>
 
 /** `GET /sessions` output — an array of the state-only projection. A bad member fails the whole
  *  response closed (validate-at-source: ship nothing rather than ship garbage). */

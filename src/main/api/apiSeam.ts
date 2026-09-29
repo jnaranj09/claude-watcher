@@ -16,14 +16,27 @@ import type { LaunchRequest } from '../pty/launchSession'
  * the status change that raised it already rides the enriched `session.updated` the client sees.
  * The frozen `AttentionEvent` union is not reshaped — this names a SUBSET of it.
  */
-export type ApiSessionEvent = SessionUpdatedEvent | SessionRemovedEvent
+export type ApiSessionEvent = SessionUpdatedEvent | SessionRemovedEvent | ApiSessionReboundEvent
+
+/**
+ * R8 — API-ONLY: the card left `id` for `newId` (claude's `/clear`). Emitted by main's adoptCard
+ * BEFORE the old id's `session.removed`, so a stream on the old id ends on this frame and never
+ * reports the rebind as a deletion. It is not an `AttentionEvent` (that union is frozen) and never
+ * reaches the renderer.
+ */
+export interface ApiSessionReboundEvent {
+  type: 'session.rebound'
+  id: string
+  newId: string
+}
 
 /** What the API needs from ONE window's session truth. Built per window in index.ts beside
  *  launchBoardSeams; the API uses the single window's seam. */
 export interface ApiSeam {
   listSessions(): ApiSession[]
   getSession(id: string): ApiSession | null
-  /** Enriched `session.updated` / `session.removed` deltas, AFTER the board-ship gate — so a
+  /** Enriched `session.updated` / `session.removed` deltas (and the API-only `session.rebound`),
+   *  AFTER the board-ship gate — so a
    *  session the board never shows (an external, non-app-launched one) never reaches a client
    *  either. Returns the unsubscribe. */
   onEvent(cb: (event: ApiSessionEvent) => void): () => void

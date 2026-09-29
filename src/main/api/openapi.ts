@@ -22,6 +22,8 @@
 import { z, type ZodType } from 'zod'
 import {
   ApiErrorBodySchema,
+  ApiSessionReboundSchema,
+  ApiSessionRemovedSchema,
   ApiSessionSchema,
   ApiTemplateSchema,
   ApiWorkspaceSchema,
@@ -69,7 +71,12 @@ const NAMED: readonly NamedSchema[] = [
   },
   { schema: SessionsCreateOutputSchema, name: 'SessionsCreateOutput', io: 'output', notes: {} },
   { schema: ApiWorkspaceSchema, name: 'ApiWorkspace', io: 'output', notes: {} },
-  { schema: ApiTemplateSchema, name: 'ApiTemplate', io: 'output', notes: {} }
+  { schema: ApiTemplateSchema, name: 'ApiTemplate', io: 'output', notes: {} },
+  // The SSE frames' data (`GET /v1/sessions/{id}/events`). Nothing `$ref`s them — an event
+  // stream's body is `type: string` in OpenAPI — but hoisting them publishes the shapes the
+  // events description names, so a generated client gets a type for each.
+  { schema: ApiSessionRemovedSchema, name: 'ApiSessionRemoved', io: 'output', notes: {} },
+  { schema: ApiSessionReboundSchema, name: 'ApiSessionRebound', io: 'output', notes: {} }
 ]
 
 function nameOf(schema: ZodType): string | null {
@@ -137,6 +144,7 @@ const ERROR_TEXT: Record<number, string> = {
   401: 'Missing or wrong bearer token',
   404: 'Not found',
   405: 'Method not allowed',
+  409: 'Conflict',
   500: 'Internal error',
   503: 'Not available',
   504: 'Timed out'

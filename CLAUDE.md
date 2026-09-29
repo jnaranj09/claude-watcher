@@ -135,7 +135,16 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   native error box naming both versions, and caches ONLY the ok verdict so an upgrade unblocks
   without an app restart. It **fails OPEN** on an unreadable/unparseable version — the one
   deliberate inversion of the fail-closed default, because a false block bricks a working
-  install. Bump the floor only alongside a re-verification of those three flags.
+  install. Bump the floor only alongside a re-verification of those three flags. **An API create
+  never shows that box** (R25, `createClaudeVersionGate`): it answers 503 `claude_version` and
+  reuses a refusal for 30 s instead of re-probing the shell on every retry; in-app launches always
+  re-probe a refusal.
+- **A launch into a missing folder is refused BEFORE anything registers** (UX-11). node-pty spawns
+  into a gone cwd without throwing; the child fails its chdir and exits after the card and its
+  record exist. `launchService.launch` takes a REQUIRED `isDirectory` and throws `folder_missing`
+  (no recipe, no card); an in-app launch explains it with a native error box (the version gate's
+  precedent — the renderer swallows a rejected invoke), and `POST /v1/sessions` answers 409
+  `folder_missing` before the 503s. A Reopen of a dead pane is NOT checked.
 - **Identity is minted at launch:** the app spawns `claude --session-id <uuid>` with a
   caller-minted UUID (verified on claude 2.1.199), so the terminal↔session binding is
   EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
@@ -338,6 +347,10 @@ Full rules: `.claude/rules/api.md`. The load-bearing shape:
   value. It reaches claude as the POSITIONAL `[prompt]` argument, last in `composeClaudeCommand`.
   **In-app launches do NOT use the prompt in v1** (the field is labelled "Initial prompt (API
   launches)"); `TEMPLATES_FILE_VERSION` stays 1 — `initialPrompt`/`params` are additive `.default()`s.
+- **`/clear` ends an SSE stream on `session.rebound {id, newId}`, never `session.removed`** (R8).
+  `adoptCard` emits it into the API hub (API-only — not an `AttentionEvent`) after the new id's
+  card exists and before the old id's removal; the stream sends it as its LAST frame and closes,
+  and the client re-subscribes to `newId`. The old stream never silently follows the new id.
 - **Gate:** the `main-unit` tests drive the REAL server over loopback on an ephemeral port
   (`testSupport.ts`, `port: 0`); the packaged smoke additionally fetches `/docs`, `/openapi.json`
   and `/docs/swagger-ui-bundle.js` (SMOKE forces `{ apiEnabled: true, apiPort: 0 }` at app-ready),

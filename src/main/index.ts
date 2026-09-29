@@ -45,7 +45,7 @@ import {
 // Version gate — the spawn depends on `--session-id`, `-n` and `--settings`; a claude that
 // does not know one of them dies instantly instead of degrading. Fails OPEN on an unreadable
 // version (see claudeVersion.ts for why that inversion is deliberate).
-import { gateClaudeVersion, tooOldMessage } from './pty/claudeVersion'
+import { createClaudeVersionGate } from './pty/claudeVersion'
 import {
   TerminalOpenSchema,
   TerminalResizeSchema,
@@ -137,7 +137,12 @@ import type { ClaudeLaunchFlags } from './pty/launchSession'
 // `claude` launch service (reuses the terminal manager + ptyFactory; reuses pidCorrelation.ts
 // for the Tgid join) + the per-run launched-set it POPULATES. The picked dir + launch request
 // are UNTRUSTED cross-process input → Zod parse-and-throw at the boundary (never log the path).
-import { createLaunchService, type LaunchService } from './pty/launchSession'
+import {
+  createLaunchService,
+  FOLDER_MISSING_MESSAGE,
+  isFolderMissing,
+  type LaunchService
+} from './pty/launchSession'
 // Story 6.3 — FAST REMOVAL: the extracted stop/exit removal decision (unit-tested in
 // launchRemoval.test.ts). Stop and PTY-exit resolve the exact spawn-time terminalId →
 // sessionId binding, clear it, and route the bound session's removal through the owning
@@ -1027,6 +1032,11 @@ function registerWatchFeed(window: BrowserWindow): void {
     // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
     pendingTitles.rebind(oldSessionId, newSessionId)
     sendLaunchCorrelated(wc, terminalId, newSessionId)
+    // R8 — tell an API stream on the OLD id where the card went, BEFORE its removal: the stream
+    // ends on `session.rebound {newId}` and never reports the rebind as `session.removed`. The new
+    // id is already on the board (upserted above), so a client that re-subscribes finds it. The old
+    // id was a launched card, so this passes the same board-ship membership the deltas do.
+    apiHub.emit({ type: 'session.rebound', id: oldSessionId, newId: newSessionId })
     reducer.applyHookStatus(oldSessionId, { kind: 'removed' }).forEach(handleDelta)
     orphanRegistry.clear(terminalId)
     // PATH + CODE only — never the cwd (leaks the filesystem layout) or any hook field.
@@ -2260,12 +2270,12 @@ function sendLaunchCorrelated(
 // back a bare `claude` that only resolves on the login shell's PATH. Probing through anything
 // else would report "missing" for an install that works fine, so the probe uses the same shell.
 //
-// CACHING: only an `ok` verdict is cached. A blocked or unreadable result is re-probed on the
-// next launch, so upgrading claude un-blocks the app WITHOUT restarting it. The probe costs
-// ~67ms on this machine — cheap enough per launch, but not worth paying once it has passed.
+// CACHING: only an `ok` verdict is cached for good. A blocked or unreadable result is re-probed on
+// the next IN-APP launch, so upgrading claude un-blocks the app WITHOUT restarting it; an API
+// create reuses it for 30 s (R25 — see createClaudeVersionGate). The probe costs ~67ms on this
+// machine — cheap enough per launch, but not worth paying once it has passed.
 //
 // NEVER-LOG-THE-VALUE: the resolved command is never logged, only a `code=`.
-let cachedVersionOk = false
 function readClaudeVersionRaw(): string | null {
   try {
     const claude = resolveClaudeBin({
@@ -2293,6 +2303,32 @@ function readClaudeVersionRaw(): string | null {
   }
 }
 
+/** UX-11 — the launch preflight's folder check. Never throws; never logs the path. */
+function isExistingDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false // missing / unreadable / unmounted
+  }
+}
+
+/**
+ * UX-11 — run an IN-APP launch, explaining a missing folder with a native error box (the renderer
+ * swallows a rejected launch invoke — the version gate's reasoning), then rethrowing so the invoke
+ * still rejects and nothing is opened. Any other failure passes through untouched.
+ */
+function launchExplainingFolder<T>(run: () => T): T {
+  try {
+    return run()
+  } catch (err) {
+    if (isFolderMissing(err)) {
+      console.warn('[claude-watcher][launch] code=folder_missing')
+      dialog.showErrorBox('Folder not found', FOLDER_MISSING_MESSAGE)
+    }
+    throw err
+  }
+}
+
 /**
  * Block the launch when claude is verifiably too old. Returns true when the launch may proceed.
  *
@@ -2301,24 +2337,22 @@ function readClaudeVersionRaw(): string | null {
  * worse than the confusing terminal error this gate exists to replace. Main therefore surfaces
  * the reason itself with a native error box, then the caller throws so nothing spawns. Doing it
  * here avoids a new IPC channel (which the seam rule would otherwise require in 4-file lockstep).
+ *
+ * R25: the API path (`claudeVersionAllowsApiLaunch`) NEVER shows that box — the caller gets its
+ * own 503 `claude_version` — and reuses a refusal for 30 s instead of re-probing the shell on
+ * every retry. The decision lives in `createClaudeVersionGate` (claudeVersion.ts, unit-tested).
  */
+const claudeVersionGate = createClaudeVersionGate({
+  readRaw: readClaudeVersionRaw,
+  now: Date.now,
+  showTooOld: (message) => dialog.showErrorBox('Update claude', message),
+  log: (m) => console.warn(m)
+})
 function claudeVersionAllowsLaunch(): boolean {
-  if (cachedVersionOk) return true
-
-  const gate = gateClaudeVersion(readClaudeVersionRaw())
-  if (gate.kind === 'ok') {
-    cachedVersionOk = true
-    return true
-  }
-  if (gate.kind === 'unknown') {
-    // FAIL-OPEN: a version we cannot read must not brick a working install. See claudeVersion.ts.
-    console.warn('[c9watch][version] code=claude_version_unknown_allowing_launch')
-    return true
-  }
-
-  console.warn('[c9watch][version] code=claude_version_too_old')
-  dialog.showErrorBox('Update claude', tooOldMessage(gate.version, gate.min))
-  return false
+  return claudeVersionGate.allowsInteractiveLaunch()
+}
+function claudeVersionAllowsApiLaunch(): boolean {
+  return claudeVersionGate.allowsApiLaunch()
 }
 
 // Hook delivery — the app's OWN settings file, handed to claude with `--settings`.
@@ -2373,6 +2407,8 @@ function registerLaunchIpc(): void {
       pidOf: (terminalId) => terminalManager?.pidOf(terminalId) ?? null
     },
     launchedSet,
+    // UX-11 — refuse a missing folder before anything is registered (no card, no record).
+    isDirectory: isExistingDirectory,
     // Story 6.2 — the spawn FACTORY (not a static config): composes the raw-claude command for
     // each freshly-minted session id at actual-spawn time (mintSpawn).
     spawn: rawClaudeSpawn,
@@ -2456,7 +2492,8 @@ function registerLaunchIpc(): void {
     // resolved at spawn-composition time (see hookSettingsPathForSpawn). The launch path used
     // to merge a hook block into this project's `.claude/settings.local.json` — it no longer
     // touches the operator's project at all.
-    const { terminalId } = launchService.launch({ cwd, name })
+    const service = launchService
+    const { terminalId } = launchExplainingFolder(() => service.launch({ cwd, name }))
     // Workspaces — report the workspace MAIN stamped on this launch's card so the renderer can
     // register the terminal's workspace before any session delta arrives.
     return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
@@ -2471,7 +2508,8 @@ function registerLaunchIpc(): void {
     if (!claudeVersionAllowsLaunch()) {
       throw new Error('claude version below the supported minimum')
     }
-    const { terminalId } = launchService.launch(req)
+    const service = launchService
+    const { terminalId } = launchExplainingFolder(() => service.launch(req))
     // Workspaces — same reasoning as session:launch above.
     return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
   })
@@ -3167,8 +3205,11 @@ app
             templates: requireTemplatesStore(),
             workspaces: requireWorkspacesStore(),
             // The SAME version gate the in-app launch runs, so an API create cannot spawn a claude
-            // the `+ New session` popover would refuse.
-            claudeVersionAllowsLaunch,
+            // the `+ New session` popover would refuse — but its API face: no desktop error box
+            // (the caller gets 503 `claude_version`) and no shell probe per retry (R25).
+            claudeVersionAllowsLaunch: claudeVersionAllowsApiLaunch,
+            // UX-11 — `409 folder_missing` before the launch, never a 201 for a card that dies.
+            isDirectory: isExistingDirectory,
             now: Date.now,
             spawnTimeoutMs: API_SPAWN_TIMEOUT_MS,
             log: apiLog

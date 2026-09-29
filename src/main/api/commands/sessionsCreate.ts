@@ -25,6 +25,7 @@ import {
 } from '../../../shared/schemas/api'
 import { compileParamPattern, type Template } from '../../../shared/schemas/template'
 import { expand } from '../../../shared/prompt/expand'
+import { isFolderMissing } from '../../pty/launchSession'
 import { defineCommand, type ApiErr } from '../registry'
 
 /** Count, then length, then control characters, then the anchored regex. `path` names the
@@ -68,13 +69,14 @@ export const sessionsCreateCommand = defineCommand({
   description:
     "The prompt is the template's own `initialPrompt` (written in the app). `args` fill `$1..$n` in order; " +
     "each value must match the template param's regex and max length. The card lands in the template's " +
-    'workspace, or the active one for a global template. Returns once the session id is bound (≤ 5 s).',
+    'workspace, or the active one for a global template. Returns once the session id is bound (≤ 5 s). ' +
+    "409 `folder_missing`: the template's folder no longer exists (deleted, renamed or unmounted).",
   params: EmptySchema,
   query: EmptySchema,
   body: SessionsCreateBodySchema,
   output: SessionsCreateOutputSchema,
   successStatus: 201,
-  errorStatuses: [400, 401, 404, 503, 504],
+  errorStatuses: [400, 401, 404, 409, 503, 504],
   async handler(ctx, { body }) {
     const template = ctx.templates.get(body.templateId)
     if (template === null) return err(404, 'template_not_found')
@@ -105,6 +107,13 @@ export const sessionsCreateCommand = defineCommand({
     // ` -- ` before the positional prompt; that is the belt to this brace, and it covers every
     // launch path rather than just this one.
     if (/^\s*-/.test(expanded.value)) return err(400, 'arg_invalid', 'args')
+    // UX-11 — the template's folder must still exist. node-pty spawns into a missing cwd without
+    // throwing: the child fails its chdir and exits, and the caller used to get a 201 for a card
+    // that flashed and died. 409, not 400: the request is well-formed, the WORLD disagrees, and
+    // retrying cannot fix it — the operator re-creates the folder or edits the template. It comes
+    // BEFORE the 503s so a caller learns it whether or not a window is open. The launch service
+    // refuses the same folder again (the backstop for the moment between here and the launch).
+    if (!ctx.isDirectory(template.cwd)) return err(409, 'folder_missing')
     // 503s are RETRYABLE and come last among the refusals: a caller whose request is malformed
     // should learn that whether or not a window happens to be open right now.
     if (!ctx.claudeVersionAllowsLaunch()) return err(503, 'claude_version')
@@ -123,18 +132,27 @@ export const sessionsCreateCommand = defineCommand({
       }
       workspaceId = template.workspaceId
     }
-    const { terminalId } = seam.requestLaunch({
-      cwd: template.cwd,
-      name: body.name,
-      templateId: template.id,
-      flags: {
-        model: template.model,
-        permissionMode: template.permissionMode,
-        effort: template.effort
-      },
-      initialPrompt: expanded.value,
-      workspaceId
-    })
+    let launched: { terminalId: string }
+    try {
+      launched = seam.requestLaunch({
+        cwd: template.cwd,
+        name: body.name,
+        templateId: template.id,
+        flags: {
+          model: template.model,
+          permissionMode: template.permissionMode,
+          effort: template.effort
+        },
+        initialPrompt: expanded.value,
+        workspaceId
+      })
+    } catch (e) {
+      // The launch service's own preflight (the backstop for a folder that vanished since the
+      // check above). Anything else is not ours to name: rethrow → the router's 500 `internal`.
+      if (isFolderMissing(e)) return err(409, 'folder_missing')
+      throw e
+    }
+    const { terminalId } = launched
     try {
       const sessionId = await seam.awaitSessionId(terminalId, ctx.spawnTimeoutMs)
       return { ok: true, status: 201, body: { sessionId, terminalId, workspaceId } }

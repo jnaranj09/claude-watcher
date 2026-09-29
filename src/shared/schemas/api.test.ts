@@ -15,6 +15,8 @@ import {
   API_ERROR_CODES,
   ApiErrorBodySchema,
   ApiSessionListSchema,
+  ApiSessionReboundSchema,
+  ApiSessionRemovedSchema,
   ApiSessionSchema,
   ApiTemplateListSchema,
   ApiTemplateSchema,
@@ -131,7 +133,7 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       ApiErrorBodySchema.safeParse({ error: { code: 'internal', message: 'x' } }).success
     ).toBe(false)
   })
-  it('holds all 18 codes the API uses', () => {
+  it('holds all 19 codes the API uses', () => {
     expect([...API_ERROR_CODES]).toEqual([
       'unauthorized',
       'invalid_json',
@@ -141,6 +143,7 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       'template_has_no_prompt',
       'prompt_too_long',
       'template_workspace_gone',
+      'folder_missing',
       'not_found',
       'template_not_found',
       'workspace_not_found',
@@ -152,6 +155,22 @@ describe('SessionsListQuerySchema / ApiErrorBodySchema', () => {
       'spawn_timeout',
       'internal'
     ])
+  })
+})
+
+describe('SSE frame schemas (R8)', () => {
+  it('session.rebound carries exactly {id,newId} — state only, strict', () => {
+    expect(ApiSessionReboundSchema.safeParse({ id: 'a', newId: 'b' }).success).toBe(true)
+    expect(ApiSessionReboundSchema.safeParse({ id: 'a', newId: '' }).success).toBe(false)
+    expect(ApiSessionReboundSchema.safeParse({ id: 'a' }).success).toBe(false)
+    expect(
+      ApiSessionReboundSchema.safeParse({ id: 'a', newId: 'b', sessionName: 'x' }).success
+    ).toBe(false)
+  })
+
+  it('session.removed carries exactly {id}, strict', () => {
+    expect(ApiSessionRemovedSchema.safeParse({ id: 'a' }).success).toBe(true)
+    expect(ApiSessionRemovedSchema.safeParse({ id: 'a', projectPath: '/w' }).success).toBe(false)
   })
 })
 

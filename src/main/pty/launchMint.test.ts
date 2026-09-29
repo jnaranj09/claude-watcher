@@ -45,6 +45,7 @@ function realLaunchService(newSessionId: () => string): LaunchService {
   return createLaunchService({
     terminalManager: { pidOf: () => null },
     launchedSet: createLaunchedSet(),
+    isDirectory: () => true,
     spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
     readStatus: () => {
       throw new Error('ENOENT') // never consulted on the mint path
@@ -185,6 +186,7 @@ describe('name-sync — the launch name reaches the spawn factory', () => {
     const svc = createLaunchService({
       terminalManager: { pidOf: () => null },
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: (sessionId, displayName) => {
         seen.push({ sessionId, displayName })
         return { file: '/bin/bash', args: ['-l', '-c', 'claude'] }
@@ -209,6 +211,7 @@ describe('name-sync — the launch name reaches the spawn factory', () => {
     const svc = createLaunchService({
       terminalManager: { pidOf: () => null },
       launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
       spawn: (_sessionId, displayName) => {
         names.push(displayName)
         return { file: '/bin/bash', args: ['-l', '-c', 'claude'] }
