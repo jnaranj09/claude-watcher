@@ -71,8 +71,9 @@ export const sessionsCreateCommand = defineCommand({
     "each value must match the template param's regex and max length. The card lands in the template's " +
     'workspace, or the active one for a global template. Returns once the session id is bound (≤ 5 s). ' +
     "409 `folder_missing`: the template's folder no longer exists (deleted, renamed or unmounted). " +
-    '503 `hooks_unavailable`: the app is not receiving claude hooks (its hook port is taken), so the ' +
-    'card could never report a status — retry once the app shows its hooks healthy.',
+    '503 `hooks_unavailable`: the app is not receiving claude hooks (its hook server is not listening: ' +
+    'port taken, server error, or still starting), so the card could never report a status — retry ' +
+    'once the app shows its hooks healthy.',
   params: EmptySchema,
   query: EmptySchema,
   body: SessionsCreateBodySchema,

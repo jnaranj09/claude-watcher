@@ -210,7 +210,8 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   every change of name / folder / workspace / tags / transcript, plus at most once a minute to
   keep `endedAt` fresh. `list()` hides a live record and the 200 cap never evicts one — nor counts a
   HIDDEN one (UX-03), which has its own cap (`PAST_SESSIONS_HIDDEN_MAX` 200, oldest dropped,
-  `code=past_sessions_hidden_trimmed`) so the file stays bounded; an archive
+  `code=past_sessions_hidden_trimmed`) so the file stays bounded; the visible cap logs
+  `code=past_sessions_trimmed count=N` (a workspaces restore can make hidden rows visible past it); an archive
   overwrites it by id; the old id of a `/clear` rebind is dropped (`dropLive`). A crash, SIGKILL
   or power loss therefore still leaves the session in Past sessions: the next start turns a
   leftover live record into a normal one (`code=past_sessions_recovered_live`). **Open does NOT
@@ -296,6 +297,8 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   then pushes `CH.attentionActivate`; the renderer's `lib/openFromNotification.ts` switches to the
   session's workspace (only once main confirms) and runs `activateCard` — unless a modal is open
   (`lib/modals.ts` `isModalOpen`, UX-DR14): then it only selects a card of the active workspace.
+  It checks again after the switch's await: a modal opened meanwhile keeps the reconcile
+  (`focusWorkspace`) but gets only a select, never `activateCard`.
   It is the operator's own action, like the Quit guard's raise — a SESSION EVENT still never
   raises the window. The notifier holds each shown popup until it is clicked (cap 50, R21): an
   unreferenced one can lose its click.

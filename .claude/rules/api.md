@@ -87,7 +87,7 @@ must not be able to yank someone out of the session they are typing in.
 (UX-11; the launch service refuses it again as the backstop, mapped to the same 409). A too-old
 claude is 503 `claude_version` with NO desktop error box, and a refusal is reused for 30 s rather
 than re-running the blocking `$SHELL -l` probe on every retry (R25, `createClaudeVersionGate`).
-With the hook server not bound (SEC-6: port taken, server error) it is 503 `hooks_unavailable`
+With the hook server not bound (SEC-6: port taken, server error, or still starting) it is 503 `hooks_unavailable`
 (`ctx.hooksListening()`, from `serverHealth`), after `claude_version` and before `no_window`: main
 would spawn claude without `--settings`, so the card could never move, and an HTTP caller never sees
 the banner that says so.

@@ -29,6 +29,12 @@ export async function openFromNotification(id: string): Promise<void> {
     // `setActiveWorkspace` swallows an IPC failure: only the value main confirmed counts.
     if (workspacesStore.getState().activeId !== workspaceId) return
     boardStore.getState().focusWorkspace(workspaceId)
+    // A modal opened during that round trip: the confirmed switch is reconciled above (the
+    // switcher's own rule), but the session is not opened on top of the new dialog — only selected.
+    if (isModalOpen()) {
+      boardStore.getState().setSelected(id)
+      return
+    }
   }
   boardStore.getState().activateCard(id)
 }

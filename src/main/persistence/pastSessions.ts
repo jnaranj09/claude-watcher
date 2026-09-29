@@ -144,7 +144,11 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     const endedRecords = all().filter((r) => r.live !== true)
     const visible = endedRecords.filter((r) => workspaceExists(r.workspaceId))
     const hiddenRecords = endedRecords.filter((r) => !workspaceExists(r.workspaceId))
-    for (const stale of visible.slice(PAST_SESSIONS_MAX)) byId.delete(stale.id)
+    const staleVisible = visible.slice(PAST_SESSIONS_MAX)
+    for (const stale of staleVisible) byId.delete(stale.id)
+    if (staleVisible.length > 0) {
+      log(`${LOG_PREFIX} code=past_sessions_trimmed count=${staleVisible.length}`)
+    }
     const staleHidden = hiddenRecords.slice(PAST_SESSIONS_HIDDEN_MAX)
     for (const stale of staleHidden) byId.delete(stale.id)
     if (staleHidden.length > 0) {

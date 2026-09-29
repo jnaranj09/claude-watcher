@@ -123,4 +123,22 @@ describe('openFromNotification (R29)', () => {
     expect(boardStore.getState().focusedTerminalId).toBe('t-other')
     expect(boardStore.getState().selectedId).toBeNull()
   })
+
+  // A modal opened DURING the switch's IPC round trip (Ctrl+N a few ms after the click): the
+  // switch main already confirmed is reconciled (focusWorkspace — the switcher's own rule, or the
+  // focused view would sit on the old workspace's terminal), but the session is NOT opened on top
+  // of the new dialog.
+  it('a modal opened during the switch: the switch is reconciled, the session is not opened', async () => {
+    seed('w1')
+    boardStore.setState({ acknowledgedById: {} })
+    setActive.mockImplementationOnce((id: string) => {
+      boardStore.setState({ settingsDialogOpen: true })
+      return Promise.resolve({ activeId: id, workspaces: ROWS })
+    })
+    await openFromNotification(ID)
+    expect(workspacesStore.getState().activeId).toBe('w1')
+    expect(boardStore.getState().focusedTerminalId).toBe('t-1')
+    expect(boardStore.getState().selectedId).toBe(ID)
+    expect(boardStore.getState().acknowledgedById[ID]).toBeUndefined()
+  })
 })

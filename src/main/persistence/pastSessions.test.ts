@@ -138,6 +138,20 @@ describe('createPastSessionsStore — load', () => {
       '[claude-watcher][past-sessions] code=past_sessions_hidden_trimmed count=2'
     )
   })
+  it('the VISIBLE cap logs a count when it drops records (e.g. hidden ones visible again after a restore)', () => {
+    const rows = Array.from({ length: PAST_SESSIONS_MAX + 3 }, (_, i) => ({
+      ...ROW,
+      id: `v${i}`,
+      endedAt: i
+    }))
+    const fake = fakeBlob({ version: 1, sessions: rows })
+    const log = vi.fn()
+    const store = createPastSessionsStore({ blobStore: fake.blobStore, log })
+    expect(store.list()).toHaveLength(PAST_SESSIONS_MAX)
+    expect(log).toHaveBeenCalledWith(
+      '[claude-watcher][past-sessions] code=past_sessions_trimmed count=3'
+    )
+  })
   it('UX-01: a record still marked live on load is a crash leftover — it becomes a normal record', () => {
     const fake = fakeBlob({ version: 1, sessions: [{ ...ROW, live: true, endedAt: 555 }] })
     const log = vi.fn()
