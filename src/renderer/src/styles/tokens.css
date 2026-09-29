@@ -87,20 +87,21 @@
   /* A workspace is a LIGHT tint of the control that names it (the switcher, its menu rows, the
    * Workspaces dialog rows, every workspace name box) — never a dot: a small coloured circle reads
    * as STATUS here, and a blue workspace dot was read as "a card is working". The hue
-   * PRE-COMPOSITED over --bg-surface-raised, fill 14% / border 40%; --text-primary on every fill
-   * ≥ 7.6:1 (workspaceTokens.test.ts). Separate from --tag-*: a workspace must not look like a tag. */
-  --workspace-slate-fill: #383737;
-  --workspace-slate-border: #4d4f56;
-  --workspace-blue-fill: #393e45;
-  --workspace-blue-border: #51627b;
-  --workspace-green-fill: #3d4538;
-  --workspace-green-border: #5d7558;
-  --workspace-amber-fill: #49453a;
-  --workspace-amber-border: #7e745d;
-  --workspace-violet-fill: #423c44;
-  --workspace-violet-border: #6c5c7a;
-  --workspace-rose-fill: #483839;
-  --workspace-rose-border: #7c515b;
+   * mixed over the THEME's --bg-surface-raised, fill 14% / border 40%, so a theme that sets none of
+   * these still gets a tint of its own surface; --text-primary on every default fill ≥ 7.6:1
+   * (workspaceTokens.test.ts). Separate from --tag-*: a workspace must not look like a tag. */
+  --workspace-slate-fill: color-mix(in srgb, #7f849c 14%, var(--bg-surface-raised));
+  --workspace-slate-border: color-mix(in srgb, #7f849c 40%, var(--bg-surface-raised));
+  --workspace-blue-fill: color-mix(in srgb, #89b4fa 14%, var(--bg-surface-raised));
+  --workspace-blue-border: color-mix(in srgb, #89b4fa 40%, var(--bg-surface-raised));
+  --workspace-green-fill: color-mix(in srgb, #a6e3a1 14%, var(--bg-surface-raised));
+  --workspace-green-border: color-mix(in srgb, #a6e3a1 40%, var(--bg-surface-raised));
+  --workspace-amber-fill: color-mix(in srgb, #f9e2af 14%, var(--bg-surface-raised));
+  --workspace-amber-border: color-mix(in srgb, #f9e2af 40%, var(--bg-surface-raised));
+  --workspace-violet-fill: color-mix(in srgb, #cba6f7 14%, var(--bg-surface-raised));
+  --workspace-violet-border: color-mix(in srgb, #cba6f7 40%, var(--bg-surface-raised));
+  --workspace-rose-fill: color-mix(in srgb, #f38ba8 14%, var(--bg-surface-raised));
+  --workspace-rose-border: color-mix(in srgb, #f38ba8 40%, var(--bg-surface-raised));
 
   /* ── Typography: families ───────────────────────────────────────────────── */
   --font-ui: system-ui, 'Noto Sans', 'Segoe UI', sans-serif;

@@ -49,7 +49,7 @@ export const TOKEN_DOCS: Record<TokenName, string> = {
   'tag-rose-border': 'Rose tag chip border and rail indicator stroke',
   'tag-rose-text': 'Rose tag chip text',
   'workspace-slate-fill':
-    'Slate workspace tint fill — the switcher, its menu rows, the Workspaces dialog rows and every workspace name box (opaque, composited over bg-surface-raised)',
+    'Slate workspace tint fill — the switcher, its menu rows, the Workspaces dialog rows and every workspace name box (default: the hue mixed 14% over the theme bg-surface-raised; the borders 40%)',
   'workspace-slate-border': 'Slate workspace tint border',
   'workspace-blue-fill': 'Blue workspace tint fill',
   'workspace-blue-border': 'Blue workspace tint border',
