@@ -215,6 +215,13 @@ export interface ManageDialogDeleteProps {
   label?: string | undefined
   /** The armed label. Defaults to `Confirm delete`; pair it with `label`. */
   confirmLabel?: string | undefined
+  /** In flight (Settings' Regenerate): disabled + `aria-busy`, the ARMED look kept, and neither a
+   *  blur nor a click disarms or re-fires it. A refusal leaves it armed (one press retries); the
+   *  host disarms on success (`select(null)`, Settings' `disarm()`). */
+  busy?: boolean | undefined
+  /** A result shown in place of the label (Regenerate: `✓ New token`) while `feedbackShown`. */
+  feedback?: ReactNode | undefined
+  feedbackShown?: boolean | undefined
 }
 
 /**
@@ -229,12 +236,16 @@ export function ManageDialogDelete({
   armedTestId,
   disabled = false,
   label = 'Delete',
-  confirmLabel = 'Confirm delete'
+  confirmLabel = 'Confirm delete',
+  busy = false,
+  feedback,
+  feedbackShown
 }: ManageDialogDeleteProps): JSX.Element {
   const { state, actions } = useManageDialogContext()
   const { armed } = state
 
   function handleClick(): void {
+    if (busy) return
     if (armed) onConfirm()
     else actions.arm()
   }
@@ -252,8 +263,14 @@ export function ManageDialogDelete({
       armed={armed}
       testId={armed ? (armedTestId ?? testId) : testId}
       disabled={disabled}
+      busy={busy}
+      feedback={feedback}
+      feedbackShown={feedbackShown}
       onClick={handleClick}
-      onBlur={() => actions.disarm()}
+      onBlur={() => {
+        // Disabling a focused button can blur it: an in-flight confirm must stay armed.
+        if (!busy) actions.disarm()
+      }}
       onKeyDown={handleKeyDown}
     >
       {armed ? confirmLabel : label}
@@ -269,13 +286,20 @@ export interface ManageDialogSaveProps {
   onClick?: () => void
   /** The label. Defaults to `Save`. */
   children?: ReactNode
+  /** The save in flight: disabled + `aria-busy` (useAsyncAction's `busy`). */
+  busy?: boolean | undefined
+  feedback?: ReactNode | undefined
+  feedbackShown?: boolean | undefined
 }
 
 export function ManageDialogSave({
   testId,
   disabled,
   onClick,
-  children = 'Save'
+  children = 'Save',
+  busy = false,
+  feedback,
+  feedbackShown
 }: ManageDialogSaveProps): JSX.Element {
   return (
     <Button
@@ -283,6 +307,9 @@ export function ManageDialogSave({
       type={onClick === undefined ? 'submit' : 'button'}
       testId={testId}
       disabled={disabled}
+      busy={busy}
+      feedback={feedback}
+      feedbackShown={feedbackShown}
       onClick={onClick}
     >
       {children}
@@ -341,6 +368,11 @@ export interface ManageDialogGhostButtonProps {
   size?: ButtonSize | undefined
   icon?: boolean | undefined
   children: ReactNode
+  /** In flight (Browse…, Reload themes, a rule move): disabled + `aria-busy`. */
+  busy?: boolean | undefined
+  /** A result in place of the label (`✓ Copied`, `✓ Reloaded`) while `feedbackShown`. */
+  feedback?: ReactNode | undefined
+  feedbackShown?: boolean | undefined
 }
 
 /** The secondary button (Browse…, Cancel, Edit, Add shortcut) — `Button` `secondary`. */
@@ -350,7 +382,10 @@ export function ManageDialogGhostButton({
   disabled = false,
   size,
   icon,
-  children
+  children,
+  busy = false,
+  feedback,
+  feedbackShown
 }: ManageDialogGhostButtonProps): JSX.Element {
   return (
     <Button
@@ -359,6 +394,9 @@ export function ManageDialogGhostButton({
       icon={icon}
       testId={testId}
       disabled={disabled}
+      busy={busy}
+      feedback={feedback}
+      feedbackShown={feedbackShown}
       onClick={onClick}
     >
       {children}

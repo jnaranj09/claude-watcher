@@ -135,3 +135,18 @@
   border-color: var(--text-primary);
   color: var(--text-on-lit);
 }
+
+/* ── feedback: the result in place of the label (spec 2026-09-29 §1.3) ─────────────────────── */
+/* Both layers in ONE grid cell, ALWAYS (while the button has a result): the cell is as wide as the
+   wider one from the first paint and the hidden layer keeps its room, so the button never changes
+   width — nothing beside it moves. No measuring, no ref. */
+.swap {
+  display: inline-grid;
+}
+.swap > * {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+.swapHidden {
+  visibility: hidden;
+}

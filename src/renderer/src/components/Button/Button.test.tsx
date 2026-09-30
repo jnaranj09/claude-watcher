@@ -92,6 +92,55 @@ describe('Button', () => {
     const r = render({ buttonRef: ref })
     expect(ref.current).toBe(button(r))
   })
+
+  // Action feedback (spec 2026-09-29 §1.3). Both layers are in the cell from the first paint, so the
+  // width never changes; `feedbackShown` only flips which one is visible. textContent always holds
+  // both, so the visible result is asserted through the role="status" sibling.
+  it('with feedback set, both layers are always in one cell; at rest the label shows and the status is empty', () => {
+    const r = render({ feedback: '✓ Copied', feedbackShown: false }, 'Copy')
+    const b = button(r)
+    expect(b.textContent).toBe('Copy✓ Copied')
+    expect(b.querySelector('[aria-hidden="true"]')?.textContent).toBe('✓ Copied')
+    // the hidden layer is the one carrying the visibility class; the shown one carries none
+    expect(b.querySelector('[aria-hidden="true"]')?.className).not.toBe('')
+    expect(b.querySelector('span > span:not([aria-hidden])')?.className).toBe('')
+    const status = b.nextElementSibling
+    expect(status?.getAttribute('role')).toBe('status')
+    expect(status?.className).toBe('sr-only')
+    expect(status?.textContent).toBe('')
+  })
+
+  it('feedbackShown flips the visible layer and announces the result', () => {
+    const r = render({ feedback: '✓ Copied', feedbackShown: true }, 'Copy')
+    const b = button(r)
+    expect(b.textContent).toBe('Copy✓ Copied')
+    expect(b.querySelector('[aria-hidden="true"]')?.textContent).toBe('Copy')
+    expect(b.querySelector('[aria-hidden="true"]')?.className).not.toBe('')
+    expect(b.nextElementSibling?.textContent).toBe('✓ Copied')
+  })
+
+  it('no feedback prop renders no grid and no live region', () => {
+    const r = render({}, 'Copy')
+    expect(button(r).textContent).toBe('Copy')
+    expect(button(r).nextElementSibling).toBeNull()
+  })
+
+  it('busy disables the button and sets aria-busy; not busy sets neither', () => {
+    const on = button(render({ busy: true }))
+    expect(on.disabled).toBe(true)
+    expect(on.getAttribute('aria-busy')).toBe('true')
+    cleanup?.()
+    const off = button(render({ busy: false }))
+    expect(off.disabled).toBe(false)
+    expect(off.hasAttribute('aria-busy')).toBe(false)
+  })
+
+  it('a busy button ignores clicks', () => {
+    const onClick = vi.fn()
+    const b = button(render({ busy: true, onClick }))
+    act(() => b.click())
+    expect(onClick).not.toHaveBeenCalled()
+  })
 })
 
 // ── The structural guard ────────────────────────────────────────────────────────────────────────
@@ -209,5 +258,14 @@ describe('Button owns every button style', () => {
     const rule = /\n\.button\[data-lit\]:hover:not\(:disabled\) \{([^}]*)\}/.exec(css)?.[1] ?? ''
     expect(rule).toMatch(/background: var\(--text-primary\);/)
     expect(rule).toMatch(/color: var\(--text-on-lit\);/)
+  })
+
+  // Both labels in ONE grid cell (spec §1.3): no measuring, no ref — the cell is as wide as the
+  // wider label, and the resting one is invisible but still takes its room.
+  it('stacks feedback over the label in one grid cell', () => {
+    const css = readFileSync(join(componentsDir, 'Button/Button.module.css'), 'utf8')
+    expect(css).toMatch(/\n\.swap \{[^}]*display: inline-grid;/)
+    expect(css).toMatch(/\n\.swap > \* \{[^}]*grid-area: 1 \/ 1;/)
+    expect(css).toMatch(/\n\.swapHidden \{[^}]*visibility: hidden;/)
   })
 })

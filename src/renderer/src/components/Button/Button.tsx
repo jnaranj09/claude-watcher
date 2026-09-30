@@ -8,7 +8,7 @@
 // It renders the BUTTON only. Where it sits (a footer's `flex-end`, a rail's `margin-top: auto`, a
 // card's reveal-on-hover) is the call site's layout, on a wrapper — the button never takes a
 // `className`, or the drift this replaces comes straight back through it.
-import type { ButtonHTMLAttributes, JSX, Ref } from 'react'
+import type { ButtonHTMLAttributes, JSX, ReactNode, Ref } from 'react'
 import styles from './Button.module.css'
 
 /** `primary` is the ONE main action of a surface (`+ New session`, Save). `secondary` is every
@@ -38,6 +38,18 @@ export interface ButtonProps extends Omit<
   testId: string
   /** The caller keeps the ref — refocus-after-close lives with whoever opened the surface. */
   buttonRef?: Ref<HTMLButtonElement> | undefined
+  /** Action feedback (spec 2026-09-29 §1.3): the CONSTANT result text (`✓ Copied`). While set,
+   *  the label and the result are BOTH rendered in one grid cell from the first paint — the one not
+   *  shown is `visibility: hidden` — so the cell holds max(label, result) and the button never
+   *  changes width. A hidden `role="status"` sibling is in the page from the start, so the result
+   *  is announced when it shows. Omit it on a button that never reports a result. */
+  feedback?: ReactNode | undefined
+  /** Which layer is visible: the result (true) or the label. Drive it with `useFlash`:
+   *  `feedbackShown={copied !== null}`. */
+  feedbackShown?: boolean | undefined
+  /** An action in flight: `disabled` + `aria-busy`. The caller may swap `children` for a busy
+   *  label (`Starting…`). The double-submit guard itself is `useAsyncAction`. */
+  busy?: boolean | undefined
 }
 
 export function Button({
@@ -49,6 +61,10 @@ export function Button({
   type = 'button',
   testId,
   buttonRef,
+  feedback,
+  feedbackShown = false,
+  busy = false,
+  disabled,
   children,
   ...rest
 }: ButtonProps): JSX.Element {
@@ -60,19 +76,50 @@ export function Button({
   ]
     .filter(Boolean)
     .join(' ')
+  const hasFeedback = feedback !== undefined
+  // Both layers ALWAYS, while a result exists: the cell is max(label, result) from the first paint.
+  const label = hasFeedback ? (
+    <span className={styles.swap}>
+      <span
+        className={feedbackShown ? styles.swapHidden : undefined}
+        aria-hidden={feedbackShown ? true : undefined}
+      >
+        {children}
+      </span>
+      <span
+        className={feedbackShown ? undefined : styles.swapHidden}
+        aria-hidden={feedbackShown ? undefined : true}
+      >
+        {feedback}
+      </span>
+    </span>
+  ) : (
+    children
+  )
   return (
-    <button
-      {...rest}
-      ref={buttonRef}
-      type={type}
-      className={className}
-      data-testid={testId}
-      data-variant={variant}
-      data-size={size}
-      {...(armed ? { 'data-armed': true } : {})}
-      {...(lit ? { 'data-lit': true } : {})}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        {...rest}
+        ref={buttonRef}
+        type={type}
+        className={className}
+        data-testid={testId}
+        data-variant={variant}
+        data-size={size}
+        disabled={busy || disabled === true}
+        {...(busy ? { 'aria-busy': true } : {})}
+        {...(armed ? { 'data-armed': true } : {})}
+        {...(lit ? { 'data-lit': true } : {})}
+      >
+        {label}
+      </button>
+      {/* A sibling, not a child: a live region inside a button is read as part of its name. The
+          global `.sr-only` is position:absolute, so it takes no flex gap beside the button. */}
+      {hasFeedback && (
+        <span className="sr-only" role="status">
+          {feedbackShown ? feedback : ''}
+        </span>
+      )}
+    </>
   )
 }
