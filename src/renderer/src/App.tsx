@@ -108,6 +108,8 @@ import { themeStore } from './stores/themeStore'
 import styles from './App.module.css'
 // UX-DR14 single-modal rule — shared with the notification click (lib/openFromNotification.ts).
 import { isDialogOpen, isModalOpen } from './lib/modals'
+// Action feedback (spec 2026-09-29 §1.2) — the ONE toast renderer, outside the inert subtree.
+import { Toaster } from './components/Toaster/Toaster'
 
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
@@ -817,6 +819,9 @@ function App(): React.JSX.Element {
             onCancel={() => boardStore.getState().clearSessionNamePrompt()}
           />
         ))}
+      {/* Action feedback — toasts. A sibling of the modals, never inside the header or a view
+          layer, so it is not `inert` under a dialog: its ✕ works over one. */}
+      <Toaster />
     </div>
   )
 }

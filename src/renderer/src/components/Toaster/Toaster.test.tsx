@@ -1,0 +1,141 @@
+// Action feedback (spec 2026-09-29 §1.2) — the Toaster: a labelled region, status vs alert roles,
+// ✕, the action, the action NOT rendered while a modal is open, hover/focus pausing the timer, and
+// a workspace drawn as its tint.
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { act } from 'react'
+import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
+import { Toaster } from './Toaster'
+import { createToastStore, TOAST_EXIT_MS, TOAST_MS } from '../../stores/toastStore'
+import { boardStore } from '../../stores/boardStore'
+import { manualClock } from '../../test/manualClock'
+
+let r: RenderResult | undefined
+afterEach(() => {
+  r?.unmount()
+  r = undefined
+  act(() => boardStore.setState({ settingsDialogOpen: false }))
+})
+
+function setup(): {
+  store: ReturnType<typeof createToastStore>
+  clock: ReturnType<typeof manualClock>
+} {
+  const clock = manualClock()
+  const store = createToastStore(clock)
+  r = renderComponent(<Toaster store={store} />)
+  return { store, clock }
+}
+
+const cards = (): HTMLElement[] => [
+  ...(r?.container.querySelectorAll<HTMLElement>('[data-testid="toast"]') ?? [])
+]
+
+describe('Toaster', () => {
+  it('is a region named Notifications', () => {
+    setup()
+    const region = r?.container.querySelector('[data-testid="toaster"]')
+    expect(region?.tagName).toBe('SECTION')
+    expect(region?.getAttribute('aria-label')).toBe('Notifications')
+  })
+
+  it('success/info are role=status, an error is role=alert; kind rides data-toast-kind', () => {
+    const { store } = setup()
+    act(() => {
+      store.getState().push({ kind: 'success', title: 'ok' })
+      store.getState().push({ kind: 'info', title: 'fyi' })
+      store.getState().push({ kind: 'error', title: 'no' })
+    })
+    expect(cards().map((c) => [c.getAttribute('role'), c.dataset['toastKind']])).toEqual([
+      ['status', 'success'],
+      ['status', 'info'],
+      ['alert', 'error']
+    ])
+    expect(cards().every((c) => c.hasAttribute('data-toast'))).toBe(true)
+  })
+
+  it('✕ dismisses: the toast fades (data-leaving) and is gone after the exit', () => {
+    const { store, clock } = setup()
+    act(() => void store.getState().push({ kind: 'error', title: 'no' }))
+    const dismiss = r?.container.querySelector<HTMLButtonElement>('[data-testid="toast-dismiss"]')
+    expect(dismiss?.getAttribute('aria-label')).toBe('Dismiss')
+    act(() => dismiss?.click())
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(true)
+    act(() => clock.advance(TOAST_EXIT_MS))
+    expect(cards()).toHaveLength(0)
+  })
+
+  it('the action button runs the action and closes the toast', () => {
+    const { store } = setup()
+    const run = vi.fn()
+    act(
+      () =>
+        void store
+          .getState()
+          .push({ kind: 'success', title: 'Archived "api"', action: { label: 'Resume', run } })
+    )
+    const action = r?.container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]')
+    expect(action?.textContent).toBe('Resume')
+    act(() => action?.click())
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(true)
+  })
+
+  it('the action is NOT rendered while a modal is open; ✕ still is; it comes back after', () => {
+    const { store } = setup()
+    act(
+      () =>
+        void store
+          .getState()
+          .push({ kind: 'success', title: 'x', action: { label: 'Open', run: () => {} } })
+    )
+    act(() => boardStore.setState({ settingsDialogOpen: true }))
+    expect(r?.container.querySelector('[data-testid="toast-action"]')).toBeNull()
+    expect(r?.container.querySelector('[data-testid="toast-dismiss"]')).not.toBeNull()
+    act(() => boardStore.setState({ settingsDialogOpen: false }))
+    expect(r?.container.querySelector('[data-testid="toast-action"]')).not.toBeNull()
+  })
+
+  it('a detail line carries its full text as a title', () => {
+    const { store } = setup()
+    act(() => void store.getState().push({ kind: 'info', title: 't', detail: 'a long line' }))
+    const detail = cards()[0]?.querySelector('[title="a long line"]')
+    expect(detail?.textContent).toBe('a long line')
+  })
+
+  it('a workspace is drawn as a WorkspaceLabel in its tint', () => {
+    const { store } = setup()
+    act(
+      () =>
+        void store.getState().push({
+          kind: 'success',
+          title: 'Moved "api" to',
+          workspace: { name: 'Ops', tone: 'blue' }
+        })
+    )
+    const label = cards()[0]?.querySelector('[data-tone="blue"]')
+    expect(label?.textContent).toBe('Ops')
+  })
+
+  it('hovering pauses the timer; leaving resumes it', () => {
+    const { store, clock } = setup()
+    act(() => void store.getState().push({ kind: 'success', title: 'x' }))
+    const card = cards()[0]
+    if (card === undefined) throw new Error('no toast')
+    fireEvent(card, new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }))
+    act(() => clock.advance(TOAST_MS * 3))
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(false)
+    fireEvent(card, new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))
+    act(() => clock.advance(TOAST_MS))
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(true)
+  })
+
+  it('focus inside a toast pauses its timer', () => {
+    const { store, clock } = setup()
+    act(() => void store.getState().push({ kind: 'success', title: 'x' }))
+    const dismiss = r?.container.querySelector<HTMLButtonElement>('[data-testid="toast-dismiss"]')
+    if (dismiss === null || dismiss === undefined) throw new Error('no ✕')
+    fireEvent(dismiss, new FocusEvent('focusin', { bubbles: true }))
+    act(() => clock.advance(TOAST_MS * 3))
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(false)
+  })
+})
