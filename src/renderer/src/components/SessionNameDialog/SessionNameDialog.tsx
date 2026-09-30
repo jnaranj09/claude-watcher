@@ -1,8 +1,10 @@
 // Session-naming — the session NAME dialog.
 //
 // Rendered when `boardStore.sessionNamePrompt` is non-null: the operator picked a directory and
-// must name the session before anything spawns. NOTHING has been launched while this is open, so
-// cancelling is a complete no-op (no PTY, no card, no view change).
+// must name the session before anything spawns. Before submit NOTHING has been launched, so
+// cancelling is a complete no-op (no PTY, no card, no view change). After submit the prompt stays
+// open and `busy` until main answers (action feedback, spec 2026-09-29 §2.2); a Cancel then hands
+// the result to the caller's late-result path (lib/namePromptFlow.ts).
 //
 // DELIBERATELY GENERIC (the deferred rename pass reuses this component unchanged): it takes an
 // initial value plus `onSubmit`/`onCancel` and knows NOTHING about launching, IPC, or the store.
@@ -44,6 +46,16 @@ export interface SessionNameDialogProps {
   title?: string
   /** Primary button label. Defaults to the create-time wording. */
   confirmLabel?: string
+  /** Action feedback (spec 2026-09-29 §2.2): the caller's launch/rename is in flight. The confirm
+   *  is busy and reads `busyLabel`; Enter does nothing; Cancel stays live (the caller's late-result
+   *  path takes over). */
+  busy?: boolean
+  /** The confirm's label while busy (`Starting…` / `Renaming…`). */
+  busyLabel?: string
+  /** The caller's mapped refusal copy — never a thrown message. Shown on the ONE error line. */
+  error?: string | null
+  /** Called on every edit, so the caller clears `error` (R26: editing clears the error line). */
+  onEdit?: () => void
 }
 
 export function SessionNameDialog({
@@ -53,7 +65,11 @@ export function SessionNameDialog({
   hint,
   helper,
   title = 'Name this session',
-  confirmLabel = 'Create'
+  confirmLabel = 'Create',
+  busy = false,
+  busyLabel,
+  error = null,
+  onEdit
 }: SessionNameDialogProps): JSX.Element {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [value, setValue] = useState(initialName)
@@ -82,9 +98,15 @@ export function SessionNameDialog({
     e.preventDefault()
     // Guard the Enter path too: a <form> submits on Enter regardless of the button's disabled
     // state in some browsers, so the emptiness check lives here as well as on the button.
-    if (!canSubmit) return
+    if (!canSubmit || busy) return
     onSubmit(trimmed)
   }
+
+  // The ONE error line: an over-long prefill first (typing is capped, so only a prefill gets
+  // there), else the caller's mapped refusal.
+  const errorText = tooLong
+    ? `Too long — ${trimmed.length}/${SESSION_NAME_MAX_LENGTH} characters.`
+    : error
 
   return (
     <div
@@ -116,7 +138,10 @@ export function SessionNameDialog({
           invalid={tooLong}
           value={value}
           maxLength={SESSION_NAME_MAX_LENGTH}
-          onChange={setValue}
+          onChange={(next) => {
+            setValue(next)
+            onEdit?.()
+          }}
         />
 
         {helper !== undefined && (
@@ -125,11 +150,12 @@ export function SessionNameDialog({
           </p>
         )}
 
-        {/* Only reachable via an over-long PREFILL (typing is capped by maxLength). Without this
-            the Create button would sit disabled with no stated reason. */}
-        {tooLong && (
+        {/* The over-long case is only reachable via an over-long PREFILL (typing is capped by
+            maxLength); without it the Create button would sit disabled with no stated reason.
+            Otherwise the caller's mapped launch/rename refusal. */}
+        {errorText !== null && (
           <p className={styles.error} data-testid="session-name-error" role="alert">
-            Too long — {trimmed.length}/{SESSION_NAME_MAX_LENGTH} characters.
+            {errorText}
           </p>
         )}
 
@@ -144,8 +170,9 @@ export function SessionNameDialog({
             type="submit"
             testId="session-name-confirm"
             disabled={!canSubmit}
+            busy={busy}
           >
-            {confirmLabel}
+            {busy && busyLabel !== undefined ? busyLabel : confirmLabel}
           </Button>
         </div>
       </form>

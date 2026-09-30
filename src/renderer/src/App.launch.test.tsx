@@ -274,17 +274,21 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
     expect(r.container.querySelector('[data-testid="board"]')).not.toBeNull()
   })
 
-  it('a launch failure (rejected invoke) does NOT crash — stays on the board', async () => {
+  // The one AR-12 change: the launch-failure contract itself moved, spec 2026-09-29 §2.2.
+  it('a launch failure keeps the prompt open with mapped copy — stays on the board', async () => {
     launchSpy.mockImplementation(() => Promise.reject(new Error('spawn failed')))
     const r = await renderApp()
     clickPickFolder(r)
     await flush()
     await submitNamePrompt(r)
-    // Picker + launch were attempted; the rejection is swallowed (code-only log) → board stays.
     expect(launchSpy).toHaveBeenCalled()
     expect(boardStore.getState().viewMode).toBe('board')
-    // The prompt closes even when the launch rejects — no dead modal is left over the board.
-    expect(r.container.querySelector('[data-testid="session-name-overlay"]')).toBeNull()
+    // Spec 2026-09-29 §2.2: the prompt stays, with the typed name, and says why — never the
+    // thrown message.
+    expect(r.container.querySelector('[data-testid="session-name-overlay"]')).not.toBeNull()
+    const line = r.container.querySelector('[data-testid="session-name-error"]')
+    expect(line?.textContent).toBe('Could not start the session.')
+    expect(r.container.textContent).not.toContain('spawn failed')
   })
 })
 

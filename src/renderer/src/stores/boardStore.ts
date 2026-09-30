@@ -273,6 +273,12 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state; session truth = main]
    */
   sessionNamePrompt: SessionNamePromptPayload | null
+  /** Action feedback (spec 2026-09-29 §2.2) — true while the prompt's launch/rename invoke is in
+   *  flight: the prompt stays open and its confirm reads `Starting…` / `Renaming…`. Reset by
+   *  show/clear. RENDERER VIEW-STATE. */
+  sessionNamePromptBusy: boolean
+  /** The prompt's mapped refusal copy (never a thrown message), or null. Reset by show/clear. */
+  sessionNamePromptError: string | null
   /**
    * Session templates — whether the templates picker dialog is open (RENDERER VIEW-STATE).
    * [state.md: modal open/closed = renderer view-state]
@@ -445,17 +451,21 @@ export interface BoardState {
   clearStopConfirm: () => void
   /**
    * Session-naming — open the create-time name prompt for a just-picked directory.
-   * Sets `sessionNamePrompt = payload`. Pure, small, no side effects: the launch IPC fires at
-   * the App call site when the dialog submits, never from inside this action
+   * Sets `sessionNamePrompt = payload` (not busy, no error). Pure, small, no side effects: the
+   * launch IPC fires from `lib/namePromptFlow.ts` when the dialog submits, never from inside this action
    * (state.md: no IPC inside store actions).
    */
   showSessionNamePrompt: (payload: SessionNamePromptPayload) => void
   /**
    * Session-naming — close the name prompt (operator cancelled OR the launch was fired).
-   * Sets `sessionNamePrompt = null`. No teardown: nothing has been spawned while the prompt is
-   * open, so cancelling leaves no PTY, no card, and no view change.
+   * Sets `sessionNamePrompt = null` and resets busy/error. No teardown here: a launch still in
+   * flight when the prompt closes follows the late-result path in `lib/namePromptFlow.ts`
+   * (registry only, never the view).
    */
   clearSessionNamePrompt: () => void
+  /** Mark the prompt's invoke in flight (true also clears the error line) or done. */
+  setSessionNamePromptBusy: (busy: boolean) => void
+  setSessionNamePromptError: (message: string | null) => void
   /**
    * Session templates — open the templates picker dialog. No-op if already open.
    */
@@ -558,6 +568,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     stopConfirm: null,
     // Session-naming — no name prompt shown until the directory picker returns a path.
     sessionNamePrompt: null,
+    sessionNamePromptBusy: false,
+    sessionNamePromptError: null,
     // Session templates — the templates picker dialog starts closed.
     templatesDialogOpen: false,
     // Phrase shortcuts — the Manage-shortcuts dialog starts closed.
@@ -833,16 +845,34 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
 
     showSessionNamePrompt: (payload) => {
-      // Session-naming — open the create-time name prompt. Pure: no launch IPC here (the App
-      // call site fires window.launch.launch when the dialog submits).
-      set({ sessionNamePrompt: payload })
+      // Session-naming — open the create-time name prompt. Pure: no launch IPC here (the name
+      // prompt flow, lib/namePromptFlow.ts, fires it on submit). A fresh prompt is never busy.
+      set({
+        sessionNamePrompt: payload,
+        sessionNamePromptBusy: false,
+        sessionNamePromptError: null
+      })
     },
 
     clearSessionNamePrompt: () => {
-      // Session-naming — close the name prompt. Nothing was spawned while it was open, so
-      // there is nothing to tear down on the cancel path.
+      // Session-naming — close the name prompt. An in-flight launch it leaves behind follows the
+      // late-result path (lib/namePromptFlow.ts): registry only, never the view.
       const state = get()
-      if (state.sessionNamePrompt !== null) set({ sessionNamePrompt: null })
+      if (state.sessionNamePrompt !== null) {
+        set({ sessionNamePrompt: null, sessionNamePromptBusy: false, sessionNamePromptError: null })
+      }
+    },
+
+    setSessionNamePromptBusy: (busy) => {
+      set(
+        busy
+          ? { sessionNamePromptBusy: true, sessionNamePromptError: null }
+          : { sessionNamePromptBusy: false }
+      )
+    },
+
+    setSessionNamePromptError: (message) => {
+      if (get().sessionNamePromptError !== message) set({ sessionNamePromptError: message })
     },
 
     openTemplatesDialog: () => {
@@ -1041,6 +1071,12 @@ export const selectStopConfirm = (state: BoardState): StopConfirmPayload | null 
  */
 export const selectSessionNamePrompt = (state: BoardState): SessionNamePromptPayload | null =>
   state.sessionNamePrompt
+/** Action feedback — the name prompt's invoke is in flight (primitive). */
+export const selectSessionNamePromptBusy = (state: BoardState): boolean =>
+  state.sessionNamePromptBusy
+/** Action feedback — the name prompt's mapped refusal copy, or null (primitive). */
+export const selectSessionNamePromptError = (state: BoardState): string | null =>
+  state.sessionNamePromptError
 
 /**
  * Session templates — whether the templates picker dialog is open (RENDERER VIEW-STATE).

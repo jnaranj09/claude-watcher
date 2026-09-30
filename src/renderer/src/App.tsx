@@ -62,6 +62,8 @@ import {
   selectQuitGuard,
   selectStopConfirm,
   selectSessionNamePrompt,
+  selectSessionNamePromptBusy,
+  selectSessionNamePromptError,
   selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
@@ -110,6 +112,9 @@ import styles from './App.module.css'
 import { isDialogOpen, isModalOpen } from './lib/modals'
 // Action feedback (spec 2026-09-29 §1.2) — the ONE toast renderer, outside the inert subtree.
 import { Toaster } from './components/Toaster/Toaster'
+// Action feedback (spec 2026-09-29 §2.2) — the name prompt's Create / Rename: stays open while main
+// answers, maps refusals, and never lets a late result take the view.
+import { submitLaunch, submitRename } from './lib/namePromptFlow'
 
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
@@ -172,6 +177,9 @@ function App(): React.JSX.Element {
   const stopConfirm = useBoard(selectStopConfirm)
   // Session-naming — the create-time name prompt payload (null = no prompt shown).
   const sessionNamePrompt = useBoard(selectSessionNamePrompt)
+  // Action feedback — the prompt's in-flight flag and its mapped refusal copy.
+  const sessionNamePromptBusy = useBoard(selectSessionNamePromptBusy)
+  const sessionNamePromptError = useBoard(selectSessionNamePromptError)
   // Session templates — whether the Manage-templates dialog is open.
   const templatesDialogOpen = useBoard(selectTemplatesDialogOpen)
   // Phrase shortcuts — whether the Manage-shortcuts dialog is open.
@@ -288,7 +296,7 @@ function App(): React.JSX.Element {
   // NEVER opens a dialog itself — it triggers the OS dialog via the typed `window.launch` bridge.
   // A launch failure (a rejected invoke) logs a code (never the path value) and leaves the board.
   // Session-naming: the picker no longer launches directly. It now opens the NAME PROMPT and
-  // stops — the launch fires from `handleNameSubmit` below once the operator has a name. So a
+  // stops — the launch fires from `submitLaunch` (lib/namePromptFlow.ts) once the operator has a name. So a
   // cancel at EITHER step (picker or prompt) spawns nothing at all.
   const handleNewSession = useCallback(async (): Promise<void> => {
     // Re-entry guard: if a prompt is already open, the operator is mid-naming. Opening the picker
@@ -316,7 +324,7 @@ function App(): React.JSX.Element {
   // Session templates — a template row was picked from the header popover. Skips the directory
   // picker entirely: the template already carries its cwd, so this opens the SAME name prompt
   // directly, prefilled with the template's name (clamped to the schema's cap, matching
-  // handleNewSession's basename clamp) and carrying `templateId` so `handleNameSubmit` knows to
+  // handleNewSession's basename clamp) and carrying `templateId` so `submitLaunch` knows to
   // launch FROM the template rather than the plain folder flow.
   const handleTemplateSession = useCallback((template: Template): void => {
     if (isModalOpen()) return
@@ -381,7 +389,7 @@ function App(): React.JSX.Element {
 
   // Session-naming A2 — open the RENAME prompt for an EXISTING session. Reuses the same prompt
   // state and the same dialog as create; only the mode differs. Nothing is renamed here — the IPC
-  // fires from `handleRenameSubmit` on submit, so cancelling is a complete no-op.
+  // fires from `submitRename` (lib/namePromptFlow.ts) on submit, so cancelling is a complete no-op.
   //
   // Prefilled with the session's CURRENT name, read from the store at click time (session truth
   // projected from main). The re-entry guard mirrors `handleNewSession`: never replace the payload
@@ -398,50 +406,10 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  // Session-naming A2 — the rename prompt submitted. Main re-validates the name at the IPC
-  // boundary (untrusted cross-process input) and rejects rather than renaming if it is malformed.
-  // The retitled card arrives on its own as a `session.updated` delta — we do NOT write the new
-  // name into the store here: session truth is main's, and the renderer only projects it.
-  const handleRenameSubmit = useCallback(async (sessionId: string, name: string): Promise<void> => {
-    boardStore.getState().clearSessionNamePrompt()
-    try {
-      await window.launch.rename(sessionId, name)
-    } catch {
-      // never-log-the-value: the name is operator content. A code only.
-      console.warn('[c9watch][launch] code=rename_failed')
-    }
+  // Action feedback — an edit clears the prompt's error line (R26).
+  const clearNamePromptError = useCallback((): void => {
+    boardStore.getState().setSessionNamePromptError(null)
   }, [])
-
-  // Session-naming: the name prompt submitted — NOW launch. The dialog hands back an already-
-  // trimmed, non-empty name; main re-validates it at the IPC boundary (untrusted cross-process
-  // input) and rejects the invoke rather than spawning if it is malformed.
-  // Session templates: a prompt opened from a template carries `templateId` — branch the launch
-  // on it so a template-originated session ALWAYS launches via launchFromTemplate (never the
-  // plain folder `launch`), while the folder flow (no templateId) is completely unchanged.
-  const handleNameSubmit = useCallback(
-    async (prompt: { cwd: string; templateId?: string }, name: string): Promise<void> => {
-      // Close the prompt first so a slow spawn cannot leave a dead modal over the board.
-      boardStore.getState().clearSessionNamePrompt()
-      try {
-        const { terminalId, workspaceId } =
-          prompt.templateId !== undefined
-            ? await window.launch.launchFromTemplate(prompt.templateId, name)
-            : await window.launch.launch(prompt.cwd, name)
-        // Optimistic drop-into-Focused-session: render the terminal the moment the launch returns
-        // its id (the terminal is typeable immediately; the Tgid join reconciles asynchronously).
-        // Story 5.6 (AC-1) + session-naming: the `label` for the Starting banner is now the
-        // OPERATOR's name, so the banner and the eventual card agree from the first frame.
-        // Workspaces: thread the workspace main stamped on this launch (SessionLaunchResult)
-        // through to the registry entry (openLaunchedTerminal) — see Task 8 correction 1.
-        boardStore.getState().openLaunchedTerminal(terminalId, name, workspaceId)
-      } catch {
-        // never-log-the-value: a code only. The rejected invoke carries BOTH the cwd (leaks the
-        // filesystem layout) and the operator-typed name (content) — keep both off the logs.
-        console.warn('[c9watch][launch] code=launch_failed')
-      }
-    },
-    []
-  )
 
   // Task 12 — move an existing card to another workspace (the Board onMoveCardToWorkspace seam).
   // NOT optimistic: no local state write here. The moved card arrives as a normal
@@ -786,9 +754,10 @@ function App(): React.JSX.Element {
         <PastSessionsDialog onClose={() => boardStore.getState().closePastSessionsDialog()} />
       )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
-          directory picker returning a path and the operator submitting or cancelling). NOTHING is
-          spawned while it is open, so Cancel/Esc is a complete no-op: no PTY, no card, no view
-          change. Submit is what fires window.launch.launch. Same z-60 overlay layer as the other
+          directory picker returning a path and main answering the submit). Before submit NOTHING is
+          spawned, so Cancel/Esc is a complete no-op. Submit fires the launch (submitLaunch) and the
+          prompt stays open, busy, until main answers; a Cancel then leaves the result to the flow's
+          late-result path (registry only, never the view). Same z-60 overlay layer as the other
           two modals — it cannot co-exist with them (it only lives before a session exists). */}
       {sessionNamePrompt !== null &&
         (sessionNamePrompt.mode === 'create' ? (
@@ -802,7 +771,11 @@ function App(): React.JSX.Element {
             key={`create:${sessionNamePrompt.templateId ?? sessionNamePrompt.cwd}`}
             initialName={sessionNamePrompt.initialName}
             hint={sessionNamePrompt.cwd}
-            onSubmit={(name) => void handleNameSubmit(sessionNamePrompt, name)}
+            busy={sessionNamePromptBusy}
+            busyLabel="Starting…"
+            error={sessionNamePromptError}
+            onEdit={clearNamePromptError}
+            onSubmit={(name) => void submitLaunch(sessionNamePrompt, name)}
             onCancel={() => boardStore.getState().clearSessionNamePrompt()}
           />
         ) : (
@@ -815,7 +788,11 @@ function App(): React.JSX.Element {
             title="Rename session"
             confirmLabel="Rename"
             helper="Applies in Claude on your next prompt."
-            onSubmit={(name) => void handleRenameSubmit(sessionNamePrompt.sessionId, name)}
+            busy={sessionNamePromptBusy}
+            busyLabel="Renaming…"
+            error={sessionNamePromptError}
+            onEdit={clearNamePromptError}
+            onSubmit={(name) => void submitRename(sessionNamePrompt, name)}
             onCancel={() => boardStore.getState().clearSessionNamePrompt()}
           />
         ))}
