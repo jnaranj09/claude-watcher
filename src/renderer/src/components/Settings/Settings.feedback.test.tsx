@@ -152,6 +152,96 @@ describe('Settings — ✓ Saved and rollback', () => {
   })
 })
 
+describe('Settings — one error line, and ✓ Saved stays where it belongs (review fixes)', () => {
+  /** Type into the React-controlled port field and commit it (React's onBlur is `focusout`). */
+  function commitPort(r: RenderResult, value: string): void {
+    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(port, value)
+      port.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => {
+      port.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+  }
+
+  it('a refused save does not hide a newer error: an invalid port after it shows the port message', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    stubSettings(() => Promise.reject(new Error('x')))
+    stubThemes()
+    const r = render()
+    await flush()
+    click(q(r, '[data-testid="settings-sound-toggle"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Could not save the attention sound.'
+    )
+    openCategory(r, 'api')
+    commitPort(r, '80')
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Port must be between 1024 and 65535.'
+    )
+  })
+
+  it('a save that lands clears only its own refusal, never a newer different error', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let refuse = true
+    stubSettings((patch) =>
+      refuse ? Promise.reject(new Error('x')) : Promise.resolve(mergedSettings(patch))
+    )
+    stubThemes()
+    stubApi()
+    const r = render()
+    await flush()
+    click(q(r, '[data-testid="settings-sound-toggle"]'))
+    await flush()
+    openCategory(r, 'api')
+    commitPort(r, '80')
+    await flush()
+    refuse = false
+    click(q(r, '[data-testid="settings-api-enabled"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Port must be between 1024 and 65535.'
+    )
+  })
+
+  it('✓ Saved does not follow a switch to another category', async () => {
+    stubSettings()
+    stubThemes()
+    const r = render()
+    await flush()
+    click(q(r, '[data-testid="settings-sound-toggle"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('✓ Saved')
+    openCategory(r, 'terminal')
+    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('')
+  })
+
+  it('a refusal right after a success clears ✓ Saved — never both at once', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let refuse = false
+    stubSettings((patch) =>
+      refuse ? Promise.reject(new Error('x')) : Promise.resolve(mergedSettings(patch))
+    )
+    stubThemes()
+    const r = render()
+    await flush()
+    click(q(r, '[data-testid="settings-sound-toggle"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('✓ Saved')
+    refuse = true
+    click(q(r, '[data-testid="settings-notifications-toggle"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+      'Could not save desktop notifications.'
+    )
+    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('')
+  })
+})
+
 describe('Settings — API token actions', () => {
   it('Copy is not rendered until the token is read; then it says ✓ Copied', async () => {
     const token = deferred<{ token: string }>()

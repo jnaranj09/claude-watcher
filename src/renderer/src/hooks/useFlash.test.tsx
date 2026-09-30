@@ -6,11 +6,16 @@ import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { FLASH_MS, useFlash } from './useFlash'
 
 function Harness({ ms }: { ms?: number }): JSX.Element {
-  const [value, flash] = useFlash<string>(ms)
+  const [value, flash, clear] = useFlash<string>(ms)
   return (
-    <button type="button" data-testid="flash" onClick={() => flash('✓ Done')}>
-      {value ?? 'idle'}
-    </button>
+    <>
+      <button type="button" data-testid="flash" onClick={() => flash('✓ Done')}>
+        {value ?? 'idle'}
+      </button>
+      <button type="button" data-testid="clear" onClick={clear}>
+        clear
+      </button>
+    </>
   )
 }
 
@@ -61,6 +66,14 @@ describe('useFlash', () => {
       vi.advanceTimersByTime(500)
     })
     expect(button().textContent).toBe('idle')
+  })
+
+  it('clear ends the flash at once and drops its timer', () => {
+    r = renderComponent(<Harness />)
+    act(() => button().click())
+    act(() => r?.container.querySelector<HTMLButtonElement>('[data-testid="clear"]')?.click())
+    expect(button().textContent).toBe('idle')
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('honours a custom duration', () => {

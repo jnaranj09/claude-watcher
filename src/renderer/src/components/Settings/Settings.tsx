@@ -1,12 +1,12 @@
 // Settings — the app's preferences, on the ONE two-column shell (spec 2026-09-29 §3): a rail of
 // categories (Notifications, Appearance, Terminal, Keyboard, API) and the chosen category's
 // controls on the right. Every control persists on change through `persistSetting` (over
-// `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on Notifications and never shows a
-// placeholder. The panel's ONE error line carries the standing theme error whatever category is
+// `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on
+// Notifications and never shows a placeholder. The panel's ONE error line carries the standing theme error whatever category is
 // open. Dropdowns are `Select` (a native <select> is banned — design.md); labels of a Select are
 // <span>s with `ariaLabel`. Reached from the ☰ menu's `Settings…` row (App.tsx renders
 // `SettingsPanel` from `settingsDialogOpen`); the `Settings` gear below only serves `#terminals`.
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import {
   useSettings,
   selectSoundEnabled,
@@ -99,13 +99,23 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     keepErrorOnSelect: true
   })
   const { actions: apiActions } = dialog
+  const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
 
   // ── Action feedback (spec 2026-09-29 §2.1) ────────────────────────────────────────────────
   // Every change says it landed: `✓ Saved` beside the pane heading for 1.5 s. When main refuses
   // one, persistSettingsPatch has already rolled the store back to main's value (the control
   // snaps back) and the error line names what did not save — until the next change that lands.
-  const [saved, flashSaved] = useFlash<true>()
-  const [saveError, setSaveError] = useState<string | null>(null)
+  // The flash holds the CATEGORY it was saved on, so it never follows a switch to another page.
+  const [savedOn, flashSaved, clearSaved] = useFlash<SettingsCategoryId>()
+  // The refusal goes on the panel's ONE error state (apiActions.setError), so a newer error — a bad
+  // port, a failed copy — always replaces it. A later save clears the line only while it still
+  // holds the refusal it wrote, never a newer, different error. Both refs are read in callbacks
+  // only: `errorNow` mirrors the dialog's error after each render (the latest-value pattern).
+  const errorNow = useRef<string | null>(null)
+  const saveErrorShown = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    errorNow.current = dialog.state.error
+  })
   // Each result text is a constant on its button (`feedback`); these only say WHEN it shows.
   const [copied, flashCopied] = useFlash<true>()
   const [reloaded, flashReloaded] = useFlash<true>()
@@ -114,15 +124,24 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   /** The ONE wrapper every control persists through. `what` is operator copy (`the API port`),
    *  never a value. Never rejects. */
   function persistSetting(patch: SettingsPatch, what: string): Promise<void> {
+    const savedFrom = category
     return persistSettingsPatch(patch).then(
       () => {
-        setSaveError(null)
-        flashSaved(true)
+        if (saveErrorShown.current !== null && errorNow.current === saveErrorShown.current) {
+          apiActions.setError(null)
+        }
+        saveErrorShown.current = null
+        flashSaved(savedFrom)
       },
-      () => setSaveError(`Could not save ${what}.`)
+      () => {
+        const message = `Could not save ${what}.`
+        saveErrorShown.current = message
+        errorNow.current = message
+        clearSaved()
+        apiActions.setError(message)
+      }
     )
   }
-  const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
   const categoryLabel =
     SETTINGS_CATEGORIES.find((c) => c.id === category)?.label ?? SETTINGS_CATEGORIES[0]?.label
   const expanderKey = useSettings(selectExpanderKey)
@@ -217,7 +236,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // error line in place of the API/theme-action error (`themeError ?? state.error`). It used to be
   // copied INTO that state, where any flow that cleared the line (a good port, the API switched
   // off, a regenerate) wiped it while the theme was still broken.
-  const errorLine = themeError ?? saveError ?? dialog.state.error
+  const errorLine = themeError ?? dialog.state.error
 
   function pickTheme(next: string): void {
     setThemeSwitching(true)
@@ -361,7 +380,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
               <h3 className={styles.categoryTitle}>{categoryLabel}</h3>
               {/* Always in the page, so the text is announced when it appears. */}
               <span className={styles.savedMark} role="status" data-testid="settings-saved">
-                {saved !== null ? '✓ Saved' : ''}
+                {savedOn === category ? '✓ Saved' : ''}
               </span>
             </div>
             {category === 'notifications' && (
