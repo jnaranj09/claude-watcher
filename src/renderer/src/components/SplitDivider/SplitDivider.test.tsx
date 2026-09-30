@@ -148,16 +148,17 @@ describe('SplitDivider — stylesheet (tokens only)', () => {
     /\/\*[\s\S]*?\*\//g,
     ''
   )
-  it('rests on --border, lifts to --border-strong on hover/drag, and has a focus ring', () => {
+  it('fills the gap between the panels; its grip rests on --border, lifts on hover/drag', () => {
     const rest = /\.divider\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(rest).toMatch(/background:\s*var\(--border\)/)
+    expect(rest).toMatch(/background:\s*transparent/)
     expect(rest).toMatch(/cursor:\s*row-resize/)
     expect(rest).toMatch(/touch-action:\s*none/)
-    // Its box is SHELL_DIVIDER_PX (6px + 2 × --space-1): the clamp reserves exactly that.
-    expect(rest).toMatch(/height:\s*6px/)
-    expect(rest).toMatch(/margin:\s*var\(--space-1\)\s+0/)
-    expect(css).toMatch(/\.divider:hover[^{]*\{[^}]*var\(--border-strong\)/)
-    expect(css).toMatch(/\.divider\[data-dragging\][^{]*\{[^}]*var\(--border-strong\)/)
+    // Its box is SHELL_DIVIDER_PX (12px, no margin): the clamp reserves exactly that.
+    expect(rest).toMatch(/height:\s*12px/)
+    expect(rest).toMatch(/margin:\s*0/)
+    expect(css).toMatch(/\.divider::after\s*\{[^}]*background:\s*var\(--border\)/)
+    expect(css).toMatch(/\.divider:hover::after\s*\{[^}]*var\(--border-strong\)/)
+    expect(css).toMatch(/\.divider\[data-dragging\]::after\s*\{[^}]*var\(--border-strong\)/)
     expect(css).toMatch(/\.divider:focus-visible\s*\{[^}]*var\(--focus-ring\)/)
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,6}\b/)
   })

@@ -702,18 +702,11 @@ describe('EmbeddedTerminal — variant="shell" (the card shell pane)', () => {
     expect(fakes.open.mock.calls[1]?.[0]).toBe('t-1:shell')
     expect(lastOpenToken()).not.toBe(firstToken)
   })
-  it('the shell frame drops the card frame chrome (no border, no radius, no padding)', () => {
+  it('the shell frame is its own panel: full frame chrome and data-terminal-panel', () => {
     const r = render({ terminalId: 't-1:shell', variant: 'shell' })
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]') as HTMLElement
-    expect(frame.className).toMatch(/shellFrame/)
-    const css = readFileSync(resolve(here, 'EmbeddedTerminal.module.css'), 'utf8').replace(
-      /\/\*[\s\S]*?\*\//g,
-      ''
-    )
-    const block = /\.shellFrame\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(block).toMatch(/border:\s*0/)
-    expect(block).toMatch(/border-radius:\s*0/)
-    expect(block).toMatch(/padding:\s*0/)
+    expect(frame.hasAttribute('data-terminal-panel')).toBe(true)
+    expect(frame.className).not.toMatch(/split/)
   })
 })
 
@@ -739,6 +732,30 @@ describe('EmbeddedTerminal — the nested shell pane (card shell pane)', () => {
     // React runs the child's effects first; main needs no order (the cwd is its own registry's).
     expect(fakes.open.mock.calls.map((c) => c[0]).sort()).toEqual(['t-1', 't-1:shell'])
     expect(parent.querySelector('[data-testid="shell-divider"]')).not.toBeNull()
+  })
+
+  it("two panels, not one: claude's half and the shell carry data-terminal-panel, the frame does not", () => {
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: false }
+    })
+    const parent = r.container.querySelector('[data-terminal-id="t-1"]') as HTMLElement
+    expect(parent.hasAttribute('data-terminal-panel')).toBe(false)
+    const main = parent.querySelector(':scope > [data-testid="terminal-main"]') as HTMLElement
+    expect(main.hasAttribute('data-terminal-panel')).toBe(true)
+    const shell = parent.querySelector('[data-terminal-id="t-1:shell"]') as HTMLElement
+    expect(shell.hasAttribute('data-terminal-panel')).toBe(true)
+    // The divider sits BETWEEN the two panels, never inside either.
+    const kids = [...parent.children].map((el) => el.getAttribute('data-testid'))
+    expect(kids.slice(0, 3)).toEqual(['terminal-main', 'shell-divider', 'shell-pane'])
+  })
+
+  it('without a shell the frame itself is the one panel', () => {
+    const r = render({ terminalId: 't-1' })
+    const parent = r.container.querySelector('[data-terminal-id="t-1"]') as HTMLElement
+    expect(parent.hasAttribute('data-terminal-panel')).toBe(true)
+    const main = parent.querySelector(':scope > [data-testid="terminal-main"]') as HTMLElement
+    expect(main.hasAttribute('data-terminal-panel')).toBe(false)
   })
 
   it('a hidden pane keeps the shell MOUNTED (no stop), hides it off-screen, and draws no divider', () => {
@@ -848,6 +865,18 @@ describe('EmbeddedTerminal — shell pane stylesheet invariants (terminal.md)', 
     expect(main).toMatch(/min-height:\s*0/)
     expect(css).toMatch(/\.split\s*>\s*\.main\s*\{[^}]*min-height:\s*80px/)
     expect(/\.shellSlot\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/min-height:\s*80px/)
+  })
+  it("while split, the frame draws no chrome and claude's half is its own panel", () => {
+    const split = /\.split\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(split).toMatch(/padding:\s*0/)
+    expect(split).toMatch(/border:\s*0/)
+    expect(split).toMatch(/background:\s*transparent/)
+    const main = /\.split\s*>\s*\.main\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(main).toMatch(/border:\s*1px solid var\(--border-card\)/)
+    expect(main).toMatch(/border-radius:\s*var\(--rounded-lg\)/)
+    expect(main).toMatch(/background:\s*var\(--bg-terminal\)/)
+    expect(main).toMatch(/padding:\s*var\(--space-2\)/)
+    expect(main).toMatch(/overflow:\s*clip/)
   })
 })
 

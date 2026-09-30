@@ -251,18 +251,19 @@ describe('docs/themes/examples', () => {
       .join('\n')
     expect(root).toMatch(/--glass-rim-pop:\s*inset 1px 1px 0 rgba\([^)]*\), inset -1px -1px 0 rgba/)
   })
-  // The terminal frame is a bubble like the header and the columns: rim, directional ring, faint
+  // Every terminal panel (the frame, or claude's half and the shell while split) is a bubble like
+  // the header and the columns: rim, directional ring, faint
   // border. Its fill stays the token's darker `--bg-terminal` (glyphs need it), so no `--glass-fill`.
   it('liquid-glass gives the terminal frame the bubble rim and ring, not the glass fill', () => {
     const rules = liquidGlassRules()
     const frame = rules
-      .filter((r) => r.selectors.includes("[data-testid='embedded-terminal']"))
+      .filter((r) => r.selectors.includes('[data-terminal-panel]'))
       .map((r) => r.body)
       .join('\n')
     expect(frame).toMatch(/box-shadow:\s*var\(--glass-rim\), var\(--shadow-pop\);/)
     expect(frame).not.toContain('--glass-fill')
     const ring = rules
-      .filter((r) => r.selectors.includes("[data-testid='embedded-terminal']::after"))
+      .filter((r) => r.selectors.includes('[data-terminal-panel]::after'))
       .map((r) => r.body)
       .join('\n')
     expect(ring).toMatch(/conic-gradient\(/)

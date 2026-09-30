@@ -754,8 +754,9 @@ export function EmbeddedTerminal({
   return (
     <div
       ref={frameRef}
-      className={`${styles.frame} ${active ? '' : styles.hidden} ${variant === 'shell' ? styles.shellFrame : ''} ${shell !== undefined ? styles.split : ''}`}
+      className={`${styles.frame} ${active ? '' : styles.hidden} ${shell !== undefined ? styles.split : ''}`}
       data-testid="embedded-terminal"
+      data-terminal-panel={shell === undefined ? '' : undefined}
       data-terminal-id={terminalId}
       style={frameStyle}
     >
@@ -768,7 +769,11 @@ export function EmbeddedTerminal({
           layout box, so the inner host stays sized for fit(). */}
       {/* Card shell pane (deviation 9) — claude's half: the xterm host, the expander and the dead
           overlay. `.dead` is inset:0 on THIS box, so a claude exit never covers an open shell. */}
-      <div className={styles.main} data-testid="terminal-main">
+      <div
+        className={styles.main}
+        data-testid="terminal-main"
+        data-terminal-panel={shell !== undefined ? '' : undefined}
+      >
         <div ref={containerRef} className={styles.host} />
         {/* Shortcut expander — the box over the terminal. Per-terminal view-state; the terminal
             itself is untouched by its open/close (refs). `shortcuts` is already scoped to Global +

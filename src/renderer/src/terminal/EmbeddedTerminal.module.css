@@ -37,14 +37,6 @@
   min-width: 0;
 }
 
-/* Card shell pane — the shell's frame sits INSIDE its parent's frame (which already draws the
-   border, radius and breathing edge), so it draws none of its own. Same flex column, same host. */
-.shellFrame {
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-}
-
 /* Card shell pane — claude's half: the xterm host AND its dead overlay. It is the overlay's
    containing block (`.dead` is inset:0), so a claude exit covers this half only, never an open
    shell. Always rendered (one DOM shape). `.host` inside it stays the xterm parent (FitAddon). */
@@ -57,10 +49,29 @@
   flex-direction: column;
 }
 
-/* While a shell is open the frame is split: claude above, the divider, the shell below. Each half
-   keeps 80px so a prompt can always be read; the ratio is inline. */
+/* While a card has a shell the frame is a plain column holding TWO panels: claude's half and the
+   shell's own frame, with the divider in the gap between them (operator, 2026-09-30 — the shell
+   inside claude's bubble read as one terminal). The frame drops its chrome and `.main` takes it,
+   the same border, radius, ground and breathing edge. `data-terminal-panel` moves with it, so a
+   theme styles both panels and never the empty column around them. Each half keeps 80px so a
+   prompt can always be read; the ratio is inline. */
+.split {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  /* Each panel clips itself (`.main` below, the shell's own `.frame`), so the column does not
+     have to — and clipping here would cut the panels' theme shadows at its edge. */
+  overflow: visible;
+}
+
 .split > .main {
   min-height: 80px;
+  padding: var(--space-2);
+  background: var(--bg-terminal);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rounded-lg);
+  overflow: clip;
 }
 
 .shellSlot {
@@ -75,9 +86,9 @@
    off-screen, visibility:hidden — the kept-alive rule (terminal.md). Never display:none. */
 .shellSlotHidden {
   position: absolute;
-  left: var(--space-2);
-  right: var(--space-2);
-  bottom: var(--space-2);
+  left: 0;
+  right: 0;
+  bottom: 0;
   visibility: hidden;
   translate: -200vw 0;
 }

@@ -276,6 +276,10 @@ What you can target:
 - **Test ids.** `[data-testid="app-header"]`, `[data-testid="settings-panel"]`,
   `[data-testid="embedded-terminal"]` and the other `data-testid` attributes in the app. They are
   pinned by the app's tests, so they are stable.
+- **Terminal panels.** `[data-terminal-panel]` is every box drawn as a terminal: the terminal's
+  frame, or — while a card's shell is open — claude's half and the shell, each its own panel, with
+  the resize divider in the gap between them. Style the terminal's border, radius, shadow and glass
+  here, not on `embedded-terminal`: that element is then a plain column holding both panels.
 - **Not class names.** CSS-module classes are hashed at build time and change between builds.
 
 `url(...)` inside the CSS may name a file in the theme folder — `url(bg.png)`, `url("bg.png")` —

@@ -18,10 +18,10 @@ describe('clampShellRatio — the 0.15–0.85 band AND 80px per side', () => {
   })
   it('clamps to 80px per side when the frame is short (80px is larger than 15%)', () => {
     // 400px: 80/400 = 0.2 > 0.15, so the shell can be no smaller than 0.2. Claude keeps 80px AND
-    // the divider's 14px sit between them, so the shell can be no larger than (400-94)/400.
+    // the divider's 12px sit between them, so the shell can be no larger than (400-92)/400.
     expect(clampShellRatio(0.1, 400)).toBeCloseTo(0.2, 10)
-    expect(clampShellRatio(0.95, 400)).toBeCloseTo(0.765, 10)
-    expect(SHELL_DIVIDER_PX).toBe(14)
+    expect(clampShellRatio(0.95, 400)).toBeCloseTo(0.77, 10)
+    expect(SHELL_DIVIDER_PX).toBe(12)
     expect(SHELL_PANE_MIN_PX).toBe(80)
   })
   it('a frame under 160px falls back to the ratio band (the two 80px minimums cannot both hold)', () => {

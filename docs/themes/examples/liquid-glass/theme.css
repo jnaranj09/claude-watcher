@@ -103,7 +103,7 @@ body {
 [role='dialog'][aria-modal='true'] > *,
 [data-testid='settings-panel'],
 [data-testid='app-header'],
-[data-testid='embedded-terminal'] {
+[data-terminal-panel] {
   isolation: isolate;
 }
 [role='dialog'][aria-modal='true'] > * {
@@ -112,7 +112,7 @@ body {
 [role='dialog'][aria-modal='true'] > *::before,
 [data-testid='settings-panel']::before,
 [data-testid='app-header']::before,
-[data-testid='embedded-terminal']::before {
+[data-terminal-panel]::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -183,7 +183,7 @@ body {
 /* The header and the terminal frame get the lighter glass filter; the header carries the sheen
    and the rim like a popover. The terminal gets neither — they cost readability over glyphs. */
 [data-testid='app-header']::before,
-[data-testid='embedded-terminal']::before {
+[data-terminal-panel]::before {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
 }
@@ -289,11 +289,11 @@ body {
    Its `::after` has no z-index, so the dead-terminal pane (z-index 12) still covers it, and the
    ring is 1px inside the border, so the frame's `overflow: clip` never cuts it. The fill stays
    the token's darker `--bg-terminal`: glyphs need it. */
-[data-testid='embedded-terminal'] {
+[data-terminal-panel] {
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--glass-rim), var(--shadow-pop);
 }
-[data-testid='embedded-terminal']::after {
+[data-terminal-panel]::after {
   content: '';
   position: absolute;
   inset: 0;

@@ -7,10 +7,10 @@ import { SHELL_PANE_RATIO_MAX, SHELL_PANE_RATIO_MIN } from '../../../shared/sche
 
 export const SHELL_PANE_MIN_PX = 80
 export const SHELL_PANE_KEY_STEP = 0.05
-/** The divider's own height between the two halves: 6px + 2 × --space-1 (SplitDivider.module.css,
+/** The divider's own height, the gap between the two panels: 12px (SplitDivider.module.css,
  *  pinned by its test). Claude's 80px minimum is measured AFTER it, or the frame overflows and
  *  `overflow: clip` cuts the shell's bottom row (its prompt) at the top drag limit. */
-export const SHELL_DIVIDER_PX = 14
+export const SHELL_DIVIDER_PX = 12
 
 export function clampShellRatio(ratio: number, frameHeightPx: number): number {
   let lo = SHELL_PANE_RATIO_MIN

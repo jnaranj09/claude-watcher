@@ -1,27 +1,40 @@
 /* Card shell pane — the divider between the claude terminal and its shell (spec 2026-09-30).
-   Tokens only. Rests on --border; --border-strong while hovered or dragged; the app's focus ring
-   when reached by keyboard. `touch-action: none` so a pointer drag is never turned into a scroll. */
+   It IS the gap between the two panels: the whole 12px strip takes the drag, and a short grip in
+   its middle shows where. Tokens only. The grip rests on --border; --border-strong while hovered
+   or dragged; the app's focus ring when reached by keyboard. `touch-action: none` so a pointer
+   drag is never turned into a scroll. */
 
 .divider {
   flex: 0 0 auto;
-  height: 6px;
-  margin: var(--space-1) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 12px;
+  margin: 0;
   border-radius: var(--rounded-sm);
-  background: var(--border);
+  background: transparent;
   cursor: row-resize;
   touch-action: none;
   user-select: none;
 }
 
-.divider:hover {
+.divider::after {
+  content: '';
+  width: 48px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.divider:hover::after {
   background: var(--border-strong);
 }
 
-.divider[data-dragging] {
+.divider[data-dragging]::after {
   background: var(--border-strong);
 }
 
 .divider:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }

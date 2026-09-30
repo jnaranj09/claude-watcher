@@ -52,6 +52,6 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   border-right-color: transparent;
   border-bottom-color: transparent;
 }
-[data-testid='embedded-terminal'] {
+[data-terminal-panel] {
   border-radius: var(--rounded-lg);
 }
