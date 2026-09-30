@@ -43,6 +43,9 @@ export interface SettingsState {
   notificationsEnabled: boolean
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
+   *  before the first load). A refused write rolls the projection back to it. */
+  authoritative: Settings
   /** Replace the whole projection from a main-sourced `Settings` (used on startup load). */
   hydrate: (settings: Settings) => void
   /** Apply a partial patch OPTIMISTICALLY to the projection (immediate effect). The caller
@@ -71,6 +74,7 @@ export function createSettingsStore(): SettingsStoreApi {
     wallpaperByTheme: DEFAULT_SETTINGS.wallpaperByTheme,
     notificationsEnabled: DEFAULT_SETTINGS.notificationsEnabled,
     loaded: false,
+    authoritative: DEFAULT_SETTINGS,
 
     hydrate: (settings) => {
       set({
@@ -84,7 +88,8 @@ export function createSettingsStore(): SettingsStoreApi {
         themeId: settings.themeId,
         wallpaperByTheme: settings.wallpaperByTheme,
         notificationsEnabled: settings.notificationsEnabled,
-        loaded: true
+        loaded: true,
+        authoritative: settings
       })
     },
 
@@ -156,24 +161,29 @@ export function useSettings<T>(selector: (state: SettingsState) => T): T {
   return useStore(settingsStore, selector)
 }
 
+/** The code `persistSettingsPatch` rejects with; Settings maps it to `Could not save <setting>.` */
+export const SETTINGS_PERSIST_FAILED = 'settings_persist_failed'
+
 /**
- * Persist a settings patch through main and re-hydrate the projection with the authoritative
- * value. Applies the patch OPTIMISTICALLY first (immediate UI effect, AC-5), then awaits the
- * main round-trip; on success re-hydrates with the validated value, on failure logs a code and
- * leaves the optimistic value (a transient mismatch self-heals on the next get). NEVER throws.
+ * Persist a settings patch through main. Applies it OPTIMISTICALLY first (immediate effect,
+ * AC-5), then awaits main: on success re-hydrates with main's validated value; on a refusal ROLLS
+ * BACK to the last value main returned (`authoritative`) — the optimistic value must never outlive
+ * a refused write — logs a code (never the value) and REJECTS with `settings_persist_failed`, so
+ * the caller can say what did not save (spec 2026-09-29 §2.1).
  *
- * Exported so the Settings UI binds its controls to ONE persistence entry point (no duplicated
- * window.settings.set call sites). Uses the singleton store + the real window.settings bridge.
+ * Exported so the Settings UI binds its controls to ONE persistence entry point.
  */
 export async function persistSettingsPatch(patch: SettingsPatch): Promise<void> {
   settingsStore.getState().applyPatch(patch)
+  let stored: Settings
   try {
-    const authoritative = await window.settings.set(patch)
-    settingsStore.getState().hydrate(authoritative)
+    stored = await window.settings.set(patch)
   } catch {
-    // Never log the value (Guardrail #6); the optimistic value already took effect in-session.
     console.warn('[c9watch][settings] code=settings_persist_failed')
+    settingsStore.getState().hydrate(settingsStore.getState().authoritative)
+    throw new Error(SETTINGS_PERSIST_FAILED)
   }
+  settingsStore.getState().hydrate(stored)
 }
 
 /** Load settings from main at startup and hydrate the singleton store. NEVER throws — on a

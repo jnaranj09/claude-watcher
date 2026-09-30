@@ -14,19 +14,11 @@ import { SettingsPanel } from './Settings'
 import { settingsStore } from '../../stores/settingsStore'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, selectedValue, optionValues, optionLabel } from '../../test/selectHarness'
-import {
-  DEFAULT_SETTINGS,
-  type Settings,
-  type SettingsPatch
-} from '../../../../shared/schemas/settings'
+import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/schemas/settings'
+import { mergedSettings, stubSettings } from '../../test/settingsBridge'
 import type { ThemeSummary } from '../../../../shared/schemas/theme'
 import { themeStore } from '../../stores/themeStore'
 import { DEFAULT_THEME_BUNDLE } from '../../../../shared/schemas/theme'
-
-interface SettingsBridge {
-  get(): Promise<Settings>
-  set(patch: SettingsPatch): Promise<Settings>
-}
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -40,36 +32,6 @@ afterEach(() => {
     themeStore.getState().setBundle(DEFAULT_THEME_BUNDLE)
   })
 })
-
-/** Stub window.settings; `set` records the patch and echoes a merged Settings. */
-function stubSettings(): { setCalls: SettingsPatch[] } {
-  const setCalls: SettingsPatch[] = []
-  const bridge: SettingsBridge = {
-    get: async () => DEFAULT_SETTINGS,
-    set: async (patch) => {
-      setCalls.push(patch)
-      // Build a fully-typed merged Settings (avoid spreading optional-undefined props
-      // under exactOptionalPropertyTypes).
-      const merged: Settings = {
-        version: DEFAULT_SETTINGS.version,
-        soundEnabled: patch.soundEnabled ?? DEFAULT_SETTINGS.soundEnabled,
-        terminalFontSize: patch.terminalFontSize ?? DEFAULT_SETTINGS.terminalFontSize,
-        reminderCount: patch.reminderCount ?? DEFAULT_SETTINGS.reminderCount,
-        reminderFirstDelayMinutes:
-          patch.reminderFirstDelayMinutes ?? DEFAULT_SETTINGS.reminderFirstDelayMinutes,
-        expanderKey: patch.expanderKey ?? DEFAULT_SETTINGS.expanderKey,
-        apiEnabled: patch.apiEnabled ?? DEFAULT_SETTINGS.apiEnabled,
-        apiPort: patch.apiPort ?? DEFAULT_SETTINGS.apiPort,
-        themeId: patch.themeId ?? DEFAULT_SETTINGS.themeId,
-        wallpaperByTheme: patch.wallpaperByTheme ?? DEFAULT_SETTINGS.wallpaperByTheme,
-        notificationsEnabled: patch.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled
-      }
-      return merged
-    }
-  }
-  ;(window as unknown as { settings: SettingsBridge }).settings = bridge
-  return { setCalls }
-}
 
 // ── Programmatic API — the window.api + window.clipboard bridges the block reads ──────────────
 interface ApiBridge {
@@ -404,8 +366,8 @@ describe('SettingsPanel — the local API block', () => {
     await flush()
     expect(setCalls).toContainEqual({ apiEnabled: true })
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('a'.repeat(64))
-    expect(q(r, '[data-testid="settings-api-copy"]').textContent).toBe('Copy')
-    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Regenerate')
+    expect(q(r, '[data-testid="settings-api-copy"]').textContent).toMatch(/^Copy/)
+    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toMatch(/^Regenerate/)
     expect(q(r, '[data-testid="settings-api-docs-url"]').textContent).toBe(
       'http://127.0.0.1:9281/docs'
     )
@@ -519,7 +481,7 @@ describe('SettingsPanel — the local API block', () => {
     await flush()
     const btn = q<HTMLButtonElement>(r, '[data-testid="settings-api-regenerate"]')
     click(btn)
-    expect(btn.textContent).toBe('Confirm regenerate')
+    expect(btn.textContent).toMatch(/^Confirm regenerate/)
     expect(regenerate).not.toHaveBeenCalled()
     click(btn)
     await flush()
@@ -528,7 +490,10 @@ describe('SettingsPanel — the local API block', () => {
     // The flow is OVER: the button must fall back to its resting label. `ManageDialog.Delete`
     // never disarms itself (a refused delete stays armed so a second press retries) — the host
     // disarms it, and without that the next single press regenerates with no arming step.
-    expect(btn.textContent).toBe('Regenerate')
+    // The flow is over: disarmed, and the result shows on the live region (spec 2026-09-29 §2.1).
+    expect(btn.hasAttribute('data-armed')).toBe(false)
+    expect(btn.textContent).toMatch(/^Regenerate/)
+    expect(btn.nextElementSibling?.textContent).toBe('✓ New token')
   })
 
   // Main rejects when it minted a token it could not persist (`token_write_failed`). Showing the
@@ -554,7 +519,7 @@ describe('SettingsPanel — the local API block', () => {
     expect(r.container.textContent).not.toContain('EACCES')
     // A REFUSED action stays armed, so one more press retries it — the component's own
     // documented behaviour, and the opposite of the success path above.
-    expect(btn.textContent).toBe('Confirm regenerate')
+    expect(btn.textContent).toMatch(/^Confirm regenerate/)
   })
 
   it('a token read that fails shows mapped copy and does not crash the panel', async () => {
@@ -749,17 +714,17 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
   // R12 — the theme error is a STANDING condition, not an event: an unrelated flow that clears the
   // shared line (a good port, the API switched off) must not hide it while the theme is still broken.
   it('a still-broken theme keeps its error line through an API change that clears the line', async () => {
-    stubSettings()
-    stubApi()
-    stubThemes([broken])
     const base: Settings = { ...DEFAULT_SETTINGS, themeId: 'broken', apiEnabled: true }
     // Main's answer keeps the broken theme chosen (the stub's default answer would reset it).
-    ;(window as unknown as { settings: SettingsBridge }).settings.set = (patch) =>
+    stubSettings((patch) =>
       Promise.resolve({
         ...base,
         apiPort: patch.apiPort ?? base.apiPort,
         apiEnabled: patch.apiEnabled ?? base.apiEnabled
       })
+    )
+    stubApi()
+    stubThemes([broken])
     act(() => settingsStore.getState().hydrate(base))
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
@@ -800,16 +765,15 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
   // R12 (related) — picking a theme updates the setting at once, and the bundle lands a moment
   // later: the gap read as "could not be loaded" on every switch.
   it('no false alarm while a theme switch is in flight; the real outcome shows after', async () => {
-    stubSettings()
+    let answer: (() => void) | undefined
+    stubSettings(
+      (patch) =>
+        new Promise((resolve) => {
+          answer = () => resolve(mergedSettings(patch))
+        })
+    )
     stubApi()
     stubThemes([paper])
-    let answer: (() => void) | undefined
-    const bridge = (window as unknown as { settings: SettingsBridge }).settings
-    const realSet = bridge.set
-    bridge.set = (patch) =>
-      new Promise((resolve) => {
-        answer = () => void realSet(patch).then(resolve)
-      })
     const r = renderComponent(<SettingsPanel />)
     cleanup = r.unmount
     openCategory(r, 'appearance')
@@ -1119,10 +1083,12 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     openCategory(r, 'api')
     await flush()
     click(q(r, '[data-testid="settings-api-regenerate"]'))
-    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Confirm regenerate')
+    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toMatch(
+      /^Confirm regenerate/
+    )
     openCategory(r, 'terminal')
     openCategory(r, 'api')
-    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toBe('Regenerate')
+    expect(q(r, '[data-testid="settings-api-regenerate"]').textContent).toMatch(/^Regenerate/)
   })
 })
 

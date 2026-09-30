@@ -4,10 +4,25 @@
 
 /* The category's own heading at the top of the right column: which page this is. */
 .categoryTitle {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* The heading and the `✓ Saved` mark (spec 2026-09-29 §2.1): the mark sits beside the heading so
+   the operator reads "this page saved", and its empty box costs no height. */
+.paneHeading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+/* Neutral ink — no --success token (the spec's rule); --text-secondary on the raised panel. */
+.savedMark {
+  color: var(--text-secondary);
+  font-size: var(--font-size-label);
 }
 
 .row {

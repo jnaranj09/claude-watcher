@@ -1,7 +1,7 @@
 // Settings — the app's preferences, on the ONE two-column shell (spec 2026-09-29 §3): a rail of
 // categories (Notifications, Appearance, Terminal, Keyboard, API) and the chosen category's
-// controls on the right. Every control persists on change through `persistSettingsPatch`
-// (optimistic + persist), so there is no Save. It opens on Notifications and never shows a
+// controls on the right. Every control persists on change through `persistSetting` (over
+// `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on Notifications and never shows a
 // placeholder. The panel's ONE error line carries the standing theme error whatever category is
 // open. Dropdowns are `Select` (a native <select> is banned — design.md); labels of a Select are
 // <span>s with `ariaLabel`. Reached from the ☰ menu's `Settings…` row (App.tsx renders
@@ -46,6 +46,9 @@ import {
   type SettingsCategoryId
 } from './settingsCategories'
 import { useServerHealth } from '../../hooks/useServerHealth'
+import { useFlash } from '../../hooks/useFlash'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
+import type { SettingsPatch } from '../../../../shared/schemas/settings'
 import styles from './Settings.module.css'
 
 /** Attention reminders — `Off`, then 1..REMINDER_COUNT_MAX. A Select value is a string. */
@@ -96,6 +99,29 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     keepErrorOnSelect: true
   })
   const { actions: apiActions } = dialog
+
+  // ── Action feedback (spec 2026-09-29 §2.1) ────────────────────────────────────────────────
+  // Every change says it landed: `✓ Saved` beside the pane heading for 1.5 s. When main refuses
+  // one, persistSettingsPatch has already rolled the store back to main's value (the control
+  // snaps back) and the error line names what did not save — until the next change that lands.
+  const [saved, flashSaved] = useFlash<true>()
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // Each result text is a constant on its button (`feedback`); these only say WHEN it shows.
+  const [copied, flashCopied] = useFlash<true>()
+  const [reloaded, flashReloaded] = useFlash<true>()
+  const [newToken, flashNewToken] = useFlash<true>()
+
+  /** The ONE wrapper every control persists through. `what` is operator copy (`the API port`),
+   *  never a value. Never rejects. */
+  function persistSetting(patch: SettingsPatch, what: string): Promise<void> {
+    return persistSettingsPatch(patch).then(
+      () => {
+        setSaveError(null)
+        flashSaved(true)
+      },
+      () => setSaveError(`Could not save ${what}.`)
+    )
+  }
   const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
   const categoryLabel =
     SETTINGS_CATEGORIES.find((c) => c.id === category)?.label ?? SETTINGS_CATEGORIES[0]?.label
@@ -117,6 +143,9 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const themeId = useSettings(selectThemeId)
   const bundle = useTheme(selectThemeBundle)
   const [summaries, setSummaries] = useState<ThemeSummary[]>([])
+  // Until the first list answers, a non-default theme has no name to show: the trigger says
+  // `Loading…`, never the raw folder id (spec 2026-09-29 §2.1).
+  const [themesLoaded, setThemesLoaded] = useState(false)
   // Bumped by Reload to re-run the listing effect below — the effect itself owns the ONE
   // fetch-then-setState call site (react-hooks/set-state-in-effect: setState must land inside a
   // `.then()`/`.catch()` literally in the effect body, never via a named async helper called
@@ -130,11 +159,15 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     window.themes
       .list()
       .then((result) => {
-        if (alive) setSummaries(result)
+        if (!alive) return
+        setSummaries(result)
+        setThemesLoaded(true)
       })
       .catch(() => {
         console.warn('[claude-watcher][themes] code=list_failed')
-        if (alive) apiActions.setError('Could not read the themes folder.')
+        if (!alive) return
+        setThemesLoaded(true)
+        apiActions.setError('Could not read the themes folder.')
       })
     return () => {
       alive = false
@@ -152,7 +185,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // The picker never sits on a value it does not offer (design.md): a chosen theme that is
   // broken or gone stays listed under its own id so the operator sees what is set.
   if (!themeOptions.some((o) => o.value === themeId)) {
-    themeOptions.push({ value: themeId, label: themeId })
+    themeOptions.push({ value: themeId, label: themesLoaded ? themeId : 'Loading…' })
   }
   const brokenLine = brokenThemesLine(summaries)
   const chosenSummary = summaries.find((s) => s.id === themeId)
@@ -184,16 +217,17 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // error line in place of the API/theme-action error (`themeError ?? state.error`). It used to be
   // copied INTO that state, where any flow that cleared the line (a good port, the API switched
   // off, a regenerate) wiped it while the theme was still broken.
-  const errorLine = themeError ?? dialog.state.error
+  const errorLine = themeError ?? saveError ?? dialog.state.error
 
   function pickTheme(next: string): void {
     setThemeSwitching(true)
-    void persistSettingsPatch({ themeId: next }).finally(() => setThemeSwitching(false))
+    void persistSetting({ themeId: next }, 'the theme').finally(() => setThemeSwitching(false))
   }
 
   async function reloadThemes(): Promise<void> {
     try {
       await window.themes.reload()
+      flashReloaded(true)
     } catch {
       console.warn('[claude-watcher][themes] code=reload_failed')
       apiActions.setError('Could not reload themes.')
@@ -250,7 +284,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
       setToken(null)
       apiActions.setError(null)
     }
-    void persistSettingsPatch({ apiEnabled: next })
+    void persistSetting({ apiEnabled: next }, 'the Local API setting')
   }
 
   function commitPort(): void {
@@ -267,7 +301,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     // Back to "no edit in flight": the field follows the stored port again, which
     // `persistSettingsPatch` has already updated optimistically.
     setPortDraft(null)
-    if (next !== apiPort) void persistSettingsPatch({ apiPort: next })
+    if (next !== apiPort) void persistSetting({ apiPort: next }, 'the API port')
   }
 
   // Main mints AND persists the new token; a rejection means the OLD one is still the live
@@ -284,11 +318,29 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
       setToken(result.token)
       apiActions.setError(null)
       apiActions.disarm()
+      flashNewToken(true)
     } catch (error: unknown) {
       console.warn('[claude-watcher][api] code=token_regenerate_failed')
       apiActions.setError(tokenErrorCopy(error, 'Could not regenerate the API token.'))
     }
   }
+
+  // A failed copy says so: it used to be an unhandled rejection (and copied '' before the read).
+  function copyToken(value: string): void {
+    void window.clipboard
+      .writeText(value)
+      .then(() => flashCopied(true))
+      .catch(() => {
+        console.warn('[claude-watcher][api] code=token_copy_failed') // never the token
+        apiActions.setError('Could not copy the token.')
+      })
+  }
+
+  // One in flight at a time each — a second press starts nothing (Regenerate used to mint twice).
+  // Declared AFTER the three functions they wrap, so nothing is read before it is defined.
+  const reload = useAsyncAction(reloadThemes)
+  const openFolder = useAsyncAction(openThemesFolder)
+  const regenerate = useAsyncAction(regenerateToken)
 
   return (
     <ManageDialog.Provider {...dialog} state={{ ...dialog.state, error: errorLine }}>
@@ -305,7 +357,13 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             </ManageDialog.Rows>
           </ManageDialog.List>
           <ManageDialog.Pane testId={`settings-pane-${category}`}>
-            <h3 className={styles.categoryTitle}>{categoryLabel}</h3>
+            <div className={styles.paneHeading}>
+              <h3 className={styles.categoryTitle}>{categoryLabel}</h3>
+              {/* Always in the page, so the text is announced when it appears. */}
+              <span className={styles.savedMark} role="status" data-testid="settings-saved">
+                {saved !== null ? '✓ Saved' : ''}
+              </span>
+            </div>
             {category === 'notifications' && (
               <>
                 {/* Control 1 — SOUND on/off (a labeled native checkbox; keyboard-operable). */}
@@ -321,7 +379,10 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       checked={soundEnabled}
                       onChange={(e) => {
                         // Persist + apply immediately. The sound module reads the live flag (AC-5).
-                        void persistSettingsPatch({ soundEnabled: e.target.checked })
+                        void persistSetting(
+                          { soundEnabled: e.target.checked },
+                          'the attention sound'
+                        )
                       }}
                     />
                   </div>
@@ -340,7 +401,10 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       data-testid="settings-notifications-toggle"
                       checked={notificationsEnabled}
                       onChange={(e) => {
-                        void persistSettingsPatch({ notificationsEnabled: e.target.checked })
+                        void persistSetting(
+                          { notificationsEnabled: e.target.checked },
+                          'desktop notifications'
+                        )
                       }}
                     />
                   </div>
@@ -358,7 +422,8 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       options={REMINDER_COUNT_OPTIONS}
                       onChange={(next) => {
                         const n = Number(next)
-                        if (Number.isInteger(n)) void persistSettingsPatch({ reminderCount: n })
+                        if (Number.isInteger(n))
+                          void persistSetting({ reminderCount: n }, 'the reminders')
                       }}
                       ariaLabel="Reminders"
                       testId="settings-reminder-count"
@@ -381,7 +446,10 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                             (m) => String(m) === next
                           )
                           if (minutes !== undefined) {
-                            void persistSettingsPatch({ reminderFirstDelayMinutes: minutes })
+                            void persistSetting(
+                              { reminderFirstDelayMinutes: minutes },
+                              'the first reminder delay'
+                            )
                           }
                         }}
                         ariaLabel="First reminder after"
@@ -423,9 +491,10 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                         value={appliedWallpaper}
                         options={wallpaperOptions}
                         onChange={(next) =>
-                          void persistSettingsPatch({
-                            wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next }
-                          })
+                          void persistSetting(
+                            { wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next } },
+                            'the wallpaper'
+                          )
                         }
                         ariaLabel="Wallpaper"
                         testId="settings-wallpaper"
@@ -437,13 +506,17 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                 <div className={styles.themeActions}>
                   <ManageDialog.GhostButton
                     testId="settings-theme-reload"
-                    onClick={() => void reloadThemes()}
+                    busy={reload.busy}
+                    feedback="✓ Reloaded"
+                    feedbackShown={reloaded !== null}
+                    onClick={() => void reload.run()}
                   >
                     Reload themes
                   </ManageDialog.GhostButton>
                   <ManageDialog.GhostButton
                     testId="settings-theme-open-folder"
-                    onClick={() => void openThemesFolder()}
+                    busy={openFolder.busy}
+                    onClick={() => void openFolder.run()}
                   >
                     Open themes folder
                   </ManageDialog.GhostButton>
@@ -479,7 +552,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       onChange={(e) => {
                         const next = Number(e.target.value)
                         if (Number.isFinite(next)) {
-                          void persistSettingsPatch({ terminalFontSize: next })
+                          void persistSetting({ terminalFontSize: next }, 'the terminal font size')
                         }
                       }}
                     />
@@ -499,7 +572,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       value={expanderChord(expanderKey)}
                       onChange={(chord) => {
                         // The chord is `Ctrl+Alt+<letter>`; the letter is the last character.
-                        void persistSettingsPatch({ expanderKey: chord.slice(-1) })
+                        void persistSetting({ expanderKey: chord.slice(-1) }, 'the shortcut chord')
                       }}
                     />
                   </div>
@@ -570,19 +643,28 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                             readOnly
                           />
                         </span>
-                        <ManageDialog.GhostButton
-                          testId="settings-api-copy"
-                          onClick={() => void window.clipboard.writeText(token ?? '')}
-                        >
-                          Copy
-                        </ManageDialog.GhostButton>
+                        {/* Not rendered until main answered with the token: before, it copied ''. */}
+                        {token !== null && (
+                          <ManageDialog.GhostButton
+                            testId="settings-api-copy"
+                            feedback="✓ Copied"
+                            feedbackShown={copied !== null}
+                            onClick={() => copyToken(token)}
+                          >
+                            Copy
+                          </ManageDialog.GhostButton>
+                        )}
                         {/* Destructive: it invalidates every client holding the old token, so it arms
-                            in place through the ONE component that owns those classes (design.md). */}
+                            in place through the ONE component that owns those classes (design.md).
+                            Busy while main mints: a second press cannot mint a second token. */}
                         <ManageDialog.Delete
                           testId="settings-api-regenerate"
                           label="Regenerate"
                           confirmLabel="Confirm regenerate"
-                          onConfirm={() => void regenerateToken()}
+                          busy={regenerate.busy}
+                          feedback="✓ New token"
+                          feedbackShown={newToken !== null}
+                          onConfirm={() => void regenerate.run()}
                         />
                       </div>
                     </div>
