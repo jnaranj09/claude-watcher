@@ -7,7 +7,10 @@ import type { Template, TemplateSaveRequest } from '../../../shared/ipc/contract
 export interface TemplatesState {
   templates: Template[]
   loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
+  loadFailed: boolean
   hydrate: (templates: Template[]) => void
+  markLoadFailed: () => void
 }
 export type TemplatesStoreApi = StoreApi<TemplatesState>
 
@@ -15,12 +18,17 @@ export function createTemplatesStore(): TemplatesStoreApi {
   return createStore<TemplatesState>((set) => ({
     templates: [],
     loaded: false,
-    hydrate: (templates) => set({ templates, loaded: true })
+    loadFailed: false,
+    hydrate: (templates) => set({ templates, loaded: true, loadFailed: false }),
+    markLoadFailed: () => set({ loadFailed: true })
   }))
 }
 
 export const selectTemplates = (state: TemplatesState): Template[] => state.templates
 export const selectTemplatesLoaded = (state: TemplatesState): boolean => state.loaded
+/** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
+export const selectTemplatesLoadFailed = (state: TemplatesState): boolean =>
+  !selectTemplatesLoaded(state) && state.loadFailed
 
 /**
  * Workspaces — the templates VISIBLE in one workspace: the global rows (`workspaceId === null`)
@@ -43,11 +51,15 @@ export function useTemplates<T>(selector: (state: TemplatesState) => T): T {
 
 const LOG_PREFIX = '[claude-watcher][templates]'
 
-export async function loadTemplates(): Promise<void> {
+/** Resolves whether it worked (the startup toast names the failures). Never rejects. */
+export async function loadTemplates(): Promise<boolean> {
   try {
     templatesStore.getState().hydrate(await window.templates.list())
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=templates_load_failed`)
+    templatesStore.getState().markLoadFailed()
+    return false
   }
 }
 

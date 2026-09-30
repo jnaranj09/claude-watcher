@@ -7,6 +7,7 @@ import { filterTemplates } from '../NewSessionMenu/filterTemplates'
 import { filterByScope, knownWorkspaceIds, type ScopeFilterValue } from '../ScopeFilter/scope'
 import { ManageDialog } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
+import { selectTemplatesLoadFailed, useTemplates } from '../../stores/templatesStore'
 import styles from './TemplatesDialog.module.css'
 
 export interface TemplateListProps {
@@ -22,6 +23,7 @@ export interface TemplateListProps {
 
 export function TemplateList({ templates, workspaces, scope }: TemplateListProps): JSX.Element {
   const [query, setQuery] = useState('')
+  const loadFailed = useTemplates(selectTemplatesLoadFailed)
   const searchRef = useRef<HTMLInputElement | null>(null)
   // An aria-modal dialog must take focus on mount, or Escape/Tab keep going to whatever was
   // focused behind it (a11y defect). Mount-only, like SessionNameDialog's input focus.
@@ -35,8 +37,10 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
   // Three different nothings, three different answers: no templates at all, none in the scope you
   // picked, or none matching what you typed. One shared "No matches" would send you looking for a
   // typo when the real answer is the dropdown.
-  const emptyCopy =
-    templates.length === 0
+  // A failed startup load is a fourth: it must not read as "none yet" (spec 2026-09-29 §2.6).
+  const emptyCopy = loadFailed
+    ? 'Could not load templates.'
+    : templates.length === 0
       ? 'No templates yet'
       : scoped.length === 0
         ? 'No templates in this workspace'

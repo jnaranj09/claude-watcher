@@ -18,23 +18,19 @@ import { SmokeCockpit } from './SmokeCockpit'
 // Manage-templates modal. See NewSessionButton.tsx / TemplatesDialog.tsx for their own docs.
 import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
 import { TemplatesDialog } from './components/TemplatesDialog/TemplatesDialog'
-import { loadTemplates } from './stores/templatesStore'
 // Phrase shortcuts — the Manage-shortcuts modal (☰ menu → Shortcuts…) + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
-import { loadShortcuts } from './stores/shortcutsStore'
 // Workspaces (Task 9b) — the header switcher + the startup workspaces load. Task 10 wires
 // `onManage` to the Manage-workspaces modal below.
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
-import { loadWorkspaces } from './stores/workspacesStore'
 // The header ☰ menu — Settings…, Shortcuts…, and the Tags submenu (Manage tags… / Manage rules…).
 import { AppMenu } from './components/AppMenu/AppMenu'
 // Tags — the Manage-tags modal.
 import { TagsDialog } from './components/TagsDialog/TagsDialog'
-import { loadTags, setSessionTags } from './stores/tagsStore'
+import { setSessionTags } from './stores/tagsStore'
 // Rules — the Manage-rules modal (+ the startup rules load).
 import { RulesDialog } from './components/RulesDialog/RulesDialog'
-import { loadRules } from './stores/rulesStore'
 // Past sessions (D-6) — the history modal (☰ menu → Past sessions…, always the last row). It loads
 // the history itself on open; nothing loads at startup.
 import { PastSessionsDialog } from './components/PastSessionsDialog/PastSessionsDialog'
@@ -42,7 +38,6 @@ import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (☰ menu → Settings…; the `#terminals` proof view keeps
 // its own ⚙ gear) + the startup settings load.
 import { Settings, SettingsPanel } from './components/Settings/Settings'
-import { loadSettings } from './stores/settingsStore'
 // Story 3.1 (FR-10) — the minimal embedded-terminal host. Reachable via the URL hash
 // (`#terminals` → 1; `#terminals=N` → N for the NFR-5 many-terminals manual check) so it does
 // NOT alter the default board view or the Story-0.1 smoke path.
@@ -116,6 +111,7 @@ import { Toaster } from './components/Toaster/Toaster'
 // answers, maps refusals, and never lets a late result take the view.
 import { submitLaunch, submitRename } from './lib/namePromptFlow'
 import { moveCardToWorkspace } from './lib/cardActions'
+import { runStartupLoads } from './lib/startupLoads'
 import { toast } from './stores/toastStore'
 import { useAsyncAction } from './hooks/useAsyncAction'
 
@@ -156,19 +152,9 @@ function App(): React.JSX.Element {
   // Session templates — load the templates list ONCE at startup, alongside settings. Never
   // throws (loadTemplates logs a code and leaves the store empty on failure).
   useEffect(() => {
-    if (smoke === false) {
-      void loadSettings()
-      void loadTemplates()
-      // Phrase shortcuts — never throws (logs a code and leaves the projection empty on failure).
-      void loadShortcuts()
-      // Workspaces (Task 9b) — never throws (logs a code and leaves the projection empty on
-      // failure, same as the three above).
-      void loadWorkspaces()
-      // Tags — never throws (logs a code and leaves the projection empty on failure).
-      void loadTags()
-      // Rules — never throws (logs a code and leaves the projection empty on failure).
-      void loadRules()
-    }
+    // Action feedback (spec 2026-09-29 §2.6) — settings, templates, shortcuts, workspaces, tags and
+    // rules, in parallel, and ONE error toast naming every store that failed. Never rejects.
+    if (smoke === false) void runStartupLoads()
   }, [smoke])
 
   // Story 3.2 (FR-11) — the Board ↔ Focused-session VIEW-STATE (renderer view-state, F6).

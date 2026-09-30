@@ -7,7 +7,10 @@ import type { Shortcut, ShortcutSaveRequest } from '../../../shared/ipc/contract
 export interface ShortcutsState {
   shortcuts: Shortcut[]
   loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
+  loadFailed: boolean
   hydrate: (shortcuts: Shortcut[]) => void
+  markLoadFailed: () => void
 }
 export type ShortcutsStoreApi = StoreApi<ShortcutsState>
 
@@ -15,12 +18,17 @@ export function createShortcutsStore(): ShortcutsStoreApi {
   return createStore<ShortcutsState>((set) => ({
     shortcuts: [],
     loaded: false,
-    hydrate: (shortcuts) => set({ shortcuts, loaded: true })
+    loadFailed: false,
+    hydrate: (shortcuts) => set({ shortcuts, loaded: true, loadFailed: false }),
+    markLoadFailed: () => set({ loadFailed: true })
   }))
 }
 
 export const selectShortcuts = (state: ShortcutsState): Shortcut[] => state.shortcuts
 export const selectShortcutsLoaded = (state: ShortcutsState): boolean => state.loaded
+/** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
+export const selectShortcutsLoadFailed = (state: ShortcutsState): boolean =>
+  !selectShortcutsLoaded(state) && state.loadFailed
 
 /**
  * Workspaces — the shortcuts VISIBLE in one workspace: the global rows (`workspaceId === null`)
@@ -43,11 +51,15 @@ export function useShortcuts<T>(selector: (state: ShortcutsState) => T): T {
 
 const LOG_PREFIX = '[claude-watcher][shortcuts]'
 
-export async function loadShortcuts(): Promise<void> {
+/** Resolves whether it worked (the startup toast names the failures). Never rejects. */
+export async function loadShortcuts(): Promise<boolean> {
   try {
     shortcutsStore.getState().hydrate(await window.shortcuts.list())
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=shortcuts_load_failed`)
+    shortcutsStore.getState().markLoadFailed()
+    return false
   }
 }
 

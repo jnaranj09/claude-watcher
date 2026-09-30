@@ -5,7 +5,11 @@
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
-import { selectShortcuts, useShortcuts } from '../../stores/shortcutsStore'
+import {
+  selectShortcuts,
+  selectShortcutsLoadFailed,
+  useShortcuts
+} from '../../stores/shortcutsStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
@@ -36,6 +40,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   // The dialog shows EVERY shortcut regardless of scope (unlike the terminal matcher); the
   // header's scope filter is the ONE thing that narrows the rail.
   const shortcuts = useShortcuts(selectShortcuts)
+  const loadFailed = useShortcuts(selectShortcutsLoadFailed)
   const expanderKey = useSettings(selectExpanderKey)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
@@ -112,11 +117,16 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
                   </span>
                 </ManageDialog.Row>
               ))}
-              {shortcuts.length === 0 && (
-                <p className={styles.empty} data-testid="shortcuts-empty">
-                  No shortcuts yet. Add one and give it an alias like <code>ht</code>.
-                </p>
-              )}
+              {shortcuts.length === 0 &&
+                (loadFailed ? (
+                  <p className={styles.empty} data-testid="shortcuts-load-failed">
+                    Could not load shortcuts.
+                  </p>
+                ) : (
+                  <p className={styles.empty} data-testid="shortcuts-empty">
+                    No shortcuts yet. Add one and give it an alias like <code>ht</code>.
+                  </p>
+                ))}
               {emptyCopy !== null && listed.length === 0 && (
                 <p className={styles.empty} data-testid="shortcuts-empty-scope">
                   {emptyCopy}

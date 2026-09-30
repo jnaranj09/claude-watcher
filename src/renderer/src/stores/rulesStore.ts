@@ -11,7 +11,10 @@ export interface RulesState {
   /** Rules that can never fire (T-23) — the dialog marks them. */
   brokenIds: string[]
   loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
+  loadFailed: boolean
   hydrate: (view: RulesListResult) => void
+  markLoadFailed: () => void
 }
 
 export function createRulesViewStore(): StoreApi<RulesState> {
@@ -19,7 +22,10 @@ export function createRulesViewStore(): StoreApi<RulesState> {
     rules: [],
     brokenIds: [],
     loaded: false,
-    hydrate: (view) => set({ rules: view.rules, brokenIds: view.brokenIds, loaded: true })
+    loadFailed: false,
+    hydrate: (view) =>
+      set({ rules: view.rules, brokenIds: view.brokenIds, loaded: true, loadFailed: false }),
+    markLoadFailed: () => set({ loadFailed: true })
   }))
 }
 
@@ -31,6 +37,10 @@ export function useRules<T>(selector: (state: RulesState) => T): T {
 
 export const selectRules = (s: RulesState): Rule[] => s.rules
 export const selectBrokenIds = (s: RulesState): string[] => s.brokenIds
+export const selectRulesLoaded = (s: RulesState): boolean => s.loaded
+/** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
+export const selectRulesLoadFailed = (s: RulesState): boolean =>
+  !selectRulesLoaded(s) && s.loadFailed
 
 /** How many rules use a tag, in a condition or an action — the "Used by N rules" copy (T-16).
  *  Delegates to the shared `ruleUsesTag` predicate (ruleRefs.ts) — the same one main uses — rather
@@ -58,11 +68,15 @@ export function rulesLosingTemplate(
 
 const LOG_PREFIX = '[claude-watcher][rules]'
 
-export async function loadRules(): Promise<void> {
+/** Resolves whether it worked (the startup toast names the failures). Never rejects. */
+export async function loadRules(): Promise<boolean> {
   try {
     rulesStore.getState().hydrate(await window.rules.list())
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=rules_load_failed`)
+    rulesStore.getState().markLoadFailed()
+    return false
   }
 }
 

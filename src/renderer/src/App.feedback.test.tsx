@@ -202,3 +202,16 @@ describe('App — the quit paths never leave a rejection unhandled', () => {
     expect(warn).toHaveBeenCalledWith('[claude-watcher][quit] code=quit_cancel_failed')
   })
 })
+
+describe('App — startup loads', () => {
+  it('ONE error toast names every store that failed to load', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    bridges.tagsList.mockImplementation(() => Promise.reject(new Error('x')))
+    bridges.rulesList.mockImplementation(() => Promise.reject(new Error('x')))
+    await renderApp()
+    await flush()
+    expect(toasts()).toEqual([
+      ['error', 'Could not load tags and rules. Reopen the app to try again.']
+    ])
+  })
+})

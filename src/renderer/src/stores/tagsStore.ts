@@ -11,10 +11,13 @@ export interface TagsState {
   /** The catalog, in TAG-LIST order (main sorts it by name). Chips render in this order. */
   tags: Tag[]
   loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
+  loadFailed: boolean
   /** The board's tag filter (FilterBar) — a tag id, or null for no filter. */
   activeTagId: string | null
   hydrate: (tags: Tag[]) => void
   setActiveTag: (id: string | null) => void
+  markLoadFailed: () => void
   /** Action feedback (spec 2026-09-29 §2.3) — tag toggles sent to main and not answered yet, per
    *  session (tagId → on). VIEW-STATE that expires when main answers: both pickers read
    *  `selectedIds ⊕ pending`, so the ✓ answers the click at once. Session truth stays main's. */
@@ -30,16 +33,19 @@ export function createTagsViewStore(): TagsStoreApi {
   return createStore<TagsState>((set) => ({
     tags: [],
     loaded: false,
+    loadFailed: false,
     activeTagId: null,
     // A filter on a tag that was just deleted would sit on a value the filter no longer offers.
     hydrate: (tags) =>
       set((s) => ({
         tags,
         loaded: true,
+        loadFailed: false,
         activeTagId:
           s.activeTagId !== null && tags.some((t) => t.id === s.activeTagId) ? s.activeTagId : null
       })),
     setActiveTag: (id) => set({ activeTagId: id }),
+    markLoadFailed: () => set({ loadFailed: true }),
     pendingBySession: new Map(),
     setPending: (sessionId, changes) =>
       set((s) => {
@@ -71,6 +77,8 @@ export function useTags<T>(selector: (state: TagsState) => T): T {
 
 export const selectTags = (s: TagsState): Tag[] => s.tags
 export const selectTagsLoaded = (s: TagsState): boolean => s.loaded
+/** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
+export const selectTagsLoadFailed = (s: TagsState): boolean => !selectTagsLoaded(s) && s.loadFailed
 
 /** The tag the board and the rail filter on in `workspaceId`: the chosen one when that workspace
  *  can see it, else null. A primitive — safe without useShallow. */
@@ -91,11 +99,15 @@ export function tagsForIds(tags: readonly Tag[], ids: readonly string[]): Tag[] 
 
 const LOG_PREFIX = '[claude-watcher][tags]'
 
-export async function loadTags(): Promise<void> {
+/** Resolves whether it worked (the startup toast names the failures). Never rejects. */
+export async function loadTags(): Promise<boolean> {
   try {
     tagsStore.getState().hydrate(await window.tags.list())
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=tags_load_failed`)
+    tagsStore.getState().markLoadFailed()
+    return false
   }
 }
 

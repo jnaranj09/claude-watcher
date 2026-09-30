@@ -22,7 +22,13 @@ import { TagChip } from '../TagChip/TagChip'
 import { TagPathLabel } from '../TagChip/TagPathLabel'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
-import { removeTag, saveTag, selectTags, useTags } from '../../stores/tagsStore'
+import {
+  removeTag,
+  saveTag,
+  selectTags,
+  selectTagsLoadFailed,
+  useTags
+} from '../../stores/tagsStore'
 import { rulesStore, rulesUsingTag } from '../../stores/rulesStore'
 import {
   selectActiveWorkspaceId,
@@ -44,6 +50,7 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
   const dialog = useManageDialog({ title: 'Tags', testIdPrefix: 'tags', onClose })
   const { closeRef } = dialog.meta
   const tags = useTags(selectTags)
+  const loadFailed = useTags(selectTagsLoadFailed)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const known = knownWorkspaceIds(workspaces)
@@ -79,7 +86,11 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
   }
 
   // Different nothings, different sentences (design.md). No search box here, so only two apply.
-  const emptyCopy = tags.length === 0 ? 'No tags yet' : 'No tags in this workspace'
+  const emptyCopy = loadFailed
+    ? 'Could not load tags.'
+    : tags.length === 0
+      ? 'No tags yet'
+      : 'No tags in this workspace'
 
   return (
     <ManageDialog.Provider {...dialog}>

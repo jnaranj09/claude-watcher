@@ -19,7 +19,12 @@ const ops = { id: 'w1', name: 'Ops', color: 'blue' as const, defaultCwd: null }
 const view = { activeId: DEFAULT_WORKSPACE_ID, workspaces: [defaultRow, ops] }
 
 beforeEach(() => {
-  workspacesStore.setState({ workspaces: [], activeId: DEFAULT_WORKSPACE_ID, loaded: false })
+  workspacesStore.setState({
+    workspaces: [],
+    activeId: DEFAULT_WORKSPACE_ID,
+    loaded: false,
+    loadFailed: false
+  })
   window.workspaces = {
     list: vi.fn().mockResolvedValue(view),
     save: vi.fn().mockResolvedValue({ saved: ops, ...view }),
@@ -30,7 +35,7 @@ beforeEach(() => {
 
 describe('workspacesStore', () => {
   it('hydrates from list and flips loaded', async () => {
-    await loadWorkspaces()
+    await expect(loadWorkspaces()).resolves.toBe(true)
     expect(workspacesStore.getState().workspaces).toHaveLength(2)
     expect(workspacesStore.getState().loaded).toBe(true)
   })
@@ -40,8 +45,9 @@ describe('workspacesStore', () => {
     // Matches templatesStore.test.ts / shortcutsStore.test.ts: the swallow path legitimately
     // logs, so silence + assert on it rather than let it leak into the test run's stderr.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await expect(loadWorkspaces()).resolves.toBeUndefined()
+    await expect(loadWorkspaces()).resolves.toBe(false)
     expect(workspacesStore.getState().loaded).toBe(false)
+    expect(workspacesStore.getState().loadFailed).toBe(true)
     expect(warn).toHaveBeenCalledWith('[claude-watcher][workspaces] code=workspaces_load_failed')
     warn.mockRestore()
   })

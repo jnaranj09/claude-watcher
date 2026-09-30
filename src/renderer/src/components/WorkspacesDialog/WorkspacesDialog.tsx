@@ -32,6 +32,7 @@ import {
   removeWorkspace,
   saveWorkspace,
   selectWorkspaces,
+  selectWorkspacesLoadFailed,
   useWorkspaces,
   workspacesStore
 } from '../../stores/workspacesStore'
@@ -229,6 +230,7 @@ function WorkspaceForm({
 
 export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Element {
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
+  const loadFailed = useWorkspaces(selectWorkspacesLoadFailed)
   const dialog = useManageDialog({ title: 'Workspaces', testIdPrefix: 'workspaces', onClose })
   const { closeRef } = dialog.meta
   const [deleteBusy, setDeleteBusy] = useState(false)
@@ -294,6 +296,11 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
                   <span className={styles.rowFolder}>{w.defaultCwd ?? 'None'}</span>
                 </ManageDialog.Row>
               ))}
+              {workspaces.length === 0 && loadFailed && (
+                <p className={styles.loadFailed} data-testid="workspaces-load-failed">
+                  Could not load workspaces.
+                </p>
+              )}
             </ManageDialog.Rows>
             <ManageDialog.New testId="workspace-new" />
           </ManageDialog.List>

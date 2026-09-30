@@ -17,7 +17,13 @@ import {
   workspaceScope,
   type ScopeFilterValue
 } from '../ScopeFilter/scope'
-import { moveRule, selectBrokenIds, selectRules, useRules } from '../../stores/rulesStore'
+import {
+  moveRule,
+  selectBrokenIds,
+  selectRules,
+  selectRulesLoadFailed,
+  useRules
+} from '../../stores/rulesStore'
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
@@ -36,6 +42,7 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
   const dialog = useManageDialog({ title: 'Rules', testIdPrefix: 'rules', onClose })
   const { closeRef } = dialog.meta
   const rules = useRules(selectRules)
+  const loadFailed = useRules(selectRulesLoadFailed)
   const brokenIds = useRules(useShallow(selectBrokenIds))
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
@@ -85,7 +92,11 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
     }
   })
 
-  const emptyCopy = rules.length === 0 ? 'No rules yet' : 'No rules in this workspace'
+  const emptyCopy = loadFailed
+    ? 'Could not load rules.'
+    : rules.length === 0
+      ? 'No rules yet'
+      : 'No rules in this workspace'
 
   return (
     <ManageDialog.Provider {...dialog}>

@@ -186,13 +186,16 @@ export async function persistSettingsPatch(patch: SettingsPatch): Promise<void> 
   settingsStore.getState().hydrate(stored)
 }
 
-/** Load settings from main at startup and hydrate the singleton store. NEVER throws — on a
- *  failure it leaves the defaults (sound ON) so the app is usable. */
-export async function loadSettings(): Promise<void> {
+/** Load settings from main at startup and hydrate the singleton store. Resolves whether it worked
+ *  (the startup toast names the failures); on a failure it leaves the defaults (sound ON) so the
+ *  app is usable. Never rejects. */
+export async function loadSettings(): Promise<boolean> {
   try {
     const settings = await window.settings.get()
     settingsStore.getState().hydrate(settings)
+    return true
   } catch {
     console.warn('[c9watch][settings] code=settings_load_failed')
+    return false
   }
 }

@@ -50,3 +50,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Action feedback (spec 2026-09-29 §2.6) — the rail's one sentence when the startup load failed.
+   --text-secondary on the raised panel (never --text-muted: 2.54:1 there). */
+.loadFailed {
+  margin: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-label);
+}

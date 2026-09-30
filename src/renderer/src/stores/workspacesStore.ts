@@ -12,7 +12,10 @@ export interface WorkspacesState {
   workspaces: Workspace[]
   activeId: string
   loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
+  loadFailed: boolean
   hydrate: (view: { activeId: string; workspaces: Workspace[] }) => void
+  markLoadFailed: () => void
 }
 export type WorkspacesStoreApi = StoreApi<WorkspacesState>
 
@@ -21,7 +24,9 @@ export function createWorkspacesViewStore(): WorkspacesStoreApi {
     workspaces: [],
     activeId: DEFAULT_WORKSPACE_ID,
     loaded: false,
-    hydrate: (view) => set({ ...view, loaded: true })
+    loadFailed: false,
+    hydrate: (view) => set({ ...view, loaded: true, loadFailed: false }),
+    markLoadFailed: () => set({ loadFailed: true })
   }))
 }
 
@@ -34,6 +39,9 @@ export function useWorkspaces<T>(selector: (state: WorkspacesState) => T): T {
 export const selectWorkspaces = (s: WorkspacesState): Workspace[] => s.workspaces
 export const selectActiveWorkspaceId = (s: WorkspacesState): string => s.activeId
 export const selectWorkspacesLoaded = (s: WorkspacesState): boolean => s.loaded
+/** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
+export const selectWorkspacesLoadFailed = (s: WorkspacesState): boolean =>
+  !selectWorkspacesLoaded(s) && s.loadFailed
 /** null when the persisted activeId names a workspace the list no longer has — the callers
  *  render the plain label rather than crash (never-crash past the boundary). */
 export const selectActiveWorkspace = (s: WorkspacesState): Workspace | null =>
@@ -41,11 +49,15 @@ export const selectActiveWorkspace = (s: WorkspacesState): Workspace | null =>
 
 const LOG_PREFIX = '[claude-watcher][workspaces]'
 
-export async function loadWorkspaces(): Promise<void> {
+/** Resolves whether it worked (the startup toast names the failures). Never rejects. */
+export async function loadWorkspaces(): Promise<boolean> {
   try {
     workspacesStore.getState().hydrate(await window.workspaces.list())
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=workspaces_load_failed`)
+    workspacesStore.getState().markLoadFailed()
+    return false
   }
 }
 
