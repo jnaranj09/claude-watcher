@@ -95,10 +95,17 @@ export async function deleteTerminal(
     await sent
   } catch {
     console.warn(`${LOG_PREFIX} code=delete_failed`)
-    boardStore.getState().clearStopConfirm()
+    clearOwnConfirm(terminalId)
     toast.error(`Could not delete "${sessionName}".`)
     return
   }
   boardStore.getState().forgetLaunchedTerminal(terminalId)
-  boardStore.getState().clearStopConfirm()
+  clearOwnConfirm(terminalId)
+}
+
+/** The confirm may be another card's by the time this delete settles: close only our own. */
+function clearOwnConfirm(terminalId: string): void {
+  if (boardStore.getState().stopConfirm?.terminalId === terminalId) {
+    boardStore.getState().clearStopConfirm()
+  }
 }

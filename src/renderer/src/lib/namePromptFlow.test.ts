@@ -170,6 +170,26 @@ describe('submitLaunch', () => {
     expect(toasts()).toEqual([['success', 'Started "api"', 'Open']])
   })
 
+  it('an Open whose workspace switch outlives a newly opened modal does not take the view', async () => {
+    const ws = deferred<{ activeId: string; workspaces: [] }>()
+    ;(window as unknown as { workspaces: unknown }).workspaces = { setActive: () => ws.promise }
+    const prompt = openCreate()
+    const run = submitLaunch(prompt, 'api', manualClock())
+    boardStore.getState().clearSessionNamePrompt()
+    pending.resolve({ terminalId: 'term-5', workspaceId: 'other' })
+    await run
+    const started = toastStore.getState().toasts.find((t) => t.title === 'Started "api"')
+    if (started === undefined) throw new Error('no Started toast')
+    toastStore.getState().runAction(started.id)
+    boardStore.getState().openTemplatesDialog() // a modal opens during the switch's round trip
+    ws.resolve({ activeId: 'other', workspaces: [] })
+    await settle()
+    expect(workspacesStore.getState().activeId).toBe('other')
+    expect(boardStore.getState().viewMode).toBe('board')
+    expect(boardStore.getState().focusedTerminalId).toBeNull()
+    boardStore.getState().closeTemplatesDialog()
+  })
+
   it('the guard says nothing once the operator has already closed the prompt', async () => {
     const clock = manualClock()
     const prompt = openCreate()

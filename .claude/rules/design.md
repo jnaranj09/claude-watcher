@@ -402,7 +402,7 @@ mapped success or failure — and no action can run twice by accident.
 
 1. **Inside a dialog** → the dialog's own surfaces: the ONE error line (`ManageDialog.Error`) for a
    failure; the row the save selected, or Settings' `✓ Saved` mark, for success. **A dialog never
-   raises a toast for its own result.**
+   raises a toast for its own result.** (The Delete confirm and the Quit guard have no error line, so they report a refusal with a toast.)
 2. **A small action on a control that stays on screen** (Copy, Reload themes, Regenerate) → the
    button's own `feedback` result for 1.5 s (`✓ Copied`, shown through `feedbackShown`).
 3. **A board-level action, or a result off screen** (archive, move, a menu that closed, a failure

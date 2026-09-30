@@ -14,6 +14,7 @@
 // never-log-the-value: the rejection carries the cwd and the typed name — codes only.
 import { boardStore, type SessionNamePromptPayload } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
+import { isModalOpen } from './modals'
 import { setActiveWorkspace, workspacesStore } from '../stores/workspacesStore'
 import { formatVersion, MIN_CLAUDE_VERSION } from '../../../shared/launch/claudeVersion'
 
@@ -67,6 +68,9 @@ async function openStarted(terminalId: string, name: string, workspaceId: string
   if (workspacesStore.getState().activeId !== workspaceId) {
     await setActiveWorkspace(workspaceId)
     if (workspacesStore.getState().activeId !== workspaceId) return
+    // A modal opened during that round trip: the confirmed switch stands, but the session is not
+    // opened over the new dialog (the openFromNotification precedent; the card is registered).
+    if (isModalOpen()) return
   }
   boardStore.getState().openLaunchedTerminal(terminalId, name, workspaceId)
 }

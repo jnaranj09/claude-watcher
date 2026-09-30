@@ -26,7 +26,7 @@ export async function openFromNotification(id: string): Promise<void> {
   }
   if (workspacesStore.getState().activeId !== workspaceId) {
     await setActiveWorkspace(workspaceId)
-    // `setActiveWorkspace` swallows an IPC failure: only the value main confirmed counts.
+    // `setActiveWorkspace` toasts an IPC failure and resolves false: only the value main confirmed counts.
     if (workspacesStore.getState().activeId !== workspaceId) return
     boardStore.getState().focusWorkspace(workspaceId)
     // A modal opened during that round trip: the confirmed switch is reconciled above (the

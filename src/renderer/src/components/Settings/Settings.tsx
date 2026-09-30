@@ -346,13 +346,13 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
 
   // A failed copy says so: it used to be an unhandled rejection (and copied '' before the read).
   function copyToken(value: string): void {
-    void window.clipboard
-      .writeText(value)
-      .then(() => flashCopied(true))
-      .catch(() => {
+    void window.clipboard.writeText(value).then(
+      () => flashCopied(true),
+      () => {
         console.warn('[claude-watcher][api] code=token_copy_failed') // never the token
         apiActions.setError('Could not copy the token.')
-      })
+      }
+    )
   }
 
   // One in flight at a time each — a second press starts nothing (Regenerate used to mint twice).

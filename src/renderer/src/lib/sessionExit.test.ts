@@ -187,4 +187,27 @@ describe('sessionExit', () => {
     expect(boardStore.getState().launchedTerminals['term-1']).toBeDefined()
     expect(toasts()).toEqual([['error', 'Could not delete "api".', undefined]])
   })
+
+  it("a delete settling does not close a confirm that is now another card's", async () => {
+    const d = deferred<void>()
+    del.mockImplementation(() => d.promise)
+    const run = deleteTerminal('term-1', 'sess-1', 'api')
+    const other = { terminalId: 'term-9', sessionId: 'sess-9', sessionName: 'web' }
+    boardStore.setState({ stopConfirm: other })
+    d.resolve()
+    await run
+    expect(boardStore.getState().stopConfirm).toEqual(other)
+  })
+
+  it("a refused delete does not close another card's confirm either", async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const d = deferred<void>()
+    del.mockImplementation(() => d.promise)
+    const run = deleteTerminal('term-1', 'sess-1', 'api')
+    const other = { terminalId: 'term-9', sessionId: 'sess-9', sessionName: 'web' }
+    boardStore.setState({ stopConfirm: other })
+    d.reject(new Error('x'))
+    await run
+    expect(boardStore.getState().stopConfirm).toEqual(other)
+  })
 })

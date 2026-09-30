@@ -600,13 +600,13 @@ export function EmbeddedTerminal({
     setMenu(null)
     if (!sel) return
     // Action feedback (spec 2026-09-29 §2.3): the menu has closed, so the result is a toast.
-    void window.clipboard
-      .writeText(sel)
-      .then(() => toast.success('Copied'))
-      .catch(() => {
+    void window.clipboard.writeText(sel).then(
+      () => toast.success('Copied'),
+      () => {
         console.warn('[c9watch][clipboard] code=clipboard_write_failed')
         toast.error('Could not copy.')
-      })
+      }
+    )
   }
 
   /** Paste: read OS clipboard text → `term.paste(text)` if non-empty (bracketed paste). */

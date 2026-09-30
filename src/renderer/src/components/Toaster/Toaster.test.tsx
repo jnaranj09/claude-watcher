@@ -138,4 +138,20 @@ describe('Toaster', () => {
     act(() => clock.advance(TOAST_MS * 3))
     expect(cards()[0]?.hasAttribute('data-leaving')).toBe(false)
   })
+
+  it('hover, focus, blur stays paused while the pointer is still over; leaving resumes', () => {
+    const { store, clock } = setup()
+    act(() => void store.getState().push({ kind: 'success', title: 'x' }))
+    const card = cards()[0]
+    const dismiss = r?.container.querySelector<HTMLButtonElement>('[data-testid="toast-dismiss"]')
+    if (card === undefined || dismiss === null || dismiss === undefined) throw new Error('no toast')
+    fireEvent(card, new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }))
+    fireEvent(dismiss, new FocusEvent('focusin', { bubbles: true }))
+    fireEvent(dismiss, new FocusEvent('focusout', { bubbles: true, relatedTarget: document.body }))
+    act(() => clock.advance(TOAST_MS * 3))
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(false)
+    fireEvent(card, new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))
+    act(() => clock.advance(TOAST_MS))
+    expect(cards()[0]?.hasAttribute('data-leaving')).toBe(true)
+  })
 })

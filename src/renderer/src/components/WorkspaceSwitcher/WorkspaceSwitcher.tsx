@@ -115,9 +115,8 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
     (id: string): void => {
       closeAndRefocus()
       // Persist first (main owns the pointer), THEN reconcile the focused view — but only if
-      // main actually confirmed the switch. `setActiveWorkspace` SWALLOWS an IPC failure (it
-      // only `console.warn`s — workspacesStore.ts) so a RESOLVED promise is not proof the switch
-      // happened. Reconciling unconditionally would point the focused view at a workspace the
+      // main actually confirmed the switch. `setActiveWorkspace` reports an IPC failure itself (a toast) and
+      // resolves false, so a RESOLVED promise is not proof the switch happened. Reconciling unconditionally would point the focused view at a workspace the
       // board/rail are not showing (`selectRailActiveSessionId` is unfiltered by workspace).
       void setActiveWorkspace(id).then(() => {
         if (workspacesStore.getState().activeId === id) boardStore.getState().focusWorkspace(id)

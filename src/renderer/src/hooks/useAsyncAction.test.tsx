@@ -97,4 +97,18 @@ describe('useAsyncAction', () => {
     await settle()
     await expect(pending).resolves.toBeUndefined()
   })
+
+  it('a synchronous throw from fn frees the guard: the next run calls fn again', async () => {
+    const fn = vi.fn((): Promise<void> => {
+      throw new Error('sync boom')
+    })
+    r = renderComponent(<Harness fn={fn} />)
+    act(() => button().click())
+    await settle()
+    expect(button().dataset['busy']).toBe('no')
+    await expect(lastRun).rejects.toThrow('sync boom')
+    act(() => button().click())
+    await settle()
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
 })

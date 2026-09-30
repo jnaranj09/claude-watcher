@@ -43,6 +43,25 @@ function closeParen(text: string, open: number): number {
   return -1
 }
 
+/** True when `args` (the text between a call's parens) has a comma outside any nesting/string. */
+function hasTopLevelComma(args: string): boolean {
+  let depth = 0
+  let quote: string | null = null
+  for (let i = 0; i < args.length; i++) {
+    const c = args[i]
+    if (quote !== null) {
+      if (c === '\\') i++
+      else if (c === quote) quote = null
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') quote = c
+    else if (c === '(' || c === '[' || c === '{') depth++
+    else if (c === ')' || c === ']' || c === '}') depth--
+    else if (c === ',' && depth === 0) return true
+  }
+  return false
+}
+
 function uncaughtBridgeCalls(text: string): number[] {
   const offenders: number[] = []
   const call = /void\s+window\s*\.\s*\w+\s*\.\s*\w+\s*\(/g
@@ -57,7 +76,14 @@ function uncaughtBridgeCalls(text: string): number[] {
         caught = true
         break
       }
-      at = closeParen(text, at + link[0].length - 1)
+      const open = at + link[0].length - 1
+      const end = closeParen(text, open)
+      // `.then(ok, fail)` handles the rejection itself: a top-level comma inside its parens.
+      if (end !== -1 && hasTopLevelComma(text.slice(open + 1, end - 1))) {
+        caught = true
+        break
+      }
+      at = end
     }
     if (!caught) offenders.push(text.slice(0, m.index).split('\n').length)
   }
@@ -71,6 +97,11 @@ describe('uncaughtBridgeCalls (non-vacuity)', () => {
 
   it('flags one whose only link is .then', () => {
     expect(uncaughtBridgeCalls('x\nvoid window.api.x(a).then(() => f(")"))')).toEqual([2])
+  })
+
+  it('accepts a two-argument .then(ok, fail) but not a one-argument one with a comma inside', () => {
+    expect(uncaughtBridgeCalls('void window.a.b().then(() => ok(), () => bad())')).toEqual([])
+    expect(uncaughtBridgeCalls('void window.a.b().then(() => f(1, 2))')).toEqual([1])
   })
 
   it('accepts .catch, directly or after .then links, across lines', () => {

@@ -7,7 +7,7 @@
 // use is not rendered — the notification-click precedent, UX-DR14). ✕ and the timer are unaffected.
 // Hover or focus inside a toast pauses its timer. Themes target `[data-toast]` and
 // `[data-toast-kind]`, never a test id.
-import type { JSX } from 'react'
+import { useRef, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
 import { Button } from '../Button/Button'
@@ -52,6 +52,14 @@ function ToastCard({
   modalOpen: boolean
 }): JSX.Element {
   const { pause, resume, dismiss, runAction } = store.getState()
+  // Hover and focus are tracked apart: the timer resumes only when NEITHER holds (enter, focus,
+  // blur used to resume while the pointer was still over the toast).
+  const hovered = useRef(false)
+  const focused = useRef(false)
+  const settle = (): void => {
+    if (hovered.current || focused.current) pause(toast.id)
+    else resume(toast.id)
+  }
   return (
     <div
       className={styles.toast}
@@ -60,11 +68,22 @@ function ToastCard({
       data-toast-kind={toast.kind}
       {...(toast.leaving ? { 'data-leaving': '' } : {})}
       data-testid="toast"
-      onMouseEnter={() => pause(toast.id)}
-      onMouseLeave={() => resume(toast.id)}
-      onFocus={() => pause(toast.id)}
+      onMouseEnter={() => {
+        hovered.current = true
+        settle()
+      }}
+      onMouseLeave={() => {
+        hovered.current = false
+        settle()
+      }}
+      onFocus={() => {
+        focused.current = true
+        settle()
+      }}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) resume(toast.id)
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        focused.current = false
+        settle()
       }}
     >
       <span className={styles.glyph} data-kind={toast.kind} aria-hidden="true">

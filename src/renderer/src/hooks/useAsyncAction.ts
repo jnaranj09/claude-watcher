@@ -35,14 +35,19 @@ export function useAsyncAction<A extends unknown[]>(
   const run = useCallback((...args: A): Promise<void> => {
     if (inFlight.current !== null) return inFlight.current
     setBusy(true)
-    const current = (async (): Promise<void> => {
-      try {
-        await fnRef.current(...args)
-      } finally {
-        inFlight.current = null
-        if (mounted.current) setBusy(false)
-      }
-    })()
+    // `fn` starts synchronously, but its outcome is only ever observed through a promise
+    // callback, so `inFlight.current` is ALWAYS assigned before `finally` can clear it: a
+    // synchronous throw used to run `finally` first and leave the rejection parked there.
+    let started: Promise<void>
+    try {
+      started = fnRef.current(...args)
+    } catch (error: unknown) {
+      started = Promise.reject(error)
+    }
+    const current = started.finally(() => {
+      inFlight.current = null
+      if (mounted.current) setBusy(false)
+    })
     inFlight.current = current
     return current
   }, [])

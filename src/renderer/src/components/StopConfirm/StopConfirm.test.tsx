@@ -239,6 +239,7 @@ describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / 
     })
 
     const payload = makePayload({ terminalId: 'term-order-test', sessionId: 'sess-order-test' })
+    boardStore.setState({ stopConfirm: payload }) // the confirm is this card's, so it may clear it
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
 

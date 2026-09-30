@@ -286,7 +286,8 @@ function App(): React.JSX.Element {
   // A launch failure (a rejected invoke) logs a code (never the path value) and leaves the board.
   // Session-naming: the picker no longer launches directly. It now opens the NAME PROMPT and
   // stops — the launch fires from `submitLaunch` (lib/namePromptFlow.ts) once the operator has a name. So a
-  // cancel at EITHER step (picker or prompt) spawns nothing at all.
+  // cancel at the picker, or at the prompt before submit, spawns nothing (a cancel while the launch
+  // runs hands it to the late-result path: a toast, never the view).
   const handleNewSession = useCallback(async (): Promise<void> => {
     // Re-entry guard: if a prompt is already open, the operator is mid-naming. Opening the picker
     // again would overwrite the stored cwd underneath a dialog whose input still holds the OLD
@@ -530,8 +531,8 @@ function App(): React.JSX.Element {
         // Session-naming — Esc disambiguation, TOPMOST layer. The prompt names a NOT-YET-LAUNCHED
         // session, but it can be open while OTHER sessions run, so it is not exclusive by
         // construction — the Ctrl+N/Ctrl+W guards and the quit-guard handler are what keep it the
-        // only modal on screen. Esc = cancel the pending launch entirely; no PTY was ever spawned,
-        // so there is nothing to tear down.
+        // only modal on screen. Esc = cancel the prompt. Before submit no PTY was spawned; while a
+        // launch is running (prompt busy) Esc hands it to the late-result path (a toast, never the view).
         // All modals under isModalOpen() close here: the name prompt and the Templates/
         // Shortcuts/Workspaces dialogs never co-exist (every open call site guards on
         // isModalOpen()), so calling every closer is safe and covers the case where focus sits
