@@ -181,6 +181,10 @@ posture**: the path is never joined from the request, so `/docs/package.json` is
 no traversal to attempt. The packaged smoke fetches the bundle asset precisely because `/docs`
 itself answers 200 without opening a file.
 
+**`/docs` never sets `persistAuthorization`** (SEC-4): it saved the pasted token in the origin's
+localStorage, where another local user who binds the port while the API is off could read it.
+`docs.test.ts` asserts it is absent; the operator pastes the token again after a reload.
+
 `package.json` pins `swagger-ui-dist` EXACTLY (5.32.15) and carries
 `"scarfSettings": { "enabled": false }`. That key is not decoration: the dependency pulls
 `@scarf/scarf`, whose postinstall reports install telemetry, and the key is the documented opt-out.

@@ -226,8 +226,19 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   or power loss therefore still leaves the session in Past sessions: the next start turns a
   leftover live record into a normal one (`code=past_sessions_recovered_live`). **Open does NOT
   remove the record** (UX-02) — the resumed card's live record replaces it. **Open refuses
-  `transcript_missing`** when the record's `transcriptPath` file is gone (UX-08; a record with no
-  path is not checked). **Open and the dead pane's Resume refuse `session_running_elsewhere`** (UX-14) when a
+  `transcript_missing`** when claude has no transcript for the record (UX-08): its
+  `transcriptPath` file is gone, or — with no path — no `<configDir>/projects/*/<id>.jsonl` exists
+  (`pty/claudeTranscript.ts`; a known path that is gone falls back to that scan — a hook can send
+  any path; only ENOENT/ENOTDIR count as missing; fails open on an unlistable folder or a non-UUID
+  id). **No
+  conversation, no record (NEW-5):** claude writes the transcript on the FIRST prompt and its hooks
+  name the path only from then on (drive run 2026-09-30, claude 2.1.285), so a session archived
+  before its first prompt — or one that exited on claude's folder-trust screen — gets no record
+  (`code=past_sessions_no_transcript_skipped`), and a crash-leftover live record like that is dropped
+  on load. That DELETE trusts a no-path scan only while the hook server is bound
+  (`archiveTranscriptCheck`): without hooks every session has no path, and a `CLAUDE_CONFIG_DIR` set
+  only in the login profile would point the scan at the wrong folder. An ENDED record is never dropped for it: Open says `transcript_missing` and the operator
+  Forgets it. **Open and the dead pane's Resume refuse `session_running_elsewhere`** (UX-14) when a
   LIVE claude anywhere records that id in `~/.claude/sessions/<pid>.json` (`pty/runningElsewhere.ts`:
   id match + `kill(pid, 0)`, EPERM = alive). It is the one reader that opens EVERY record, so it
   returns one boolean — never the cwd, name or pid — and FAILS OPEN on an unlistable directory

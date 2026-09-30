@@ -119,7 +119,7 @@ import { createPastSessionsIpcHandlers } from './persistence/pastSessionsIpc'
 // Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
 // record via buildPastSessionRecord; delete removes any earlier one; a null store no-ops).
 import { applyRemovalReason } from './persistence/pastSessionRecord'
-import { createTranscriptLookupFromFs } from './pty/claudeTranscript'
+import { archiveTranscriptCheck, createTranscriptLookupFromFs } from './pty/claudeTranscript'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 import { keepVisibleTags } from '../shared/tags/tagScope'
@@ -1559,8 +1559,12 @@ const livePastSessions = createLivePastSessions({
   store: () => pastSessionsStore,
   now: () => Date.now()
 })
-/** Does claude still have a session's conversation? UX-08 (Open) and NEW-5 (archive). */
+/** Does claude still have a session's conversation? UX-08 (Open refuses) and NEW-5 (an archive
+ *  writes no record) — the archive side only trusts a no-path scan while the hooks are bound. */
 const hasTranscript = createTranscriptLookupFromFs()
+const archiveHasTranscript = archiveTranscriptCheck(hasTranscript, () =>
+  serverHealth.hookListening()
+)
 
 function requirePastSessionsStore(): PastSessionsStore {
   if (pastSessionsStore === null) throw new Error('past_sessions_store_not_initialized')
@@ -3102,11 +3106,11 @@ app
     const workspaceExists = (id: string): boolean => workspacesStore?.get(id) !== null
     try {
       pastSessionsStore = SMOKE
-        ? createPastSessionsStore({ workspaceExists, hasTranscript })
+        ? createPastSessionsStore({ workspaceExists, hasTranscript: archiveHasTranscript })
         : createPastSessionsStore({
             blobStore: createElectronPastSessionsBlobStore(),
             workspaceExists,
-            hasTranscript,
+            hasTranscript: archiveHasTranscript,
             report: storageHealth.reporterFor('past_sessions')
           })
     } catch {
@@ -3118,7 +3122,7 @@ app
       storageHealth.report('past_sessions', 'read_failed')
       pastSessionsStore = createPastSessionsStore({
         workspaceExists,
-        hasTranscript
+        hasTranscript: archiveHasTranscript
       })
     }
     registerPastSessionsIpc()
