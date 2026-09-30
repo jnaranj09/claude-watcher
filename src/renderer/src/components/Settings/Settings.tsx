@@ -62,15 +62,16 @@ const REMINDER_DELAY_OPTIONS: readonly SelectOption<string>[] = REMINDER_FIRST_D
   (m) => ({ value: String(m), label: `${m} min` })
 )
 
-/** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
- *  stable. (The header ✕ always renders; with NO_CLOSE it does nothing — the real app always
- *  passes `onClose`.) */
+/** Terminal colours (spec 2026-09-30) — follow the theme, or a built-in palette. */
 const TERMINAL_SCHEME_OPTIONS: readonly SelectOption<TerminalScheme>[] = [
   { value: 'theme', label: 'Follow theme' },
   { value: 'dark', label: 'Dark' },
   { value: 'light', label: 'Light' }
 ]
 
+/** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
+ *  stable. (The header ✕ always renders; with NO_CLOSE it does nothing — the real app always
+ *  passes `onClose`.) */
 const NO_CLOSE = (): void => {}
 
 /**
