@@ -17,6 +17,7 @@ import {
   selectApiEnabled,
   selectApiPort,
   selectThemeId,
+  selectTerminalScheme,
   selectWallpaperByTheme,
   selectExpanderKey,
   persistSettingsPatch
@@ -48,7 +49,7 @@ import {
 import { useServerHealth } from '../../hooks/useServerHealth'
 import { useFlash } from '../../hooks/useFlash'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
-import type { SettingsPatch } from '../../../../shared/schemas/settings'
+import type { SettingsPatch, TerminalScheme } from '../../../../shared/schemas/settings'
 import styles from './Settings.module.css'
 
 /** Attention reminders — `Off`, then 1..REMINDER_COUNT_MAX. A Select value is a string. */
@@ -64,6 +65,12 @@ const REMINDER_DELAY_OPTIONS: readonly SelectOption<string>[] = REMINDER_FIRST_D
 /** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
  *  stable. (The header ✕ always renders; with NO_CLOSE it does nothing — the real app always
  *  passes `onClose`.) */
+const TERMINAL_SCHEME_OPTIONS: readonly SelectOption<TerminalScheme>[] = [
+  { value: 'theme', label: 'Follow theme' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' }
+]
+
 const NO_CLOSE = (): void => {}
 
 /**
@@ -160,6 +167,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
 
   // ── Custom themes (spec 2026-09-20) ───────────────────────────────────────────────────────
   const themeId = useSettings(selectThemeId)
+  const terminalScheme = useSettings(selectTerminalScheme)
   const bundle = useTheme(selectThemeBundle)
   const [summaries, setSummaries] = useState<ThemeSummary[]>([])
   // Until the first list answers, a non-default theme has no name to show: the trigger says
@@ -550,6 +558,23 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                     Transparency applies to terminals opened from now on.
                   </p>
                 )}
+                {/* Terminal colours (spec 2026-09-30): follow the theme, or a built-in dark / light
+                    palette whatever the app theme is. Every open terminal re-themes live. */}
+                <div className={styles.row}>
+                  <span className={styles.label}>Terminal colours</span>
+                  <div className={styles.controlGroup}>
+                    <Select
+                      value={terminalScheme}
+                      options={TERMINAL_SCHEME_OPTIONS}
+                      onChange={(next) =>
+                        void persistSetting({ terminalScheme: next }, 'the terminal colours')
+                      }
+                      ariaLabel="Terminal colours"
+                      testId="settings-terminal-scheme"
+                      align="end"
+                    />
+                  </div>
+                </div>
               </>
             )}
             {category === 'terminal' && (

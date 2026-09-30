@@ -604,6 +604,24 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(setCalls).toEqual([{ themeId: 'paper' }])
   })
 
+  it('Terminal colours: opens on Follow theme, offers Dark and Light, and persists the pick', async () => {
+    const { setCalls } = stubSettings()
+    stubApi()
+    stubThemes([paper])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    openCategory(r, 'appearance')
+    await flush()
+    expect(optionValues(r.container, 'settings-terminal-scheme')).toEqual([
+      'theme',
+      'dark',
+      'light'
+    ])
+    expect(selectedValue(r.container, 'settings-terminal-scheme')).toBe('theme')
+    chooseOption(r.container, 'settings-terminal-scheme', 'dark')
+    expect(setCalls).toEqual([{ terminalScheme: 'dark' }])
+  })
+
   it('Reload themes reloads, then re-lists', async () => {
     stubSettings()
     stubApi()
