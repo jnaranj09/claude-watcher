@@ -22,8 +22,9 @@ export interface PastSessionOpenDeps {
   isDirectory(path: string): boolean
   /** True when any window's board still shows this id (the renderer then focuses the live card). */
   isLive(sessionId: string): boolean
-  /** Production: `statSync(path).isFile()` inside a try (a missing path is `false`). */
-  transcriptExists(path: string): boolean
+  /** Does claude still have the conversation? Production: `pty/claudeTranscript.ts` — the known
+   *  path, else a scan of claude's projects folders by id; fails open. */
+  hasTranscript(sessionId: string, knownPath: string | undefined): boolean
   /** UX-14: a LIVE claude process anywhere records this id (runningElsewhere.ts). A boolean only;
    *  fails open. */
   runningElsewhere(sessionId: string): boolean
@@ -50,10 +51,11 @@ export function openPastSession(raw: unknown, deps: PastSessionOpenDeps): PastSe
   // UX-14 — the conversation is running in a claude the app did not launch (another terminal,
   // another profile). A second claude on it would write the same transcript.
   if (deps.runningElsewhere(id)) return { ok: false, code: 'session_running_elsewhere' }
-  // UX-08 — claude cleaned its history, or the session ended before claude wrote a transcript.
+  // UX-08 / NEW-5 — claude cleaned its history, or the session ended before its first prompt
+  // (claude writes the transcript then). Checked by id when the record has no path.
   // `claude --resume` would print "no conversation found" and exit, and that exit archived the
   // record again as the newest one: a loop. Refuse, and the dialog points at Forget.
-  if (record.transcriptPath !== undefined && !deps.transcriptExists(record.transcriptPath)) {
+  if (!deps.hasTranscript(id, record.transcriptPath)) {
     return { ok: false, code: 'transcript_missing' }
   }
   const { terminalId } = deps.launch({

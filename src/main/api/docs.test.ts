@@ -38,7 +38,8 @@ describe('docs routes', () => {
     expect(html.headers['content-type']).toContain('text/html')
     expect(html.text).toContain('/docs/swagger-ui-bundle.js')
     expect(html.text).toContain("url: '/openapi.json'")
-    expect(html.text).toContain('persistAuthorization: true')
+    // SEC-4: the token is never saved in the browser's localStorage.
+    expect(html.text).not.toContain('persistAuthorization')
     expect(
       (await call(s.url, 'GET', '/docs/swagger-ui.css', { token: null })).headers['content-type']
     ).toContain('text/css')

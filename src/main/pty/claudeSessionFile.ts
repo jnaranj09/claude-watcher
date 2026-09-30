@@ -153,11 +153,14 @@ export function createProcessSessionSource(deps: ProcessSessionSourceDeps): Proc
 }
 
 /** Claude's config directory: its documented `CLAUDE_CONFIG_DIR` override, else `~/.claude`. */
-export function claudeSessionsDir(env: NodeJS.ProcessEnv = process.env): string {
+export function claudeConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   const override = env['CLAUDE_CONFIG_DIR']
-  const configDir =
-    override !== undefined && override.length > 0 ? override : join(homedir(), '.claude')
-  return join(configDir, 'sessions')
+  return override !== undefined && override.length > 0 ? override : join(homedir(), '.claude')
+}
+
+/** Where claude records each live process's current session id. */
+export function claudeSessionsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return join(claudeConfigDir(env), 'sessions')
 }
 
 /** The production source over the real fs and /proc. */

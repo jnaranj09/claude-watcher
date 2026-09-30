@@ -24,7 +24,7 @@ function deps(over: Partial<PastSessionOpenDeps> = {}): PastSessionOpenDeps & {
     get: (id) => (id === RECORD.id ? RECORD : null),
     isDirectory: () => true,
     isLive: () => false,
-    transcriptExists: () => true,
+    hasTranscript: () => true,
     runningElsewhere: () => false,
     tagExists: (id) => id === 't-live',
     ...over,
@@ -96,26 +96,27 @@ describe('openPastSession', () => {
     const seen: string[] = []
     const d = deps({
       get: () => ({ ...RECORD, transcriptPath: '/home/op/.claude/projects/x/sess-A.jsonl' }),
-      transcriptExists: (path) => {
-        seen.push(path)
+      hasTranscript: (id, path) => {
+        seen.push(`${id} ${String(path)}`)
         return false
       }
     })
     expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'transcript_missing' })
-    expect(seen).toEqual(['/home/op/.claude/projects/x/sess-A.jsonl'])
+    expect(seen).toEqual(['sess-A /home/op/.claude/projects/x/sess-A.jsonl'])
     expect(d.launch).not.toHaveBeenCalled()
   })
-  it('UX-08: a record with no transcript path is not checked (older records)', () => {
-    const transcriptExists = vi.fn(() => false)
-    const d = deps({ transcriptExists })
-    expect(openPastSession({ id: 'sess-A' }, d).ok).toBe(true)
-    expect(transcriptExists).not.toHaveBeenCalled()
+  it('NEW-5: a record with no transcript path is checked BY ID (no prompt was ever sent)', () => {
+    const hasTranscript = vi.fn(() => false)
+    const d = deps({ hasTranscript })
+    expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'transcript_missing' })
+    expect(hasTranscript).toHaveBeenCalledWith('sess-A', undefined)
+    expect(d.launch).not.toHaveBeenCalled()
   })
   it('a live card answers already_open before the transcript is checked', () => {
     const d = deps({
       get: () => ({ ...RECORD, transcriptPath: '/t.jsonl' }),
       isLive: () => true,
-      transcriptExists: () => false
+      hasTranscript: () => false
     })
     expect(openPastSession({ id: 'sess-A' }, d)).toEqual({ ok: false, code: 'already_open' })
   })
@@ -184,7 +185,7 @@ describe('resumeTerminalSession', () => {
   it('carries the Open refusals (transcript_missing)', () => {
     const d = resumeDeps({
       get: (id) => (id === 'sess-A' ? { ...RECORD, transcriptPath: '/gone.jsonl' } : null),
-      transcriptExists: () => false
+      hasTranscript: () => false
     })
     expect(resumeTerminalSession({ terminalId: 'term-dead' }, d)).toEqual({
       ok: false,

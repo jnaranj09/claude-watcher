@@ -29,8 +29,9 @@ const FILES: Record<string, string> = {
 }
 
 /** Our own index page rather than the dist one: theirs points at petstore and ships an OAuth2
- *  redirect we do not serve. `persistAuthorization` keeps the operator's pasted token across a
- *  reload, so "Try it out" is usable more than once. */
+ *  redirect we do not serve. No `persistAuthorization` (SEC-4): it saved the pasted token in
+ *  this origin's localStorage, where another local user who binds the port while the API is off
+ *  could read it. The operator pastes the token again after a reload. */
 const INDEX_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>claude-watcher API</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -42,7 +43,6 @@ const INDEX_HTML = `<!doctype html>
 window.ui = SwaggerUIBundle({
   url: '/openapi.json',
   dom_id: '#swagger-ui',
-  persistAuthorization: true,
   presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
   layout: 'BaseLayout'
 })

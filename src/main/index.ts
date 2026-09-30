@@ -119,6 +119,7 @@ import { createPastSessionsIpcHandlers } from './persistence/pastSessionsIpc'
 // Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
 // record via buildPastSessionRecord; delete removes any earlier one; a null store no-ops).
 import { applyRemovalReason } from './persistence/pastSessionRecord'
+import { createTranscriptLookupFromFs } from './pty/claudeTranscript'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 import { keepVisibleTags } from '../shared/tags/tagScope'
@@ -1558,6 +1559,9 @@ const livePastSessions = createLivePastSessions({
   store: () => pastSessionsStore,
   now: () => Date.now()
 })
+/** Does claude still have a session's conversation? UX-08 (Open) and NEW-5 (archive). */
+const hasTranscript = createTranscriptLookupFromFs()
+
 function requirePastSessionsStore(): PastSessionsStore {
   if (pastSessionsStore === null) throw new Error('past_sessions_store_not_initialized')
   return pastSessionsStore
@@ -2587,13 +2591,7 @@ function registerLaunchIpc(): void {
       }
     },
     isLive: isSessionLive,
-    transcriptExists: (path) => {
-      try {
-        return statSync(path).isFile()
-      } catch {
-        return false // missing / unreadable — never throws, never logs the path
-      }
-    },
+    hasTranscript,
     runningElsewhere: (id) => runningElsewhere.isRunningElsewhere(id),
     tagExists: (id) => tagsStore !== null && tagsStore.get(id) !== null,
     launch: (req) => service.launch(req)
@@ -3104,10 +3102,11 @@ app
     const workspaceExists = (id: string): boolean => workspacesStore?.get(id) !== null
     try {
       pastSessionsStore = SMOKE
-        ? createPastSessionsStore({ workspaceExists })
+        ? createPastSessionsStore({ workspaceExists, hasTranscript })
         : createPastSessionsStore({
             blobStore: createElectronPastSessionsBlobStore(),
             workspaceExists,
+            hasTranscript,
             report: storageHealth.reporterFor('past_sessions')
           })
     } catch {
@@ -3117,7 +3116,10 @@ app
         '[claude-watcher][past-sessions] code=past_sessions_store_init_failed (in-memory)'
       )
       storageHealth.report('past_sessions', 'read_failed')
-      pastSessionsStore = createPastSessionsStore({ workspaceExists })
+      pastSessionsStore = createPastSessionsStore({
+        workspaceExists,
+        hasTranscript
+      })
     }
     registerPastSessionsIpc()
 

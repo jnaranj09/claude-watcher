@@ -209,6 +209,65 @@ describe('createPastSessionsStore — live records (UX-01, UX-02)', () => {
   })
 })
 
+describe('createPastSessionsStore — no conversation, no record (NEW-5)', () => {
+  /** claude's side: the transcript paths that exist, and the ids a scan by id would find. */
+  const claude =
+    (paths: string[], ids: string[] = []) =>
+    (id: string, path: string | undefined): boolean =>
+      path === undefined ? ids.includes(id) : paths.includes(path)
+
+  it('archive writes NO record when the transcript file claude named does not exist', () => {
+    const fake = fakeBlob()
+    const log = vi.fn()
+    const store = createPastSessionsStore({
+      blobStore: fake.blobStore,
+      log,
+      hasTranscript: claude([])
+    })
+    store.markLive({ ...ROW, transcriptPath: '/t/s1.jsonl' })
+    expect(store.archive(ROW)).toEqual([])
+    expect(store.get('s1')).toBeNull()
+    expect((fake.current() as PastSessionsFile).sessions).toEqual([])
+    expect(log).toHaveBeenCalledWith(
+      '[claude-watcher][past-sessions] code=past_sessions_no_transcript_skipped'
+    )
+    for (const [line] of log.mock.calls) expect(String(line)).not.toContain('/t/')
+  })
+  it('archive keeps the record when the transcript file exists', () => {
+    const store = createPastSessionsStore({ hasTranscript: claude(['/t/s1.jsonl']) })
+    store.archive({ ...ROW, transcriptPath: '/t/s1.jsonl' })
+    expect(store.get('s1')?.transcriptPath).toBe('/t/s1.jsonl')
+  })
+  it('no path known: asks by id — no record when claude has none, kept when it has one', () => {
+    const store = createPastSessionsStore({ hasTranscript: claude([], ['s2']) })
+    store.archive(ROW)
+    store.archive({ ...ROW, id: 's2' })
+    expect(store.list().map((r) => r.id)).toEqual(['s2'])
+  })
+  it('a crash-leftover live record with no transcript file is dropped on load', () => {
+    const fake = fakeBlob({
+      version: 1,
+      sessions: [
+        { ...ROW, id: 'empty', live: true, transcriptPath: '/t/empty.jsonl' },
+        { ...ROW, id: 'kept', live: true, transcriptPath: '/t/kept.jsonl' }
+      ]
+    })
+    const store = createPastSessionsStore({
+      blobStore: fake.blobStore,
+      hasTranscript: claude(['/t/kept.jsonl'])
+    })
+    expect(store.list().map((r) => r.id)).toEqual(['kept'])
+  })
+  it('an ENDED record with a missing transcript stays on load — Open says transcript_missing (UX-08)', () => {
+    const fake = fakeBlob({ version: 1, sessions: [{ ...ROW, transcriptPath: '/t/s1.jsonl' }] })
+    const store = createPastSessionsStore({
+      blobStore: fake.blobStore,
+      hasTranscript: claude([])
+    })
+    expect(store.get('s1')).not.toBeNull()
+  })
+})
+
 describe('createPastSessionsStore — archive / get / remove', () => {
   it('archive inserts, lists newest first, and persists', () => {
     const fake = fakeBlob()

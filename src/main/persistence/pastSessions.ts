@@ -34,6 +34,11 @@ export interface PastSessionsStoreOptions {
    *  workspaces backup brings it back. index.ts wires it to the workspaces store; the default
    *  says every workspace exists. */
   workspaceExists?: (workspaceId: string) => boolean
+  /** NEW-5 — does claude have a transcript for this session? A session that ends before its
+   *  first prompt (claude writes the file then, not at startup) has no conversation to resume, so
+   *  it gets no record. index.ts wires `pty/claudeTranscript.ts` (a known path, else a scan by
+   *  id; fails open); the default says every transcript exists. */
+  hasTranscript?: (sessionId: string, knownPath: string | undefined) => boolean
 }
 
 export interface PastSessionsStore {
@@ -67,6 +72,7 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   const log = options.log ?? ((message: string): void => console.warn(message))
   const report = options.report ?? reportNowhere
   const workspaceExists = options.workspaceExists ?? ((): boolean => true)
+  const hasTranscript = options.hasTranscript ?? ((): boolean => true)
   const byId = new Map<string, PastSession>()
 
   const loaded = loadPersistedOrReset<PastSessionsFile>({
@@ -80,10 +86,15 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   })
   let hidden = 0
   let recovered = 0
+  let skipped = 0
   for (const record of loaded.sessions) {
     // UX-01 — nothing is on the board yet (one instance per profile), so a record still marked
     // live was left by a run that died without archiving it: it is a normal record now, ended at
-    // the last time that run saw the card.
+    // the last time that run saw the card — unless claude never wrote its transcript (NEW-5).
+    if (record.live === true && !hasConversation(record)) {
+      skipped += 1
+      continue
+    }
     if (record.live === true) {
       recovered += 1
       byId.set(record.id, ended(record))
@@ -93,9 +104,17 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
     if (!workspaceExists(record.workspaceId)) hidden += 1
   }
   if (recovered > 0) log(`${LOG_PREFIX} code=past_sessions_recovered_live count=${recovered}`)
+  if (skipped > 0) log(`${LOG_PREFIX} code=past_sessions_no_transcript_skipped count=${skipped}`)
   if (hidden > 0) log(`${LOG_PREFIX} code=past_sessions_hidden_unknown_workspace count=${hidden}`)
   trim()
   persistOrReport()
+
+  /** False only when claude surely has no transcript for the record. An ENDED record like that
+   *  stays (Open answers `transcript_missing`, UX-08); only an archive and a crash-leftover live
+   *  record ask. */
+  function hasConversation(record: PastSession): boolean {
+    return hasTranscript(record.id, record.transcriptPath)
+  }
 
   /** Every record, hidden ones included — what the FILE holds. */
   function all(): PastSession[] {
@@ -166,7 +185,15 @@ export function createPastSessionsStore(options: PastSessionsStoreOptions = {}):
   }
 
   function archive(record: PastSession): PastSession[] {
-    byId.set(record.id, ended(merged(record)))
+    const next = ended(merged(record))
+    if (!hasConversation(next)) {
+      // NEW-5 — nothing to resume: `claude --resume` would say "no conversation found". Its live
+      // record goes too, so a crash later cannot bring it back.
+      log(`${LOG_PREFIX} code=past_sessions_no_transcript_skipped`)
+      if (byId.delete(record.id)) persistOrReport()
+      return list()
+    }
+    byId.set(record.id, next)
     trim()
     persistOrReport()
     return list()
