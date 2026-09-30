@@ -112,7 +112,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       themeId: 'default',
       wallpaperByTheme: {},
       notificationsEnabled: true,
-      shellPaneRatio: 0.3
+      shellPaneRatio: 0.3,
+      terminalScheme: 'dark'
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
@@ -145,7 +146,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       themeId: 'default',
       wallpaperByTheme: {},
       notificationsEnabled: true,
-      shellPaneRatio: 0.3
+      shellPaneRatio: 0.3,
+      terminalScheme: 'theme'
     })
   })
 })

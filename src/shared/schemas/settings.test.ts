@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest'
 import {
   SettingsSchema,
   SettingsPatchSchema,
+  DEFAULT_TERMINAL_SCHEME,
   WALLPAPER_BY_THEME_MAX,
   parseSettings,
   DEFAULT_SETTINGS,
@@ -46,7 +47,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       themeId: 'default',
       wallpaperByTheme: {},
       notificationsEnabled: true,
-      shellPaneRatio: 0.3
+      shellPaneRatio: 0.3,
+      terminalScheme: 'theme'
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -412,5 +414,26 @@ describe('shellPaneRatio — additive on v1 (card shell pane)', () => {
   })
   it('a font-size-only patch does not carry a default ratio (never derive the patch schema)', () => {
     expect(SettingsPatchSchema.parse({ terminalFontSize: 12 })).toEqual({ terminalFontSize: 12 })
+  })
+})
+
+describe('terminalScheme — additive on v1 (terminal colours)', () => {
+  it('a v1 blob without it parses as "theme" (follow the theme)', () => {
+    const { terminalScheme: _omit, ...without } = DEFAULT_SETTINGS
+    void _omit
+    expect(parseSettings(without).terminalScheme).toBe('theme')
+    expect(DEFAULT_TERMINAL_SCHEME).toBe('theme')
+  })
+  it('accepts theme, dark and light; anything else fails closed on a read and on a patch', () => {
+    for (const v of ['theme', 'dark', 'light'] as const) {
+      expect(SettingsPatchSchema.parse({ terminalScheme: v })).toEqual({ terminalScheme: v })
+    }
+    expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, terminalScheme: 'blue' }).success).toBe(
+      false
+    )
+    expect(SettingsPatchSchema.safeParse({ terminalScheme: '' }).success).toBe(false)
+  })
+  it('a sound-only patch does not carry a default scheme (never derive the patch schema)', () => {
+    expect(SettingsPatchSchema.parse({ soundEnabled: false })).toEqual({ soundEnabled: false })
   })
 })

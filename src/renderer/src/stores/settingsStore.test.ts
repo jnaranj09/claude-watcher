@@ -16,7 +16,8 @@ import {
   selectApiPort,
   selectThemeId,
   selectWallpaperByTheme,
-  selectShellPaneRatio
+  selectShellPaneRatio,
+  selectTerminalScheme
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -44,7 +45,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       themeId: 'default',
       wallpaperByTheme: {},
       notificationsEnabled: true,
-      shellPaneRatio: 0.3
+      shellPaneRatio: 0.3,
+      terminalScheme: 'light'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -52,6 +54,7 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectLoaded(s)).toBe(true)
     expect(selectReminderCount(s)).toBe(5)
     expect(selectReminderFirstDelayMinutes(s)).toBe(10)
+    expect(selectTerminalScheme(s)).toBe('light')
   })
 
   it('applyPatch updates ONLY the named field (soundEnabled) — immediate effect', () => {
@@ -169,5 +172,15 @@ describe('settingsStore — shellPaneRatio projection', () => {
     expect(selectShellPaneRatio(store.getState())).toBe(0.5)
     store.getState().applyPatch({ shellPaneRatio: 0.2 })
     expect(selectShellPaneRatio(store.getState())).toBe(0.2)
+  })
+})
+
+describe('terminalScheme', () => {
+  it('starts on "theme" and a patch changes only it', () => {
+    const store = createSettingsStore()
+    expect(selectTerminalScheme(store.getState())).toBe('theme')
+    store.getState().applyPatch({ terminalScheme: 'dark' })
+    expect(selectTerminalScheme(store.getState())).toBe('dark')
+    expect(store.getState().terminalFontSize).toBe(DEFAULT_SETTINGS.terminalFontSize)
   })
 })

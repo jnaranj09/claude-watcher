@@ -75,6 +75,12 @@ export const SHELL_PANE_RATIO_MAX = 0.85
 export const DEFAULT_SHELL_PANE_RATIO = 0.3
 const ShellPaneRatioSchema = z.number().min(SHELL_PANE_RATIO_MIN).max(SHELL_PANE_RATIO_MAX)
 
+/** Terminal colours (spec 2026-09-30): `theme` follows the applied theme's terminal palette;
+ *  `dark` / `light` pick a built-in palette whatever the app theme is. */
+export const TerminalSchemeSchema = z.enum(['theme', 'dark', 'light'])
+export type TerminalScheme = z.infer<typeof TerminalSchemeSchema>
+export const DEFAULT_TERMINAL_SCHEME: TerminalScheme = 'theme'
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
  * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort` +
@@ -131,7 +137,9 @@ export const SettingsSchema = z.object({
   // on v1, same `.default()` reasoning as above: an older file keeps its popups on.
   notificationsEnabled: z.boolean().default(true),
   // Card shell pane. Additive on v1, same `.default()` reasoning as above.
-  shellPaneRatio: ShellPaneRatioSchema.default(DEFAULT_SHELL_PANE_RATIO)
+  shellPaneRatio: ShellPaneRatioSchema.default(DEFAULT_SHELL_PANE_RATIO),
+  // Terminal colours. Additive on v1, same `.default()` reasoning as above.
+  terminalScheme: TerminalSchemeSchema.default(DEFAULT_TERMINAL_SCHEME)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -160,7 +168,8 @@ export const SettingsPatchSchema = z
     themeId: ThemeIdSchema,
     wallpaperByTheme: WallpaperByThemeSchema,
     notificationsEnabled: z.boolean(),
-    shellPaneRatio: ShellPaneRatioSchema
+    shellPaneRatio: ShellPaneRatioSchema,
+    terminalScheme: TerminalSchemeSchema
   })
   .partial()
 
@@ -182,7 +191,8 @@ export const DEFAULT_SETTINGS: Settings = {
   themeId: DEFAULT_THEME_ID,
   wallpaperByTheme: {},
   notificationsEnabled: true,
-  shellPaneRatio: DEFAULT_SHELL_PANE_RATIO
+  shellPaneRatio: DEFAULT_SHELL_PANE_RATIO,
+  terminalScheme: DEFAULT_TERMINAL_SCHEME
 }
 
 /**

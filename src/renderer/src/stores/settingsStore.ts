@@ -17,7 +17,11 @@ import { useStore } from 'zustand'
 import type { Settings, SettingsPatch } from '../../../shared/ipc/contract'
 // DEFAULT_SETTINGS is a runtime VALUE (the fresh-start defaults) — it lives in the shared
 // schema (pure Zod, importable by both sides). The contract re-exports only the payload TYPES.
-import { DEFAULT_SETTINGS, type ReminderFirstDelayMinutes } from '../../../shared/schemas/settings'
+import {
+  DEFAULT_SETTINGS,
+  type ReminderFirstDelayMinutes,
+  type TerminalScheme
+} from '../../../shared/schemas/settings'
 
 export interface SettingsState {
   /** The live sound toggle (default ON — UX-DR26). The sole governor of sound frequency. */
@@ -43,6 +47,8 @@ export interface SettingsState {
   notificationsEnabled: boolean
   /** Card shell pane — the divider position (the shell's share of the frame, 0.15–0.85). */
   shellPaneRatio: number
+  /** Terminal colours — follow the theme, or a built-in dark / light palette. */
+  terminalScheme: TerminalScheme
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
@@ -76,6 +82,7 @@ export function createSettingsStore(): SettingsStoreApi {
     wallpaperByTheme: DEFAULT_SETTINGS.wallpaperByTheme,
     notificationsEnabled: DEFAULT_SETTINGS.notificationsEnabled,
     shellPaneRatio: DEFAULT_SETTINGS.shellPaneRatio,
+    terminalScheme: DEFAULT_SETTINGS.terminalScheme,
     loaded: false,
     authoritative: DEFAULT_SETTINGS,
 
@@ -92,6 +99,7 @@ export function createSettingsStore(): SettingsStoreApi {
         wallpaperByTheme: settings.wallpaperByTheme,
         notificationsEnabled: settings.notificationsEnabled,
         shellPaneRatio: settings.shellPaneRatio,
+        terminalScheme: settings.terminalScheme,
         loaded: true,
         authoritative: settings
       })
@@ -118,7 +126,8 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.notificationsEnabled !== undefined
           ? { notificationsEnabled: patch.notificationsEnabled }
           : {}),
-        ...(patch.shellPaneRatio !== undefined ? { shellPaneRatio: patch.shellPaneRatio } : {})
+        ...(patch.shellPaneRatio !== undefined ? { shellPaneRatio: patch.shellPaneRatio } : {}),
+        ...(patch.terminalScheme !== undefined ? { terminalScheme: patch.terminalScheme } : {})
       })
     }
   }))
@@ -136,6 +145,9 @@ export const selectNotificationsEnabled = (state: SettingsState): boolean =>
 /** Card shell pane — the live divider ratio (primitive). */
 export const selectShellPaneRatio = (state: SettingsState): number => state.shellPaneRatio
 /** The live terminal font-size (primitive). */
+export const selectTerminalScheme = (state: SettingsState): TerminalScheme =>
+  state.terminalScheme
+
 export const selectTerminalFontSize = (state: SettingsState): number => state.terminalFontSize
 /** Attention reminders — the live reminder count (primitive; 0 = off). */
 export const selectReminderCount = (state: SettingsState): number => state.reminderCount
