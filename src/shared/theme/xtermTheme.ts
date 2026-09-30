@@ -50,3 +50,33 @@ export const xtermTheme: ITheme = {
   brightCyan: '#94e2d5',
   brightWhite: '#d6d3ca'
 }
+
+/**
+ * The built-in LIGHT palette (spec 2026-09-30): Settings → Appearance → Terminal colours → Light,
+ * and Paper's own `terminal` block. Every ANSI colour and the foreground are ≥ 4.5:1 on the ground
+ * (pinned in xtermThemeFor.test.ts) — `white` / `brightWhite` are dark greys here, never near-white,
+ * or a program printing "white" text would vanish on a light terminal.
+ */
+export const xtermLightTheme: ITheme = {
+  background: '#fbfbfc',
+  foreground: '#1c1c1e',
+  cursor: '#1c1c1e',
+  cursorAccent: '#fbfbfc',
+  selectionBackground: 'rgba(47,111,214,0.22)',
+  black: '#1c1c1e',
+  red: '#b42318',
+  green: '#1a7f37',
+  yellow: '#8a6100',
+  blue: '#1d5fc4',
+  magenta: '#8e3aa6',
+  cyan: '#0e7470',
+  white: '#5f5f66',
+  brightBlack: '#55555c',
+  brightRed: '#c9302c',
+  brightGreen: '#237a3b',
+  brightYellow: '#7d5a00',
+  brightBlue: '#2f6fd6',
+  brightMagenta: '#9b45b3',
+  brightCyan: '#12706b',
+  brightWhite: '#3a3a40'
+}
