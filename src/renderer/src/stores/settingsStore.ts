@@ -145,8 +145,7 @@ export const selectNotificationsEnabled = (state: SettingsState): boolean =>
 /** Card shell pane — the live divider ratio (primitive). */
 export const selectShellPaneRatio = (state: SettingsState): number => state.shellPaneRatio
 /** The live terminal font-size (primitive). */
-export const selectTerminalScheme = (state: SettingsState): TerminalScheme =>
-  state.terminalScheme
+export const selectTerminalScheme = (state: SettingsState): TerminalScheme => state.terminalScheme
 
 export const selectTerminalFontSize = (state: SettingsState): number => state.terminalFontSize
 /** Attention reminders — the live reminder count (primitive; 0 = off). */
