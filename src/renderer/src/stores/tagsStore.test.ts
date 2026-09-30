@@ -116,15 +116,16 @@ describe('tagsStore — IPC', () => {
     await expect(removeTag('a')).rejects.toThrow('tag_in_use')
   })
 
-  it('setSessionTags calls window.launch.setTags and swallows a rejection with a code', async () => {
+  it('setSessionTags calls window.launch.setTags and logs a code on a rejection', async () => {
+    tagsStore.setState({ tags: [GLOBAL, IN_A], pendingBySession: new Map() })
     const setTags = vi.fn(() => Promise.resolve())
     ;(window as unknown as { launch: { setTags: unknown } }).launch = { setTags }
-    await setSessionTags('s1', ['g'])
+    await setSessionTags('s1', ['g'], () => [])
     expect(setTags).toHaveBeenCalledWith('s1', ['g'])
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     setTags.mockReturnValueOnce(Promise.reject(new Error('tag_out_of_scope')))
-    await setSessionTags('s1', ['a'])
+    await setSessionTags('s1', ['a'], () => [])
     expect(warn).toHaveBeenCalledWith('[claude-watcher][tags] code=set_tags_failed')
   })
 })

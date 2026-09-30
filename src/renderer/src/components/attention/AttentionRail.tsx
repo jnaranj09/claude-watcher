@@ -361,6 +361,7 @@ function RailRow(props: {
           {editing && (
             <TagPicker
               id={tagPickerId}
+              sessionId={id}
               tags={pickable}
               selectedIds={tags.map((t) => t.id)}
               onChange={(next) => onSetTags?.(id, next)}

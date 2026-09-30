@@ -547,6 +547,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
             {tagsOpen && (
               <TagPicker
                 id={tagPickerId}
+                sessionId={sessionId}
                 tags={pickable}
                 selectedIds={cardTags.map((t) => t.id)}
                 onChange={(tagIds) => onSetTags(tagIds)}

@@ -5,6 +5,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import type { Tag, TagSaveRequest } from '../../../shared/ipc/contract'
 import { isTagVisibleIn } from '../../../shared/tags/tagScope'
+import { toast } from './toastStore'
 
 export interface TagsState {
   /** The catalog, in TAG-LIST order (main sorts it by name). Chips render in this order. */
@@ -14,6 +15,14 @@ export interface TagsState {
   activeTagId: string | null
   hydrate: (tags: Tag[]) => void
   setActiveTag: (id: string | null) => void
+  /** Action feedback (spec 2026-09-29 §2.3) — tag toggles sent to main and not answered yet, per
+   *  session (tagId → on). VIEW-STATE that expires when main answers: both pickers read
+   *  `selectedIds ⊕ pending`, so the ✓ answers the click at once. Session truth stays main's. */
+  pendingBySession: ReadonlyMap<string, ReadonlyMap<string, boolean>>
+  setPending: (sessionId: string, changes: ReadonlyMap<string, boolean>) => void
+  /** Drop the entries a settled write carried — only those still holding its value (a later click
+   *  that flipped the tag again keeps its own entry). */
+  settlePending: (sessionId: string, changes: ReadonlyMap<string, boolean>) => void
 }
 export type TagsStoreApi = StoreApi<TagsState>
 
@@ -30,7 +39,27 @@ export function createTagsViewStore(): TagsStoreApi {
         activeTagId:
           s.activeTagId !== null && tags.some((t) => t.id === s.activeTagId) ? s.activeTagId : null
       })),
-    setActiveTag: (id) => set({ activeTagId: id })
+    setActiveTag: (id) => set({ activeTagId: id }),
+    pendingBySession: new Map(),
+    setPending: (sessionId, changes) =>
+      set((s) => {
+        const next = new Map(s.pendingBySession)
+        const inner = new Map(next.get(sessionId) ?? [])
+        for (const [id, on] of changes) inner.set(id, on)
+        next.set(sessionId, inner)
+        return { pendingBySession: next }
+      }),
+    settlePending: (sessionId, changes) =>
+      set((s) => {
+        const current = s.pendingBySession.get(sessionId)
+        if (current === undefined) return {}
+        const inner = new Map(current)
+        for (const [id, on] of changes) if (inner.get(id) === on) inner.delete(id)
+        const next = new Map(s.pendingBySession)
+        if (inner.size === 0) next.delete(sessionId)
+        else next.set(sessionId, inner)
+        return { pendingBySession: next }
+      })
   }))
 }
 
@@ -93,13 +122,60 @@ export function resetTagFilterIfHidden(workspaceId: string): void {
   if (s.activeTagId !== null && effectiveTagFilter(s, workspaceId) === null) s.setActiveTag(null)
 }
 
-/** Replace a card's tags. Never optimistic: the tagged card arrives as a `session.updated` delta.
- *  A refused write (an out-of-scope tag after a race) leaves the card as it is, which is what the
- *  operator sees — so it is logged, not surfaced. */
-export async function setSessionTags(sessionId: string, tagIds: string[]): Promise<void> {
-  try {
-    await window.launch.setTags(sessionId, tagIds)
-  } catch {
-    console.warn(`${LOG_PREFIX} code=set_tags_failed`)
+/** `base` with a session's pending toggles applied: pending-off dropped, pending-on appended. */
+export function applyPendingTags(
+  base: readonly string[],
+  pending: ReadonlyMap<string, boolean> | undefined
+): string[] {
+  if (pending === undefined || pending.size === 0) return [...base]
+  const out = base.filter((id) => pending.get(id) !== false)
+  for (const [id, on] of pending) if (on && !out.includes(id)) out.push(id)
+  return out
+}
+
+/** One write chain per session: a write starts only after the previous one settled. */
+const writeChains = new Map<string, Promise<void>>()
+
+/**
+ * Replace a card's tags (spec 2026-09-29 §2.3). `next` is the picker's list after the click, built
+ * from what it SHOWED (`readBase() ⊕ pending`); the difference is recorded as pending at once (the
+ * ✓ answers the click) and sent through the session's write chain. Each write sends
+ * `readBase() ⊕ pending` as read when it RUNS: main applies a write to its reducer and ships the
+ * delta before it answers (index.ts `sessionSetTags`), so the next write builds on the last one.
+ * Only catalog ids are diffed — an id the catalog does not know is never touched.
+ * `readBase` reads the card's tag ids from boardStore (which imports this store — hence a getter).
+ * A refusal reverts the ✓ (the pending entry goes) and says so. Never rejects.
+ */
+export function setSessionTags(
+  sessionId: string,
+  next: readonly string[],
+  readBase: () => readonly string[]
+): Promise<void> {
+  const s = tagsStore.getState()
+  const shown = new Set(applyPendingTags(readBase(), s.pendingBySession.get(sessionId)))
+  const wanted = new Set(next)
+  const changes = new Map<string, boolean>()
+  for (const { id } of s.tags) {
+    const on = wanted.has(id)
+    if (on !== shown.has(id)) changes.set(id, on)
   }
+  const previous = writeChains.get(sessionId) ?? Promise.resolve()
+  if (changes.size === 0) return previous
+  s.setPending(sessionId, changes)
+  const write = previous.then(async (): Promise<void> => {
+    const ids = applyPendingTags(readBase(), tagsStore.getState().pendingBySession.get(sessionId))
+    try {
+      await window.launch.setTags(sessionId, ids)
+    } catch {
+      console.warn(`${LOG_PREFIX} code=set_tags_failed`)
+      toast.error('Could not update tags.')
+    } finally {
+      tagsStore.getState().settlePending(sessionId, changes)
+    }
+  })
+  writeChains.set(sessionId, write)
+  void write.finally(() => {
+    if (writeChains.get(sessionId) === write) writeChains.delete(sessionId)
+  })
+  return write
 }

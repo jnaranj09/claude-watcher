@@ -15,6 +15,7 @@
 import { useEffect, type JSX, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
+import { applyPendingTags, useTags } from '../../stores/tagsStore'
 
 export interface TagPickerProps {
   /** DOM id for the popup root. Lets a trigger button point `aria-controls` at it (SessionCard's
@@ -25,6 +26,9 @@ export interface TagPickerProps {
   tags: readonly Tag[]
   /** The card's current tag ids. */
   selectedIds: readonly string[]
+  /** The card's session. Its toggles still in flight (tagsStore's queue) show at once, and the
+   *  next click builds on them (spec 2026-09-29 §2.3). Omitted → the plain `selectedIds`. */
+  sessionId?: string | undefined
   /** The new tag list, in the order of `tags`. */
   onChange: (tagIds: string[]) => void
   onClose: (reason: 'escape' | 'outside') => void
@@ -39,12 +43,16 @@ export function TagPicker({
   id,
   tags,
   selectedIds,
+  sessionId,
   onChange,
   onClose,
   anchorRef,
   testId,
   label
 }: TagPickerProps): JSX.Element {
+  const pending = useTags((s) =>
+    sessionId === undefined ? undefined : s.pendingBySession.get(sessionId)
+  )
   useEffect(() => {
     const onMouseDown = (e: globalThis.MouseEvent): void => {
       if (anchorRef.current?.contains(e.target as Node) === true) return
@@ -54,7 +62,7 @@ export function TagPicker({
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [anchorRef, onClose])
 
-  const selected = new Set(selectedIds)
+  const selected = new Set(applyPendingTags(selectedIds, pending))
 
   function toggle(id: string): void {
     const next = new Set(selected)

@@ -382,10 +382,15 @@ function App(): React.JSX.Element {
     boardStore.getState().openPastSessionsDialog()
   }, [])
 
-  // Tags — a card's Tags… menu or a rail peek changed a session's tags. Never optimistic: the
-  // tagged card comes back as a session.updated delta.
+  // Tags — a card's Tags… menu or a rail peek changed a session's tags. The ✓ answers at once
+  // (tagsStore's pending queue, view-state); the tagged card itself comes back as a
+  // session.updated delta — main is session truth. The base is read when each write RUNS.
   const handleSetSessionTags = useCallback((sessionId: string, tagIds: string[]): void => {
-    void setSessionTags(sessionId, tagIds)
+    void setSessionTags(
+      sessionId,
+      tagIds,
+      () => boardStore.getState().sessionsById[sessionId]?.tagIds ?? []
+    )
   }, [])
 
   // Session-naming A2 — open the RENAME prompt for an EXISTING session. Reuses the same prompt
