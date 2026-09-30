@@ -24,6 +24,7 @@ import {
 import { Select } from '../Select/Select'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { TextInput } from '../TextInput/TextInput'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './ShortcutsDialog.module.css'
 
 /** The `Workspace` dropdown's stand-in for "no workspace" — a word, not '', because it becomes
@@ -55,21 +56,30 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
     actions.setError(null)
   }
 
+  // Action feedback (spec 2026-09-29 §2.5) — one save and one delete in flight at a time: a double
+  // Enter used to save twice. A refusal renders code-mapped copy, never the error object.
+  const save = useAsyncAction(async (req: Parameters<typeof saveShortcut>[0]): Promise<void> => {
+    try {
+      onSaved(await saveShortcut(req))
+    } catch (err) {
+      actions.setError(SHORTCUT_ERROR_COPY[shortcutErrorCode(err)])
+    }
+  })
+  // R26 — a refused delete keeps the form open and says so.
+  const remove = useAsyncAction(async (): Promise<void> => {
+    if (shortcut === null) return
+    try {
+      await removeShortcut(shortcut.id)
+      actions.select(null)
+    } catch (err) {
+      actions.setError(SHORTCUT_DELETE_ERROR_COPY[shortcutErrorCode(err)])
+    }
+  })
+
   function submit(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault()
     if (!result.ok || !dirty) return
-    // void + catch: a rejected save renders a code-mapped message, never the error object.
-    void saveShortcut(result.req)
-      .then(onSaved)
-      .catch((err: unknown) => actions.setError(SHORTCUT_ERROR_COPY[shortcutErrorCode(err)]))
-  }
-
-  // R26 — a refused delete keeps the form open and says so.
-  function remove(): void {
-    if (shortcut === null) return
-    void removeShortcut(shortcut.id)
-      .then(() => actions.select(null))
-      .catch((err: unknown) => actions.setError(SHORTCUT_DELETE_ERROR_COPY[shortcutErrorCode(err)]))
+    void save.run(result.req)
   }
 
   return (
@@ -132,8 +142,18 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
       {problem !== null && <ManageDialog.Hint testId="shortcut-hint">{problem}</ManageDialog.Hint>}
 
       <ManageDialog.Footer>
-        {shortcut !== null && <ManageDialog.Delete testId="shortcut-delete" onConfirm={remove} />}
-        <ManageDialog.Save testId="shortcut-save" disabled={!result.ok || !dirty} />
+        {shortcut !== null && (
+          <ManageDialog.Delete
+            testId="shortcut-delete"
+            busy={remove.busy}
+            onConfirm={() => void remove.run()}
+          />
+        )}
+        <ManageDialog.Save
+          testId="shortcut-save"
+          disabled={!result.ok || !dirty}
+          busy={save.busy}
+        />
       </ManageDialog.Footer>
     </ManageDialog.Form>
   )

@@ -37,6 +37,7 @@ import {
 } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './WorkspacesDialog.module.css'
 
 export interface WorkspacesDialogProps {
@@ -88,7 +89,9 @@ function WorkspaceForm({
   const [defaultCwd, setDefaultCwd] = useState<string | null>(workspace?.defaultCwd ?? null)
   const [busy, setBusy] = useState(false)
 
-  async function browse(): Promise<void> {
+  // Action feedback (spec 2026-09-29 §2.5) — one native picker at a time; a failure says so on
+  // the dialog's error line (it was a console line only).
+  const browse = useAsyncAction(async (): Promise<void> => {
     try {
       // R26 — open at the EDITED workspace's folder: main reads it from its own store by id (the
       // renderer never sends a path). A new workspace has no id yet — main uses the active one.
@@ -98,8 +101,9 @@ function WorkspaceForm({
       if (cwd !== null) changeFolder(cwd)
     } catch {
       console.warn('[claude-watcher][workspaces] code=pick_directory_failed')
+      actions.setError('Could not open the folder picker.')
     }
-  }
+  })
 
   // R26 — editing a field clears the error line (Templates/Tags/Rules do the same).
   function changeName(next: string): void {
@@ -112,7 +116,13 @@ function WorkspaceForm({
   }
 
   const trimmed = name.trim()
-  const canSave = trimmed.length > 0 && !busy
+  // Action feedback (spec 2026-09-29 §2.5): an unchanged row has nothing to save.
+  const dirty =
+    workspace === null ||
+    trimmed !== workspace.name ||
+    color !== workspace.color ||
+    defaultCwd !== workspace.defaultCwd
+  const canSave = trimmed.length > 0 && dirty && !busy
 
   async function submit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
@@ -172,7 +182,11 @@ function WorkspaceForm({
         <span className={styles.path} data-testid="workspace-default-cwd">
           {defaultCwd ?? 'None'}
         </span>
-        <ManageDialog.GhostButton testId="workspace-browse" onClick={() => void browse()}>
+        <ManageDialog.GhostButton
+          testId="workspace-browse"
+          busy={browse.busy}
+          onClick={() => void browse.run()}
+        >
           Choose…
         </ManageDialog.GhostButton>
         {/* R26 — the way back to None. Not rendered while there is nothing to clear. */}

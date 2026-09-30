@@ -33,6 +33,7 @@ import {
 } from './templateForm'
 import { TextInput } from '../TextInput/TextInput'
 import { TextArea } from '../TextArea/TextArea'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './TemplatesDialog.module.css'
 
 /** The `Workspace` dropdown's stand-in for "no workspace". A word, not '': it becomes part of
@@ -66,14 +67,17 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   const patchParam = (i: number, p: Partial<ParamDraft>): void =>
     patch({ params: draft.params.map((row, j) => (j === i ? { ...row, ...p } : row)) })
 
-  async function browse(): Promise<void> {
+  // Action feedback (spec 2026-09-29 §2.5) — one native picker at a time; a failure says so on the
+  // form's error line (it was a console line only).
+  const browse = useAsyncAction(async (): Promise<void> => {
     try {
       const cwd = await window.launch.pickDirectory()
       if (cwd !== null) patch({ cwd })
     } catch {
       console.warn('[claude-watcher][templates] code=pick_directory_failed')
+      actions.setError('Could not open the folder picker.')
     }
-  }
+  })
 
   async function submit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
@@ -128,7 +132,11 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
         <span className={styles.path} data-testid="template-cwd">
           {draft.cwd.length > 0 ? draft.cwd : 'No folder yet'}
         </span>
-        <ManageDialog.GhostButton testId="template-browse" onClick={() => void browse()}>
+        <ManageDialog.GhostButton
+          testId="template-browse"
+          busy={browse.busy}
+          onClick={() => void browse.run()}
+        >
           Browse…
         </ManageDialog.GhostButton>
       </div>
