@@ -272,7 +272,7 @@ import { claimSingleInstance } from './lifecycle/singleInstance'
 import {
   claimByProcess,
   createOrphanRegistry,
-  isAdoptableSessionId,
+  findAdoptionTarget,
   sessionEndKeepsCard
 } from './hooks/sessionRebind'
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
@@ -990,26 +990,29 @@ function registerWatchFeed(window: BrowserWindow): void {
   // per-run board-eligibility gate, and the old card is gone anyway (a stale member gates nothing).
   function adoptOrphanedCard(cwd: string, newSessionId: string): boolean {
     if (launchService === null || terminalManager === null) return false
-    // PART 2b first — the EXACT proof: claude's own record says which launched pty now runs
-    // this id. Needs no orphan record, so it also rescues a card whose SessionEnd came late,
-    // never came, or came longer than the heuristic's window ago.
-    const byProcess = claimByProcess(
+    const service = launchService
+    const terminals = terminalManager
+    // SEC-1: a non-UUID id is refused before either proof (findAdoptionTarget). PART 2b first —
+    // the EXACT proof: claude's own record says which launched pty now runs this id. Needs no
+    // orphan record, so it also rescues a card whose SessionEnd came late, never came, or came
+    // longer than the heuristic's window ago. Fallback — the cwd + single-match + alive + window
+    // heuristic (a claude without records).
+    const target = findAdoptionTarget(
       newSessionId,
-      launchService.bindings(),
-      terminalManager,
-      processSessions
+      {
+        byProcess: () =>
+          claimByProcess(newSessionId, service.bindings(), terminals, processSessions),
+        byOrphan: () => orphanRegistry.claim(cwd, Date.now(), terminals)
+      },
+      (message) => console.warn(message)
     )
-    if (byProcess !== null) {
-      return adoptCard(byProcess.terminalId, byProcess.sessionId, newSessionId, 'pid')
-    }
-    // Fallback — the cwd + single-match + alive + window heuristic (a claude without records).
-    const orphan = orphanRegistry.claim(cwd, Date.now(), terminalManager)
-    if (orphan === null) return false
-    return adoptCard(orphan.terminalId, orphan.sessionId, newSessionId, 'cwd')
+    if (target === null) return false
+    return adoptCard(target.terminalId, target.sessionId, newSessionId, target.proof)
   }
 
   /** Re-key a live launched terminal's card from `oldSessionId` to `newSessionId`. Shared by
-   *  both proofs; `proof` only labels the log line. */
+   *  both proofs; `proof` only labels the log line. Reached ONLY through `findAdoptionTarget`,
+   *  which has already refused a non-UUID id (SEC-1). */
   function adoptCard(
     terminalId: string,
     oldSessionId: string,
@@ -1017,12 +1020,6 @@ function registerWatchFeed(window: BrowserWindow): void {
     proof: 'pid' | 'cwd'
   ): boolean {
     if (launchService === null) return false
-    if (!isAdoptableSessionId(newSessionId)) {
-      // SEC-1 — a forged id must not become a card id (it later reaches `claude --resume`).
-      // Code only: the id is caller-controlled.
-      console.warn('[c9watch][hooks] path=(hook) code=hook_rebind_bad_id')
-      return false
-    }
     const stored = reducer.snapshotMap().get(oldSessionId)
     if (stored === undefined) {
       // The card left by another path (stop/exit) — any orphan record is stale, drop it.

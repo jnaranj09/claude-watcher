@@ -5,10 +5,11 @@
 // exactly one match, pty alive, inside the window) each get their own negative case, because
 // loosening ANY of them re-opens the Story-3.3 ship gate (external sessions on the board).
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   claimByProcess,
   createOrphanRegistry,
+  findAdoptionTarget,
   isAdoptableSessionId,
   sessionEndKeepsCard,
   REBIND_WINDOW_MS,
@@ -268,5 +269,42 @@ describe('isAdoptableSessionId', () => {
     ['a UUID missing a group', '3f2b8c1e-9a4d-4e7f-1d0e6f5a7b9c']
   ])('refuses %s', (_label, id) => {
     expect(isAdoptableSessionId(id)).toBe(false)
+  })
+})
+
+// SEC-1 hardening, wired: the UUID check runs BEFORE either proof, so a forged id never adopts a
+// card and never uses up the orphan record a real `/clear` would need.
+describe('findAdoptionTarget', () => {
+  const NEW_ID = '3f2b8c1e-9a4d-4e7f-8b2c-1d0e6f5a7b9c'
+  const hit = { terminalId: 'term-1', sessionId: 'old-id' }
+
+  it('a non-UUID id: refused before either proof is tried, logged by code only', () => {
+    const byProcess = vi.fn(() => hit)
+    const byOrphan = vi.fn(() => hit)
+    const log = vi.fn()
+    const bad = "x'; touch /tmp/pwned; '"
+    expect(findAdoptionTarget(bad, { byProcess, byOrphan }, log)).toBeNull()
+    expect(byProcess).not.toHaveBeenCalled()
+    expect(byOrphan).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith('[c9watch][hooks] path=(hook) code=hook_rebind_bad_id')
+    for (const [line] of log.mock.calls) expect(String(line)).not.toContain('pwned')
+  })
+  it('the pid proof wins, and the orphan record is left alone', () => {
+    const byOrphan = vi.fn(() => hit)
+    expect(findAdoptionTarget(NEW_ID, { byProcess: () => hit, byOrphan }, vi.fn())).toEqual({
+      ...hit,
+      proof: 'pid'
+    })
+    expect(byOrphan).not.toHaveBeenCalled()
+  })
+  it('falls back to the cwd orphan when there is no pid proof', () => {
+    expect(
+      findAdoptionTarget(NEW_ID, { byProcess: () => null, byOrphan: () => hit }, vi.fn())
+    ).toEqual({ ...hit, proof: 'cwd' })
+  })
+  it('no proof at all: null', () => {
+    expect(
+      findAdoptionTarget(NEW_ID, { byProcess: () => null, byOrphan: () => null }, vi.fn())
+    ).toBeNull()
   })
 })

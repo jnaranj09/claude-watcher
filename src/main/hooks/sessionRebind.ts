@@ -73,6 +73,39 @@ export function isAdoptableSessionId(id: string): boolean {
   return SESSION_UUID.test(id)
 }
 
+/** A launched terminal whose card may move to a new id, and which proof found it. */
+export interface AdoptionTarget {
+  terminalId: string
+  sessionId: string
+  proof: 'pid' | 'cwd'
+}
+
+/**
+ * Which card may take `newSessionId`? The id check comes FIRST (SEC-1): a forged id never adopts
+ * a card, and never reaches `byOrphan` — claiming an orphan uses it up, so a forged POST would
+ * otherwise cost a real `/clear` its fallback. Then the exact pid proof, then the cwd heuristic.
+ * `byProcess` / `byOrphan` are `claimByProcess` / `orphanRegistry.claim`, bound by index.ts.
+ */
+export function findAdoptionTarget(
+  newSessionId: string,
+  proofs: {
+    byProcess(): { terminalId: string; sessionId: string } | null
+    byOrphan(): { terminalId: string; sessionId: string } | null
+  },
+  log: (message: string) => void
+): AdoptionTarget | null {
+  if (!isAdoptableSessionId(newSessionId)) {
+    // Code only: the id is caller-controlled.
+    log('[c9watch][hooks] path=(hook) code=hook_rebind_bad_id')
+    return null
+  }
+  const byProcess = proofs.byProcess()
+  if (byProcess !== null) return { ...byProcess, proof: 'pid' }
+  const orphan = proofs.byOrphan()
+  if (orphan !== null) return { ...orphan, proof: 'cwd' }
+  return null
+}
+
 /** The minimal launch-service surface Part 1 needs (structurally satisfied by `LaunchService`
  *  once `terminalIdFor` is added — see launchSession.ts). */
 export interface RebindBindingSource {
