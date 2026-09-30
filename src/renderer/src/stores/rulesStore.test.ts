@@ -82,7 +82,7 @@ describe('rulesStore', () => {
     expect(rulesStore.getState().rules).toEqual([R2, R1])
   })
 
-  it('save and remove RETHROW (the dialog shows the reason); load and move log a code', async () => {
+  it('save and remove RETHROW (the dialog shows the reason); load and move log a code (move rethrows too)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubBridge({
       list: vi.fn(() => Promise.reject(new Error('x'))),
@@ -94,7 +94,7 @@ describe('rulesStore', () => {
     expect(warn).toHaveBeenCalledWith('[claude-watcher][rules] code=rules_load_failed')
     await expect(saveRule({ ...R1 })).rejects.toThrow('rule_bad_pattern')
     await expect(removeRule('r1')).rejects.toThrow('rule_not_found')
-    await moveRule('r1', 0)
+    await expect(moveRule('r1', 0)).rejects.toThrow('rule_not_found')
     expect(warn).toHaveBeenCalledWith('[claude-watcher][rules] code=rules_move_failed')
   })
 })

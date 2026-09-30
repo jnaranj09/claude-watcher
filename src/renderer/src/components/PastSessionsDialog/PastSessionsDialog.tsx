@@ -68,6 +68,10 @@ export function PastSessionsDialog({
   // THIS open's load failed. The store keeps the list it already held, but no empty sentence may
   // stand beside the error line: "No past sessions yet." is exactly what could not be checked.
   const [loadFailed, setLoadFailed] = useState(false)
+  // Action feedback (spec 2026-09-29 §2.5): the rail says `Loading…` while the history is in
+  // flight; Retry bumps the generation to fetch again (the Settings theme-list precedent).
+  const [loading, setLoading] = useState(true)
+  const [loadGeneration, setLoadGeneration] = useState(0)
   const searchRef = useRef<HTMLInputElement | null>(null)
 
   // An Effect Event, so the mount effect below never re-runs: `dialog.actions` changes identity
@@ -84,13 +88,26 @@ export function PastSessionsDialog({
   useEffect(() => {
     let alive = true
     void loadPastSessions().then((ok) => {
-      if (alive && !ok) reportLoadFailed()
+      if (!alive) return
+      setLoading(false)
+      if (!ok) reportLoadFailed()
     })
-    searchRef.current?.focus()
     return () => {
       alive = false
     }
+  }, [loadGeneration])
+
+  // Focus once, on mount — a Retry must not pull focus back to the search box.
+  useEffect(() => {
+    searchRef.current?.focus()
   }, [])
+
+  function retryLoad(): void {
+    setLoadFailed(false)
+    setLoading(true)
+    dialog.actions.setError(null)
+    setLoadGeneration((g) => g + 1)
+  }
 
   const scoped = filterPastByScope(sessions, scope)
   const listed = filterPastByName(scoped, query)
@@ -192,12 +209,24 @@ export function PastSessionsDialog({
               {/* Nothing is said until the list has loaded: the first open of a run would otherwise
                   claim "No past sessions yet." while the history is still in flight. A failed load
                   says so on the error line instead. */}
-              {loaded && !loadFailed && listed.length === 0 && (
+              {loading && !loadFailed && (
+                <p className={styles.empty} data-testid="past-sessions-loading">
+                  Loading…
+                </p>
+              )}
+              {loaded && !loading && !loadFailed && listed.length === 0 && (
                 <p className={styles.empty} data-testid="past-sessions-empty">
                   {pastSessionsEmptyCopy(sessions.length, scoped.length, query)}
                 </p>
               )}
             </ManageDialog.Rows>
+            {loadFailed && (
+              <div className={styles.retrySlot}>
+                <ManageDialog.GhostButton testId="past-sessions-retry" onClick={retryLoad}>
+                  Retry
+                </ManageDialog.GhostButton>
+              </div>
+            )}
             <p className={styles.capNote} data-testid="past-sessions-cap-note">
               {pastSessionsCapNote(PAST_SESSIONS_MAX)}
             </p>

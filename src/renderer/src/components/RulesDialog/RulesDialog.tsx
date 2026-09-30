@@ -23,6 +23,7 @@ import {
   selectWorkspaces,
   useWorkspaces
 } from '../../stores/workspacesStore'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { RuleForm } from './RuleForm'
 import { triggerSummary } from './ruleForm'
 import styles from './RulesDialog.module.css'
@@ -71,11 +72,17 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
 
   /** ↑ / ↓ move past the neighbouring VISIBLE rule — in a filtered view, the rule the operator sees
    *  beside it. `rules:move` takes the FINAL index in the full list. */
-  function move(rule: Rule, step: -1 | 1): void {
+  // Action feedback (spec 2026-09-29 §2.5) — one move at a time: a second press would compute its
+  // index from a list main has not answered yet. A refusal says so on the error line.
+  const moving = useAsyncAction(async (rule: Rule, step: -1 | 1): Promise<void> => {
     const neighbour = listed[listed.indexOf(rule) + step]
     if (neighbour === undefined) return
-    void moveRule(rule.id, rules.indexOf(neighbour))
-  }
+    try {
+      await moveRule(rule.id, rules.indexOf(neighbour))
+    } catch {
+      dialog.actions.setError('Could not move the rule.')
+    }
+  })
 
   const emptyCopy = rules.length === 0 ? 'No rules yet' : 'No rules in this workspace'
 
@@ -135,7 +142,8 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
                       <ManageDialog.RowActions>
                         <ManageDialog.GhostButton
                           testId={`rule-up-${r.id}`}
-                          onClick={() => move(r, -1)}
+                          onClick={() => void moving.run(r, -1)}
+                          busy={moving.busy}
                           disabled={isFirst}
                           size="xs"
                           icon
@@ -147,7 +155,8 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
                         </ManageDialog.GhostButton>
                         <ManageDialog.GhostButton
                           testId={`rule-down-${r.id}`}
-                          onClick={() => move(r, 1)}
+                          onClick={() => void moving.run(r, 1)}
+                          busy={moving.busy}
                           disabled={isLast}
                           size="xs"
                           icon

@@ -65,3 +65,11 @@
 .none {
   color: var(--text-secondary);
 }
+
+/* Action feedback (spec 2026-09-29 §2.5) — Retry after a failed history load, in the rail foot
+   above the cap note. A wrapper carries the layout: a button never takes a class (design.md). */
+.retrySlot {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-2) 0 0;
+}
