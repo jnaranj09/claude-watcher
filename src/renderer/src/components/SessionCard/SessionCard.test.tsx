@@ -10,6 +10,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { SessionCard, type SessionCardProps } from './SessionCard'
 import { renderComponent, fireEvent } from '../../test/renderComponent'
+import { deferred } from '../../test/deferred'
 import type { Tag, Workspace } from '../../../../shared/ipc/contract'
 
 let cleanup: (() => void) | undefined
@@ -787,6 +788,23 @@ describe('Archive / Delete (D-3, D-5)', () => {
     expect(onArchive).toHaveBeenCalledTimes(1)
     expect(onDelete).toHaveBeenCalledTimes(1)
     expect(onActivate).not.toHaveBeenCalled()
+  })
+  it('Archive is busy until main answers, and a second press archives nothing', async () => {
+    const pending = deferred<void>()
+    const onArchive = vi.fn(() => pending.promise)
+    const { container, unmount } = renderComponent(<SessionCard {...baseProps({ onArchive })} />)
+    cleanup = unmount
+    const archive = container.querySelector<HTMLElement>('[data-testid="card-archive"]')
+    act(() => archive?.click())
+    expect(archive?.getAttribute('aria-busy')).toBe('true')
+    act(() => archive?.click())
+    expect(onArchive).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      pending.resolve(undefined)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(archive?.hasAttribute('aria-busy')).toBe(false)
   })
   it('renders neither control without handlers', () => {
     const { container, unmount } = renderComponent(<SessionCard {...baseProps()} />)

@@ -38,6 +38,7 @@ import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagPicker } from '../TagPicker/TagPicker'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { Button } from '../Button/Button'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './SessionCard.module.css'
 
 export type SessionCardVariant = 'hero' | 'calm'
@@ -124,7 +125,7 @@ export interface SessionCardProps {
   /** Past sessions (D-3) — Archive: stop and keep a record; no confirmation. Omitted ⇒ not
    *  rendered (a card whose terminal binding has not landed cannot be exited yet). Same
    *  stopPropagation rule as `onRename`. */
-  onArchive?: () => void
+  onArchive?: () => Promise<void>
   /** Past sessions (D-5) — Delete: opens the confirm. Red at rest. Omitted ⇒ not rendered. */
   onDelete?: () => void
 }
@@ -275,9 +276,13 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
   // Past sessions (D-3/D-5) — the SAME LOAD-BEARING guard pair as the rename pencil above,
   // copied verbatim (click + keydown) for the SAME reason: both controls are DOM children of the
   // card's own `role="button"` onClick/onKeyDown.
+  // Action feedback (spec 2026-09-29 §2.3): busy until main answers — one press, one archive.
+  const archive = useAsyncAction(async (): Promise<void> => {
+    await onArchive?.()
+  })
   const handleArchiveClick = (e: MouseEvent<HTMLButtonElement>): void => {
     e.stopPropagation()
-    onArchive?.()
+    void archive.run()
   }
 
   const handleArchiveKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
@@ -563,6 +568,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
               size="xs"
               icon
               testId="card-archive"
+              busy={archive.busy}
               aria-label={`Archive ${sessionName}`}
               title={`Archive ${sessionName} (keeps it in Past sessions)`}
               onClick={handleArchiveClick}

@@ -208,7 +208,7 @@ describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / 
     expect(deleteSpy).toHaveBeenCalledWith('term-abc123', null)
   })
 
-  it('(d-ordering) window.launch.deleteSession is called BEFORE clearStopConfirm + showBoard (F1)', () => {
+  it('(d-ordering) window.launch.deleteSession is called BEFORE clearStopConfirm + showBoard (F1)', async () => {
     // This is the load-bearing ordering pin. We record the call order by spying on all three
     // mutating operations in sequence and asserting the order.
     const callOrder: string[] = []
@@ -247,6 +247,11 @@ describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / 
     )
     act(() => {
       deleteBtn?.click()
+    })
+    // The registry and the confirm wait for main's answer (spec 2026-09-29 §2.3).
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
     })
 
     // (a) delete MUST have been called.
@@ -311,7 +316,7 @@ describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / 
     showBoardSpy.mockRestore()
   })
 
-  it('(d) clicking Delete clears boardStore.stopConfirm', () => {
+  it('(d) clicking Delete clears boardStore.stopConfirm', async () => {
     const payload = makePayload({ terminalId: 'term-abc123' })
     const { container, unmount } = renderComponent(<StopConfirm payload={payload} />)
     cleanup = unmount
@@ -321,6 +326,11 @@ describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / 
     )
     act(() => {
       deleteBtn?.click()
+    })
+    // The registry and the confirm wait for main's answer (spec 2026-09-29 §2.3).
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
     })
 
     expect(boardStore.getState().stopConfirm).toBeNull()
@@ -336,7 +346,7 @@ describe('StopConfirm — THE EXPLICIT-DELETE-BEFORE-VIEW-CHANGE ordering (F1 / 
 // ---------------------------------------------------------------------------
 
 describe('StopConfirm — clicking Delete forgets the launched-terminal registry entry', () => {
-  it('clicking Delete calls boardStore.getState().forgetLaunchedTerminal with the correct terminalId', () => {
+  it('clicking Delete calls boardStore.getState().forgetLaunchedTerminal with the correct terminalId', async () => {
     const forgetSpy = vi.spyOn(boardStore.getState(), 'forgetLaunchedTerminal')
 
     const payload = makePayload({ terminalId: 'term-abc123' })
@@ -348,6 +358,11 @@ describe('StopConfirm — clicking Delete forgets the launched-terminal registry
     )
     act(() => {
       deleteBtn?.click()
+    })
+    // The registry and the confirm wait for main's answer (spec 2026-09-29 §2.3).
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
     })
 
     expect(forgetSpy).toHaveBeenCalledTimes(1)

@@ -424,9 +424,9 @@ function App(): React.JSX.Element {
   // terminalId (Column only wires the control once the binding is known, but re-check here too —
   // a race between the click and a removal is a no-op, not a crash) and fires the SAME
   // sessionExit.archiveTerminal the focused bar uses.
-  const handleArchiveCard = useCallback((id: string): void => {
+  const handleArchiveCard = useCallback(async (id: string): Promise<void> => {
     const terminalId = boardStore.getState().terminalIdBySessionId[id]
-    if (terminalId !== undefined) archiveTerminal(terminalId)
+    if (terminalId !== undefined) await archiveTerminal(terminalId)
   }, [])
 
   // Past sessions (D-5) — Delete a card (the Board onDeleteCard seam): open the SAME confirm the

@@ -96,7 +96,7 @@ export interface BoardProps {
   /** Tags — opens the Tags dialog; a card's Tags… button uses it while no tag exists yet. */
   onManageTags?: () => void
   /** Past sessions (D-3) — card Archive seam. Omitted ⇒ no Archive control on any card. */
-  onArchiveCard?: (id: string) => void
+  onArchiveCard?: (id: string) => Promise<void>
   /** Past sessions (D-5) — card Delete seam. Omitted ⇒ no Delete control on any card. */
   onDeleteCard?: (id: string) => void
 }

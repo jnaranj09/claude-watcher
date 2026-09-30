@@ -26,11 +26,14 @@
 //
 // THE FROZEN ORDERING (F1 / HEADLINE CORRECTNESS CONSTRAINT) — UNCHANGED by D-5, only its target
 // changed from `window.terminal.stop` to the DELETE ipc:
-//   Delete → sessionExit.deleteTerminal(terminalId, sessionId), which itself
-//            (1) calls window.launch.deleteSession FIRST (explicit stop + drop-record, the
+//   Delete → sessionExit.deleteTerminal(terminalId, sessionId, sessionName), which itself
+//            (1) SENDS window.launch.deleteSession FIRST (explicit stop + drop-record, the
 //                CH.sessionDelete path), THEN
-//            (2) forgets the launched-terminal registry entry, clears the confirm, and returns
-//                to the board.
+//            (2) returns to the board at once, and
+//            (3) once main answers, forgets the launched-terminal registry entry and clears the
+//                confirm — or, on a refusal, clears the confirm, keeps the terminal and toasts
+//                `Could not delete "<name>".` (action feedback, spec 2026-09-29 §2.3). The
+//                Delete button is busy meanwhile: one press, one delete.
 //   NEVER clear focusedTerminalId first and let the FocusedSession unmount do the stop —
 //   that is the B-1 PTY-killing path (App.tsx M-2 mount-latch WARNING).
 //   The main-side stop is idempotent, so a later unmount-stop is a safe no-op.
@@ -53,6 +56,7 @@ import { useEffect, useRef, type JSX } from 'react'
 import type { StopConfirmPayload } from '../../stores/boardStore'
 import { boardStore } from '../../stores/boardStore'
 import { deleteTerminal } from '../../lib/sessionExit'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { Button } from '../Button/Button'
 import styles from './StopConfirm.module.css'
 
@@ -64,9 +68,9 @@ interface StopConfirmProps {
 /**
  * The Delete-confirm modal (D-5). Rendered when boardStore.stopConfirm is non-null.
  * Cancel → `boardStore.getState().clearStopConfirm()` (session keeps running).
- * Delete → `sessionExit.deleteTerminal(terminalId, sessionId)`, which stops the pty + drops any
- * record FIRST, then clears the confirm and returns to the board (the F1 ordering — see the
- * header comment).
+ * Delete → `sessionExit.deleteTerminal(terminalId, sessionId, sessionName)`, which sends the
+ * stop + drop-record FIRST, then returns to the board and, once main answers, clears the confirm
+ * (the F1 ordering — see the header comment).
  */
 export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
   const cancelRef = useRef<HTMLButtonElement | null>(null)
@@ -82,11 +86,10 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
     boardStore.getState().clearStopConfirm()
   }
 
-  function handleDelete(): void {
-    // D-5 — the ONE call site. sessionExit.deleteTerminal owns the F1 ordering (explicit
-    // main-side delete FIRST, then the registry/confirm/board view-state teardown).
-    deleteTerminal(terminalId, sessionId)
-  }
+  // D-5 — the ONE call site. sessionExit.deleteTerminal owns the F1 ordering (the main-side delete
+  // SENT first, then the view) and the failure toast. Busy while main answers: one press, one
+  // delete (spec 2026-09-29 §2.3).
+  const del = useAsyncAction(() => deleteTerminal(terminalId, sessionId, payload.sessionName))
 
   return (
     <div
@@ -122,7 +125,13 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
             Cancel
           </Button>
           {/* `armed`: this IS the confirming press, so it is drawn filled, not red-outlined. */}
-          <Button variant="danger" armed testId="stop-confirm-stop" onClick={handleDelete}>
+          <Button
+            variant="danger"
+            armed
+            busy={del.busy}
+            testId="stop-confirm-stop"
+            onClick={() => void del.run()}
+          >
             Delete
           </Button>
         </div>

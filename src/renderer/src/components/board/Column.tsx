@@ -104,7 +104,7 @@ function EmphasizedSessionCard(props: {
   onManageTags?: (() => void) | undefined
   /** Past sessions (D-3) — Archive seam, threaded straight through to the card's Archive
    *  control. Omitted OR the session's terminal binding is not yet known ⇒ no control. */
-  onArchiveCard?: ((id: string) => void) | undefined
+  onArchiveCard?: ((id: string) => Promise<void>) | undefined
   /** Past sessions (D-5) — Delete seam, threaded straight through to the card's Delete control.
    *  Same "terminal binding known" gate as Archive. */
   onDeleteCard?: ((id: string) => void) | undefined
@@ -201,7 +201,7 @@ export interface ColumnProps {
   selectedId?: string | null
   /** Past sessions (D-3) — called when a card's Archive control is activated. Omitted ⇒ no
    *  Archive control on any card in this column. */
-  onArchiveCard?: (id: string) => void
+  onArchiveCard?: (id: string) => Promise<void>
   /** Past sessions (D-5) — called when a card's Delete control is activated (opens the confirm).
    *  Omitted ⇒ no Delete control on any card in this column. */
   onDeleteCard?: (id: string) => void

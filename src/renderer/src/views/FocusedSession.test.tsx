@@ -13,6 +13,7 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { FocusedSession } from './FocusedSession'
 import { boardStore } from '../stores/boardStore'
+import { deferred } from '../test/deferred'
 import type { Column, SessionUpdatedEvent, WatchEventsPayload } from '../../../shared/ipc/contract'
 
 let cleanup: (() => void) | undefined
@@ -348,6 +349,26 @@ describe('FocusedSession — Past sessions Archive + Delete header buttons (D-3,
 
     expect(window.launch.archiveSession).toHaveBeenCalledWith('launch-archive-click')
     expect(boardStore.getState().stopConfirm).toBeNull()
+  })
+
+  it('Archive is busy until main answers, and a second press sends nothing', async () => {
+    const pending = deferred<void>()
+    const archiveSession = vi.fn(() => pending.promise)
+    ;(window as unknown as { launch: { archiveSession: unknown } }).launch.archiveSession =
+      archiveSession
+    boardStore.getState().openLaunchedTerminal('launch-archive-busy', 'archive-busy', 'default')
+    const r = render()
+    const btn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-archive"]')
+    act(() => btn?.click())
+    expect(btn?.getAttribute('aria-busy')).toBe('true')
+    act(() => btn?.click())
+    expect(archiveSession).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      pending.resolve(undefined)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(btn?.hasAttribute('aria-busy')).toBe(false)
   })
 
   it('clicking Delete opens the confirm with { terminalId, sessionId, sessionName } and calls nothing on the bridge', () => {

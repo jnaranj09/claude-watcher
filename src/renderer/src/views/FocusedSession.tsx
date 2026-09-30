@@ -29,6 +29,7 @@ import { StatusDot, type DotStatus } from '../components/StatusDot/StatusDot'
 import { Button } from '../components/Button/Button'
 import type { Column } from '../../../shared/ipc/contract'
 import { archiveTerminal, sessionIdForTerminal } from '../lib/sessionExit'
+import { useAsyncAction } from '../hooks/useAsyncAction'
 import {
   boardStore,
   useBoard,
@@ -159,10 +160,11 @@ export function FocusedSession({
   // (reversible through Past sessions…) — fires straight through sessionExit.archiveTerminal,
   // the SAME helper the card calls. No-op guard: focusedTerminalId should never be
   // null in the focused view, but guard anyway (degrade gracefully, never crash).
-  const handleArchive = useCallback((): void => {
+  // Action feedback (spec 2026-09-29 §2.3): busy until main answers — one press, one archive.
+  const archive = useAsyncAction(async (): Promise<void> => {
     if (focusedTerminalId === null) return
-    archiveTerminal(focusedTerminalId)
-  }, [focusedTerminalId])
+    await archiveTerminal(focusedTerminalId)
+  })
 
   // Past sessions (D-5) — Delete needs a confirm (it is the one exit that is NOT reversible — no
   // record is kept). Raises the SAME confirm modal Story 4.3 built (UX-DR14: destructive action
@@ -224,7 +226,8 @@ export function FocusedSession({
             variant="secondary"
             size="sm"
             testId="focused-archive"
-            onClick={handleArchive}
+            busy={archive.busy}
+            onClick={() => void archive.run()}
             aria-label="Archive this session"
             title="Archive — keeps it in Past sessions"
           >
