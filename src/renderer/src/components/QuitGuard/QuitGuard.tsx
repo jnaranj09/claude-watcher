@@ -39,6 +39,8 @@ import type { QuitGuardPayload } from '../../../../shared/ipc/contract'
 import { boardStore } from '../../stores/boardStore'
 import { statusLabel } from '../StatusDot/statusLabel'
 import { Button } from '../Button/Button'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
+import { toast } from '../../stores/toastStore'
 import styles from './QuitGuard.module.css'
 
 interface QuitGuardProps {
@@ -60,16 +62,24 @@ export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
   }, [])
 
   function handleCancel(): void {
-    // Cancel: clear renderer state + tell main (no teardown — FROZEN #1).
+    // Cancel: clear renderer state + tell main (no teardown — FROZEN #1). The guard closing IS
+    // the feedback: a failed cancel is logged, never toasted.
     boardStore.getState().clearQuitGuard()
-    void window.quit.cancel()
+    void window.quit
+      .cancel()
+      .catch(() => console.warn('[claude-watcher][quit] code=quit_cancel_failed'))
   }
 
-  function handleConfirm(): void {
-    // Quit anyway: tell main to proceed (main runs teardown + app.quit()).
-    // The app exits; no need to clear renderer state (the process will end).
-    void window.quit.confirm()
-  }
+  // Quit anyway: tell main to proceed (main runs teardown + app.quit()); the process ends. Busy
+  // while main answers — one press, one confirm — and a refusal says so (spec 2026-09-29 §2.3).
+  const quitAnyway = useAsyncAction(async (): Promise<void> => {
+    try {
+      await window.quit.confirm()
+    } catch {
+      console.warn('[claude-watcher][quit] code=quit_confirm_failed')
+      toast.error('Could not quit the app.')
+    }
+  })
 
   const { total, workingCount, sessions } = payload
 
@@ -137,7 +147,13 @@ export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
             Cancel
           </Button>
           {/* `armed`: this IS the confirming press, so it is drawn filled, not red-outlined. */}
-          <Button variant="danger" armed testId="quit-guard-confirm" onClick={handleConfirm}>
+          <Button
+            variant="danger"
+            armed
+            busy={quitAnyway.busy}
+            testId="quit-guard-confirm"
+            onClick={() => void quitAnyway.run()}
+          >
             Quit anyway
           </Button>
         </div>

@@ -55,6 +55,7 @@ import { TerminalContextMenu } from './TerminalContextMenu'
 import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
 import { Button } from '../components/Button/Button'
 import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
+import { toast } from '../stores/toastStore'
 import styles from './EmbeddedTerminal.module.css'
 
 export interface EmbeddedTerminalProps {
@@ -598,9 +599,14 @@ export function EmbeddedTerminal({
     const sel = t?.getSelection() ?? ''
     setMenu(null)
     if (!sel) return
+    // Action feedback (spec 2026-09-29 §2.3): the menu has closed, so the result is a toast.
     void window.clipboard
       .writeText(sel)
-      .catch(() => console.warn('[c9watch][clipboard] code=clipboard_write_failed'))
+      .then(() => toast.success('Copied'))
+      .catch(() => {
+        console.warn('[c9watch][clipboard] code=clipboard_write_failed')
+        toast.error('Could not copy.')
+      })
   }
 
   /** Paste: read OS clipboard text → `term.paste(text)` if non-empty (bracketed paste). */

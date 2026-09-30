@@ -34,6 +34,8 @@ export interface NewSessionButtonProps {
   variant?: NewSessionButtonVariant
   /** The button's `data-testid`; defaults to the header's `header-new-session`. */
   testId?: string
+  /** Action feedback (spec 2026-09-29 §2.3): the native folder picker is open — one at a time. */
+  busy?: boolean | undefined
 }
 
 /** Gap between the button and the portaled popover, and the margin kept off the viewport edge. */
@@ -45,7 +47,8 @@ export function NewSessionButton({
   onPickTemplate,
   onManage,
   variant = 'header',
-  testId = 'header-new-session'
+  testId = 'header-new-session',
+  busy = false
 }: NewSessionButtonProps): JSX.Element {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<CSSProperties | null>(null)
@@ -133,6 +136,7 @@ export function NewSessionButton({
         variant="primary"
         buttonRef={buttonRef}
         testId={testId}
+        busy={busy}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}

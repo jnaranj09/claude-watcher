@@ -116,6 +116,8 @@ import { Toaster } from './components/Toaster/Toaster'
 // answers, maps refusals, and never lets a late result take the view.
 import { submitLaunch, submitRename } from './lib/namePromptFlow'
 import { moveCardToWorkspace } from './lib/cardActions'
+import { toast } from './stores/toastStore'
+import { useAsyncAction } from './hooks/useAsyncAction'
 
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
@@ -309,6 +311,7 @@ function App(): React.JSX.Element {
       cwd = await window.launch.pickDirectory()
     } catch {
       console.warn('[c9watch][launch] code=pick_directory_failed')
+      toast.error('Could not open the folder picker.') // the menu has closed: a toast (§2.3)
       return
     }
     if (cwd === null) return // cancel ⇒ no-op (no launch, no view change)
@@ -321,6 +324,11 @@ function App(): React.JSX.Element {
     const basename = (cwd.split('/').filter(Boolean).pop() ?? cwd).slice(0, SESSION_NAME_MAX_LENGTH)
     boardStore.getState().showSessionNamePrompt({ mode: 'create', cwd, initialName: basename })
   }, [])
+
+  // Action feedback (spec 2026-09-29 §2.3) — ONE native folder picker at a time, from every entry
+  // (the header, the empty board, the dead pane, Ctrl+N). The header button shows it busy.
+  const pickFolder = useAsyncAction(handleNewSession)
+  const runPickFolder = pickFolder.run
 
   // Session templates — a template row was picked from the header popover. Skips the directory
   // picker entirely: the template already carries its cwd, so this opens the SAME name prompt
@@ -476,8 +484,8 @@ function App(): React.JSX.Element {
   // view). Its two sibling rows reach handleTemplateSession / handleManageTemplates — the very
   // same handlers the header button uses. Ctrl+N still calls this directly (the fast path).
   const handleNewSessionSync = useCallback((): void => {
-    void handleNewSession()
-  }, [handleNewSession])
+    void runPickFolder()
+  }, [runPickFolder])
 
   // Story 3.2 (FR-11 / UX-DR21) — global keybindings: Ctrl+N → new session; Esc → Board.
   // Story 4.2 (FR-14) — adds Ctrl+Q → requestQuit (the one chokepoint); Esc-guard-open → cancel.
@@ -507,7 +515,7 @@ function App(): React.JSX.Element {
       if (isInsideTerminal(e.target)) return
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
-        void handleNewSession()
+        void runPickFolder()
         return
       }
       // Story 4.2 (FR-14 / UX-DR21) — Ctrl+Q → requestQuit (the ONE quit chokepoint).
@@ -516,7 +524,11 @@ function App(): React.JSX.Element {
       // Guard: window.quit may be absent in pre-4.2 test environments (App.launch.test.tsx).
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'q' || e.key === 'Q')) {
         e.preventDefault()
-        if (window.quit) void window.quit.requestQuit()
+        if (window.quit) {
+          void window.quit
+            .requestQuit()
+            .catch(() => console.warn('[claude-watcher][quit] code=request_quit_failed'))
+        }
         return
       }
       // R27 — Ctrl+W ARCHIVES NOTHING. It used to archive the focused session with no confirm from
@@ -559,7 +571,12 @@ function App(): React.JSX.Element {
         // (UX-DR14: close the topmost layer). Return without falling through to showBoard.
         if (boardStore.getState().quitGuard !== null) {
           boardStore.getState().clearQuitGuard()
-          if (window.quit) void window.quit.cancel()
+          if (window.quit) {
+            // The guard itself is the feedback: a failed cancel is logged, never toasted.
+            void window.quit
+              .cancel()
+              .catch(() => console.warn('[claude-watcher][quit] code=quit_cancel_failed'))
+          }
           return
         }
         // Esc returns Focused → Board (UX-DR21). No-op on the board (showBoard guards).
@@ -568,7 +585,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [smoke, handleNewSession])
+  }, [smoke, runPickFolder])
 
   // In smoke mode, render the single-PTY cockpit (the packaged smoke harness drives
   // it). Otherwise — including while smoke-config is still resolving — render the
@@ -648,7 +665,8 @@ function App(): React.JSX.Element {
         </div>
         <div className={styles.headerActions}>
           <NewSessionButton
-            onPickFolder={() => void handleNewSession()}
+            busy={pickFolder.busy}
+            onPickFolder={() => void runPickFolder()}
             onPickTemplate={handleTemplateSession}
             onManage={handleManageTemplates}
           />
@@ -682,7 +700,7 @@ function App(): React.JSX.Element {
             inert={showFocused || namePromptOpen}
           >
             <Board
-              onNewSession={() => void handleNewSession()}
+              onNewSession={() => void runPickFolder()}
               onPickTemplate={handleTemplateSession}
               onManageTemplates={handleManageTemplates}
               onActivateCard={handleActivateCard}

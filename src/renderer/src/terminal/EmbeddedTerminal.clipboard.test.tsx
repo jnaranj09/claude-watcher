@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
+import { toastStore } from '../stores/toastStore'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import type { TerminalExitEvent } from '../../../shared/ipc/contract'
 
@@ -510,5 +511,56 @@ describe('EmbeddedTerminal — per-terminal isolation (AC-5)', () => {
     act(() => rA.unmount())
     act(() => rB.unmount())
     cleanupFn = undefined // afterEach already sees undefined; this is defensive
+  })
+})
+
+// Action feedback (spec 2026-09-29 §2.3) — the context menu has closed by the time the copy lands,
+// so the result is a toast: `Copied`, or `Could not copy.` (it used to be a console line only).
+describe('context menu Copy — the result is a toast', () => {
+  beforeEach(() => {
+    toastStore.setState({ toasts: [] })
+  })
+
+  async function copySelection(terminalId: string): Promise<void> {
+    const r = render({ terminalId })
+    deliverPort(terminalId, lastOpenToken())
+    const term = capturedTerminals[0]
+    expect(term).toBeDefined()
+    vi.spyOn(term!, 'hasSelection').mockReturnValue(true)
+    vi.spyOn(term!, 'getSelection').mockReturnValue('selected text')
+    const container = r.container.querySelector('[data-testid="embedded-terminal"]')?.querySelector('div')
+    act(() => {
+      container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const menu = document.querySelector('[data-testid="terminal-context-menu"]')
+    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
+      (b) => b.textContent === 'Copy'
+    )
+    act(() => {
+      copyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  it('a copy that landed says Copied', async () => {
+    await copySelection('t-copy-toast')
+    expect(toastStore.getState().toasts.map((t) => [t.kind, t.title])).toEqual([
+      ['success', 'Copied']
+    ])
+  })
+
+  it('a copy that failed says Could not copy. — never the text', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    clipFakes.writeText.mockImplementationOnce(() => Promise.reject(new Error('denied')))
+    await copySelection('t-copy-fail')
+    expect(toastStore.getState().toasts.map((t) => [t.kind, t.title])).toEqual([
+      ['error', 'Could not copy.']
+    ])
   })
 })
