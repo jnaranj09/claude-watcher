@@ -25,6 +25,9 @@ import {
   DEFAULT_REMINDER_FIRST_DELAY_MINUTES,
   DEFAULT_EXPANDER_KEY,
   DEFAULT_API_PORT,
+  SHELL_PANE_RATIO_MIN,
+  SHELL_PANE_RATIO_MAX,
+  DEFAULT_SHELL_PANE_RATIO,
   expanderChord,
   type Settings
 } from './settings'
@@ -42,7 +45,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       apiPort: 9281,
       themeId: 'default',
       wallpaperByTheme: {},
-      notificationsEnabled: true
+      notificationsEnabled: true,
+      shellPaneRatio: 0.3
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -381,5 +385,32 @@ describe('settings.notificationsEnabled (UX-13, additive on v1)', () => {
       notificationsEnabled: false
     })
     expect(SettingsPatchSchema.parse({ soundEnabled: true })).toEqual({ soundEnabled: true })
+  })
+})
+
+describe('shellPaneRatio — additive on v1 (card shell pane)', () => {
+  it('a v1 blob without it parses with the default 0.3 (the file version stays 1)', () => {
+    const { shellPaneRatio: _omit, ...without } = DEFAULT_SETTINGS
+    void _omit
+    expect(parseSettings(without).shellPaneRatio).toBe(DEFAULT_SHELL_PANE_RATIO)
+    expect(DEFAULT_SHELL_PANE_RATIO).toBe(0.3)
+  })
+  it('out of band fails closed on a read and on a patch', () => {
+    expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, shellPaneRatio: 0.1 }).success).toBe(
+      false
+    )
+    expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, shellPaneRatio: 0.9 }).success).toBe(
+      false
+    )
+    expect(SettingsPatchSchema.safeParse({ shellPaneRatio: 1 }).success).toBe(false)
+    expect(SettingsPatchSchema.safeParse({ shellPaneRatio: SHELL_PANE_RATIO_MIN }).success).toBe(
+      true
+    )
+    expect(SettingsPatchSchema.safeParse({ shellPaneRatio: SHELL_PANE_RATIO_MAX }).success).toBe(
+      true
+    )
+  })
+  it('a font-size-only patch does not carry a default ratio (never derive the patch schema)', () => {
+    expect(SettingsPatchSchema.parse({ terminalFontSize: 12 })).toEqual({ terminalFontSize: 12 })
   })
 })

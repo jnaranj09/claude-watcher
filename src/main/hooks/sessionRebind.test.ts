@@ -10,6 +10,7 @@ import {
   claimByProcess,
   createOrphanRegistry,
   findAdoptionTarget,
+  namedByShellPane,
   isAdoptableSessionId,
   sessionEndKeepsCard,
   REBIND_WINDOW_MS,
@@ -306,5 +307,42 @@ describe('findAdoptionTarget', () => {
     expect(
       findAdoptionTarget(NEW_ID, { byProcess: () => null, byOrphan: () => null }, vi.fn())
     ).toBeNull()
+  })
+  it('a claude inside a card SHELL PANE names the id: never adopted, the orphan is left alone', () => {
+    // Card shell pane — a `claude` the operator runs in the shell is in the SAME folder as the
+    // card's claude, so the cwd heuristic alone would hand it the card after a /clear.
+    const byOrphan = vi.fn(() => hit)
+    const log = vi.fn()
+    expect(
+      findAdoptionTarget(NEW_ID, { byProcess: () => null, byOrphan, byCompanion: () => true }, log)
+    ).toBeNull()
+    expect(byOrphan).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith(
+      '[c9watch][hooks] path=(hook) code=hook_rebind_shell_pane_claude'
+    )
+  })
+  it('no shell pane names the id: the cwd fallback still runs', () => {
+    expect(
+      findAdoptionTarget(
+        NEW_ID,
+        { byProcess: () => null, byOrphan: () => hit, byCompanion: () => false },
+        vi.fn()
+      )
+    ).toEqual({ ...hit, proof: 'cwd' })
+  })
+})
+
+describe('namedByShellPane — the disproof source for a claude run inside a card shell pane', () => {
+  const NEW_ID = '3f2b8c1e-9a4d-4e7f-8b2c-1d0e6f5a7b9c'
+  const pids = { pidOf: (id: string) => (id === 'launch-1:shell' ? 42 : null) }
+  it('true when a live shell pane records the id', () => {
+    const records = { currentSessionIdsUnder: (pid: number) => (pid === 42 ? [NEW_ID] : []) }
+    expect(namedByShellPane(NEW_ID, ['launch-1:shell'], pids, records)).toBe(true)
+  })
+  it('false when no shell pane records it, or the shell pty is gone', () => {
+    const none = { currentSessionIdsUnder: () => [] }
+    expect(namedByShellPane(NEW_ID, ['launch-1:shell'], pids, none)).toBe(false)
+    const any = { currentSessionIdsUnder: () => [NEW_ID] }
+    expect(namedByShellPane(NEW_ID, ['launch-2:shell'], pids, any)).toBe(false)
   })
 })

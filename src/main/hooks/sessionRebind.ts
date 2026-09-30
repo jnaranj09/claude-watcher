@@ -91,6 +91,10 @@ export function findAdoptionTarget(
   proofs: {
     byProcess(): { terminalId: string; sessionId: string } | null
     byOrphan(): { terminalId: string; sessionId: string } | null
+    /** Card shell pane — true when a `claude` inside a card's shell pane records this id. That
+     *  claude runs in the SAME folder as the card's, so the cwd heuristic would adopt it: a
+     *  DISPROOF, checked before the orphan is claimed (a claim uses the orphan up). */
+    byCompanion?: () => boolean
   },
   log: (message: string) => void
 ): AdoptionTarget | null {
@@ -101,6 +105,10 @@ export function findAdoptionTarget(
   }
   const byProcess = proofs.byProcess()
   if (byProcess !== null) return { ...byProcess, proof: 'pid' }
+  if (proofs.byCompanion?.() === true) {
+    log('[c9watch][hooks] path=(hook) code=hook_rebind_shell_pane_claude')
+    return null
+  }
   const orphan = proofs.byOrphan()
   if (orphan !== null) return { ...orphan, proof: 'cwd' }
   return null
@@ -261,4 +269,23 @@ export function claimByProcess(
     match = { terminalId: launch.terminalId, sessionId: launch.sessionId }
   }
   return match
+}
+
+/**
+ * Card shell pane — does a `claude` inside one of the card shell panes record `newSessionId`?
+ * `companionTerminalIds` are the live companions (`<parent>:shell`); a gone pty is skipped. Pure,
+ * like `claimByProcess`: the records source does the reading.
+ */
+export function namedByShellPane(
+  newSessionId: string,
+  companionTerminalIds: Iterable<string>,
+  pids: LaunchPids,
+  records: ProcessSessionRecords
+): boolean {
+  for (const terminalId of companionTerminalIds) {
+    const leaderPid = pids.pidOf(terminalId)
+    if (leaderPid === null) continue
+    if (records.currentSessionIdsUnder(leaderPid).includes(newSessionId)) return true
+  }
+  return false
 }

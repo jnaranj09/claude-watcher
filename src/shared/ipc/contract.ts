@@ -56,6 +56,12 @@ export const CH = {
   // the card — after the Delete confirm. Both return void; the card leaves as `session.removed`.
   sessionArchive: 'session:archive',
   sessionDelete: 'session:delete',
+  // Card shell pane (spec 2026-09-30) — `shell:open`: open (or find) the plain-shell COMPANION of
+  // an app-launched terminal. invoke({ parentTerminalId }) → { terminalId } where the id is
+  // `<parentTerminalId>:shell`. Main resolves the folder from its OWN launch recipe — no IPC
+  // argument ever becomes a spawn cwd. Refuses `terminal_not_found` / `folder_missing`. The
+  // companion's bytes then ride the EXISTING terminal:* channels under that id.
+  shellOpen: 'shell:open',
   // Session-naming A2 — `session:rename`: retitle an EXISTING session by its stable id. A REAL
   // new channel: there is nothing existing to reuse (a rename is not a terminal operation, and
   // `terminal:*` is keyed by terminalId while the reducer's map is keyed by session id).
@@ -725,6 +731,11 @@ export type SessionArchiveRequest = { terminalId: string }
  *  `sessionId` is only a HINT — the id the renderer knows for this terminal, null before
  *  correlation and null again once the card is gone; main drops that record too (idempotent). */
 export type SessionDeleteRequest = { terminalId: string; sessionId: string | null }
+/** Card shell pane — `shell:open` arg: the app-launched terminal the shell belongs to. */
+export type ShellOpenRequest = { parentTerminalId: string }
+/** Card shell pane — `shell:open` result: the companion's terminal id (`<parent>:shell`), the id
+ *  the renderer's second EmbeddedTerminal opens against. */
+export type ShellOpenResult = { terminalId: string }
 /** Past sessions — `past-sessions:open` result: the launch the renderer opens (like
  *  SessionLaunchResult) plus the record's name for the Starting banner. */
 export type PastSessionOpenResult = { terminalId: string; workspaceId: string; name: string }

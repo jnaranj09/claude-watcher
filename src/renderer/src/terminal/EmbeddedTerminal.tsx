@@ -45,7 +45,16 @@ import type {
 } from '../../../shared/ipc/contract'
 import { xtermThemeFor } from '../styles/xtermTheme'
 import { useTheme, selectThemeTerminal } from '../stores/themeStore'
-import { useSettings, selectTerminalFontSize, selectExpanderKey } from '../stores/settingsStore'
+import {
+  useSettings,
+  selectTerminalFontSize,
+  selectExpanderKey,
+  selectShellPaneRatio,
+  persistSettingsPatch,
+  settingsStore
+} from '../stores/settingsStore'
+import { SplitDivider } from '../components/SplitDivider/SplitDivider'
+import { clampShellRatio } from './shellPaneRatio'
 import { expanderChord } from '../../../shared/schemas/settings'
 import { chordFromEvent } from '../shortcuts/chord'
 import { ExpanderBox } from '../components/ExpanderBox/ExpanderBox'
@@ -57,6 +66,16 @@ import { Button } from '../components/Button/Button'
 import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
 import { toast } from '../stores/toastStore'
 import styles from './EmbeddedTerminal.module.css'
+
+/** Card shell pane — the companion this terminal hosts UNDER itself. */
+export interface ShellPaneSlot {
+  /** The companion's terminal id (`<parent>:shell`, from `shell:open`). */
+  terminalId: string
+  /** Shown, or hidden-but-running (kept alive off-screen, terminal.md). */
+  visible: boolean
+  /** R10 — the shell takes DOM focus when this turns true; a hidden pane never does. */
+  takeFocus: boolean
+}
 
 export interface EmbeddedTerminalProps {
   /** The opaque per-terminal id (NOT a session id, NOT a pid — F6). Stable for this pane. */
@@ -85,6 +104,17 @@ export interface EmbeddedTerminalProps {
    *  terminal and DROPS this one (Resume replaces the dead pane). Rejects with a code on refusal,
    *  which the pane maps to copy. Absent (the plain-shell view) ⇒ no Resume button. */
   onResume?: (terminalId: string) => Promise<void>
+  /** Card shell pane — `'shell'` is a card's plain-shell companion: its dead pane names a `Shell`
+   *  exit and offers ONLY `Restart shell` (a re-open of the same id — main re-spawns `$SHELL` in
+   *  the same folder), and its frame drops the card chrome (it sits INSIDE the parent's frame).
+   *  Defaults to `'session'`. */
+  variant?: 'session' | 'shell' | undefined
+  /** Card shell pane — render the companion in a pane under this terminal, with the divider. Only
+   *  a card's terminal ever passes it (never the nested shell itself: no recursion). */
+  shell?: ShellPaneSlot | undefined
+  /** Card shell pane — told whenever this terminal's dead pane shows or clears. The parent uses it
+   *  to take focus back from a dead shell (only the shell's own parent passes it). */
+  onDeadChange?: ((dead: boolean) => void) | undefined
 }
 
 /** The local dead-terminal state — the ONLY React state here before the clipboard feature
@@ -133,11 +163,14 @@ function focusTerminal(term: Terminal): void {
 export function EmbeddedTerminal({
   terminalId,
   active = true,
-  takeFocus = active,
+  takeFocus: takeFocusProp = active,
   onNewSession,
   onPickTemplate,
   onManageTemplates,
-  onResume
+  onResume,
+  variant = 'session',
+  shell,
+  onDeadChange
 }: EmbeddedTerminalProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -148,6 +181,14 @@ export function EmbeddedTerminal({
   // The xterm instance and its bytes are NEVER in React state — only this small pane flag is.
   const [dead, setDead] = useState<DeadState>(null)
   const [openNonce, setOpenNonce] = useState(0)
+  // Card shell pane — whether this terminal's shell companion is dead. A dead shell cannot use
+  // focus (its pane holds only `Restart shell`), so claude takes it back until a Restart.
+  const [shellDead, setShellDead] = useState(false)
+  const shellWantsFocus = shell?.takeFocus === true
+  const takeFocus = takeFocusProp || (shellWantsFocus && shellDead)
+  useEffect(() => {
+    onDeadChange?.(dead !== null)
+  }, [dead, onDeadChange])
   // Terminal clipboard feature — context menu open/position (view-state; state.md).
   // The xterm instance + selection are NOT here: they stay in termRef/portRef (terminal.md).
   const [menu, setMenu] = useState<MenuState | null>(null)
@@ -562,6 +603,37 @@ export function EmbeddedTerminal({
     focusTerminal(term)
   }, [takeFocus, openNonce])
 
+  // ── Card shell pane — the divider position ──────────────────────────────────────────────
+  // The saved ratio is settings (ONE value for every card); a drag shows live through local state
+  // and saves ONCE on release. `persistSettingsPatch` applies optimistically and rolls back a
+  // refused write; the refusal is a toast (no dialog holds it — design.md Feedback rule 3).
+  const savedRatio = useSettings(selectShellPaneRatio)
+  const [dragRatio, setDragRatio] = useState<number | null>(null)
+  const shellRatio = dragRatio ?? savedRatio
+  const frameRef = useRef<HTMLDivElement | null>(null)
+  const shellBounds = useCallback((): { top: number; height: number } | null => {
+    const frame = frameRef.current
+    if (frame === null) return null
+    const rect = frame.getBoundingClientRect()
+    const cs = getComputedStyle(frame)
+    const padTop = parseFloat(cs.paddingTop) || 0
+    const padBottom = parseFloat(cs.paddingBottom) || 0
+    const height = rect.height - padTop - padBottom
+    return height > 0 ? { top: rect.top + padTop, height } : null
+  }, [])
+  const commitShellRatio = useCallback(
+    (ratio: number): void => {
+      setDragRatio(null)
+      const next = clampShellRatio(ratio, shellBounds()?.height ?? 0)
+      if (next === settingsStore.getState().shellPaneRatio) return
+      persistSettingsPatch({ shellPaneRatio: next }).catch(() => {
+        console.warn('[claude-watcher][shell] code=shell_ratio_save_failed')
+        toast.error('Could not save the divider position.')
+      })
+    },
+    [shellBounds]
+  )
+
   // Re-open fallback: bump the nonce → the mount effect re-runs into the SAME pane (fresh pty +
   // port). Only reachable from the dead pane's button when NO onNewSession prop was provided
   // (the plain-shell terminals view — it has no App-level template/Manage seams to offer).
@@ -651,7 +723,8 @@ export function EmbeddedTerminal({
 
   return (
     <div
-      className={`${styles.frame} ${active ? '' : styles.hidden}`}
+      ref={frameRef}
+      className={`${styles.frame} ${active ? '' : styles.hidden} ${variant === 'shell' ? styles.shellFrame : ''} ${shell !== undefined ? styles.split : ''}`}
       data-testid="embedded-terminal"
       data-terminal-id={terminalId}
     >
@@ -662,61 +735,116 @@ export function EmbeddedTerminal({
           background painting OVER the active terminal whenever it sorted later in DOM order,
           blanking the visible terminal while a 2nd terminal was alive. visibility:hidden keeps the
           layout box, so the inner host stays sized for fit(). */}
-      <div ref={containerRef} className={styles.host} />
-      {/* Shortcut expander — the box over the terminal. Per-terminal view-state; the terminal
-          itself is untouched by its open/close (refs). `shortcuts` is already scoped to Global +
-          the active workspace by makeSelectVisibleShortcuts. */}
-      {expanderOpen && (
-        <ExpanderBox shortcuts={shortcuts} onExpand={handleExpand} onClose={handleExpanderClose} />
-      )}
-      {/* Story 6.1 — the dead pane: why it stopped (UX-10 — the exit code or signal, never pty
-          content), then New session; plus Resume when the caller can resume (UX-10). */}
-      {dead !== null && (
-        <div className={styles.dead} role="alert" data-testid="dead-terminal">
-          <span className={styles.deadMessage} data-testid="dead-terminal-reason">
-            {exitReasonCopy(onNewSession !== undefined ? 'Claude' : 'Terminal', dead)}
-          </span>
-          <div className={styles.deadActions}>
-            {onResume !== undefined && (
-              // Resume REPLACES this pane (the caller drops it on success). Secondary: the
-              // `+ New session` beside it stays the surface's one primary.
-              <Button variant="secondary" testId="dead-resume" disabled={resuming} onClick={resume}>
-                Resume conversation
-              </Button>
-            )}
-            {onNewSession !== undefined ? (
-              // Session-templates parity — the dead pane shows the SAME `+ New session` popover
-              // button as the header and the empty board (ONE component, ONE behaviour; the
-              // variant differs only in placement). Its menu is PORTALED to document.body
-              // because this frame is `overflow: clip` and `.dead` opens a stacking context at
-              // z-index 12 — an in-frame popover would be cut at the frame edge with no
-              // scrollbar to recover it (the TerminalContextMenu precedent).
-              //
-              // `key` on `active`: that portal lives OUTSIDE this frame, so it would survive the
-              // frame going `visibility:hidden` on a terminal switch and float over the newly
-              // focused terminal. Re-keying on `active` remounts the button, resetting `open`.
-              <NewSessionButton
-                key={active ? 'ns-active' : 'ns-inactive'}
-                variant="dead"
-                testId="dead-new-session"
-                onPickFolder={onNewSession}
-                onPickTemplate={(t) => onPickTemplate?.(t)}
-                onManage={() => onManageTemplates?.()}
-              />
-            ) : (
-              // Plain-shell terminals view (`#terminals`): no App seams exist, so the ONE action
-              // stays a re-open of a fresh pty into this same pane. `md` — it fills the slot the
-              // 32px `+ New session` primary fills above, so the pane is the same shape either way.
-              <Button variant="secondary" testId="dead-new-session" onClick={reopen}>
-                New session
-              </Button>
+      {/* Card shell pane (deviation 9) — claude's half: the xterm host, the expander and the dead
+          overlay. `.dead` is inset:0 on THIS box, so a claude exit never covers an open shell. */}
+      <div className={styles.main} data-testid="terminal-main">
+        <div ref={containerRef} className={styles.host} />
+        {/* Shortcut expander — the box over the terminal. Per-terminal view-state; the terminal
+            itself is untouched by its open/close (refs). `shortcuts` is already scoped to Global +
+            the active workspace by makeSelectVisibleShortcuts. */}
+        {expanderOpen && (
+          <ExpanderBox
+            shortcuts={shortcuts}
+            onExpand={handleExpand}
+            onClose={handleExpanderClose}
+          />
+        )}
+        {/* Story 6.1 — the dead pane: why it stopped (UX-10 — the exit code or signal, never pty
+            content), then New session; plus Resume when the caller can resume (UX-10). */}
+        {dead !== null && (
+          <div className={styles.dead} role="alert" data-testid="dead-terminal">
+            <span className={styles.deadMessage} data-testid="dead-terminal-reason">
+              {exitReasonCopy(
+                variant === 'shell' ? 'Shell' : onNewSession !== undefined ? 'Claude' : 'Terminal',
+                dead
+              )}
+            </span>
+            <div className={styles.deadActions}>
+              {variant === 'shell' ? (
+                // Card shell pane — ONE action: a fresh `$SHELL` in the same folder, into THIS pane
+                // (the openNonce re-open). Never Resume, never + New session: a shell is not a session.
+                <Button variant="secondary" testId="dead-restart-shell" onClick={reopen}>
+                  Restart shell
+                </Button>
+              ) : (
+                <>
+                  {onResume !== undefined && (
+                    // Resume REPLACES this pane (the caller drops it on success). Secondary: the
+                    // `+ New session` beside it stays the surface's one primary.
+                    <Button
+                      variant="secondary"
+                      testId="dead-resume"
+                      disabled={resuming}
+                      onClick={resume}
+                    >
+                      Resume conversation
+                    </Button>
+                  )}
+                  {onNewSession !== undefined ? (
+                    // Session-templates parity — the dead pane shows the SAME `+ New session` popover
+                    // button as the header and the empty board (ONE component, ONE behaviour; the
+                    // variant differs only in placement). Its menu is PORTALED to document.body
+                    // because this frame is `overflow: clip` and `.dead` opens a stacking context at
+                    // z-index 12 — an in-frame popover would be cut at the frame edge with no
+                    // scrollbar to recover it (the TerminalContextMenu precedent).
+                    //
+                    // `key` on `active`: that portal lives OUTSIDE this frame, so it would survive the
+                    // frame going `visibility:hidden` on a terminal switch and float over the newly
+                    // focused terminal. Re-keying on `active` remounts the button, resetting `open`.
+                    <NewSessionButton
+                      key={active ? 'ns-active' : 'ns-inactive'}
+                      variant="dead"
+                      testId="dead-new-session"
+                      onPickFolder={onNewSession}
+                      onPickTemplate={(t) => onPickTemplate?.(t)}
+                      onManage={() => onManageTemplates?.()}
+                    />
+                  ) : (
+                    // Plain-shell terminals view (`#terminals`): no App seams exist, so the ONE action
+                    // stays a re-open of a fresh pty into this same pane. `md` — it fills the slot the
+                    // 32px `+ New session` primary fills above, so the pane is the same shape either way.
+                    <Button variant="secondary" testId="dead-new-session" onClick={reopen}>
+                      New session
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+            {resumeError !== null && (
+              <p className={styles.deadError} data-testid="dead-resume-error">
+                {resumeError}
+              </p>
             )}
           </div>
-          {resumeError !== null && (
-            <p className={styles.deadError} data-testid="dead-resume-error">
-              {resumeError}
-            </p>
-          )}
+        )}
+      </div>
+      {shell !== undefined && shell.visible && (
+        <SplitDivider
+          ratio={shellRatio}
+          getBounds={shellBounds}
+          onDrag={setDragRatio}
+          onCommit={commitShellRatio}
+          ariaLabel="Resize shell pane"
+          testId="shell-divider"
+        />
+      )}
+      {shell !== undefined && (
+        // The companion, INSIDE this frame so a kept-alive hide / workspace switch hides both. A
+        // hidden pane leaves the flow (position:absolute) so claude gets the height back, but keeps
+        // a sized, off-screen box (terminal.md: never display:none — fit() needs a box).
+        <div
+          className={`${styles.shellSlot} ${shell.visible ? '' : styles.shellSlotHidden}`}
+          style={{ flexBasis: `${shellRatio * 100}%`, height: `${shellRatio * 100}%` }}
+          data-testid="shell-pane"
+          data-visible={shell.visible}
+        >
+          <EmbeddedTerminal
+            terminalId={shell.terminalId}
+            variant="shell"
+            active={active && shell.visible}
+            takeFocus={shell.takeFocus && !shellDead}
+            onDeadChange={setShellDead}
+          />
         </div>
       )}
       {/* Terminal clipboard feature — context menu portal (renders into document.body via

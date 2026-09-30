@@ -29,7 +29,8 @@ import type {
   TerminalPortMainMessage,
   TerminalPortRendererMessage,
   ReducerWatchEventsPayload,
-  PastSessionOpenResult
+  PastSessionOpenResult,
+  ShellOpenResult
 } from '../shared/ipc/contract'
 // Story 3.1 (FR-10) — the embedded-terminal transport: the MAIN-side terminal manager (one
 // node-pty per terminal behind the ptyFactory DI seam + the validated, flow-controlled
@@ -50,7 +51,8 @@ import {
   TerminalOpenSchema,
   TerminalResizeSchema,
   TerminalStopSchema,
-  TerminalExitSchema
+  TerminalExitSchema,
+  ShellOpenSchema
 } from '../shared/schemas/terminal'
 // Story 1.4 fix — validate-at-source for the watch:status connection-state push.
 // Story 2.2 — validate-at-source for the FR-9 attention:activate push.
@@ -163,7 +165,13 @@ import {
 // launchMint.test.ts, mirroring the launchRemoval extraction): mint ONLY when an ACTUAL
 // pty spawn is about to happen — a re-attach to a LIVE terminal must never mint a second
 // uuid / ghost card / binding overwrite.
-import { mintForOpen } from './pty/launchMint'
+import {
+  createShellCompanionRegistry,
+  spawnForOpen,
+  isOrphanCompanionId,
+  stopCompanionAfterParentStop,
+  type ShellCompanionRegistry
+} from './pty/shellCompanion'
 // Session-naming — the extracted, unit-tested launch-card synthesis (see launchSynthesis.ts).
 import { buildLaunchedSession } from './pty/launchSynthesis'
 import { createLaunchedSet, type LaunchedSet } from './pty/launchedSet'
@@ -273,6 +281,7 @@ import {
   claimByProcess,
   createOrphanRegistry,
   findAdoptionTarget,
+  namedByShellPane,
   sessionEndKeepsCard
 } from './hooks/sessionRebind'
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
@@ -402,6 +411,10 @@ let terminalManager: TerminalManager | null = null
 // the right renderer. Populated on terminal:open, consulted + pruned on exit/stop. A window
 // close prunes its terminals (teardownWindowTerminals). Keyed by the opaque terminalId (F6).
 const terminalOwners = new Map<string, Electron.WebContents>()
+// Card shell pane — the plain-shell companions of launched terminals (shellCompanion.ts). Built in
+// registerLaunchIpc (it needs the launch service); read at call time by the terminal:open/stop
+// handlers registered earlier, so it is nullable there.
+let shellCompanions: ShellCompanionRegistry | null = null
 
 // Story 3.2 (FR-11) — the in-app LAUNCH flow. The launch SERVICE spawns raw `claude` under the
 // REUSED terminal manager (file/cwd override) and runs the Tgid correlation join (REUSING
@@ -1002,7 +1015,15 @@ function registerWatchFeed(window: BrowserWindow): void {
       {
         byProcess: () =>
           claimByProcess(newSessionId, service.bindings(), terminals, processSessions),
-        byOrphan: () => orphanRegistry.claim(cwd, Date.now(), terminals)
+        byOrphan: () => orphanRegistry.claim(cwd, Date.now(), terminals),
+        // Card shell pane — a claude the operator runs in a card's shell is never that card.
+        byCompanion: () =>
+          namedByShellPane(
+            newSessionId,
+            shellCompanions?.terminalIds() ?? [],
+            terminals,
+            processSessions
+          )
       },
       (message) => console.warn(message)
     )
@@ -1292,6 +1313,8 @@ function teardownWindowTerminals(wc: Electron.WebContents): void {
       // architecture.md:554). NEVER rely on a renderer FocusedSession/EmbeddedTerminal
       // unmount to kill the PTY (that is the exact B-1 path; App.tsx ~199-203 WARNING).
       terminalManager?.stop(terminalId)
+      // Card shell pane — drop the companion entry (its own pty is stopped by this loop too).
+      shellCompanions?.stopFor(terminalId)
     }
   }
 }
@@ -2033,6 +2056,15 @@ function registerTerminalIpc(): void {
       if (r.success && !wc.isDestroyed()) wc.send(CH.terminalExit, r.data)
       return
     }
+    // Card shell pane — a shell whose parent was archived / deleted while shell:open was in flight
+    // has no registry entry: spawn NOTHING (never a stray `$SHELL` in the home folder); the pane
+    // goes dead, hidden with its archived frame. Decision + tests: shellCompanion.ts.
+    if (isOrphanCompanionId(terminalId, shellCompanions)) {
+      console.warn('[claude-watcher][shell] code=companion_not_registered')
+      const r = TerminalExitSchema.safeParse({ terminalId, exitCode: 1 })
+      if (r.success && !wc.isDestroyed()) wc.send(CH.terminalExit, r.data)
+      return
+    }
     const { port1, port2 } = new MessageChannelMain()
     // Record the owning window so a dead-terminal push (onExit) routes back here.
     terminalOwners.set(terminalId, wc)
@@ -2046,13 +2078,22 @@ function registerTerminalIpc(): void {
     // Reopen of a DEAD terminal is a real spawn and gets a FRESH id (a consumed --session-id
     // is never re-used). A non-launch terminalId (the Story-3.1 host path) mints null → the
     // unchanged shell spawn.
-    const minted = mintForOpen(terminalId, terminalManager, launchService)
+    //
+    // Card shell pane — a COMPANION id spawns `$SHELL` (spawnDefaults) in the parent's folder and
+    // mints NOTHING (no session id, no card, no --settings); every other id is the unchanged
+    // Story-6.2 decision (mintForOpen inside spawnForOpen). Unit-tested in shellCompanion.test.ts.
+    const { minted, spawnOverride } = spawnForOpen(
+      terminalId,
+      terminalManager,
+      launchService,
+      shellCompanions
+    )
     // Open the terminal (manager wires port1 ↔ pty + flow control). Initial dims are the
     // renderer's first fit() over CH.terminalResize; spawn at a sane default until then. A spawn
     // failure degrades to the manager's onExit → CH.terminalExit (dead pane), never a hang.
     // Story 5.6 — pass openToken so the manager can (a) update the stored token on re-attach, and
     // (b) let a stale cleanup-stop (carrying the old token) self-identify as a no-op.
-    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, minted?.spawn, openToken)
+    terminalManager.open(terminalId, adaptMessagePort(port1), 80, 24, spawnOverride, openToken)
     // Transfer port2 to the renderer, ECHOING the renderer's per-open `openToken` (Story 5.4)
     // alongside the terminalId so the renderer can pair THIS port to THIS open. The token
     // disambiguates a re-open of the SAME terminalId (a StrictMode dev double-mount, or Reopen):
@@ -2123,6 +2164,7 @@ function registerTerminalIpc(): void {
   ipcMain.handle(CH.terminalStop, (_event, raw: unknown) => {
     if (terminalManager === null) throw new Error('terminal manager not initialized')
     const { terminalId, openToken } = TerminalStopSchema.parse(raw)
+    const parentWasLive = terminalManager.has(terminalId)
     // Story 5.6 — forward the optional openToken to the manager. The manager no-ops if the token
     // is stale (a superseded StrictMode cleanup-stop). Omitted (user-initiated / quit teardown) →
     // unconditional kill (unchanged behavior). See terminalManager.stop() for the full semantics.
@@ -2145,6 +2187,12 @@ function registerTerminalIpc(): void {
         if (wc !== undefined) launchBoardSeams.get(wc)?.removeLaunched(sessionId, 'archive')
       }
     )
+    // Card shell pane — the shell dies with its parent's frame, unless THIS stop was a stale-token
+    // no-op (the parent is still live). A dead parent's unmount is not stale. Decision + tests:
+    // shellCompanion.ts `stopCompanionAfterParentStop`.
+    if (shellCompanions !== null) {
+      stopCompanionAfterParentStop(terminalId, parentWasLive, terminalManager, shellCompanions)
+    }
     // Story 5.4 — do NOT forget the launch here. This handler fires on EVERY EmbeddedTerminal
     // unmount, INCLUDING the transient unmount React StrictMode performs in dev (mount → cleanup
     // → mount). Forgetting here would drop the launch's correlation tracking AND (pre-5.4) its
@@ -2447,6 +2495,16 @@ function registerLaunchIpc(): void {
     // never-log-the-value: a code= ONLY, never a path/pty/session value (Guardrail #6).
     log: (message) => console.warn(message)
   })
+  // Card shell pane — the companion registry reads the launch recipe (the folder) and stops
+  // companions through the same manager; `isExistingDirectory` is the UX-11 preflight check.
+  if (terminalManager !== null) {
+    shellCompanions = createShellCompanionRegistry({
+      launch: launchService,
+      isDirectory: isExistingDirectory,
+      manager: terminalManager,
+      log: (message) => console.warn(message)
+    })
+  }
 
   // session:pick-directory — open the NATIVE KDE directory chooser in MAIN and return the chosen
   // path, or null on cancel (UX-DR23). The renderer NEVER opens a dialog itself. Modal-to-window
@@ -2555,6 +2613,7 @@ function registerLaunchIpc(): void {
       launchService,
       removeOwnedSession(terminalId, 'archive')
     )
+    shellCompanions?.stopFor(terminalId)
   })
   // session:delete — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Explicit
   // Delete: stop the pty, drop the card AND any history record for it. The decision is
@@ -2575,6 +2634,18 @@ function registerLaunchIpc(): void {
         pastSessionsStore?.remove(id)
       }
     )
+    shellCompanions?.stopFor(terminalId)
+  })
+  // shell:open — UNTRUSTED arg; parse-and-throw at THIS boundary. Main resolves the folder from its
+  // OWN launch recipe (never from the arg) and answers the companion's id. A refusal THROWS its
+  // code (`terminal_not_found` / `folder_missing`, the pastSessionOpen precedent); the renderer maps
+  // it to copy. The spawn itself rides the renderer's terminal:open for the returned id.
+  ipcMain.handle(CH.shellOpen, (_event, raw: unknown): ShellOpenResult => {
+    const { parentTerminalId } = ShellOpenSchema.parse(raw)
+    if (shellCompanions === null) throw new Error('terminal manager not initialized')
+    const out = shellCompanions.register(parentTerminalId)
+    if (!out.ok) throw new Error(out.code)
+    return { terminalId: out.terminalId }
   })
 
   // past-sessions:open — UNTRUSTED arg (parse-and-throw inside openPastSession). The decision is

@@ -46,7 +46,8 @@ import type {
   ThemeBundle,
   ThemeApplyResult,
   ServerHealth,
-  StorageHealth
+  StorageHealth,
+  ShellOpenResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -102,6 +103,11 @@ declare global {
       resize(terminalId: string, cols: number, rows: number): Promise<void>
       stop(terminalId: string, openToken?: string): Promise<void>
       onExit(cb: (info: TerminalExitEvent) => void): () => void
+    }
+    // Card shell pane — mirrors src/preload/index.ts `shellApi`. Main resolves the folder from its
+    // own launch recipe; the renderer sends only the parent's terminal id.
+    shell: {
+      open(parentTerminalId: string): Promise<ShellOpenResult>
     }
     // Story 3.2 (FR-11) — mirrors src/preload/index.ts `launchApi`. The renderer triggers the
     // native picker + the raw `claude` launch ONLY through this typed bridge (never a dialog or

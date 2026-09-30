@@ -67,6 +67,14 @@ export const API_PORT_MIN = 1024
 export const API_PORT_MAX = 65535
 const ApiPortSchema = z.number().int().min(API_PORT_MIN).max(API_PORT_MAX)
 
+/** Card shell pane (spec 2026-09-30) — the divider position as the SHELL's share of the frame.
+ *  ONE value for every card; saved when a drag ends, never per pointer move. The 80 px per-side
+ *  minimum is a renderer clamp (`terminal/shellPaneRatio.ts`); this band is what the file accepts. */
+export const SHELL_PANE_RATIO_MIN = 0.15
+export const SHELL_PANE_RATIO_MAX = 0.85
+export const DEFAULT_SHELL_PANE_RATIO = 0.3
+const ShellPaneRatioSchema = z.number().min(SHELL_PANE_RATIO_MIN).max(SHELL_PANE_RATIO_MAX)
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
  * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort` +
@@ -121,7 +129,9 @@ export const SettingsSchema = z.object({
   wallpaperByTheme: WallpaperByThemeSchema.default({}),
   // UX-13 — desktop popups (first alert + reminders) on/off. The sound is `soundEnabled`. Additive
   // on v1, same `.default()` reasoning as above: an older file keeps its popups on.
-  notificationsEnabled: z.boolean().default(true)
+  notificationsEnabled: z.boolean().default(true),
+  // Card shell pane. Additive on v1, same `.default()` reasoning as above.
+  shellPaneRatio: ShellPaneRatioSchema.default(DEFAULT_SHELL_PANE_RATIO)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -149,7 +159,8 @@ export const SettingsPatchSchema = z
     apiPort: ApiPortSchema,
     themeId: ThemeIdSchema,
     wallpaperByTheme: WallpaperByThemeSchema,
-    notificationsEnabled: z.boolean()
+    notificationsEnabled: z.boolean(),
+    shellPaneRatio: ShellPaneRatioSchema
   })
   .partial()
 
@@ -170,7 +181,8 @@ export const DEFAULT_SETTINGS: Settings = {
   apiPort: DEFAULT_API_PORT,
   themeId: DEFAULT_THEME_ID,
   wallpaperByTheme: {},
-  notificationsEnabled: true
+  notificationsEnabled: true,
+  shellPaneRatio: DEFAULT_SHELL_PANE_RATIO
 }
 
 /**

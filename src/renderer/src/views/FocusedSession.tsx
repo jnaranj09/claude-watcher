@@ -17,7 +17,7 @@
 // second window (single-window, UX-DR24). Esc returns to the Board (UX-DR21); the "← Board" button
 // is the visible equivalent (the Esc keybinding lives in App.tsx). [Source: story 3.4 Task 4;
 // UX-DR9/21/24; terminal.md; src/renderer/src/terminal/EmbeddedTerminal.tsx (reused, `active` prop)]
-import { useCallback, useLayoutEffect, useState, type JSX } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState, type JSX } from 'react'
 import type { Template } from '../../../shared/ipc/contract'
 import { useShallow } from 'zustand/react/shallow'
 import { EmbeddedTerminal } from '../terminal/EmbeddedTerminal'
@@ -30,14 +30,17 @@ import { Button } from '../components/Button/Button'
 import type { Column } from '../../../shared/ipc/contract'
 import { archiveTerminal, sessionIdForTerminal } from '../lib/sessionExit'
 import { useAsyncAction } from '../hooks/useAsyncAction'
+import { toggleShellPane } from '../lib/shellPane'
 import {
   boardStore,
   useBoard,
   selectFocusedTerminalId,
   selectKeptAliveTerminalIds,
   selectViewMode,
+  selectShellPane,
   type BoardState,
-  type BoardSession
+  type BoardSession,
+  type ShellPane
 } from '../stores/boardStore'
 // Story 3.5 (SM-2) — the paired acknowledge helper (board view-state + telemetry signal).
 // The two consequences are paired in ONE place (FROZEN-5); boardStore stays pure view-state.
@@ -166,6 +169,24 @@ export function FocusedSession({
     await archiveTerminal(focusedTerminalId)
   })
 
+  // Card shell pane — every card's pane state (same reference until a pane changes).
+  const shellPanes = useBoard((s) => s.shellPanes)
+  const focusedPane: ShellPane | null = useBoard((s) =>
+    focusedTerminalId === null ? null : selectShellPane(s, focusedTerminalId)
+  )
+  const shellVisible = focusedPane?.visible === true
+  // The first press asks main for the companion (one invoke); later presses toggle. Busy until
+  // main answers, so a double click opens ONE shell (spec 2026-09-29 §1.4).
+  const shell = useAsyncAction(async (): Promise<void> => {
+    if (focusedTerminalId === null) return
+    await toggleShellPane(focusedTerminalId)
+  })
+  // Card shell pane — a pane whose parent frame is no longer rendered is gone (its unmount-stop
+  // already stopped the shell in main). claude merely EXITING keeps the frame, so it keeps the pane.
+  useEffect(() => {
+    boardStore.getState().pruneShellPanes(keptAlive)
+  }, [keptAlive])
+
   // Past sessions (D-5) — Delete needs a confirm (it is the one exit that is NOT reversible — no
   // record is kept). Raises the SAME confirm modal Story 4.3 built (UX-DR14: destructive action
   // needs confirm); the confirm's own Delete button does the actual delete.
@@ -219,6 +240,20 @@ export function FocusedSession({
               Esc to return
             </span>
           )}
+          {/* Card shell pane — a plain $SHELL in this card's folder, under claude. LIT while the
+              pane is open (the Filter button's toggle look). Main resolves the folder. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="focused-shell"
+            lit={shellVisible}
+            busy={shell.busy}
+            onClick={() => void shell.run()}
+            title={shellVisible ? 'Hide shell' : 'Open shell'}
+            aria-pressed={shellVisible}
+          >
+            <span aria-hidden>{'>_'}</span> Shell
+          </Button>
           {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. The
               button is the ONLY path: Ctrl+W archives nothing (R27 — it is claude's delete-word,
               and a slipped focus turned it into an archive). */}
@@ -247,18 +282,34 @@ export function FocusedSession({
           </Button>
         </div>
         <div className={styles.terminalWrap}>
-          {keptAlive.map((terminalId) => (
-            <EmbeddedTerminal
-              key={terminalId}
-              terminalId={terminalId}
-              active={terminalId === focusedTerminalId}
-              takeFocus={viewShown && terminalId === focusedTerminalId}
-              onNewSession={onNewSession}
-              onResume={resumeDeadTerminal}
-              {...(onPickTemplate ? { onPickTemplate } : {})}
-              {...(onManageTemplates ? { onManageTemplates } : {})}
-            />
-          ))}
+          {keptAlive.map((terminalId) => {
+            const isFocused = terminalId === focusedTerminalId
+            const pane = shellPanes[terminalId]
+            const paneVisible = pane?.visible === true
+            return (
+              <EmbeddedTerminal
+                key={terminalId}
+                terminalId={terminalId}
+                active={isFocused}
+                // R10 — exactly ONE of the two takes focus: the shell while its pane shows, claude
+                // otherwise. Hiding the pane flips both, so focus returns to claude.
+                takeFocus={viewShown && isFocused && !paneVisible}
+                shell={
+                  pane === undefined
+                    ? undefined
+                    : {
+                        terminalId: pane.terminalId,
+                        visible: pane.visible,
+                        takeFocus: viewShown && isFocused && pane.visible
+                      }
+                }
+                onNewSession={onNewSession}
+                onResume={resumeDeadTerminal}
+                {...(onPickTemplate ? { onPickTemplate } : {})}
+                {...(onManageTemplates ? { onManageTemplates } : {})}
+              />
+            )
+          })}
         </div>
       </div>
     </div>

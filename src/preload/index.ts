@@ -60,7 +60,9 @@ import type {
   ThemeBundle,
   ThemeApplyResult,
   ServerHealth,
-  StorageHealth
+  StorageHealth,
+  ShellOpenRequest,
+  ShellOpenResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -252,6 +254,20 @@ const terminalApi = {
 }
 
 export type TerminalApi = typeof terminalApi
+
+// Card shell pane — `window.shell`: open (or find) the plain-shell companion of a launched terminal.
+// ONE invoke; the shell's bytes then ride the existing `window.terminal` bridge under the returned
+// id. The renderer never names a folder — main reads its own recipe.
+const shellApi = {
+  /** Resolves `{ terminalId }` (`<parentTerminalId>:shell`). Rejects with `terminal_not_found`
+   *  (not an app-launched terminal) or `folder_missing`; the caller maps the code to copy. */
+  open(parentTerminalId: string): Promise<ShellOpenResult> {
+    const req: ShellOpenRequest = { parentTerminalId }
+    return ipcRenderer.invoke(CH.shellOpen, req)
+  }
+}
+
+export type ShellApi = typeof shellApi
 
 // Story 3.2 (FR-11) — the in-app LAUNCH bridge. The renderer triggers the native KDE directory
 // picker + the raw `claude` launch ONLY through this typed bridge — NEVER ipcRenderer/Node or a
@@ -632,6 +648,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('attention', attentionApi)
     contextBridge.exposeInMainWorld('settings', settingsApi)
     contextBridge.exposeInMainWorld('terminal', terminalApi)
+    contextBridge.exposeInMainWorld('shell', shellApi)
     contextBridge.exposeInMainWorld('launch', launchApi)
     // Session templates — the templates CRUD bridge (templates:list/save/delete).
     contextBridge.exposeInMainWorld('templates', templatesApi)
@@ -682,6 +699,8 @@ if (process.contextIsolated) {
   window.settings = settingsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.terminal is in index.d.ts
   window.terminal = terminalApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.shell is in index.d.ts
+  window.shell = shellApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.launch is in index.d.ts
   window.launch = launchApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.telemetry is in index.d.ts

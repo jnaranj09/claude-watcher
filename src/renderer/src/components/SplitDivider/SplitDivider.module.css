@@ -1,0 +1,27 @@
+/* Card shell pane — the divider between the claude terminal and its shell (spec 2026-09-30).
+   Tokens only. Rests on --border; --border-strong while hovered or dragged; the app's focus ring
+   when reached by keyboard. `touch-action: none` so a pointer drag is never turned into a scroll. */
+
+.divider {
+  flex: 0 0 auto;
+  height: 6px;
+  margin: var(--space-1) 0;
+  border-radius: var(--rounded-sm);
+  background: var(--border);
+  cursor: row-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.divider:hover {
+  background: var(--border-strong);
+}
+
+.divider[data-dragging] {
+  background: var(--border-strong);
+}
+
+.divider:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

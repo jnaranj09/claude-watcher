@@ -21,8 +21,9 @@ export interface ExitInfo {
   signal?: number
 }
 
-/** `who` is what the pane ran: `Claude` on the focused surface, `Terminal` for a plain shell. */
-export function exitReasonCopy(who: 'Claude' | 'Terminal', exit: ExitInfo): string {
+/** `who` is what the pane ran: `Claude` on the focused surface, `Terminal` for a plain shell,
+ *  `Shell` for the card shell pane. */
+export function exitReasonCopy(who: 'Claude' | 'Terminal' | 'Shell', exit: ExitInfo): string {
   if (exit.signal !== undefined && exit.signal > 0) {
     const name = SIGNAL_NAMES[exit.signal]
     return name === undefined

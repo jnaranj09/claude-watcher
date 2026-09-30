@@ -41,6 +41,8 @@ export interface SettingsState {
   wallpaperByTheme: Readonly<Record<string, string>>
   /** UX-13 — desktop popups on/off (default ON). Main reads its own copy; this drives Settings. */
   notificationsEnabled: boolean
+  /** Card shell pane — the divider position (the shell's share of the frame, 0.15–0.85). */
+  shellPaneRatio: number
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
@@ -73,6 +75,7 @@ export function createSettingsStore(): SettingsStoreApi {
     themeId: DEFAULT_SETTINGS.themeId,
     wallpaperByTheme: DEFAULT_SETTINGS.wallpaperByTheme,
     notificationsEnabled: DEFAULT_SETTINGS.notificationsEnabled,
+    shellPaneRatio: DEFAULT_SETTINGS.shellPaneRatio,
     loaded: false,
     authoritative: DEFAULT_SETTINGS,
 
@@ -88,6 +91,7 @@ export function createSettingsStore(): SettingsStoreApi {
         themeId: settings.themeId,
         wallpaperByTheme: settings.wallpaperByTheme,
         notificationsEnabled: settings.notificationsEnabled,
+        shellPaneRatio: settings.shellPaneRatio,
         loaded: true,
         authoritative: settings
       })
@@ -113,7 +117,8 @@ export function createSettingsStore(): SettingsStoreApi {
           : {}),
         ...(patch.notificationsEnabled !== undefined
           ? { notificationsEnabled: patch.notificationsEnabled }
-          : {})
+          : {}),
+        ...(patch.shellPaneRatio !== undefined ? { shellPaneRatio: patch.shellPaneRatio } : {})
       })
     }
   }))
@@ -128,6 +133,8 @@ export const selectSoundEnabled = (state: SettingsState): boolean => state.sound
 /** UX-13 — the live desktop-popup toggle (primitive). */
 export const selectNotificationsEnabled = (state: SettingsState): boolean =>
   state.notificationsEnabled
+/** Card shell pane — the live divider ratio (primitive). */
+export const selectShellPaneRatio = (state: SettingsState): number => state.shellPaneRatio
 /** The live terminal font-size (primitive). */
 export const selectTerminalFontSize = (state: SettingsState): number => state.terminalFontSize
 /** Attention reminders — the live reminder count (primitive; 0 = off). */

@@ -278,7 +278,7 @@ describe('EmbeddedTerminal paste suppressor', () => {
     // Find the terminal's inner container (.host div — the element the paste listener
     // is attached to). It is the first div inside the frame.
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div') // the .host div
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div') // the .host div
     expect(container, 'host container must exist').not.toBeNull()
 
     // Dispatch a paste event and verify it is suppressed.
@@ -298,7 +298,7 @@ describe('EmbeddedTerminal paste suppressor', () => {
     const r = render({ terminalId: 't-paste-2' })
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div')
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div')
     expect(container).not.toBeNull()
 
     act(() => r.unmount())
@@ -323,7 +323,7 @@ describe('EmbeddedTerminal context menu', () => {
     expect(document.querySelector('[data-testid="terminal-context-menu"]')).toBeNull()
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div')
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div')
     expect(container).not.toBeNull()
 
     // Simulate a right-click (contextmenu event).
@@ -347,7 +347,7 @@ describe('EmbeddedTerminal context menu', () => {
     const r = render({ terminalId: 't-menu-2' })
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div')
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div')
 
     const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
     const preventSpy = vi.spyOn(event, 'preventDefault')
@@ -372,7 +372,7 @@ describe('EmbeddedTerminal context menu', () => {
     vi.spyOn(term!, 'getSelection').mockReturnValue('selected text')
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div')
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div')
 
     act(() => {
       container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
@@ -407,7 +407,7 @@ describe('EmbeddedTerminal context menu', () => {
     const pasteSpy = vi.spyOn(term!, 'paste')
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div')
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div')
 
     act(() => {
       container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
@@ -437,7 +437,7 @@ describe('EmbeddedTerminal context menu', () => {
     const r = render({ terminalId: 't-dismiss-reopen' })
 
     const frame = r.container.querySelector('[data-testid="embedded-terminal"]')
-    const container = frame?.querySelector('div')
+    const container = frame?.querySelector('[data-testid="terminal-main"] > div')
 
     act(() => {
       container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
@@ -489,7 +489,7 @@ describe('EmbeddedTerminal — per-terminal isolation (AC-5)', () => {
 
     // Fire a contextmenu on terminal A's host container (the .host div, ref target).
     const frameA = rA.container.querySelector('[data-testid="embedded-terminal"]')
-    const containerA = frameA?.querySelector('div')
+    const containerA = frameA?.querySelector('[data-testid="terminal-main"] > div')
     expect(containerA, 'host container for terminal A must exist').not.toBeNull()
 
     act(() => {
@@ -530,7 +530,7 @@ describe('context menu Copy — the result is a toast', () => {
     vi.spyOn(term!, 'getSelection').mockReturnValue('selected text')
     const container = r.container
       .querySelector('[data-testid="embedded-terminal"]')
-      ?.querySelector('div')
+      ?.querySelector('[data-testid="terminal-main"] > div')
     act(() => {
       container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
     })

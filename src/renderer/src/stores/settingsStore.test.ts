@@ -15,7 +15,8 @@ import {
   selectApiEnabled,
   selectApiPort,
   selectThemeId,
-  selectWallpaperByTheme
+  selectWallpaperByTheme,
+  selectShellPaneRatio
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -42,7 +43,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       apiPort: DEFAULT_SETTINGS.apiPort,
       themeId: 'default',
       wallpaperByTheme: {},
-      notificationsEnabled: true
+      notificationsEnabled: true,
+      shellPaneRatio: 0.3
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -156,5 +158,16 @@ describe('wallpaperByTheme (spec 2026-09-24)', () => {
     expect(selectWallpaperByTheme(store.getState())).toEqual({ g: 'b' })
     store.getState().applyPatch({ soundEnabled: false })
     expect(selectWallpaperByTheme(store.getState())).toEqual({ g: 'b' })
+  })
+})
+
+describe('settingsStore — shellPaneRatio projection', () => {
+  it('defaults to 0.3, hydrates, and applies a patch optimistically', () => {
+    const store = createSettingsStore()
+    expect(selectShellPaneRatio(store.getState())).toBe(0.3)
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, shellPaneRatio: 0.5 })
+    expect(selectShellPaneRatio(store.getState())).toBe(0.5)
+    store.getState().applyPatch({ shellPaneRatio: 0.2 })
+    expect(selectShellPaneRatio(store.getState())).toBe(0.2)
   })
 })

@@ -4,6 +4,7 @@ import type {
   AttentionApi,
   SettingsApi,
   TerminalApi,
+  ShellApi,
   LaunchApi,
   TemplatesApi,
   PastSessionsApi,
@@ -32,6 +33,8 @@ declare global {
     settings: SettingsApi
     // Story 3.1 (FR-10) — the embedded-terminal bridge (lifecycle IPC + MessagePort byte path).
     terminal: TerminalApi
+    // Card shell pane — open the plain-shell companion of a launched terminal (CH.shellOpen).
+    shell: ShellApi
     // Story 3.2 (FR-11) — the in-app launch bridge (native picker + raw claude launch invokes).
     launch: LaunchApi
     // Session templates — the templates CRUD bridge (list/save/remove via CH.templates*).

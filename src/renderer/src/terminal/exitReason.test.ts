@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resumeErrorCopy } from './exitReason'
+import { exitReasonCopy, resumeErrorCopy } from './exitReason'
 
 describe('resumeErrorCopy — the dead pane maps a refused Resume to copy', () => {
   it('UX-14: a conversation running outside the app', () => {
@@ -12,5 +12,14 @@ describe('resumeErrorCopy — the dead pane maps a refused Resume to copy', () =
 
   it('anything unmapped is the generic line, never the message', () => {
     expect(resumeErrorCopy(new Error('/home/secret'))).toBe('Could not resume the conversation.')
+  })
+})
+
+describe('exitReasonCopy — the shell pane names its own exit', () => {
+  it('Shell exited with code N.', () => {
+    expect(exitReasonCopy('Shell', { exitCode: 0 })).toBe('Shell exited with code 0.')
+    expect(exitReasonCopy('Shell', { exitCode: 1, signal: 9 })).toBe(
+      'Shell was stopped by SIGKILL (signal 9).'
+    )
   })
 })

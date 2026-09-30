@@ -204,7 +204,9 @@ describe('EmbeddedTerminal — WebGL context loss (GPU-process crash recovery)',
 
     // doFit() bails on a 0×0 box (fit() on 0×0 corrupts sizing — terminal.md), and jsdom has no
     // layout, so give the host a non-zero box for this test only.
-    const host = container.querySelector('[data-testid="embedded-terminal"] > div')
+    const host = container.querySelector(
+      '[data-testid="embedded-terminal"] > [data-testid="terminal-main"] > div'
+    )
     expect(host).not.toBeNull()
     if (!host) return
     Object.defineProperty(host, 'clientWidth', { value: 800, configurable: true })

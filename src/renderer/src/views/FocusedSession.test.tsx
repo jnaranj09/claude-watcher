@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { FocusedSession } from './FocusedSession'
-import { boardStore } from '../stores/boardStore'
+import { boardStore, selectShellPane } from '../stores/boardStore'
 import { deferred } from '../test/deferred'
 import type { Column, SessionUpdatedEvent, WatchEventsPayload } from '../../../shared/ipc/contract'
 
@@ -55,7 +55,8 @@ beforeEach(() => {
     acknowledgedById: {},
     terminalIdBySessionId: {},
     // Story 5.6 — reset the launched-terminals registry between tests (prevents cross-test leakage).
-    launchedTerminals: {}
+    launchedTerminals: {},
+    shellPanes: {}
   })
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
     matches: false,
@@ -768,5 +769,123 @@ describe('FocusedSession — terminal focus and the bar hint (R1, R10, R27)', ()
     const archive = r.container.querySelector('[data-testid="focused-archive"]')
     expect(archive?.getAttribute('aria-label')).toBe('Archive this session')
     expect(r.container.textContent).not.toContain('Ctrl+W')
+  })
+})
+
+describe('FocusedSession — the >_ Shell button (card shell pane)', () => {
+  function stubShell(
+    open: (id: string) => Promise<{ terminalId: string }>
+  ): ReturnType<typeof vi.fn> {
+    const fn = vi.fn(open)
+    ;(window as unknown as { shell: unknown }).shell = { open: fn }
+    return fn
+  }
+  const flush = async (): Promise<void> => {
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  it('renders unlit, titled Open shell, and opens the pane for the FOCUSED terminal', async () => {
+    const open = stubShell(() => Promise.resolve({ terminalId: 'launch-a:shell' }))
+    boardStore.getState().openLaunchedTerminal('launch-a', 'a', 'default')
+    const r = render()
+    const btn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')
+    expect(btn).not.toBeNull()
+    expect(btn?.textContent).toContain('Shell')
+    expect(btn?.hasAttribute('data-lit')).toBe(false)
+    expect(btn?.getAttribute('title')).toBe('Open shell')
+    act(() => btn?.click())
+    await flush()
+    expect(open).toHaveBeenCalledWith('launch-a')
+    const pane = r.container.querySelector(
+      '[data-terminal-id="launch-a"] [data-testid="shell-pane"]'
+    )
+    expect(pane?.getAttribute('data-visible')).toBe('true')
+    expect(pane?.querySelector('[data-terminal-id="launch-a:shell"]')).not.toBeNull()
+    expect(btn?.hasAttribute('data-lit')).toBe(true)
+    expect(btn?.getAttribute('title')).toBe('Hide shell')
+  })
+
+  it('open focuses the shell; hide focuses claude again; the hidden shell stays mounted', async () => {
+    stubShell(() => Promise.resolve({ terminalId: 'launch-a:shell' }))
+    boardStore.getState().openLaunchedTerminal('launch-a', 'a', 'default')
+    const r = render()
+    const btn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')
+    act(() => btn?.click())
+    await flush()
+    const shellFrame = r.container.querySelector(
+      '[data-terminal-id="launch-a:shell"]'
+    ) as HTMLElement
+    expect(shellFrame.querySelector('.xterm')?.contains(document.activeElement)).toBe(true)
+    act(() => btn?.click())
+    await flush()
+    const parentFrame = r.container.querySelector(
+      '[data-testid="embedded-terminal"][data-terminal-id="launch-a"]'
+    ) as HTMLElement
+    // Focus is back in claude's half: inside the parent frame, outside the shell's.
+    const parentMain = parentFrame.querySelector('[data-testid="terminal-main"]') as HTMLElement
+    expect(parentMain.querySelector('.xterm')?.contains(document.activeElement)).toBe(true)
+    expect(shellFrame.contains(document.activeElement)).toBe(false)
+    expect(r.container.querySelector('[data-terminal-id="launch-a:shell"]')).not.toBeNull()
+    expect(
+      r.container.querySelector('[data-testid="shell-pane"]')?.getAttribute('data-visible')
+    ).toBe('false')
+    expect(btn?.hasAttribute('data-lit')).toBe(false)
+  })
+
+  it('is busy while main answers, so a double click opens ONE shell', async () => {
+    const d = deferred<{ terminalId: string }>()
+    const open = stubShell(() => d.promise)
+    boardStore.getState().openLaunchedTerminal('launch-a', 'a', 'default')
+    const r = render()
+    const btn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')
+    act(() => btn?.click())
+    act(() => btn?.click())
+    expect(btn?.getAttribute('aria-busy')).toBe('true')
+    expect(open).toHaveBeenCalledTimes(1)
+    d.resolve({ terminalId: 'launch-a:shell' })
+    await flush()
+    expect(btn?.hasAttribute('aria-busy')).toBe(false)
+  })
+
+  it('a pane belongs to ITS terminal: switching to another card shows no pane there', async () => {
+    stubShell(() => Promise.resolve({ terminalId: 'launch-a:shell' }))
+    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200))
+    boardStore.getState().addCorrelation('a', 'launch-a')
+    boardStore.getState().addCorrelation('b', 'launch-b')
+    boardStore.getState().switchTerminal('launch-a')
+    const r = render()
+    act(() =>
+      r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')?.click()
+    )
+    await flush()
+    act(() => boardStore.getState().switchTerminal('launch-b'))
+    const btn = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')
+    expect(btn?.hasAttribute('data-lit')).toBe(false)
+    expect(
+      r.container.querySelector('[data-terminal-id="launch-b"] [data-testid="shell-pane"]')
+    ).toBeNull()
+    // a's pane is still there, hidden with a's whole frame (the kept-alive rule)
+    expect(
+      r.container.querySelector('[data-terminal-id="launch-a"] [data-testid="shell-pane"]')
+    ).not.toBeNull()
+  })
+  it('prunes a pane once its parent frame is no longer rendered, and keeps it while claude is merely dead', async () => {
+    stubShell(() => Promise.resolve({ terminalId: 'launch-a:shell' }))
+    boardStore.getState().openLaunchedTerminal('launch-a', 'a', 'default')
+    const r = render()
+    act(() =>
+      r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')?.click()
+    )
+    await flush()
+    // claude exits: App forgets the registry entry, but the terminal is still FOCUSED → still rendered.
+    act(() => boardStore.getState().forgetLaunchedTerminal('launch-a'))
+    expect(selectShellPane(boardStore.getState(), 'launch-a')).not.toBeNull()
+    // focus leaves it (a switch away): the frame unmounts → the pane is pruned.
+    act(() => boardStore.setState({ focusedTerminalId: null }))
+    expect(selectShellPane(boardStore.getState(), 'launch-a')).toBeNull()
   })
 })

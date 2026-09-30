@@ -14,6 +14,7 @@ import {
   TerminalResizeSchema,
   TerminalStopSchema,
   TerminalExitSchema,
+  ShellOpenSchema,
   TerminalPortRendererMessageSchema,
   TERMINAL_MIN_DIM,
   TERMINAL_MAX_DIM
@@ -128,5 +129,18 @@ describe('TerminalPortRendererMessageSchema — the UNTRUSTED port byte-protocol
 
   it('a non-string input data FAILS CLOSED', () => {
     expect(() => TerminalPortRendererMessageSchema.parse({ type: 'input', data: 42 })).toThrow()
+  })
+})
+
+describe('ShellOpenSchema — the shell:open arg (fail-closed, strict)', () => {
+  it('accepts a non-empty parentTerminalId', () => {
+    expect(ShellOpenSchema.parse({ parentTerminalId: 'launch-1' })).toEqual({
+      parentTerminalId: 'launch-1'
+    })
+  })
+  it('rejects a blank id, a missing id, and an unknown key', () => {
+    expect(ShellOpenSchema.safeParse({ parentTerminalId: '' }).success).toBe(false)
+    expect(ShellOpenSchema.safeParse({}).success).toBe(false)
+    expect(ShellOpenSchema.safeParse({ parentTerminalId: 'x', cwd: '/tmp' }).success).toBe(false)
   })
 })

@@ -35,6 +35,7 @@ import {
   selectRulesDialogOpen,
   selectPastSessionsDialogOpen,
   selectSearchQuery,
+  selectShellPane,
   HERO_COLUMN,
   NO_FILTER,
   type BoardState
@@ -1504,5 +1505,54 @@ describe('the Past sessions dialog flag', () => {
     store.getState().closePastSessionsDialog()
     store.getState().closePastSessionsDialog()
     expect(selectPastSessionsDialogOpen(store.getState())).toBe(false)
+  })
+})
+
+describe('boardStore — card shell pane view-state (shellPanes)', () => {
+  it('openShellPane records the companion id, visible; setShellPaneVisible hides and shows it', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('t-1', 'proj', 'default')
+    store.getState().openShellPane('t-1', 't-1:shell')
+    expect(selectShellPane(store.getState(), 't-1')).toEqual({
+      terminalId: 't-1:shell',
+      visible: true
+    })
+    store.getState().setShellPaneVisible('t-1', false)
+    expect(selectShellPane(store.getState(), 't-1')?.visible).toBe(false)
+    // The entry STAYS while hidden: the shell keeps running and its terminal stays mounted.
+    expect(selectShellPane(store.getState(), 't-1')?.terminalId).toBe('t-1:shell')
+    store.getState().openShellPane('t-1', 't-1:shell')
+    expect(selectShellPane(store.getState(), 't-1')?.visible).toBe(true)
+  })
+  it('setShellPaneVisible on a terminal with no pane is a no-op', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    const before = store.getState().shellPanes
+    store.getState().setShellPaneVisible('t-9', true)
+    expect(store.getState().shellPanes).toBe(before)
+    expect(selectShellPane(store.getState(), 't-9')).toBeNull()
+  })
+  it('forgetLaunchedTerminal (claude exited) does NOT drop the pane: the shell keeps running', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openLaunchedTerminal('t-1', 'proj', 'default')
+    store.getState().openShellPane('t-1', 't-1:shell')
+    store.getState().forgetLaunchedTerminal('t-1')
+    expect(selectShellPane(store.getState(), 't-1')?.terminalId).toBe('t-1:shell')
+  })
+  it('pruneShellPanes drops only the panes whose parent is no longer rendered, same ref when none', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().openShellPane('t-1', 't-1:shell')
+    store.getState().openShellPane('t-2', 't-2:shell')
+    const before = store.getState().shellPanes
+    store.getState().pruneShellPanes(['t-1', 't-2'])
+    expect(store.getState().shellPanes).toBe(before)
+    store.getState().pruneShellPanes(['t-2'])
+    expect(selectShellPane(store.getState(), 't-1')).toBeNull()
+    expect(selectShellPane(store.getState(), 't-2')).not.toBeNull()
+  })
+  it('the new keys respect the naming guards (no ack/raise/navigate/summon/window)', () => {
+    const keys = ['shellPanes', 'openShellPane', 'setShellPaneVisible', 'pruneShellPanes']
+    expect(keys.some((k) => /ack|acknowledg|raise|navigate|summon|window/i.test(k))).toBe(false)
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    for (const k of keys) expect(Object.keys(store.getState())).toContain(k)
   })
 })

@@ -102,6 +102,14 @@ export type SessionNamePromptPayload =
       initialName: string
     }
 
+/** Card shell pane — one card's plain-shell companion as the renderer sees it: WHICH terminal id
+ *  main gave it and whether the pane is SHOWN. Entry present ⇒ the shell terminal is mounted
+ *  (kept alive, hidden when `visible` is false — terminal.md). View-state only; never persisted. */
+export interface ShellPane {
+  terminalId: string
+  visible: boolean
+}
+
 /**
  * Story 5.6 (AC-1) — a single app-launched terminal's metadata (RENDERER VIEW-STATE).
  * Holds OPAQUE STRINGS + timestamps ONLY — never a Terminal/xterm instance, never a pid,
@@ -247,6 +255,16 @@ export interface BoardState {
    * [state.md: "active terminal" is renderer view-state; architecture.md:548]
    */
   launchedTerminals: Record<string, LaunchedTerminal>
+  /** Card shell pane — keyed by the PARENT terminalId. NOT dropped by `forgetLaunchedTerminal`
+   *  (claude's exit must not kill the shell); `pruneShellPanes` drops it once the frame is gone. */
+  shellPanes: Record<string, ShellPane>
+  /** Create the pane (visible) after main answered `shell:open`, or show a hidden one. */
+  openShellPane: (parentTerminalId: string, shellTerminalId: string) => void
+  /** Hide/show without unmounting. No pane ⇒ no-op. */
+  setShellPaneVisible: (parentTerminalId: string, visible: boolean) => void
+  /** Drop every pane whose parent terminal is not in `renderedParentIds` (its frame unmounted, so
+   *  main already stopped the shell). Same reference when nothing drops. */
+  pruneShellPanes: (renderedParentIds: readonly string[]) => void
   /**
    * Story 4.2 (FR-14) — the QUIT-GUARD modal payload (RENDERER VIEW-STATE; not session truth).
    * Non-null when main detected ≥1 live app-launched session and pushed the guard payload via
@@ -588,6 +606,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     searchQuery: '',
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
+    shellPanes: {},
 
     applyWatchEvent: (payload) => {
       const state = get()
@@ -716,6 +735,33 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // later. Single-window in-app VIEW-STATE only — no routing, no window raise.
       get().registerLaunchedTerminal(terminalId, label, workspaceId)
       set({ viewMode: 'focused', focusedTerminalId: terminalId })
+    },
+
+    openShellPane: (parentTerminalId, shellTerminalId) => {
+      const state = get()
+      set({
+        shellPanes: {
+          ...state.shellPanes,
+          [parentTerminalId]: { terminalId: shellTerminalId, visible: true }
+        }
+      })
+    },
+
+    setShellPaneVisible: (parentTerminalId, visible) => {
+      const state = get()
+      const pane = state.shellPanes[parentTerminalId]
+      if (pane === undefined || pane.visible === visible) return
+      set({ shellPanes: { ...state.shellPanes, [parentTerminalId]: { ...pane, visible } } })
+    },
+
+    pruneShellPanes: (renderedParentIds) => {
+      const state = get()
+      const keep = new Set(renderedParentIds)
+      const stale = Object.keys(state.shellPanes).filter((id) => !keep.has(id))
+      if (stale.length === 0) return
+      const panes = { ...state.shellPanes }
+      for (const id of stale) delete panes[id]
+      set({ shellPanes: panes })
     },
 
     forgetLaunchedTerminal: (terminalId) => {
@@ -1020,6 +1066,9 @@ export const selectViewMode = (state: BoardState): 'board' | 'focused' => state.
 /** Story 3.2 (FR-11) — the focused terminal's opaque id (primitive). The Focused-session view
  *  renders this terminal's EmbeddedTerminal; null when no terminal is focused. */
 export const selectFocusedTerminalId = (state: BoardState): string | null => state.focusedTerminalId
+/** Card shell pane — the pane of a parent terminal, or null. Same reference until it changes. */
+export const selectShellPane = (state: BoardState, parentTerminalId: string): ShellPane | null =>
+  state.shellPanes[parentTerminalId] ?? null
 
 // ---------------------------------------------------------------------------
 // Story 3.4 (FR-16) — the ONE shared attention/acknowledge selectors. Rail emphasis AND the

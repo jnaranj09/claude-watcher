@@ -32,10 +32,16 @@
 // preserved — the mock ONLY captures each constructed Terminal instance so tests can call
 // Terminal.input(data) to fire onData callbacks without needing access to the component's ref.
 import type { Terminal as XtermTerminal } from '@xterm/xterm'
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
+import { settingsStore } from '../stores/settingsStore'
+import { toastStore } from '../stores/toastStore'
+import { DEFAULT_SETTINGS, type SettingsPatch } from '../../../shared/schemas/settings'
 import type { Template, TerminalExitEvent } from '../../../shared/ipc/contract'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 
@@ -72,6 +78,7 @@ interface TerminalFakes {
   emitExit: (info: TerminalExitEvent) => void
 }
 
+const here = dirname(fileURLToPath(import.meta.url))
 let fakes: TerminalFakes
 let cleanup: (() => void) | undefined
 
@@ -103,17 +110,22 @@ beforeEach(() => {
     }
   }
 
-  let exitCb: ((info: TerminalExitEvent) => void) | null = null
+  // Every live listener (a card's terminal AND its nested shell each subscribe).
+  const exitCbs = new Set<(info: TerminalExitEvent) => void>()
   fakes = {
     // Story 5.1: open is now (terminalId: string) => () => void (NO callback arg).
     open: vi.fn(() => () => {}),
     resize: vi.fn(() => Promise.resolve()),
     stop: vi.fn(() => Promise.resolve()),
     onExit: vi.fn((cb: (info: TerminalExitEvent) => void) => {
-      exitCb = cb
-      return () => {}
+      exitCbs.add(cb)
+      return () => {
+        exitCbs.delete(cb)
+      }
     }),
-    emitExit: (info) => exitCb?.(info)
+    emitExit: (info) => {
+      for (const cb of [...exitCbs]) cb(info)
+    }
   }
   ;(window as unknown as { terminal: unknown }).terminal = {
     open: fakes.open,
@@ -136,6 +148,8 @@ function render(props: {
   onPickTemplate?: (template: Template) => void
   onManageTemplates?: () => void
   onResume?: (terminalId: string) => Promise<void>
+  variant?: 'session' | 'shell'
+  shell?: { terminalId: string; visible: boolean; takeFocus: boolean }
 }): RenderResult {
   const r = renderComponent(<EmbeddedTerminal {...props} />)
   cleanup = r.unmount
@@ -655,5 +669,211 @@ describe('EmbeddedTerminal — takeFocus (R10)', () => {
     expect(inside(r)).toBe(false)
     expect(document.activeElement).toBe(field)
     dialog.remove()
+  })
+})
+
+describe('EmbeddedTerminal — variant="shell" (the card shell pane)', () => {
+  it('a shell exit shows "Shell exited with code N." and ONLY [Restart shell]', () => {
+    const r = render({
+      terminalId: 't-1:shell',
+      variant: 'shell',
+      onNewSession: vi.fn(), // ignored for a shell: no + New session, no Resume
+      onResume: vi.fn(() => Promise.resolve())
+    })
+    act(() => fakes.emitExit({ terminalId: 't-1:shell', exitCode: 2 }))
+    expect(r.container.querySelector('[data-testid="dead-terminal-reason"]')?.textContent).toBe(
+      'Shell exited with code 2.'
+    )
+    const buttons = [...r.container.querySelectorAll('[data-testid="dead-terminal"] button')]
+    expect(buttons.map((b) => b.getAttribute('data-testid'))).toEqual(['dead-restart-shell'])
+    expect(buttons[0]?.textContent).toBe('Restart shell')
+  })
+  it('Restart shell re-opens the SAME id with a fresh token (the Reopen path) and clears the pane', () => {
+    const r = render({ terminalId: 't-1:shell', variant: 'shell' })
+    const firstToken = lastOpenToken()
+    act(() => fakes.emitExit({ terminalId: 't-1:shell', exitCode: 0 }))
+    act(() => {
+      ;(
+        r.container.querySelector('[data-testid="dead-restart-shell"]') as HTMLButtonElement
+      ).click()
+    })
+    expect(r.container.querySelector('[data-testid="dead-terminal"]')).toBeNull()
+    expect(fakes.open).toHaveBeenCalledTimes(2)
+    expect(fakes.open.mock.calls[1]?.[0]).toBe('t-1:shell')
+    expect(lastOpenToken()).not.toBe(firstToken)
+  })
+  it('the shell frame drops the card frame chrome (no border, no radius, no padding)', () => {
+    const r = render({ terminalId: 't-1:shell', variant: 'shell' })
+    const frame = r.container.querySelector('[data-testid="embedded-terminal"]') as HTMLElement
+    expect(frame.className).toMatch(/shellFrame/)
+    const css = readFileSync(resolve(here, 'EmbeddedTerminal.module.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ''
+    )
+    const block = /\.shellFrame\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/border:\s*0/)
+    expect(block).toMatch(/border-radius:\s*0/)
+    expect(block).toMatch(/padding:\s*0/)
+  })
+})
+
+describe('EmbeddedTerminal — the nested shell pane (card shell pane)', () => {
+  beforeEach(() => {
+    settingsStore.getState().hydrate(DEFAULT_SETTINGS)
+    toastStore.setState({ toasts: [] })
+    ;(window as unknown as { settings: unknown }).settings = {
+      get: vi.fn(),
+      set: vi.fn((p: SettingsPatch) => Promise.resolve({ ...DEFAULT_SETTINGS, ...p }))
+    }
+  })
+
+  it('mounts the shell terminal INSIDE the parent frame and opens it under its own id', () => {
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: false }
+    })
+    const parent = r.container.querySelector('[data-terminal-id="t-1"]') as HTMLElement
+    const shell = parent.querySelector('[data-testid="shell-pane"] [data-terminal-id="t-1:shell"]')
+    expect(shell).not.toBeNull()
+    expect(parent.className).toMatch(/split/)
+    // React runs the child's effects first; main needs no order (the cwd is its own registry's).
+    expect(fakes.open.mock.calls.map((c) => c[0]).sort()).toEqual(['t-1', 't-1:shell'])
+    expect(parent.querySelector('[data-testid="shell-divider"]')).not.toBeNull()
+  })
+
+  it('a hidden pane keeps the shell MOUNTED (no stop), hides it off-screen, and draws no divider', () => {
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: false, takeFocus: false }
+    })
+    const slot = r.container.querySelector('[data-testid="shell-pane"]') as HTMLElement
+    expect(slot.getAttribute('data-visible')).toBe('false')
+    expect(slot.className).toMatch(/shellSlotHidden/)
+    expect(slot.querySelector('[data-terminal-id="t-1:shell"]')?.className).toMatch(/hidden/)
+    expect(r.container.querySelector('[data-testid="shell-divider"]')).toBeNull()
+    expect(fakes.stop).not.toHaveBeenCalled()
+  })
+
+  it('the slot takes the saved ratio as its height and follows a live drag without saving', () => {
+    settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, shellPaneRatio: 0.4 })
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: false }
+    })
+    const slot = r.container.querySelector('[data-testid="shell-pane"]') as HTMLElement
+    expect(slot.style.flexBasis).toBe('40%')
+    const divider = r.container.querySelector('[data-testid="shell-divider"]') as HTMLElement
+    // jsdom: the frame's content box is 0×0, so the divider refuses the drag (getBounds → null).
+    // Drive the key path instead: it commits through the same onCommit the drag end uses.
+    act(() => {
+      divider.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })
+      )
+    })
+    expect(slot.style.flexBasis).toBe('45%') // optimistic (persistSettingsPatch applies first)
+    const set = (window as unknown as { settings: { set: ReturnType<typeof vi.fn> } }).settings.set
+    expect(set).toHaveBeenCalledTimes(1)
+    expect(set).toHaveBeenCalledWith({ shellPaneRatio: expect.closeTo(0.45, 10) })
+  })
+
+  it('a refused ratio save rolls back and toasts', async () => {
+    const set = vi.fn(() => Promise.reject(new Error('EACCES /home/op')))
+    ;(window as unknown as { settings: unknown }).settings = { get: vi.fn(), set }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: false }
+    })
+    const divider = r.container.querySelector('[data-testid="shell-divider"]') as HTMLElement
+    await act(async () => {
+      divider.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const slot = r.container.querySelector('[data-testid="shell-pane"]') as HTMLElement
+    expect(slot.style.flexBasis).toBe('30%')
+    const toasts = toastStore.getState().toasts
+    expect(toasts.map((t) => [t.kind, t.title])).toEqual([
+      ['error', 'Could not save the divider position.']
+    ])
+    expect(warn.mock.calls.flat().join(' ')).not.toContain('/home/op')
+  })
+
+  it("claude's dead overlay covers ONLY the claude half: the open shell stays usable (deviation 9)", () => {
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: false }
+    })
+    act(() => fakes.emitExit({ terminalId: 't-1', exitCode: 1 }))
+    const parent = r.container.querySelector('[data-terminal-id="t-1"]') as HTMLElement
+    const dead = parent.querySelector(
+      ':scope > [data-testid="terminal-main"] > [data-testid="dead-terminal"]'
+    )
+    expect(dead).not.toBeNull()
+    const slot = parent.querySelector('[data-testid="shell-pane"]') as HTMLElement
+    expect(slot.contains(dead)).toBe(false)
+    expect(slot.parentElement).toBe(parent) // a sibling of .main, never inside it
+    expect(fakes.stop).not.toHaveBeenCalledWith('t-1:shell', expect.anything())
+  })
+
+  it('the shell takes focus when asked and the parent does not (focus handoff)', () => {
+    const r = render({
+      terminalId: 't-1',
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: true },
+      takeFocus: false
+    })
+    const shellFrame = r.container.querySelector('[data-terminal-id="t-1:shell"]') as HTMLElement
+    expect(shellFrame.querySelector('.xterm')?.contains(document.activeElement)).toBe(true)
+  })
+})
+
+describe('EmbeddedTerminal — shell pane stylesheet invariants (terminal.md)', () => {
+  const css = readFileSync(resolve(here, 'EmbeddedTerminal.module.css'), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    ''
+  )
+  it('the hidden slot keeps a box, off-screen, out of the flow — never display:none', () => {
+    const block = /\.shellSlotHidden\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/position:\s*absolute/)
+    expect(block).toMatch(/visibility:\s*hidden/)
+    expect(block).toMatch(/translate:\s*-\d+vw/)
+    expect(css).not.toMatch(/display:\s*none/)
+  })
+  it(".main is the dead overlay's containing block and grows; both halves keep 80px while split", () => {
+    const main = /\.main\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(main).toMatch(/position:\s*relative/)
+    expect(main).toMatch(/flex:\s*1/)
+    expect(main).toMatch(/min-height:\s*0/)
+    expect(css).toMatch(/\.split\s*>\s*\.main\s*\{[^}]*min-height:\s*80px/)
+    expect(/\.shellSlot\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/min-height:\s*80px/)
+  })
+})
+
+describe('EmbeddedTerminal — a dead shell hands focus back to claude', () => {
+  beforeEach(() => {
+    settingsStore.getState().hydrate(DEFAULT_SETTINGS)
+  })
+  it('when the visible shell exits, claude takes focus; a Restart gives it back to the shell', () => {
+    const r = render({
+      terminalId: 't-1',
+      takeFocus: false,
+      shell: { terminalId: 't-1:shell', visible: true, takeFocus: true }
+    })
+    const main = r.container.querySelector(
+      '[data-terminal-id="t-1"] > [data-testid="terminal-main"]'
+    ) as HTMLElement
+    const shellFrame = r.container.querySelector('[data-terminal-id="t-1:shell"]') as HTMLElement
+    expect(shellFrame.querySelector('.xterm')?.contains(document.activeElement)).toBe(true)
+    act(() => fakes.emitExit({ terminalId: 't-1:shell', exitCode: 0 }))
+    expect(main.querySelector('.xterm')?.contains(document.activeElement)).toBe(true)
+    act(() => {
+      ;(
+        r.container.querySelector('[data-testid="dead-restart-shell"]') as HTMLButtonElement
+      ).click()
+    })
+    const restarted = r.container.querySelector('[data-terminal-id="t-1:shell"]') as HTMLElement
+    expect(restarted.querySelector('.xterm')?.contains(document.activeElement)).toBe(true)
   })
 })

@@ -53,6 +53,14 @@ export const TerminalStopSchema = z.object({
   openToken: z.string().min(1).optional()
 })
 
+/** `shell:open` arg — `{ parentTerminalId }`. Strict: the renderer sends ONLY the parent's
+ *  terminal id; the cwd is main's own recipe (never an IPC argument). Blank fails closed. */
+export const ShellOpenSchema = z
+  .object({
+    parentTerminalId: TerminalIdSchema
+  })
+  .strict()
+
 /** `terminal:exit` push — validate-at-source before main → renderer send (a malformed
  *  exit event never crosses the seam). exitCode is an integer. */
 export const TerminalExitSchema = z.object({

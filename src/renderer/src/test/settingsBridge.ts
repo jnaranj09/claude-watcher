@@ -26,7 +26,8 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     apiPort: patch.apiPort ?? DEFAULT_SETTINGS.apiPort,
     themeId: patch.themeId ?? DEFAULT_SETTINGS.themeId,
     wallpaperByTheme: patch.wallpaperByTheme ?? DEFAULT_SETTINGS.wallpaperByTheme,
-    notificationsEnabled: patch.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled
+    notificationsEnabled: patch.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled,
+    shellPaneRatio: patch.shellPaneRatio ?? DEFAULT_SETTINGS.shellPaneRatio
   }
 }
 

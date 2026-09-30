@@ -37,6 +37,51 @@
   min-width: 0;
 }
 
+/* Card shell pane — the shell's frame sits INSIDE its parent's frame (which already draws the
+   border, radius and breathing edge), so it draws none of its own. Same flex column, same host. */
+.shellFrame {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* Card shell pane — claude's half: the xterm host AND its dead overlay. It is the overlay's
+   containing block (`.dead` is inset:0), so a claude exit covers this half only, never an open
+   shell. Always rendered (one DOM shape). `.host` inside it stays the xterm parent (FitAddon). */
+.main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* While a shell is open the frame is split: claude above, the divider, the shell below. Each half
+   keeps 80px so a prompt can always be read; the ratio is inline. */
+.split > .main {
+  min-height: 80px;
+}
+
+.shellSlot {
+  flex: 0 0 auto;
+  min-height: 80px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A HIDDEN pane: out of the flow (claude takes the whole frame again) but with a real box,
+   off-screen, visibility:hidden — the kept-alive rule (terminal.md). Never display:none. */
+.shellSlotHidden {
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: var(--space-2);
+  visibility: hidden;
+  translate: -200vw 0;
+}
+
 /* xterm's stock stylesheet gives `.xterm-viewport` a SOLID `#000` background, and xterm 6 no
    longer overrides it: the theme colour now goes on its scrollable element instead, which sits
    over the viewport. With an opaque terminal theme that element covers the black, so nobody saw
