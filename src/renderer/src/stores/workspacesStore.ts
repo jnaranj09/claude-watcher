@@ -6,6 +6,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { DEFAULT_WORKSPACE_ID } from '../../../shared/schemas/workspace'
 import type { Workspace, WorkspaceSaveRequest } from '../../../shared/ipc/contract'
+import { toast } from './toastStore'
 
 export interface WorkspacesState {
   workspaces: Workspace[]
@@ -60,11 +61,16 @@ export async function removeWorkspace(id: string): Promise<void> {
   workspacesStore.getState().hydrate(await window.workspaces.remove(id))
 }
 
-/** Not optimistic: main persists the pointer, so the store takes the value main confirmed. */
-export async function setActiveWorkspace(id: string): Promise<void> {
+/** Not optimistic: main persists the pointer, so the store takes the value main confirmed.
+ *  Resolves false when the invoke failed — said in a toast here (spec 2026-09-29 §2.3; it used to
+ *  be swallowed). Callers still read `activeId` for the value main confirmed. */
+export async function setActiveWorkspace(id: string): Promise<boolean> {
   try {
     workspacesStore.getState().hydrate(await window.workspaces.setActive(id))
+    return true
   } catch {
     console.warn(`${LOG_PREFIX} code=workspaces_set_active_failed`)
+    toast.error('Could not switch workspace.')
+    return false
   }
 }

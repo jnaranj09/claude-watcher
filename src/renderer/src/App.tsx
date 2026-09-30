@@ -115,6 +115,7 @@ import { Toaster } from './components/Toaster/Toaster'
 // Action feedback (spec 2026-09-29 §2.2) — the name prompt's Create / Rename: stays open while main
 // answers, maps refusals, and never lets a late result take the view.
 import { submitLaunch, submitRename } from './lib/namePromptFlow'
+import { moveCardToWorkspace } from './lib/cardActions'
 
 function App(): React.JSX.Element {
   // Deterministic-attention (Task 6) — mount ONCE at the top of the component body.
@@ -417,7 +418,7 @@ function App(): React.JSX.Element {
   // session truth (state.md). An unknown session id is a logged no-op in main (a move racing a
   // stop that already removed the card).
   const handleMoveCardToWorkspace = useCallback((sessionId: string, workspaceId: string): void => {
-    void window.launch.setWorkspace(sessionId, workspaceId)
+    void moveCardToWorkspace(sessionId, workspaceId) // never rejects; toasts either way
   }, [])
 
   // Past sessions (D-3) — Archive a card (the Board onArchiveCard seam). Resolves the session's
