@@ -2,9 +2,10 @@
 // its idle cards, blue for the working ones and yellow for the ones that need you, INSIDE the
 // button; a pill at 0 is not drawn. Cards in OTHER workspaces go on a tab that slides out from
 // BEHIND the button: a neutral tab — no colour, a workspace's colour there was read as a status
-// (spec 2026-09-29) — and a yellow pill only while one of them needs you — a pill inside the button used to mean "elsewhere" too, and it read
-// as "this one needs you" (alerts are global; only the CARDS are scoped — spec W-3). The tab used
-// to show for needs-you only; any card elsewhere shows it now (operator, 2026-09-29). The popover's open state is LOCAL
+// (spec 2026-09-29) — carrying the same grey / blue / yellow pills as the button, summed over the
+// other workspaces (an empty tab told the operator nothing — operator, 2026-09-30). A pill inside
+// the button used to mean "elsewhere" too, and it read as "this one needs you" (alerts are global;
+// only the CARDS are scoped — spec W-3); the tab keeps the two apart. The popover's open state is LOCAL
 // and transient, like NewSessionButton's.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -75,6 +76,8 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
     )
   const elsewhereCards = sumOthers(totals)
   const elsewhere = sumOthers(counts)
+  const elsewhereWorking = sumOthers(workingCounts)
+  const elsewhereGrey = greyCount(elsewhereCards, elsewhereWorking, elsewhere)
 
   const label =
     describeCounts(activeName, activeTotal, activeWorking, here) +
@@ -164,6 +167,17 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           aria-hidden="true"
           onClick={() => setOpen((v) => !v)}
         >
+          {/* Grey, blue, yellow — the button's order, summed over every OTHER workspace. */}
+          {elsewhereGrey !== null && (
+            <span className={styles.count} data-testid="workspace-elsewhere-count">
+              {elsewhereGrey}
+            </span>
+          )}
+          {elsewhereWorking > 0 && (
+            <span className={styles.working} data-testid="workspace-elsewhere-working">
+              {elsewhereWorking}
+            </span>
+          )}
           {elsewhere > 0 && (
             <span className={styles.badge} data-testid="workspace-elsewhere-badge">
               {elsewhere}

@@ -174,20 +174,40 @@ describe('WorkspaceSwitcher', () => {
   })
 
   // The tab is ONE neutral tab (spec 2026-09-29): a workspace's colour on it was read as a
-  // session status — a blue workspace looked like "a card is working over there".
-  it('shows a neutral tab with NO dot and NO count when other workspaces have cards but none need you', () => {
+  // session status. It carries the button's pills, summed over the OTHER workspaces (2026-09-30).
+  it('shows grey and blue counts on a neutral tab when other workspaces have cards but none need you', () => {
     seedCard('w1', 'a', 'idle')
     seedCard('w1', 'b', 'working')
     const r = renderSwitcher()
     const tab = q(r, '[data-testid="workspace-elsewhere-tab"]')
-    expect(tab.children.length).toBe(0)
+    expect([...tab.children].map((c) => c.getAttribute('data-testid'))).toEqual([
+      'workspace-elsewhere-count',
+      'workspace-elsewhere-working'
+    ])
+    expect(q(r, '[data-testid="workspace-elsewhere-count"]').textContent).toBe('1')
+    expect(q(r, '[data-testid="workspace-elsewhere-working"]').textContent).toBe('1')
     expect(tab.getAttribute('data-tone')).toBeNull()
     expect(q(r, '[data-testid="workspace-switcher"]').getAttribute('aria-label')).toBe(
       'Default, 0 sessions; 2 sessions in other workspaces'
     )
   })
 
-  it('puts only the yellow count on the tab, counting every card elsewhere that needs you', () => {
+  it('sums every other workspace on the tab and leaves the active one out', () => {
+    workspacesStore.setState({
+      workspaces: [...rows, { id: 'w2', name: 'Two', color: 'green', defaultCwd: null }]
+    })
+    seedCard('default', 'x', 'idle')
+    seedCard('w1', 'a', 'idle')
+    seedCard('w2', 'b', 'idle')
+    seedCard('w2', 'c', 'working')
+    seedNeedsYou('w1', 'd')
+    const r = renderSwitcher()
+    expect(q(r, '[data-testid="workspace-elsewhere-count"]').textContent).toBe('2')
+    expect(q(r, '[data-testid="workspace-elsewhere-working"]').textContent).toBe('1')
+    expect(q(r, '[data-testid="workspace-elsewhere-badge"]').textContent).toBe('1')
+  })
+
+  it('puts only the yellow count on the tab when every card elsewhere needs you', () => {
     workspacesStore.setState({
       workspaces: [
         ...rows,
