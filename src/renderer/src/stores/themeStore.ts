@@ -31,4 +31,6 @@ export function useTheme<T>(selector: (state: ThemeState) => T): T {
 export const selectThemeBundle = (s: ThemeState): ThemeBundle => s.bundle
 /** The same object reference until the next push — safe without useShallow. */
 export const selectThemeTerminal = (s: ThemeState): ThemeTerminal => s.bundle.terminal
+/** The applied theme's own scheme — what a terminal on "Follow theme" is (spec 2026-09-30). */
+export const selectThemeColorScheme = (s: ThemeState): 'dark' | 'light' => s.bundle.colorScheme
 export const selectAppliedThemeId = (s: ThemeState): string => s.bundle.id

@@ -28,7 +28,7 @@
 // → surface it); kept-alive hidden uses visibility:hidden (the CSS .hidden class), never
 // display:none. [Source: src/renderer/src/SmokeCockpit.tsx; .claude/rules/terminal.md;
 //  src/renderer/src/styles/xtermTheme.ts; src/renderer/src/stores/settingsStore.ts]
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -43,11 +43,17 @@ import type {
   TerminalPortRendererMessage,
   TerminalExitEvent
 } from '../../../shared/ipc/contract'
-import { xtermThemeFor } from '../styles/xtermTheme'
-import { useTheme, selectThemeTerminal } from '../stores/themeStore'
+import {
+  xtermThemeFor,
+  terminalKindFor,
+  minimumContrastFor,
+  frameBackgroundFor
+} from '../styles/xtermTheme'
+import { useTheme, selectThemeTerminal, selectThemeColorScheme } from '../stores/themeStore'
 import {
   useSettings,
   selectTerminalFontSize,
+  selectTerminalScheme,
   selectExpanderKey,
   selectShellPaneRatio,
   persistSettingsPatch,
@@ -209,6 +215,12 @@ export function EmbeddedTerminal({
   // as fontSizeRef. `allowTransparency` is creation-only (xterm needs it before open(); D-10).
   const themeTerminal = useTheme(selectThemeTerminal)
   const themeTerminalRef = useRef(themeTerminal)
+  // Terminal colours (spec 2026-09-30) — the operator's scheme and the applied theme's own
+  // scheme, read the same way: refs at creation, the live effect below on every change.
+  const terminalScheme = useSettings(selectTerminalScheme)
+  const terminalSchemeRef = useRef(terminalScheme)
+  const themeColorScheme = useTheme(selectThemeColorScheme)
+  const themeColorSchemeRef = useRef(themeColorScheme)
 
   // Shortcut expander — the operator's alias→phrase list, subscribed via a NARROW selector. It
   // is handed straight to the ExpanderBox (which owns its own matching), so the shortcut list is
@@ -293,7 +305,12 @@ export function EmbeddedTerminal({
       // change re-applies in the second effect, never recreates — F3).
       fontSize: fontSizeRef.current,
       // ONE theme source (UX-DR2): the token default with the applied custom theme on top.
-      theme: xtermThemeFor(themeTerminalRef.current),
+      theme: xtermThemeFor(themeTerminalRef.current, terminalSchemeRef.current),
+      // A light terminal gets a contrast floor: claude's dark theme draws light 24-bit colours
+      // that skip the palette, and xterm raises each one at draw time (spec 2026-09-30).
+      minimumContrastRatio: minimumContrastFor(
+        terminalKindFor(terminalSchemeRef.current, themeColorSchemeRef.current)
+      ),
       // Creation-only (D-10): a theme that turns it on reaches terminals opened from now on.
       allowTransparency: themeTerminalRef.current.allowTransparency === true
     })
@@ -577,10 +594,15 @@ export function EmbeddedTerminal({
   // --- Apply a LIVE theme change WITHOUT recreating the terminal (custom themes). ------------
   useEffect(() => {
     themeTerminalRef.current = themeTerminal
+    terminalSchemeRef.current = terminalScheme
+    themeColorSchemeRef.current = themeColorScheme
     const term = termRef.current
     if (!term) return
-    term.options.theme = xtermThemeFor(themeTerminal)
-  }, [themeTerminal])
+    term.options.theme = xtermThemeFor(themeTerminal, terminalScheme)
+    term.options.minimumContrastRatio = minimumContrastFor(
+      terminalKindFor(terminalScheme, themeColorScheme)
+    )
+  }, [themeTerminal, terminalScheme, themeColorScheme])
 
   // --- Keep the expander chord current for the key handler WITHOUT touching the terminal. ---
   useEffect(() => {
@@ -721,12 +743,21 @@ export function EmbeddedTerminal({
     termRef.current?.focus()
   }, [])
 
+  // A built-in palette paints the frame's ground too, so a dark terminal inside a light theme has
+  // no light rim; under "theme" the token rules (a see-through theme stays see-through).
+  const frameBackground = frameBackgroundFor(terminalScheme)
+  const frameStyle =
+    frameBackground === undefined
+      ? undefined
+      : ({ '--bg-terminal': frameBackground } as CSSProperties)
+
   return (
     <div
       ref={frameRef}
       className={`${styles.frame} ${active ? '' : styles.hidden} ${variant === 'shell' ? styles.shellFrame : ''} ${shell !== undefined ? styles.split : ''}`}
       data-testid="embedded-terminal"
       data-terminal-id={terminalId}
+      style={frameStyle}
     >
       {/* Kept-alive hidden uses visibility:hidden on the WHOLE frame (the .hidden class), NEVER
           display:none. It MUST be the frame, not just the inner host: the frame paints an OPAQUE
