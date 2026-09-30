@@ -1,5 +1,6 @@
 // Past sessions — PURE helpers behind PastSessionsDialog.tsx: the scope + name filters, the three
 // empty sentences, the relative time and the error copy. No React, no store.
+import { formatVersion, MIN_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
 import type { PastSession } from '../../../../shared/ipc/contract'
 
 /** The two ScopeFilter values this dialog offers: every record has a workspace, so there is no
@@ -47,7 +48,9 @@ const ERROR_COPY: Readonly<Record<string, string>> = {
   transcript_missing:
     'Claude no longer has this conversation. Forget it to remove it from the list',
   // UX-14 — a claude the app did not launch holds this conversation right now.
-  session_running_elsewhere: 'This session is running in another terminal. Close it there first'
+  session_running_elsewhere: 'This session is running in another terminal. Close it there first',
+  // Spec 2026-09-29 §2.4 — main no longer shows a native box for a too-old claude.
+  claude_version: `Update claude to ${formatVersion(MIN_CLAUDE_VERSION)} or newer to open a past session`
 }
 
 /**

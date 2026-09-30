@@ -141,12 +141,10 @@ import type { ClaudeLaunchFlags } from './pty/launchSession'
 // `claude` launch service (reuses the terminal manager + ptyFactory; reuses pidCorrelation.ts
 // for the Tgid join) + the per-run launched-set it POPULATES. The picked dir + launch request
 // are UNTRUSTED cross-process input → Zod parse-and-throw at the boundary (never log the path).
-import {
-  createLaunchService,
-  FOLDER_MISSING_MESSAGE,
-  isFolderMissing,
-  type LaunchService
-} from './pty/launchSession'
+import { createLaunchService, type LaunchService } from './pty/launchSession'
+// Action feedback (spec 2026-09-29 §2.4) — an in-app launch refusal is a CODE the renderer maps to
+// copy (`claude_version`, `folder_missing`); main shows no native box for it.
+import { requireClaudeVersion, runInAppLaunch } from './pty/inAppLaunch'
 // Story 6.3 — FAST REMOVAL: the extracted stop/exit removal decision (unit-tested in
 // launchRemoval.test.ts). Stop and PTY-exit resolve the exact spawn-time terminalId →
 // sessionId binding, clear it, and route the bound session's removal through the owning
@@ -2333,39 +2331,16 @@ function isExistingDirectory(path: string): boolean {
 }
 
 /**
- * UX-11 — run an IN-APP launch, explaining a missing folder with a native error box (the renderer
- * swallows a rejected launch invoke — the version gate's reasoning), then rethrowing so the invoke
- * still rejects and nothing is opened. Any other failure passes through untouched.
- */
-function launchExplainingFolder<T>(run: () => T): T {
-  try {
-    return run()
-  } catch (err) {
-    if (isFolderMissing(err)) {
-      console.warn('[claude-watcher][launch] code=folder_missing')
-      dialog.showErrorBox('Folder not found', FOLDER_MISSING_MESSAGE)
-    }
-    throw err
-  }
-}
-
-/**
- * Block the launch when claude is verifiably too old. Returns true when the launch may proceed.
- *
- * The renderer SWALLOWS a rejected launch invoke (`catch { code=launch_failed }`), so throwing
- * alone would close the dialog and show the operator nothing at all — a silent no-op, which is
- * worse than the confusing terminal error this gate exists to replace. Main therefore surfaces
- * the reason itself with a native error box, then the caller throws so nothing spawns. Doing it
- * here avoids a new IPC channel (which the seam rule would otherwise require in 4-file lockstep).
- *
- * R25: the API path (`claudeVersionAllowsApiLaunch`) NEVER shows that box — the caller gets its
- * own 503 `claude_version` — and reuses a refusal for 30 s instead of re-probing the shell on
- * every retry. The decision lives in `createClaudeVersionGate` (claudeVersion.ts, unit-tested).
+ * Block the launch when claude is verifiably too old. The in-app callers throw the
+ * `claude_version` CODE (`requireClaudeVersion` / `runInAppLaunch`), which the name prompt, Past
+ * sessions and the dead pane map to copy where the operator is looking — main shows no native box
+ * (spec 2026-09-29 §2.4). R25: the API path (`claudeVersionAllowsApiLaunch`) answers its own 503
+ * `claude_version` and reuses a refusal for 30 s instead of re-probing the shell on every retry.
+ * The decision lives in `createClaudeVersionGate` (claudeVersion.ts, unit-tested).
  */
 const claudeVersionGate = createClaudeVersionGate({
   readRaw: readClaudeVersionRaw,
   now: Date.now,
-  showTooOld: (message) => dialog.showErrorBox('Update claude', message),
   log: (m) => console.warn(m)
 })
 function claudeVersionAllowsLaunch(): boolean {
@@ -2373,6 +2348,11 @@ function claudeVersionAllowsLaunch(): boolean {
 }
 function claudeVersionAllowsApiLaunch(): boolean {
   return claudeVersionGate.allowsApiLaunch()
+}
+/** The in-app launch seams: the interactive gate (re-probes a refusal) and a code-only log. */
+const IN_APP_LAUNCH_DEPS = {
+  allowsLaunch: claudeVersionAllowsLaunch,
+  log: (message: string): void => console.warn(message)
 }
 
 // Hook delivery — the app's OWN settings file, handed to claude with `--settings`.
@@ -2503,19 +2483,14 @@ function registerLaunchIpc(): void {
     // invoke here and NOTHING spawns. Never log either value on the throw path — a cwd leaks
     // the filesystem layout and a name is operator content (zod-boundaries.md).
     const { cwd, name } = SessionLaunchSchema.parse(raw)
-    // Version gate — refuse to spawn against a claude too old for the flags the spawn depends
-    // on (`--session-id`, `-n`, `--settings`). An unknown flag kills the session instantly with
-    // an error that looks nothing like "your claude is old", so this fails EARLY and says why.
-    // Unknown/unreadable versions are allowed through (claudeVersion.ts explains the inversion).
-    if (!claudeVersionAllowsLaunch()) {
-      throw new Error('claude version below the supported minimum')
-    }
+    // Version gate + UX-11 folder check, as CODES (`claude_version` / `folder_missing`): the name
+    // prompt stays open and maps them to copy (spec 2026-09-29 §2.2/§2.4). An unknown flag would
+    // kill the session instantly with an error that looks nothing like "your claude is old", so
+    // the gate fails EARLY; unreadable versions are allowed through (claudeVersion.ts).
     // NOTE: nothing is written into `cwd`. Hooks ride `--settings` from the app's own data dir,
-    // resolved at spawn-composition time (see hookSettingsPathForSpawn). The launch path used
-    // to merge a hook block into this project's `.claude/settings.local.json` — it no longer
-    // touches the operator's project at all.
+    // resolved at spawn-composition time (see hookSettingsPathForSpawn).
     const service = launchService
-    const { terminalId } = launchExplainingFolder(() => service.launch({ cwd, name }))
+    const { terminalId } = runInAppLaunch(IN_APP_LAUNCH_DEPS, () => service.launch({ cwd, name }))
     // Workspaces — report the workspace MAIN stamped on this launch's card so the renderer can
     // register the terminal's workspace before any session delta arrives.
     return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
@@ -2527,11 +2502,8 @@ function registerLaunchIpc(): void {
   ipcMain.handle(CH.sessionLaunchFromTemplate, (_event, raw: unknown) => {
     if (launchService === null) throw new Error('launch service not initialized')
     const req = resolveTemplateLaunch(requireTemplatesStore(), raw)
-    if (!claudeVersionAllowsLaunch()) {
-      throw new Error('claude version below the supported minimum')
-    }
     const service = launchService
-    const { terminalId } = launchExplainingFolder(() => service.launch(req))
+    const { terminalId } = runInAppLaunch(IN_APP_LAUNCH_DEPS, () => service.launch(req))
     // Workspaces — same reasoning as session:launch above.
     return { terminalId, workspaceId: requireWorkspacesStore().activeId() }
   })
@@ -2629,7 +2601,7 @@ function registerLaunchIpc(): void {
 
   ipcMain.handle(CH.pastSessionOpen, (_event, raw: unknown): PastSessionOpenResult => {
     if (launchService === null) throw new Error('launch service not initialized')
-    if (!claudeVersionAllowsLaunch()) throw new Error('claude version below the supported minimum')
+    requireClaudeVersion(claudeVersionAllowsLaunch)
     const out = openPastSession(raw, pastSessionOpenDeps(launchService))
     if (!out.ok) throw new Error(out.code)
     return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
@@ -2641,7 +2613,7 @@ function registerLaunchIpc(): void {
   // the same version gate. A refusal THROWS its code; the pane maps it to copy.
   ipcMain.handle(CH.pastSessionResumeTerminal, (_event, raw: unknown): PastSessionOpenResult => {
     if (launchService === null) throw new Error('launch service not initialized')
-    if (!claudeVersionAllowsLaunch()) throw new Error('claude version below the supported minimum')
+    requireClaudeVersion(claudeVersionAllowsLaunch)
     const service = launchService
     const out = resumeTerminalSession(raw, {
       ...pastSessionOpenDeps(service),

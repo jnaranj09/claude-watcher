@@ -7,7 +7,6 @@ import {
   compareVersions,
   gateClaudeVersion,
   formatVersion,
-  tooOldMessage,
   createClaudeVersionGate,
   API_VERSION_REFUSAL_TTL_MS,
   MIN_CLAUDE_VERSION,
@@ -120,29 +119,16 @@ describe('gateClaudeVersion', () => {
   })
 })
 
-describe('tooOldMessage', () => {
-  it('names BOTH versions — "too old" alone is not actionable', () => {
-    const msg = tooOldMessage(v(2, 1, 240), v(2, 1, 245))
-
-    expect(msg).toContain('2.1.245')
-    expect(msg).toContain('2.1.240')
-  })
-
-  it('says what to DO about it', () => {
-    expect(tooOldMessage(v(2, 1, 240), MIN_CLAUDE_VERSION).toLowerCase()).toContain('update')
-  })
-})
-
 describe('formatVersion', () => {
   it('renders the dotted form used in every operator-facing string', () => {
     expect(formatVersion(v(2, 1, 245))).toBe('2.1.245')
   })
 })
 
-// R25 — the gate has TWO callers that must fail differently. An in-app launch explains itself
-// with a native error box (the renderer swallows a rejected invoke); an API create answers its
-// own 503 `claude_version` and must NEVER put a box on the operator's desktop — a retrying
-// client used to stack one per request, each after a blocking `$SHELL -l` probe.
+// R25 + spec 2026-09-29 §2.4 — the gate has TWO callers that fail differently. An in-app launch
+// always re-probes a refusal (an upgrade unblocks the next click) and its caller throws the
+// `claude_version` code; an API create answers its own 503 and reuses a refusal for 30 s. Neither
+// shows a native box any more.
 describe('createClaudeVersionGate', () => {
   const OLD = '2.1.100 (Claude Code)'
   const NEW = '2.1.300 (Claude Code)'
@@ -152,28 +138,24 @@ describe('createClaudeVersionGate', () => {
   ): {
     g: ReturnType<typeof createClaudeVersionGate>
     readRaw: ReturnType<typeof vi.fn<() => string | null>>
-    showTooOld: ReturnType<typeof vi.fn<(m: string) => void>>
     log: ReturnType<typeof vi.fn<(m: string) => void>>
     t: { now: number }
   } {
     const readRaw = vi.fn<() => string | null>(() => raw)
-    const showTooOld = vi.fn<(m: string) => void>()
     const log = vi.fn<(m: string) => void>()
-    const g = createClaudeVersionGate({ readRaw, now: () => t.now, showTooOld, log })
-    return { g, readRaw, showTooOld, log, t }
+    const g = createClaudeVersionGate({ readRaw, now: () => t.now, log })
+    return { g, readRaw, log, t }
   }
 
-  it('an API create against a too-old claude is refused WITHOUT an error box', () => {
-    const { g, showTooOld } = gate(OLD)
+  it('an API create against a too-old claude is refused', () => {
+    const { g } = gate(OLD)
     expect(g.allowsApiLaunch()).toBe(false)
-    expect(showTooOld).not.toHaveBeenCalled()
   })
 
-  it('an in-app launch against a too-old claude is refused WITH the error box', () => {
-    const { g, showTooOld } = gate(OLD)
+  it('an in-app launch against a too-old claude is refused; the log names the found version', () => {
+    const { g, log } = gate(OLD)
     expect(g.allowsInteractiveLaunch()).toBe(false)
-    expect(showTooOld).toHaveBeenCalledTimes(1)
-    expect(showTooOld.mock.calls[0]?.[0]).toContain('2.1.100')
+    expect(log).toHaveBeenCalledWith('[c9watch][version] code=claude_version_too_old found=2.1.100')
   })
 
   it('API retries inside the TTL reuse the refusal instead of re-probing the shell', () => {
@@ -191,12 +173,7 @@ describe('createClaudeVersionGate', () => {
   it('an in-app launch ALWAYS re-probes a refusal, so an upgrade unblocks at once', () => {
     let raw: string | null = OLD
     const readRaw = vi.fn(() => raw)
-    const g = createClaudeVersionGate({
-      readRaw,
-      now: () => 0,
-      showTooOld: () => {},
-      log: () => {}
-    })
+    const g = createClaudeVersionGate({ readRaw, now: () => 0, log: () => {} })
     expect(g.allowsApiLaunch()).toBe(false)
     raw = NEW
     expect(g.allowsInteractiveLaunch()).toBe(true)
@@ -213,11 +190,10 @@ describe('createClaudeVersionGate', () => {
     expect(readRaw).toHaveBeenCalledTimes(1)
   })
 
-  it('an unreadable version is ALLOWED (fail-open) and never shows a box', () => {
-    const { g, showTooOld } = gate(null)
+  it('an unreadable version is ALLOWED (fail-open)', () => {
+    const { g } = gate(null)
     expect(g.allowsApiLaunch()).toBe(true)
     expect(g.allowsInteractiveLaunch()).toBe(true)
-    expect(showTooOld).not.toHaveBeenCalled()
   })
 
   it('logs a code only — never the raw version output', () => {

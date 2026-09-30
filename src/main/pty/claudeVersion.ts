@@ -22,23 +22,15 @@
 //
 // [spec-zero-footprint-hooks.md; spec-claude-session-name-sync.md]
 
-/** A three-part semantic version. Pre-release/build suffixes are ignored. */
-export interface ClaudeVersion {
-  major: number
-  minor: number
-  patch: number
-}
+import {
+  formatVersion,
+  MIN_CLAUDE_VERSION,
+  type ClaudeVersion
+} from '../../shared/launch/claudeVersion'
 
-/**
- * The oldest claude this app will launch against — the version every dependent behaviour was
- * verified on. Bump this ONLY together with a re-verification of the flags above.
- */
-export const MIN_CLAUDE_VERSION: ClaudeVersion = { major: 2, minor: 1, patch: 245 }
-
-/** `2.1.245` — for operator-facing messages. */
-export function formatVersion(v: ClaudeVersion): string {
-  return `${v.major}.${v.minor}.${v.patch}`
-}
+// The floor lives in src/shared so the renderer's copy can name it; re-exported for main callers.
+export { formatVersion, MIN_CLAUDE_VERSION }
+export type { ClaudeVersion }
 
 /**
  * Pull a version out of `claude --version` output.
@@ -105,18 +97,6 @@ export function gateClaudeVersion(raw: string | null): VersionGate {
 }
 
 /**
- * The operator-facing message for a blocked launch. Kept here so the wording is asserted by a
- * test rather than buried in a dialog call, and so it names BOTH versions — "too old" without
- * the two numbers is not actionable.
- */
-export function tooOldMessage(found: ClaudeVersion, min: ClaudeVersion): string {
-  return (
-    `This app needs claude ${formatVersion(min)} or newer, but found ${formatVersion(found)}.\n\n` +
-    `Update claude, then try again.`
-  )
-}
-
-/**
  * How long an API create reuses a non-ok verdict before probing again. The probe is a blocking
  * `$SHELL -l -c "claude --version"` on main's event loop (up to its 10 s timeout); a client
  * retrying a 503 must not pay it — or make main pay it — on every request (R25).
@@ -127,18 +107,18 @@ export interface ClaudeVersionGateDeps {
   /** Raw `claude --version` output, or null when the binary could not be run. */
   readRaw: () => string | null
   now: () => number
-  /** Explain a refusal to the operator (a native error box in main). IN-APP launches only. */
-  showTooOld: (message: string) => void
   /** Code-only log sink. */
   log: (message: string) => void
 }
 
 export interface ClaudeVersionGateHandle {
-  /** `+ New session`, a template, a past session: the operator is looking, so a refusal gets the
-   *  box. Always re-probes a refusal, so upgrading claude unblocks the very next click. */
+  /** `+ New session`, a template, a past session, a dead pane's Resume: the caller throws the
+   *  `claude_version` code, which the renderer shows where the operator is looking (spec
+   *  2026-09-29 §2.4 — no native box). Always re-probes a refusal, so upgrading claude unblocks
+   *  the very next click. */
   allowsInteractiveLaunch(): boolean
-  /** `POST /v1/sessions`: the caller gets its own 503, so NO box — ever. A non-ok verdict younger
-   *  than `API_VERSION_REFUSAL_TTL_MS` is reused instead of re-probing. */
+  /** `POST /v1/sessions`: the caller gets its own 503. A non-ok verdict younger than
+   *  `API_VERSION_REFUSAL_TTL_MS` is reused instead of re-probing. */
   allowsApiLaunch(): boolean
 }
 
@@ -160,7 +140,7 @@ export function createClaudeVersionGate(deps: ClaudeVersionGateDeps): ClaudeVers
       deps.log(
         gate.kind === 'unknown'
           ? '[c9watch][version] code=claude_version_unknown_allowing_launch'
-          : '[c9watch][version] code=claude_version_too_old'
+          : `[c9watch][version] code=claude_version_too_old found=${formatVersion(gate.version)}`
       )
     }
     return gate
@@ -169,10 +149,7 @@ export function createClaudeVersionGate(deps: ClaudeVersionGateDeps): ClaudeVers
   return {
     allowsInteractiveLaunch() {
       if (okCached) return true
-      const gate = probe()
-      if (gate.kind !== 'tooOld') return true // ok, or FAIL-OPEN on unknown
-      deps.showTooOld(tooOldMessage(gate.version, gate.min))
-      return false
+      return probe().kind !== 'tooOld' // ok, or FAIL-OPEN on unknown
     },
     allowsApiLaunch() {
       if (okCached) return true

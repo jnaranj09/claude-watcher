@@ -372,12 +372,6 @@ export function isFolderMissing(err: unknown): boolean {
   return err instanceof Error && err.message === LAUNCH_FOLDER_MISSING
 }
 
-/** The in-app launch's error box text (the renderer swallows a rejected launch invoke, so main
- *  explains it — the version gate's precedent). Names no path. */
-export const FOLDER_MISSING_MESSAGE =
-  'The folder this session starts in no longer exists. It may have been deleted, renamed or ' +
-  'unmounted.\n\nPick another folder, or edit the template.'
-
 export function createLaunchService(options: LaunchServiceOptions): LaunchService {
   const log = options.log ?? ((message: string): void => console.warn(message))
   const now = options.now ?? Date.now

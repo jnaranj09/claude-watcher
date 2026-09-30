@@ -1,6 +1,7 @@
 // UX-10 — the dead pane's two sentences, PURE: why the process stopped (its exit code or signal —
 // state only, never pty content or a path) and a refused Resume mapped to copy (never the thrown
 // message, which Electron wraps and a handler could fill with anything).
+import { formatVersion, MIN_CLAUDE_VERSION } from '../../../shared/launch/claudeVersion'
 
 /** The signals a claude (or a shell) is usually stopped by. Anything else is named by number. */
 const SIGNAL_NAMES: Readonly<Record<number, string>> = {
@@ -37,7 +38,8 @@ const RESUME_ERROR_COPY: Readonly<Record<string, string>> = {
   already_open: 'This conversation is already open.',
   transcript_missing: 'Claude no longer has this conversation.',
   session_running_elsewhere:
-    'This conversation is running in another terminal. Close it there first.'
+    'This conversation is running in another terminal. Close it there first.',
+  claude_version: `Update claude to ${formatVersion(MIN_CLAUDE_VERSION)} or newer to resume.`
 }
 
 /** Matched with `includes` (Electron wraps an invoke rejection — the `copyFor` precedent). */
