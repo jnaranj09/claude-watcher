@@ -60,6 +60,7 @@ describe('RulesDialog — ↑/↓ feedback', () => {
     r = renderComponent(<RulesDialog onClose={() => {}} />)
     act(() => el('rule-down-ra').click())
     expect(el('rule-down-ra').getAttribute('aria-busy')).toBe('true')
+    expect(el<HTMLButtonElement>('rule-up-rb').disabled).toBe(true)
     act(() => el('rule-up-rb').click())
     expect(move).toHaveBeenCalledTimes(1)
     await act(async () => {
@@ -68,5 +69,19 @@ describe('RulesDialog — ↑/↓ feedback', () => {
     })
     expect(el('rule-error').textContent).toBe('Could not move the rule.')
     expect(el('rule-down-ra').hasAttribute('aria-busy')).toBe(false)
+  })
+
+  it('a stale refusal clears when the next move starts', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    r = renderComponent(<RulesDialog onClose={() => {}} />)
+    act(() => el('rule-down-ra').click())
+    await act(async () => {
+      pending.reject(new Error('rule_not_found'))
+      await pending.promise.catch(() => {})
+    })
+    expect(el('rule-error').textContent).toBe('Could not move the rule.')
+    pending = deferred<unknown>()
+    act(() => el('rule-down-ra').click())
+    expect(r.container.querySelector('[data-testid="rule-error"]')).toBeNull()
   })
 })

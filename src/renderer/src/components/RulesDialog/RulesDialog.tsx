@@ -70,13 +70,14 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
     if (filterByScope([rule], scope, known).length === 0) setScope(scopeOf(rule.workspaceId, known))
   }
 
-  /** ↑ / ↓ move past the neighbouring VISIBLE rule — in a filtered view, the rule the operator sees
-   *  beside it. `rules:move` takes the FINAL index in the full list. */
   // Action feedback (spec 2026-09-29 §2.5) — one move at a time: a second press would compute its
-  // index from a list main has not answered yet. A refusal says so on the error line.
+  // index from a list main has not answered yet. A refusal says so on the error line, and the next
+  // move clears it. ↑ / ↓ move past the neighbouring VISIBLE rule — in a filtered view, the rule the
+  // operator sees beside it. `rules:move` takes the FINAL index in the full list.
   const moving = useAsyncAction(async (rule: Rule, step: -1 | 1): Promise<void> => {
     const neighbour = listed[listed.indexOf(rule) + step]
     if (neighbour === undefined) return
+    dialog.actions.setError(null)
     try {
       await moveRule(rule.id, rules.indexOf(neighbour))
     } catch {

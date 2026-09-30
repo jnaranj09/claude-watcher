@@ -69,7 +69,7 @@ export function PastSessionsDialog({
   // stand beside the error line: "No past sessions yet." is exactly what could not be checked.
   const [loadFailed, setLoadFailed] = useState(false)
   // Action feedback (spec 2026-09-29 §2.5): the rail says `Loading…` while the history is in
-  // flight; Retry bumps the generation to fetch again (the Settings theme-list precedent).
+  // flight and nothing is cached (a reopen refetches silently); Retry bumps the generation to fetch again (the Settings theme-list precedent).
   const [loading, setLoading] = useState(true)
   const [loadGeneration, setLoadGeneration] = useState(0)
   const searchRef = useRef<HTMLInputElement | null>(null)
@@ -209,7 +209,7 @@ export function PastSessionsDialog({
               {/* Nothing is said until the list has loaded: the first open of a run would otherwise
                   claim "No past sessions yet." while the history is still in flight. A failed load
                   says so on the error line instead. */}
-              {loading && !loadFailed && (
+              {loading && !loadFailed && sessions.length === 0 && (
                 <p className={styles.empty} data-testid="past-sessions-loading">
                   Loading…
                 </p>

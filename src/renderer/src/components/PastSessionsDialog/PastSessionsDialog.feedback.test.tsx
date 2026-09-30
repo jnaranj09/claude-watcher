@@ -77,4 +77,16 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
     expect(find('past-sessions-retry')).toBeNull()
     expect(r.container.querySelectorAll('[data-testid="past-session-row"]')).toHaveLength(1)
   })
+
+  it('a reopen with cached rows refetches without saying Loading…', async () => {
+    act(() => pastSessionsStore.setState({ sessions: [ROW], loaded: true }))
+    const d = deferred<unknown>()
+    list.mockImplementation(() => d.promise)
+    r = renderComponent(<PastSessionsDialog onClose={() => {}} />)
+    expect(find('past-sessions-loading')).toBeNull()
+    expect(r.container.querySelectorAll('[data-testid="past-session-row"]')).toHaveLength(1)
+    expect(list).toHaveBeenCalledTimes(1)
+    d.resolve([ROW])
+    await settle()
+  })
 })
