@@ -1,0 +1,57 @@
+/* Paper — a light dashboard look (spec 2026-09-30): a grey-lavender ground, white panels with
+   large rounded corners, pill controls and a near-black primary. The tokens in theme.json carry
+   the colours and the radius scale; this file carries only what a token cannot say.
+   Selectors are `data-*` hooks where one exists, else the same test ids Liquid Glass targets. */
+
+/* ── The header sits ON the ground, like the reference's top row: no bar, no rule. ─────────── */
+[data-testid='app-header'] {
+  background: var(--bg-base);
+  border-bottom-color: transparent;
+}
+
+/* ── Pills: every Button, the search box and the filter chips. ─────────────────────────────── */
+button[data-variant] {
+  border-radius: var(--rounded-full);
+}
+[data-testid='board-search'],
+[data-testid='filter-pill-tag'],
+[data-testid='filter-add'],
+[data-testid='workspace-switcher'] {
+  border-radius: var(--rounded-full);
+}
+
+/* The one main action of a surface: a near-black pill with white ink (the reference's dark card).
+   14.2:1. Status colours keep their own meaning — `--working` stays blue on cards and dots. */
+button[data-variant='primary'] {
+  background: #2a2b2a;
+  border-color: #2a2b2a;
+  color: #ffffff;
+}
+button[data-variant='primary']:hover:not(:disabled),
+button[data-variant='primary']:focus-visible {
+  background: #3a3b3a;
+  border-color: #3a3b3a;
+}
+
+/* An ON toggle: a mid-grey pill (the reference's selected "Month"). White ink on it is 5.1:1.
+   Two attributes + the element outrank Button's own `.button[data-lit]` (and its :hover). */
+button[data-variant][data-lit],
+button[data-variant][data-lit]:hover:not(:disabled) {
+  background: #6e6e73;
+  border-color: #6e6e73;
+  color: #ffffff;
+}
+
+/* ── Panels float on the ground: a soft shadow draws the edge instead of a hard rule. ───────── */
+[data-column] {
+  box-shadow: 0 1px 2px rgba(28, 28, 30, 0.05);
+}
+/* Cards drop the hard rule on three sides; the left one is the status spine and keeps its colour. */
+[data-session-id][data-status] {
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+[data-testid='embedded-terminal'] {
+  border-radius: var(--rounded-lg);
+}

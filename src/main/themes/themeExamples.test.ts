@@ -4,12 +4,20 @@ import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { TOKENS } from '../../shared/theme/tokens'
-import { xtermTheme } from '../../shared/theme/xtermTheme'
+import { xtermTheme, xtermLightTheme } from '../../shared/theme/xtermTheme'
+import { contrast, hexToRgb } from '../../renderer/src/test/contrast'
 import { createThemeScanner } from './themeScanner'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const examples = resolve(here, '../../../docs/themes/examples')
 const scanner = createThemeScanner({ dir: examples, log: () => {} })
+
+function paperManifest(): { tokens: Record<string, string>; terminal: unknown } {
+  return JSON.parse(readFileSync(resolve(examples, 'paper/theme.json'), 'utf8')) as {
+    tokens: Record<string, string>
+    terminal: unknown
+  }
+}
 
 // liquid-glass/theme.css as `{ selectors, body }` rules, comments stripped. Flat CSS only: the
 // theme has no @media or nested blocks.
@@ -340,13 +348,29 @@ describe('docs/themes/examples', () => {
       .join('\n')
     expect(hover).toMatch(/background:\s*rgba\(0, 0, 0, 0\.\d+\);/)
   })
-  it('paper is a light, tokens-only theme', () => {
+  it('paper is a light theme with its own CSS and no glass', () => {
     const r = scanner.load('paper')
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.bundle.colorScheme).toBe('light')
-      expect(r.bundle.css).toMatch(/^:root \{[\s\S]*\}\n$/)
+      expect(r.bundle.css).toMatch(/^:root \{/)
+      expect(r.bundle.css).toContain("button[data-variant='primary']")
       expect(r.bundle.css).not.toContain('backdrop')
     }
+  })
+  it('paper text reads on every ground it sits on (4.5:1)', () => {
+    const t = paperManifest().tokens
+    for (const ground of ['bg-base', 'bg-surface', 'bg-row-rest', 'bg-card-calm', 'bg-card-hero']) {
+      for (const ink of ['text-primary', 'text-secondary']) {
+        expect(
+          contrast(hexToRgb(t[ink] ?? ''), hexToRgb(t[ground] ?? '')),
+          `${ink} on ${ground}`
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+  it("paper's terminal IS the built-in light palette (Follow theme = Light)", () => {
+    expect(paperManifest().terminal).toEqual(xtermLightTheme)
+    expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)
   })
 })
