@@ -17,7 +17,10 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function setup(): { store: ReturnType<typeof createToastStore>; clock: ReturnType<typeof manualClock> } {
+function setup(): {
+  store: ReturnType<typeof createToastStore>
+  clock: ReturnType<typeof manualClock>
+} {
   const clock = manualClock()
   return { store: createToastStore(clock), clock }
 }
@@ -29,7 +32,9 @@ describe('toastStore', () => {
   it('push returns the id and adds a toast that is not leaving', () => {
     const { store } = setup()
     const id = store.getState().push({ kind: 'success', title: 'Saved' })
-    expect(store.getState().toasts).toEqual([{ id, kind: 'success', title: 'Saved', leaving: false }])
+    expect(store.getState().toasts).toEqual([
+      { id, kind: 'success', title: 'Saved', leaving: false }
+    ])
   })
 
   it('success and info close after 5 s (then fade 150 ms); with an action after 6 s', () => {
@@ -103,7 +108,9 @@ describe('toastStore', () => {
           finish = () => res()
         })
     )
-    const id = store.getState().push({ kind: 'success', title: 'x', action: { label: 'Resume', run } })
+    const id = store
+      .getState()
+      .push({ kind: 'success', title: 'x', action: { label: 'Resume', run } })
     store.getState().runAction(id)
     expect(run).toHaveBeenCalledTimes(1)
     expect(store.getState().toasts[0]?.leaving).toBe(true)

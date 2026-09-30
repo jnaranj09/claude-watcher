@@ -137,7 +137,9 @@ function clickPickFolder(r: RenderResult): void {
   act(() =>
     r.container.querySelector<HTMLButtonElement>('[data-testid="header-new-session"]')?.click()
   )
-  act(() => r.container.querySelector<HTMLButtonElement>('[data-testid="menu-pick-folder"]')?.click())
+  act(() =>
+    r.container.querySelector<HTMLButtonElement>('[data-testid="menu-pick-folder"]')?.click()
+  )
 }
 
 const toasts = (): string[][] => toastStore.getState().toasts.map((t) => [t.kind, t.title])

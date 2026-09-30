@@ -528,7 +528,9 @@ describe('context menu Copy — the result is a toast', () => {
     expect(term).toBeDefined()
     vi.spyOn(term!, 'hasSelection').mockReturnValue(true)
     vi.spyOn(term!, 'getSelection').mockReturnValue('selected text')
-    const container = r.container.querySelector('[data-testid="embedded-terminal"]')?.querySelector('div')
+    const container = r.container
+      .querySelector('[data-testid="embedded-terminal"]')
+      ?.querySelector('div')
     act(() => {
       container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
     })
