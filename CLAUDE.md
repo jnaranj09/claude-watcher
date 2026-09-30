@@ -124,6 +124,9 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
    way** — every button is `components/Button/Button.tsx` (four variants, three fixed heights, no
    `className`; `Button.test.tsx` fails if any other module declares a button class). Read the
    sibling dialog before laying out a new one.
+   **Every action ends in visible feedback** (`design.md` `## Feedback`): a dialog's own error line
+   or mark, a Button's `feedback`, or a toast (`toastStore` / the one `<Toaster />`) — and every
+   async button is `useAsyncAction` or `busy`, so nothing runs twice.
 
 **Debugging a symptom?** Read `.claude/rules/troubleshooting.md` first — run its Step-0
 questions (data present? depends on a sibling? console empty?) to pin the layer before
@@ -135,19 +138,22 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
 - **Minimum claude is 2.1.245, enforced at launch** (`src/main/pty/claudeVersion.ts`). The
   spawn passes `--session-id`, `-n` and `--settings`; a claude that does not know one of those
   does NOT degrade — it rejects the argument and the session dies instantly. `CH.sessionLaunch`
-  probes `$SHELL -l -c "<claude> --version"` (the same shell the spawn uses), blocks with a
-  native error box naming both versions, and caches ONLY the ok verdict so an upgrade unblocks
-  without an app restart. It **fails OPEN** on an unreadable/unparseable version — the one
+  probes `$SHELL -l -c "<claude> --version"` (the same shell the spawn uses), refuses with the
+  code `claude_version` — the name prompt stays open and says `Update claude to <MIN> or newer…` on
+  its error line (no native box; `MIN_CLAUDE_VERSION` lives in `src/shared/launch/`, and Past
+  sessions → Open and the dead pane's Resume map the same code) — and caches ONLY the ok verdict so
+  an upgrade unblocks without an app restart. It **fails OPEN** on an unreadable/unparseable version — the one
   deliberate inversion of the fail-closed default, because a false block bricks a working
-  install. Bump the floor only alongside a re-verification of those three flags. **An API create
-  never shows that box** (R25, `createClaudeVersionGate`): it answers 503 `claude_version` and
+  install. Bump the floor only alongside a re-verification of those three flags. **An API create**
+  (R25, `createClaudeVersionGate`) answers 503 `claude_version` and
   reuses a refusal for 30 s instead of re-probing the shell on every retry; in-app launches always
   re-probe a refusal.
 - **A launch into a missing folder is refused BEFORE anything registers** (UX-11). node-pty spawns
   into a gone cwd without throwing; the child fails its chdir and exits after the card and its
   record exist. `launchService.launch` takes a REQUIRED `isDirectory` and throws `folder_missing`
-  (no recipe, no card); an in-app launch explains it with a native error box (the version gate's
-  precedent — the renderer swallows a rejected invoke), and `POST /v1/sessions` answers 409
+  (no recipe, no card); an in-app launch keeps the name prompt open and shows `That folder no
+  longer exists.` on its error line (no native box — spec 2026-09-29 action feedback), and
+  `POST /v1/sessions` answers 409
   `folder_missing` before the 503s. A Reopen of a dead pane is NOT checked. With the hook server
   unbound (SEC-6) the create answers 503 `hooks_unavailable` (`ApiContext.hooksListening`, after
   `claude_version`, before `no_window`) instead of a 201 for a card that could never move.

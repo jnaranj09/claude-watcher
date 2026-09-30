@@ -393,6 +393,77 @@ icon buttons (⚙ settings, ⌨ shortcuts, the tag icon) and it filters nothing.
   checks; the renderer opens the new terminal, then forgets the dead one (`resumeDeadTerminal`).
   A refusal is mapped copy on the pane's own line. The plain-shell `#terminals` view has no Resume.
 
+## Feedback — every action says what happened
+
+Spec `2026-09-29-action-feedback-design.md`. Every operator action ends in a visible result — a
+mapped success or failure — and no action can run twice by accident.
+
+**Where feedback lands (the placement rule):**
+
+1. **Inside a dialog** → the dialog's own surfaces: the ONE error line (`ManageDialog.Error`) for a
+   failure; the row the save selected, or Settings' `✓ Saved` mark, for success. **A dialog never
+   raises a toast for its own result.**
+2. **A small action on a control that stays on screen** (Copy, Reload themes, Regenerate) → the
+   button's own `feedback` result for 1.5 s (`✓ Copied`, shown through `feedbackShown`).
+3. **A board-level action, or a result off screen** (archive, move, a menu that closed, a failure
+   with no dialog to hold it) → a toast.
+
+Copy is always mapped from a CODE (matched with `includes` — Electron wraps an invoke rejection);
+a thrown `error.message` is never rendered. The check mark `✓` is neutral ink (`--text-primary` /
+`--text-secondary`); a failure uses `--danger`. There is no `--success` token.
+
+- **Toasts are `stores/toastStore.ts` + `components/Toaster/`.** Push with `toast.success` /
+  `toast.error` / `toast.info`. `<Toaster />` is mounted ONCE in `App.tsx`, outside the subtree that
+  goes `inert` under a modal, so ✕ works over a dialog. At most 3 on screen (a 4th drops the
+  oldest); success/info close after 5 s, 6 s with an action; an error stays until dismissed; hover
+  or focus inside a toast pauses its timer. Bottom-right, `--space-4` gutter, `z-index: 70` (above
+  the dialogs' 60, below the terminal context menu's 1000). Anatomy: glyph (`✓` / `!` in `--danger`
+  / `i`), title, one optional `detail` line, one optional action (`Button secondary sm`), ✕ (`Button
+  ghost xs icon`, `aria-label="Dismiss"`). Success/info are `role="status"`, an error
+  `role="alert"`, inside `<section aria-label="Notifications">`. Themes target `[data-toast]` and
+  `[data-toast-kind]`, never a test id.
+- **A toast's action is not rendered while a modal is open** (`modalOpenIn`, the single-modal rule —
+  not rendered, never refused). ✕ and the timer are unaffected.
+- **An action runs once and owns its errors.** The toast closes when `run` is called; the store
+  never awaits it and contains a throw or rejection silently (nothing reaches the click handler),
+  so a `run` that can fail maps its code and pushes its own error toast (the archive toast's
+  `Resume` does).
+- **A workspace named in a toast is a `WorkspaceLabel`** — pass `workspace: { name, tone }`, never
+  the name in the title.
+- **`Button` has `feedback`, `feedbackShown` and `busy`.** `feedback` is the CONSTANT result text
+  (`✓ Copied`); while it is set, the label and the result are ALWAYS both in one grid cell (the one
+  not shown is `visibility: hidden`), so the button is max(label, result) wide from the first paint
+  and never changes width. `feedbackShown` picks the visible layer, and a hidden `role="status"`
+  sibling carries `feedbackShown ? feedback : ''`. Pattern: `const [copied, flashCopied] =
+  useFlash<true>()` → `feedback="✓ Copied" feedbackShown={copied !== null}`. Tests read the result
+  from that status sibling, never from the button's `textContent` (it always holds both layers).
+  `busy` = `disabled` + `aria-busy`. `ManageDialog.GhostButton` / `Save` / `Delete` forward all
+  three; a busy `Delete` keeps its armed look and ignores blur and clicks. `useFlash()` (1.5 s)
+  drives `feedbackShown` and the `✓ Saved` mark.
+- **Every async button uses `useAsyncAction` or a `busy` flag.** `useAsyncAction(fn)` → `{ run,
+  busy }`: a call while one is in flight starts nothing. It is what stops a second Regenerate, a
+  double-Enter save, and a second native folder picker.
+- **Every `void window.<a>.<b>(…)` ends in `.catch(`** (after any `.then` links) — guarded by
+  `lib/bridgeCatch.test.ts`. The guard cannot see `void <wrapper>()`, so a wrapper that can fail
+  either rethrows a code its caller maps, or reports itself.
+- **Settings** shows `✓ Saved` beside the pane heading for 1.5 s after a change main stored. A
+  refused change rolls the control back to main's last answer (`persistSettingsPatch` rejects with
+  `settings_persist_failed` after re-hydrating from `authoritative`) and the error line says
+  `Could not save <setting>.` until the next change that lands.
+- **The name prompt stays open while main answers** (`lib/namePromptFlow.ts`): the confirm is busy
+  (`Starting…` / `Renaming…`), a refusal keeps the typed name and shows mapped copy on its error
+  line (`folder_missing`, `claude_version`, `template_not_found`). A launch that has not answered in
+  15 s closes the prompt with a `Still starting "<name>"…` toast. A result that lands after the
+  prompt closed never takes the view: a success is registered (registry only) and toasted with
+  `Open`; a failure is an error toast.
+- **Archive and Delete wait for main.** The view goes to the board at once, the terminal registry
+  only after main answered, so a refused exit keeps the terminal and says so. A kept archive toasts
+  `Archived "<name>"` with `Resume` (the Past sessions Open path, offered only once the record
+  exists and only with a bound session id).
+- **A startup load that fails** is ONE error toast naming every store (`Could not load templates,
+  tags and rules. Reopen the app to try again.`), and each Manage dialog says `Could not load <x>.`
+  in place of its empty sentence.
+
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
 
 Every dropdown in this app is that component. Not "prefer" — there is no case where a native
