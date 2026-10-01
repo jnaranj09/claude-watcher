@@ -9,6 +9,7 @@ import { useState, type JSX } from 'react'
 import type { StorageHealth } from '../../../../shared/ipc/contract'
 import { storageProblemMessage } from '../../lib/storageHealthCopy'
 import { Button } from '../Button/Button'
+import { Callout } from '../Callout/Callout'
 import styles from './StorageNotice.module.css'
 
 export function StorageNotice({ health }: { health: StorageHealth | null }): JSX.Element | null {
@@ -16,23 +17,31 @@ export function StorageNotice({ health }: { health: StorageHealth | null }): JSX
   const problems = health?.problems ?? []
   if (problems.length <= dismissed) return null
   return (
-    <div className={styles.notice} role="alert" data-testid="storage-notice">
-      <ul className={styles.lines}>
-        {problems.map((p) => (
-          <li key={`${p.store}:${p.code}`}>{storageProblemMessage(p)}</li>
-        ))}
-      </ul>
-      <Button
-        variant="ghost"
-        size="xs"
-        icon
-        testId="storage-notice-dismiss"
-        aria-label="Dismiss"
-        title="Dismiss"
-        onClick={() => setDismissed(problems.length)}
-      >
-        ✕
-      </Button>
+    <div className={styles.slot}>
+      <Callout
+        tone="danger"
+        testId="storage-notice"
+        title={
+          <ul className={styles.lines}>
+            {problems.map((p) => (
+              <li key={`${p.store}:${p.code}`}>{storageProblemMessage(p)}</li>
+            ))}
+          </ul>
+        }
+        action={
+          <Button
+            variant="ghost"
+            size="xs"
+            icon
+            testId="storage-notice-dismiss"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={() => setDismissed(problems.length)}
+          >
+            ✕
+          </Button>
+        }
+      />
     </div>
   )
 }

@@ -1,9 +1,5 @@
-/* One line under the header. Tokens only (noHexLiterals.test.ts). */
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--border);
-  border-left: 3px solid var(--danger);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-size: var(--font-size-body);
+/* Under the header: a danger Callout (it draws the box); this only places it. Tokens only
+   (noHexLiterals.test.ts). */
+.slot {
+  padding: var(--space-2) var(--space-4) 0;
 }

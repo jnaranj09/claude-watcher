@@ -64,6 +64,7 @@ describe('ServerHealthBanner + useServerHealth', () => {
     await settle()
     const banner = r.container.querySelector('[data-testid="server-health-banner"]')
     expect(banner?.getAttribute('role')).toBe('alert')
+    expect(banner?.getAttribute('data-callout-tone')).toBe('danger')
 
     act(() => push?.(health('ok')))
     expect(r.container.querySelector('[data-testid="server-health-banner"]')).toBeNull()

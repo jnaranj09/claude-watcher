@@ -77,6 +77,7 @@ describe('StorageNotice + useStorageHealth', () => {
     r = renderComponent(<Probe />)
     await settle()
     expect(notice()?.getAttribute('role')).toBe('alert')
+    expect(notice()?.getAttribute('data-callout-tone')).toBe('danger')
     expect(notice()?.querySelectorAll('li')).toHaveLength(2)
   })
 

@@ -7,6 +7,7 @@
 import type { JSX } from 'react'
 import type { ServerHealth } from '../../../../shared/ipc/contract'
 import { serverHealthMessage } from '../../lib/serverHealthCopy'
+import { Callout } from '../Callout/Callout'
 import styles from './ServerHealthBanner.module.css'
 
 export function ServerHealthBanner({
@@ -17,8 +18,8 @@ export function ServerHealthBanner({
   const message = serverHealthMessage(health)
   if (message === null) return null
   return (
-    <div className={styles.banner} role="alert" data-testid="server-health-banner">
-      {message}
+    <div className={styles.slot}>
+      <Callout tone="danger" title={message} testId="server-health-banner" />
     </div>
   )
 }
