@@ -273,6 +273,14 @@ What you can target:
 
 - **Tokens.** Most looks are a token set. Translucent surfaces are just `rgba()` token values.
 - **Elements and roles.** `body`, `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`.
+- **Popovers.** Every menu and list popup is drawn by one component and carries the same hooks:
+  `[data-popover]` (the box — menus, dropdown lists, the `+ New session` popover, the tag lists,
+  the shortcut expander), `[data-popover-list]` (rows inside a box), `[data-popover-item]` (every
+  row; `[data-density="compact"]` for the tight ones, `[data-quiet]` for a secondary action,
+  `[data-tone]` for a row tinted with its workspace, whose `--ws-fill` / `--ws-border` are set),
+  and `[data-popover-divider]`. Row states are ARIA: `[aria-selected="true"]`,
+  `[aria-checked="true"]`, `[aria-expanded="true"]`, plus `[data-active]`. Style popovers here,
+  not by role: a new list in the app picks your look up with no change to your theme.
 - **Test ids.** `[data-testid="app-header"]`, `[data-testid="settings-panel"]`,
   `[data-testid="embedded-terminal"]` and the other `data-testid` attributes in the app. They are
   pinned by the app's tests, so they are stable.

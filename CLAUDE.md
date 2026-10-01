@@ -138,7 +138,7 @@ that layer. The high-frequency rules, in **precedence order** (earlier wins on c
    same `.input` CSS rule; use `components/TextInput/TextInput.tsx` (its test fails if any other
    module declares an `.input`/`.search` class). **A bare `<button className=…>` is banned the same
    way** — every button is `components/Button/Button.tsx` (four variants, three fixed heights, no
-   `className`; `Button.test.tsx` fails if any other module declares a button class). Read the
+   `className`; `Button.test.tsx` fails if any other module declares a button class). **A hand-made menu or list popup is banned too** — every popover box and row is `components/Popover/` (`Popover.guard.test.ts` fails on a raw `role="menu"`/`listbox`/`option` element or a `--shadow-pop` box anywhere else); themes reach them through `data-popover*`. Read the
    sibling dialog before laying out a new one.
    **Every action ends in visible feedback** (`design.md` `## Feedback`): a dialog's own error line
    or mark, a Button's `feedback`, or a toast (`toastStore` / the one `<Toaster />`) — and every
@@ -168,7 +168,7 @@ trustworthy and have been removed; a manual repro with real `claude` is the reli
   into a gone cwd without throwing; the child fails its chdir and exits after the card and its
   record exist. `launchService.launch` takes a REQUIRED `isDirectory` and throws `folder_missing`
   (no recipe, no card); an in-app launch keeps the name prompt open and shows `That folder no
-  longer exists.` on its error line (no native box — spec 2026-09-29 action feedback), and
+longer exists.` on its error line (no native box — spec 2026-09-29 action feedback), and
   `POST /v1/sessions` answers 409
   `folder_missing` before the 503s. A Reopen of a dead pane is NOT checked. With the hook server
   unbound (SEC-6) the create answers 503 `hooks_unavailable` (`ApiContext.hooksListening`, after

@@ -263,9 +263,7 @@ siblings with `TagPathLabel` instead, never a chip (below).
   white from the desktop theme, and two lists doing one job had two looks). The look lives in
   `TagMenu.module.css` only; `TagMenu.test.tsx` fails if a caller declares its own popup or row
   rule. Roles stay each caller's: the filter is a single-choice `menu` (`menuitemradio`), the picker
-  a checkbox `group` (`role="checkbox"` rows). Themes target `[data-tag-menu]` /
-  `[data-tag-menu-row]`, never one caller's test id, so no theme can style one list and miss the
-  other.
+  a checkbox `group` (`role="checkbox"` rows). It is drawn with `Popover`, so themes reach both lists through the Popover hooks.
 - **A rail row's name leaves room for BOTH tools while they show** (hover, focus in the row, or its
   peek open): the pencil and the tag toggle overlay the row's right edge, and a long name used to run
   under them. `AttentionRail.module.css` reserves `--rail-tools-width` then; it re-truncates a
@@ -419,7 +417,7 @@ a thrown `error.message` is never rendered. The check mark `✓` is neutral ink 
   or focus inside a toast pauses its timer. Bottom-right, `--space-4` gutter, `z-index: 70` (above
   the dialogs' 60, below the terminal context menu's 1000). Anatomy: glyph (`✓` / `!` in `--danger`
   / `i`), title, one optional `detail` line, one optional action (`Button secondary sm`), ✕ (`Button
-  ghost xs icon`, `aria-label="Dismiss"`). Success/info are `role="status"`, an error
+ghost xs icon`, `aria-label="Dismiss"`). Success/info are `role="status"`, an error
   `role="alert"`, inside `<section aria-label="Notifications">`. Themes target `[data-toast]` and
   `[data-toast-kind]`, never a test id.
 - **A toast's action is not rendered while a modal is open** (`modalOpenIn`, the single-modal rule —
@@ -435,13 +433,13 @@ a thrown `error.message` is never rendered. The check mark `✓` is neutral ink 
   not shown is `visibility: hidden`), so the button is max(label, result) wide from the first paint
   and never changes width. `feedbackShown` picks the visible layer, and a hidden `role="status"`
   sibling carries `feedbackShown ? feedback : ''`. Pattern: `const [copied, flashCopied] =
-  useFlash<true>()` → `feedback="✓ Copied" feedbackShown={copied !== null}`. Tests read the result
+useFlash<true>()` → `feedback="✓ Copied" feedbackShown={copied !== null}`. Tests read the result
   from that status sibling, never from the button's `textContent` (it always holds both layers).
   `busy` = `disabled` + `aria-busy`. `ManageDialog.GhostButton` / `Save` / `Delete` forward all
   three; a busy `Delete` keeps its armed look and ignores blur and clicks. `useFlash()` (1.5 s)
   drives `feedbackShown` and the `✓ Saved` mark.
 - **Every async button uses `useAsyncAction` or a `busy` flag.** `useAsyncAction(fn)` → `{ run,
-  busy }`: a call while one is in flight starts nothing. It is what stops a second Regenerate, a
+busy }`: a call while one is in flight starts nothing. It is what stops a second Regenerate, a
   double-Enter save, and a second native folder picker.
 - **Every `void window.<a>.<b>(…)` ends in `.catch(`** (after any `.then` links) — guarded by
   `lib/bridgeCatch.test.ts`. The guard cannot see `void <wrapper>()`, so a wrapper that can fail
@@ -461,7 +459,7 @@ a thrown `error.message` is never rendered. The check mark `✓` is neutral ink 
   `Archived "<name>"` with `Resume` (the Past sessions Open path, offered only once the record
   exists and only with a bound session id).
 - **A startup load that fails** is ONE error toast naming every store (`Could not load templates,
-  tags and rules. Reopen the app to try again.`), and each Manage dialog says `Could not load <x>.`
+tags and rules. Reopen the app to try again.`), and each Manage dialog says `Could not load <x>.`
   in place of its empty sentence.
 
 ## A native `<select>` is BANNED. Use `components/Select/Select.tsx`.
@@ -576,6 +574,31 @@ fixed height with room around the text, and that is what Button draws.
 than Button declares a button class (`.button`, `.primaryButton`, `.cancelButton`, `.closeButton`,
 …). The next copy-paste turns it red before a screenshot has to.
 
+## A popover is `components/Popover`. Never a hand-made menu box or row.
+
+Ten popovers (the workspace menu, ☰ and its submenu, `+ New session`, Select, the tag lists, the
+shortcut expander, the starting list, the card's move menu, the terminal's context menu) each drew
+their own box and rows, and they had drifted: three selected looks, two radii, two paddings. A theme
+reached the boxes by role and test id and the rows not at all, so liquid-glass could not make the
+rows glass (operator, 2026-10-01). Spec `2026-10-01-popover-standard-design.md`.
+
+- **Parts** (`import { Popover } from '../Popover/Popover'`): `Surface` (the box — never scrolls,
+  a submenu sits inside it), `List` (the rows; the ONLY scrolling part, capped by
+  `--popover-max-height` on the caller's wrapper), `Item`, `CompactItem`, `QuietItem` (explicit
+  variants, not booleans), `ItemIcon`, `ItemEnd`, `Divider`, `Note`.
+- **It draws, it does not behave.** Roles, ARIA state, keys, open/close and POSITION stay with the
+  caller: a positioned wrapper at the call site, `Popover.Surface` inside it. No part takes a
+  `className`.
+- **Row states are read from ARIA** — `aria-selected`, `aria-checked`, `aria-expanded` — plus
+  `active` (→ `data-active`) for a highlight that does not follow focus. A visible state never
+  disagrees with the accessible one.
+- **`tone`** tints a row with its workspace (WorkspaceTint), and stamps `data-tone`.
+- **Themes target** `[data-popover]`, `[data-popover-list]`, `[data-popover-item]` (+
+  `[data-density='compact']`, `[data-quiet]`, `[data-tone]`), `[data-popover-divider]` and the ARIA
+  states — never a test id. A new popover built from these parts is themed with no theme change.
+- **The guard** (`Popover.guard.test.ts`): a raw element with a menu / list role outside Popover,
+  or a CSS module drawing a popover box (`--shadow-pop`), turns it red.
+
 ## A note on testing CSS classes
 
 `vitest.config.ts` sets no `css` option, so `import styles from './X.module.css'` resolves to a
@@ -604,6 +627,7 @@ and assert on its text instead.
   scope dropdown's own `<option>` labels contain every one of them, so such an assertion passes
   whether or not the thing you meant to check rendered. Query a `data-testid`, or assert on
   structure (row count vs container child count).
+- Don't draw a menu or list popup by hand (a `role="menu"`/`listbox` element, a `--shadow-pop` box, a row class). That is `components/Popover`.
 - Don't reach for a new dialog shell. A Manage dialog is `ManageDialog.Frame`: `z-index: 60`,
   single-modal (App.tsx `isModalOpen()` guards it against the other modals — a new dialog
   adds its open flag to `isDialogOpen()` there), and Escape-closable. The Delete confirm and the
