@@ -1,0 +1,119 @@
+/* Popover — the ONE look of every menu / list popup (spec 2026-10-01-popover-standard-design.md).
+   Position, width and z-index belong to the caller's WRAPPER; nothing here places the box.
+   Themes target `[data-popover]`, `[data-popover-list]`, `[data-popover-item]`,
+   `[data-popover-divider]` and the ARIA states, never a class (they are hashed). */
+
+/* The box. `position: relative` so a theme's `::before` / `::after` layer sits on it, and a
+   submenu can anchor inside it. It NEVER scrolls — a submenu inside a scroll box is clipped. */
+.surface {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+/* The rows. The only scrolling part; its cap comes from the caller's wrapper. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  max-height: var(--popover-max-height, none);
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+.item[data-density='compact'] {
+  padding: var(--space-1) var(--space-2);
+}
+.item[data-quiet] {
+  color: var(--text-secondary);
+}
+.item:hover:not(:disabled) {
+  background: var(--bg-surface);
+}
+/* Every state the caller's ARIA names, one look: TagMenu's checked border + Select's fill. */
+.item[aria-selected='true'],
+.item[aria-checked='true'],
+.item[aria-expanded='true'],
+.item[data-active] {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+}
+/* A workspace's row is its tint (WorkspaceTint). The fill IS the colour: hover moves the border. */
+.item[data-tone] {
+  background: var(--ws-fill);
+  border-color: var(--ws-border);
+}
+.item[data-tone]:hover {
+  background: var(--ws-fill);
+  border-color: var(--text-secondary);
+}
+.item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+/* Inside the row: a scrolling list clips every side, so the ring never reaches past the row. */
+.item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.end {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.divider {
+  flex: none;
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--border);
+}
+
+/* On the raised panel: --text-secondary, never --text-muted (design.md). */
+.note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+}
