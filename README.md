@@ -8,6 +8,25 @@ board. Only one copy of the app runs at a time — starting it again raises the 
 already open. If the app cannot receive claude's status updates (another program holds its port,
 say), a banner under the header says so, and new sessions run without status until it is fixed.
 
+## Install
+
+Download the package for your distro from the
+[latest release](https://github.com/jnaranj09/claude-watcher/releases/latest), then:
+
+```bash
+# Debian / Ubuntu
+sudo apt install ./claude-watcher-<version>-amd64.deb
+# Fedora / openSUSE / RHEL
+sudo dnf install ./claude-watcher-<version>-x86_64.rpm
+# Arch / CachyOS
+sudo pacman -U ./claude-watcher-<version>-x64.pacman
+```
+
+Check the download with `sha256sum -c SHA256SUMS --ignore-missing`.
+
+Requires `claude` 2.1.245 or newer on your `PATH` (the app checks it at every launch).
+macOS and Windows builds are planned.
+
 ## How the board knows it needs you
 
 Every card state comes from Claude Code's own structured output — its lifecycle

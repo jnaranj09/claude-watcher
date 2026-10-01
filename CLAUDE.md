@@ -12,20 +12,36 @@ Is used to keep track of new work on the app. When something is discarded or com
 Items in that board should never be implemented right away. They should always be validated using a systematic approach like bmad or superpowers plugin. Once approved
 implementation should also follow a systematic approach.
 
+## Not tracked in git (`.gitignore`) — never commit these
+
+This repo is PUBLIC. Planning records carry the operator's home paths, work email and internal
+project names, so they stay on disk only:
+
+- `docs/superpowers/` — superpowers specs and plans. Write them there, but do NOT `git add` or
+  commit them (a brainstorming/writing-plans step that says "commit the spec" stops at the write).
+- `_bmad-output/` and `_bmad/`, `.claude/skills/` — BMAD records and tooling. (One hand-checked
+  file under `_bmad-output/planning-artifacts` is already tracked; leave it.)
+- `.claude/settings.local.json` — personal overrides (`.claude/settings.json` IS tracked).
+- Build and test output: `node_modules`, `dist`, `out`, `test-results/`, `*.tsbuildinfo`,
+  `.eslintcache`, `*.log*`.
+
+Never use `git add -f` on any of them.
+
 ## Commands
 
-| Task                                   | Command                                                          |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| Dev (HMR)                              | `npm run dev`                                                    |
-| Build (typecheck + bundle)             | `npm run build`                                                  |
-| Packaged build (`--dir`)               | `npm run build:dir`                                              |
-| Typecheck (node + web + test projects) | `npm run typecheck`                                              |
-| Lint (flat config, type-checked rules) | `npm run lint`                                                   |
-| Format                                 | `npm run format`                                                 |
-| Unit/integration tests (Vitest)        | `npm run test`                                                   |
-| Watch tests                            | `npm run test:watch`                                             |
-| E2E (Playwright-Electron)              | `npm run test:e2e`                                               |
-| Packaged node-pty smoke gate           | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
+| Task                                       | Command                                                          |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| Dev (HMR)                                  | `npm run dev`                                                    |
+| Build (typecheck + bundle)                 | `npm run build`                                                  |
+| Packaged build (`--dir`)                   | `npm run build:dir`                                              |
+| Typecheck (node + web + test projects)     | `npm run typecheck`                                              |
+| Lint (flat config, type-checked rules)     | `npm run lint`                                                   |
+| Format                                     | `npm run format`                                                 |
+| Unit/integration tests (Vitest)            | `npm run test`                                                   |
+| Watch tests                                | `npm run test:watch`                                             |
+| E2E (Playwright-Electron)                  | `npm run test:e2e`                                               |
+| Packaged node-pty smoke gate               | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
+| Cut a release (tag → draft GitHub Release) | `.claude/rules/release.md`                                       |
 
 **`npm run dev` runs on the DEV profile** (`src/main/profile.ts`), so it can run beside the
 installed app: userData `~/.config/claude-watcher-dev`, hook port **19279**, a fresh settings file
