@@ -156,11 +156,13 @@ describe('Select', () => {
     )
     cleanup = r.unmount
     click(q(r, '[data-testid="letter"]'))
-    const endClasses = q(r, '[data-testid="letter-list"]').className
+    // The placement classes sit on the wrapper around the Popover surface.
+    const wrapperOf = (el: Element): string => el.parentElement?.parentElement?.className ?? ''
+    const endClasses = wrapperOf(q(r, '[data-testid="letter-list"]'))
     cleanup()
     const s = render()
     click(q(s, '[data-testid="letter"]'))
-    expect(endClasses).not.toBe(q(s, '[data-testid="letter-list"]').className)
+    expect(endClasses).not.toBe(wrapperOf(q(s, '[data-testid="letter-list"]')))
     // The class proxy returns a name for any key, so read the stylesheet for the rule itself.
     const css = readFileSync(
       join(process.cwd(), 'src/renderer/src/components/Select/Select.module.css'),
@@ -187,5 +189,26 @@ describe('Select', () => {
     const row = q(r, '[data-testid="letter-option-a"]')
     expect(row.querySelector('[data-testid="shown-a"]')).not.toBeNull()
     expect(q(r, '[data-testid="letter-option-b"]').textContent).toBe('Beta')
+  })
+
+  it('draws its list with Popover and marks the current value by aria-selected', () => {
+    const r = render()
+    click(q(r, '[data-testid="letter"]'))
+    const list = q(r, '[data-testid="letter-list"]')
+    expect(list.getAttribute('role')).toBe('listbox')
+    expect(list.closest('[data-popover]')).not.toBeNull()
+    const b = q(r, '[data-testid="letter-option-b"]')
+    expect(b.hasAttribute('data-popover-item')).toBe(true)
+    expect(b.getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('places its wrapper under the trigger and caps the list height', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Select/Select.module.css'),
+      'utf8'
+    )
+    expect(css).toMatch(
+      /\.listWrap\s*\{[^}]*position:\s*absolute;[^}]*top:\s*calc\(100% \+ var\(--space-1\)\);[^}]*left:\s*0;[^}]*z-index:\s*10;[^}]*min-width:\s*100%;[^}]*--popover-max-height:\s*244px;/
+    )
   })
 })
