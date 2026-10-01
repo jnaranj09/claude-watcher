@@ -545,5 +545,15 @@ active`) focuses xterm when it turns true, never from a hidden mount and never o
 
 ## Versions (don't bump in passing)
 
-Electron **39** (ABI/modules **140**), zod **4**, zustand **5**, React **19**,
+Electron **44** (ABI/modules **149**), zod **4**, zustand **5**, React **19**,
 @xterm/xterm **6**, node-pty **1.1**, Vitest **4**.
+
+What the 39 → 44 bump (2026-10-01) changed for this repo:
+
+- **`npm install` no longer downloads the Electron binary** (Electron 42+): the first `electron`
+  run does, or `npx install-electron --no`. `postinstall` (`electron-rebuild`) needs only the headers.
+- **A new Electron major needs a `node-abi` that knows it**, or `electron-rebuild` fails with
+  `Could not detect abi for version …` and node-pty stays built for the old ABI.
+- **Main's `clipboard` is async** (Electron 44, W3C-shaped): `readText`/`writeText` return Promises.
+- **Playwright's `firstWindow()` resolves before `loadFile` navigates** (Electron 44): wait for the
+  app's page (`waitForURL` or a selector) before the first `evaluate`.

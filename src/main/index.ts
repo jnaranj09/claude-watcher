@@ -2750,15 +2750,17 @@ function registerClipboardIpc(): void {
   // clipboard:read-text — read the OS clipboard text and return it directly. No arg to
   // parse; the read is safe (no cross-process input). Returns '' if the clipboard has no
   // text (e.g. image-only clipboard), which the renderer interprets as "Paste disabled".
-  ipcMain.handle(CH.clipboardReadText, () => clipboard.readText())
+  ipcMain.handle(CH.clipboardReadText, () => clipboard.readText()) // a Promise since Electron 44
 
   // clipboard:write-text — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS
   // boundary (a malformed write arg rejects the invoke). NEVER log the text value —
   // the throw IS the signal; user clipboard content must not enter the log stream
   // (Guardrail #6; .claude/rules/zod-boundaries.md IPC-arg row).
-  ipcMain.handle(CH.clipboardWriteText, (_evt, raw: unknown) => {
+  // Electron 44 made the main clipboard async (W3C-shaped): await the write so a refused write
+  // rejects the invoke instead of floating.
+  ipcMain.handle(CH.clipboardWriteText, async (_evt, raw: unknown) => {
     const { text } = ClipboardWriteTextSchema.parse(raw)
-    clipboard.writeText(text)
+    await clipboard.writeText(text)
   })
 }
 

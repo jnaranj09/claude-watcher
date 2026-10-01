@@ -43,6 +43,10 @@ test('embedded terminal MessagePort round-trip — no port.* errors + canvas pai
   // 1. Launch the built app.
   const app = await electron.launch({ args: [BUILT_MAIN] })
   const page = await app.firstWindow()
+  // From Electron 44 `firstWindow()` resolves while the window is still on its empty initial
+  // document, before `loadFile` navigates it; an evaluate there dies with "Execution context was
+  // destroyed". Wait for the app's own page first.
+  await page.waitForURL(/\/renderer\/index\.html/, { timeout: 15000 })
 
   // Collect all pageerrors from the moment the window opens.
   page.on('pageerror', (err) => {
