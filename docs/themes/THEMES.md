@@ -106,7 +106,8 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `success-border` | Success callout border | `color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised))` |
 | `danger-fill` | Error callout fill | `color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised))` |
 | `danger-border` | Error callout border | `color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised))` |
-| `focus-ring` | The keyboard focus outline on every control | `#b4befe` |
+| `focus-ring` | The keyboard focus outline on every control | `rgba(255,255,255,0.55)` |
+| `focus-ring-width` | Width of the keyboard focus outline | `1px` |
 | `tag-slate-fill` | Slate tag chip fill (opaque, composited over bg-surface) | `#373739` |
 | `tag-slate-border` | Slate tag chip border and rail indicator stroke | `#5b5e65` |
 | `tag-slate-text` | Slate tag chip text | `#c4c9d4` |
@@ -192,6 +193,7 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `rounded-md` | Medium corner radius: buttons, fields | `6px` |
 | `rounded-lg` | Large corner radius: cards, panels, the terminal frame | `8px` |
 | `rounded-full` | Pill radius | `9999px` |
+| `space-half` | 2px spacing step | `2px` |
 | `space-1` | 4px spacing step | `4px` |
 | `space-2` | 8px spacing step | `8px` |
 | `space-3` | 12px spacing step | `12px` |
@@ -199,12 +201,33 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `space-5` | 20px spacing step | `20px` |
 | `space-6` | 24px spacing step | `24px` |
 | `space-8` | 32px spacing step | `32px` |
+| `gap-stack` | Title over subtitle inside one row | `var(--space-half)` |
+| `gap-row` | Between rows of one list or menu | `var(--space-1)` |
+| `gap-row-filled` | Between rows that are filled boxes (workspace-tinted rows) | `var(--space-2)` |
+| `gap-inline-tight` | Icon beside text; small tool clusters | `var(--space-1)` |
+| `gap-inline` | Controls side by side; button rows | `var(--space-2)` |
+| `gap-group` | Between groups in a menu, rail or pane | `var(--space-3)` |
+| `gap-field` | A label to its control | `6px` |
+| `gap-section` | One form field block to the next; section to section | `var(--space-5)` |
+| `gap-actions` | The last field to a dialog button row | `var(--space-6)` |
+| `gap-page` | Page edge; header, filter bar and board; column gaps | `var(--gutter)` |
+| `gap-card` | Between cards in a board column (reads card-gap) | `var(--card-gap)` |
+| `inset-item-y` | Vertical padding inside a row, field or menu item | `var(--space-2)` |
+| `inset-item-x` | Horizontal padding inside a row, field or menu item | `var(--space-3)` |
+| `inset-compact-y` | Vertical padding inside a compact control | `var(--space-1)` |
+| `inset-compact-x` | Horizontal padding inside a compact control | `var(--space-2)` |
+| `inset-pill` | Side padding of a tag or workspace pill | `var(--space-2)` |
+| `inset-pill-tight` | Side padding of a count or badge | `var(--space-1)` |
+| `inset-popover` | Padding inside a menu box | `var(--space-2)` |
+| `inset-card` | Padding inside a card or board column | `var(--space-3)` |
+| `inset-panel` | Padding inside a dialog panel | `var(--space-6)` |
+| `inset-empty` | Padding around the empty board | `var(--space-8)` |
 | `topbar-height` | Height of the rail header and the focused view bar (they meet at the rail edge) | `45px` |
 | `rail-width` | The attention rail width when expanded | `240px` |
 | `rail-width-collapsed` | The attention rail width when collapsed | `70px` |
 | `card-min-height` | Minimum session card height | `92px` |
-| `gutter` | The board gutter on each side | `16px` |
-| `card-gap` | The gap between cards in a column | `12px` |
+| `gutter` | The board gutter on each side | `var(--space-4)` |
+| `card-gap` | The gap between cards in a column | `var(--space-3)` |
 | `shadow-dialog` | The shadow under a dialog panel | `0 12px 32px rgba(13,14,20,0.55)` |
 | `shadow-pop` | The shadow under a popover or menu | `0 6px 18px rgba(13,14,20,0.45)` |
 <!-- generated:tokens:end -->

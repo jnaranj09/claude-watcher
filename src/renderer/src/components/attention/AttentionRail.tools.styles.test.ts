@@ -32,20 +32,20 @@ describe('AttentionRail — a long name leaves room for both row tools while the
   for (const state of [':hover', ':focus-within']) {
     it(`reserves both tools on ${state}`, () => {
       expect(paddingFor(`.rowWrap:has(.rowTools)${state} .row`)).toBe(
-        'calc(var(--space-3) + var(--rail-tools-width))'
+        'calc(var(--inset-item-x) + var(--rail-tools-width))'
       )
       expect(paddingFor(`.rowWrap:has(.rowTools)${state} .row.active`)).toBe(
-        'calc(var(--space-3) + var(--rail-tools-width) - var(--rounded-md))'
+        'calc(var(--inset-item-x) + var(--rail-tools-width) - var(--rounded-md))'
       )
     })
   }
 
   it('reserves both tools while the row`s tag peek is open', () => {
     expect(paddingFor('.rowWrap:has(.toolSlot[data-open]) .row')).toBe(
-      'calc(var(--space-3) + var(--rail-tools-width))'
+      'calc(var(--inset-item-x) + var(--rail-tools-width))'
     )
     expect(paddingFor('.rowWrap:has(.toolSlot[data-open]) .row.active')).toBe(
-      'calc(var(--space-3) + var(--rail-tools-width) - var(--rounded-md))'
+      'calc(var(--inset-item-x) + var(--rail-tools-width) - var(--rounded-md))'
     )
   })
 

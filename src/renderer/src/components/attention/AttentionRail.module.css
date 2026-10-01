@@ -112,21 +112,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  gap: var(--gap-inline);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border-bottom: 1px solid var(--border);
   /* `+ 1px` on the right reserves the wall's column, so the content box is what it was under the
    * rail's own border. Padding, not a transparent border: a border-right, even a transparent
    * one, changes how the bottom border's end is joined at the corner, and that one pixel came
    * out different. The wall itself is `.rail::before`, behind this box (see `.rail`). */
-  padding-right: calc(var(--space-3) + 1px);
+  padding-right: calc(var(--inset-item-x) + 1px);
   height: var(--topbar-height);
 }
 
 .collapsed .header {
   justify-content: center;
   /* The same 1px reservation for the wall's column (see `.header`). */
-  padding: var(--space-2) 1px var(--space-2) 0;
+  padding: var(--inset-item-y) 1px var(--inset-item-y) 0;
 }
 
 .title {
@@ -164,11 +164,12 @@
    * At the 12px this started on, the between-group gap was only 4px bigger than the
    * divider-to-rows gap and the label read as floating between two groups instead of heading the
    * one below it. 20px is a 2.5x step over the .section gap — unambiguous without adding a second
-   * separator on top of the rule the divider already draws. */
-  gap: var(--space-5);
+   * separator on top of the rule the divider already draws. So the rail's groups are SECTIONS
+   * (`--gap-section`), not the 12px `--gap-group` a menu uses (spec 2026-10-01-spacing-roles). */
+  gap: var(--gap-section);
   /* The pinned row lives OUTSIDE this container now (see `.pinnedSlot`), so this is plain
    * breathing room above the first divider again. */
-  padding: var(--space-2) 0;
+  padding: var(--inset-item-y) 0;
   overflow-y: auto;
   overflow-x: hidden;
   /* Reserves the wall's column so every row keeps the width it had under the rail's own border;
@@ -189,15 +190,15 @@
  * The side effect is a fix in its own right: the row is called PINNED, and now it is — it no longer
  * scrolls away with the list below it.
  *
- * TOP PADDING is `--space-3`, the SAME token as the terminal frame's own top inset. The rail header
+ * TOP PADDING is `--inset-card` (12px), the SAME token as the terminal frame's own top inset. The rail header
  * and the Board bar are the same height (`--topbar-height`), so equal insets put the tab's top edge
- * on exactly the same y as the terminal's. BOTTOM is `--space-3` too, which with `.scroll`'s own
- * `--space-2` reproduces the `--space-5` group gap this slot used to get from `.scroll`'s `gap`. */
+ * on exactly the same y as the terminal's. BOTTOM is the same 12px, which with `.scroll`'s own
+ * 8px top padding reproduces the `--gap-section` (20px) group gap this slot used to get from `.scroll`'s `gap`. */
 .pinnedSlot {
   flex: 0 0 auto;
   /* The 1px on the right is the WALL's column, reserved so the list inside keeps the width it
    * had under the rail's own border. The chrome layer below covers it. */
-  padding: var(--space-3) 1px var(--space-3) 0;
+  padding: var(--inset-card) 1px var(--inset-card) 0;
   /* Containing block for the chrome layer. */
   position: relative;
   /* The rail's two chrome layers are anchored to this box (see `.rail::before`). */
@@ -380,10 +381,10 @@
   margin: 0;
   /* Horizontal inset only — the vertical rhythm between groups is `.scroll`'s gap. Keeping the
    * old all-round padding here would stack list padding on top of that gap at every seam. */
-  padding: 0 var(--space-2);
+  padding: 0 var(--inset-compact-x);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--gap-row);
 }
 
 .collapsed .list {
@@ -396,7 +397,7 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
 }
 
 /* The `──── Label ────` rule.
@@ -412,8 +413,8 @@
 .divider {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
+  gap: var(--gap-inline);
+  padding: 0 var(--inset-item-x);
 }
 
 .divider::before,
@@ -449,7 +450,7 @@
  * instead of two short dashes with a hole between them. */
 .collapsed .divider {
   gap: 0;
-  padding: 0 var(--space-2);
+  padding: 0 var(--inset-compact-x);
 }
 
 .collapsed .dividerLabel {
@@ -500,13 +501,13 @@
 .row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   width: 100%;
   /* The RESTING height. The active row steps up to 44px (see `.active`); everything else — needs-you
    * included — stays here. */
   min-height: 40px;
   box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid transparent;
   /* The status spine (expanded). `.collapsed .row` resets this to 1px for the full square. */
   border-left-width: 3px;
@@ -526,7 +527,7 @@
   width: 40px;
   min-width: 40px;
   justify-content: center;
-  padding: var(--space-2) 0;
+  padding: var(--inset-item-y) 0;
   gap: 0;
   /* Square the border off: the left width drops back to 1px so the status ring below is even. */
   border-left-width: 1px;
@@ -550,7 +551,7 @@
 /* KEYBOARD focus only — deliberately NOT the active/selected cue (see `.active`). Removing a
  * focus outline without a replacement is the one accessibility line this must not cross. */
 .row:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -712,7 +713,7 @@
    * hit-testable. `padding-right` below gives the same amount back, so the content box — and
    * with it where a long name ellipsizes — is exactly where it was. */
   width: calc(100% + var(--space-2) + 1px - var(--rounded-md));
-  padding-right: calc(var(--space-3) - var(--rounded-md));
+  padding-right: calc(var(--inset-item-x) - var(--rounded-md));
   /* Right corners SQUARE. The curve at that end is not a corner radius — it flares OUTWARD, and an
    * outward (concave) corner is not something `border-radius` can draw. The pinned slot's chrome
    * layer draws it (`.pinnedSlot::before`). */
@@ -945,9 +946,9 @@
 .startingRow {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--gap-stack);
   width: 100%;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid transparent;
   border-radius: var(--rounded-md);
   /* Same resting fill as `.row` — "unselected" must look the same everywhere in the rail,
@@ -994,7 +995,7 @@
 }
 
 .startingRow:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -1006,7 +1007,7 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: var(--space-2) 0;
+  padding: var(--inset-item-y) 0;
   gap: 0;
 }
 
@@ -1065,7 +1066,7 @@
   right: var(--space-2);
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--gap-stack);
 }
 
 /* A two-line row (the peek, or "Show all tags"): pin the tools to the FIRST line, not the middle of
@@ -1077,13 +1078,13 @@
 /* Reserve the indicator's width so a long name ellipsizes BEFORE the icon instead of running under
  * it. Padding only — the row's HEIGHT never follows its tags (TWO ROW SIZES, top of this file). */
 .row[data-has-tags] {
-  padding-right: calc(var(--space-3) + 28px);
+  padding-right: calc(var(--inset-item-x) + 28px);
 }
 
 /* The active row's box ends `--rounded-md` early (see `.active`); its padding must give that
  * back here too, at this rule's specificity, or the tagged tab's content box would shrink. */
 .row.active[data-has-tags] {
-  padding-right: calc(var(--space-3) + 28px - var(--rounded-md));
+  padding-right: calc(var(--inset-item-x) + 28px - var(--rounded-md));
 }
 
 /* While the tools SHOW — the row hovered, keyboard focus anywhere in it, or its tag peek open —
@@ -1094,12 +1095,12 @@
 .rowWrap:has(.rowTools):hover .row,
 .rowWrap:has(.rowTools):focus-within .row,
 .rowWrap:has(.toolSlot[data-open]) .row {
-  padding-right: calc(var(--space-3) + var(--rail-tools-width));
+  padding-right: calc(var(--inset-item-x) + var(--rail-tools-width));
 }
 .rowWrap:has(.rowTools):hover .row.active,
 .rowWrap:has(.rowTools):focus-within .row.active,
 .rowWrap:has(.toolSlot[data-open]) .row.active {
-  padding-right: calc(var(--space-3) + var(--rail-tools-width) - var(--rounded-md));
+  padding-right: calc(var(--inset-item-x) + var(--rail-tools-width) - var(--rounded-md));
 }
 
 /* The tag toggle is the shared `Button` in a `.toolSlot` (above). OPEN is its `lit` state — the
@@ -1111,7 +1112,7 @@
  * chose this view (T-27), the same reason the active row may step up. */
 .row[data-two-line] {
   flex-wrap: wrap;
-  row-gap: var(--space-1);
+  row-gap: var(--gap-row);
 }
 
 /* In a wrapping row the name's `auto` basis is its whole unwrapped text: a long name did not fit
@@ -1127,7 +1128,7 @@
   flex-basis: 100%;
   min-width: 0;
   display: flex;
-  padding-left: calc(8px + var(--space-2));
+  padding-left: calc(8px + var(--inset-compact-x));
 }
 
 /* The PEEK is the row's own second line (`.rowTags`, the same line "Show all tags" uses), so every
@@ -1144,7 +1145,7 @@
   display: inline-flex;
   align-items: center;
   height: 18px;
-  padding: 0 var(--space-2);
+  padding: 0 var(--inset-compact-x);
   border: 1px dashed var(--text-secondary);
   border-radius: var(--rounded-full);
   background: transparent;
@@ -1193,7 +1194,7 @@
 }
 
 .addTagButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -1201,5 +1202,5 @@
 .headerTools {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--gap-inline-tight);
 }

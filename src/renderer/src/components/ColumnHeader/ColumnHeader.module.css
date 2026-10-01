@@ -6,10 +6,10 @@
 .root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--gap-row);
   /* The top accent tick — a short bar in the column's accent color. */
   border-top: 2px solid var(--accent-color, var(--idle));
-  padding-top: var(--space-2);
+  padding-top: var(--inset-compact-x);
 }
 
 /* Accent tick color per column accent (gold / blue / idle-muted). */
@@ -28,7 +28,7 @@
 .line {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
 }
 
 .name {
@@ -38,7 +38,7 @@
 /* prominent (hero) — larger heading + a divider under the header. */
 .prominent {
   border-bottom: 1px solid var(--border);
-  padding-bottom: var(--space-2);
+  padding-bottom: var(--inset-compact-x);
 }
 
 .prominent .name {

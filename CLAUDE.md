@@ -71,8 +71,8 @@ selectors → components. Renderer never invents/mutates session truth.
    selectors. Inject `now()`.
 6. **UI shape** (`rules/design.md`): one `ManageDialog` shell for every config surface; banned:
    native `<select>`, bare text `<input>`, `<button className>`, hand-made popovers, bare
-   error/success lines (→ `Callout`) (each has a guard test). Every action ends in visible
-   feedback; async buttons use `useAsyncAction`/`busy`.
+   error/success lines (→ `Callout`), raw spacing (→ `--gap-*`/`--inset-*` roles) (each has a
+   guard test). Every action ends in visible feedback; async buttons use `useAsyncAction`/`busy`.
 
 **Debugging?** Read `rules/troubleshooting.md` first (Step-0 questions before theorizing).
 

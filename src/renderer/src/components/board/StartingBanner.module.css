@@ -13,8 +13,8 @@
 .bannerTrigger {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--gutter);
+  gap: var(--gap-inline);
+  padding: var(--inset-compact-y) var(--gap-page);
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -28,8 +28,8 @@
 }
 
 .bannerTrigger:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .bannerTrigger:hover {
@@ -66,7 +66,7 @@
 .entryText {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--gap-stack);
   min-width: 0;
 }
 

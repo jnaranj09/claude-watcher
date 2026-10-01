@@ -151,7 +151,7 @@ describe('the text field box', () => {
   // same chrome must be the same box, or a search box and a dropdown in one bar differ in height.
   it('the inline variant is Select’s inline box', () => {
     const inline = rule('.inline')
-    expect(inline).toMatch(/padding: var\(--space-1\) var\(--space-2\);/)
+    expect(inline).toMatch(/padding: var\(--inset-compact-y\) var\(--inset-compact-x\);/)
     expect(inline).toMatch(/font-size: var\(--font-size-label\);/)
   })
 

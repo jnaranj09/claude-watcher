@@ -4,7 +4,7 @@
 /* On the raised panel: --text-secondary, never --text-muted (design.md). */
 .empty {
   margin: 0;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   font-size: var(--font-size-meta);
   color: var(--text-secondary);
 }

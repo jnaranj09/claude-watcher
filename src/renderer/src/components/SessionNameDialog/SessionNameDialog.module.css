@@ -23,7 +23,7 @@
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-lg);
-  padding: var(--space-6);
+  padding: var(--inset-panel);
   min-width: 340px;
   max-width: 460px;
   width: 100%;
@@ -31,7 +31,7 @@
   box-shadow: var(--shadow-dialog);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--gap-section);
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -62,7 +62,7 @@
 /* Name-sync (D-11) — the one-line rename note ("Applies in Claude on your next prompt."), under
    the field. --text-secondary (design.md: never --text-muted on a raised panel). */
 .helper {
-  margin: var(--space-2) 0 0;
+  margin: var(--gap-field) 0 0;
   font-size: 12px;
   color: var(--text-secondary);
 }
@@ -73,6 +73,6 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
+  gap: var(--gap-inline);
+  margin-top: calc(var(--gap-actions) - var(--gap-section));
 }

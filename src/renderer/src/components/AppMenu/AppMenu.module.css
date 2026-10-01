@@ -38,6 +38,6 @@
 
 /* The submenu chevron, at the row's right edge, points LEFT: the way the submenu opens. */
 .chevron {
-  padding-left: var(--space-4);
+  padding-left: var(--gap-page);
   color: var(--text-secondary);
 }

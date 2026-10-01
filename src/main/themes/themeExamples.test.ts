@@ -444,7 +444,7 @@ describe('docs/themes/examples', () => {
         .map((r) => r.body)
         .join('\n')
     expect(body("[data-testid='focused-layer']")).toMatch(
-      /padding:\s*0 var\(--space-2\) var\(--space-2\);/
+      /padding:\s*0 var\(--inset-compact-x\) var\(--inset-compact-x\);/
     )
     const bubble = body("[data-testid='focused-session']")
     expect(bubble).toMatch(/border-radius:\s*var\(--rounded-lg\);/)

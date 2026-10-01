@@ -6,7 +6,7 @@
 /* The empty board's centered primary (was Board.module.css .newSessionButton): same anchor
    plus the top margin the empty-board copy expects; its menu is centered under the button. */
 .anchorPrimary {
-  margin-top: var(--space-2);
+  margin-top: var(--gap-inline);
 }
 .anchorPrimary .menu {
   left: 50%;
@@ -29,7 +29,7 @@
 .rowText {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--gap-stack);
   min-width: 0;
 }
 .rowName {

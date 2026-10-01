@@ -157,8 +157,8 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
   // `template-name` and `template-prompt` with `padding: 0px 8px 0px 0px`.
   it('buffers the focus ring on BOTH horizontal edges of its clip box', () => {
     const form = ruleBody(css, '.form')
-    expect(form).toMatch(/padding-left:\s*var\(--space-2\)/)
-    expect(form).toMatch(/padding-right:\s*var\(--space-2\)/)
+    expect(form).toMatch(/padding-left:\s*var\(--inset-compact-x\)/)
+    expect(form).toMatch(/padding-right:\s*var\(--inset-compact-x\)/)
   })
 
   it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
@@ -171,9 +171,9 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
     const body = ruleBody(css, '.pane')
     expect(body).toContain('overflow-y: auto')
-    expect(body).toContain('padding-left: var(--space-2)')
-    expect(body).toContain('padding-right: var(--space-2)')
-    expect(body).toContain('scroll-padding-block: var(--space-2)')
+    expect(body).toContain('padding-left: var(--inset-compact-x)')
+    expect(body).toContain('padding-right: var(--inset-compact-x)')
+    expect(body).toContain('scroll-padding-block: var(--inset-compact-x)')
     expect(ruleBody(css, '.form')).toBe(body)
   })
 
@@ -261,5 +261,60 @@ describe('componentModules() scans every *.module.css under baseDir, any number 
       name: 'TemplatesDialog/nested/Deep.module.css',
       css: '.deleteButton {\n  color: red;\n}\n'
     })
+  })
+})
+
+// Spacing roles (spec 2026-10-01-spacing-roles-design.md): a label sits closer to its own field
+// than to the field above, and a form taller than the window scrolls UNDER [Delete] [Save].
+describe('ManageDialog form rhythm', () => {
+  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+  const rule = (selector: string): string => {
+    const at = css.indexOf(`${selector} {`)
+    if (at === -1) throw new Error(`no ${selector} rule`)
+    return css.slice(at, css.indexOf('}', at))
+  }
+
+  it('label → field is --gap-field; field → next label is --gap-section', () => {
+    expect(rule('.form,\n.pane')).toMatch(/gap:\s*var\(--gap-field\)/)
+    expect(rule('.label')).toMatch(
+      /margin-top:\s*calc\(var\(--gap-section\) - var\(--gap-field\)\)/
+    )
+  })
+
+  it('the scrolling form keeps its side buffer, so focus rings are not clipped', () => {
+    expect(rule('.form,\n.pane')).toMatch(/padding-left:\s*var\(--inset-compact-x\)/)
+    expect(rule('.form,\n.pane')).toMatch(/padding-right:\s*var\(--inset-compact-x\)/)
+  })
+
+  it('the footer is sticky at the bottom of the form, so Save is always visible', () => {
+    expect(rule('.footer')).toMatch(/position:\s*sticky/)
+    expect(rule('.footer')).toMatch(/bottom:\s*0/)
+  })
+})
+
+describe('ManageDialog sticky footer never hides a field (final review)', () => {
+  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+  const rule = (selector: string): string => {
+    const at = css.indexOf(`${selector} {`)
+    if (at === -1) throw new Error(`no ${selector} rule`)
+    return css.slice(at, css.indexOf('}', at))
+  }
+
+  it('Tab scrolls a field clear of the sticky footer, not under it', () => {
+    expect(rule('.form,\n.pane')).toMatch(
+      /scroll-padding-block:\s*var\(--inset-compact-x\)\s+calc\(32px \+ 2 \* var\(--inset-compact-y\) \+ var\(--inset-compact-x\)\)/
+    )
+  })
+
+  it('the last field sits exactly --gap-actions above the buttons', () => {
+    expect(rule('.footer')).toMatch(
+      /margin-top:\s*calc\(var\(--gap-actions\) - var\(--gap-field\) - var\(--inset-compact-y\)\)/
+    )
+  })
+
+  it('the first label starts level with the first rail row', () => {
+    expect(css).toMatch(
+      /\.form > \.label:first-child,\s*\.pane > \.label:first-child\s*\{[^}]*margin-top:\s*0/
+    )
   })
 })

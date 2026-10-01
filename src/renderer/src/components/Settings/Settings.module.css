@@ -15,8 +15,8 @@
 .paneHeading {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-2);
+  gap: var(--gap-inline);
+  margin: 0 0 var(--gap-inline);
 }
 
 /* Neutral ink — no --success token (the spec's rule); --text-secondary on the raised panel. */
@@ -29,8 +29,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
+  gap: var(--gap-page);
+  padding: var(--inset-card) 0;
   border-top: 1px solid var(--border);
 }
 
@@ -46,7 +46,7 @@
 .controlGroup {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--gap-group);
   /* The API token row carries a field and two buttons; in the right column they wrap instead of
      pushing the row past its edge. */
   flex-wrap: wrap;
@@ -79,7 +79,7 @@
 /* Attention reminders — the line under the reminder rows. --text-secondary, never --text-muted:
    muted on this raised panel measures 2.54:1 (design.md). */
 .hint {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--gap-group);
   color: var(--text-secondary);
   font-size: 13px;
 }
@@ -89,6 +89,6 @@
 .themeActions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-3);
-  padding: 0 0 var(--space-3);
+  gap: var(--gap-group);
+  padding: 0 0 var(--gap-group);
 }

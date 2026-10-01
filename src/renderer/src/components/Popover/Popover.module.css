@@ -10,8 +10,8 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
+  gap: var(--gap-row);
+  padding: var(--inset-popover);
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-lg);
@@ -20,11 +20,18 @@
   text-align: left;
 }
 
+/* A group with no divider before the list (a menu's search field) is still a group: it gets the
+   group gap, not the row gap, or the field reads as the list's first row (spec
+   2026-10-01-spacing-roles). A divider already spaces its own neighbours. */
+.surface > :not([data-popover-divider]):has(+ [data-popover-list]) {
+  margin-bottom: calc(var(--gap-group) - var(--gap-row));
+}
+
 /* The rows. The only scrolling part; its cap comes from the caller's wrapper. */
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--gap-row);
   min-height: 0;
   max-height: var(--popover-max-height, none);
   overflow-y: auto;
@@ -33,11 +40,11 @@
 .item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid transparent;
   border-radius: var(--rounded-md);
   background: transparent;
@@ -49,7 +56,7 @@
   cursor: pointer;
 }
 .item[data-density='compact'] {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--inset-compact-y) var(--inset-compact-x);
 }
 .item[data-quiet] {
   color: var(--text-secondary);
@@ -80,8 +87,8 @@
 }
 /* Inside the row: a scrolling list clips every side, so the ring never reaches past the row. */
 .item:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .icon {
@@ -99,21 +106,21 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--gap-inline-tight);
   margin-left: auto;
 }
 
 .divider {
   flex: none;
   height: 1px;
-  margin: var(--space-1) 0;
+  margin: var(--gap-row) 0;
   background: var(--border);
 }
 
 /* On the raised panel: --text-secondary, never --text-muted (design.md). */
 .note {
   margin: 0;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   color: var(--text-secondary);
   font-size: var(--font-size-meta);
 }

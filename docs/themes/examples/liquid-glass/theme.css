@@ -144,6 +144,22 @@ body {
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--shadow-dialog);
 }
+/* The sticky [Delete] [Save] row of a Manage form (spec 2026-10-01-spacing-roles): a long form
+   scrolls UNDER it. The token's flat `--bg-surface-raised` is white 10% here and let a field read
+   straight through the buttons; the row frosts what passes below instead, and stays invisible
+   while nothing does. The blur sits on `::before` like every glass layer here: on the row itself it
+   would make the row the backdrop root of its own glass buttons. */
+[data-manage-footer] {
+  background-color: transparent;
+}
+[data-manage-footer]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
 [role='dialog'][aria-modal='true'] > *::before,
 [data-testid='settings-panel']::before {
   backdrop-filter: var(--glass-filter-modal);
@@ -154,17 +170,17 @@ body {
    (header, then `.main` at flex:1), so a margin here simply insets the header and `.main` takes
    what is left — no grid rows to fight. `border` replaces `.header`'s `border-bottom`, because a
    bottom-only rule on a rounded, detached box reads as a stray underline.
-   ONE inset on every side, `--space-2`: a 16px side margin under an 8px top one read as a wider
+   ONE inset on every side, `--inset-compact-x` (8px): a 16px side margin under an 8px top one read as a wider
    left edge than top edge. The board's own side padding drops to the same 8px (below), so the
    bubble's left and right edges still line up with the columns under it. */
 [data-testid='app-header'] {
-  margin: var(--space-2);
+  margin: var(--inset-compact-x);
   border: 1px solid var(--border);
   border-radius: var(--rounded-lg);
 }
 
 /* The focused view's BODY — the rail and the terminal column — floats as the header's twin: one
-   bubble, inset by the same `--space-2` at the sides and the bottom, with the
+   bubble, inset by the same `--inset-compact-x` at the sides and the bottom, with the
    same border and radius. ONE bubble, not two: the rail's open row is a tab cut through the
    rail's wall toward the terminal, and a gap between two bubbles would leave it pointing at
    nothing. The inset goes on the LAYER (absolute, `inset: 0`) as padding, because the body is
@@ -173,7 +189,7 @@ body {
    scroll container and no backdrop root. */
 [data-testid='focused-layer'] {
   box-sizing: border-box;
-  padding: 0 var(--space-2) var(--space-2);
+  padding: 0 var(--inset-compact-x) var(--inset-compact-x);
 }
 [data-testid='focused-session'] {
   position: relative;
@@ -186,10 +202,10 @@ body {
    edge. Only the SIDES: the gap between columns stays `--gutter`. */
 [data-testid='column-grid'],
 [data-testid='skeleton-board'] {
-  padding-inline: var(--space-2);
+  padding-inline: var(--inset-compact-x);
 }
 [data-testid='filter-bar'] {
-  margin-inline: var(--space-2);
+  margin-inline: var(--inset-compact-x);
 }
 
 /* The header and the terminal frame get the lighter glass filter; the header carries the sheen

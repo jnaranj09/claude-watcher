@@ -543,7 +543,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
     // `.active`'s box gives up `--rounded-md` of width and gets it straight back as padding, so a
     // long name still ellipsizes at the same point it always has.
     expect(/^\.active\s*\{([^}]*)/m.exec(css)?.[1] ?? '').toMatch(
-      /padding-right:\s*calc\(var\(--space-3\) - var\(--rounded-md\)\)/
+      /padding-right:\s*calc\(var\(--inset-item-x\) - var\(--rounded-md\)\)/
     )
     // `.rowWrap` is `display: flex`, so the row is a FLEX ITEM and the default `flex-shrink: 1`
     // silently undoes the width above — the row rendered 8px short of the rail edge, still

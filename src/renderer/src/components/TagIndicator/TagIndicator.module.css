@@ -5,9 +5,9 @@
 .indicator {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--gap-stack);
   height: 20px;
-  padding: 0 2px;
+  padding: 0 var(--gap-stack);
 }
 
 .svg {

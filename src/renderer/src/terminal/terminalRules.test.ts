@@ -91,7 +91,7 @@ describe('terminal.md source invariants — fit() sees the real box', () => {
 
   it('the frame carries the breathing edge instead', () => {
     const block = /\.frame\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(block).toMatch(/padding:\s*var\(--space-2\)/)
+    expect(block).toMatch(/padding:\s*var\(--inset-compact-x\)/)
   })
 })
 

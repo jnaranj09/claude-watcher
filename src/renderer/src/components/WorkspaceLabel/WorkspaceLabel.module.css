@@ -9,7 +9,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
-  padding: 0 var(--space-2);
+  padding: 0 var(--inset-pill);
   border: 1px solid var(--ws-border, var(--border));
   border-radius: var(--rounded-sm);
   background: var(--ws-fill, transparent);

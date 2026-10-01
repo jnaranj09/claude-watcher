@@ -21,7 +21,7 @@
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-lg);
-  padding: var(--space-6);
+  padding: var(--inset-panel);
   min-width: 640px;
   max-width: 760px;
   width: 100%;
@@ -30,20 +30,20 @@
   box-shadow: var(--shadow-dialog);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--gap-section);
 }
 /* Rules: its form carries trigger, condition and action rows side by side. */
 .panelWide {
   min-width: 760px;
   max-width: 940px;
-  gap: var(--space-5);
+  gap: var(--gap-section);
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--gap-section);
 }
 /* With a subtitle the ✕ lines up with the TITLE, not with the middle of two lines. */
 .header[data-subtitled='true'] {
@@ -52,7 +52,7 @@
 .headerText {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--gap-inline-tight);
   min-width: 0;
 }
 /* Title + the scope dropdown on one line. `min-width: 0` lets the dropdown shrink instead of
@@ -60,7 +60,7 @@
 .titleRow {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--gap-group);
   min-width: 0;
 }
 .title {
@@ -81,7 +81,7 @@
 .headerActions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
 }
 /* ── The list rail ─────────────────────────────────────────────────────────────────────────── */
 /* `minmax(0, 1fr)` on the row is what makes the panel's cap reach the form: an `auto` row sizes
@@ -92,16 +92,16 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  gap: var(--space-4);
+  gap: var(--gap-section);
   min-height: 320px;
 }
 .list {
   width: 220px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   border-right: 1px solid var(--border);
-  padding-right: var(--space-4);
+  padding-right: var(--gap-page);
 }
 .listWide {
   width: 260px;
@@ -109,7 +109,7 @@
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--gap-row);
   flex: 1;
   overflow-y: auto;
   max-height: 360px;
@@ -129,9 +129,9 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   text-align: left;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border: none;
   border-radius: var(--rounded-md);
   background: transparent;
@@ -148,7 +148,7 @@
    (it would cover the tint). */
 /* Tinted rows are filled boxes: 2px between them reads as one block, so they get a real gap. */
 .rows:has(> .row[data-tone]) {
-  gap: var(--space-2);
+  gap: var(--gap-row-filled);
 }
 .row[data-tone] {
   background: var(--ws-fill, transparent);
@@ -174,8 +174,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
-  padding-right: var(--space-1);
+  gap: var(--gap-stack);
+  padding-right: var(--gap-inline-tight);
   visibility: hidden;
 }
 .row:hover .rowActions,
@@ -192,28 +192,31 @@
 
 /* The form is the ONLY region that scrolls — the smallest one that fixes the overflow. The header
    (with ✕) and the rail keep their own heights, so `.rows` still scrolls itself and `+ New` still
-   sits at the bottom of the rail. The `[Delete] [Save]` footer scrolls WITH the form on purpose: a
-   sticky footer would have to paint over the field under it, and the operator reads the object they
-   are about to save right above the button that saves it (design.md).
+   sits at the bottom of the rail. The `[Delete] [Save]` footer is STICKY at the bottom of this region
+   (spec 2026-10-01-spacing-roles): a form taller than the window scrolls under it, so Save is always
+   in view. It used to scroll WITH the form, and a long form on a short window put Save out of reach.
 
    The padding is NOT decoration: `overflow-y: auto` makes overflow-x compute to `auto` as well, so
    this box clips at its padding edge on EVERY side, not only the one it scrolls. A field flush with
-   that edge loses its `outline: 2px` + `outline-offset: 1px` ring (3px) to the clip — with
+   that edge loses its `outline` + `outline-offset: 1px` ring to the clip — with
    `padding-right` alone, every full-width field in the form (TextInput, Select, TextArea) sat at
    left 0 and had its ring cut down the left side. So both sides get the same buffer, and
    `scroll-padding-block` gives the same 8px to a field the browser scrolls into view on Tab, which
-   would otherwise align its border box with the top or bottom edge and clip the ring there.
+   would otherwise align its border box with the top or bottom edge and clip the ring there. At the
+   BOTTOM it also clears the sticky footer (a 32px md Button + its block padding), or Tab would park
+   the focused field under `[Delete] [Save]`.
    `.pane` is the same region for a surface with no submit (Settings). */
 .form,
 .pane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--gap-field);
   min-height: 0;
   overflow-y: auto;
-  padding-left: var(--space-2);
-  padding-right: var(--space-2);
-  scroll-padding-block: var(--space-2);
+  padding-left: var(--inset-compact-x);
+  padding-right: var(--inset-compact-x);
+  scroll-padding-block: var(--inset-compact-x)
+    calc(32px + 2 * var(--inset-compact-y) + var(--inset-compact-x));
 }
 /* The right column while nothing is open (spec 2026-09-29): it stretches to the row the rail sets
    and centres one line in it, so the panel keeps its size and the line sits mid-column.
@@ -224,7 +227,7 @@
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: var(--space-4);
+  padding: var(--gap-page);
   color: var(--text-secondary);
   text-align: center;
 }
@@ -237,7 +240,12 @@
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-label);
   color: var(--text-secondary);
-  margin-top: var(--space-2);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
+}
+/* The first label starts level with the rail's first row: the section gap is BETWEEN fields. */
+.form > .label:first-child,
+.pane > .label:first-child {
+  margin-top: 0;
 }
 .hint {
   margin: 0;
@@ -253,14 +261,21 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  gap: var(--gap-inline);
+  margin-top: calc(var(--gap-actions) - var(--gap-field) - var(--inset-compact-y));
+  /* Sticky: a form taller than the window scrolls UNDER [Delete] [Save], so Save is always in
+     view (spec 2026-10-01-spacing-roles). The panel's own fill hides the fields passing below. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-block: var(--inset-compact-y);
+  background: var(--bg-surface-raised);
 }
 
 /* The buttons — Save, Delete, Cancel, + New, ✕ — are `components/Button` (design.md): primary,
    danger (armed in place), secondary, ghost. Nothing button-shaped is declared here. */
 
 .rowSelect:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }

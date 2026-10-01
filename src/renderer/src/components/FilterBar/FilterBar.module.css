@@ -5,17 +5,17 @@
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   /* 8px under the header, not the full gutter; the grid below trims its own top padding to match
    * (Board.module.css `.filterSlot`). */
-  margin: var(--space-2) var(--gutter) 0;
+  margin: var(--gap-group) var(--gap-page) 0;
 }
 
 /* No box around it: the controls stand on the board's own background, like the header's. */
 .controlsRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   min-width: 0;
 }
 
@@ -44,11 +44,11 @@
 .chipRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   min-width: 0;
   min-height: 38px;
   box-sizing: border-box;
-  padding: var(--space-1) var(--space-3);
+  padding: var(--inset-compact-y) var(--inset-item-x);
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--rounded-lg);
@@ -66,7 +66,7 @@
   display: inline-flex;
   align-items: center;
   height: 26px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--inset-item-x);
   border: 1px dashed var(--border-strong);
   border-radius: var(--rounded-full);
   background: transparent;
@@ -95,10 +95,10 @@
 .pillEdit {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   min-width: 0;
   height: 100%;
-  padding: 0 var(--space-2) 0 var(--space-3);
+  padding: 0 var(--inset-compact-x) 0 var(--inset-item-x);
   border: 0;
   border-radius: var(--rounded-full) 0 0 var(--rounded-full);
   background: transparent;
@@ -144,6 +144,6 @@
 .add:focus-visible,
 .pillEdit:focus-visible,
 .pillRemove:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }

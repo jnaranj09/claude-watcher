@@ -162,6 +162,10 @@
           "type": "string",
           "maxLength": 500
         },
+        "focus-ring-width": {
+          "type": "string",
+          "maxLength": 500
+        },
         "tag-slate-fill": {
           "type": "string",
           "maxLength": 500
@@ -502,6 +506,10 @@
           "type": "string",
           "maxLength": 500
         },
+        "space-half": {
+          "type": "string",
+          "maxLength": 500
+        },
         "space-1": {
           "type": "string",
           "maxLength": 500
@@ -527,6 +535,90 @@
           "maxLength": 500
         },
         "space-8": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-stack": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-row": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-row-filled": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-inline-tight": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-inline": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-group": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-field": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-section": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-actions": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-page": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "gap-card": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-item-y": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-item-x": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-compact-y": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-compact-x": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-pill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-pill-tight": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-popover": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-card": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-panel": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "inset-empty": {
           "type": "string",
           "maxLength": 500
         },

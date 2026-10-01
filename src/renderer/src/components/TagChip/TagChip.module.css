@@ -9,7 +9,7 @@
   align-items: center;
   max-width: 120px;
   height: 18px;
-  padding: 0 6px;
+  padding: 0 var(--inset-pill);
   border: 1px solid;
   border-radius: var(--rounded-sm);
   font-family: var(--font-ui);
@@ -116,7 +116,7 @@
 .row {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--gap-inline-tight);
   min-width: 0;
   overflow: hidden;
 }
@@ -126,7 +126,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--gap-inline-tight);
   min-width: 0;
 }
 

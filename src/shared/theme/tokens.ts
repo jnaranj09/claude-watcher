@@ -83,7 +83,8 @@ export const TOKENS = {
   'success-border': 'color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised))',
   'danger-fill': 'color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised))',
   'danger-border': 'color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised))',
-  'focus-ring': '#b4befe',
+  'focus-ring': 'rgba(255,255,255,0.55)',
+  'focus-ring-width': '1px',
 
   // ── Tags (spec 2026-09-11 T-7) — opaque fills; see tokens.css for why ──────
   'tag-slate-fill': '#373739',
@@ -184,6 +185,7 @@ export const TOKENS = {
   'rounded-full': '9999px',
 
   // ── Spacing (4-based) + layout primitives ──────────────────────────────────
+  'space-half': '2px',
   'space-1': '4px',
   'space-2': '8px',
   'space-3': '12px',
@@ -191,6 +193,30 @@ export const TOKENS = {
   'space-5': '20px',
   'space-6': '24px',
   'space-8': '32px',
+  // ── Spacing ROLES (spec 2026-10-01-spacing-roles) — components use these, never `space-N` ──
+  'gap-stack': 'var(--space-half)',
+  'gap-row': 'var(--space-1)',
+  'gap-row-filled': 'var(--space-2)',
+  'gap-inline-tight': 'var(--space-1)',
+  'gap-inline': 'var(--space-2)',
+  'gap-group': 'var(--space-3)',
+  'gap-field': '6px',
+  'gap-section': 'var(--space-5)',
+  'gap-actions': 'var(--space-6)',
+  // Reads the documented theme token `gutter`, so a theme that sets it still moves the board.
+  'gap-page': 'var(--gutter)',
+  // Cards in a column; reads the documented theme token `card-gap`.
+  'gap-card': 'var(--card-gap)',
+  'inset-item-y': 'var(--space-2)',
+  'inset-item-x': 'var(--space-3)',
+  'inset-compact-y': 'var(--space-1)',
+  'inset-compact-x': 'var(--space-2)',
+  'inset-pill': 'var(--space-2)',
+  'inset-pill-tight': 'var(--space-1)',
+  'inset-popover': 'var(--space-2)',
+  'inset-card': 'var(--space-3)',
+  'inset-panel': 'var(--space-6)',
+  'inset-empty': 'var(--space-8)',
   /* Shared by the rail's "Sessions" header AND the focused view's Board bar. They sit side by side
    * and each draws a 1px bottom border, so a difference reads as a STEP in that line at the rail's
    * edge. 45px is the Board bar's measured content height; the rail header grows to meet it. */
@@ -200,8 +226,8 @@ export const TOKENS = {
    * clip the 56px needs-you square's own edge. The ICON stays 56px; this is the gutter. */
   'rail-width-collapsed': '70px',
   'card-min-height': '92px',
-  gutter: '16px',
-  'card-gap': '12px',
+  gutter: 'var(--space-4)',
+  'card-gap': 'var(--space-3)',
 
   // ── Elevation (shadow only for genuinely floating layers) ──────────────────
   'shadow-dialog': '0 12px 32px rgba(13,14,20,0.55)',

@@ -878,7 +878,7 @@ describe('EmbeddedTerminal — shell pane stylesheet invariants (terminal.md)', 
     expect(main).toMatch(/border:\s*1px solid var\(--border-card\)/)
     expect(main).toMatch(/border-radius:\s*var\(--rounded-lg\)/)
     expect(main).toMatch(/background:\s*var\(--bg-terminal\)/)
-    expect(main).toMatch(/padding:\s*var\(--space-2\)/)
+    expect(main).toMatch(/padding:\s*var\(--inset-compact-x\)/)
     expect(main).toMatch(/overflow:\s*clip/)
   })
 })

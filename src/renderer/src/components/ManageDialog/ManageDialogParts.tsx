@@ -200,7 +200,11 @@ export function ManageDialogPlaceholder({
 
 /** The form's ONE `flex-end` action row: `[Delete] [Save]` (design.md). */
 export function ManageDialogFooter({ children }: { children: ReactNode }): JSX.Element {
-  return <div className={styles.footer}>{children}</div>
+  return (
+    <div className={styles.footer} data-manage-footer="">
+      {children}
+    </div>
+  )
 }
 
 export interface ManageDialogDeleteProps {

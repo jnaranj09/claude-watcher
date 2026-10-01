@@ -3,7 +3,7 @@
 .input {
   width: 100%;
   box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-md);
   background: var(--bg-surface);
@@ -19,7 +19,7 @@
   color: var(--text-secondary);
 }
 .input:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
 .input:disabled {
@@ -35,7 +35,7 @@
 /* Compact chrome (a toolbar) — Select's `.inline` box, so a search box and a dropdown standing in
    one bar are the same height. Change one, change both. */
 .inline {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--inset-compact-y) var(--inset-compact-x);
   font-size: var(--font-size-label);
 }
 
@@ -65,5 +65,5 @@
 }
 
 .withIcon {
-  padding-left: calc(var(--space-2) + 14px + var(--space-2));
+  padding-left: calc(var(--inset-compact-x) + 14px + var(--gap-inline));
 }

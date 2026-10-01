@@ -7,9 +7,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--gap-row);
   min-height: var(--card-min-height);
-  padding: var(--space-3);
+  padding: var(--inset-card);
   border: 1px solid var(--border-card);
   /* The status spine. Width lives here so BOTH variants get it; only the COLOUR varies, via
    * the `[data-status]` rules below. */
@@ -27,7 +27,7 @@
  * accessibility line this component must not cross, so selection changing appearance
  * must never take the focus ring with it. */
 .root:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -123,7 +123,7 @@
 .header {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
 }
 
 /* The status dot is always the last child. `:last-child` rather than a class because the dot is
@@ -237,7 +237,7 @@
 .footer {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   min-height: 18px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-meta);
@@ -279,8 +279,8 @@
 /* T-9 — the "Moving drops N tags" line at the top of the move menu. --text-secondary on the raised
  * panel (design.md: never --text-muted there). */
 .moveWarning {
-  margin: 0 0 var(--space-1);
-  padding: var(--space-1) var(--space-2) var(--space-2);
+  margin: 0 0 var(--gap-row);
+  padding: var(--inset-compact-y) var(--inset-compact-x) var(--inset-compact-x);
   border-bottom: 1px solid var(--border);
   font-size: var(--font-size-meta);
   color: var(--text-secondary);

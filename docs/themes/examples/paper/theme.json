@@ -33,7 +33,7 @@
     "danger": "#d93a2b",
     "success": "#2f7d32",
     "text-on-success": "#ffffff",
-    "focus-ring": "#2f6fd6",
+    "focus-ring": "rgba(0,0,0,0.55)",
     "tag-slate-fill": "#e8e9ec",
     "tag-slate-border": "#9aa0ad",
     "tag-slate-text": "#3a3f4b",

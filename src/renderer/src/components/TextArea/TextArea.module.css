@@ -4,7 +4,7 @@
 .textArea {
   width: 100%;
   box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-md);
   background: var(--bg-surface);
@@ -23,7 +23,7 @@
   color: var(--text-secondary);
 }
 .textArea:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
 .textArea:disabled {

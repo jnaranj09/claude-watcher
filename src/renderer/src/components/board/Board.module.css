@@ -35,7 +35,7 @@
 }
 
 .filterSlot:not(:empty) ~ .grid {
-  padding-top: var(--space-2);
+  padding-top: var(--gap-page);
 }
 
 /* The 3-slot grid (UX-DR7): center hero ~44%, two flanks ~28% each. The center still leads
@@ -47,8 +47,8 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 0.75fr 1.2fr 0.75fr;
-  gap: var(--gutter);
-  padding: var(--gutter);
+  gap: var(--gap-page);
+  padding: var(--gap-page);
   overflow: auto;
 }
 
@@ -58,11 +58,11 @@
 .column {
   display: flex;
   flex-direction: column;
-  gap: var(--card-gap);
+  gap: var(--gap-card);
   min-width: 0;
   background: var(--bg-col-calm);
   border-radius: var(--rounded-lg);
-  padding: var(--space-3);
+  padding: var(--inset-card);
 }
 
 /* The hero column (center slot): full hero background + a faint accent edge. No
@@ -83,7 +83,7 @@
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: var(--card-gap);
+  gap: var(--gap-card);
 }
 
 /* Empty-column hint — terse, muted; the column keeps its header above it. */
@@ -91,7 +91,7 @@
   color: var(--text-muted);
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);
-  padding: var(--space-2) 0;
+  padding: var(--inset-item-y) 0;
 }
 
 /* Empty BOARD (zero sessions, cold-loaded) — headline + line + the single primary. It FILLS what
@@ -102,10 +102,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-3);
+  gap: var(--gap-group);
   flex: 1 1 auto;
   min-height: 0;
-  padding: var(--space-8);
+  padding: var(--inset-empty);
   text-align: center;
 }
 

@@ -111,7 +111,7 @@ export interface SessionCardProps {
   onManageTags?: () => void
   /** Story 2.2 (FR-9) — true when this card is the SELECTED card (the operator activated a
    *  notification for this session and the window is up). Renders a locate-and-highlight
-   *  affordance via the shipped lavender focus-ring / raised-surface tokens — NOT a new color,
+   *  affordance via the shipped focus-ring / raised-surface tokens — NOT a new color,
    *  NOT a window raise. Default false. */
   selected?: boolean
   /** Story 3.4 (FR-16 / AC-4) — true when this session NEEDS YOU and is UNacknowledged. Driven by

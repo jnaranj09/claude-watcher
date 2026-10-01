@@ -149,6 +149,38 @@ Tags dialog rail uses `TagPathLabel` instead.
 - No tag yet: the same button becomes `Create tags` → Tags dialog (`aria-haspopup="dialog"`, no
   `aria-expanded`). Hidden only when no Tags dialog exists.
 
+## Spacing roles (`styles/spacing.guard.test.ts`)
+
+Spec `2026-10-01-spacing-roles-design.md`. Target: compact but airy — rows small, groups and
+sections clearly apart. Every `gap`/`padding`/`margin` in a component stylesheet is a ROLE token
+(`shared/theme/tokens.ts`, built on the `--space-N` scale), never `--space-N` or a raw length.
+
+| Role                                   | Value     | Use                                             |
+| -------------------------------------- | --------- | ----------------------------------------------- |
+| `--gap-stack`                          | 2px       | title over subtitle in one row                  |
+| `--gap-row`                            | 4px       | rows of one list / menu                         |
+| `--gap-row-filled`                     | 8px       | rows that are filled boxes (tinted)             |
+| `--gap-inline-tight`                   | 4px       | icon + text, small tool clusters                |
+| `--gap-inline`                         | 8px       | controls side by side, button rows              |
+| `--gap-group`                          | 12px      | groups in a menu, rail, pane; cards in a column |
+| `--gap-field`                          | 6px       | label → its control                             |
+| `--gap-section`                        | 20px      | field block → next; section → section           |
+| `--gap-actions`                        | 24px      | last field → the dialog's buttons               |
+| `--gap-page`                           | 16px      | page edge, header ↔ filter bar ↔ board, columns |
+| `--inset-item-y/-x`                    | 8/12px    | inside a row, field, menu item                  |
+| `--inset-compact-y/-x`                 | 4/8px     | inside a compact control; focus-ring buffers    |
+| `--inset-pill` / `-tight`              | 8/4px     | pill side padding / counts and badges           |
+| `--inset-popover` / `-card` / `-panel` | 8/12/24px | menu box / card, column / dialog                |
+
+- A divider keeps 8px each side; a group with NO divider before a Popover list (search → list)
+  gets `--gap-group` (Popover owns it — no per-menu slot).
+- Dialog form: `.form` gap `--gap-field`, `.label` margin-top `--gap-section − --gap-field`.
+- **Manage footer is sticky** (`[Delete] [Save]` stays in view while a long form scrolls under
+  it; themes style `[data-manage-footer]` — Liquid Glass frosts it).
+- The guard's allow-list holds optical nudges and geometry (`+1px` border compensation, the 28px
+  peek toggle, 14px icon, 8px dot), each with a reason. A new one needs a reason, not a habit.
+- `--gutter` / `--card-gap` are aliases kept for themes; components use the roles.
+
 ## Board filter bar (`components/FilterBar/FilterBar.tsx`)
 
 The ONE place the board is filtered/searched; above the columns, never in the header.

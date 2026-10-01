@@ -5,7 +5,7 @@
 .root {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--gap-inline);
   font-family: var(--font-ui);
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-label);

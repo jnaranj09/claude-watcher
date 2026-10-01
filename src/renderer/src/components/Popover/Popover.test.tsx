@@ -142,7 +142,9 @@ describe('Popover.module.css', () => {
   it('rows are rounded-md with a transparent border, and the focus ring sits inside the row', () => {
     expect(body('.item')).toMatch(/border-radius: var\(--rounded-md\);/)
     expect(body('.item')).toMatch(/border: 1px solid transparent;/)
-    expect(body('.item:focus-visible')).toMatch(/outline-offset: -2px;/)
+    expect(body('.item:focus-visible')).toMatch(
+      /outline-offset: calc\(-1 \* var\(--focus-ring-width\)\);/
+    )
   })
 
   it('styles every row state from ARIA, in one rule', () => {

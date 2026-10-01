@@ -541,7 +541,7 @@ function RailSection(props: {
  * Story 5.6 (rail gap) — a single calm "starting" row for a launched-but-not-yet-correlated
  * terminal. CALM-NEUTRAL: cwd-basename label + muted "starting…" sublabel; NO status dot, NO
  * gold, NO pulse, NO accent bar. A <button> for keyboard activation (Enter/Space) with the
- * shipped lavender focus-ring. Click → `boardStore.getState().switchTerminal(terminalId)` —
+ * shipped focus-ring. Click → `boardStore.getState().switchTerminal(terminalId)` —
  * pure view-state switch, NO acknowledge, NO IPC (these are not c9watch sessions).
  */
 function StartingRailRow(props: { terminal: LaunchedTerminal; collapsed: boolean }): JSX.Element {
