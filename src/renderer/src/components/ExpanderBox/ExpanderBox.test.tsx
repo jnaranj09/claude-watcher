@@ -2,6 +2,7 @@
 // input, the list, the highlight, and the three exits (expand / Escape / focus out).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
+import { readFileSync } from 'node:fs'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ExpanderBox } from './ExpanderBox'
 import type { Shortcut } from '../../../../shared/schemas/shortcut'
@@ -67,6 +68,49 @@ describe('ExpanderBox', () => {
     expect(document.activeElement).toBe(input())
     expect(optionAliases()).toEqual(['ht', 'dp'])
     expect(highlighted()).toBe('expander-option-ht')
+  })
+
+  it('is a Popover box with an inline list of compact rows; the highlight is data-active', () => {
+    render()
+    const box = byTestId('expander-box')
+    expect(box?.hasAttribute('data-popover')).toBe(true)
+    const list = box?.querySelector('[role="listbox"]')
+    expect(list?.hasAttribute('data-popover-list')).toBe(true)
+    expect(list?.hasAttribute('data-popover')).toBe(false)
+    const rows = [...(list?.querySelectorAll('[data-popover-item]') ?? [])]
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.hasAttribute('data-active')).toBe(true)
+    expect(rows[1]?.hasAttribute('data-active')).toBe(false)
+    expect(rows.every((r) => r.getAttribute('data-density') === 'compact')).toBe(true)
+    expect(rows.every((r) => r.getAttribute('tabindex') === '-1')).toBe(true)
+  })
+
+  it('keeps focus in the input when a row is pressed', () => {
+    render()
+    input().focus()
+    const row = byTestId('expander-option-dp') as HTMLElement
+    const e = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    act(() => {
+      row.dispatchEvent(e)
+    })
+    expect(e.defaultPrevented).toBe(true)
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('expander-input')
+    expect(highlighted()).toBe('expander-option-dp')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('the wrapper keeps the placement, z-index and list cap in its stylesheet', () => {
+    const css = readFileSync(
+      'src/renderer/src/components/ExpanderBox/ExpanderBox.module.css',
+      'utf8'
+    )
+    const wrap = /\.wrap\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(wrap).toMatch(/position:\s*absolute/)
+    expect(wrap).toMatch(/top:\s*var\(--space-3\)/)
+    expect(wrap).toMatch(/left:\s*50%/)
+    expect(wrap).toMatch(/translateX\(-50%\)/)
+    expect(wrap).toMatch(/z-index:\s*12/)
+    expect(wrap).toMatch(/--popover-max-height:\s*240px/)
   })
 
   it('filters on the FIRST word only', () => {

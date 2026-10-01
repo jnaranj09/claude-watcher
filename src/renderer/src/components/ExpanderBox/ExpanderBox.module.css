@@ -1,43 +1,23 @@
 /* Shortcut expander — the box over the focused terminal. Sits inside the terminal frame
    (position:absolute) above xterm's layers (z 12, the same floor the dead pane uses) and below
    the context-menu portal (1000). Tokens only — no hard-coded colours (design.md). */
-.box {
+.wrap {
   position: absolute;
   top: var(--space-3);
   left: 50%;
   transform: translateX(-50%);
   z-index: 12;
   width: min(480px, calc(100% - 2 * var(--space-3)));
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  box-shadow: var(--shadow-pop);
+  --popover-max-height: 240px;
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.row {
+.cells {
   display: grid;
   grid-template-columns: minmax(48px, auto) minmax(0, 1fr) minmax(0, 2fr);
   gap: var(--space-3);
   align-items: baseline;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--rounded-sm);
-  color: var(--text-secondary);
-  cursor: default;
-}
-.rowActive {
-  background: var(--bg-surface-raised);
-  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
 }
 
 .alias {
@@ -57,12 +37,6 @@
 }
 .text {
   font-family: var(--font-mono);
-}
-
-.empty {
-  color: var(--text-secondary);
-  font-size: var(--font-size-meta);
-  padding: var(--space-1) var(--space-2);
 }
 
 .error {

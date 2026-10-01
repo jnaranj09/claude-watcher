@@ -14,6 +14,7 @@ import {
   parseInput,
   type ExpandError
 } from '../../shortcuts/expand'
+import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './ExpanderBox.module.css'
 
@@ -90,58 +91,60 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
   }
 
   return (
-    <div
-      ref={rootRef}
-      className={styles.box}
-      data-testid="expander-box"
-      onKeyDown={handleKeyDown}
-      onBlur={handleFocusOut}
-    >
-      <TextInput
-        ariaLabel="Expand shortcut"
-        testId="expander-input"
-        placeholder='alias value "value with spaces"…'
-        maxLength={INPUT_MAX_LENGTH}
-        value={query}
-        onChange={handleChange}
-        invalid={error !== null}
-        inputRef={inputRef}
-      />
-      {matches.length === 0 ? (
-        <span className={styles.empty} data-testid="expander-empty">
-          No shortcut matches
-        </span>
-      ) : (
-        <div className={styles.list} role="listbox" aria-label="Matching shortcuts">
-          {matches.map((s, i) => (
-            <div
-              key={s.id}
-              role="option"
-              aria-selected={i === index}
-              className={i === index ? `${styles.row} ${styles.rowActive}` : styles.row}
-              data-testid={`expander-option-${s.alias}`}
-              // mousedown, not click: a click would first move focus out and close the box.
-              onMouseDown={(e) => {
-                e.preventDefault()
-                setHighlight(i)
-              }}
-            >
-              <span className={styles.alias}>{s.alias}</span>
-              <span className={styles.name} title={s.name}>
-                {s.name}
-              </span>
-              <span className={styles.text} title={s.text}>
-                {s.text}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {error !== null && (
-        <span className={styles.error} role="alert" data-testid="expander-error">
-          {expandErrorCopy(error)}
-        </span>
-      )}
+    <div className={styles.wrap}>
+      <Popover.Surface
+        surfaceRef={rootRef}
+        testId="expander-box"
+        onKeyDown={handleKeyDown}
+        onBlur={handleFocusOut}
+      >
+        <TextInput
+          ariaLabel="Expand shortcut"
+          testId="expander-input"
+          placeholder='alias value "value with spaces"…'
+          maxLength={INPUT_MAX_LENGTH}
+          value={query}
+          onChange={handleChange}
+          invalid={error !== null}
+          inputRef={inputRef}
+        />
+        {matches.length === 0 ? (
+          <Popover.Note testId="expander-empty">No shortcut matches</Popover.Note>
+        ) : (
+          <Popover.List role="listbox" aria-label="Matching shortcuts">
+            {matches.map((s, i) => (
+              <Popover.CompactItem
+                key={s.id}
+                role="option"
+                aria-selected={i === index}
+                active={i === index}
+                tabIndex={-1}
+                testId={`expander-option-${s.alias}`}
+                // mousedown, not click: a click would first move focus out and close the box.
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  setHighlight(i)
+                }}
+              >
+                <span className={styles.cells}>
+                  <span className={styles.alias}>{s.alias}</span>
+                  <span className={styles.name} title={s.name}>
+                    {s.name}
+                  </span>
+                  <span className={styles.text} title={s.text}>
+                    {s.text}
+                  </span>
+                </span>
+              </Popover.CompactItem>
+            ))}
+          </Popover.List>
+        )}
+        {error !== null && (
+          <span className={styles.error} role="alert" data-testid="expander-error">
+            {expandErrorCopy(error)}
+          </span>
+        )}
+      </Popover.Surface>
     </div>
   )
 }
