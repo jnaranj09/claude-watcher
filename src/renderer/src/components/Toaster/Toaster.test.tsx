@@ -1,6 +1,8 @@
 // Action feedback (spec 2026-09-29 §1.2) — the Toaster: a labelled region, status vs alert roles,
 // ✕, the action, the action NOT rendered while a modal is open, hover/focus pausing the timer, and
 // a workspace drawn as its tint.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
@@ -153,5 +155,14 @@ describe('Toaster', () => {
     fireEvent(card, new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))
     act(() => clock.advance(TOAST_MS))
     expect(cards()[0]?.hasAttribute('data-leaving')).toBe(true)
+  })
+})
+
+// Spec 2026-10-01 — a success toast's ✓ is green like the success callout (it was neutral ink).
+describe('Toaster stylesheet', () => {
+  it('colours the success glyph --success and the error glyph --danger', () => {
+    const css = readFileSync(join(__dirname, 'Toaster.module.css'), 'utf8')
+    expect(css).toMatch(/\.glyph\[data-kind='success'\]\s*\{[^}]*color:\s*var\(--success\)/)
+    expect(css).toMatch(/\.glyph\[data-kind='error'\]\s*\{[^}]*color:\s*var\(--danger\)/)
   })
 })
