@@ -83,6 +83,7 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
   function revealSaved(tag: Tag): void {
     dialog.actions.select(tag.id)
     if (filterByScope([tag], scope, known).length === 0) setScope(scopeOf(tag.workspaceId, known))
+    dialog.actions.showSuccess('Tag saved.')
   }
 
   // Different nothings, different sentences (design.md). No search box here, so only two apply.
@@ -191,6 +192,7 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
       // Nothing open: the placeholder. `select` also clears the error line and the armed Delete; the form
       // remounts (its key changes), so there is no busy flag left to reset.
       actions.select(null)
+      actions.showSuccess('Tag deleted.')
     } catch (err) {
       actions.setError(tagErrorMessage(err, rulesUsingTag(rulesStore.getState().rules, tag.id)))
       setBusy(false)

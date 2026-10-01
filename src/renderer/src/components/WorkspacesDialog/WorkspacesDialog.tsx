@@ -270,6 +270,7 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // The deleted row was the selected one: nothing open, the placeholder. `select` also clears the
       // error line and the armed Delete.
       dialog.actions.select(null)
+      dialog.actions.showSuccess('Workspace deleted.')
     } catch (err) {
       dialog.actions.setError(copyFor(err))
     } finally {
@@ -309,7 +310,10 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
               key={selected?.id ?? 'new'}
               workspace={selected}
               deleteBusy={deleteBusy}
-              onSaved={(saved) => dialog.actions.select(saved.id)}
+              onSaved={(saved) => {
+                dialog.actions.select(saved.id)
+                dialog.actions.showSuccess('Workspace saved.')
+              }}
               onDelete={() => {
                 if (selected !== null) void commitDelete(selected.id)
               }}

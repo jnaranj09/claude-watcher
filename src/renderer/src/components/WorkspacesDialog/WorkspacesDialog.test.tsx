@@ -105,6 +105,7 @@ describe('WorkspacesDialog', () => {
     click(q(r, '[data-testid="workspace-submit"]'))
     await flush()
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Side' }))
+    expect(q(r, '[data-testid="workspaces-success"]').textContent).toBe('Workspace saved.')
   })
 
   // Rejects with the WRAPPED shape Electron actually delivers — `Error invoking remote method
@@ -173,6 +174,7 @@ describe('WorkspacesDialog', () => {
     expect(shortcutsList).toHaveBeenCalledTimes(1)
     expect(tagsList).toHaveBeenCalledTimes(1)
     expect(rulesList).toHaveBeenCalledTimes(1)
+    expect(q(r, '[data-testid="workspaces-success"]').textContent).toBe('Workspace deleted.')
   })
 
   // The other half of the same rule: a REFUSED delete cascaded nothing in main, so re-reading

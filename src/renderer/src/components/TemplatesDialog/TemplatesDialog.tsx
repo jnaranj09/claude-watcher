@@ -63,6 +63,7 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
     if (filterByScope([template], scope, known).length === 0) {
       setScope(scopeOf(template.workspaceId, known))
     }
+    dialog.actions.showSuccess('Template saved.')
   }
 
   return (
@@ -86,7 +87,10 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
               key={selected?.id ?? 'new'}
               template={selected}
               onSaved={revealSaved}
-              onRemoved={() => dialog.actions.select(null)}
+              onRemoved={() => {
+                dialog.actions.select(null)
+                dialog.actions.showSuccess('Template deleted.')
+              }}
             />
           ) : (
             <ManageDialog.Placeholder testId="template-placeholder">
@@ -94,6 +98,9 @@ export function TemplatesDialog({ onClose }: TemplatesDialogProps): JSX.Element 
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
+        {/* The ONE message slot, under the columns like every Manage dialog: a delete unmounts
+            the form, and its success still has to show. */}
+        <ManageDialog.Message testId="template-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

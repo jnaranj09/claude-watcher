@@ -68,6 +68,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
     if (filterByScope([saved], scope, known).length === 0) {
       setScope(scopeOf(saved.workspaceId, known))
     }
+    dialog.actions.showSuccess('Shortcut saved.')
   }
 
   // R7 — three empty states (design.md): none at all, none in this scope; no search box here.

@@ -71,6 +71,7 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
     try {
       await removeShortcut(shortcut.id)
       actions.select(null)
+      actions.showSuccess('Shortcut deleted.')
     } catch (err) {
       actions.setError(SHORTCUT_DELETE_ERROR_COPY[shortcutErrorCode(err)])
     }

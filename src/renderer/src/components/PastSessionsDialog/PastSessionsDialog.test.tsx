@@ -400,6 +400,7 @@ describe('PastSessionsDialog', () => {
     await flush()
     expect(forget).toHaveBeenCalledWith('sa')
     expect(q(r, '[data-testid="past-session-form-name"]')).toBeNull()
+    expect(q(r, '[data-testid="past-sessions-success"]')?.textContent).toBe('Session forgotten.')
   })
 
   it('a refused Forget keeps the record and says so on the error line', async () => {

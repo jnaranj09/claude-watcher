@@ -101,6 +101,7 @@ describe('TagsDialog', () => {
     expect(save).toHaveBeenCalledWith({ name: 'prod', color: 'rose', workspaceId: null })
     // A new row is Global; the list was on Default, so the scope follows the saved row.
     expect(rowNames(r)).toContain('prod')
+    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag saved.')
   })
 
   it('shows the operator copy when the name is taken (the wrapped Electron error)', async () => {
@@ -140,6 +141,7 @@ describe('TagsDialog', () => {
     expect(rowNames(r)).toEqual(['ops-only'])
     expect(q(r, '[data-testid="tag-placeholder"]')).toBeTruthy()
     expect(r.container.querySelector('[data-testid="tag-name"]')).toBeNull()
+    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag deleted.')
   })
 
   it('a refused delete says how many rules use the tag (T-16)', async () => {

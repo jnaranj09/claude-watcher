@@ -116,6 +116,7 @@ describe('TemplatesDialog', () => {
       params: []
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
+    expect(q(r, '[data-testid="templates-success"]').textContent).toBe('Template saved.')
   })
   it('selecting a row loads it; the error copy shows when main says template_name_taken', async () => {
     const { r } = render()
@@ -180,6 +181,7 @@ describe('TemplatesDialog', () => {
     await flush()
     expect(remove).toHaveBeenCalledWith('a')
     expect(r.container.querySelector('[data-testid="template-delete"]')).toBeNull()
+    expect(q(r, '[data-testid="templates-success"]').textContent).toBe('Template deleted.')
   })
   it('a dirty-but-invalid draft explains WHY Save is disabled; the hint clears when it is fixed', async () => {
     const { r } = render()

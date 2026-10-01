@@ -110,6 +110,7 @@ export function RuleForm({ rule, onSaved }: RuleFormProps): JSX.Element {
       await removeRule(rule.id)
       // Nothing open: the placeholder; the form remounts, so there is no busy flag left to reset.
       actions.select(null)
+      actions.showSuccess('Rule deleted.')
     } catch (err) {
       actions.setError(ruleErrorMessage(err))
       setBusy(false)

@@ -147,6 +147,7 @@ export function PastSessionsDialog({
     try {
       await forgetPastSession(selected.id)
       dialog.actions.select(null)
+      dialog.actions.showSuccess('Session forgotten.')
     } catch {
       dialog.actions.setError('Could not forget the session')
     } finally {

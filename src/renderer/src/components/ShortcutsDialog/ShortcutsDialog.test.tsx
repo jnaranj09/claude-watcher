@@ -147,6 +147,27 @@ describe('ShortcutsDialog', () => {
     expect(removeMock).toHaveBeenCalledWith('sc-1')
   })
 
+  // Spec 2026-10-01 — a save and a delete say so in the dialog's message slot.
+  it('a save and a delete each say so in the message slot', async () => {
+    render()
+    click(byTestId('shortcut-select-sc-1'))
+    type(byTestId('shortcut-name-input'), 'renamed')
+    click(byTestId('shortcut-save'))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(byTestId('shortcuts-success')?.textContent).toBe('Shortcut saved.')
+    click(byTestId('shortcut-select-sc-1'))
+    click(byTestId('shortcut-delete'))
+    click(byTestId('shortcut-delete'))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(byTestId('shortcuts-success')?.textContent).toBe('Shortcut deleted.')
+  })
+
   // --- layout / onboarding -------------------------------------------------------------------
   // The rail keeps every row; the open one is marked selected, and its form is on the right.
   it('the open row stays in the rail, marked selected', () => {

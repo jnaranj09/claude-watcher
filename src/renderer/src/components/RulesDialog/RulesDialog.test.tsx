@@ -224,6 +224,7 @@ describe('RulesDialog', () => {
         actions: [{ kind: 'add-tag', tagId: 't-pending' }]
       })
     )
+    expect(q(r, '[data-testid="rules-success"]').textContent).toBe('Rule saved.')
   })
 
   it('an invalid regex blocks Save and says why', () => {
@@ -262,6 +263,7 @@ describe('RulesDialog', () => {
     expect(remove).toHaveBeenCalledWith('ra')
     expect(q(r, '[data-testid="rule-placeholder"]')).toBeTruthy()
     expect(r.container.querySelector('[data-testid="rule-name"]')).toBeNull()
+    expect(q(r, '[data-testid="rules-success"]').textContent).toBe('Rule deleted.')
   })
 
   it('closes on Escape', () => {

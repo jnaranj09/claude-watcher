@@ -75,6 +75,7 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
   function revealSaved(rule: Rule): void {
     dialog.actions.select(rule.id)
     if (filterByScope([rule], scope, known).length === 0) setScope(scopeOf(rule.workspaceId, known))
+    dialog.actions.showSuccess('Rule saved.')
   }
 
   // Action feedback (spec 2026-09-29 §2.5) — one move at a time: a second press would compute its
