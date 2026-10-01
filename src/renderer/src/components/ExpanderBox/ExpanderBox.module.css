@@ -38,8 +38,3 @@
 .text {
   font-family: var(--font-mono);
 }
-
-.error {
-  color: var(--danger);
-  font-size: var(--font-size-meta);
-}

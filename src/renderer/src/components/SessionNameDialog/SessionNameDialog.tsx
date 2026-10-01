@@ -28,6 +28,7 @@ import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { SESSION_NAME_MAX_LENGTH } from '../../../../shared/schemas/launch'
 import { Button } from '../Button/Button'
 import { TextInput } from '../TextInput/TextInput'
+import { Callout } from '../Callout/Callout'
 import styles from './SessionNameDialog.module.css'
 
 export interface SessionNameDialogProps {
@@ -154,9 +155,7 @@ export function SessionNameDialog({
             maxLength); without it the Create button would sit disabled with no stated reason.
             Otherwise the caller's mapped launch/rename refusal. */}
         {errorText !== null && (
-          <p className={styles.error} data-testid="session-name-error" role="alert">
-            {errorText}
-          </p>
+          <Callout tone="danger" title={errorText} testId="session-name-error" />
         )}
 
         <div className={styles.actions}>

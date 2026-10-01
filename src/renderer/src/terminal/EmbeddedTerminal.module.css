@@ -160,10 +160,3 @@
   display: flex;
   gap: var(--space-2);
 }
-
-/* UX-10 — a refused Resume, under the actions (the pane itself is the role=alert). */
-.deadError {
-  margin: 0;
-  font-size: var(--font-size-meta);
-  color: var(--danger);
-}

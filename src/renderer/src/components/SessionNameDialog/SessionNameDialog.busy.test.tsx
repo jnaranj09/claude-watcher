@@ -57,6 +57,7 @@ describe('SessionNameDialog — busy and the caller error', () => {
     const line = el(r, 'session-name-error')
     expect(line.getAttribute('role')).toBe('alert')
     expect(line.textContent).toBe('That folder no longer exists.')
+    expect(line.getAttribute('data-callout-tone')).toBe('danger')
     expect(el<HTMLInputElement>(r, 'session-name-input').value).toBe('api')
   })
 

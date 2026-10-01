@@ -171,6 +171,8 @@ describe('ExpanderBox', () => {
     const err = byTestId('expander-error')
     expect(err?.getAttribute('role')).toBe('alert')
     expect(err?.textContent).toBe('Missing value for $2')
+    expect(err?.getAttribute('data-callout-tone')).toBe('danger')
+    expect(err?.getAttribute('data-callout-size')).toBe('compact')
     expect(onClose).not.toHaveBeenCalled()
   })
 

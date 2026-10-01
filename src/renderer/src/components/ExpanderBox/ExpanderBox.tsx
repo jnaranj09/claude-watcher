@@ -16,6 +16,7 @@ import {
 } from '../../shortcuts/expand'
 import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
+import { Callout } from '../Callout/Callout'
 import styles from './ExpanderBox.module.css'
 
 export interface ExpanderBoxProps {
@@ -140,9 +141,12 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
           </Popover.List>
         )}
         {error !== null && (
-          <span className={styles.error} role="alert" data-testid="expander-error">
-            {expandErrorCopy(error)}
-          </span>
+          <Callout
+            tone="danger"
+            size="compact"
+            title={expandErrorCopy(error)}
+            testId="expander-error"
+          />
         )}
       </Popover.Surface>
     </div>

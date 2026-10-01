@@ -67,15 +67,6 @@
   color: var(--text-secondary);
 }
 
-/* Over-length notice — only reachable via an over-long prefill (typing is capped by maxLength).
-   Uses the shipped --danger token; no new color. */
-.error {
-  margin: 0;
-  font-size: var(--font-size-meta, 12px);
-  color: var(--danger);
-  line-height: var(--line-height-body, 1.4);
-}
-
 /* ── Actions: the wrapper for Cancel + Create. The buttons are `Button` (secondary / primary
    submit) — Create is primary, not danger, because naming is not destructive. ── */
 .actions {

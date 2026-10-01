@@ -507,6 +507,9 @@ describe('EmbeddedTerminal — dead pane: exit reason + Resume (UX-10)', () => {
     })
     const error = r.container.querySelector('[data-testid="dead-resume-error"]')
     expect(error?.textContent).toBe('Claude no longer has this conversation.')
+    expect(error?.getAttribute('data-callout-tone')).toBe('danger')
+    // The dead pane is the alert; the callout inside it does not announce a second time.
+    expect(error?.hasAttribute('role')).toBe(false)
     expect(r.container.textContent).not.toContain('/home/secret')
     expect(
       (r.container.querySelector('[data-testid="dead-resume"]') as HTMLButtonElement).disabled

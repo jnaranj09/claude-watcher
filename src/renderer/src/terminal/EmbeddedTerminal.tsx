@@ -72,6 +72,7 @@ import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
 import { Button } from '../components/Button/Button'
 import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
 import { toast } from '../stores/toastStore'
+import { Callout } from '../components/Callout/Callout'
 import styles from './EmbeddedTerminal.module.css'
 
 /** Card shell pane — the companion this terminal hosts UNDER itself. */
@@ -868,9 +869,12 @@ export function EmbeddedTerminal({
               )}
             </div>
             {resumeError !== null && (
-              <p className={styles.deadError} data-testid="dead-resume-error">
-                {resumeError}
-              </p>
+              <Callout
+                tone="danger"
+                title={resumeError}
+                announce={false}
+                testId="dead-resume-error"
+              />
             )}
           </div>
         )}
