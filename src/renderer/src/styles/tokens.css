@@ -55,6 +55,13 @@
   --done: #a6e3a1; /* DEFINED for 1:1; UNUSED by any component (3-state model) */
   --idle: #807d72;
   --danger: #db4b4b;
+  /* Feedback callout (spec 2026-10-01): mixed over the theme's raised surface. */
+  --success: #a6e3a1;
+  --text-on-success: #11111b;
+  --success-fill: color-mix(in srgb, #a6e3a1 10%, var(--bg-surface-raised));
+  --success-border: color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised));
+  --danger-fill: color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised));
+  --danger-border: color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised));
   --focus-ring: #b4befe;
 
   /* ── Tags (the operator's own labels — spec 2026-09-11 T-7) ──────────────── */

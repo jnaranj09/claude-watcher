@@ -100,6 +100,12 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `done` | Defined for completeness; no component uses it | `#a6e3a1` |
 | `idle` | The idle status colour | `#807d72` |
 | `danger` | Delete and quit: border at rest, fill when hovered or armed | `#db4b4b` |
+| `success` | Success callout bar and icon disc; the toast success glyph | `#a6e3a1` |
+| `text-on-success` | The check mark on the success disc | `#11111b` |
+| `success-fill` | Success callout fill | `color-mix(in srgb, #a6e3a1 10%, var(--bg-surface-raised))` |
+| `success-border` | Success callout border | `color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised))` |
+| `danger-fill` | Error callout fill | `color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised))` |
+| `danger-border` | Error callout border | `color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised))` |
 | `focus-ring` | The keyboard focus outline on every control | `#b4befe` |
 | `tag-slate-fill` | Slate tag chip fill (opaque, composited over bg-surface) | `#373739` |
 | `tag-slate-border` | Slate tag chip border and rail indicator stroke | `#5b5e65` |

@@ -31,6 +31,8 @@
     "done": "#22a447",
     "idle": "#86868a",
     "danger": "#d93a2b",
+    "success": "#2f7d32",
+    "text-on-success": "#ffffff",
     "focus-ring": "#2f6fd6",
     "tag-slate-fill": "#e8e9ec",
     "tag-slate-border": "#9aa0ad",

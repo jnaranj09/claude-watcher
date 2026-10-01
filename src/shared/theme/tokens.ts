@@ -74,6 +74,15 @@ export const TOKENS = {
   done: '#a6e3a1', // DEFINED for 1:1; UNUSED by any component (3-state model)
   idle: '#807d72',
   danger: '#db4b4b',
+  /* Feedback callout (spec 2026-10-01): green success beside danger. The fills/borders mix the
+   * tone over the THEME's raised surface (the workspace-tint pattern), so a theme that sets none
+   * still gets a tint of its own surface. `text-on-success` is the ✓ on the green disc. */
+  success: '#a6e3a1',
+  'text-on-success': '#11111b',
+  'success-fill': 'color-mix(in srgb, #a6e3a1 10%, var(--bg-surface-raised))',
+  'success-border': 'color-mix(in srgb, #a6e3a1 35%, var(--bg-surface-raised))',
+  'danger-fill': 'color-mix(in srgb, #db4b4b 10%, var(--bg-surface-raised))',
+  'danger-border': 'color-mix(in srgb, #db4b4b 40%, var(--bg-surface-raised))',
   'focus-ring': '#b4befe',
 
   // ── Tags (spec 2026-09-11 T-7) — opaque fills; see tokens.css for why ──────

@@ -134,6 +134,30 @@
           "type": "string",
           "maxLength": 500
         },
+        "success": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "text-on-success": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "success-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "success-border": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "danger-fill": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "danger-border": {
+          "type": "string",
+          "maxLength": 500
+        },
         "focus-ring": {
           "type": "string",
           "maxLength": 500
