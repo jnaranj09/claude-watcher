@@ -251,6 +251,38 @@ describe('docs/themes/examples', () => {
       .join('\n')
     expect(root).toMatch(/--glass-rim-pop:\s*inset 1px 1px 0 rgba\([^)]*\), inset -1px -1px 0 rgba/)
   })
+  // Toasts had no rule at all and kept the token's flat fill (operator, 2026-10-01: "the toasts
+  // don't have blur"). They take the popover's fill, border and rim, but a toast HOLDS a blurring
+  // control (its action is a secondary Button), so it is a container: it blurs from `::before`,
+  // never from itself, or the action's blur would read only the toast's paint.
+  it('liquid-glass draws every toast as popover glass, blurring from ::before', () => {
+    const rules = liquidGlassRules()
+    const bodyOf = (sel: string): string =>
+      rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => r.body)
+        .join('\n')
+    const toast = bodyOf('[data-toast]')
+    expect(toast).toMatch(/background(-color)?:\s*var\(--glass-fill\);/)
+    expect(toast).toMatch(/border-color:\s*rgba\(255, 255, 255, 0\.06\);/)
+    expect(toast).toMatch(/box-shadow:\s*var\(--glass-rim-pop\), var\(--shadow-pop\);/)
+    expect(toast).toMatch(/position:\s*relative;/)
+    expect(toast).toMatch(/isolation:\s*isolate;/)
+    expect(toast).not.toMatch(/backdrop-filter/)
+    const layer = bodyOf('[data-toast]::before')
+    expect(layer).toMatch(/(^|[\s;])backdrop-filter:\s*var\(--glass-filter\);/)
+    expect(layer).toMatch(/-webkit-backdrop-filter:\s*var\(--glass-filter\);/)
+    expect(layer).toMatch(/z-index:\s*-1;/)
+    // No rule on any toast selector (a kind, a hover) brings back the sheen or a self-blur.
+    const anyToast = rules
+      .filter((r) =>
+        r.selectors.some((s) => s.startsWith('[data-toast') && !s.endsWith('::before'))
+      )
+      .map((r) => r.body)
+      .join('\n')
+    expect(anyToast).not.toContain('--glass-sheen')
+    expect(anyToast).not.toMatch(/backdrop-filter/)
+  })
   // Every terminal panel (the frame, or claude's half and the shell while split) is a bubble like
   // the header and the columns: rim, directional ring, faint
   // border. Its fill stays the token's darker `--bg-terminal` (glyphs need it), so no `--glass-fill`.
