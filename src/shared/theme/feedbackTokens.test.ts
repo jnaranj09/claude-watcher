@@ -54,7 +54,9 @@ describe('feedback tokens', () => {
         expect(contrast(disc, fill), `${tone} disc`).toBeGreaterThanOrEqual(3)
         // The glyph is an aria-hidden ICON (the words say it): the 3:1 non-text floor (WCAG
         // 1.4.11). White on the default --danger is 4.1:1 — the armed Delete's pair, unchanged.
-        expect(contrast(t[`text-on-${tone}`] ?? '', disc), `${tone} glyph`).toBeGreaterThanOrEqual(3)
+        expect(contrast(t[`text-on-${tone}`] ?? '', disc), `${tone} glyph`).toBeGreaterThanOrEqual(
+          3
+        )
       }
     })
   }

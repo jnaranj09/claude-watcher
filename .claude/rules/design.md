@@ -35,7 +35,7 @@ const formOpen = dialog.state.creating || selected !== null
         </ManageDialog.Placeholder>
       )}
     </ManageDialog.Columns>
-    <ManageDialog.Error testId="template-error" />
+    <ManageDialog.Message testId="template-error" />
   </ManageDialog.Frame>
 </ManageDialog.Provider>
 ```
@@ -71,9 +71,10 @@ var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)`, `.form` the o
   `overflow-y: auto` (pinned by `ManageDialog.styles.test.ts`). A too-tall form gets shortened.
   Any scroll region clips every side, so it needs `padding-left/right: var(--space-2)` +
   `scroll-padding-block` or focus rings get cut.
-- **One error line per dialog** (`role="alert"`). Never render `error.message` — map the code to
-  copy (`copyFor` / `templateErrorMessage`). Editing any field clears it (R26). A refused Delete
-  says so.
+- **One message slot per dialog** (`ManageDialog.Message`, under the columns): an error Callout
+  (`role="alert"`) or a 2.5 s success Callout (`showSuccess('Template saved.')`, called AFTER the
+  `select` that follows the save). Never render `error.message` — map the code to copy (`copyFor` /
+  `templateErrorMessage`). Editing any field clears it (R26). A refused Delete says so.
 - **A greyed Save says why** once dirty: muted `ManageDialog.Hint` (not the alert) naming the
   failing field, chosen by Zod issue PATH + draft shape, never the message.
 - **A scope change in a form resets what the new scope can't see** (R15, `rescopeDraft`).
@@ -212,14 +213,24 @@ Spec `2026-09-29-action-feedback-design.md`. Visible result for every action; no
 
 **Placement:**
 
-1. Inside a dialog → its error line / the selected row / Settings' `✓ Saved`. **A dialog never
-   toasts its own result** (Delete confirm and Quit guard have no error line → they toast refusals).
+1. Inside a dialog → its message slot (error or success) / Settings' compact `Saved`. **A dialog
+   never toasts its own result** (Delete confirm and Quit guard have no slot → they toast refusals).
 2. Small action on a control that stays (Copy, Reload themes, Regenerate) → Button `feedback` for
    1.5 s.
 3. Board-level or off-screen result → toast.
 
-Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error.message`. `✓` is
-neutral ink; failure `--danger`. No `--success` token.
+Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error.message`.
+
+- **Callout (`components/Callout`, spec `2026-10-01-feedback-callout-design.md`) is the ONE in-page
+  message.** Tinted box (`--success-fill`/`--danger-fill`), 1px tinted border, 3px `--success`/
+  `--danger` left bar, icon disc drawn in CSS (text = the words), `--text-primary` title, optional
+  `detail` (`--text-secondary`) and `action`. `size="block"` (dialog slot, small forms, banners) or
+  `"compact"` (one line: Settings heading, expander). Success `role="status"`, danger
+  `role="alert"`; `announce={false}` inside something already live (dead pane, Settings' slot).
+- Success shows `SUCCESS_MS` (2.5 s); an error stays until the next action. Success copy names the
+  THING (`Rule deleted.`, `Session forgotten.`), never a typed value. Green = `--success`; themes
+  override it (Paper: dark green — `#a6e3a1` on white fails 3:1).
+- Toast glyph: success ✓ `--success`, error `!` `--danger`, info neutral.
 
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
@@ -238,7 +249,7 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
 - **Every async button uses `useAsyncAction(fn)` → `{ run, busy }` or a `busy` flag.**
 - **Every `void window.<a>.<b>(…)` ends in `.catch(`** (`lib/bridgeCatch.test.ts`). A wrapper that
   can fail rethrows a code or reports itself.
-- Settings: `✓ Saved` beside pane heading 1.5 s; refused change rolls back
+- Settings: compact success Callout `Saved` beside pane heading, 2.5 s; refused change rolls back
   (`persistSettingsPatch` → `settings_persist_failed`), error line `Could not save <setting>.`
 - **Name prompt stays open while main answers** (`lib/namePromptFlow.ts`): busy `Starting…` /
   `Renaming…`; refusal keeps the name + mapped copy (`folder_missing`, `claude_version`,
@@ -250,6 +261,10 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
 Reopen the app to try again.`); each dialog says `Could not load <x>.`
 
 ## Banned primitives (each has a guard test)
+
+- **Bare error/success line → `components/Callout/Callout.tsx`.** `Callout.guard.test.ts` fails on
+  `role="alert"` outside Callout/Toaster (and the dead PANE) and on text coloured `--danger` in a
+  component stylesheet (only Callout, Toaster, Button, the rules `.broken` badge).
 
 - **Native `<select>` → `components/Select/Select.tsx`.** On Linux Chromium paints the popup from
   the GTK theme (light on dark app); CSS, `color-scheme` and `nativeTheme` all failed to fix it.

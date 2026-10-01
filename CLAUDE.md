@@ -70,8 +70,9 @@ selectors → components. Renderer never invents/mutates session truth.
 5. **State ownership** (`rules/state.md`): session truth = main; view-state = Zustand; derived =
    selectors. Inject `now()`.
 6. **UI shape** (`rules/design.md`): one `ManageDialog` shell for every config surface; banned:
-   native `<select>`, bare text `<input>`, `<button className>`, hand-made popovers (each has a
-   guard test). Every action ends in visible feedback; async buttons use `useAsyncAction`/`busy`.
+   native `<select>`, bare text `<input>`, `<button className>`, hand-made popovers, bare
+   error/success lines (→ `Callout`) (each has a guard test). Every action ends in visible
+   feedback; async buttons use `useAsyncAction`/`busy`.
 
 **Debugging?** Read `rules/troubleshooting.md` first (Step-0 questions before theorizing).
 
