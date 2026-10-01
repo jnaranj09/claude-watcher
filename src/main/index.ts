@@ -212,6 +212,7 @@ import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
 import { chosenWallpaper, themeNeedsReapply } from './themes/themeApplyTrigger'
+import { openThemesFolder } from './themes/openThemesFolder'
 // Story 6.2 — the reducer-storage Session type (parse-once contract): the spawn-time
 // launch synthesis CONSTRUCTS a valid Session from main-owned values (minted uuid, picked
 // cwd, pty pid) — it never re-runs SessionSchema over internal data.
@@ -1690,23 +1691,13 @@ function registerThemesIpc(): void {
     const s = settingsStore.get()
     return themeLifecycle.apply(s.themeId, chosenWallpaper(s))
   })
-  ipcMain.handle(CH.themesOpenFolder, async () => {
+  // Answers at once, never awaiting the opener — see openThemesFolder.ts (Linux never settles it).
+  ipcMain.handle(CH.themesOpenFolder, () => {
     if (themeScanner === null) throw new Error('theme scanner not initialized')
-    const dir = themeScanner.dir()
-    try {
-      // Mirrors themeScanner.scan()'s handling of this same call: `mkdirSync` can throw
-      // (ENOTDIR/EACCES/a race on the folder), and an uncontained throw here would reach the
-      // renderer as the rejected invoke() promise — whose `.message` QUOTES THE ABSOLUTE PATH.
-      // Log a code only, never the errno message, and never let the raw error cross the IPC
-      // boundary.
-      mkdirSync(dir, { recursive: true })
-    } catch {
-      console.warn('[claude-watcher][themes] code=themes_open_folder_mkdir_failed')
-      return
-    }
-    // `openPath` resolves to '' on success or a message that quotes the path: log a code only.
-    const problem = await shell.openPath(dir)
-    if (problem !== '') console.warn('[claude-watcher][themes] code=themes_open_folder_failed')
+    openThemesFolder(themeScanner.dir(), {
+      mkdir: (dir) => mkdirSync(dir, { recursive: true }),
+      openPath: (dir) => shell.openPath(dir)
+    })
   })
 }
 
