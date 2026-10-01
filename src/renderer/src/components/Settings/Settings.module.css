@@ -20,9 +20,9 @@
 }
 
 /* Neutral ink — no --success token (the spec's rule); --text-secondary on the raised panel. */
-.savedMark {
-  color: var(--text-secondary);
-  font-size: var(--font-size-label);
+/* The `Saved` slot beside the heading: holds the compact success Callout (which draws itself). */
+.savedSlot {
+  display: inline-flex;
 }
 
 .row {

@@ -38,6 +38,8 @@ import { brokenThemesLine, themeErrorCopy } from '../../lib/themeCopy'
 import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
+import { SUCCESS_MS } from '../ManageDialog/manageDialogState'
+import { Callout } from '../Callout/Callout'
 import { Button } from '../Button/Button'
 import { KeyChordRecorder } from '../ShortcutsDialog/KeyChordRecorder'
 import { reminderSummary } from './reminderSummary'
@@ -110,11 +112,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
 
   // ── Action feedback (spec 2026-09-29 §2.1) ────────────────────────────────────────────────
-  // Every change says it landed: `✓ Saved` beside the pane heading for 1.5 s. When main refuses
+  // Every change says it landed: a compact `Saved` callout beside the pane heading for SUCCESS_MS. When main refuses
   // one, persistSettingsPatch has already rolled the store back to main's value (the control
   // snaps back) and the error line names what did not save — until the next change that lands.
   // The flash holds the CATEGORY it was saved on, so it never follows a switch to another page.
-  const [savedOn, flashSaved, clearSaved] = useFlash<SettingsCategoryId>()
+  const [savedOn, flashSaved, clearSaved] = useFlash<SettingsCategoryId>(SUCCESS_MS)
   // The refusal goes on the panel's ONE error state (apiActions.setError), so a newer error — a bad
   // port, a failed copy — always replaces it. A later save clears the line only while it still
   // holds the refusal it wrote, never a newer, different error. Both refs are read in callbacks
@@ -387,9 +389,12 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
           <ManageDialog.Pane testId={`settings-pane-${category}`}>
             <div className={styles.paneHeading}>
               <h3 className={styles.categoryTitle}>{categoryLabel}</h3>
-              {/* Always in the page, so the text is announced when it appears. */}
-              <span className={styles.savedMark} role="status" data-testid="settings-saved">
-                {savedOn === category ? '✓ Saved' : ''}
+              {/* The slot is the live region, always in the page, so `Saved` is announced when it
+                  appears; the callout inside it does not announce a second time. */}
+              <span className={styles.savedSlot} role="status" data-testid="settings-saved">
+                {savedOn === category && (
+                  <Callout tone="success" size="compact" title="Saved" announce={false} />
+                )}
               </span>
             </div>
             {category === 'notifications' && (

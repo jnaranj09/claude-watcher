@@ -15,7 +15,7 @@ import { deferred } from '../../test/deferred'
 import { mergedSettings, stubSettings } from '../../test/settingsBridge'
 import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
 import { DEFAULT_THEME_BUNDLE, type ThemeSummary } from '../../../../shared/schemas/theme'
-import { FLASH_MS } from '../../hooks/useFlash'
+import { SUCCESS_MS } from '../ManageDialog/manageDialogState'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -96,7 +96,7 @@ async function flush(): Promise<void> {
 }
 
 describe('Settings — ✓ Saved and rollback', () => {
-  it('a change main stored shows ✓ Saved beside the heading, then clears after 1.5 s', async () => {
+  it('a change main stored shows a compact Saved callout beside the heading for SUCCESS_MS', async () => {
     vi.useFakeTimers()
     stubSettings()
     stubThemes()
@@ -107,9 +107,18 @@ describe('Settings — ✓ Saved and rollback', () => {
     expect(mark.textContent).toBe('')
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush()
-    expect(mark.textContent).toBe('✓ Saved')
+    expect(mark.textContent).toBe('Saved')
+    // The slot is the live region (always in the page); the callout inside does not re-announce.
+    const callout = mark.querySelector('[data-callout]')
+    expect(callout?.getAttribute('data-callout-tone')).toBe('success')
+    expect(callout?.getAttribute('data-callout-size')).toBe('compact')
+    expect(callout?.hasAttribute('role')).toBe(false)
     act(() => {
-      vi.advanceTimersByTime(FLASH_MS)
+      vi.advanceTimersByTime(SUCCESS_MS - 1)
+    })
+    expect(mark.textContent).toBe('Saved')
+    act(() => {
+      vi.advanceTimersByTime(1)
     })
     expect(mark.textContent).toBe('')
   })
@@ -215,7 +224,7 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     await flush()
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush()
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('✓ Saved')
+    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('Saved')
     openCategory(r, 'terminal')
     expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('')
   })
@@ -231,7 +240,7 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     await flush()
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush()
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('✓ Saved')
+    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('Saved')
     refuse = true
     click(q(r, '[data-testid="settings-notifications-toggle"]'))
     await flush()
