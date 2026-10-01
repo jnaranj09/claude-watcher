@@ -5,7 +5,9 @@
 // (spec 2026-09-29) — carrying the same grey / blue / yellow pills as the button, summed over the
 // other workspaces (an empty tab told the operator nothing — operator, 2026-09-30). A pill inside
 // the button used to mean "elsewhere" too, and it read as "this one needs you" (alerts are global;
-// only the CARDS are scoped — spec W-3); the tab keeps the two apart. The popover's open state is LOCAL
+// only the CARDS are scoped — spec W-3); the tab keeps the two apart. While the menu is open the tab
+// slides back BEHIND the button: every other workspace is then a row with its own pills, and the tab's
+// sums would count those cards a second time (operator, 2026-09-30). The popover's open state is LOCAL
 // and transient, like NewSessionButton's.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -165,6 +167,8 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           className={styles.tab}
           data-testid="workspace-elsewhere-tab"
           aria-hidden="true"
+          // Tucked behind the button while the menu lists the same cards row by row.
+          data-tucked={open ? '' : undefined}
           onClick={() => setOpen((v) => !v)}
         >
           {/* Grey, blue, yellow — the button's order, summed over every OTHER workspace. */}

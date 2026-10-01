@@ -284,6 +284,30 @@ describe('WorkspaceSwitcher', () => {
     expect(r.container.querySelector('[data-testid="workspace-elsewhere-tab"]')).toBeNull()
   })
 
+  // The open menu lists every other workspace with its own pills; the tab's sums would count those
+  // cards twice, so it tucks behind the button until the menu closes.
+  it('tucks the tab behind the button while the menu is open', () => {
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    const tab = q(r, '[data-testid="workspace-elsewhere-tab"]')
+    expect(tab.hasAttribute('data-tucked')).toBe(false)
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(tab.hasAttribute('data-tucked')).toBe(true)
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(tab.hasAttribute('data-tucked')).toBe(false)
+    const css = readFileSync(
+      join(
+        process.cwd(),
+        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
+      ),
+      'utf8'
+    )
+    const i = css.indexOf('.tab[data-tucked] {')
+    const rule = css.slice(i, css.indexOf('}', i))
+    expect(rule).toContain('transform: translateX(-100%)')
+    expect(rule).toContain('opacity: 0')
+  })
+
   it('opens the dropdown from the tab too', () => {
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()

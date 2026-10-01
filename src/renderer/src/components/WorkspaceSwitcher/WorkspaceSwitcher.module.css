@@ -138,6 +138,20 @@
   line-height: var(--switcher-line);
   cursor: pointer;
   animation: tab-slide-out 150ms ease-out;
+  transition:
+    transform 150ms ease-out,
+    opacity 150ms ease-out;
+}
+/* The menu is open: its rows carry every other workspace's pills, so the tab slides back under the
+   button (and fades — a see-through theme would show it through the button). It keeps its box, so
+   nothing in the header moves; closing the menu slides it out again. */
+.tab[data-tucked] {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 150ms ease-in,
+    opacity 150ms ease-in;
 }
 .tab:hover {
   background: var(--bg-surface);
@@ -162,6 +176,7 @@
 @media (prefers-reduced-motion: reduce) {
   .tab {
     animation: none;
+    transition: none;
   }
 }
 
