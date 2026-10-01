@@ -30,11 +30,11 @@
    mesh described above, rendered by `src/ground.py` — CSS gradients cannot draw it without rings
    (Chromium rounds each channel at these alphas; the script dithers before rounding). Aurora and
    Warm smoke are photos darkened by `src/wallpapers.py` (Aurora 67% and desaturated, smoke 80%). `cover` for all three: ground.png is
-   16:10, so a 16:9 window crops a sliver of an area that is already near-black. The small cool
+   16:10, so a 16:9 window crops a sliver of an area that is already near-black. The small neutral
    light over the app name stays CSS: it is px-sized and sits under the header glass. */
 body {
   background:
-    radial-gradient(360px 150px at 8% 0%, rgba(215, 220, 235, 0.05), transparent 70%),
+    radial-gradient(360px 150px at 8% 0%, rgba(225, 225, 228, 0.05), transparent 70%),
     var(--theme-wallpaper) center / cover no-repeat,
     #0b0b0e;
   background-attachment: fixed;
@@ -63,13 +63,14 @@ body {
      on it was hard to read. A dark 55% tint, a wider blur and less saturation keep the glass but
      mute what is behind it. */
   --glass-filter: blur(24px) saturate(140%);
-  --glass-fill: rgba(16, 18, 24, 0.55);
+  --glass-fill: rgba(14, 14, 16, 0.55);
   /* The ONE exception to the one material: a MODAL panel sits over the scrim, and through 3% glass
      it showed the dimmed board and read too dark (operator, 2026-09-25). It carries light of its
      own — a 5% fill, and `brightness(120%)` on its backdrop (7% / 135% read too bright), which lifts the scrim off the area
      under the panel only; the board around it stays dimmed. */
-  /* Smoked like the rest (2026-10-01); the `brightness` on its backdrop still lifts the scrim. */
-  --glass-fill-modal: rgba(16, 18, 24, 0.55);
+  /* Smoked like the rest (2026-10-01); the `brightness` on its backdrop still lifts the scrim.
+     NEUTRAL, not blue-grey: `16, 18, 24` read blue next to the neutral terminal over Warm smoke. */
+  --glass-fill-modal: rgba(14, 14, 16, 0.55);
   --glass-filter-modal: var(--glass-filter) brightness(120%);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
