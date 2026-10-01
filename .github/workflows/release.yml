@@ -77,7 +77,8 @@ jobs:
 
   release:
     needs: install-check
-    if: startsWith(github.ref, 'refs/tags/v')
+    # `push` too: a manual run started FROM a tag also has a refs/tags/v… ref, and is a dry run.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write

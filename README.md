@@ -16,7 +16,7 @@ Download the package for your distro from the
 ```bash
 # Debian / Ubuntu
 sudo apt install ./claude-watcher-<version>-amd64.deb
-# Fedora / openSUSE / RHEL
+# Fedora
 sudo dnf install ./claude-watcher-<version>-x86_64.rpm
 # Arch / CachyOS
 sudo pacman -U ./claude-watcher-<version>-x64.pacman
