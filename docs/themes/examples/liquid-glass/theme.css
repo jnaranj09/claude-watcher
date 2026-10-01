@@ -47,7 +47,7 @@ body {
    - NO noise. The `noise.svg` tile this theme carried is gone.
    - LESS blur, MORE saturation (`--glass-filter`): the backdrop stays recognisable and its colour
      spills onto the glass, which is what reads as liquid. 18px/140% read as frost; 16px/175% (2026-09-23) keeps the colour and still lets a card's text bleed away under a dialog.
-   - ONE FILL for every surface (`--glass-fill`, white 3%): the header, the columns, the dialog
+   - ONE FILL for every surface (`--glass-fill`, smoked dark 55%; white 3% until 2026-10-01): the header, the columns, the dialog
      panels and the popovers. A vertical sheen (lighter top, darker bottom) was carried for volume
      and read as a dirty film; and three fills — a smoky black header, milky white dialogs, black
      popovers — read as three materials side by side (2026-09-23). The rim is the only thing that
@@ -58,13 +58,18 @@ body {
    The big bubbles (header, focused body, modal panels) also get a DIRECTIONAL rim on `::after`:
    bright at top-left and bottom-right, dim between. */
 :root {
-  --glass-filter: blur(16px) saturate(175%);
-  --glass-fill: rgba(255, 255, 255, 0.03);
+  /* SMOKED glass (operator, 2026-10-01): a white 3% fill under a 16px / 175% filter let a red card
+     behind the workspace menu bleed through as a red blob across its rows, and regular-weight text
+     on it was hard to read. A dark 55% tint, a wider blur and less saturation keep the glass but
+     mute what is behind it. */
+  --glass-filter: blur(24px) saturate(140%);
+  --glass-fill: rgba(16, 18, 24, 0.55);
   /* The ONE exception to the one material: a MODAL panel sits over the scrim, and through 3% glass
      it showed the dimmed board and read too dark (operator, 2026-09-25). It carries light of its
      own — a 5% fill, and `brightness(120%)` on its backdrop (7% / 135% read too bright), which lifts the scrim off the area
      under the panel only; the board around it stays dimmed. */
-  --glass-fill-modal: rgba(255, 255, 255, 0.05);
+  /* Smoked like the rest (2026-10-01); the `brightness` on its backdrop still lifts the scrim. */
+  --glass-fill-modal: rgba(16, 18, 24, 0.55);
   --glass-filter-modal: var(--glass-filter) brightness(120%);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
@@ -375,6 +380,8 @@ body {
    the popover box blurs itself and is the row's backdrop root, so a row's blur would read only the
    box's paint. Hover moves the border; the fill IS the colour. Divider and note stay flat. */
 [data-popover-item] {
+  /* Medium weight: regular strokes thinned out on glass (2026-10-01). */
+  font-weight: 500;
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
   border-color: var(--ws-border, rgba(255, 255, 255, 0.08));
   box-shadow: var(--glass-rim-row);
