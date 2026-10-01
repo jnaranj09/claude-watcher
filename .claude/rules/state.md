@@ -1,37 +1,14 @@
 # Rule: state ownership
 
-> NOTE: Zustand 5 is installed; the renderer's view-state store is
-> `src/renderer/src/stores/boardStore.ts` (plus the workspaces/theme stores beside it). The
-> "c9watch feed" wording below is historical: session truth now comes from the launch synthesis
-> and the hook ingest (CLAUDE.md, "The native session engine").
+| Kind          | Owner             | Where                                                                                          |
+| ------------- | ----------------- | ---------------------------------------------------------------------------------------------- |
+| Session truth | MAIN              | launch synthesis + hook ingest → reducer → validated deltas (`CH.watchSnapshot`/`watchEvents`) |
+| View state    | RENDERER          | Zustand (`stores/boardStore.ts` + workspaces/theme stores): selection, filters, layout, badge  |
+| Derived       | nobody — computed | narrow selectors; never stored                                                                 |
+| Terminals     | imperative refs   | never in the store (`terminal.md`, SM-C2)                                                      |
 
-## Ownership taxonomy (who owns what)
-
-| Kind              | Owner                  | Where                                                                                                                                        |
-| ----------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Session truth** | the MAIN process       | derived from the c9watch feed; main parses + reduces, then ships validated deltas to the renderer over `CH.watchSnapshot` / `CH.watchEvents` |
-| **View state**    | the RENDERER           | a Zustand store (selected card, filters, hover, column layout, attention badge count)                                                        |
-| **Derived state** | nobody — it's COMPUTED | narrow selectors over the store; never stored separately (no denormalized copies to keep in sync)                                            |
-| **Terminals**     | imperative refs        | NOT in the store (see `.claude/rules/terminal.md`; SM-C2)                                                                                    |
-
-## The rules
-
-- **Main is the single source of truth for sessions.** The renderer never invents or
-  mutates session truth; it renders what main sends (already validated at the Zod
-  boundary). Renderer-side session state is a projection, not an authority.
-- **Narrow selectors.** Components subscribe to the SMALLEST slice they need
-  (`useStore(s => s.selectedId)`), never the whole store — so an unrelated change
-  doesn't re-render the board. Derive (filter/sort/group) in selectors, don't
-  persist the derived result.
-- **No terminals in the store.** Terminals are imperative external resources held in
-  refs; putting them in the store would couple xterm's lifecycle to render cycles.
-- **One-way flow.** c9watch → main (parse + reduce) → validated deltas → renderer
-  store → selectors → components. View intent flows back via typed IPC
-  (`.claude/rules/ipc.md`), not by mutating session truth in the renderer.
-
-## When you build the Epic-1 store
-
-- Keep actions pure and small; inject `now()` for any time-based reasoning so tests
-  are deterministic (architecture: "inject now() for epoch-millis determinism").
-- The store reduces VALIDATED deltas only — never raw c9watch JSON (that is parsed
-  upstream at the `src/shared/schemas/session.ts` boundary).
+- Main is the single source of truth; the renderer renders a projection, never invents or mutates
+  session truth. View intent goes back via typed IPC (`ipc.md`).
+- Narrow selectors (`useStore(s => s.selectedId)`), never the whole store. Derive in selectors.
+- Store reduces VALIDATED deltas only (parsed at `shared/schemas/session.ts`).
+- Keep actions pure and small; inject `now()` for time logic.

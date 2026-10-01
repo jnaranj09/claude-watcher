@@ -1,559 +1,266 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+claude-watcher: KDE-first Electron app that watches local `claude` sessions and embeds live
+terminals for them. v1 (Epics 0–5) done; Epic 6 replaced the external `c9watch` CLI with a native
+session engine (several dir/channel names keep the historical `c9watch` prefix).
 
-claude-watcher is a KDE-first Electron desktop app that watches local `claude`
-sessions and embeds live terminals for them. v1 (Epics 0–5) is feature-complete;
-Epic 6 replaced the external `c9watch` CLI with a native session engine (the app
-name and several dir/channel names keep the historical "c9watch" prefix).
+`IdeasBoard.md` tracks new work. Remove an item when it is done or discarded. Never implement an
+item right away: validate it with a systematic approach (bmad / superpowers), then implement the
+same way.
 
-The following file: IdeasBoard.md
-Is used to keep track of new work on the app. When something is discarded or completed it must be removed from the file to keep it updated.
-Items in that board should never be implemented right away. They should always be validated using a systematic approach like bmad or superpowers plugin. Once approved
-implementation should also follow a systematic approach.
+## Never commit (`.gitignore`) — this repo is PUBLIC
 
-## Not tracked in git (`.gitignore`) — never commit these
+Planning records hold home paths, work email and internal names:
 
-This repo is PUBLIC. Planning records carry the operator's home paths, work email and internal
-project names, so they stay on disk only:
-
-- `docs/superpowers/` — superpowers specs and plans. Write them there, but do NOT `git add` or
-  commit them (a brainstorming/writing-plans step that says "commit the spec" stops at the write).
-- `_bmad-output/` and `_bmad/`, `.claude/skills/` — BMAD records and tooling. (One hand-checked
-  file under `_bmad-output/planning-artifacts` is already tracked; leave it.)
-- `.claude/settings.local.json` — personal overrides (`.claude/settings.json` IS tracked).
-- Build and test output: `node_modules`, `dist`, `out`, `test-results/`, `*.tsbuildinfo`,
-  `.eslintcache`, `*.log*`.
-
-Never use `git add -f` on any of them.
+- `docs/superpowers/` (specs/plans — write there, never `git add`; a skill step saying "commit the
+  spec" stops at the write), `_bmad-output/`, `_bmad/`, `.claude/skills/` (one tracked file under
+  `_bmad-output/planning-artifacts` stays), `.claude/settings.local.json`.
+- Build/test output: `node_modules`, `dist`, `out`, `test-results/`, `*.tsbuildinfo`,
+  `.eslintcache`, `*.log*`. Never `git add -f`.
 
 ## Commands
 
-| Task                                       | Command                                                          |
-| ------------------------------------------ | ---------------------------------------------------------------- |
-| Dev (HMR)                                  | `npm run dev`                                                    |
-| Build (typecheck + bundle)                 | `npm run build`                                                  |
-| Packaged build (`--dir`)                   | `npm run build:dir`                                              |
-| Typecheck (node + web + test projects)     | `npm run typecheck`                                              |
-| Lint (flat config, type-checked rules)     | `npm run lint`                                                   |
-| Format                                     | `npm run format`                                                 |
-| Unit/integration tests (Vitest)            | `npm run test`                                                   |
-| Watch tests                                | `npm run test:watch`                                             |
-| E2E (Playwright-Electron)                  | `npm run test:e2e`                                               |
-| Packaged node-pty smoke gate               | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
-| Cut a release (tag → draft GitHub Release) | `.claude/rules/release.md`                                       |
+`npm run dev` (HMR) · `build` (typecheck + bundle) · `build:dir` (packaged) · `typecheck` ·
+`lint` · `format` · `test` / `test:watch` (Vitest) · `test:e2e` (Playwright-Electron) ·
+`smoke` (after `build:dir`, or `smoke:packaged`) · release: `.claude/rules/release.md`.
 
-**`npm run dev` runs on the DEV profile** (`src/main/profile.ts`), so it can run beside the
-installed app: userData `~/.config/claude-watcher-dev`, hook port **19279**, a fresh settings file
-starts with API port **19281**, and the window title ends in `(dev)`. The signal is
-`ELECTRON_RENDERER_URL` (set only by `electron-vite dev`), so the packaged app, `smoke` and the
-e2e runs of the built app stay on the default profile (9279 / 9281). **The drive runs
-(`tests/drive/driveApp.mjs`) use a THIRD profile, `drive`** (`CLAUDE_WATCHER_PROFILE=drive`): hook
-**29279**, API **29281**, userData `~/.config/claude-watcher-drive`. The three never share a port,
-so NOTHING has to be closed for a dev run or a drive run — never ask the operator to.
+Single test — Vitest projects `unit` (jsdom) and `main-unit` (node):
+`npx vitest run <file>` · `npx vitest run --project main-unit -t "desync"`.
 
-**Running a single test** — Vitest has two projects (see `vitest.config.ts`): `unit`
-(jsdom) and `main-unit` (node). Target one file or test:
+**Three profiles, three port sets — never ask the operator to close anything:**
 
-```bash
-npx vitest run src/main/c9watch/reducer.test.ts          # one file
-npx vitest run --project main-unit -t "desync"           # one test by name (main-side)
-npx vitest run --project unit src/shared/schemas         # one project / dir
-```
+| Profile                                                | hook  | API   | userData                         |
+| ------------------------------------------------------ | ----- | ----- | -------------------------------- |
+| default (packaged, smoke, e2e)                         | 9279  | 9281  | `~/.config/claude-watcher`       |
+| dev (`npm run dev`, signal `ELECTRON_RENDERER_URL`)    | 19279 | 19281 | `~/.config/claude-watcher-dev`   |
+| drive (`CLAUDE_WATCHER_PROFILE=drive`, `tests/drive/`) | 29279 | 29281 | `~/.config/claude-watcher-drive` |
 
-**Seeing a visual change in the real app** — tests cannot see CSS, stacking or pixel alignment.
-`npm run build`, then drive the built app from a scenario script on `tests/drive/driveApp.mjs`
-(Playwright-Electron, real `claude`, real hook POSTs, screenshots). It runs on the `drive`
-profile (above), beside the installed app and `npm run dev` — close nothing. Recipe and gotchas:
-`.claude/rules/run-app.md`.
+Dev window title ends `(dev)`. `src/main/profile.ts`.
 
-**Gate buckets.** Most changes gate on `typecheck / lint / test / build`. Only changes
-touching node-pty / the preload seam / packaging additionally require `build:dir` +
-`smoke` (the packaged-native gate). The `smoke` script proving node-pty survives
-packaging is load-bearing — do not regress it.
+**Visual changes:** tests cannot see CSS. `npm run build`, then drive the built app
+(`tests/drive/driveApp.mjs`) — recipe in `.claude/rules/run-app.md`.
 
-## Architecture — three process layers + shared
+**Gates:** `typecheck / lint / test / build`. Changes touching node-pty / preload / packaging also
+need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing).
 
-Code lives in four trees; the boundaries between them are the whole design:
+## Architecture
 
-- **`src/main/`** — Electron main process. **node-pty runs HERE, never in the renderer.**
-  Subdivided into `c9watch/` (the reducer → enrich → ship pipeline; the dir name is
-  historical — the c9watch CLI is retired), `hooks/` (the :9279 hook ingest), `pty/`
-  (terminal/launch lifecycle), `kde/`, `lifecycle/`, `persistence/`. Main is the
-  **single source of truth for session state**.
-- **`src/preload/`** — the typed `contextBridge` seam. The renderer gets ONLY these
-  functions, never `ipcRenderer`/Node directly. `index.d.ts` augments `Window`.
-- **`src/renderer/`** — React UI (sandboxed). Reaches IPC only through `window.*` bridges.
-  View-state lives in a Zustand store (`src/renderer/src/stores/boardStore.ts`).
-- **`src/shared/`** — imported by BOTH sides: `ipc/contract.ts` (the `CH` channel registry and payload types), `schemas/hookEvent.ts` (the Zod hook-POST adapter — the ONE external
-  boundary), and `schemas/session.ts` (the Session storage/renderer shape).
-- `src/__fixtures__/` — the fake hook feed + launched-session fixtures (test doubles;
-  never shipped).
+- `src/main/` — main process. **node-pty runs HERE only.** `c9watch/` (reducer → enrich → ship;
+  historical name), `hooks/` (hook ingest), `pty/`, `kde/`, `lifecycle/`, `persistence/`, `api/`,
+  `themes/`. Main is the **single source of truth for session state**.
+- `src/preload/` — typed `contextBridge` seam; renderer never gets `ipcRenderer`/Node.
+- `src/renderer/` — React UI (sandboxed), view-state in Zustand (`stores/boardStore.ts`).
+- `src/shared/` — `ipc/contract.ts` (`CH` registry + payload types), `schemas/hookEvent.ts`
+  (hook-POST adapter), `schemas/session.ts`.
+- `src/__fixtures__/` — fake hook feed, launched-session fixtures (never shipped).
 
-### The data flow (one-way)
+Flow (one-way): launch spawn (minted `--session-id`) → `reducer.upsertLaunched`; hook POSTs →
+Zod → `reducer.applyHookStatus`; reducer → validated deltas over `CH.watchEvents` → renderer store →
+selectors → components. Renderer never invents/mutates session truth.
 
-```
-launch spawn (minted --session-id) ──> reducer.upsertLaunched ─┐
-claude hook POSTs (127.0.0.1:9279) ──> Zod-validate            ├─> reducer (Map<id,Session>)
-   (hookEvent.ts) ──> reducer.applyHookStatus ─────────────────┘
-   ──> validated deltas over CH.watchEvents ──> renderer Zustand store ──> selectors ──> components
-```
+## Load-bearing constraints (precedence order; read the rule file before touching a layer)
 
-Session truth flows main → renderer; view intent flows back via typed IPC. The renderer
-never invents or mutates session truth — it renders a projection of what main sends.
+1. **Fail-closed Zod boundaries** (`rules/zod-boundaries.md`): one boundary per input; log error
+   PATH + CODE only, never the value. Beats never-crash.
+2. **Never-crash past the boundary** — one bad session must not take down the board.
+3. **Typed IPC** (`rules/ipc.md`): every channel is `CH.*`, never a literal (ESLint
+   `local-ipc/no-literal-channels`). New channel = contract → schema → main handler → preload + test.
+4. **xterm imperative** (`rules/terminal.md`): refs only, never `useState`/store; one node-pty per
+   xterm; hide kept-alive frames with `visibility:hidden` on the whole frame.
+5. **State ownership** (`rules/state.md`): session truth = main; view-state = Zustand; derived =
+   selectors. Inject `now()`.
+6. **UI shape** (`rules/design.md`): one `ManageDialog` shell for every config surface; banned:
+   native `<select>`, bare text `<input>`, `<button className>`, hand-made popovers (each has a
+   guard test). Every action ends in visible feedback; async buttons use `useAsyncAction`/`busy`.
 
-## Load-bearing constraints (the non-obvious ones)
+**Debugging?** Read `rules/troubleshooting.md` first (Step-0 questions before theorizing).
 
-Detailed standards live in `.claude/rules/*` — read the relevant file before touching
-that layer. The high-frequency rules, in **precedence order** (earlier wins on conflict):
+## Native session engine
 
-1. **Fail-closed Zod boundaries** (`.claude/rules/zod-boundaries.md`). Every external input
-   is validated at exactly ONE boundary that fails closed. A bad hook POST gets a 400 +
-   drop + log **by error PATH + CODE only — never the value** (a ZodError stringifies its
-   input, which may carry prompts / assistant prose / tool input). This BEATS never-crash.
-2. **Never-crash past the boundary** — one bad session/line must not take down the board.
-3. **Typed IPC seam** (`.claude/rules/ipc.md`). Every channel is a `CH.*` const from
-   `src/shared/ipc/contract.ts`, NEVER a string literal (enforced by the authored
-   `local-ipc/no-literal-channels` ESLint rule). Adding a channel touches 4 files in
-   lockstep (contract → schema → main handler → preload wrapper) + a test.
-4. **xterm owned imperatively** (`.claude/rules/terminal.md`). Terminals live in refs,
-   NEVER React `useState`, and are NOT in the store. One node-pty per xterm; transport is
-   Electron IPC (a `MessagePort` forwarded to the main world). Kept-alive frames hide with
-   `visibility:hidden` on the whole frame (not `display:none`, not just the inner host).
-5. **State ownership** (`.claude/rules/state.md`). Session-truth = main; view-state =
-   renderer Zustand; derived = narrow selectors (never persisted). Inject `now()` for
-   determinism.
-6. **UI shape** (`.claude/rules/design.md`). The Manage dialogs (Templates / Shortcuts /
-   Workspaces / Tags / Rules / Past sessions) and Settings share ONE shell, `components/ManageDialog/` — a header scope dropdown, a FLAT
-   row list (never sections; row actions only in `ManageDialog.RowActions`), a form, and a
-   `[Delete] [Save]` footer. **The right column is never an empty form**: nothing open shows
-   `ManageDialog.Placeholder`, `+ New` calls `startNew()`. **Settings and Shortcuts are the same
-   shell** — Settings with a rail of categories and a `Pane`, opening on the first (spec
-   `2026-09-29-two-column-dialogs-design.md`). Destructive actions arm
-   in place and are red-outlined at rest; a workspace is always drawn as its tint
-   (`WorkspaceTint` / `WorkspaceLabel`), never a dot.
-   **A native `<select>` is banned** — Chromium paints its popup from the desktop's GTK theme,
-   so it comes up light on a dark app; use `components/Select/Select.tsx`. **A bare
-   `<input type="text">` is banned too** — five dialogs had grown five drifting copies of the
-   same `.input` CSS rule; use `components/TextInput/TextInput.tsx` (its test fails if any other
-   module declares an `.input`/`.search` class). **A bare `<button className=…>` is banned the same
-   way** — every button is `components/Button/Button.tsx` (four variants, three fixed heights, no
-   `className`; `Button.test.tsx` fails if any other module declares a button class). **A hand-made menu or list popup is banned too** — every popover box and row is `components/Popover/` (`Popover.guard.test.ts` fails on a raw `role="menu"`/`listbox`/`option` element or a `--shadow-pop` box anywhere else); themes reach them through `data-popover*`. Read the
-   sibling dialog before laying out a new one.
-   **Every action ends in visible feedback** (`design.md` `## Feedback`): a dialog's own error line
-   or mark, a Button's `feedback`, or a toast (`toastStore` / the one `<Toaster />`) — and every
-   async button is `useAsyncAction` or `busy`, so nothing runs twice.
-
-**Debugging a symptom?** Read `.claude/rules/troubleshooting.md` first — run its Step-0
-questions (data present? depends on a sibling? console empty?) to pin the layer before
-theorizing. Note its trap: the `tests/e2e/two-launch-screenshot*` diagnostics were not
-trustworthy and have been removed; a manual repro with real `claude` is the reliable signal.
-
-### The native session engine (the c9watch CLI is retired — Epic 6)
-
-- **Minimum claude is 2.1.245, enforced at launch** (`src/main/pty/claudeVersion.ts`). The
-  spawn passes `--session-id`, `-n` and `--settings`; a claude that does not know one of those
-  does NOT degrade — it rejects the argument and the session dies instantly. `CH.sessionLaunch`
-  probes `$SHELL -l -c "<claude> --version"` (the same shell the spawn uses), refuses with the
-  code `claude_version` — the name prompt stays open and says `Update claude to <MIN> or newer…` on
-  its error line (no native box; `MIN_CLAUDE_VERSION` lives in `src/shared/launch/`, and Past
-  sessions → Open and the dead pane's Resume map the same code) — and caches ONLY the ok verdict so
-  an upgrade unblocks without an app restart. It **fails OPEN** on an unreadable/unparseable version — the one
-  deliberate inversion of the fail-closed default, because a false block bricks a working
-  install. Bump the floor only alongside a re-verification of those three flags. **An API create**
-  (R25, `createClaudeVersionGate`) answers 503 `claude_version` and
-  reuses a refusal for 30 s instead of re-probing the shell on every retry; in-app launches always
-  re-probe a refusal.
-- **A launch into a missing folder is refused BEFORE anything registers** (UX-11). node-pty spawns
-  into a gone cwd without throwing; the child fails its chdir and exits after the card and its
-  record exist. `launchService.launch` takes a REQUIRED `isDirectory` and throws `folder_missing`
-  (no recipe, no card); an in-app launch keeps the name prompt open and shows `That folder no
-longer exists.` on its error line (no native box — spec 2026-09-29 action feedback), and
-  `POST /v1/sessions` answers 409
-  `folder_missing` before the 503s. A Reopen of a dead pane is NOT checked. With the hook server
-  unbound (SEC-6) the create answers 503 `hooks_unavailable` (`ApiContext.hooksListening`, after
-  `claude_version`, before `no_window`) instead of a 201 for a card that could never move.
-- **Identity is minted at launch:** the app spawns `claude --session-id <uuid>` with a
-  caller-minted UUID (verified on claude 2.1.199), so the terminal↔session binding is
-  EXACT at spawn. The board card is synthesized IMMEDIATELY via `reducer.upsertLaunched`
-  (status `Connecting`) — no discovery wait, no pid-ancestry correlation for new launches.
-- **Hooks own every status transition:** Claude Code lifecycle hooks POST to
-  `127.0.0.1:9279`. **ZERO FOOTPRINT — the app writes into NO project and NO user settings
-  file.** `hookSettingsFile.ts` writes the hook block into the app's OWN data dir
-  (`app.getPath('userData')`) and `composeClaudeCommand` hands it to each spawn as
-  `--settings <path>`, so the hooks scope to EXACTLY the sessions the app launches and a
-  plain `claude` in the same folder stays silent. Probe-verified on claude 2.1.245:
-  `--settings` MERGES with the project's own settings (an operator's own hooks/permissions
-  survive), and a stale block on the same URL is DEDUPED against the flag (one POST, not
-  two — which is what keeps the name-sync push-once safe).
-  This REPLACED `registerHooks`, which merged the block into
-  `<picked cwd>/.claude/settings.local.json` and left a permanent trace in every directory
-  the app was ever launched in. The app does NOT clean those up — they are the operator's
-  file to edit. ALL hook input goes through
-  the ONE fail-closed Zod adapter `src/shared/schemas/hookEvent.ts` (`.passthrough()` so
-  additions pass; known-key malformations fail closed → 400 + drop + log path/code only,
-  NEVER the body — payloads carry prompts/`last_assistant_message`/tool input).
-  `hookStatus.ts` is the ONLY hook-event→status mapping (`pty/approvalKey.ts` is the one
-  keystroke→status mapping, R4). **No bind, no `--settings` (SEC-6):**
-  `hookSettingsPathIfListening` gives claude the settings file ONLY while THIS process's hook
-  server is bound (`src/main/serverHealth.ts`, fed by `createHookServer`'s `onListening` /
-  `onError`). A port another program holds would otherwise receive every prompt; instead the
-  session runs without status and the server-health banner (`ServerHealthBanner`, pushed over
-  `CH.serverHealth` / asked with `CH.serverHealthGet`) says so — `port_in_use`, `server_error`,
-  or `hooks_file_failed`. Never withhold the flag silently; never send it without the bind. A POST carrying an `Origin` header is a
-  browser and gets 403 before the body is read (SEC-2): claude's own hook POST sends none
-  (probe 2026-09-28, claude 2.1.284). Re-probe if a claude upgrade ever stops every card moving.
-- **Removal is stop/exit-driven, and every exit names its REASON (past sessions):** in-app
-  Archive, `Ctrl+C` twice, `/exit`, a pty exit, the belt-and-suspenders `SessionEnd`,
-  an app QUIT and a WINDOW CLOSE all remove the card with reason `archive` — main snapshots the
-  card into `claude-watcher-past-sessions.json` (`src/main/persistence/pastSessions.ts`, state
-  only, v1, cap 200, cascades on workspace delete) BEFORE the reducer drops it. Quit and window
-  close fire NO pty onExit (`destroyAll`/`stop` dispose the exit listener before the kill), so
-  they run `archiveBoundSessions` (`src/main/pty/launchRemoval.ts`) FIRST — in
-  `teardownAllSessions` before `destroyAll`, and in `teardownWindowTerminals`, which the `closed`
-  handler runs BEFORE `teardownWatchFeed` drops the window's seam. It never throws (a failure logs
-  `code=teardown_archive_failed` and the quit goes on). `Delete` (after the confirm)
-  removes with reason `delete`: no record, and any earlier record for that id is dropped — on a
-  pane whose claude already exited too: the launch override keeps the terminal's LAST bound id
-  (`LaunchOverride.lastSessionId`, moved by `rebind` on `/clear`), and `CH.sessionDelete` drops
-  that record (`deleteTerminalSession`; the renderer's `sessionId` is only a hint). Delete
-  never touches claude's own files. `Past sessions…` (last ☰ row) reopens a record as a live card
-  with `claude --resume <id>` (the launch service's `resumeSessionId`; the minted id IS the
-  record's id — probe-verified 2026-09-18 on claude 2.1.277 that `--resume` keeps it). A resume
-  passes `-n <name>` too (R3), and the name is the RECORD's (`resumeName`), not the frozen recipe's:
-  a rename made before the archive never reached claude, and a dead-pane Reopen must not rename
-  claude back (probe 2026-09-28, claude 2.1.284: `--resume <id> -n <name>` keeps the id and applies
-  the name; below that, not probed). The
-  `session.removed` from a late `SessionEnd` stays idempotent (no card ⇒ no record, no log).
-- **A dead pane names the exit and can Resume in place of itself (UX-10):** the pty's exit code or
-  signal rides `CH.terminalExit` / the port's `exit` message (`signal` only when ≥ 1; state, never
-  content). `Resume conversation` calls `CH.pastSessionResumeTerminal` with the TERMINAL id only —
-  main takes the override's `lastSessionId` and runs `openPastSession`'s checks
-  (`resumeTerminalSession`); the renderer opens the new terminal and forgets the dead one, so dead
-  panes never accumulate. `+ New session` from a dead pane still leaves it mounted.
-- **A card on the board ALREADY has its record, marked `live` (UX-01):** `livePastSessions.ts`,
-  fed from `handleDelta` and from the hook ingest's `transcript_path`, writes it at launch and on
-  every change of name / folder / workspace / tags / transcript, plus at most once a minute to
-  keep `endedAt` fresh. `list()` hides a live record and the 200 cap never evicts one — nor counts a
-  HIDDEN one (UX-03), which has its own cap (`PAST_SESSIONS_HIDDEN_MAX` 200, oldest dropped,
-  `code=past_sessions_hidden_trimmed`) so the file stays bounded; the visible cap logs
-  `code=past_sessions_trimmed count=N` (a workspaces restore can make hidden rows visible past it); an archive
-  overwrites it by id; the old id of a `/clear` rebind is dropped (`dropLive`). A crash, SIGKILL
-  or power loss therefore still leaves the session in Past sessions: the next start turns a
-  leftover live record into a normal one (`code=past_sessions_recovered_live`). **Open does NOT
-  remove the record** (UX-02) — the resumed card's live record replaces it. **Open refuses
-  `transcript_missing`** when claude has no transcript for the record (UX-08): its
-  `transcriptPath` file is gone, or — with no path — no `<configDir>/projects/*/<id>.jsonl` exists
-  (`pty/claudeTranscript.ts`; a known path that is gone falls back to that scan — a hook can send
-  any path; only ENOENT/ENOTDIR count as missing; fails open on an unlistable folder or a non-UUID
-  id). **No
-  conversation, no record (NEW-5):** claude writes the transcript on the FIRST prompt and its hooks
-  name the path only from then on (drive run 2026-09-30, claude 2.1.285), so a session archived
-  before its first prompt — or one that exited on claude's folder-trust screen — gets no record
-  (`code=past_sessions_no_transcript_skipped`), and a crash-leftover live record like that is dropped
-  on load. That DELETE trusts a no-path scan only while the hook server is bound
-  (`archiveTranscriptCheck`): without hooks every session has no path, and a `CLAUDE_CONFIG_DIR` set
-  only in the login profile would point the scan at the wrong folder. An ENDED record is never dropped for it: Open says `transcript_missing` and the operator
-  Forgets it. **Open and the dead pane's Resume refuse `session_running_elsewhere`** (UX-14) when a
-  LIVE claude anywhere records that id in `~/.claude/sessions/<pid>.json` (`pty/runningElsewhere.ts`:
-  id match + `kill(pid, 0)`, EPERM = alive). It is the one reader that opens EVERY record, so it
-  returns one boolean — never the cwd, name or pid — and FAILS OPEN on an unlistable directory
-  (claude is the final judge). **SIGTERM cannot be caught:** Electron's own handler turns it into
-  `app.quit()`, so a logout or `kill` with live sessions stops at the quit guard until the session
-  manager SIGKILLs the app (drive run 2026-09-28; `process.on('SIGTERM')` never fired, even
-  registered after app-ready). The live records are what cover that case.
-- **A rename waits for the next prompt, and the card says so:** `Session.nameSyncPending` (set by
-  an in-app rename, cleared when the hook server takes the pending title) draws the `⟳` mark;
-  `pendingTitles.rebind` moves a pending rename with the card on `/clear` (`adoptCard`), which is
-  what fixed "rename, then /clear, then the card reverts". A rename of an id the reducer does not
-  hold queues NO push (R17, `hooks/renameLaunched.ts`): nothing would ever take it.
-- **Unknown-id hook events are no-ops** (`hook_unknown_id` log): hooks never synthesize a
-  card — external (non-app-launched) sessions stay off the board (Story 3.3 ship gate). They
-  also start NO transcript tail, and their raw `session_id` is
-  never logged (`src/main/hooks/sessionTracking.ts`, SEC-2/SEC-3): anyone on the machine can
-  POST to :9279. The `/clear` adoption runs BEFORE that gate, so a rebound card keeps its tail;
-  `forgetSession` on every `session.removed` stops it (R13).
-- **Claude changes its own session id mid-run (`/clear`) and the card must follow**
-  (`src/main/hooks/sessionRebind.ts`). The same process and pty continue under a NEW id, so
-  every later hook would be `hook_unknown_id` and the card would freeze on its last status.
-  Adoption is tried with an EXACT proof first: claude 2.1.257 records each live process's
-  current id in `~/.claude/sessions/<pid>.json` (`src/main/pty/claudeSessionFile.ts`, the
-  THIRD fail-closed Zod boundary — never log it, it carries cwd + name), and a launched
-  terminal whose process tree records the unknown id adopts it — no cwd, no window. Only the
-  terminal's OWN claude counts (R18): the OUTERMOST one, with no other claude (a recorded pid or
-  a `/proc` `Name: claude`) between it and the pty leader. A nested `claude -p` run by claude's
-  Bash tool records its own id under the same leader (live check 2026-09-28, claude 2.1.284) and
-  is never a proof; an unreadable ancestor, or two outermost claudes / two terminals naming the
-  id, is no pid proof either — the cwd heuristic decides. The
-  older cwd + single-match + alive + 5-minute-window heuristic remains as the fallback; it
-  froze a monitor session for hours on 2026-09-01 when the first accepted hook came 24 min
-  after `/clear`, which is why the exact proof exists. Log codes: `hook_sessionend_pty_alive`,
+- **Min claude 2.1.245, checked at launch** (`pty/claudeVersion.ts`, `MIN_CLAUDE_VERSION` in
+  `src/shared/launch/`). Spawn passes `--session-id`, `-n`, `--settings`; an older claude rejects
+  them and dies. `CH.sessionLaunch` probes `$SHELL -l -c "<claude> --version"`, refuses with
+  `claude_version` (error line in the name prompt; Past sessions Open and dead-pane Resume map it
+  too). Caches only the OK verdict. **Fails OPEN** on unreadable version (a false block bricks a
+  working install). Bump the floor only after re-verifying the three flags. API create: 503
+  `claude_version`, refusal reused 30 s (`createClaudeVersionGate`).
+- **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
+  required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
+  exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503
+  `hooks_unavailable` (after `claude_version`, before `no_window`).
+- **Identity minted at launch:** `claude --session-id <uuid>`; card synthesized immediately via
+  `reducer.upsertLaunched` (status `Connecting`). Identity = stable `id`, never `pid`.
+- **Hooks own every status transition** (POST to `127.0.0.1:9279`). **Zero footprint:**
+  `hookSettingsFile.ts` writes the hook block into userData; `composeClaudeCommand` passes
+  `--settings <path>`. Scoped to app-launched sessions only; merges with project settings; same-URL
+  stale blocks are deduped. (Replaced `registerHooks`, which wrote `.claude/settings.local.json`
+  into every cwd — the app does not clean those up.) All input via `hookEvent.ts`
+  (`.passthrough()`; malformed known key → 400 + drop + log path/code). `hookStatus.ts` = the only
+  event→status map; `pty/approvalKey.ts` = the only keystroke→status map (R4).
+- **No bind, no `--settings` (SEC-6):** `hookSettingsPathIfListening` gives the flag only while
+  THIS process holds the hook port (`serverHealth.ts`). Otherwise the session runs without status
+  and `ServerHealthBanner` (`CH.serverHealth`/`serverHealthGet`) says `port_in_use` /
+  `server_error` / `hooks_file_failed`. Never withhold silently; never send without the bind. POST
+  with an `Origin` header → 403 before body read (SEC-2; claude sends none — re-probe if cards stop
+  moving after an upgrade).
+- **Every exit has a reason.** Archive, Ctrl+C×2, `/exit`, pty exit, `SessionEnd`, app quit, window
+  close → reason `archive`: snapshot into `claude-watcher-past-sessions.json`
+  (`persistence/pastSessions.ts`, v1, cap 200, cascades on workspace delete) BEFORE the reducer
+  drops it. Quit/close fire no pty onExit, so `archiveBoundSessions` (`pty/launchRemoval.ts`) runs
+  first — in `teardownAllSessions` before `destroyAll`, and in `teardownWindowTerminals` before
+  `teardownWatchFeed`. Never throws (`code=teardown_archive_failed`). `Delete` → reason `delete`:
+  no record, earlier record dropped, using the override's `lastSessionId` (`deleteTerminalSession`;
+  renderer `sessionId` is a hint). Never touches claude's files. Late `SessionEnd` is idempotent.
+- **Resume:** `Past sessions…` reopens with `claude --resume <id>` (`resumeSessionId`; id kept) plus
+  `-n <record name>` (`resumeName`, not the frozen recipe's). Dead pane (UX-10) shows exit
+  code/signal (`CH.terminalExit`); `Resume conversation` calls `CH.pastSessionResumeTerminal` with
+  the terminal id only → main uses `lastSessionId` (`resumeTerminalSession`); renderer opens the
+  new terminal and forgets the dead one.
+- **Live records (UX-01):** `livePastSessions.ts` writes a `live` record at launch and on every
+  name/folder/workspace/tags/transcript change (+ ≤1/min `endedAt` refresh). `list()` hides live
+  records; cap never evicts/counts them. Hidden records have their own cap
+  (`PAST_SESSIONS_HIDDEN_MAX` 200, `code=past_sessions_hidden_trimmed`); visible cap logs
+  `code=past_sessions_trimmed`. `/clear` drops the old id (`dropLive`). Next start turns leftover
+  live → normal (`code=past_sessions_recovered_live`) — covers crash/SIGKILL. Open does NOT remove
+  the record (UX-02).
+- **Open refusals:** `transcript_missing` (UX-08, `pty/claudeTranscript.ts`): path gone, or no
+  `<configDir>/projects/*/<id>.jsonl`; only ENOENT/ENOTDIR count; fails open on unlistable dir or
+  non-UUID. `session_running_elsewhere` (UX-14, `pty/runningElsewhere.ts`): a live pid in
+  `~/.claude/sessions/<pid>.json` holds the id (`kill(pid,0)`, EPERM = alive); returns one boolean,
+  fails open.
+- **No conversation, no record (NEW-5):** claude writes the transcript on the first prompt, so a
+  session archived before it (or stuck on folder-trust) gets no record
+  (`code=past_sessions_no_transcript_skipped`); such leftover live records are dropped on load.
+  The no-path scan is trusted only while hooks are bound (`archiveTranscriptCheck`). Ended records
+  are never dropped for it.
+- **SIGTERM can't be caught** (Electron turns it into `app.quit()`; stops at the quit guard until
+  SIGKILL). Live records cover it.
+- **Rename waits for the next prompt:** `Session.nameSyncPending` draws `⟳`;
+  `pendingTitles.rebind` moves it on `/clear` (`adoptCard`). Rename of an unknown id queues
+  nothing (R17, `hooks/renameLaunched.ts`).
+- **Unknown-id hook events are no-ops** (`hook_unknown_id`): never synthesize a card; no transcript
+  tail; never log the raw id (`hooks/sessionTracking.ts`, SEC-2/3). `/clear` adoption runs before
+  this gate; `forgetSession` on every removal stops the tail (R13).
+- **`/clear` changes the id; the card follows** (`hooks/sessionRebind.ts`). Exact proof first:
+  `~/.claude/sessions/<pid>.json` (`pty/claudeSessionFile.ts`, third fail-closed boundary, never
+  log — has cwd + name). Only the terminal's OWN outermost claude counts (R18) — a nested
+  `claude -p` from the Bash tool is never proof; ambiguous → cwd heuristic fallback (cwd +
+  single match + alive + 5-min window). Logs: `hook_sessionend_pty_alive`,
   `hook_session_id_rebound proof=pid|cwd`, `hook_rebind_window_expired`.
-- **Identity = the stable `id` (UUID), never `pid`** — pid is a wandering claude thread id.
-- **`status` is NOT enum-locked** (a new status string must not fail the session closed).
-- **The status rules that are not obvious (group 9 of the 2026-09-23 bug hunt):**
-  - A turn that ends with claude's `background_tasks` still running is `Working` — the terminal
-    says "1 shell still running", and the card must not say less. (R5 made it a quiet your-turn;
-    looking at the session then demoted it to Idle with the shell still running — reverted
-    2026-09-29, operator's call.) A task that never ends (a dev server) holds Working until the
-    next event; Esc ALWAYS demotes to idle, background work or not.
-  - A tool event (`PreToolUse` / `PostToolUse`, `fromTool`) never pulls a card out of
-    `NeedsPermission` (R20: a parallel subagent's events cleared an open prompt). claude sends no
-    hook on approval, so Enter / `1` / `2` typed into that terminal moves it to `Working` instead
-    (R4, `pty/approvalKey.ts`, `code=permission_answered_key`).
-  - `pendingToolName` is set ONLY while the card waits: the last `PreToolUse` tool for a
-    permission prompt (the Notification names none), `AskUserQuestion` for its own question (R14).
-  - `SessionStart` with `source: "compact"` is ignored: an auto-compact happens mid-turn (R19).
-  - The hook body cap is 8 MiB (R22): a `PostToolUse` for a large Write carries the whole file.
-- **`pendingToolInput` is polymorphic** (object for `Agent`, string for others) — do not narrow it.
-- **Historical naming:** the `src/main/c9watch/` dir, the `CH.watch*` channel names, and
-  the `[c9watch]` log prefixes predate the retirement — they are names, not a CLI
-  dependency. `rg -w c9watch src/` must never show a spawn/exec of the CLI.
-- **Naming — `claude-watcher` for NEW code, rename of the rest is PENDING.** Decided
-  2026-09-02: every NEW file, store name, log prefix and identifier uses `claude-watcher`
-  (e.g. `[claude-watcher][templates]`, `claude-watcher-templates.json`), never `c9watch`.
-  The EXISTING `c9watch`-prefixed dirs, `CH.watch*` channels, `[c9watch]` log prefixes and
-  the `c9watch-settings.json` store file are a PENDING rename (the store file needs a
-  migration so settings survive). Do not rename them in passing — one dedicated change.
+- **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
+  otherwise) — don't narrow.
+- **Status rules:** turn ending with `background_tasks` running = `Working` (until next event; Esc
+  always demotes to idle). `PreToolUse`/`PostToolUse` never pull a card out of `NeedsPermission`
+  (R20); Enter/`1`/`2` in that terminal → `Working` (R4, `code=permission_answered_key`).
+  `pendingToolName` set only while waiting (R14). `SessionStart source:"compact"` ignored (R19).
+  Hook body cap 8 MiB (R22).
+- **Naming:** NEW code uses `claude-watcher` (files, stores, log prefixes like
+  `[claude-watcher][templates]`). Existing `c9watch` dirs/`CH.watch*`/`[c9watch]` logs/
+  `c9watch-settings.json` are a PENDING rename (needs a migration) — don't rename in passing.
+  `rg -w c9watch src/` must never show a CLI spawn.
 
-### Workspaces
+## Workspaces
 
-- **Every session carries a `workspaceId`** (`src/shared/schemas/session.ts`) — session TRUTH,
-  REQUIRED (not optional), stamped at launch synthesis from main's own active workspace
-  (`buildLaunchedSession`) and changed only by `CH.sessionSetWorkspace`. The renderer FILTERS on
-  it and never writes it.
-- **Alerts are global, cards are scoped.** `notifier.notify` and the `computeBadgeCount` call
-  (`src/main/kde/badge.ts`) in `src/main/index.ts` must stay unfiltered — the per-workspace badge
-  is a renderer selector (`selectNeedsYouCountByWorkspace`). Do NOT add a workspace filter in
-  main; it would be a drift-prone duplicate. The ONLY skips (group 10 of the 2026-09-23 bug
-  hunt, UX-13): the session the operator is LOOKING AT gets no popup, sound or reminder
-  (`kde/viewedSession.ts` — window focused AND that session's terminal in the focused view,
-  pushed over `CH.viewFocusedTerminal`; one gate, `shouldEmitRaise`, plus the reminder sink), and
-  `settings.notificationsEnabled` off stops the popups only (the sound is `soundEnabled`).
-- **A notification CLICK raises the window and opens the session** (UX-12 / R29 — overrides the old
-  AR-8 / FR-9 "never raise, only select"): `kde/notificationActivate.ts` restores + shows + focuses,
-  then pushes `CH.attentionActivate`; the renderer's `lib/openFromNotification.ts` switches to the
-  session's workspace (only once main confirms) and runs `activateCard` — unless a modal is open
-  (`lib/modals.ts` `isModalOpen`, UX-DR14): then it only selects a card of the active workspace.
-  It checks again after the switch's await: a modal opened meanwhile keeps the reconcile
-  (`focusWorkspace`) but gets only a select, never `activateCard`.
-  It is the operator's own action, like the Quit guard's raise — a SESSION EVENT still never
-  raises the window. The notifier holds each shown popup until it is clicked (cap 50, R21): an
-  unreferenced one can lose its click.
-- **`Template.workspaceId` / `Shortcut.workspaceId` use `.nullable().default(null)`** (null =
-  GLOBAL) and the file versions stay `TEMPLATES_FILE_VERSION = 1` / `SHORTCUTS_FILE_VERSION = 3`
-  (v2 → v3 is the ONE migration, in `parseShortcutsFile`; a chord sequence became an alias).
-  Bumping either WITHOUT a migration makes every existing file fail closed → backed up → started
-  EMPTY, losing every saved template and shortcut — the warning still stands for templates, and
-  for any future shortcuts bump that skips the migration step.
-- **`PastSession.workspaceId` is REQUIRED and the workspaces cascade deletes the records.** A
-  record that names a missing workspace anyway (a hand-edited file, or a corrupt workspaces file
-  reset to Default) is HIDDEN from `list()`/`get()` but KEPT in the file
-  (`code=past_sessions_hidden_unknown_workspace`, UX-03) — restoring the workspaces backup brings
-  it back. It used to be dropped on load and rewritten away with no backup.
-  `PAST_SESSIONS_FILE_VERSION` stays 1; new fields are additive `.default()`s or `.optional()`
-  (`live`, `transcriptPath`).
-- **Shortcuts are reached by ALIAS, not by a chord of their own.** One chord
-  (`settings.expanderKey`, `Ctrl+Alt+X` by default) opens `ExpanderBox` inside the focused
-  terminal; `<alias> <values…>` expands `$1..$9` / `$*` / `$$` (`src/renderer/src/shortcuts/expand.ts`,
-  pure) and the result is TYPED over the port, never submitted. A value may hold spaces when
-  quoted: `parseInput` takes `"…"` / `'…'`, `\` escapes, `""` is an empty value, and an unclosed
-  quote takes the rest of the line (never an error — the box parses on every keystroke). Any other
-  `Ctrl+Alt` chord still reaches the pty untouched.
-- **A workspace switch unmounts NOTHING.** Hidden terminals stay in `launchedTerminals` and
-  render `active={false}` → `visibility:hidden` on the whole frame. Live xterms accumulate
-  across workspaces; bounding that memory is a separate IdeasBoard item.
-- **Every `window.*` bridge is declared twice** — in `src/preload/index.d.ts` (which the web
-  build program sees) and again in `src/renderer/src/env.d.ts` (because the `tsconfig.test.json`
-  program does NOT see the preload's augment, and sources its types from the shared contract
-  instead). Adding a bridge method and updating only one of them typechecks in one program and
-  fails in the other. Update both. (Bit the Workspaces implementation twice.)
+- `Session.workspaceId` is REQUIRED session truth, stamped at launch (`buildLaunchedSession`),
+  changed only via `CH.sessionSetWorkspace`. Renderer filters, never writes.
+- **Alerts global, cards scoped.** `notifier.notify` and `computeBadgeCount` (`kde/badge.ts`) stay
+  unfiltered in main; per-workspace badge is a renderer selector. Only skips: the session being
+  looked at (`kde/viewedSession.ts`, `CH.viewFocusedTerminal`, `shouldEmitRaise`), and
+  `notificationsEnabled` off (popups only; sound = `soundEnabled`).
+- **Notification click raises + opens the session** (UX-12/R29): `kde/notificationActivate.ts` →
+  `CH.attentionActivate` → `lib/openFromNotification.ts` (switch workspace, then `activateCard`;
+  modal open → select only, re-checked after the switch). A session event never raises the window.
+  Notifier holds shown popups (cap 50, R21).
+- `Template.workspaceId` / `Shortcut.workspaceId`: `.nullable().default(null)` (null = global).
+  `TEMPLATES_FILE_VERSION = 1`, `SHORTCUTS_FILE_VERSION = 3` (v2→v3 migration in
+  `parseShortcutsFile`). **Bumping a version without a migration wipes the store.**
+- `PastSession.workspaceId` required; cascade deletes records. Record naming a missing workspace is
+  hidden but KEPT (`code=past_sessions_hidden_unknown_workspace`, UX-03).
+  `PAST_SESSIONS_FILE_VERSION` stays 1; new fields additive.
+- **Shortcuts by alias:** `settings.expanderKey` (`Ctrl+Alt+X`) opens `ExpanderBox`;
+  `<alias> <values…>` expands `$1..$9`/`$*`/`$$` (`shortcuts/expand.ts`), result is TYPED, never
+  submitted. Quoting: `"…"`/`'…'`, `\` escapes, unclosed quote takes the rest (never an error).
+- **Workspace switch unmounts nothing** (hidden terminals stay mounted, `active={false}`).
+- **Every `window.*` bridge is declared twice**: `src/preload/index.d.ts` AND
+  `src/renderer/src/env.d.ts` (test program doesn't see the preload augment). Update both.
 
-### Programmatic API (`src/main/api/`)
+## Programmatic API
 
-Full rules: `.claude/rules/api.md`. The load-bearing shape:
+Read `.claude/rules/api.md`. Core: second listener `127.0.0.1:9281`, off by default, bearer token
+in userData; every action is one `defineCommand` in `api/commands/` (router + OpenAPI generated
+from `apiCommands`); wire session is state-only `.strict()`; a create never takes the view and
+never takes caller prose; `/clear` ends an SSE stream with `session.rebound`.
 
-- **A SECOND `node:http` listener on 127.0.0.1:`apiPort` (9281), OFF by default**
-  (`settings.apiEnabled` / `settings.apiPort`, settings version stays 1). Loopback only — never
-  `0.0.0.0`. Every `/v1/*` request carries a bearer token read from `claude-watcher-api-token` in
-  `app.getPath('userData')` (0600, chmod-ed once per process — on the first read that finds an
-  existing file; `current()` caches) — never in `settings.json` (the renderer
-  reads that blob), never logged. `createApiLifecycle` starts/stops/restarts it from the settings
-  store: first apply on the window's `did-finish-load`, `stop()` on `will-quit`. A bind error is
-  async (`onError`): the lifecycle drops its entry so the next apply retries, and Settings shows
-  the port is taken instead of the Docs URL (R11).
-- **Every action is a registry entry** (`src/main/api/commands/`): ONE `defineCommand` object with
-  separate Zod `params` / `query` / `body` / `output` schemas, a `handler` (or a `stream`), and the
-  error statuses it can answer. The router (`apiServer.ts`) AND `/openapi.json` (`openapi.ts`) are
-  both generated from the ordered `apiCommands` list in `commands/index.ts`, so a new action is one
-  file + one entry + a test and NEVER touches the server. Errors are `{ error: { code, path? } }`
-  and the codes ARE enum-locked (`API_ERROR_CODES` in `src/shared/schemas/api.ts`) — the opposite
-  call to `status` / `hook_event_name`, because we mint every one of them.
-- **The API sees exactly what the board sees.** `ApiSeam` (one per window, registered beside
-  `launchBoardSeams` in `src/main/index.ts`) fans the enriched delta out to open SSE streams from
-  INSIDE `handleDelta`'s board-ship gate, so an external (non-app-launched) session reaches no
-  client either. The wire session is a STATE-ONLY projection (`apiSession.ts` → the `.strict()`
-  `ApiSessionSchema`): no `firstPrompt`, no `latestMessage`, no `pendingToolInput`, no `pid`. Strict
-  is what makes that a guarantee — a new `Session` field shows up as a dropped frame
-  (`code=session_projection_failed`), never as content on the wire.
-- **Config is readable, session content is not.** `GET /v1/workspaces` (id, name, color, `active`)
-  and `GET /v1/templates` (the WHOLE template, `initialPrompt` included) read the stores, so they
-  need no window. `?scope=<workspaceId|global>` is STRICT (a workspace never pulls in the global
-  templates); an unknown id is 404 `workspace_not_found`.
-- **An API launch IS a UI launch — except that it never takes the view.** Main registers the recipe
-  with the same launch service the `+ New session` popover uses and pushes `CH.launchRequested`
-  (validated at source); the renderer answers with `registerLaunchedTerminal` — REGISTRY ONLY, never
-  the popover's `openLaunchedTerminal`. That is enough to open the terminal (the registry key keeps
-  it in `selectKeptAliveTerminalIds`, so App mounts the focused layer hidden and `EmbeddedTerminal`
-  spawns the pty and mints the session id) while `viewMode`, `focusedTerminalId` and the active
-  workspace stay EXACTLY as the operator left them: the card appears in the TEMPLATE's workspace and
-  they open it when they choose. An external create must never yank someone out of the session they
-  are typing in. **The
-  prompt is NEVER the caller's**: it is the template's own `initialPrompt` with `$1..$n` filled from
-  `args` (`src/shared/prompt/expand.ts`), each value held to that param's `maxLength` and its
-  ANCHORED regex (`compileParamPattern`) — a miss is 400 `arg_invalid` naming `args.<i>`, never the
-  value. It reaches claude as the POSITIONAL `[prompt]` argument, last in `composeClaudeCommand`.
-  **In-app launches do NOT use the prompt in v1** (the field is labelled "Initial prompt (API
-  launches)"); `TEMPLATES_FILE_VERSION` stays 1 — `initialPrompt`/`params` are additive `.default()`s.
-- **`/clear` ends an SSE stream on `session.rebound {id, newId}`, never `session.removed`** (R8).
-  `adoptCard` emits it into the API hub (API-only — not an `AttentionEvent`) after the new id's
-  card exists and before the old id's removal; the stream sends it as its LAST frame and closes,
-  and the client re-subscribes to `newId`. The old stream never silently follows the new id.
-- **Gate:** the `main-unit` tests drive the REAL server over loopback on an ephemeral port
-  (`testSupport.ts`, `port: 0`); the packaged smoke additionally fetches `/docs`, `/openapi.json`
-  and `/docs/swagger-ui-bundle.js` (SMOKE forces `{ apiEnabled: true, apiPort: 0 }` at app-ready),
-  which is the only check that opens a `swagger-ui-dist` file from inside the package.
+## Custom themes (`src/main/themes/`)
 
-### Custom themes (`src/main/themes/`, spec `docs/superpowers/specs/2026-09-20-custom-themes-design.md`)
+- Theme = `<userData>/themes/<id>/theme.json` (`shared/schemas/theme.ts`, `.strict()` — unknown
+  key/token fails the whole theme) + optional CSS + assets. Main composes ONE stylesheet (tokens,
+  CSS with `url()` inlined as `data:`, 5 MB cap) and pushes `ThemeBundle` over `CH.themeApplied`.
+- **Liquid Glass and Paper are bundled read-only** (`extraResources` →
+  `<resourcesPath>/themes`; dev reads `docs/themes/examples`). `BUNDLED_THEME_IDS` is the one
+  list. A user folder with a bundled id is skipped (`code=theme_id_reserved`). Smoke's
+  `main.themes.pass` uses a probe scanner over an empty user folder.
+- **Fail closed → Default, keep the setting** (`settings.themeId`):
+  `code=theme_load_failed id= reason=`, Settings shows the error. Logs: code + zod path only.
+- **Wallpapers:** only the chosen one inlined as `--theme-wallpaper`; all validated; pick per theme
+  in `settings.wallpaperByTheme`; unknown → first (`code=theme_wallpaper_not_found`).
+- `nativeTheme.themeSource` + root `color-scheme` follow the theme's `colorScheme`
+  (`themeLifecycle.ts`, `hooks/useApplyTheme.ts`).
+- **Every renderer colour is a token** (`styles/noHexLiterals.test.ts`); `TOKENS` in
+  `shared/theme/tokens.ts`.
+- xterm `allowTransparency` is read at creation only.
+- Generated SDK (`docs/themes/THEMES.md`, `theme.schema.json`, `examples/builtin-dark`) is
+  drift-tested: `npm run gen:theme-docs`. Rescan on start / Settings open / `Reload themes`.
 
-- **A theme is a folder in `<userData>/themes/<id>/` with a `theme.json`** (`src/shared/schemas/theme.ts`,
-  `.strict()`: unknown manifest key, unknown token name or unknown terminal key FAILS THE WHOLE
-  THEME closed — a typo is never a silent no-op), an optional CSS file and local assets. Main
-  composes ONE stylesheet (`:root` tokens block, then the raw CSS with every `url()` inlined as a
-  `data:` URI — allow-listed extensions, 5 MB total) and pushes a `ThemeBundle` over
-  `CH.themeApplied`, validated at source. No custom protocol, no file served to the renderer.
-- **Liquid Glass and Paper SHIP inside the app, read-only** (spec
-  `2026-09-25-bundled-themes-design.md`). electron-builder `extraResources` copies
-  `docs/themes/examples/{liquid-glass,paper}` to `<resourcesPath>/themes`; unpackaged runs read the
-  repo folder (`bundledThemesDir`). `BUNDLED_THEME_IDS` is the ONE list (a test pins the yml filter
-  to it). A bundled id ALWAYS loads from the bundled root; a `<userData>/themes` folder with that id
-  is skipped (`code=theme_id_reserved`), so a stale hand copy can never block an update. The
-  bundled root is never created or written. The packaged smoke's `main.themes.pass` proves the read
-  with a PROBE scanner over an empty user folder — the smoke runs on the default profile, where
-  the operator's own copies would otherwise make it pass with nothing packaged.
-- **Fail closed, fall back to Default, KEEP the setting.** `settings.themeId` (additive, v1) is the
-  operator's choice; a theme that does not load logs `code=theme_load_failed id=<id> reason=<code>`,
-  the DEFAULT bundle is pushed, and Settings shows the error line. Recovery is always "fix or remove
-  the folder, Reload themes (or restart)". Logs carry `code=` and the zod `path=` only — never a
-  manifest value, CSS text or a file path.
-- **A theme may list predefined `wallpapers`** (spec `2026-09-24-theme-wallpapers-design.md`): the
-  app inlines ONLY the chosen one as `--theme-wallpaper` (its own `:root` block, after the tokens),
-  validates and size-counts ALL of them, and remembers the pick per theme in
-  `settings.wallpaperByTheme`. An unknown pick falls back to the FIRST entry and keeps the setting
-  (`code=theme_wallpaper_not_found id=<themeId>`). No file picker — a custom image means editing
-  the theme.
-- **`nativeTheme.themeSource` and the root `color-scheme` FOLLOW THE THEME** (`colorScheme: dark|light`,
-  `themeLifecycle.ts` + `hooks/useApplyTheme.ts`). The old fixed `:root { color-scheme: dark }` is
-  gone from `main.css`; the pre-window `nativeTheme.themeSource = 'dark'` in index.ts is only the
-  default before the first apply.
-- **Every renderer colour is a token.** `styles/noHexLiterals.test.ts` fails on a hex literal outside
-  `tokens.css` / `tokens.ts` / `xtermTheme.ts` / `SmokeCockpit.tsx`. Ink
-  on filled buttons is `--text-on-accent` / `--text-on-danger`. `TOKENS` lives in
-  `src/shared/theme/tokens.ts` (main validates against it); the renderer path re-exports it.
-- **xterm re-themes live, but `allowTransparency` is read at creation only** (xterm requires it
-  before `open()`); Settings says so while the applied theme sets it.
-- **The SDK is generated and drift-tested:** `docs/themes/THEMES.md` (token table from
-  `TOKEN_DOCS`), `docs/themes/theme.schema.json` (`z.toJSONSchema`), `examples/builtin-dark`
-  (asserted equal to `TOKENS` + `xtermTheme`). Regenerate with `npm run gen:theme-docs`; the test
-  fails while the committed files differ. Rescan is on start, on Settings open and on `Reload
-themes` — there is no file watcher (IdeasBoard).
+## node-pty + packaging
 
-### node-pty + packaging (a day-costing gotcha)
+Native module: EXTERNALIZED in electron-vite main config, rebuilt via `@electron/rebuild`
+(`postinstall`), `asarUnpack`-ed. `npm run smoke` proves it.
 
-node-pty is a native module. Keep it EXTERNALIZED in the electron-vite main config, rebuilt
-against Electron's ABI via `@electron/rebuild` (`postinstall`), and `asarUnpack`-ed by
-electron-builder. `npm run smoke` (packaged) is the gate that proves this still works.
+## Single instance (`lifecycle/singleInstance.ts`, UX-04)
 
-### One instance per profile (`src/main/lifecycle/singleInstance.ts`, UX-04)
+Lock per userData (profiles don't block each other). Second launch quits
+(`code=already_running`), first raises its window. SMOKE skips the lock.
 
-`app.requestSingleInstanceLock()` runs right after the profile moves userData (the lock lives
-there, so default / dev / drive never block each other). A second launch quits before app-ready
-(`code=already_running`) and the first raises its window — operator-initiated, like the quit
-guard's raise; never from a session event. Two instances used to fight over the hook port (the
-second's cards froze) and over the whole-file stores (last writer reverted the other's templates,
-tags, rules and past sessions). **SMOKE skips the lock**: it runs on the default profile beside a
-running installed app and must still pass.
+## Storage health (`src/main/storageHealth.ts`, UX-06/07)
 
-### Storage health (`src/main/storageHealth.ts`, UX-06 / UX-07)
+Stores report to one collector → `CH.storageHealth` (name + code only) → `StorageNotice`. **A
+dialog Save/Delete the disk refuses is UNDONE and throws `store_write_failed`** (`commit()`); every
+Manage dialog maps it to `STORE_WRITE_FAILED_COPY` (a new dialog owes it). Other writes keep the
+change and report `write_failed` (`persistOrReport()`; removal paths never throw). Also
+`corrupt_reset`, `read_failed`. Workspace delete commits before its cascade.
 
-Every store reports into ONE collector through its `report` option; main pushes it over
-`CH.storageHealth` (asked with `CH.storageHealthGet`), store NAME + code only, never a path, and
-`StorageNotice` draws it under the header until dismissed. **A dialog's Save / Delete that the disk
-refuses is UNDONE and throws `store_write_failed`** (`commit()` in each store) — every Manage
-dialog maps it to `STORE_WRITE_FAILED_COPY`; a new dialog owes the same entry. Every OTHER write (a
-cascade, a workspace switch, settings, the session history) keeps the change for the run and
-reports `write_failed` (`persistOrReport()`): a removal path must never throw. A damaged file
-reports `corrupt_reset`, an unreadable one `read_failed`. A workspace delete commits BEFORE its
-cascade, so a refused delete empties no other store.
+## Security (never weaken)
 
-### Security posture (never weaken)
+`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. **Smoke channels exist only
+under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
+`smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered.
 
-`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. node-pty's power stays
-in main, behind the typed preload.
+## No application menu (`appMenu/appMenu.ts`)
 
-**The smoke cockpit's channels exist ONLY under `C9_SMOKE=1`** (`src/main/smoke/smokeIpc.ts`, SEC-8).
-`CH.ptyStart` / `ptyInput` / `ptyResize` are a raw `$SHELL` spawn + write, and `CH.smokeReport`
-hard-exits with NO archive — registered in production they were one IPC away from any page that
-reached the preload. `CH.smokeConfig` is the exception and stays registered always: `App.tsx`
-asks it on every start. A new smoke-only channel goes through `registerSmokeIpc`, never a bare
-`ipcMain.on` in `registerPtyIpc`.
+Linux/Windows: none; macOS: app + Edit only. The default menu ate claude's keys (Ctrl+R, Ctrl+M,
+F11, Alt). Never bring back `optimizer.watchWindowShortcuts`. DevTools in dev = F12 only.
+Playwright key presses skip accelerators — can't prove a key reaches the pty.
 
-### No application menu (`src/main/appMenu/appMenu.ts`)
+## Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10)
 
-Linux/Windows install NO menu; macOS keeps only the app + Edit menus (Cmd+C/V/Q need their roles),
-never View. Electron's default menu ate keys claude needs (Ctrl+R reload — which also left the board
-without a snapshot — Ctrl+M, F11, and Alt raising the hidden bar). Do not bring back
-`optimizer.watchWindowShortcuts`: it swallowed Ctrl+R in production. DevTools in dev = F12 only
-(`installDevToolsToggle`); Ctrl+Shift+I is gone. Playwright key presses skip menu accelerators, so a
-drive run cannot prove a key reaches the pty — check `Menu.getApplicationMenu()` or use real keys.
+claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
+from inside `.xterm` (`isInsideTerminal`). **No key archives** (R27) — only the Archive button.
+Focus lands IN the terminal on every switch (`takeFocus`), never from a hidden mount or out of an
+open dialog. `Esc to return` shows only while focus is outside.
 
-### Focused-view keys (`src/renderer/src/lib/terminalFocus.ts`, R1 / R27 / R10)
+## Enforcement
 
-**claude keeps every key while its terminal has focus** (decision b, 2026-09-28): Ctrl+W is its
-delete-word, Ctrl+N a readline key, Esc its interrupt. App's window keydown skips any key from
-inside xterm (`isInsideTerminal` — `.xterm`, not the whole frame), so Esc → Board, Ctrl+N and
-Ctrl+Q work only with focus OUTSIDE it. **No key archives** (R27): Ctrl+W from a slipped focus used
-to archive with no confirm; the Archive button is the only path. So focus must land IN the terminal
-on every switch (R10): `EmbeddedTerminal`'s `takeFocus` (the focused view passes `viewShown &&
-active`) focuses xterm when it turns true, never from a hidden mount and never out of an open
-`role="dialog"`. The bar shows `Esc to return` only while focus is outside the terminal.
-
-## Enforcement (the feedback harness)
-
-- **Strict TypeScript** is the QA: `strict`, `noUncheckedIndexedAccess`,
-  `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`. Do NOT
-  drop a flag to silence an error — fix the consumer.
-- **Hooks** (`.claude/hooks/`, wired in `.claude/settings.json`): a PostToolUse hook runs
-  incremental `tsc` + cached `eslint` on each edited `*.ts|*.tsx`; a Stop hook runs `vitest run`.
-- **Type-checked ESLint:** `no-floating-promises` + `consistent-type-imports` +
-  the authored `no-literal-channels` (fixture-tested in
-  `tests/unit/no-literal-channels.rule.test.ts`).
-- **The `code-reviewer` subagent** (`.claude/agents/code-reviewer.md`) runs the TS/IPC checks
-  (implicit any, literal channels, floating promises, Zod boundary gaps, xterm-in-React,
-  never-log-parsed-value). The review convention is a fresh reviewer who re-runs the gate
-  first-hand and fault-injects every guard (reverting it must turn a test red).
+- **Strict TS** (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+  `noImplicitOverride`, `noFallthroughCasesInSwitch`). Never drop a flag — fix the consumer.
+- Hooks (`.claude/hooks/`): PostToolUse runs `tsc` + `eslint` on edited TS; Stop runs `vitest run`.
+- ESLint: `no-floating-promises`, `consistent-type-imports`, `no-literal-channels`.
+- `code-reviewer` subagent: fresh reviewer re-runs the gate and fault-injects every guard
+  (reverting it must turn a test red).
 
 ## Versions (don't bump in passing)
 
-Electron **44** (ABI/modules **149**), zod **4**, zustand **5**, React **19**,
-@xterm/xterm **6**, node-pty **1.1**, Vitest **4**.
-
-What the 39 → 44 bump (2026-10-01) changed for this repo:
-
-- **`npm install` no longer downloads the Electron binary** (Electron 42+): the first `electron`
-  run does, or `npx install-electron --no`. `postinstall` (`electron-rebuild`) needs only the headers.
-- **A new Electron major needs a `node-abi` that knows it**, or `electron-rebuild` fails with
-  `Could not detect abi for version …` and node-pty stays built for the old ABI.
-- **Main's `clipboard` is async** (Electron 44, W3C-shaped): `readText`/`writeText` return Promises.
-- **Playwright's `firstWindow()` resolves before `loadFile` navigates** (Electron 44): wait for the
-  app's page (`waitForURL` or a selector) before the first `evaluate`.
+Electron **44** (ABI 149), zod 4, zustand 5, React 19, @xterm/xterm 6, node-pty 1.1, Vitest 4.
+Electron 44 notes: `npm install` doesn't download the binary (first run or
+`npx install-electron --no`); a new major needs a `node-abi` that knows it; main `clipboard` is
+async; Playwright `firstWindow()` resolves before `loadFile` — wait for the page first.

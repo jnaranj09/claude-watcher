@@ -1,73 +1,51 @@
 # Rule: fail-closed Zod boundaries
 
-## Canonical example (do this)
-
 ```ts
-// src/shared/schemas/hookEvent.ts — the ONE hook-POST adapter. Validate ONCE here.
+// src/shared/schemas/hookEvent.ts — the ONE hook-POST adapter.
 export const HookEventSchema = z
   .object({
-    session_id: z.string().min(1), // identity key; blank fails closed
-    hook_event_name: z.string(), // NOT enum-locked (a new event name passes)
-    notification_type: z.string().optional(), // typed optional; NOT enum-locked
+    session_id: z.string().min(1), // identity; blank fails closed
+    hook_event_name: z.string(), // NOT enum-locked
+    notification_type: z.string().optional(),
     tool_name: z.string().optional(),
-    last_assistant_message: z.string().optional() // SENSITIVE — never log the value
+    last_assistant_message: z.string().optional() // SENSITIVE — never log
   })
-  .passthrough() // claude ADDITIONS pass; known-key malformations fail closed
-```
+  .passthrough() // claude additions pass; known-key malformations fail closed
 
-```ts
-// Ingesting a hook POST: 400 + drop+log-by-PATH the bad body, keep serving the rest.
 const r = HookEventSchema.safeParse(JSON.parse(body))
 if (!r.success) {
   const issue = r.error.issues[0]
-  log({ path: issue.path.join('.'), code: issue.code }) // PATH + CODE only — never the body
-  respond400() // one bad POST ≠ poison
+  log({ path: issue.path.join('.'), code: issue.code }) // PATH + CODE only
+  respond400()
   return
 }
 onHookEvent(r.data)
 ```
 
-## The rule
+Every EXTERNAL input is validated at exactly ONE boundary that fails closed:
 
-Every EXTERNAL input is validated at exactly ONE boundary, and the boundary
-**fails closed**. Pick the failure mode per boundary:
+| Boundary                                 | On bad input                                                                                   |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| hook POST (`127.0.0.1:9279`)             | 400 + drop + log path; other sessions continue (`hookEvent.ts`, `hookServer.ts`)               |
+| persisted file read                      | back up the bad file, start fresh                                                              |
+| `~/.claude/sessions/<pid>.json` (rebind) | drop quietly, NO log (has cwd + name); fall back to cwd heuristic (`pty/claudeSessionFile.ts`) |
+| same, running-elsewhere scan             | skip quietly; answer one boolean; fail OPEN on unlistable dir (`pty/runningElsewhere.ts`)      |
+| renderer → main IPC arg                  | `Schema.parse(raw)` → throw typed error                                                        |
+| main → renderer delta                    | validate at source before sending                                                              |
 
-| Boundary                                                | On bad input                                                                                                                                                                                    |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| claude hook POST (`127.0.0.1:9279`)                     | respond 400 + DROP the body + log by path → keep the other sessions (`hookEvent.ts` + `hookServer.ts`)                                                                                          |
-| persisted file read (Epic 2+)                           | back up the bad file + start fresh (never crash on corrupt prefs)                                                                                                                               |
-| claude session record (`~/.claude/sessions/<pid>.json`) | DROP the record quietly — no adoption, NO log (it carries cwd + name); the session-rebind falls back to the cwd heuristic (`src/main/pty/claudeSessionFile.ts`)                                 |
-| claude session record, running-elsewhere scan           | SKIP the record quietly; the scan answers ONE boolean (id match + live pid), never returns cwd/name/pid, and FAILS OPEN if the dir cannot be listed (`src/main/pty/runningElsewhere.ts`, UX-14) |
-| renderer → main IPC arg                                 | `Schema.parse(raw)` → THROW a typed error (untrusted cross-process input)                                                                                                                       |
-| main → renderer delta                                   | validate AT SOURCE before sending (don't ship garbage downstream)                                                                                                                               |
+Other external input: the transcript tail (`transcriptEntry.ts`).
 
-(The c9watch `watch`-line and `list`-snapshot rows are RETIRED — Story 6.4 removed the
-CLI. The native engine's external inputs are the hook POST, the transcript tail
-(`transcriptEntry.ts`, interrupt detection) and the claude session record above.)
+**Never log the parsed value.** A `ZodError` stringifies its input (prompts, assistant text, tool
+input, PTY content). Log PATH + CODE only — never `error`, never the body. Asserted by
+`src/__fixtures__/fakeHookFeed.test.ts`.
 
-## Never-log-the-parsed-value (load-bearing)
-
-A `ZodError` stringifies its INPUT. The input can be a hook payload carrying
-prompts / `last_assistant_message` / tool input, or a session value carrying PTY
-content. So: **log the error PATH + CODE only — never `error`, never the raw
-body/value.** The fail-closed test (`src/__fixtures__/fakeHookFeed.test.ts`)
-asserts the log call contains neither the raw body nor payload content.
-
-## Parse-once boundary
-
-`src/shared/schemas/hookEvent.ts`, `src/shared/schemas/session.ts` and
-`src/shared/schemas/claudeSessionFile.ts` are PARSE-ONCE boundaries. After them,
-consumers hold the inferred `HookEvent`/`Session` (where
-`modified` is already an epoch-millis `number`). Do NOT re-run a schema over
-already-parsed output — the timestamp transform expects a string input, not a
-number; re-validation is unsupported. The Story-6.2 launch synthesis CONSTRUCTS a
-valid `Session` from main-owned values — it never re-parses internal data.
+**Parse once.** `hookEvent.ts`, `session.ts`, `claudeSessionFile.ts` are parse-once; never re-run a
+schema over parsed output (the timestamp transform expects a string). Launch synthesis CONSTRUCTS a
+valid `Session`, never re-parses.
 
 ## Don't
 
-- Don't enum-lock `status` or `hook_event_name` (a new status/event string must NOT
-  fail-closed the session — the hookStatus mapper ignores unknown events instead).
-- Don't key/dedup by `pid` — key by the stable `id` (the launch-minted session uuid).
-- Don't narrow `pendingToolInput` to object-only or string-only — it is polymorphic.
-- Don't synthesize a session from an unknown-id hook event — that is the
-  `hook_unknown_id` no-op (external sessions stay off the board).
+- Enum-lock `status` or `hook_event_name`.
+- Key/dedup by `pid` (use the stable `id`).
+- Narrow `pendingToolInput` (polymorphic).
+- Synthesize a session from an unknown-id hook (`hook_unknown_id` no-op).
