@@ -221,7 +221,10 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
           label: TAG_COLOR_LABELS[c],
           adornment: <TagChip tag={{ id: `color-${c}`, name: preview, color: c }} />
         }))}
-        onChange={setColor}
+        onChange={(next) => {
+          setColor(next)
+          actions.setError(null)
+        }}
         ariaLabel="Color"
         testId="tag-color"
       />
@@ -241,7 +244,10 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
             display: <WorkspaceLabel name={w.name} tone={w.color} />
           }))
         ]}
-        onChange={(next) => setWorkspaceId(next === GLOBAL_SCOPE ? null : next)}
+        onChange={(next) => {
+          setWorkspaceId(next === GLOBAL_SCOPE ? null : next)
+          actions.setError(null)
+        }}
         ariaLabel="Workspace"
         testId="tag-scope"
       />

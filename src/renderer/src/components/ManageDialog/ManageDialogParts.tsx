@@ -319,25 +319,27 @@ export function ManageDialogSave({
 }
 
 /** The dialog's ONE message slot (design.md, spec 2026-10-01): an error (alert, stays until the
- *  next action) or a success (status, SUCCESS_MS). Both are a `Callout` block; never both. The
- *  error keeps the caller's test id; the success is `<testIdPrefix>-success`. */
-export function ManageDialogMessage({ testId }: { testId: string }): JSX.Element | null {
+ *  next action) or a success (SUCCESS_MS). Both are a `Callout` block; never both. The error keeps
+ *  the caller's test id; the success is `<testIdPrefix>-success`.
+ *  The slot is ALWAYS in the page: it is the polite live region (a status inserted together with
+ *  its text is announced unreliably), and it reserves one callout's height, so a message that
+ *  comes and goes never moves the centred dialog under the pointer. */
+export function ManageDialogMessage({ testId }: { testId: string }): JSX.Element {
   const { state, meta } = useManageDialogContext()
-  if (state.error !== null) {
-    return (
-      <div className={styles.message}>
+  return (
+    <div className={styles.message} role="status" data-testid={`${meta.testIdPrefix}-message`}>
+      {state.error !== null ? (
         <Callout tone="danger" title={state.error} testId={testId} />
-      </div>
-    )
-  }
-  if (state.success !== null) {
-    return (
-      <div className={styles.message}>
-        <Callout tone="success" title={state.success} testId={`${meta.testIdPrefix}-success`} />
-      </div>
-    )
-  }
-  return null
+      ) : state.success !== null ? (
+        <Callout
+          tone="success"
+          title={state.success}
+          announce={false}
+          testId={`${meta.testIdPrefix}-success`}
+        />
+      ) : null}
+    </div>
+  )
 }
 
 /** A field label. A `<label for>` can only name a real form control; a `Select` is a

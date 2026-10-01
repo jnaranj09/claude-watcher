@@ -131,6 +131,23 @@ describe('TagsDialog', () => {
     expect(rowNames(r)).toContain('deploy')
   })
 
+  // R26 / spec 2026-10-01 — editing ANY field ends the message: Color and Workspace too, not only Name.
+  it('changing Color or Workspace after a save clears "Tag saved."', async () => {
+    const { r } = render()
+    click(q(r, '[data-testid="tag-new"]'))
+    type(q(r, '[data-testid="tag-name"]'), 'prod')
+    click(q(r, '[data-testid="tag-save"]'))
+    await flush()
+    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag saved.')
+    chooseOption(r.container, 'tag-color', 'rose')
+    expect(r.container.querySelector('[data-testid="tags-success"]')).toBeNull()
+    click(q(r, '[data-testid="tag-save"]'))
+    await flush()
+    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag saved.')
+    chooseOption(r.container, 'tag-scope', 'w1')
+    expect(r.container.querySelector('[data-testid="tags-success"]')).toBeNull()
+  })
+
   it('a confirmed delete removes the row and returns to the placeholder', async () => {
     const { r } = render()
     chooseOption(r.container, 'tag-scope-filter', 'all')

@@ -1,6 +1,8 @@
 // The dialog's ONE message slot (spec 2026-10-01-feedback-callout-design.md): an error stays until
 // the next action; a success shows for SUCCESS_MS. Both are a Callout, never side by side.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, useEffect, type JSX } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ManageDialog, useManageDialog, type ManageDialogContextValue } from './ManageDialog'
@@ -41,7 +43,8 @@ describe('ManageDialog.Message', () => {
     r = renderComponent(<Harness />)
     act(() => actions().showSuccess('Template saved.'))
     expect(q('probe-success')?.textContent).toBe('Template saved.')
-    expect(q('probe-success')?.getAttribute('role')).toBe('status')
+    // The SLOT is the live region (always in the page); the callout inside does not announce again.
+    expect(q('probe-success')?.hasAttribute('role')).toBe(false)
     expect(q('probe-success')?.getAttribute('data-callout-tone')).toBe('success')
     act(() => {
       vi.advanceTimersByTime(SUCCESS_MS - 1)
@@ -106,5 +109,24 @@ describe('ManageDialog.Message', () => {
     r.unmount()
     r = undefined
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  // Review fixes: a polite message inserted together with its live region is announced unreliably,
+  // and a slot that appears and vanishes moves the centred dialog under the pointer — twice.
+  it('the slot is always in the page as the polite live region, empty or not', () => {
+    r = renderComponent(<Harness />)
+    const slot = q('probe-message')
+    expect(slot?.getAttribute('role')).toBe('status')
+    expect(slot?.textContent).toBe('')
+    act(() => actions().showSuccess('Saved.'))
+    expect(q('probe-message')).toBe(slot)
+    expect(slot?.textContent).toBe('Saved.')
+  })
+
+  it('the slot reserves one callout of height, with no extra margin', () => {
+    const css = readFileSync(join(__dirname, 'ManageDialog.module.css'), 'utf8')
+    const rule = /\.message\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(rule).toMatch(/min-height:/)
+    expect(rule).not.toMatch(/margin/)
   })
 })

@@ -244,9 +244,10 @@
   font-size: var(--font-size-meta);
   color: var(--text-muted);
 }
-/* The message slot's wrapper: the Callout draws itself; this only spaces it from what is above. */
+/* The message slot: always in the page, one block Callout tall (2 × padding + 2px border + one
+   line), so a message that comes and goes never moves the dialog. The panel's gap spaces it. */
 .message {
-  margin-top: var(--space-3);
+  min-height: calc(2 * var(--space-2) + 2px + 1lh);
 }
 .footer {
   display: flex;
