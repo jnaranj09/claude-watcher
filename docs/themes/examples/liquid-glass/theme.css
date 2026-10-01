@@ -315,7 +315,7 @@ body {
 }
 
 /* Popovers are GLASS: every `Popover.Surface` (`[data-popover]`) — menus, dropdown lists, the
-   `+ New session` popover, the tag lists and the shortcut expander over a terminal. Each keeps its own translucent token background and blurs
+   `+ New session` popover, the tag lists and the shortcut expander over a terminal. Each blurs
    what is behind it.
    They were OPAQUE (#323235) from the GPU-off days (2026-08-03 to 2026-09-22): Chromium's
    software compositor fades a backdrop blur out toward an element's edges, and at popover size
@@ -385,6 +385,8 @@ body {
 [data-popover-item][aria-checked='true'],
 [data-popover-item][aria-expanded='true'],
 [data-popover-item][data-active] {
+  /* The app's own state rule (0,2,0) sets a flat surface fill; keep the bubble's. */
+  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
   border-color: rgba(255, 255, 255, 0.4);
 }
 [data-popover-item]:disabled {

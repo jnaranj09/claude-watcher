@@ -219,10 +219,7 @@ describe('docs/themes/examples', () => {
         .filter((s) => s.includes('expander-box'))
     ).toEqual([])
   })
-  // A popover is GLASS like the header: the token's white film + the sheen's dark bottom band read
-  // as a flat grey card beside the glass header, and the header's own dark fill read as a black
-  // slab over the near-black board (a blur of black is black). A FAINT WHITE tint lifts it. The
-  // fill sits in i
+
   // Every popover ROW is a glass bubble (operator, 2026-10-01): a tint-aware fill, a faint border
   // and the SHALLOW rim the header uses — never its own blur (the box is the row's backdrop root).
   it('liquid-glass draws every popover row as a bubble, from the Popover hooks only', () => {
@@ -254,7 +251,9 @@ describe('docs/themes/examples', () => {
       expect(
         rules.some(
           (r) =>
-            r.selectors.includes(s) && /border-color:\s*rgba\(255, 255, 255, 0\.4\)/.test(r.body)
+            r.selectors.includes(s) &&
+            /border-color:\s*rgba\(255, 255, 255, 0\.4\)/.test(r.body) &&
+            /background-color:\s*var\(--ws-fill, rgba\(255, 255, 255, 0\.05\)\);/.test(r.body)
         ),
         s
       ).toBe(true)
