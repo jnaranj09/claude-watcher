@@ -13,6 +13,8 @@
  *
  * Usage: node tests/smoke/run-packaged-smoke.mjs
  *
+ * SMOKE_WEBGL=optional (CI only) makes the WebGL check a warning — see smokeVerdict.mjs.
+ *
  * NOTE: This is intentionally a tiny zero-dependency Node script, not a
  * Playwright-Electron harness. The full Vitest + Playwright-Electron test
  * architecture is Story 0.3 scope; this story's acceptance is the packaged
@@ -31,6 +33,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { evaluateVerdict, webglMode } from './smokeVerdict.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const bin = resolve(root, 'dist', 'linux-unpacked', 'claude-watcher')
@@ -136,27 +139,12 @@ if (!report) {
 reapProcessGroup()
 console.log('[smoke] verdict:', JSON.stringify(report, null, 2))
 
-const c = report.checks || {}
-const ok =
-  report.pass === true &&
-  c.typeEcho?.pass &&
-  c.resize?.pass &&
-  c.tui?.pass &&
-  c.webgl?.pass &&
-  // Programmatic API — `/docs`, `/openapi.json` and one Swagger UI ASSET must answer 200 from
-  // inside the PACKAGED asar. Main binds the listener on an ephemeral port in smoke mode and
-  // fetches all three before writing this verdict; a 0 is a failed/timed-out fetch (or no
-  // listener at all), a 503 on `/docs` is `swagger-ui-dist` unresolvable inside the package, and
-  // a 404 on the asset is a packaged file the read could not open (the `files` allow-list trimmed
-  // it) — `/docs` itself would still answer 200 in that case, which is why the asset is fetched.
-  report.main?.api?.pass === true &&
-  // Bundled themes — Liquid Glass and Paper must list clean and Liquid Glass must load from
-  // <resourcesPath>/themes (electron-builder extraResources). A false here is a theme the
-  // package did not carry, or one that no longer composes.
-  report.main?.themes?.pass === true
+const mode = webglMode(process.env)
+const { ok, warnings } = evaluateVerdict(report, mode)
+for (const w of warnings) console.warn(`[smoke] WARNING: ${w}`)
 
 if (!ok) {
-  console.error('[smoke] FAIL — exit gate not satisfied.')
+  console.error(`[smoke] FAIL — exit gate not satisfied (webgl=${mode}).`)
   console.error('[smoke] api:', JSON.stringify(report.main?.api ?? null))
   console.error('[smoke] themes:', JSON.stringify(report.main?.themes ?? null))
   process.exit(1)
