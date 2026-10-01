@@ -246,7 +246,11 @@ describe('docs/themes/examples', () => {
       "[data-popover-item][aria-selected='true']",
       "[data-popover-item][aria-checked='true']",
       "[data-popover-item][aria-expanded='true']",
-      '[data-popover-item][data-active]'
+      '[data-popover-item][data-active]',
+      "[data-popover-item][aria-selected='true']:hover",
+      "[data-popover-item][aria-checked='true']:hover",
+      "[data-popover-item][aria-expanded='true']:hover",
+      '[data-popover-item][data-active]:hover'
     ]) {
       expect(
         rules.some(

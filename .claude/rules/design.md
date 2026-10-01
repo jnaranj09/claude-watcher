@@ -261,7 +261,7 @@ siblings with `TagPathLabel` instead, never a chip (below).
   `TagPicker` (a card's `Tags…`, the rail peek's `+ tag`): a chip per row, a `✓` at the right of a
   tag that is on, the row outlined, no native checkbox (2026-09-29 — the picker's checkboxes came up
   white from the desktop theme, and two lists doing one job had two looks). The look lives in
-  `TagMenu.module.css` only; `TagMenu.test.tsx` fails if a caller declares its own popup or row
+  `components/Popover` (TagMenu is drawn with it); `TagMenu.test.tsx` fails if a caller declares its own popup or row
   rule. Roles stay each caller's: the filter is a single-choice `menu` (`menuitemradio`), the picker
   a checkbox `group` (`role="checkbox"` rows). It is drawn with `Popover`, so themes reach both lists through the Popover hooks.
 - **A rail row's name leaves room for BOTH tools while they show** (hover, focus in the row, or its
@@ -567,8 +567,9 @@ fixed height with room around the text, and that is what Button draws.
 - **The workspace switcher is not a Button.** It is a compound pill (its workspace tint, name,
   counts, the "elsewhere" tab) with its own glass in the liquid-glass theme; it only matches Button's `md`
   height.
-- **The dashed pills** (`+ Add filter`, `+ tag`) and the menu / list rows (AppMenu items, Select
-  options, ManageDialog row selects) are not buttons in this sense and keep their own rules.
+- **The dashed pills** (`+ Add filter`, `+ tag`) and the menu / list popup rows (AppMenu items,
+  Select options) are not buttons in this sense: they are `Popover` rows, and `components/Popover`
+  owns their look. ManageDialog row selects keep their own rules.
 
 `Button.test.tsx` walks every `*.module.css` under `src/renderer/src` and fails if any module other
 than Button declares a button class (`.button`, `.primaryButton`, `.cancelButton`, `.closeButton`,

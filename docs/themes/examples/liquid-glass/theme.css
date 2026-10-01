@@ -349,7 +349,7 @@ body {
 /* A menu that HOLDS a submenu (the ☰ menu and its `Tags ▸` list) is a container, not a leaf: if it
    blurred from itself, the submenu's blur could read only what the menu painted, and the page
    behind the submenu showed through sharp. So it blurs from a `::before` layer instead, like the
-   CONTAINERS above. The menu is `position: absolute` already, so the layer needs no positioning. */
+   CONTAINERS above. The `[data-popover]` box is the Surface, `position: relative` (its wrapper is the absolute one), so the layer needs no positioning of its own. */
 [data-popover]:has([data-popover]) {
   isolation: isolate;
   backdrop-filter: none;
@@ -388,8 +388,13 @@ body {
 [data-popover-item][aria-selected='true'],
 [data-popover-item][aria-checked='true'],
 [data-popover-item][aria-expanded='true'],
-[data-popover-item][data-active] {
-  /* The app's own state rule (0,2,0) sets a flat surface fill; keep the bubble's. */
+[data-popover-item][data-active],
+[data-popover-item][aria-selected='true']:hover,
+[data-popover-item][aria-checked='true']:hover,
+[data-popover-item][aria-expanded='true']:hover,
+[data-popover-item][data-active]:hover {
+  /* The app's own state rule (0,2,0) and its `.item:hover:not(:disabled)` (0,3,0) set a flat
+     surface fill; keep the bubble's, hovered or not, with the state border. */
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
   border-color: var(--text-primary);
 }

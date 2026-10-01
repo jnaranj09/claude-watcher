@@ -79,11 +79,11 @@
   color: var(--text-primary);
 }
 
-/* The "starting…" sublabel — muted status line. */
+/* The "starting…" sublabel — a quiet status line (secondary: muted fails contrast on the raised popover). */
 .entryStatus {
   font-family: var(--font-ui);
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-meta);
   line-height: var(--line-height-meta);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }

@@ -278,7 +278,7 @@ What you can target:
   the shortcut expander), `[data-popover-list]` (rows inside a box), `[data-popover-item]` (every
   row; `[data-density="compact"]` for the tight ones, `[data-quiet]` for a secondary action,
   `[data-tone]` for a row tinted with its workspace, whose `--ws-fill` / `--ws-border` are set),
-  and `[data-popover-divider]`. Row states are ARIA: `[aria-selected="true"]`,
+  `[data-popover-divider]`, and `[data-popover-note]` (a muted line inside a popover: an empty list or a note). Row states are ARIA: `[aria-selected="true"]`,
   `[aria-checked="true"]`, `[aria-expanded="true"]`, plus `[data-active]`. Style popovers here,
   not by role: a new list in the app picks your look up with no change to your theme.
 - **Test ids.** `[data-testid="app-header"]`, `[data-testid="settings-panel"]`,
