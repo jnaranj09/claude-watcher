@@ -59,21 +59,28 @@ function renderPicker(): RenderResult {
 describe('the filter tag list and the tag picker are ONE design', () => {
   it('both popups are TagMenu, and every row is a TagMenuRow holding a chip', () => {
     for (const r of [renderFilterList(), renderPicker()]) {
-      const menus = r.container.querySelectorAll('[data-tag-menu]')
+      const menus = r.container.querySelectorAll('[data-popover]')
       expect(menus).toHaveLength(1)
-      const rows = [...(menus[0]?.querySelectorAll('[data-tag-menu-row]') ?? [])]
+      const rows = [...(menus[0]?.querySelectorAll('[data-popover-item]') ?? [])]
       expect(rows).toHaveLength(2)
       for (const row of rows) expect(row.querySelector('[data-testid="tag-chip"]')).not.toBeNull()
+    }
+  })
+
+  it('no longer stamps the retired one-off hooks', () => {
+    for (const r of [renderFilterList(), renderPicker()]) {
+      expect(r.container.querySelector('[data-tag-menu]')).toBeNull()
+      expect(r.container.querySelector('[data-tag-menu-row]')).toBeNull()
     }
   })
 
   it('the chosen row carries the same check mark in both', () => {
     for (const r of [renderFilterList(), renderPicker()]) {
       const checks = r.container.querySelectorAll(
-        '[data-tag-menu-row] [data-testid="tag-menu-check"]'
+        '[data-popover-item] [data-testid="tag-menu-check"]'
       )
       expect(checks).toHaveLength(1)
-      expect(checks[0]?.closest('[data-tag-menu-row]')?.getAttribute('aria-checked')).toBe('true')
+      expect(checks[0]?.closest('[data-popover-item]')?.getAttribute('aria-checked')).toBe('true')
     }
   })
 

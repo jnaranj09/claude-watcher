@@ -139,33 +139,11 @@
   background: var(--bg-surface);
 }
 
-/* The tag list popup and its rows are TagMenu (TagMenu.module.css) — the ONE design the card /
- * rail TagPicker shares. Only the filter's own `Create tags…` row lives here. */
-.create {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
-  text-align: left;
-  cursor: pointer;
-}
-
-.create:hover {
-  background: var(--bg-surface);
-}
+/* The tag list popup, its rows and `Create tags…` are Popover (TagMenu positions the list). */
 
 .add:focus-visible,
 .pillEdit:focus-visible,
-.pillRemove:focus-visible,
-.create:focus-visible {
+.pillRemove:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }

@@ -41,6 +41,7 @@ import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesS
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { Button } from '../Button/Button'
 import { TagChip } from '../TagChip/TagChip'
+import { Popover } from '../Popover/Popover'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
@@ -285,15 +286,13 @@ export function FilterBar({
                 {ordered.length === 0 ? (
                   <>
                     <TagMenuNote testId="filter-no-tags">No tags yet</TagMenuNote>
-                    <button
-                      type="button"
+                    <Popover.QuietItem
                       role="menuitem"
-                      className={styles.create}
-                      data-testid="filter-create-tags"
+                      testId="filter-create-tags"
                       onClick={createTags}
                     >
                       Create tags…
-                    </button>
+                    </Popover.QuietItem>
                   </>
                 ) : (
                   ordered.map((t) => (
