@@ -81,6 +81,12 @@ body {
   --glass-rim-pop:
     inset 1px 1px 0 rgba(255, 255, 255, 0.3), inset -1px -1px 0 rgba(255, 255, 255, 0.1),
     inset 0 0 14px rgba(255, 255, 255, 0.06);
+  /* The SHALLOW rim: the header and every popover row. The shared 14px glow covers most of a
+     ~32px surface from both edges and turns it into a pale film (header, 2026-09-23); 6px keeps
+     the glow at the edge. */
+  --glass-rim-row:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 6px rgba(255, 255, 255, 0.04);
 }
 
 /* CONTAINERS blur from a `::before` layer, never from their own `backdrop-filter`.
@@ -191,14 +197,9 @@ body {
    read well over the ground's light spots but was a different material from every other surface. */
 [data-testid='app-header'] {
   background: var(--glass-fill);
-  /* A SHALLOWER bevel than `--glass-rim`: the shared 14px inner glow covers most of a 48px bar
-     from both edges and lifted the whole header to a pale film (2026-09-23). 6px keeps the glow
-     at the edge on a surface this short. */
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 0 6px rgba(255, 255, 255, 0.04),
-    var(--shadow-pop);
+  /* A SHALLOWER bevel than `--glass-rim` (see `--glass-rim-row`): the shared 14px inner glow lifted
+     the whole 48px bar to a pale film (2026-09-23). */
+  box-shadow: var(--glass-rim-row), var(--shadow-pop);
 }
 
 /* "Terminal exited." lies over the dead terminal's last output. Its tint alone (`--bg-terminal`,
@@ -313,9 +314,8 @@ body {
     linear-gradient(#000 0 0);
 }
 
-/* Popovers are GLASS: menus, dropdown lists, the `+ New session` popover, the tag lists
-   (`[data-tag-menu]`: the board filter's and the card / rail picker's, one design) and the
-   shortcut expander over a terminal. Each keeps its own translucent token background and blurs
+/* Popovers are GLASS: every `Popover.Surface` (`[data-popover]`) — menus, dropdown lists, the
+   `+ New session` popover, the tag lists and the shortcut expander over a terminal. Each keeps its own translucent token background and blurs
    what is behind it.
    They were OPAQUE (#323235) from the GPU-off days (2026-08-03 to 2026-09-22): Chromium's
    software compositor fades a backdrop blur out toward an element's edges, and at popover size
@@ -323,15 +323,11 @@ body {
    tint, and the dialogs' bleed + mask did nothing for a menu. With GPU compositing the blur is
    even out to the very edge, so the glass is back.
    A popover blurs from ITSELF, not from a `::before` layer: it is a leaf. Nothing inside it
-   blurs, so being a backdrop root costs nothing — except the expander's inline list, below.
+   blurs, so being a backdrop root costs nothing — except a popover that holds one, below.
    Its CONTAINER must not be a backdrop root, which is what the `::before` layers above are for:
    the header holds the workspace and ☰ menus, a dialog holds its dropdowns, the terminal frame
    holds the expander. */
-[role='menu'],
-[role='listbox'],
-[data-testid='new-session-menu'],
-[data-tag-menu],
-[data-testid='expander-box'] {
+[data-popover] {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
   box-shadow: var(--glass-rim-pop), var(--shadow-pop);
@@ -345,11 +341,7 @@ body {
    column's colour through it. The directional rim carries the edge on its own, so the border drops
    to the header's 6%. In its own rule, apart from the blur: a fill on the blur rule reads as one
    that hides it. */
-[role='menu'],
-[role='listbox'],
-[data-testid='new-session-menu'],
-[data-tag-menu],
-[data-testid='expander-box'] {
+[data-popover] {
   background-color: var(--glass-fill);
   border-color: rgba(255, 255, 255, 0.06);
 }
@@ -358,12 +350,12 @@ body {
    blurred from itself, the submenu's blur could read only what the menu painted, and the page
    behind the submenu showed through sharp. So it blurs from a `::before` layer instead, like the
    CONTAINERS above. The menu is `position: absolute` already, so the layer needs no positioning. */
-[role='menu']:has([role='menu']) {
+[data-popover]:has([data-popover]) {
   isolation: isolate;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-[role='menu']:has([role='menu'])::before {
+[data-popover]:has([data-popover])::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -374,14 +366,30 @@ body {
   -webkit-backdrop-filter: var(--glass-filter);
 }
 
-/* The expander's list is INLINE in its box, not a popover: without this it would draw a second
-   card (its own shadow, rim and sheen) inside the one the box already is, and its own
-   blur would read only what the box painted. */
-[data-testid='expander-box'] [role='listbox'] {
-  background: none;
+/* Every popover ROW is a bubble (operator, 2026-10-01): the workspace switcher's material at a
+   row's size. Its fill is the row's workspace tint when it has one (`--ws-fill`, set by
+   WorkspaceTint), else a faint white; a faint border and the shallow rim carry the edge. NO blur:
+   the popover box blurs itself and is the row's backdrop root, so a row's blur would read only the
+   box's paint. Hover moves the border; the fill IS the colour. Divider and note stay flat. */
+[data-popover-item] {
+  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  border-color: var(--ws-border, rgba(255, 255, 255, 0.08));
+  box-shadow: var(--glass-rim-row);
+}
+[data-popover-item]:hover:not(:disabled) {
+  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  border-color: var(--text-secondary);
+}
+/* The current value, a tag that is on, an open submenu, the expander's highlight. */
+[data-popover-item][aria-selected='true'],
+[data-popover-item][aria-checked='true'],
+[data-popover-item][aria-expanded='true'],
+[data-popover-item][data-active] {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+[data-popover-item]:disabled {
+  background-color: transparent;
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 /* The workspace switcher is glass of its own: a button on the header bubble, with the elsewhere

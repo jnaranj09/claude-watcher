@@ -32,14 +32,9 @@ function liquidGlassRules(): { selectors: string[]; body: string }[] {
   }))
 }
 
-// Every floating surface liquid-glass styles as a popover, in the theme's own selector order.
-const POPOVERS = [
-  "[role='menu']",
-  "[role='listbox']",
-  "[data-testid='new-session-menu']",
-  '[data-tag-menu]',
-  "[data-testid='expander-box']"
-]
+// Every popover box liquid-glass styles — Popover stamps `data-popover` on menus, lists, the
+// `+ New session` popover and the expander alike.
+const POPOVERS = ['[data-popover]']
 
 // Header buttons liquid-glass blurs from themselves: leaves (nothing inside them blurs), and the
 // workspace menu is their sibling, not their child.
@@ -203,7 +198,7 @@ describe('docs/themes/examples', () => {
   })
   // Popovers are GLASS again since the GPU came back (2026-09-22): with GPU compositing their
   // blur is even out to the edge. They were opaque while the software compositor faded it out.
-  it('liquid-glass blurs every popover, but not the expander box inline list', () => {
+  it('liquid-glass blurs every popover', () => {
     const glass = liquidGlassRules().filter(
       (r) => POPOVERS.every((p) => r.selectors.includes(p)) && /backdrop-filter:/.test(r.body)
     )
@@ -217,17 +212,72 @@ describe('docs/themes/examples', () => {
     expect(root).toMatch(/--glass-filter:\s*blur\(\d+px\)/)
     // An opaque colour on the same rule would hide the blur it pays for.
     expect(glass[0]?.body).not.toMatch(/background(-color)?:/)
-    // The expander's list is INLINE in the box, not a popover of its own: it must not paint a
-    // second card (its own shadow and grain) inside the one the box already is, nor blur only
-    // what the box painted.
-    const inline = liquidGlassRules()
-      .filter((r) => r.selectors.includes("[data-testid='expander-box'] [role='listbox']"))
+    // The expander's list is Popover.List — not `[data-popover]` — so no theme rule gives it a box.
+    expect(
+      liquidGlassRules()
+        .flatMap((r) => r.selectors)
+        .filter((s) => s.includes('expander-box'))
+    ).toEqual([])
+  })
+  // A popover is GLASS like the header: the token's white film + the sheen's dark bottom band read
+  // as a flat grey card beside the glass header, and the header's own dark fill read as a black
+  // slab over the near-black board (a blur of black is black). A FAINT WHITE tint lifts it. The
+  // fill sits in i
+  // Every popover ROW is a glass bubble (operator, 2026-10-01): a tint-aware fill, a faint border
+  // and the SHALLOW rim the header uses — never its own blur (the box is the row's backdrop root).
+  it('liquid-glass draws every popover row as a bubble, from the Popover hooks only', () => {
+    const rules = liquidGlassRules()
+    const row = rules.filter((r) => r.selectors.includes('[data-popover-item]'))
+    const body = row.map((r) => r.body).join('\n')
+    expect(body).toMatch(/background(-color)?:\s*var\(--ws-fill, rgba\(255, 255, 255, 0\.05\)\);/)
+    expect(body).toMatch(/border-color:\s*var\(--ws-border, rgba\(255, 255, 255, 0\.08\)\);/)
+    expect(body).toMatch(/box-shadow:\s*var\(--glass-rim-row\);/)
+    expect(body).not.toMatch(/backdrop-filter/)
+    const root = rules
+      .filter((r) => r.selectors.includes(':root'))
       .map((r) => r.body)
       .join('\n')
-    expect(inline).toMatch(/background:\s*none;/)
-    expect(inline).toMatch(/box-shadow:\s*none;/)
-    expect(inline).toMatch(/(^|[\s;])backdrop-filter:\s*none;/)
+    expect(root).toMatch(/--glass-rim-row:\s*inset 0 1px 0 rgba\(255, 255, 255, 0\.3\)/)
+    // The header shares the one shallow rim.
+    const header = rules
+      .filter((r) => r.selectors.includes("[data-testid='app-header']"))
+      .map((r) => r.body)
+      .join('\n')
+    expect(header).toMatch(/box-shadow:\s*var\(--glass-rim-row\), var\(--shadow-pop\);/)
+    // States: a brighter border, from ARIA.
+    for (const s of [
+      "[data-popover-item][aria-selected='true']",
+      "[data-popover-item][aria-checked='true']",
+      "[data-popover-item][aria-expanded='true']",
+      '[data-popover-item][data-active]'
+    ]) {
+      expect(
+        rules.some(
+          (r) =>
+            r.selectors.includes(s) && /border-color:\s*rgba\(255, 255, 255, 0\.4\)/.test(r.body)
+        ),
+        s
+      ).toBe(true)
+    }
+    // No popover is reached by test id or by the retired tag-menu hooks any more.
+    const all = rules.flatMap((r) => r.selectors).join('\n')
+    for (const gone of ["new-session-menu'", '[data-tag-menu', "expander-box'"]) {
+      expect(all).not.toContain(gone)
+    }
   })
+
+  // A popover that HOLDS a popover (the ☰ menu and its Tags submenu) is a container: it blurs from
+  // `::before`, or the submenu's blur reads only the menu's paint.
+  it('liquid-glass blurs a popover holding a popover from ::before', () => {
+    const rules = liquidGlassRules()
+    const outer = rules.filter((r) => r.selectors.includes('[data-popover]:has([data-popover])'))
+    expect(outer.map((r) => r.body).join('\n')).toMatch(/(^|[\s;])backdrop-filter:\s*none;/)
+    const layer = rules.filter((r) =>
+      r.selectors.includes('[data-popover]:has([data-popover])::before')
+    )
+    expect(layer.map((r) => r.body).join('\n')).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
+  })
+
   // A popover is GLASS like the header: the token's white film + the sheen's dark bottom band read
   // as a flat grey card beside the glass header, and the header's own dark fill read as a black
   // slab over the near-black board (a blur of black is black). A FAINT WHITE tint lifts it. The
