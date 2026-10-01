@@ -331,5 +331,17 @@ describe('TerminalContextMenu — per-terminal isolation', () => {
   })
 })
 
+describe('TerminalContextMenu — Popover', () => {
+  it('is a Popover with compact rows, a disabled row stays disabled', () => {
+    renderMenu({ canCopy: false, canPaste: true })
+    const menu = document.querySelector('[data-testid="terminal-context-menu"]')
+    expect(menu?.hasAttribute('data-popover')).toBe(true)
+    const rows = [...document.querySelectorAll('[data-popover-item]')]
+    expect(rows).toHaveLength(2)
+    expect(rows.every((r) => r.getAttribute('data-density') === 'compact')).toBe(true)
+    expect((rows[0] as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
 // ── fireEvent re-export for readability (used by some test helpers) ──────────
 export { fireEvent }

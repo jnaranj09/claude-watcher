@@ -14,6 +14,7 @@
 
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { Popover } from '../components/Popover/Popover'
 import styles from './TerminalContextMenu.module.css'
 
 export interface TerminalContextMenuProps {
@@ -99,33 +100,17 @@ export function TerminalContextMenu({
   }, [onDismiss])
 
   const menu = (
-    <div
-      ref={menuRef}
-      className={styles.menu}
-      style={{ top: y, left: x }}
-      data-testid="terminal-context-menu"
-      role="menu"
-    >
-      {/* Copy: enabled only when the terminal has a non-empty selection. */}
-      <button
-        type="button"
-        className={styles.item}
-        role="menuitem"
-        disabled={!canCopy}
-        onClick={onCopy}
-      >
-        Copy
-      </button>
-      {/* Paste: enabled only when the OS clipboard has text (readText returned non-empty). */}
-      <button
-        type="button"
-        className={styles.item}
-        role="menuitem"
-        disabled={!canPaste}
-        onClick={onPaste}
-      >
-        Paste
-      </button>
+    <div ref={menuRef} className={styles.wrap} style={{ top: y, left: x }}>
+      <Popover.Surface role="menu" testId="terminal-context-menu">
+        {/* Copy: enabled only when the terminal has a non-empty selection. */}
+        <Popover.CompactItem role="menuitem" disabled={!canCopy} onClick={onCopy}>
+          Copy
+        </Popover.CompactItem>
+        {/* Paste: enabled only when the OS clipboard has text (readText returned non-empty). */}
+        <Popover.CompactItem role="menuitem" disabled={!canPaste} onClick={onPaste}>
+          Paste
+        </Popover.CompactItem>
+      </Popover.Surface>
     </div>
   )
 

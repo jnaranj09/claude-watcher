@@ -1,51 +1,13 @@
 /* Terminal clipboard feature — context menu (Copy / Paste).
    Rendered as a portal to document.body (position:fixed) so it escapes the terminal
    frame's overflow:hidden clip and appears above every stacked kept-alive frame.
-   NO new colours — design tokens from tokens.css only.
+   The box and rows are Popover's; this wrapper only positions them.
    [Source: spec-terminal-clipboard.md; .claude/rules/terminal.md] */
 
-.menu {
+.wrap {
   position: fixed;
-  /* Above the stacked kept-alive terminal frames (each frame is position:absolute
-     with the same z-index inside .terminalWrap). A value of 1000 safely clears any
-     in-app stacking context without overflowing to the OS layer. */
+  /* Above the stacked kept-alive terminal frames (each frame is position:absolute with the same
+     z-index inside .terminalWrap). 1000 clears every in-app stacking context. */
   z-index: 1000;
   min-width: 120px;
-  padding: var(--space-1) 0;
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  /* Subtle shadow to separate the menu from the terminal surface below it.
-     Uses a dark rgba tint — no new colour token needed. */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.item {
-  display: block;
-  width: 100%;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
-  line-height: var(--line-height-label);
-  font-family: var(--font-ui);
-  color: var(--text-primary);
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.item:hover:not(:disabled) {
-  background: var(--bg-surface);
-}
-
-.item:disabled {
-  color: var(--text-muted);
-  cursor: default;
-}
-
-.item:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
 }
