@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -142,5 +143,17 @@ describe('NewSessionMenu', () => {
     expect(tpl.hasAttribute('data-popover-item')).toBe(true)
     expect(tpl.hasAttribute('data-menu-item')).toBe(true)
     expect(r.container.querySelectorAll('[data-popover-divider]').length).toBe(2)
+  })
+  it('keeps the placement rules in the stylesheet', () => {
+    const css = readFileSync(
+      'src/renderer/src/components/NewSessionMenu/NewSessionMenu.module.css',
+      'utf8'
+    )
+    const menu = /(?:^|\n)\.menu \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(menu).toContain('position: absolute;')
+    expect(menu).toContain('--popover-max-height: 320px;')
+    const primary = /\.anchorPrimary \.menu \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(primary).toContain('transform: translateX(-50%);')
+    expect(css.indexOf('.portalAnchor .menu')).toBeGreaterThan(css.indexOf('\n.menu {'))
   })
 })

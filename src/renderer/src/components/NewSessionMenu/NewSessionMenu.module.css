@@ -9,6 +9,14 @@
   margin-top: var(--space-2);
 }
 .anchorPrimary .menu {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+/* The button itself is `components/Button` (`primary`); only the anchor and the menu live here. */
+
+.menu {
   position: absolute;
   top: calc(100% + var(--space-1));
   right: 0;
