@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash '/home/user/personal/github/claude-watcher/claude-watcher/.codex/hooks/typecheck-lint.sh'",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/typecheck-lint.sh\"",
             "timeout": 60,
             "statusMessage": "Typecheck + lint on changed file"
           }
