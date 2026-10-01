@@ -374,13 +374,15 @@ describe('docs/themes/examples', () => {
   // Every terminal panel (the frame, or claude's half and the shell while split) is a bubble like
   // the header and the columns: rim, directional ring, faint
   // border. Its fill stays the token's darker `--bg-terminal` (glyphs need it), so no `--glass-fill`.
+  // The rim is the SHALLOW one: the 14px glow of `--glass-rim` lit a wide band along every edge and
+  // the plain middle read as a darker, smaller box inside the frame (operator, 2026-10-01).
   it('liquid-glass gives the terminal frame the bubble rim and ring, not the glass fill', () => {
     const rules = liquidGlassRules()
     const frame = rules
       .filter((r) => r.selectors.includes('[data-terminal-panel]'))
       .map((r) => r.body)
       .join('\n')
-    expect(frame).toMatch(/box-shadow:\s*var\(--glass-rim\), var\(--shadow-pop\);/)
+    expect(frame).toMatch(/box-shadow:\s*var\(--glass-rim-row\), var\(--shadow-pop\);/)
     expect(frame).not.toContain('--glass-fill')
     const ring = rules
       .filter((r) => r.selectors.includes('[data-terminal-panel]::after'))

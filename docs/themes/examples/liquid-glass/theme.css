@@ -289,10 +289,13 @@ body {
    directional ring and the faint border, on the frame that already blurs from its `::before`.
    Its `::after` has no z-index, so the dead-terminal pane (z-index 12) still covers it, and the
    ring is 1px inside the border, so the frame's `overflow: clip` never cuts it. The fill stays
-   the token's darker `--bg-terminal`: glyphs need it. */
+   the token's darker `--bg-terminal`: glyphs need it.
+   The rim is the SHALLOW one (`--glass-rim-row`): the shared 14px inner glow lit a ~25px band
+   along every edge, and the plain middle read as a darker, smaller box inside the frame
+   (operator, 2026-10-01). */
 [data-terminal-panel] {
   border-color: rgba(255, 255, 255, 0.06);
-  box-shadow: var(--glass-rim), var(--shadow-pop);
+  box-shadow: var(--glass-rim-row), var(--shadow-pop);
 }
 [data-terminal-panel]::after {
   content: '';
