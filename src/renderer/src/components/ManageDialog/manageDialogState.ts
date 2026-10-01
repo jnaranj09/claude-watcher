@@ -7,6 +7,10 @@
 // Its own `.ts` file so `ManageDialogParts.tsx` exports components only
 // (react-refresh/only-export-components).
 import { createContext, use, useMemo, useRef, useState, type RefObject } from 'react'
+import { useFlash } from '../../hooks/useFlash'
+
+/** How long the message slot's success shows (spec 2026-10-01): one short sentence, read. */
+export const SUCCESS_MS = 2500
 
 export interface ManageDialogState {
   /** The row the form edits, or null (nothing open, or the New form — see `creating`). */
@@ -18,6 +22,9 @@ export interface ManageDialogState {
   armed: boolean
   /** The ONE error line's operator copy, or null. Never a raw `error.message` (design.md). */
   error: string | null
+  /** The message slot's success copy, shown for SUCCESS_MS. Every other action clears it, so a
+   *  dialog calls `showSuccess` AFTER the `select` that follows its save. */
+  success: string | null
 }
 
 export interface ManageDialogActions {
@@ -30,7 +37,10 @@ export interface ManageDialogActions {
   /** The first press of Delete. Clears the error line — arming starts a new flow. */
   arm: () => void
   disarm: () => void
+  /** Any value clears the success: a refusal replaces it, and an edit (`setError(null)`) ends it. */
   setError: (message: string | null) => void
+  /** A save, delete or forget that landed: the slot shows `text` for SUCCESS_MS, replacing an error. */
+  showSuccess: (text: string) => void
   close: () => void
 }
 
@@ -76,35 +86,46 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
   const [creating, setCreating] = useState(false)
   const [armed, setArmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, flashSuccess, clearSuccess] = useFlash<string>(SUCCESS_MS)
   const closeRef = useRef<HTMLButtonElement | null>(null)
 
   const actions = useMemo<ManageDialogActions>(
     () => ({
       select: (id) => {
+        clearSuccess()
         setSelectedId(id)
         setCreating(false)
         setArmed(false)
         if (!keepErrorOnSelect) setError(null)
       },
       startNew: () => {
+        clearSuccess()
         setSelectedId(null)
         setCreating(true)
         setArmed(false)
         setError(null)
       },
       arm: () => {
+        clearSuccess()
         setArmed(true)
         setError(null)
       },
       disarm: () => setArmed(false),
-      setError: (message) => setError(message),
+      setError: (message) => {
+        clearSuccess()
+        setError(message)
+      },
+      showSuccess: (text) => {
+        setError(null)
+        flashSuccess(text)
+      },
       close: () => onClose()
     }),
-    [onClose, keepErrorOnSelect]
+    [onClose, keepErrorOnSelect, clearSuccess, flashSuccess]
   )
 
   return {
-    state: { selectedId, creating, armed, error },
+    state: { selectedId, creating, armed, error, success },
     actions,
     meta: { title, testIdPrefix, closeRef }
   }

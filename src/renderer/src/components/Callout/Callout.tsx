@@ -28,7 +28,7 @@ export function Callout({
   announce?: boolean
   testId?: string
 }): JSX.Element {
-  const role = !announce ? undefined : tone === 'danger' ? 'alert' : 'status'
+  const liveRole = !announce ? undefined : tone === 'danger' ? 'alert' : 'status'
   const block = size === 'block'
   return (
     <div
@@ -36,7 +36,7 @@ export function Callout({
       data-callout=""
       data-callout-tone={tone}
       data-callout-size={size}
-      role={role}
+      role={liveRole}
       data-testid={testId}
     >
       <span className={styles.icon} aria-hidden="true" />

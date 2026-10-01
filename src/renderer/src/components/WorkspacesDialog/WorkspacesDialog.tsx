@@ -320,7 +320,7 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Error testId="workspace-error" />
+        <ManageDialog.Message testId="workspace-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

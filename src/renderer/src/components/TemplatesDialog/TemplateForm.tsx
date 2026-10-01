@@ -279,7 +279,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
 
       {/* The dialog's ONE error line. It reads the shell's state, so it can sit here, right above
           the button whose failure it reports — where it has always been. */}
-      <ManageDialog.Error testId="template-error" />
+      <ManageDialog.Message testId="template-error" />
 
       <ManageDialog.Footer>
         {template !== null && (

@@ -135,7 +135,7 @@ export function TagsDialog({ onClose }: TagsDialogProps): JSX.Element {
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Error testId="tag-error" />
+        <ManageDialog.Message testId="tag-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

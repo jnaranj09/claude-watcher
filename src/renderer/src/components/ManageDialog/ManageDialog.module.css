@@ -244,10 +244,9 @@
   font-size: var(--font-size-meta);
   color: var(--text-muted);
 }
-.error {
-  margin: 0;
-  font-size: var(--font-size-meta, 12px);
-  color: var(--danger);
+/* The message slot's wrapper: the Callout draws itself; this only spaces it from what is above. */
+.message {
+  margin-top: var(--space-3);
 }
 .footer {
   display: flex;

@@ -143,7 +143,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Error testId="shortcuts-error" />
+        <ManageDialog.Message testId="shortcuts-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

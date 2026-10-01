@@ -59,7 +59,7 @@ function Harness(props: { onClose: () => void; onConfirm: () => void }): JSX.Ele
             <ManageDialog.Save testId="thing-save" disabled={false} />
           </ManageDialog.Footer>
         </ManageDialog.Form>
-        <ManageDialog.Error testId="things-error" />
+        <ManageDialog.Message testId="things-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

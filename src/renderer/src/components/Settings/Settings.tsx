@@ -730,7 +730,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             )}
           </ManageDialog.Pane>
         </ManageDialog.Columns>
-        <ManageDialog.Error testId="settings-error" />
+        <ManageDialog.Message testId="settings-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

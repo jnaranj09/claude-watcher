@@ -199,7 +199,7 @@ export function RulesDialog({ onClose }: RulesDialogProps): JSX.Element {
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Error testId="rule-error" />
+        <ManageDialog.Message testId="rule-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )
