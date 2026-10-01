@@ -172,40 +172,12 @@
   display: inline-flex;
 }
 
-.moveMenu {
+.moveMenuWrap {
   position: absolute;
   top: calc(100% + var(--space-1));
   right: 0;
   z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
   min-width: 140px;
-  padding: var(--space-1);
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  box-shadow: var(--shadow-pop);
-  text-align: left;
-}
-
-.moveMenuItem {
-  padding: var(--space-1) var(--space-2);
-  border: none;
-  border-radius: var(--rounded-sm);
-  background: transparent;
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-label);
-  text-align: left;
-  cursor: pointer;
-}
-.moveMenuItem:hover {
-  background: var(--bg-surface);
-}
-.moveMenuItem:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
 }
 
 /* sessionName — SANS, body ramp (the primary line). */

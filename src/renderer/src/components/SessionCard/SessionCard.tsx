@@ -38,6 +38,7 @@ import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagPicker } from '../TagPicker/TagPicker'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { Button } from '../Button/Button'
+import { Popover } from '../Popover/Popover'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './SessionCard.module.css'
 
@@ -477,38 +478,37 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
               </Button>
             </span>
             {moveOpen && (
-              <div
-                className={styles.moveMenu}
-                role="menu"
-                onKeyDown={handleMoveMenuKeyDown}
-                {...(droppedOnMove > 0 ? { 'aria-describedby': moveWarningId } : {})}
-              >
-                {/* T-9 — say what the move costs BEFORE it happens: this workspace's own tags do
-                    not exist elsewhere. `role="none"` keeps the menu's children menu items only;
-                    aria-describedby reads it out. */}
-                {droppedOnMove > 0 && (
-                  <p
-                    id={moveWarningId}
-                    className={styles.moveWarning}
-                    role="none"
-                    data-testid="card-move-warning"
-                  >
-                    {`Moving drops ${droppedOnMove} ${droppedOnMove === 1 ? 'tag' : 'tags'} from ${currentWorkspaceName}`}
-                  </p>
-                )}
-                {otherWorkspaces.map((w) => (
-                  <button
-                    key={w.id}
-                    type="button"
-                    role="menuitem"
-                    className={styles.moveMenuItem}
-                    data-testid={`card-move-${w.id}`}
-                    onClick={(e) => handleMoveItemClick(e, w.id)}
-                    onKeyDown={handleMoveItemKeyDown}
-                  >
-                    {w.name}
-                  </button>
-                ))}
+              <div className={styles.moveMenuWrap}>
+                <Popover.Surface
+                  role="menu"
+                  onKeyDown={handleMoveMenuKeyDown}
+                  {...(droppedOnMove > 0 ? { 'aria-describedby': moveWarningId } : {})}
+                >
+                  {/* T-9 — say what the move costs BEFORE it happens: this workspace's own tags do
+                      not exist elsewhere. `role="none"` keeps the menu's children menu items only;
+                      aria-describedby reads it out. */}
+                  {droppedOnMove > 0 && (
+                    <p
+                      id={moveWarningId}
+                      className={styles.moveWarning}
+                      role="none"
+                      data-testid="card-move-warning"
+                    >
+                      {`Moving drops ${droppedOnMove} ${droppedOnMove === 1 ? 'tag' : 'tags'} from ${currentWorkspaceName}`}
+                    </p>
+                  )}
+                  {otherWorkspaces.map((w) => (
+                    <Popover.CompactItem
+                      key={w.id}
+                      role="menuitem"
+                      testId={`card-move-${w.id}`}
+                      onClick={(e) => handleMoveItemClick(e, w.id)}
+                      onKeyDown={handleMoveItemKeyDown}
+                    >
+                      {w.name}
+                    </Popover.CompactItem>
+                  ))}
+                </Popover.Surface>
               </div>
             )}
           </div>

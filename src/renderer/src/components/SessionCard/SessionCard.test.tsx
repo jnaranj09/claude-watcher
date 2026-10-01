@@ -684,6 +684,25 @@ describe('SessionCard — tags (T-26, §4.3)', () => {
     )
   })
 
+  it('draws the move menu with Popover compact rows', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard
+        {...baseProps({
+          tags: [OPS, PROD],
+          workspaces: WS,
+          currentWorkspaceId: 'default',
+          onMoveToWorkspace: vi.fn()
+        })}
+      />
+    )
+    cleanup = unmount
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="card-move"]')?.click())
+    const menu = container.querySelector('[role="menu"]')
+    expect(menu?.hasAttribute('data-popover')).toBe(true)
+    const row = container.querySelector('[data-testid^="card-move-"][data-popover-item]')
+    expect(row?.getAttribute('data-density')).toBe('compact')
+  })
+
   it('no warning when the card only carries global tags', () => {
     const { container, unmount } = renderComponent(
       <SessionCard
