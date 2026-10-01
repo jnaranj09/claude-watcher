@@ -157,6 +157,8 @@ describe('Popover.module.css', () => {
   })
 
   it('a tinted row keeps its tint fill on hover and moves only the border', () => {
+    expect(body('.item[data-tone]')).toMatch(/background: var\(--ws-fill\);/)
+    expect(body('.item[data-tone]')).toMatch(/border-color: var\(--ws-border\);/)
     expect(body('.item[data-tone]:hover')).toMatch(/border-color: var\(--text-secondary\);/)
     expect(body('.item[data-tone]:hover')).toMatch(/background: var\(--ws-fill\);/)
   })
