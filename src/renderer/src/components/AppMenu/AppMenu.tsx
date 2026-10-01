@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { Button } from '../Button/Button'
+import { Popover } from '../Popover/Popover'
 import styles from './AppMenu.module.css'
 
 export interface AppMenuProps {
@@ -145,99 +146,92 @@ export function AppMenu({
         <MenuIcon />
       </Button>
       {open && (
-        <div className={styles.menu} role="menu" aria-label="Menu" data-testid="app-menu-list">
-          <button
-            type="button"
-            role="menuitem"
-            className={styles.item}
-            data-testid="app-menu-settings"
-            onClick={() => choose(onOpenSettings)}
-            onMouseEnter={() => setTagsOpen(false)}
-          >
-            <span className={styles.icon} aria-hidden="true">
-              ⚙
-            </span>
-            Settings…
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={styles.item}
-            data-testid="app-menu-shortcuts"
-            onClick={() => choose(onOpenShortcuts)}
-            onMouseEnter={() => setTagsOpen(false)}
-          >
-            <span className={styles.icon} aria-hidden="true">
-              ⌨
-            </span>
-            Shortcuts…
-          </button>
-          <div className={styles.subAnchor}>
-            <button
-              type="button"
+        <div className={styles.menuWrap}>
+          <Popover.Surface role="menu" aria-label="Menu" testId="app-menu-list">
+            <Popover.Item
               role="menuitem"
-              ref={tagsRef}
-              className={`${styles.item} ${styles.subTrigger}`}
-              data-testid="app-menu-tags"
-              aria-haspopup="menu"
-              aria-expanded={tagsOpen}
-              // OPEN, never toggle: a mouse points at the row (opening it) before it clicks.
-              onClick={() => setTagsOpen(true)}
-              onMouseEnter={() => setTagsOpen(true)}
-              onKeyDown={handleTagsKeyDown}
-            >
-              <span className={styles.icon} aria-hidden="true">
-                <TagGlyphIcon size={14} />
-              </span>
-              Tags
-            </button>
-            {tagsOpen && (
-              <div
-                className={styles.submenu}
-                role="menu"
-                aria-label="Tags"
-                data-testid="app-menu-tags-list"
-                onKeyDown={handleSubmenuKeyDown}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  ref={firstTagRowRef}
-                  className={styles.item}
-                  data-testid="tags-menu-manage-tags"
-                  onClick={() => choose(onManageTags)}
-                >
-                  Manage tags…
-                </button>
-                {onManageRules !== undefined && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={styles.item}
-                    data-testid="tags-menu-manage-rules"
-                    onClick={() => choose(onManageRules)}
-                  >
-                    Manage rules…
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          {onOpenPastSessions !== undefined && (
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.item}
-              data-testid="app-menu-past-sessions"
-              onClick={() => choose(onOpenPastSessions)}
+              testId="app-menu-settings"
+              onClick={() => choose(onOpenSettings)}
               onMouseEnter={() => setTagsOpen(false)}
             >
-              <span className={styles.icon} aria-hidden="true">
-                <ClockIcon />
-              </span>
-              Past sessions…
-            </button>
-          )}
+              <Popover.ItemIcon>⚙</Popover.ItemIcon>
+              Settings…
+            </Popover.Item>
+            <Popover.Item
+              role="menuitem"
+              testId="app-menu-shortcuts"
+              onClick={() => choose(onOpenShortcuts)}
+              onMouseEnter={() => setTagsOpen(false)}
+            >
+              <Popover.ItemIcon>⌨</Popover.ItemIcon>
+              Shortcuts…
+            </Popover.Item>
+            <div className={styles.subAnchor}>
+              <Popover.Item
+                role="menuitem"
+                buttonRef={tagsRef}
+                testId="app-menu-tags"
+                aria-haspopup="menu"
+                aria-expanded={tagsOpen}
+                // OPEN, never toggle: a mouse points at the row (opening it) before it clicks.
+                onClick={() => setTagsOpen(true)}
+                onMouseEnter={() => setTagsOpen(true)}
+                onKeyDown={handleTagsKeyDown}
+              >
+                <Popover.ItemIcon>
+                  <TagGlyphIcon size={14} />
+                </Popover.ItemIcon>
+                Tags
+                {/* Points LEFT: the way the submenu opens. */}
+                <Popover.ItemEnd>
+                  <span className={styles.chevron} aria-hidden="true">
+                    ‹
+                  </span>
+                </Popover.ItemEnd>
+              </Popover.Item>
+              {tagsOpen && (
+                <div className={styles.submenuWrap}>
+                  <Popover.Surface
+                    role="menu"
+                    aria-label="Tags"
+                    testId="app-menu-tags-list"
+                    onKeyDown={handleSubmenuKeyDown}
+                  >
+                    <Popover.Item
+                      role="menuitem"
+                      buttonRef={firstTagRowRef}
+                      testId="tags-menu-manage-tags"
+                      onClick={() => choose(onManageTags)}
+                    >
+                      Manage tags…
+                    </Popover.Item>
+                    {onManageRules !== undefined && (
+                      <Popover.Item
+                        role="menuitem"
+                        testId="tags-menu-manage-rules"
+                        onClick={() => choose(onManageRules)}
+                      >
+                        Manage rules…
+                      </Popover.Item>
+                    )}
+                  </Popover.Surface>
+                </div>
+              )}
+            </div>
+            {onOpenPastSessions !== undefined && (
+              <Popover.Item
+                role="menuitem"
+                testId="app-menu-past-sessions"
+                onClick={() => choose(onOpenPastSessions)}
+                onMouseEnter={() => setTagsOpen(false)}
+              >
+                <Popover.ItemIcon>
+                  <ClockIcon />
+                </Popover.ItemIcon>
+                Past sessions…
+              </Popover.Item>
+            )}
+          </Popover.Surface>
         </div>
       )}
     </div>

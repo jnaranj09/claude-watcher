@@ -3,6 +3,7 @@
 // the last row (D-6). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
+import { readFileSync } from 'node:fs'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { AppMenu, type AppMenuProps } from './AppMenu'
 
@@ -41,11 +42,11 @@ const hover = (el: Element | null): void => {
 const mainMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-list')
 const subMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-tags-list')
 /** A row's name without its decorative (aria-hidden) icon. */
-const rowName = (el: Element): string =>
-  [...el.childNodes]
-    .filter((n) => !(n instanceof Element && n.getAttribute('aria-hidden') === 'true'))
-    .map((n) => n.textContent ?? '')
-    .join('')
+const rowName = (el: Element): string => {
+  const copy = el.cloneNode(true) as Element
+  copy.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove())
+  return copy.textContent ?? ''
+}
 /** The rows of ONE menu level — the submenu's rows sit inside the main menu's DOM, so skip them. */
 const labels = (menu: Element | null): string[] =>
   [...(menu?.querySelectorAll('[role="menuitem"]') ?? [])]
@@ -261,5 +262,33 @@ describe('AppMenu', () => {
     })
     expect(mainMenu(r)).toBeNull()
     expect(subMenu(r)).toBeNull()
+  })
+
+  it('draws the menu and the Tags submenu with Popover; the open submenu row reads as expanded', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    click(q(r, 'app-menu-tags'))
+    expect(mainMenu(r)?.hasAttribute('data-popover')).toBe(true)
+    const tags = q(r, 'app-menu-tags')
+    expect(tags?.hasAttribute('data-popover-item')).toBe(true)
+    expect(tags?.getAttribute('aria-expanded')).toBe('true')
+    expect(subMenu(r)?.hasAttribute('data-popover')).toBe(true)
+    // The submenu sits INSIDE the menu box, which therefore must not scroll (Popover.surface).
+    expect(subMenu(r)?.closest('[data-testid="app-menu-list"]')).not.toBeNull()
+  })
+
+  it('pins the wrappers placement in the stylesheet (jsdom has no layout)', () => {
+    const css = readFileSync('src/renderer/src/components/AppMenu/AppMenu.module.css', 'utf8')
+    const rule = (sel: string): string =>
+      new RegExp(`${sel.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+    const menu = rule('.menuWrap')
+    expect(menu).toMatch(/position:\s*absolute/)
+    expect(menu).toMatch(/top:\s*calc\(100% \+ var\(--space-1\)\)/)
+    expect(menu).toMatch(/right:\s*0/)
+    const sub = rule('.submenuWrap')
+    expect(sub).toMatch(/position:\s*absolute/)
+    expect(sub).toMatch(/top:\s*calc\(-1 \* var\(--space-2\) - 1px\)/)
+    expect(sub).toMatch(/right:\s*calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/)
+    expect(rule('.subAnchor')).toMatch(/position:\s*relative/)
   })
 })
