@@ -180,6 +180,53 @@ describe('EmbeddedTerminal — terminal colours', () => {
     expect(capturedTerminals.length).toBe(1)
   })
 
+  // liquid-glass under "dark": an opaque xterm ground covered the frame's inset glow and showed a
+  // darker square-cornered rectangle in the rounded frame (operator, 2026-10-01).
+  // Checked after mount, i.e. after the live re-theme effect (it runs right after creation).
+  it('a transparent terminal leaves the built-in ground to the frame', () => {
+    const glass = {
+      ...DEFAULT_THEME_BUNDLE,
+      terminal: { background: 'rgba(0,0,0,0)', allowTransparency: true }
+    }
+    act(() => {
+      themeStore.getState().setBundle(glass)
+      settingsStore.getState().applyPatch({ terminalScheme: 'dark' })
+    })
+    const { container } = render('t-1')
+    const term = capturedTerminals[0]
+    expect(term).toBeDefined()
+    if (!term) return
+    expect(term.options.allowTransparency).toBe(true)
+    expect(term.options.theme).toEqual({
+      ...xtermTheme,
+      background: `${String(xtermTheme.background)}00`
+    })
+    expect(frameOf(container).style.getPropertyValue('--bg-terminal')).toBe(xtermTheme.background)
+
+    act(() => settingsStore.getState().applyPatch({ terminalScheme: 'light' }))
+    expect(term.options.theme).toEqual({
+      ...xtermLightTheme,
+      background: `${String(xtermLightTheme.background)}00`
+    })
+  })
+
+  it('an OPAQUE terminal keeps the palette ground even when a see-through theme arrives', () => {
+    act(() => settingsStore.getState().applyPatch({ terminalScheme: 'dark' }))
+    render('t-1')
+    const term = capturedTerminals[0]
+    expect(term).toBeDefined()
+    if (!term) return
+    expect(term.options.allowTransparency).toBe(false)
+    act(() =>
+      themeStore.getState().setBundle({
+        ...DEFAULT_THEME_BUNDLE,
+        terminal: { background: 'rgba(0,0,0,0)', allowTransparency: true }
+      })
+    )
+    // allowTransparency is creation-only: a transparent ground here would draw black.
+    expect(term.options.theme).toEqual(xtermTheme)
+  })
+
   it('a hidden kept-alive terminal follows too', () => {
     const first = renderComponent(<EmbeddedTerminal terminalId="t-1" />)
     const second = renderComponent(<EmbeddedTerminal terminalId="t-2" active={false} />)

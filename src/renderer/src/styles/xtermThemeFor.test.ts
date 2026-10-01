@@ -7,7 +7,8 @@ import {
   minimumContrastFor,
   terminalFontFor,
   TERMINAL_FONT_FAMILY,
-  frameBackgroundFor
+  frameBackgroundFor,
+  transparentGround
 } from './xtermTheme'
 import { contrast, hexToRgb } from '../test/contrast'
 
@@ -63,6 +64,44 @@ describe('terminal colour scheme (spec 2026-09-30)', () => {
     expect(xtermThemeFor(theme, 'theme').red).toBe('#f00')
     expect(xtermThemeFor(theme, 'dark')).toEqual(xtermTheme)
     expect(xtermThemeFor(theme, 'light')).toEqual(xtermLightTheme)
+  })
+
+  // A see-through theme (liquid-glass) lights the frame's padding ring with an inset glow and a
+  // `::before` filter. An OPAQUE xterm ground over that showed as a darker square-cornered box
+  // inside the rounded frame (operator, 2026-10-01). With transparency on, a built-in palette's
+  // ground keeps its RGB at alpha 0: the frame paints it (frameBackgroundFor), and xterm still
+  // computes the light contrast floor, the selection blend and inverse text from the real colour.
+  it('"dark" / "light" keep the ground RGB at alpha 0 when the terminal is transparent', () => {
+    const theme = { background: 'rgba(0,0,0,0)', red: '#f00' }
+    for (const [scheme, palette] of [
+      ['dark', xtermTheme],
+      ['light', xtermLightTheme]
+    ] as const) {
+      const t = xtermThemeFor(theme, scheme, { transparent: true })
+      expect(t.background, scheme).toBe(`${String(palette.background)}00`)
+      expect({ ...t, background: palette.background }, scheme).toEqual(palette)
+      expect(frameBackgroundFor(scheme), scheme).toBe(palette.background)
+    }
+    // Opaque terminals (transparency off) keep the palette's own ground.
+    expect(xtermThemeFor(theme, 'dark')).toEqual(xtermTheme)
+    // Under "theme" the theme's own ground rules.
+    expect(xtermThemeFor({ red: '#f00' }, 'theme', { transparent: true }).background).toBe(
+      xtermTheme.background
+    )
+  })
+
+  // The light floor (7:1) is measured against the ground's RGB. A black RGB (`rgba(0,0,0,0)`)
+  // made xterm lift every dark glyph to mid-grey on the near-white frame.
+  it('a transparent light ground still measures as the light palette, not as black', () => {
+    const ground = String(xtermThemeFor({}, 'light', { transparent: true }).background)
+    expect(ground.slice(0, 7)).toBe(String(xtermLightTheme.background))
+    const fg = String(xtermLightTheme.foreground)
+    expect(contrast(hexToRgb(fg), hexToRgb(ground.slice(0, 7)))).toBeGreaterThanOrEqual(7)
+  })
+
+  it('transparentGround refuses anything but #rrggbb', () => {
+    expect(transparentGround('#141312')).toBe('#14131200')
+    expect(() => transparentGround('rgba(0,0,0,1)')).toThrow()
   })
 
   it('the kind follows the theme only under "theme"', () => {

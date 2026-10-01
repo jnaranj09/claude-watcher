@@ -296,6 +296,8 @@ export function EmbeddedTerminal({
       leave: (): void => linkGuard.leave()
     }
 
+    // Creation-only (D-10), and the ONE source for both the option and the theme's ground.
+    const transparent = themeTerminalRef.current.allowTransparency === true
     const term = new Terminal({
       cursorBlink: true,
       linkHandler: { activate: activateLink, ...linkHover },
@@ -307,14 +309,14 @@ export function EmbeddedTerminal({
       // change re-applies in the second effect, never recreates — F3).
       fontSize: fontSizeRef.current,
       // ONE theme source (UX-DR2): the token default with the applied custom theme on top.
-      theme: xtermThemeFor(themeTerminalRef.current, terminalSchemeRef.current),
+      theme: xtermThemeFor(themeTerminalRef.current, terminalSchemeRef.current, { transparent }),
       // A light terminal gets a contrast floor: claude's dark theme draws light 24-bit colours
       // that skip the palette, and xterm raises each one at draw time (spec 2026-09-30).
       minimumContrastRatio: minimumContrastFor(
         terminalKindFor(terminalSchemeRef.current, themeColorSchemeRef.current)
       ),
       // Creation-only (D-10): a theme that turns it on reaches terminals opened from now on.
-      allowTransparency: themeTerminalRef.current.allowTransparency === true
+      allowTransparency: transparent
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -601,7 +603,11 @@ export function EmbeddedTerminal({
     const term = termRef.current
     if (!term) return
     const kind = terminalKindFor(terminalScheme, themeColorScheme)
-    term.options.theme = xtermThemeFor(themeTerminal, terminalScheme)
+    // `allowTransparency` is creation-only, so the ground follows the terminal's OWN option, never
+    // the new theme's: a zero-alpha ground on an opaque terminal draws black.
+    term.options.theme = xtermThemeFor(themeTerminal, terminalScheme, {
+      transparent: term.options.allowTransparency === true
+    })
     term.options.minimumContrastRatio = minimumContrastFor(kind)
     // The font follows the kind too; a new face can change the cell width, so re-fit (the
     // font-size effect's path: non-zero box first, then send the dims to main).

@@ -37,9 +37,31 @@ export function terminalFontFor(kind: TerminalKind): TerminalFont {
     : { fontFamily: TERMINAL_FONT_FAMILY, fontWeight: 400 }
 }
 
-export function xtermThemeFor(terminal: ThemeTerminal, scheme: TerminalScheme = 'theme'): ITheme {
-  if (scheme === 'dark') return { ...xtermTheme }
-  if (scheme === 'light') return { ...xtermLightTheme }
+/** A built-in palette's ground with its alpha at zero: `#rrggbb` → `#rrggbb00`. xterm still uses
+ *  the RGB of the ground — the contrast floor, the opaque selection blend and inverse text are all
+ *  computed from it — while a transparent terminal paints nothing. A bare `rgba(0,0,0,0)` made
+ *  that RGB black: under "light" the 7:1 floor then pushed every dark glyph to mid-grey. */
+export function transparentGround(background: string): string {
+  if (!/^#[0-9a-f]{6}$/i.test(background)) throw new Error('transparentGround: expects #rrggbb')
+  return `${background}00`
+}
+
+/** The xterm theme a live terminal applies. `transparent` is the terminal's creation-time
+ *  `allowTransparency` (ignored under "theme", where the theme's own ground rules): under a
+ *  built-in palette the ground is then left to the FRAME, which paints the same colour
+ *  (frameBackgroundFor). An opaque xterm ground inside a see-through theme's frame covered the
+ *  frame's inset glow and showed as a darker, square-cornered box inside the rounded panel
+ *  (liquid-glass, operator 2026-10-01). */
+export function xtermThemeFor(
+  terminal: ThemeTerminal,
+  scheme: TerminalScheme = 'theme',
+  { transparent = false }: { transparent?: boolean } = {}
+): ITheme {
+  if (scheme === 'dark' || scheme === 'light') {
+    const palette = scheme === 'dark' ? xtermTheme : xtermLightTheme
+    if (!transparent) return { ...palette }
+    return { ...palette, background: transparentGround(String(palette.background)) }
+  }
   const out: ITheme = { ...xtermTheme }
   for (const key of TERMINAL_THEME_KEYS) {
     const value = terminal[key]
