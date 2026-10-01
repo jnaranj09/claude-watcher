@@ -149,7 +149,7 @@ describe('EmbeddedTerminal — terminal colours', () => {
     const term = capturedTerminals[0]
     expect(term).toBeDefined()
     if (!term) return
-    expect(term.options.minimumContrastRatio).toBe(4.5)
+    expect(term.options.minimumContrastRatio).toBe(7)
     expect(frameOf(container).style.getPropertyValue('--bg-terminal')).toBe('')
   })
 
@@ -163,7 +163,8 @@ describe('EmbeddedTerminal — terminal colours', () => {
     act(() => settingsStore.getState().applyPatch({ terminalScheme: 'light' }))
     expect(capturedTerminals.length).toBe(1)
     expect(term.options.theme).toEqual(xtermLightTheme)
-    expect(term.options.minimumContrastRatio).toBe(4.5)
+    expect(term.options.minimumContrastRatio).toBe(7)
+    expect(term.options.fontWeight).toBe(500)
     expect(frameOf(container).style.getPropertyValue('--bg-terminal')).toBe(
       xtermLightTheme.background
     )
@@ -171,6 +172,7 @@ describe('EmbeddedTerminal — terminal colours', () => {
     act(() => settingsStore.getState().applyPatch({ terminalScheme: 'dark' }))
     expect(term.options.theme).toEqual(xtermTheme)
     expect(term.options.minimumContrastRatio).toBe(1)
+    expect(term.options.fontWeight).toBe(400)
     expect(frameOf(container).style.getPropertyValue('--bg-terminal')).toBe(xtermTheme.background)
 
     act(() => settingsStore.getState().applyPatch({ terminalScheme: 'theme' }))

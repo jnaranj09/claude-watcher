@@ -15,8 +15,27 @@ export { xtermTheme, xtermLightTheme }
 export type TerminalKind = 'dark' | 'light'
 
 /** The contrast floor a LIGHT terminal gets. claude's own (dark) theme draws light 24-bit colours
- *  that skip the ANSI palette; xterm raises each one at draw time until it reaches this ratio. */
-const LIGHT_MIN_CONTRAST = 4.5
+ *  that skip the ANSI palette; xterm raises each one at draw time until it reaches this ratio.
+ *  7 (AAA), not 4.5: at 4.5 claude's grey lines stayed a pale grey that read as faded (operator,
+ *  2026-09-30). */
+const LIGHT_MIN_CONTRAST = 7
+
+/** The terminal font stack. A dark terminal draws Regular (400). */
+export const TERMINAL_FONT_FAMILY =
+  "'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace"
+
+/** A LIGHT terminal draws Medium (500): dark 1px Regular strokes on a light ground read thin and
+ *  hard to read. Hack ships no Medium face (500 draws as 400), so this stack skips it and puts
+ *  Noto Sans Mono, which has one, right after JetBrains Mono (operator's pick, 2026-09-30). */
+const LIGHT_FONT_FAMILY = "'JetBrains Mono', 'Noto Sans Mono', ui-monospace, 'Hack', monospace"
+
+export type TerminalFont = { fontFamily: string; fontWeight: 400 | 500 }
+
+export function terminalFontFor(kind: TerminalKind): TerminalFont {
+  return kind === 'light'
+    ? { fontFamily: LIGHT_FONT_FAMILY, fontWeight: 500 }
+    : { fontFamily: TERMINAL_FONT_FAMILY, fontWeight: 400 }
+}
 
 export function xtermThemeFor(terminal: ThemeTerminal, scheme: TerminalScheme = 'theme'): ITheme {
   if (scheme === 'dark') return { ...xtermTheme }

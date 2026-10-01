@@ -47,6 +47,7 @@ import {
   xtermThemeFor,
   terminalKindFor,
   minimumContrastFor,
+  terminalFontFor,
   frameBackgroundFor
 } from '../styles/xtermTheme'
 import { useTheme, selectThemeTerminal, selectThemeColorScheme } from '../stores/themeStore'
@@ -300,7 +301,8 @@ export function EmbeddedTerminal({
       linkHandler: { activate: activateLink, ...linkHover },
       // convertEol:false — the PTY owns newline semantics (terminal.md; the delta SmokeCockpit omits).
       convertEol: false,
-      fontFamily: "'JetBrains Mono', ui-monospace, 'Hack', 'Noto Sans Mono', monospace",
+      // A light terminal draws a Medium face (terminalFontFor); re-applied live with the scheme.
+      ...terminalFontFor(terminalKindFor(terminalSchemeRef.current, themeColorSchemeRef.current)),
       // Read the INITIAL font size via the ref so fontSize is not a recreate dependency (a live
       // change re-applies in the second effect, never recreates — F3).
       fontSize: fontSizeRef.current,
@@ -598,11 +600,24 @@ export function EmbeddedTerminal({
     themeColorSchemeRef.current = themeColorScheme
     const term = termRef.current
     if (!term) return
+    const kind = terminalKindFor(terminalScheme, themeColorScheme)
     term.options.theme = xtermThemeFor(themeTerminal, terminalScheme)
-    term.options.minimumContrastRatio = minimumContrastFor(
-      terminalKindFor(terminalScheme, themeColorScheme)
-    )
-  }, [themeTerminal, terminalScheme, themeColorScheme])
+    term.options.minimumContrastRatio = minimumContrastFor(kind)
+    // The font follows the kind too; a new face can change the cell width, so re-fit (the
+    // font-size effect's path: non-zero box first, then send the dims to main).
+    const font = terminalFontFor(kind)
+    if (term.options.fontFamily === font.fontFamily && term.options.fontWeight === font.fontWeight)
+      return
+    term.options.fontFamily = font.fontFamily
+    term.options.fontWeight = font.fontWeight
+    const fit = fitRef.current
+    const c = containerRef.current
+    if (!fit || !c || c.clientWidth === 0 || c.clientHeight === 0) return
+    fit.fit()
+    void window.terminal
+      .resize(terminalId, term.cols, term.rows)
+      .catch(() => console.warn('[c9watch][term] code=resize_failed'))
+  }, [themeTerminal, terminalScheme, themeColorScheme, terminalId])
 
   // --- Keep the expander chord current for the key handler WITHOUT touching the terminal. ---
   useEffect(() => {

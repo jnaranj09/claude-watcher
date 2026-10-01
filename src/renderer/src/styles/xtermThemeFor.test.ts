@@ -5,6 +5,8 @@ import {
   xtermThemeFor,
   terminalKindFor,
   minimumContrastFor,
+  terminalFontFor,
+  TERMINAL_FONT_FAMILY,
   frameBackgroundFor
 } from './xtermTheme'
 import { contrast, hexToRgb } from '../test/contrast'
@@ -70,9 +72,19 @@ describe('terminal colour scheme (spec 2026-09-30)', () => {
     expect(terminalKindFor('light', 'dark')).toBe('light')
   })
 
-  it("a light terminal gets the 4.5 contrast floor; a dark one stays at xterm's 1", () => {
-    expect(minimumContrastFor('light')).toBe(4.5)
+  it("a light terminal gets the 7 contrast floor; a dark one stays at xterm's 1", () => {
+    expect(minimumContrastFor('light')).toBe(7)
     expect(minimumContrastFor('dark')).toBe(1)
+  })
+
+  it('a light terminal draws Medium from a stack whose first installed face has one; dark stays Regular', () => {
+    const light = terminalFontFor('light')
+    expect(light.fontWeight).toBe(500)
+    // Hack has no Medium face: it must come after Noto Sans Mono, or 500 draws as 400.
+    expect(light.fontFamily.indexOf("'Noto Sans Mono'")).toBeLessThan(
+      light.fontFamily.indexOf("'Hack'")
+    )
+    expect(terminalFontFor('dark')).toEqual({ fontFamily: TERMINAL_FONT_FAMILY, fontWeight: 400 })
   })
 
   it('the frame paints the palette ground for dark / light, and nothing inline under "theme"', () => {
