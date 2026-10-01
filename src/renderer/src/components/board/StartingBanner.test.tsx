@@ -186,7 +186,7 @@ describe('StartingBanner — multi-entry popover: click opens a list', () => {
     // Click the first entry.
     const firstEntry = container.querySelector<HTMLButtonElement>('[data-testid="starting-entry"]')
     expect(firstEntry).not.toBeNull()
-    const entryTerminalLabel = firstEntry?.querySelector('span')?.textContent
+    const entryTerminalLabel = firstEntry?.querySelector('span > span')?.textContent
     act(() => {
       firstEntry?.click()
     })
@@ -247,5 +247,24 @@ describe('StartingBanner — supersede: leaves strip when card correlates (AC-4)
 
     // After correlation + card: banner is gone (superseded — no double card).
     expect(container.querySelector('[data-testid="starting-banner"]')).toBeNull()
+  })
+
+  it('draws its list with Popover', () => {
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('t-1', 'alpha', 'default')
+      boardStore.getState().showBoard()
+      boardStore.getState().openLaunchedTerminal('t-2', 'beta', 'default')
+      boardStore.getState().showBoard()
+    })
+    const { container, unmount } = renderComponent(<StartingBanner />)
+    cleanup = unmount
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="starting-banner"]')?.click()
+    })
+    expect(
+      container.querySelector('[data-testid="starting-popover"]')?.hasAttribute('data-popover')
+    ).toBe(true)
+    const entries = container.querySelectorAll('[data-testid="starting-entry"][data-popover-item]')
+    expect(entries.length).toBe(2)
   })
 })

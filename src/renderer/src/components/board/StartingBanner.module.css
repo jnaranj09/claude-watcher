@@ -46,19 +46,14 @@
   flex-shrink: 0;
 }
 
-/* Popover panel — transient-floating surface (`shadow-pop`). */
-.popover {
+/* Positions the Popover under the banner row; the box and rows are Popover's. */
+.popoverWrap {
   position: absolute;
   z-index: 40;
   left: var(--gutter);
   top: 100%; /* anchored to the banner row's bottom via relative wrapper */
   min-width: 240px;
   max-width: 400px;
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-lg);
-  box-shadow: var(--shadow-pop);
-  overflow: hidden;
 }
 
 /* Relative wrapper so the popover anchors to the banner row. */
@@ -67,33 +62,12 @@
   flex: 0 0 auto;
 }
 
-/* Individual starting-terminal entry row — calm-neutral. */
-.entryButton {
+/* The two lines of an entry, stacked. */
+.entryText {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-}
-
-.entryButton:last-child {
-  border-bottom: none;
-}
-
-.entryButton:hover,
-.entryButton:focus-visible {
-  background: var(--bg-surface-raised);
-  outline: none;
-}
-
-.entryButton:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  min-width: 0;
 }
 
 /* The cwd-basename label — monospace, calm. NO gold, NO accent. */

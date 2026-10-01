@@ -24,6 +24,7 @@ import {
 } from '../../stores/boardStore'
 // Workspaces (Task 9a) — the banner is a component, so it reads the active workspace itself.
 import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
+import { Popover } from '../Popover/Popover'
 import styles from './StartingBanner.module.css'
 
 export function StartingBanner(): JSX.Element | null {
@@ -73,28 +74,25 @@ export function StartingBanner(): JSX.Element | null {
 
       {/* Popover (multi-entry only) — shows the calm-neutral list. */}
       {count > 1 && open && (
-        <div
-          className={styles.popover}
-          role="listbox"
-          aria-label="Starting terminals"
-          data-testid="starting-popover"
-        >
-          {startingTerminals.map((lt) => (
-            <button
-              key={lt.terminalId}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className={styles.entryButton}
-              onClick={() => handleEntryClick(lt.terminalId)}
-              data-testid="starting-entry"
-            >
-              {/* font-mono cwd-basename — calm, no accent */}
-              <span className={styles.entryLabel}>{lt.label}</span>
-              {/* muted "starting…" — NO status dot, NO gold */}
-              <span className={styles.entryStatus}>starting…</span>
-            </button>
-          ))}
+        <div className={styles.popoverWrap}>
+          <Popover.Surface role="listbox" aria-label="Starting terminals" testId="starting-popover">
+            {startingTerminals.map((lt) => (
+              <Popover.Item
+                key={lt.terminalId}
+                role="option"
+                aria-selected={false}
+                testId="starting-entry"
+                onClick={() => handleEntryClick(lt.terminalId)}
+              >
+                <span className={styles.entryText}>
+                  {/* font-mono cwd-basename — calm, no accent */}
+                  <span className={styles.entryLabel}>{lt.label}</span>
+                  {/* muted "starting…" — NO status dot, NO gold */}
+                  <span className={styles.entryStatus}>starting…</span>
+                </span>
+              </Popover.Item>
+            ))}
+          </Popover.Surface>
         </div>
       )}
     </div>
