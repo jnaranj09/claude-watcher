@@ -4,7 +4,12 @@
   "description": "Claude Watcher — Electron + React + TypeScript",
   "main": "./out/main/index.js",
   "author": "Jose Naranjo",
-  "homepage": "https://electron-vite.org",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jnaranj09/claude-watcher.git"
+  },
+  "homepage": "https://github.com/jnaranj09/claude-watcher",
   "desktopName": "com.claudewatcher.app.desktop",
   "scarfSettings": {
     "enabled": false

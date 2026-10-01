@@ -62,11 +62,14 @@ mac:
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
-  # Arch/CachyOS host — emit a `pacman -U`-installable package (.pkg.tar.zst).
-  # (Was rpm-only for Fedora; rpm needs `rpmbuild` on the build host, Arch does not ship it.)
+  # Public release (spec 2026-09-30): built on GitHub Actions `ubuntu-22.04`, see
+  # .claude/rules/release.md. Building rpm locally needs `rpmbuild`, deb needs `dpkg-deb`.
   target:
+    - deb
+    - rpm
     - pacman
-  maintainer: electronjs.org
+  maintainer: Jose Naranjo <jmnaranjo09@gmail.com>
+  artifactName: ${name}-${version}-${arch}.${ext}
   category: Utility
   # Story 2.3 AC-6 — canonical `.desktop` identity (tray/notification window association, AR-10).
   # electron-builder 26 GENERATES the .desktop from config (it does NOT read a raw build/*.desktop).
@@ -96,7 +99,31 @@ pacman:
     - at-spi2-core
     - libxtst
     - xdg-utils
+# Same reason as `pacman.depends`: the electron-builder defaults can pull libappindicator.
+# These lists are proven by the release workflow's install check (clean debian/ubuntu/fedora
+# containers + ldd); fix them there, not by guessing.
+deb:
+  depends:
+    - libgtk-3-0
+    - libnss3
+    - libxss1
+    - libnotify4
+    - libatspi2.0-0
+    - libxtst6
+    - xdg-utils
+    - libasound2 | libasound2t64
+rpm:
+  depends:
+    - gtk3
+    - nss
+    - libXScrnSaver
+    - libnotify
+    - at-spi2-core
+    - libXtst
+    - xdg-utils
+    - alsa-lib
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
+# No auto-update (spec 2026-09-30 D-4). `null`, not an omitted key: with no `publish`,
+# electron-builder infers a GitHub provider from package.json `repository` and ships an
+# app-update.yml nothing reads. Users download releases from GitHub by hand.
+publish: null
