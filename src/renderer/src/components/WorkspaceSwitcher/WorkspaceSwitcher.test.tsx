@@ -273,8 +273,6 @@ describe('WorkspaceSwitcher', () => {
     expect(block('.switcher')).toContain('border: 1px solid var(--ws-border, var(--border-strong))')
     expect(block('.switcher:hover')).toContain('background: var(--ws-fill, var(--bg-surface))')
     expect(block('.switcher:hover')).toContain('border-color: var(--text-secondary)')
-    expect(block('.row')).toContain('background: var(--ws-fill, transparent)')
-    expect(block('.row')).toContain('border-color: var(--ws-border, transparent)')
     expect(css).not.toContain('.tabDot')
   })
 
@@ -506,17 +504,28 @@ describe('WorkspaceSwitcher', () => {
     expect(manage.previousElementSibling?.getAttribute('role')).toBe('separator')
     // Read from the repo root — `import.meta.url` is not a file: URL under the vite transform.
     const css = readFileSync(
-      join(
-        process.cwd(),
-        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
-      ),
+      join(process.cwd(), 'src/renderer/src/components/Popover/Popover.module.css'),
       'utf8'
     ).replace(/\/\*[\s\S]*?\*\//g, '')
     const manageRules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-      .filter(([, sel = '']) => /\.manage\b/.test(sel))
+      .filter(([, sel = '']) => /data-quiet/.test(sel))
       .map(([, , body = '']) => body)
       .join('\n')
     expect(manageRules).not.toMatch(/border-radius:\s*0\b/)
     expect(manageRules).not.toMatch(/border-top/)
+  })
+
+  it('draws its menu with Popover: the box, tinted workspace rows, and an untinted quiet Manage row', () => {
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    const menu = document.querySelector('[role="menu"]')
+    expect(menu?.hasAttribute('data-popover')).toBe(true)
+    const other = document.querySelector('[data-testid^="workspace-row-"][data-popover-item]')
+    expect(other?.getAttribute('data-tone')).not.toBeNull()
+    const manage = document.querySelector('[data-testid="workspace-manage"]')
+    expect(manage?.hasAttribute('data-popover-item')).toBe(true)
+    expect(manage?.hasAttribute('data-quiet')).toBe(true)
+    expect(manage?.hasAttribute('data-tone')).toBe(false)
+    expect(document.querySelector('[data-popover-divider]')).not.toBeNull()
   })
 })

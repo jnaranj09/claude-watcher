@@ -25,6 +25,7 @@ import {
   useWorkspaces,
   workspacesStore
 } from '../../stores/workspacesStore'
+import { Popover } from '../Popover/Popover'
 import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
 import styles from './WorkspaceSwitcher.module.css'
 
@@ -190,58 +191,61 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         </span>
       )}
       {open && (
-        <div className={styles.menu} role="menu" onKeyDown={handleMenuKeyDown}>
-          {/* The OTHER workspaces only: the button already names the active one, and listing it
-              again read as a duplicate (operator, 2026-09-28). */}
-          {others.map((w) => {
-            const total = totals[w.id] ?? 0
-            const needsYou = counts[w.id] ?? 0
-            const working = workingCounts[w.id] ?? 0
-            const grey = greyCount(total, working, needsYou)
-            return (
-              <button
-                key={w.id}
-                type="button"
-                role="menuitem"
-                className={`${styles.row} ${workspaceTintClass(w.color)}`}
-                data-testid={`workspace-row-${w.id}`}
-                data-tone={w.color}
-                aria-label={describeCounts(w.name, total, working, needsYou)}
-                onClick={() => pick(w.id)}
-              >
-                <span className={styles.rowName}>{w.name}</span>
-                {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
-                {grey !== null && (
-                  <span className={styles.rowCount} data-testid={`workspace-row-count-${w.id}`}>
-                    {grey}
-                  </span>
-                )}
-                {working > 0 && (
-                  <span className={styles.working} data-testid={`workspace-row-working-${w.id}`}>
-                    {working}
-                  </span>
-                )}
-                {needsYou > 0 && (
-                  <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
-                    {needsYou}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-          {others.length > 0 && <div className={styles.divider} role="separator" />}
-          <button
-            type="button"
-            role="menuitem"
-            className={styles.manage}
-            data-testid="workspace-manage"
-            onClick={() => {
-              setOpen(false)
-              onManage()
-            }}
-          >
-            Manage workspaces…
-          </button>
+        <div className={styles.menuWrap}>
+          <Popover.Surface role="menu" onKeyDown={handleMenuKeyDown}>
+            {/* The OTHER workspaces only: the button already names the active one, and listing it
+                again read as a duplicate (operator, 2026-09-28). */}
+            {others.map((w) => {
+              const total = totals[w.id] ?? 0
+              const needsYou = counts[w.id] ?? 0
+              const working = workingCounts[w.id] ?? 0
+              const grey = greyCount(total, working, needsYou)
+              return (
+                <Popover.Item
+                  key={w.id}
+                  role="menuitem"
+                  tone={w.color}
+                  testId={`workspace-row-${w.id}`}
+                  aria-label={describeCounts(w.name, total, working, needsYou)}
+                  onClick={() => pick(w.id)}
+                >
+                  <span className={styles.rowName}>{w.name}</span>
+                  {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
+                  <Popover.ItemEnd>
+                    {grey !== null && (
+                      <span className={styles.rowCount} data-testid={`workspace-row-count-${w.id}`}>
+                        {grey}
+                      </span>
+                    )}
+                    {working > 0 && (
+                      <span
+                        className={styles.working}
+                        data-testid={`workspace-row-working-${w.id}`}
+                      >
+                        {working}
+                      </span>
+                    )}
+                    {needsYou > 0 && (
+                      <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
+                        {needsYou}
+                      </span>
+                    )}
+                  </Popover.ItemEnd>
+                </Popover.Item>
+              )
+            })}
+            {others.length > 0 && <Popover.Divider />}
+            <Popover.QuietItem
+              role="menuitem"
+              testId="workspace-manage"
+              onClick={() => {
+                setOpen(false)
+                onManage()
+              }}
+            >
+              Manage workspaces…
+            </Popover.QuietItem>
+          </Popover.Surface>
         </div>
       )}
     </div>

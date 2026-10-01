@@ -66,9 +66,7 @@
 .tab > .working,
 .tab > .badge,
 .rowName,
-.rowCount,
-.row > .working,
-.row > .badge {
+.rowCount {
   align-self: baseline;
 }
 
@@ -180,62 +178,19 @@
   }
 }
 
-.menu {
+/* Where the workspace menu sits; its look is Popover's (spec 2026-10-01). */
+.menuWrap {
   position: absolute;
   top: calc(100% + var(--space-1));
   left: 0;
   z-index: 50;
   min-width: 220px;
   max-width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-lg);
-  box-shadow: var(--shadow-pop);
-  color: var(--text-primary);
-  text-align: left;
-}
-
-.row,
-.manage {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
-  text-align: left;
-  cursor: pointer;
-}
-/* A menu row is tinted with ITS workspace's colour (WorkspaceTint); `Manage` stays untinted. */
-.row {
-  background: var(--ws-fill, transparent);
-  border-color: var(--ws-border, transparent);
-}
-.row:hover {
-  background: var(--ws-fill, var(--bg-surface));
-  border-color: var(--text-secondary);
-}
-.manage:hover {
-  background: var(--bg-surface);
-}
-.row:focus-visible,
-.manage:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
 }
 
 .rowName {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -243,20 +198,6 @@
 
 .rowCount {
   flex: none;
-}
-
-/* The line above `Manage workspaces…` is its own element, as in NewSessionMenu — never the
-   button's `border-top`. A border there forced `border-radius: 0` on the button (a rounded box
-   bends its top border up at the corners), so its hover fill was the one square row in a rounded
-   menu. */
-.divider {
-  height: 1px;
-  background: var(--border);
-  margin: var(--space-1) 0;
-}
-
-.manage {
-  color: var(--text-secondary);
 }
 
 /* A workspace's colour is its tint — ONE definition for the whole app, WorkspaceTint.module.css
