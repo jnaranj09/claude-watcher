@@ -99,6 +99,8 @@ pacman:
     - at-spi2-core
     - libxtst
     - xdg-utils
+    # libasound.so.2 — Electron links it; missing on a clean Arch (install check, 2026-09-30).
+    - alsa-lib
 # Same reason as `pacman.depends`: the electron-builder defaults can pull libappindicator.
 # These lists are proven by the release workflow's install check (clean debian/ubuntu/fedora
 # containers + ldd); fix them there, not by guessing.
@@ -112,6 +114,8 @@ deb:
     - libxtst6
     - xdg-utils
     - libasound2 | libasound2t64
+    # Ubuntu 22.04's base has no libgbm (install check, 2026-09-30); Debian 12 pulled it in.
+    - libgbm1
 rpm:
   depends:
     - gtk3
