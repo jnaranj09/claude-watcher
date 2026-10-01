@@ -1,0 +1,101 @@
+/* The feedback callout (spec 2026-10-01-feedback-callout-design.md). The tone picks four vars; the
+   box reads them. Tokens only (noHexLiterals.test.ts). Themes target `[data-callout]`,
+   `[data-callout-tone]`, `[data-callout-size]`. */
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  background: var(--callout-fill);
+  border: 1px solid var(--callout-border);
+  border-left: 3px solid var(--callout-bar);
+  border-radius: var(--rounded-md);
+  color: var(--text-primary);
+  animation: callout-in 150ms ease-out;
+}
+.callout[data-callout-tone='success'] {
+  --callout-bar: var(--success);
+  --callout-fill: var(--success-fill);
+  --callout-border: var(--success-border);
+  --callout-ink: var(--text-on-success);
+}
+.callout[data-callout-tone='danger'] {
+  --callout-bar: var(--danger);
+  --callout-fill: var(--danger-fill);
+  --callout-border: var(--danger-border);
+  --callout-ink: var(--text-on-danger);
+}
+
+.block {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-body);
+}
+.compact {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  font-size: var(--font-size-label);
+}
+
+/* A 16px disc in the tone's colour; the glyph is CSS content so the text stays the words. */
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: var(--rounded-full);
+  background: var(--callout-bar);
+  color: var(--callout-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.compact .icon {
+  margin-top: 0;
+}
+.callout[data-callout-tone='success'] .icon::before {
+  content: '✓';
+}
+.callout[data-callout-tone='danger'] .icon::before {
+  content: '!';
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.compact .title {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.detail {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.action {
+  flex: none;
+  align-self: center;
+}
+
+@keyframes callout-in {
+  from {
+    opacity: 0;
+    translate: 0 2px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout {
+    animation: none;
+  }
+}
