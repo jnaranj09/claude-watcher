@@ -1,0 +1,104 @@
+# Release pipeline (spec 2026-09-30, .claude/rules/release.md).
+# A `vX.Y.Z` tag → gate → Linux packages → packaged smoke → install check → DRAFT release.
+# A manual run or a PR touching packaging does everything except the release (a dry run).
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - electron-builder.yml
+      - package.json
+      - package-lock.json
+      - tests/install/**
+      - tests/smoke/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci.yml
+
+  linux:
+    needs: gate
+    # glibc 2.35: node-pty's pty.node links against the BUILD host's glibc. Never ubuntu-latest.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Packaging tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm libarchive-tools xvfb
+      - run: npm ci
+      - run: npx electron-vite build
+      - run: npx electron-builder --linux deb rpm pacman --publish never
+      - name: Packaged smoke (WebGL is a warning — no GPU here)
+        env:
+          SMOKE_WEBGL: optional
+        run: xvfb-run -a npm run smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pacman
+          if-no-files-found: error
+
+  install-check:
+    needs: linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: 'debian:12', glob: '*.deb' }
+          - { image: 'ubuntu:22.04', glob: '*.deb' }
+          - { image: 'fedora:latest', glob: '*.rpm' }
+          - { image: 'archlinux:latest', glob: '*.pacman' }
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-packages
+          path: pkgs
+      - run: sh tests/install/check-install.sh pkgs/${{ matrix.glob }}
+
+  release:
+    needs: install-check
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches package.json version
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME#v}" != "$v" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $v"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-packages
+          path: pkgs
+      - name: Checksums
+        run: cd pkgs && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" pkgs/*
+          --draft --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
