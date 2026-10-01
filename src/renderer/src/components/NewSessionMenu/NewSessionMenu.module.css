@@ -9,84 +9,21 @@
   margin-top: var(--space-2);
 }
 .anchorPrimary .menu {
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-}
-
-/* The button itself is `components/Button` (`primary`); only the anchor and the menu live here. */
-
-.menu {
   position: absolute;
   top: calc(100% + var(--space-1));
   right: 0;
   z-index: 50;
   min-width: 320px;
   max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-lg);
-  box-shadow: var(--shadow-pop);
-  color: var(--text-primary);
-  /* Own alignment — the empty board centers its copy and the menu must not inherit that. */
-  text-align: left;
+  --popover-max-height: 320px;
 }
 
-.divider {
-  height: 1px;
-  background: var(--border);
-  margin: var(--space-1) 0;
-}
-
-.item,
-.row {
+.rowText {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 2px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--rounded-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
-  text-align: left;
-  cursor: pointer;
+  min-width: 0;
 }
-/* Plain actions (folder / manage) lay out in a row: [icon] label. Template rows stay stacked. */
-.item {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-}
-.itemIcon {
-  flex: none;
-  color: var(--text-secondary);
-}
-.item:hover,
-.row:hover {
-  background: var(--bg-surface);
-}
-.item:focus-visible,
-.row:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  max-height: 320px;
-  overflow-y: auto;
-}
-
 .rowName {
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-body);
@@ -94,7 +31,7 @@
 .rowPath {
   font-family: var(--font-mono);
   font-size: var(--font-size-meta);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -105,13 +42,6 @@
   color: var(--text-secondary);
 }
 
-.empty {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-meta);
-  color: var(--text-muted);
-}
-
 /* The dead-terminal pane's placement (variant="dead"). The terminal frame is `overflow: clip`
    (EmbeddedTerminal.module.css) and `.dead` opens its own stacking context at z-index 12, so an
    absolutely-positioned popover inside it is CUT at the frame edge with no scrollbar to recover
@@ -120,7 +50,7 @@
    menu just fills it.
    `display: flex` is load-bearing: a percentage max-height against an auto-height parent
    resolves to `none`, but a FLEX ITEM is bounded by its container's content box — so the
-   wrapper's inline maxHeight is what makes `.list` scroll instead of the menu overflowing. */
+   wrapper's inline maxHeight is what makes the Popover list scroll instead of the menu overflowing. */
 .portalAnchor {
   position: fixed;
   z-index: 50;
@@ -128,11 +58,16 @@
 }
 .portalAnchor .menu {
   position: static;
+  display: flex;
+  min-height: 0;
+}
+.portalAnchor [data-popover] {
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
-.portalAnchor .list {
+.portalAnchor [data-popover-list] {
   flex: 1;
   min-height: 0;
-  max-height: none;
+  --popover-max-height: none;
 }
