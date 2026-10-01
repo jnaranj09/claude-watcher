@@ -252,10 +252,26 @@ describe('docs/themes/examples', () => {
         rules.some(
           (r) =>
             r.selectors.includes(s) &&
-            /border-color:\s*rgba\(255, 255, 255, 0\.4\)/.test(r.body) &&
+            /border-color:\s*var\(--text-primary\);/.test(r.body) &&
             /background-color:\s*var\(--ws-fill, rgba\(255, 255, 255, 0\.05\)\);/.test(r.body)
         ),
         s
+      ).toBe(true)
+    }
+    // The state border is stronger than the hover border, and hover never lands on a state row.
+    const hover = rules.filter((r) =>
+      r.selectors.some((x) => x.startsWith('[data-popover-item]:hover'))
+    )
+    expect(hover.map((r) => r.body).join('\n')).toMatch(/border-color:\s*var\(--text-secondary\);/)
+    for (const st of [
+      "[aria-selected='true']",
+      "[aria-checked='true']",
+      "[aria-expanded='true']",
+      '[data-active]'
+    ]) {
+      expect(
+        hover.every((r) => r.selectors.every((x) => x.replace(/\s+/g, '').includes(`:not(${st})`))),
+        st
       ).toBe(true)
     }
     // No popover is reached by test id or by the retired tag-menu hooks any more.

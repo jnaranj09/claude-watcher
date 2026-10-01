@@ -376,18 +376,22 @@ body {
   border-color: var(--ws-border, rgba(255, 255, 255, 0.08));
   box-shadow: var(--glass-rim-row);
 }
-[data-popover-item]:hover:not(:disabled) {
+[data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
+    [aria-expanded='true']
+  ):not([data-active]) {
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
   border-color: var(--text-secondary);
 }
-/* The current value, a tag that is on, an open submenu, the expander's highlight. */
+/* The current value, a tag that is on, an open submenu, the expander's highlight. Its border is
+   --text-primary, ABOVE the hover border (--text-secondary), so a keyboard-active row never reads
+   weaker than the row under the mouse; hover is excluded from these rows above. */
 [data-popover-item][aria-selected='true'],
 [data-popover-item][aria-checked='true'],
 [data-popover-item][aria-expanded='true'],
 [data-popover-item][data-active] {
   /* The app's own state rule (0,2,0) sets a flat surface fill; keep the bubble's. */
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: var(--text-primary);
 }
 [data-popover-item]:disabled {
   background-color: transparent;
