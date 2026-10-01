@@ -422,12 +422,15 @@ body {
   background-color: var(--bg-surface-raised);
   border-color: rgba(255, 255, 255, 0.1);
 }
-/* The grey count pills (the button's total, each menu row's total). The app fills them with
-   `--border-strong`, which is white 28% here: over glass it lands at a light grey and the white
-   digit on it washed out (2026-09-25). The digit stays WHITE (the operator's call — a light pill
-   with dark ink was tried and rejected); the fill goes SOLID and DARK instead: white on #3a3e48
-   measures 10.7:1. An inset 1px rim keeps the pill's edge on dark glass without changing its size. */
+/* The grey count pills (the button's total, the elsewhere tab's, each menu row's). The app fills
+   them with `--border-strong`, which is white 28% here: over glass it lands at a light grey and the
+   white digit on it washed out (2026-09-25). The digit stays WHITE (the operator's call — a light
+   pill with dark ink was tried and rejected); the fill goes SOLID and DARK instead: white on
+   #3a3e48 measures 10.7:1. An inset 1px rim keeps the pill's edge on dark glass without changing
+   its size. The tab's pill was missing here and kept the washed-out look beside the button's
+   (2026-10-01): a new grey pill joins THIS list. */
 [data-testid='workspace-card-count'],
+[data-testid='workspace-elsewhere-count'],
 [data-testid^='workspace-row-count-'] {
   background: #3a3e48;
   color: #ffffff;

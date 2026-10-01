@@ -332,6 +332,25 @@ describe('docs/themes/examples', () => {
     expect(anyToast).not.toContain('--glass-sheen')
     expect(anyToast).not.toMatch(/backdrop-filter/)
   })
+  // The grey count pill is ONE look wherever it sits: the button, each menu row AND the elsewhere
+  // tab behind the button. The tab's pill was left out and kept the token's white 28% over glass,
+  // so the same "1" read in two colours side by side (operator, 2026-10-01).
+  it('liquid-glass draws every grey count pill solid, the elsewhere tab included', () => {
+    const rules = liquidGlassRules()
+    for (const sel of [
+      "[data-testid='workspace-card-count']",
+      "[data-testid='workspace-elsewhere-count']",
+      "[data-testid^='workspace-row-count-']"
+    ]) {
+      const body = rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => r.body)
+        .join('\n')
+      expect(body, sel).toMatch(/background:\s*#3a3e48;/)
+      expect(body, sel).toMatch(/color:\s*#ffffff;/)
+      expect(body, sel).toMatch(/box-shadow:\s*inset 0 0 0 1px rgba\(255, 255, 255, 0\.22\);/)
+    }
+  })
   // Every terminal panel (the frame, or claude's half and the shell while split) is a bubble like
   // the header and the columns: rim, directional ring, faint
   // border. Its fill stays the token's darker `--bg-terminal` (glyphs need it), so no `--glass-fill`.
