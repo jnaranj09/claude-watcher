@@ -210,21 +210,35 @@ describe('EmbeddedTerminal — terminal colours', () => {
     })
   })
 
-  it('an OPAQUE terminal keeps the palette ground even when a see-through theme arrives', () => {
-    act(() => settingsStore.getState().applyPatch({ terminalScheme: 'dark' }))
+  // A terminal born under liquid-glass kept `allowTransparency` after a switch to paper: the WebGL
+  // atlas still drew its glyphs on see-through tiles, so paper's Medium text came out thin. A
+  // terminal born under paper was fine (operator, 2026-10-02). The option follows the theme live.
+  it('allowTransparency follows the theme live, both ways', () => {
+    const glass = {
+      ...DEFAULT_THEME_BUNDLE,
+      terminal: { background: 'rgba(0,0,0,0)', allowTransparency: true }
+    }
+    act(() => {
+      themeStore.getState().setBundle(glass)
+      settingsStore.getState().applyPatch({ terminalScheme: 'dark' })
+    })
     render('t-1')
     const term = capturedTerminals[0]
     expect(term).toBeDefined()
     if (!term) return
+    expect(term.options.allowTransparency).toBe(true)
+
+    act(() => themeStore.getState().setBundle(DEFAULT_THEME_BUNDLE))
     expect(term.options.allowTransparency).toBe(false)
-    act(() =>
-      themeStore.getState().setBundle({
-        ...DEFAULT_THEME_BUNDLE,
-        terminal: { background: 'rgba(0,0,0,0)', allowTransparency: true }
-      })
-    )
-    // allowTransparency is creation-only: a transparent ground here would draw black.
     expect(term.options.theme).toEqual(xtermTheme)
+
+    act(() => themeStore.getState().setBundle(glass))
+    expect(term.options.allowTransparency).toBe(true)
+    expect(term.options.theme).toEqual({
+      ...xtermTheme,
+      background: `${String(xtermTheme.background)}00`
+    })
+    expect(capturedTerminals.length).toBe(1)
   })
 
   it('a hidden kept-alive terminal follows too', () => {

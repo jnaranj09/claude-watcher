@@ -103,8 +103,8 @@ describe('terminal.md source invariants — component (AC-1/2/5; F3)', () => {
   it('themes through xtermThemeFor (the token default + the applied theme), NOT a hand-authored palette', () => {
     expect(tsx).toMatch(/from\s*['"]\.\.\/styles\/xtermTheme['"]/)
     expect(tsx).toMatch(/theme:\s*xtermThemeFor\(/)
-    // Custom themes (D-10): allowTransparency is read at creation, from the theme store ref, ONCE —
-    // the same value feeds the option and the theme's ground (xtermThemeFor's `transparent`).
+    // Custom themes: allowTransparency is read at creation from the theme store ref; the same
+    // value feeds the option and the theme's ground (xtermThemeFor's `transparent`).
     expect(tsx).toMatch(/const transparent = themeTerminalRef\.current\.allowTransparency === true/)
     expect(tsx).toMatch(/allowTransparency:\s*transparent\b/)
     expect(tsx).toMatch(/term\.options\.theme\s*=\s*xtermThemeFor\(/)

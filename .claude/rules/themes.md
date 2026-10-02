@@ -27,6 +27,7 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   (`themeLifecycle.ts`, `hooks/useApplyTheme.ts`).
 - **Every renderer colour is a token** (`styles/noHexLiterals.test.ts`); `TOKENS` in
   `shared/theme/tokens.ts`.
-- xterm `allowTransparency` is read at creation only.
+- xterm `allowTransparency` follows the theme LIVE (set before `theme`). Creation-only left a
+  Liquid-Glass-born terminal with thin text under Paper (the WebGL atlas draws see-through glyphs).
 - Generated SDK (`docs/themes/THEMES.md`, `theme.schema.json`, `examples/builtin-dark`) is
   drift-tested: `npm run gen:theme-docs`. Rescan on start / Settings open / `Reload themes`.

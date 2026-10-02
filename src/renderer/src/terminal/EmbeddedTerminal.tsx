@@ -215,7 +215,7 @@ export function EmbeddedTerminal({
   // Custom themes — the applied theme's terminal keys, via a NARROW selector (the object is the
   // same reference until the next push). Read through a REF at creation so the theme is NOT a
   // recreate dependency; the effect below re-applies a change on the live terminal. Same pattern
-  // as fontSizeRef. `allowTransparency` is creation-only (xterm needs it before open(); D-10).
+  // as fontSizeRef. `allowTransparency` is set at creation AND re-applied live (effect below).
   const themeTerminal = useTheme(selectThemeTerminal)
   const themeTerminalRef = useRef(themeTerminal)
   // Terminal colours (spec 2026-09-30) — the operator's scheme and the applied theme's own
@@ -298,7 +298,7 @@ export function EmbeddedTerminal({
       leave: (): void => linkGuard.leave()
     }
 
-    // Creation-only (D-10), and the ONE source for both the option and the theme's ground.
+    // The ONE source for both the option and the theme's ground (the live effect re-applies both).
     const transparent = themeTerminalRef.current.allowTransparency === true
     const term = new Terminal({
       cursorBlink: true,
@@ -317,7 +317,6 @@ export function EmbeddedTerminal({
       minimumContrastRatio: minimumContrastFor(
         terminalKindFor(terminalSchemeRef.current, themeColorSchemeRef.current)
       ),
-      // Creation-only (D-10): a theme that turns it on reaches terminals opened from now on.
       allowTransparency: transparent
     })
     const fit = new FitAddon()
@@ -608,11 +607,13 @@ export function EmbeddedTerminal({
     const term = termRef.current
     if (!term) return
     const kind = terminalKindFor(terminalScheme, themeColorScheme)
-    // `allowTransparency` is creation-only, so the ground follows the terminal's OWN option, never
-    // the new theme's: a zero-alpha ground on an opaque terminal draws black.
-    term.options.theme = xtermThemeFor(themeTerminal, terminalScheme, {
-      transparent: term.options.allowTransparency === true
-    })
+    // `allowTransparency` follows the theme live, not only at creation: the WebGL atlas draws
+    // glyphs on a see-through tile when it is on, and those strokes come out thinner. A terminal
+    // born under Liquid Glass kept that thin text after a switch to Paper (operator, 2026-10-02).
+    // Set it BEFORE the theme, which reads it for the ground.
+    const transparent = themeTerminal.allowTransparency === true
+    if (term.options.allowTransparency !== transparent) term.options.allowTransparency = transparent
+    term.options.theme = xtermThemeFor(themeTerminal, terminalScheme, { transparent })
     term.options.minimumContrastRatio = minimumContrastFor(kind)
     // The font follows the kind too; a new face can change the cell width, so re-fit (the
     // font-size effect's path: non-zero box first, then send the dims to main).

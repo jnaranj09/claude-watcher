@@ -1,7 +1,7 @@
 // The default xterm ITheme lives in src/shared/theme/xtermTheme.ts (the examples test in main
 // compares a package against it). `xtermThemeFor` is what a live terminal applies: the default
 // palette with the applied theme's terminal keys on top. `allowTransparency` is NOT an ITheme
-// key — EmbeddedTerminal reads it at creation (xterm needs it before open()).
+// key — EmbeddedTerminal sets it at creation and again on every theme change.
 //
 // Terminal colours (spec 2026-09-30): the operator's `terminalScheme` setting picks between
 // following the theme and a built-in dark / light palette. The helpers below resolve it.
@@ -46,7 +46,7 @@ export function transparentGround(background: string): string {
   return `${background}00`
 }
 
-/** The xterm theme a live terminal applies. `transparent` is the terminal's creation-time
+/** The xterm theme a live terminal applies. `transparent` is the terminal's
  *  `allowTransparency` (ignored under "theme", where the theme's own ground rules): under a
  *  built-in palette the ground is then left to the FRAME, which paints the same colour
  *  (frameBackgroundFor). An opaque xterm ground inside a see-through theme's frame covered the
