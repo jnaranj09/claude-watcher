@@ -122,9 +122,9 @@ describe('ManageDialog owns the Manage-dialog styles', () => {
   })
 
   // Non-vacuity: the guard above passes trivially if the detector is broken. The slot rule is real.
-  it('declares the `+ New` slot itself', () => {
+  it('declares the rail`s bottom slot itself', () => {
     const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
-    expect(declares(css, '.newSlot')).toBe(true)
+    expect(declares(css, '.listBottom')).toBe(true)
   })
 })
 
@@ -164,7 +164,7 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
   it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
     expect(ruleBody(css, '.rows')).toMatch(/overflow-y:\s*auto/)
     expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*360px/)
-    expect(ruleBody(css, '.newSlot')).toMatch(/margin-top:\s*auto/)
+    expect(ruleBody(css, '.listBottom')).toMatch(/margin-top:\s*auto/)
   })
 
   it('the Pane shares the Form rule: one scroll region, both paddings, scroll padding', () => {
@@ -302,19 +302,40 @@ describe('ManageDialog sticky footer never hides a field (final review)', () => 
 
   it('Tab scrolls a field clear of the sticky footer, not under it', () => {
     expect(rule('.form,\n.pane')).toMatch(
-      /scroll-padding-block:\s*var\(--inset-compact-x\)\s+calc\(32px \+ 2 \* var\(--inset-compact-y\) \+ var\(--inset-compact-x\)\)/
+      /scroll-padding-block:\s*var\(--inset-compact-x\)\s+calc\(32px \+ var\(--gap-actions\) \+ var\(--inset-compact-y\) \+ var\(--inset-compact-x\)\)/
     )
   })
 
-  it('the last field sits exactly --gap-actions above the buttons', () => {
-    expect(rule('.footer')).toMatch(
-      /margin-top:\s*calc\(var\(--gap-actions\) - var\(--gap-field\) - var\(--inset-compact-y\)\)/
-    )
+  // The space sits INSIDE the sticky footer (its padding), so it stays while the form scrolls
+  // under it; the negative margin cancels the form's own --gap-field, so at rest it is exactly 24.
+  it('the last field sits exactly --gap-actions above the buttons, also while sticky', () => {
+    expect(rule('.footer')).toMatch(/padding-top:\s*var\(--gap-actions\)/)
+    expect(rule('.footer')).toMatch(/margin-top:\s*calc\(-1 \* var\(--gap-field\)\)/)
   })
 
   it('the first label starts level with the first rail row', () => {
     expect(css).toMatch(
       /\.form > \.label:first-child,\s*\.pane > \.label:first-child\s*\{[^}]*margin-top:\s*0/
     )
+  })
+})
+
+// Region spacing (spec 2026-10-02-region-spacing-design.md): two different regions never sit
+// closer than --gap-group; a footnote belongs to its slot (--gap-field).
+describe('ManageDialog region spacing', () => {
+  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+
+  it('rail regions (search, list, bottom slot) are --gap-group apart', () => {
+    expect(ruleBody(css, '.list')).toMatch(/gap:\s*var\(--gap-group\)/)
+  })
+
+  it('the bottom slot is pinned and its footnote belongs to it', () => {
+    const body = ruleBody(css, '.listBottom')
+    expect(body).toMatch(/margin-top:\s*auto/)
+    expect(body).toMatch(/gap:\s*var\(--gap-field\)/)
+  })
+
+  it('title → description is --gap-field', () => {
+    expect(ruleBody(css, '.headerText')).toMatch(/gap:\s*var\(--gap-field\)/)
   })
 })

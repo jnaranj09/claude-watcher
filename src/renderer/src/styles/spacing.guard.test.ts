@@ -30,8 +30,9 @@ const ALLOWED = new Set([
   'components/attention/AttentionRail.module.css margin-right: -1px',
   // A space's width inside running text.
   'components/SessionCard/SessionCard.module.css margin-left: 0.3em',
-  // Geometry: Tab must park a field clear of the sticky Manage footer (a 32px md Button + padding).
-  'components/ManageDialog/ManageDialog.module.css scroll-padding-block: var(--inset-compact-x) calc(32px + 2 * var(--inset-compact-y) + var(--inset-compact-x))',
+  // Geometry: Tab must park a field clear of the sticky Manage footer (a 32px md Button + its
+  // --gap-actions top / compact bottom padding).
+  'components/ManageDialog/ManageDialog.module.css scroll-padding-block: var(--inset-compact-x) calc(32px + var(--gap-actions) + var(--inset-compact-y) + var(--inset-compact-x))',
   // Geometry: the 14px search icon the text starts past.
   'components/TextInput/TextInput.module.css padding-left: calc(var(--inset-compact-x) + 14px + var(--gap-inline))',
   // The rail header and pinned slot compensate the rail's 1px right border.

@@ -433,7 +433,8 @@ export interface ManageDialogListProps {
   children: ReactNode
 }
 
-/** The left rail: an optional search field, <Rows>, then <New> pinned to the bottom. */
+/** The left rail: an optional search field, <Rows>, then a bottom slot (<New> or <ListBottom>).
+ *  Three regions, `--gap-group` apart. */
 export function ManageDialogList({
   size = 'standard',
   children
@@ -531,15 +532,40 @@ function isRowActions(node: ReactNode): boolean {
   return isValidElement(node) && node.type === ManageDialogRowActions
 }
 
-/** `+ New` — opens the empty New form (`startNew`). Its SLOT sits at the BOTTOM of the rail
- *  (`margin-top: auto` on the wrapper: a button never carries layout of its own). */
+/** The rail's bottom slot (spec 2026-10-02-region-spacing): pinned to the BOTTOM of the rail,
+ *  `--gap-group` under the list, its own items `--gap-field` apart. `+ New` renders in one; a rail
+ *  with another bottom action (Past sessions' Resume by id) puts it here with a <ListNote>. */
+export function ManageDialogListBottom({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <div className={styles.listBottom} data-manage-list-bottom="">
+      {children}
+    </div>
+  )
+}
+
+/** A footnote under the bottom slot's action (Past sessions' cap) — meta size, secondary text. */
+export function ManageDialogListNote({
+  testId,
+  children
+}: {
+  testId: string
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <p className={styles.listNote} data-testid={testId}>
+      {children}
+    </p>
+  )
+}
+
+/** `+ New` — opens the empty New form (`startNew`), in the rail's bottom slot. */
 export function ManageDialogNew({ testId }: { testId: string }): JSX.Element {
   const { actions } = useManageDialogContext()
   return (
-    <div className={styles.newSlot}>
+    <ManageDialogListBottom>
       <Button variant="secondary" testId={testId} onClick={() => actions.startNew()}>
         + New
       </Button>
-    </div>
+    </ManageDialogListBottom>
   )
 }

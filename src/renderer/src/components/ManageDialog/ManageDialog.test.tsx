@@ -389,6 +389,11 @@ describe('ManageDialog — nothing open vs New form (spec 2026-09-29)', () => {
     expect(q(r, '[data-testid="select-a"]').getAttribute('aria-current')).toBe('page')
   })
 
+  it('+ New renders in the rail`s bottom slot (spec 2026-10-02-region-spacing)', () => {
+    const r = renderState()
+    expect(q(r, '[data-manage-list-bottom] [data-testid="things-new"]')).toBeTruthy()
+  })
+
   it('Placeholder renders its one sentence', () => {
     const r = renderState()
     expect(text(r, 'things-placeholder')).toBe('Select a thing on the left, or create a new one.')

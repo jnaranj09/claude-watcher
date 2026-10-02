@@ -52,7 +52,7 @@
 .headerText {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-inline-tight);
+  gap: var(--gap-field);
   min-width: 0;
 }
 /* Title + the scope dropdown on one line. `min-width: 0` lets the dropdown shrink instead of
@@ -99,7 +99,9 @@
   width: 220px;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-inline);
+  /* Search, list and bottom slot are different REGIONS: --gap-group, never the rows' gap
+     (spec 2026-10-02-region-spacing). Rows keep --gap-row inside .rows. */
+  gap: var(--gap-group);
   border-right: 1px solid var(--border);
   padding-right: var(--gap-page);
 }
@@ -182,12 +184,23 @@
 .row:focus-within .rowActions {
   visibility: visible;
 }
-/* `+ New` sits at the BOTTOM of the rail, not directly under the last row: `.rows` stops at its
-   max-height, so without this the button floats mid-column whenever the form is the taller side.
-   On the button's WRAPPER: a `Button` never carries layout of its own. */
-.newSlot {
+/* The rail's bottom slot (`ListBottom`): `+ New`, or an action row plus its footnote. Pinned to
+   the BOTTOM of the rail, not directly under the last row: `.rows` stops at its max-height, so
+   without this the slot floats mid-column whenever the form is the taller side. Its own items sit
+   --gap-field apart (a footnote belongs to its action); the rail's --gap-group sits above it.
+   `flex-start`: a Button keeps its own width (a button never carries layout of its own). */
+.listBottom {
   margin-top: auto;
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-field);
+}
+/* A footnote under the slot's action (Past sessions' cap). --text-secondary on the raised panel. */
+.listNote {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
 }
 
 /* The form is the ONLY region that scrolls — the smallest one that fixes the overflow. The header
@@ -203,7 +216,7 @@
    left 0 and had its ring cut down the left side. So both sides get the same buffer, and
    `scroll-padding-block` gives the same 8px to a field the browser scrolls into view on Tab, which
    would otherwise align its border box with the top or bottom edge and clip the ring there. At the
-   BOTTOM it also clears the sticky footer (a 32px md Button + its block padding), or Tab would park
+   BOTTOM it also clears the sticky footer (a 32px md Button + its --gap-actions / compact padding), or Tab would park
    the focused field under `[Delete] [Save]`.
    `.pane` is the same region for a surface with no submit (Settings). */
 .form,
@@ -216,7 +229,7 @@
   padding-left: var(--inset-compact-x);
   padding-right: var(--inset-compact-x);
   scroll-padding-block: var(--inset-compact-x)
-    calc(32px + 2 * var(--inset-compact-y) + var(--inset-compact-x));
+    calc(32px + var(--gap-actions) + var(--inset-compact-y) + var(--inset-compact-x));
 }
 /* The right column while nothing is open (spec 2026-09-29): it stretches to the row the rail sets
    and centres one line in it, so the panel keeps its size and the line sits mid-column.
@@ -262,13 +275,17 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--gap-inline);
-  margin-top: calc(var(--gap-actions) - var(--gap-field) - var(--inset-compact-y));
+  /* --gap-actions above the buttons is the footer's OWN padding, so it stays while the form
+     scrolls under it (a margin would scroll away and the last field would sit flush on Save). The
+     negative margin cancels the form's --gap-field, so at rest the distance is exactly 24px. */
+  margin-top: calc(-1 * var(--gap-field));
   /* Sticky: a form taller than the window scrolls UNDER [Delete] [Save], so Save is always in
      view (spec 2026-10-01-spacing-roles). The panel's own fill hides the fields passing below. */
   position: sticky;
   bottom: 0;
   z-index: 1;
-  padding-block: var(--inset-compact-y);
+  padding-top: var(--gap-actions);
+  padding-bottom: var(--inset-compact-y);
   background: var(--bg-surface-raised);
 }
 
