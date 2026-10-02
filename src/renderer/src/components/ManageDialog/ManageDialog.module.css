@@ -277,8 +277,8 @@
   gap: var(--gap-inline);
   /* --gap-actions above the buttons is the footer's OWN padding, so it stays while the form
      scrolls under it (a margin would scroll away and the last field would sit flush on Save). The
-     negative margin cancels the form's --gap-field, so at rest the distance is exactly 24px. */
-  margin-top: calc(-1 * var(--gap-field));
+     form's --gap-field stays above the footer box on purpose: the box paints over what is under it
+     (z-index 1), and that 6px is what keeps the last field's focus ring visible. */
   /* Sticky: a form taller than the window scrolls UNDER [Delete] [Save], so Save is always in
      view (spec 2026-10-01-spacing-roles). The panel's own fill hides the fields passing below. */
   position: sticky;

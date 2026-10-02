@@ -307,10 +307,12 @@ describe('ManageDialog sticky footer never hides a field (final review)', () => 
   })
 
   // The space sits INSIDE the sticky footer (its padding), so it stays while the form scrolls
-  // under it; the negative margin cancels the form's own --gap-field, so at rest it is exactly 24.
-  it('the last field sits exactly --gap-actions above the buttons, also while sticky', () => {
+  // under it. No negative margin: the footer box paints over the field above it (z-index 1), so
+  // the form's --gap-field must stay between them or the last field's focus ring is covered
+  // (drive check 2026-10-02: Tab to `template-prompt` ended 0px from the footer box).
+  it('the last field sits at least --gap-actions above the buttons, also while sticky', () => {
     expect(rule('.footer')).toMatch(/padding-top:\s*var\(--gap-actions\)/)
-    expect(rule('.footer')).toMatch(/margin-top:\s*calc\(-1 \* var\(--gap-field\)\)/)
+    expect(rule('.footer')).not.toMatch(/margin-top/)
   })
 
   it('the first label starts level with the first rail row', () => {
