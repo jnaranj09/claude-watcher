@@ -51,7 +51,8 @@ rename a channel in one place and every call site moves with it.
    `ipc.handle(CH.x, (e, raw) => { const arg = XSchema.parse(raw); ... })`. `ipc` is the
    trusted-sender wrapper (`src/main/ipc/trustedIpc.ts`): it answers only the top frame of this
    app's own renderer and fails closed (`ipc_sender_rejected`). Never call `ipcMain` directly
-   (`trustedIpc.test.ts` fails on it; the lint rule checks `ipc` like `ipcMain`).
+   (`tests/main/ipcMainImport.guard.test.ts`: only `index.ts` imports it, under any alias; the lint
+   rule checks `ipc` like `ipcMain`).
    Parse-and-throw-typed on bad input (see `.claude/rules/zod-boundaries.md`).
 4. **`src/preload/index.ts`** — expose a typed wrapper through `contextBridge`
    (`ipcRenderer.invoke(CH.x, payload)`); the renderer calls `window.<api>.x(...)`,

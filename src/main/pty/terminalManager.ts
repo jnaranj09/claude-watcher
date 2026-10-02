@@ -20,7 +20,7 @@
 // jsdom — ipc.md). So the manager talks to a tiny `PortLike` seam, and the `main-unit`
 // tests inject a FAKE port + FAKE pty to assert spawn-once / destroy-ordering / dead-pty /
 // resize-math / flow-control accounting WITHOUT a real port or pty. The real
-// `MessagePortMain` is adapted to `PortLike` in `src/main/index.ts`. [Source:
+// `MessagePortMain` is adapted to `PortLike` in `src/main/ipc/registerTerminalIpc.ts`. [Source:
 //  architecture.md:512/:553-559; AR-11; src/main/kde/tray.ts DI-seam precedent]
 import type { IPtyLike, PtyFactory, CreatePtyOptions } from './ptyFactory'
 import { createPty as defaultCreatePty } from './ptyFactory'
@@ -34,7 +34,7 @@ import { TerminalPortRendererMessageSchema } from '../../shared/schemas/terminal
 /**
  * The minimal MessagePort surface the manager needs (the MAIN end, `port1`). Kept tiny so
  * the test fake implements exactly this — and so NO Electron `MessagePortMain` import sits
- * on the unit-test path. The real `MessagePortMain` is adapted to this in main/index.ts.
+ * on the unit-test path. The real `MessagePortMain` is adapted to this in main/ipc/registerTerminalIpc.ts.
  */
 export interface PortLike {
   /** Post a typed message to the renderer end. */

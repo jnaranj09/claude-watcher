@@ -196,7 +196,7 @@ export interface LaunchServiceOptions {
   /** Story 6.2 — the raw-claude spawn FACTORY (was a static config). Called ONCE per ACTUAL
    *  pty spawn with the freshly-minted session id, so the composed command pins claude to the
    *  app-minted identity (`$SHELL -l -c "claude --session-id '<uuid>'"` in production —
-   *  index.ts `rawClaudeSpawn`). `env` is the sanitized child env (buildPtyEnv). The factory
+   *  `rawClaudeSpawn` in ipc/registerLaunchIpc.ts). `env` is the sanitized child env (buildPtyEnv). The factory
    *  seam keeps the shell-wrapper composition OUT of this service (it never string-splices).
    *
    *  Name-sync: `displayName` is the operator-typed name from the launch override, passed so

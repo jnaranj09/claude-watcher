@@ -52,7 +52,8 @@ need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing)
 - `src/main/` — main process. **node-pty runs HERE only.** `c9watch/` (reducer → enrich → ship;
   historical name), `hooks/` (hook ingest), `pty/`, `kde/`, `lifecycle/`, `persistence/`, `api/`,
   `themes/`, `ipc/` (trusted wrapper + every `register*Ipc`), `window/` (`createWindow`, the
-  per-window watch feed). `index.ts` is app lifecycle and wiring only. Main is the **single source of truth for session state**.
+  per-window watch feed). `index.ts` is app lifecycle and wiring only. Main is the **single source
+  of truth for session state**.
 - `src/preload/` — typed `contextBridge` seam; renderer never gets `ipcRenderer`/Node.
 - `src/renderer/` — React UI (sandboxed), view-state in Zustand (`stores/boardStore.ts`).
 - `src/shared/` — `ipc/contract.ts` (`CH` registry + payload types), `schemas/hookEvent.ts`
@@ -152,9 +153,11 @@ change and report `write_failed` (`persistOrReport()`; removal paths never throw
 ## Security (never weaken)
 
 `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. Every main IPC listener goes
-through `ipc` (`ipc/trustedIpc.ts`): only the app's own renderer top frame is answered. Packaged
-fuses: no RunAsNode / NODE_OPTIONS / `--inspect`, asar-only (`electron-builder.yml`). **Smoke channels exist only
-under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
+through `ipc` (`createRendererIpc`, `ipc/trustedIpc.ts`): only the app's own renderer top frame is
+answered; only `index.ts` may import `ipcMain` (guard). Exception: electron-store registers its own
+`electron-store-get-data` listener (unreachable: the preload exposes no `sendSync`). Packaged fuses:
+no RunAsNode / NODE_OPTIONS / `--inspect`, asar-only (`electron-builder.yml`). **Smoke channels
+exist only under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
 `smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered.
 
 ## No application menu (`appMenu/appMenu.ts`)

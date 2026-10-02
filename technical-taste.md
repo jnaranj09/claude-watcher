@@ -292,8 +292,8 @@ yet. Prefer turning prose-only rules into sensors.
    the type is the proof: no re-validation, no `as` to force a value through. _Consensus_, backed
    by a mechanism: type checking catches about 15% of shipped JS bugs (Gao, Bird & Barr 2017).
    Sensors: `zod-boundaries.md`, strict TS and type-aware lint.
-9. **`as` only inside a small, named, tested helper.** 47 `as` casts sit in non-test `src` (AST
-   count, 2026-10-01); don't add more. _Consensus_ (Effective TypeScript). Sensor: a per-file
+9. **`as` only inside a small, named, tested helper.** 47 `as` casts and 2 non-null `!` sit in
+   non-test `src` (AST count, 2026-10-01); don't add more. _Consensus_ (Effective TypeScript). Sensor: a per-file
    budget that only falls (`tests/main/typeAssertions.guard.test.ts`).
 10. **Model state as discriminated unions with an exhaustive `never` check.** Use one `status`
     union instead of boolean pairs. Store ids and derive the objects from them. A forgotten case
@@ -336,7 +336,7 @@ yet. Prefer turning prose-only rules into sensors.
     Error-masking code is where AI-written code is weakest. _Consensus_, with weak (vendor) evidence
     (GitClear +47% error-masking constructs, CodeRabbit). Sensor: `tests/main/catchBlocks.guard.test.ts`
     — 19 comment-only catches in 8 listed files, each with its reason; the list only shrinks; a
-    comment under 3 words fails.
+    comment under 3 words fails. It sees `try`/`catch` only, not a promise `.catch(() => {})`.
 18. **Interface and "why" comments stay next to the code. Never delete a commented constraint or
     incident note without saying so in the commit.** Each agent session starts with no memory, so
     an unwritten "why" is rediscovered or broken. Models are known to change or remove comments
@@ -380,8 +380,10 @@ yet. Prefer turning prose-only rules into sensors.
     - Each preload method wraps one `CH.*` invoke and never leaks the IPC `event`.
 
     _Consensus_ (Electron security checklist). `sandbox`, `contextIsolation` and a CSP are in place.
-    Sensors: every main listener goes through `ipc/trustedIpc.ts` (a guard fails on a direct
-    `ipcMain` call); `tests/unit/electronFuses.test.ts` pins four fuses. File-protocol privileges
+    Sensors: every main listener goes through `createRendererIpc` (`ipc/trustedIpc.ts`; a guard
+    fails when any main file but `index.ts` imports `ipcMain`); `tests/unit/electronFuses.test.ts`
+    pins four fuses. electron-store's own `ipcMain` listener is the one exception (unreachable: no
+    `sendSync` in the preload). File-protocol privileges
     are still on (§14).
 
 ### Budgets that keep agent decay in check

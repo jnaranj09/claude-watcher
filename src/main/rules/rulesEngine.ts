@@ -1,5 +1,5 @@
-// Rules — the per-window ENGINE (spec §2, Approach A). `handleDelta` in src/main/index.ts feeds it
-// every reducer delta, with the tracker's column for that id BEFORE and AFTER the tracker saw it.
+// Rules — the per-window ENGINE (spec §2, Approach A). `handleDelta` in src/main/window/watchFeed.ts
+// feeds it every reducer delta, with the tracker's column for that id BEFORE and AFTER the tracker saw it.
 // The tracker stays the ONLY component that knows columns; the engine reads the edge from it.
 //
 //   - A real column change re-arms the time rules for the NEW column FIRST, then runs the

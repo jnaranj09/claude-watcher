@@ -1,5 +1,5 @@
 // Theme wallpapers (spec 2026-09-24) — WHEN main re-applies the theme. Pure, so the settings
-// handler in index.ts stays one line and a font-size patch provably re-reads nothing.
+// handler (ipc/registerStoreIpc.ts) stays one line and a font-size patch provably re-reads nothing.
 import type { Settings } from '../../shared/schemas/settings'
 
 type ThemeChoice = Pick<Settings, 'themeId' | 'wallpaperByTheme'>

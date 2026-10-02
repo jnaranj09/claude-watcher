@@ -1,6 +1,7 @@
 // The rules IPC handler BODIES, kept out of index.ts so they are unit-testable in node. Every arg is
 // UNTRUSTED cross-process input → Schema.parse(raw) throws typed on bad input (zod-boundaries.md
-// IPC-arg row). index.ts binds them to CH.* channels and tells each window's engine what changed.
+// IPC-arg row). ipc/registerStoreIpc.ts binds them to CH.* channels and tells each window's engine
+// what changed.
 import { RuleDeleteSchema, RuleMoveSchema, RuleSaveSchema } from '../../shared/schemas/rule'
 import type { RulesListResult, RulesSaveResult } from '../../shared/ipc/contract'
 import type { RulesStore } from './rules'

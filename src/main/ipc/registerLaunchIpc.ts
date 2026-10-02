@@ -255,8 +255,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
 
     return {
       file: SHELL,
-      // Composed in claudeBin.ts, NOT inlined here: nothing can import index.ts, so the quoting
-      // of the operator-typed name would otherwise be untestable. Name-sync adds `-n <name>` so
+      // Composed in claudeBin.ts, NOT inlined here: this registrar is only reachable through
+      // Electron's ipc, so the quoting of the operator-typed name would otherwise be untestable. Name-sync adds `-n <name>` so
       // claude runs under the operator's name instead of generating its own title,
       // `--settings <file>` carries the hook block WITHOUT touching the operator's project, and
       // `--append-system-prompt` injects the deterministic-attention question-format nudge

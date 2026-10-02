@@ -1,6 +1,6 @@
 // The shortcuts IPC handler BODIES, kept out of index.ts so they are unit-testable in node.
 // Every arg is UNTRUSTED cross-process input → Schema.parse(raw) throws typed on bad input
-// (zod-boundaries.md IPC-arg row). index.ts only binds them to CH.* channels.
+// (zod-boundaries.md IPC-arg row). ipc/registerStoreIpc.ts only binds them to CH.* channels.
 import {
   ShortcutDeleteSchema,
   ShortcutSaveSchema,

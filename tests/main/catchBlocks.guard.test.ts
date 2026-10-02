@@ -1,7 +1,8 @@
 // Silent catches (technical-taste §5b-17): a contained error is logged with a `code=`, or the catch
 // says WHY swallowing it is safe. A catch with no statement is allowed only where this list names
 // the file, with the exact count and the reason. The list can only shrink: a file that loses a
-// silent catch must lower its count here in the same change.
+// silent catch must lower its count here in the same change. Scope: `try`/`catch` blocks only; a
+// promise `.catch(() => {})` is not seen.
 import { describe, it, expect } from 'vitest'
 import { join } from 'node:path'
 import { SRC, parseSource, silentCatches, sourceFiles, srcRel } from './sourceScan'

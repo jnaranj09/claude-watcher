@@ -2,7 +2,7 @@
 //
 // THE BUG THIS FIXES (CachyOS/Arch + KDE, packaged install): the launch spawn is
 // `$SHELL -l -c "claude --session-id '<uuid>'"`. The `-l` was chosen for "the login-shell
-// PATH/rc benefit" (index.ts rawClaudeSpawn comment) — the assumption being that a login
+// PATH/rc benefit" (rawClaudeSpawn comment, now in ipc/registerLaunchIpc.ts) — the assumption being that a login
 // shell reconstructs the operator's interactive PATH. On Arch that assumption is FALSE:
 //
 //   1. A KDE-menu-launched app inherits the graphical session PATH, which has NO
