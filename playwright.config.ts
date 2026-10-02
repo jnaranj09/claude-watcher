@@ -26,7 +26,8 @@ export default defineConfig({
   // silently) — a sibling spec's Electron instance running in a parallel worker would hold the
   // port and falsely skip / cross-wire the hook POSTs.
   workers: 1,
-  forbidOnly: !!process.env.CI,
+  // A `.only` would silently skip every other e2e test (technical-taste §5b-3), locally too.
+  forbidOnly: true,
   retries: 0,
   reporter: 'list'
 })

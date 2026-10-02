@@ -17,12 +17,16 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // `allowOnly: false` in EACH project (a root-level one does not reach inline projects): a
+    // `.only` fails the run, locally too (technical-taste §5b-3). It would silently skip the rest
+    // of the suite, and the Stop hook would report green.
     projects: [
       {
         // jsdom unit project — pure renderer/shared logic (schemas, adapters,
         // the fail-closed fixture-replay test, the no-literal-channels runner).
         test: {
           name: 'unit',
+          allowOnly: false,
           environment: 'jsdom',
           // Story 1.3 widened the glob to `.test.{ts,tsx}`: TypeScript only parses
           // JSX in `.tsx` files, so renderer COMPONENT tests are `.test.tsx`
@@ -38,6 +42,7 @@ export default defineConfig({
         // node main-unit project — main-process logic with DI seams (no Electron).
         test: {
           name: 'main-unit',
+          allowOnly: false,
           environment: 'node',
           include: ['src/main/**/*.test.ts', 'tests/main/**/*.test.ts'],
           exclude: ['**/node_modules/**']
