@@ -13,6 +13,10 @@ Spec: `docs/superpowers/specs/2026-09-30-release-pipeline-linux-design.md` (loca
 
 ## The flow
 
+0. Clean-up pass first (technical-taste §5b budgets), in its own commits, no behaviour change:
+   look at the clones `npx jscpd` lists (fold only a clear copy; duplication beats the wrong
+   abstraction) and at the slowest tests. `npm run lint` already fails on dead code (knip) and on
+   duplication over 0.5% (jscpd).
 1. Bump the version: `npm version <x.y.z> --no-git-tag-version` (updates `package.json` and
    `package-lock.json`).
 2. Commit, push `main`.
