@@ -7,9 +7,10 @@ import { describe, it, expect } from 'vitest'
 import { join } from 'node:path'
 import { SRC, assertionCount, parseSource, sourceFiles, srcRel } from './sourceScan'
 
-/** Measured 2026-10-01: 47 casts in 30 files. */
+/** Measured 2026-10-01: 47 casts in 30 files, plus 2 non-null `!` (endsWithQuestion, main.tsx). */
 const BUDGET: Record<string, number> = {
   'main/api/openapi.ts': 6,
+  'main/hooks/endsWithQuestion.ts': 1,
   'main/api/registry.ts': 1,
   'main/hooks/backgroundTasks.ts': 1,
   'main/index.ts': 1,
@@ -20,6 +21,7 @@ const BUDGET: Record<string, number> = {
   'main/pty/runningElsewhere.ts': 1,
   'main/rules/ruleTimers.ts': 1,
   'main/themes/themeCompose.ts': 1,
+  'renderer/src/main.tsx': 1,
   'renderer/src/SmokeCockpit.tsx': 4,
   'renderer/src/audio/attentionSound.ts': 2,
   'renderer/src/components/AppMenu/AppMenu.tsx': 1,
@@ -53,6 +55,10 @@ describe('assertionCount', () => {
 
   it('does not count `as const` or an import/export rename', () => {
     expect(count("import { a as b } from 'x'\nexport { b as c }\nconst d = [1] as const\n")).toBe(0)
+  })
+
+  it('counts a non-null assertion `x!` (a cast to non-null)', () => {
+    expect(count('const a = b!.c\n')).toBe(1)
   })
 
   it('counts `as unknown as X` as two', () => {

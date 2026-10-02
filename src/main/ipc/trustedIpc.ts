@@ -7,8 +7,10 @@
 //
 // FAIL CLOSED (zod-boundaries.md precedence): an untrusted invoke throws `ipc_sender_rejected`, an
 // untrusted send is dropped. The log names the code and the channel (a `CH` constant) only — never
-// the URL, never the args. `trustedIpc.test.ts` also fails if any other main file calls `ipcMain`
-// directly.
+// the URL, never the args. Only `index.ts` may import `ipcMain` (any alias):
+// `tests/main/ipcMainImport.guard.test.ts`. One listener is not ours: electron-store registers
+// `electron-store-get-data` on `ipcMain` itself; it is unreachable because the preload exposes no
+// `sendSync`.
 import type { IpcMain, IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { pathToFileURL } from 'node:url'
 import type { Channel } from '../../shared/ipc/contract'
@@ -60,7 +62,7 @@ export interface TrustedIpc {
   on(channel: Channel, listener: SendListener): void
 }
 
-export function createTrustedIpc(deps: {
+function createTrustedIpc(deps: {
   ipcMain: IpcRegistrar
   isTrusted: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean
   log: (line: string) => void
@@ -87,4 +89,19 @@ export function createTrustedIpc(deps: {
       })
     }
   }
+}
+
+/** The one way main registers IPC: every listener answers only a top frame loaded from `source`
+ *  (the same value `createWindow` loads). The check reads `event.senderFrame` HERE, not at the call
+ *  site, so wiring it in index.ts cannot turn it off. */
+export function createRendererIpc(deps: {
+  ipcMain: IpcRegistrar
+  source: RendererSource
+  log: (line: string) => void
+}): TrustedIpc {
+  return createTrustedIpc({
+    ipcMain: deps.ipcMain,
+    isTrusted: (event) => isTrustedSender(event.senderFrame, deps.source),
+    log: deps.log
+  })
 }

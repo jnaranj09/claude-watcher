@@ -121,7 +121,8 @@ export function silentCatches(sf: ts.SourceFile): {
 
 // ── Type assertions (technical-taste §5b-9) ─────────────────────────────────────────────────────
 
-/** `x as T` and `<T>x` in the file. `as const` is a literal-type hint, not an assertion. */
+/** `x as T`, `<T>x` and `x!` in the file — each tells the compiler to trust us. `as const` is a
+ *  literal-type hint, not an assertion. */
 export function assertionCount(sf: ts.SourceFile): number {
   let n = 0
   const visit = (node: ts.Node): void => {
@@ -129,11 +130,53 @@ export function assertionCount(sf: ts.SourceFile): number {
       const constHint =
         ts.isTypeReferenceNode(node.type) && node.type.typeName.getText(sf) === 'const'
       if (!constHint) n++
-    } else if (ts.isTypeAssertionExpression(node)) {
+    } else if (ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node)) {
       n++
     }
     ts.forEachChild(node, visit)
   }
   visit(sf)
   return n
+}
+
+// ── Electron imports (technical-taste §5b-22) ───────────────────────────────────────────────────
+
+/** Value bindings imported from 'electron' by their EXPORTED name (an alias does not hide
+ *  `ipcMain as m`), plus how many imports take the whole module (namespace, default,
+ *  `require('electron')`), which would expose every export as a property. Type-only imports are
+ *  skipped. */
+export function electronImports(sf: ts.SourceFile): { named: string[]; whole: number } {
+  const named: string[] = []
+  let whole = 0
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === 'electron' &&
+      node.importClause !== undefined &&
+      !node.importClause.isTypeOnly
+    ) {
+      const clause = node.importClause
+      if (clause.name !== undefined) whole++
+      const bindings = clause.namedBindings
+      if (bindings !== undefined && ts.isNamespaceImport(bindings)) whole++
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        for (const el of bindings.elements) {
+          if (!el.isTypeOnly) named.push((el.propertyName ?? el.name).text)
+        }
+      }
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require' &&
+      node.arguments[0] !== undefined &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      node.arguments[0].text === 'electron'
+    ) {
+      whole++
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return { named, whole }
 }

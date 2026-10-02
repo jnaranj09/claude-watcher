@@ -108,7 +108,7 @@ import { claimSingleInstance } from './lifecycle/singleInstance'
 // one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
 import { createOrphanRegistry } from './hooks/sessionRebind'
 import { PROFILE } from './profile'
-import { createTrustedIpc, isTrustedSender, rendererSource } from './ipc/trustedIpc'
+import { createRendererIpc, rendererSource } from './ipc/trustedIpc'
 import { registerPtyIpc } from './ipc/registerPtyIpc'
 import { registerTerminalIpc } from './ipc/registerTerminalIpc'
 import { createStoreIpc } from './ipc/registerStoreIpc'
@@ -134,9 +134,9 @@ const RENDERER_SOURCE = rendererSource(
   is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
   join(__dirname, '../renderer/index.html')
 )
-const ipc = createTrustedIpc({
+const ipc = createRendererIpc({
   ipcMain,
-  isTrusted: (event) => isTrustedSender(event.senderFrame, RENDERER_SOURCE),
+  source: RENDERER_SOURCE,
   log: (line) => console.warn(line)
 })
 const SMOKE_OUT = process.env.C9_SMOKE_OUT || ''
@@ -304,7 +304,7 @@ const trackers = new Map<Electron.WebContents, AttentionTracker>()
 // teardownWatchFeed). The quit handler reads `reducer.snapshotMap()` via this map to compute
 // the live session count without restructuring registerWatchFeed. Single source of truth
 // (state.md): the reducer remains the authority; this is just a registry handle. The telemetry
-// handler ALREADY reads the app-global `trackers` map (index.ts ~534) — this is the same pattern.
+// handler ALREADY reads the app-global `trackers` map (defined above) — this is the same pattern.
 const reducers = new Map<Electron.WebContents, ReducerLike>()
 
 // Story 6.2/6.3 — per-window LAUNCH BOARD seam. The (app-global) terminal:open/stop handlers
@@ -1006,7 +1006,8 @@ app
             claudeVersionAllowsLaunch: claudeVersionAllowsApiLaunch,
             // UX-11 — `409 folder_missing` before the launch, never a 201 for a card that dies.
             isDirectory: isExistingDirectory,
-            // SEC-6 — the same bind signal `hookSettingsPathForSpawn` reads: no bind, no create.
+            // SEC-6 — the same bind signal `hookSettingsPathForSpawn` (ipc/registerLaunchIpc.ts) reads:
+            // no bind, no create.
             hooksListening: () => serverHealth.hookListening(),
             now: Date.now,
             spawnTimeoutMs: API_SPAWN_TIMEOUT_MS,
@@ -1039,7 +1040,7 @@ app
 
     // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
     // handed to each spawned `claude` via `--settings` from the app's own data dir
-    // (hookSettingsPathForSpawn). The app writes into no project and no user settings file.
+    // (hookSettingsPathForSpawn, ipc/registerLaunchIpc.ts). The app writes into no project and no user settings file.
     //
     // It does NOT clean up after the retired merger either: blocks that merger left in a
     // project's `.claude/settings.local.json` are the OPERATOR's to remove. They are harmless
