@@ -88,3 +88,33 @@ export function layerViolations(file: string, specifiers: readonly string[]): st
   }
   return hits
 }
+
+// ── Silent catches (technical-taste §5b-17) ─────────────────────────────────────────────────────
+
+/** Catch blocks with no statement: `empty` (nothing at all), `commented` (only a comment) and,
+ *  of those, `unexplained` (the comment is under 3 words — `/* ignore *\/` says no why). */
+export function silentCatches(sf: ts.SourceFile): {
+  empty: number
+  commented: number
+  unexplained: number
+} {
+  const text = sf.getFullText()
+  const r = { empty: 0, commented: 0, unexplained: 0 }
+  const visit = (node: ts.Node): void => {
+    if (ts.isCatchClause(node) && node.block.statements.length === 0) {
+      const inner = text.slice(node.block.getStart(sf) + 1, node.block.getEnd() - 1)
+      const words = inner
+        .replace(/\/\*|\*\/|\/\//g, ' ')
+        .split(/\s+/)
+        .filter((w) => /\w/.test(w))
+      if (words.length === 0) r.empty++
+      else {
+        r.commented++
+        if (words.length < 3) r.unexplained++
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return r
+}

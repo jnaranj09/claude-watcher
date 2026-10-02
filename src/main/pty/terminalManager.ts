@@ -194,7 +194,7 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     try {
       live.ptyExitDisposable.dispose()
     } catch {
-      /* ignore */
+      /* disposing a listener must never throw out of a kill */
     }
     // port.close() BEFORE pty.kill() (architecture.md:554).
     try {
@@ -221,7 +221,7 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     try {
       live.ptyDataDisposable.dispose()
     } catch {
-      /* ignore */
+      /* the old listener is being replaced; a failed dispose must not stop the re-attach */
     }
     // Close the old port — it is superseded; the renderer already discarded it.
     try {
@@ -331,7 +331,7 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
       try {
         port.close()
       } catch {
-        /* ignore */
+        /* the port is dead either way; the dead-terminal signal below still goes out */
       }
       options.onExit(terminalId, 1)
       return

@@ -73,7 +73,7 @@ export function SplitDivider({
     try {
       e.currentTarget.releasePointerCapture?.(e.pointerId)
     } catch {
-      /* ignore */
+      /* capture was never taken (see the start of the drag); nothing to release */
     }
     const last = lastRef.current
     boundsRef.current = null

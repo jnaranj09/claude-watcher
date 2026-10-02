@@ -160,7 +160,7 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
     try {
       entry.watcher?.close()
     } catch {
-      /* already closed */
+      /* the watcher is already closed; teardown only needs it gone */
     }
     delete entry.watcher
   }
