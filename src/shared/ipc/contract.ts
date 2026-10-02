@@ -143,6 +143,9 @@ export const CH = {
   pastSessionOpen: 'past-sessions:open',
   // UX-10 — the dead pane's Resume: the conversation a dead terminal last ran (main resolves it).
   pastSessionResumeTerminal: 'past-sessions:resume-terminal',
+  // Resume by id — a claude session the app did not launch (main reads folder + name from
+  // claude's transcript). Same result shape as `past-sessions:open`.
+  pastSessionImport: 'past-sessions:import',
   // Rules — the rule list's invokes (main-owned, run-ordered file; the renderer holds a projection
   // in rulesStore.ts). `rules:move` is the only reorder: list order IS run order (spec T-14).
   rulesList: 'rules:list',
@@ -742,6 +745,7 @@ export type PastSessionOpenResult = { terminalId: string; workspaceId: string; n
 export type {
   PastSession,
   PastSessionForgetRequest,
+  PastSessionImportRequest,
   PastSessionOpenRequest,
   PastSessionResumeTerminalRequest
 } from '../schemas/pastSession'

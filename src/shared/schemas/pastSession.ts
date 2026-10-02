@@ -51,6 +51,23 @@ export type PastSessionOpenRequest = z.infer<typeof PastSessionOpenSchema>
 export const PastSessionResumeTerminalSchema = z.object({ terminalId: z.string().min(1) }).strict()
 export type PastSessionResumeTerminalRequest = z.infer<typeof PastSessionResumeTerminalSchema>
 
+/** A claude session id as claude writes it (`--session-id`, `<id>.jsonl`). Case-insensitive: a
+ *  paste may be upper case. Also the transcript lookup's guard (claudeTranscript.ts): it never
+ *  builds a path from anything else. */
+export const CLAUDE_SESSION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** `past-sessions:import` — Resume by id: a claude session the app did not launch. Only the id
+ *  and the ACTIVE workspace cross; main reads the folder and the name from claude's transcript.
+ *  The renderer trims; a padded id fails here. */
+export const PastSessionImportSchema = z
+  .object({
+    id: z.string().regex(CLAUDE_SESSION_ID_PATTERN),
+    workspaceId: WorkspaceIdSchema
+  })
+  .strict()
+export type PastSessionImportRequest = z.infer<typeof PastSessionImportSchema>
+
 export const PAST_SESSIONS_FILE_VERSION = 1 as const
 /** Newest first; the 201st archive drops the oldest (D-9). */
 export const PAST_SESSIONS_MAX = 200
