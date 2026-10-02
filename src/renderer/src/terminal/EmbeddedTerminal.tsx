@@ -68,6 +68,7 @@ import { ExpanderBox } from '../components/ExpanderBox/ExpanderBox'
 import { useShortcuts, makeSelectVisibleShortcuts } from '../stores/shortcutsStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../stores/workspacesStore'
 import { TerminalContextMenu } from './TerminalContextMenu'
+import { opensTerminalMenu } from './menuTrigger'
 import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
 import { Button } from '../components/Button/Button'
 import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
@@ -519,6 +520,9 @@ export function EmbeddedTerminal({
     // [spec §Context menu; .claude/rules/ipc.md; .claude/rules/zod-boundaries.md]
     const contextMenuHandler = (e: MouseEvent): void => {
       e.preventDefault()
+      // Settings → Terminal picks the click; read at click time so a change never re-creates
+      // the terminal. A plain right-click under a Shift trigger is claude's (it pastes).
+      if (!opensTerminalMenu(settingsStore.getState().terminalMenuTrigger, e)) return
       const t = termRef.current
       const canCopy = t ? t.hasSelection() : false
       setMenu({ x: e.clientX, y: e.clientY, canCopy, canPaste: false })

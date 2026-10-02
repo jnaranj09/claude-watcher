@@ -81,6 +81,17 @@ export const TerminalSchemeSchema = z.enum(['theme', 'dark', 'light'])
 export type TerminalScheme = z.infer<typeof TerminalSchemeSchema>
 export const DEFAULT_TERMINAL_SCHEME: TerminalScheme = 'theme'
 
+/** Which click opens the terminal's Copy/Paste menu. Plain right-click is the default; a
+ *  modifier keeps the menu off a right-click claude's full-screen renderer (mouse support on)
+ *  already uses to paste. xterm holds Shift-clicks back from the app on Linux/Windows. */
+export const TerminalMenuTriggerSchema = z.enum([
+  'right-click',
+  'shift-right-click',
+  'ctrl-right-click'
+])
+export type TerminalMenuTrigger = z.infer<typeof TerminalMenuTriggerSchema>
+export const DEFAULT_TERMINAL_MENU_TRIGGER: TerminalMenuTrigger = 'right-click'
+
 /**
  * The versioned settings shape (v1): `version` + `soundEnabled` + `terminalFontSize` +
  * `reminderCount` + `reminderFirstDelayMinutes` + `expanderKey` + `apiEnabled` + `apiPort` +
@@ -139,7 +150,9 @@ export const SettingsSchema = z.object({
   // Card shell pane. Additive on v1, same `.default()` reasoning as above.
   shellPaneRatio: ShellPaneRatioSchema.default(DEFAULT_SHELL_PANE_RATIO),
   // Terminal colours. Additive on v1, same `.default()` reasoning as above.
-  terminalScheme: TerminalSchemeSchema.default(DEFAULT_TERMINAL_SCHEME)
+  terminalScheme: TerminalSchemeSchema.default(DEFAULT_TERMINAL_SCHEME),
+  // Terminal Copy/Paste menu click. Additive on v1, same `.default()` reasoning as above.
+  terminalMenuTrigger: TerminalMenuTriggerSchema.default(DEFAULT_TERMINAL_MENU_TRIGGER)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -169,7 +182,8 @@ export const SettingsPatchSchema = z
     wallpaperByTheme: WallpaperByThemeSchema,
     notificationsEnabled: z.boolean(),
     shellPaneRatio: ShellPaneRatioSchema,
-    terminalScheme: TerminalSchemeSchema
+    terminalScheme: TerminalSchemeSchema,
+    terminalMenuTrigger: TerminalMenuTriggerSchema
   })
   .partial()
 
@@ -192,7 +206,8 @@ export const DEFAULT_SETTINGS: Settings = {
   wallpaperByTheme: {},
   notificationsEnabled: true,
   shellPaneRatio: DEFAULT_SHELL_PANE_RATIO,
-  terminalScheme: DEFAULT_TERMINAL_SCHEME
+  terminalScheme: DEFAULT_TERMINAL_SCHEME,
+  terminalMenuTrigger: DEFAULT_TERMINAL_MENU_TRIGGER
 }
 
 /**

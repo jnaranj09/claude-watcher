@@ -48,7 +48,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       wallpaperByTheme: {},
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
-      terminalScheme: 'theme'
+      terminalScheme: 'theme',
+      terminalMenuTrigger: 'right-click'
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -435,5 +436,24 @@ describe('terminalScheme — additive on v1 (terminal colours)', () => {
   })
   it('a sound-only patch does not carry a default scheme (never derive the patch schema)', () => {
     expect(SettingsPatchSchema.parse({ soundEnabled: false })).toEqual({ soundEnabled: false })
+  })
+})
+
+describe('terminalMenuTrigger — additive on v1 (terminal Copy/Paste menu click)', () => {
+  it('a v1 blob without it parses as "right-click" (the behaviour before the setting)', () => {
+    const { terminalMenuTrigger: _omit, ...without } = DEFAULT_SETTINGS
+    void _omit
+    expect(parseSettings(without).terminalMenuTrigger).toBe('right-click')
+  })
+  it('accepts the three clicks; anything else fails closed on a read and on a patch', () => {
+    for (const v of ['right-click', 'shift-right-click', 'ctrl-right-click'] as const) {
+      expect(SettingsPatchSchema.parse({ terminalMenuTrigger: v })).toEqual({
+        terminalMenuTrigger: v
+      })
+    }
+    expect(
+      SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, terminalMenuTrigger: 'middle' }).success
+    ).toBe(false)
+    expect(SettingsPatchSchema.safeParse({ terminalMenuTrigger: '' }).success).toBe(false)
   })
 })

@@ -21,6 +21,7 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 import { toastStore } from '../stores/toastStore'
+import { settingsStore } from '../stores/settingsStore'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 import type { TerminalExitEvent } from '../../../shared/ipc/contract'
 
@@ -341,6 +342,32 @@ describe('EmbeddedTerminal context menu', () => {
     // The context menu should now be visible.
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
     expect(menu).not.toBeNull()
+  })
+
+  it('with the Shift trigger, a plain right-click (claude pastes) opens nothing; Shift opens it', async () => {
+    settingsStore.getState().applyPatch({ terminalMenuTrigger: 'shift-right-click' })
+    try {
+      const r = render({ terminalId: 't-menu-shift' })
+      const container = r.container.querySelector(
+        '[data-testid="embedded-terminal"] [data-testid="terminal-main"] > div'
+      )
+      act(() => {
+        container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(document.querySelector('[data-testid="terminal-context-menu"]')).toBeNull()
+      act(() => {
+        container!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, shiftKey: true }))
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(document.querySelector('[data-testid="terminal-context-menu"]')).not.toBeNull()
+    } finally {
+      settingsStore.getState().applyPatch({ terminalMenuTrigger: 'right-click' })
+    }
   })
 
   it('the contextmenu default action is prevented (no browser native menu)', () => {

@@ -18,6 +18,7 @@ import {
   selectApiPort,
   selectThemeId,
   selectTerminalScheme,
+  selectTerminalMenuTrigger,
   selectWallpaperByTheme,
   selectExpanderKey,
   persistSettingsPatch
@@ -51,7 +52,11 @@ import {
 import { useServerHealth } from '../../hooks/useServerHealth'
 import { useFlash } from '../../hooks/useFlash'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
-import type { SettingsPatch, TerminalScheme } from '../../../../shared/schemas/settings'
+import type {
+  SettingsPatch,
+  TerminalMenuTrigger,
+  TerminalScheme
+} from '../../../../shared/schemas/settings'
 import styles from './Settings.module.css'
 
 /** Attention reminders — `Off`, then 1..REMINDER_COUNT_MAX. A Select value is a string. */
@@ -69,6 +74,13 @@ const TERMINAL_SCHEME_OPTIONS: readonly SelectOption<TerminalScheme>[] = [
   { value: 'theme', label: 'Follow theme' },
   { value: 'dark', label: 'Dark' },
   { value: 'light', label: 'Light' }
+]
+
+/** Which click opens the terminal Copy/Paste menu. */
+const TERMINAL_MENU_TRIGGER_OPTIONS: readonly SelectOption<TerminalMenuTrigger>[] = [
+  { value: 'right-click', label: 'Right-click' },
+  { value: 'shift-right-click', label: 'Shift + Right-click' },
+  { value: 'ctrl-right-click', label: 'Ctrl + Right-click' }
 ]
 
 /** `#terminals`' gear passes no onClose in tests; a module constant keeps the actions memo
@@ -171,6 +183,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // ── Custom themes (spec 2026-09-20) ───────────────────────────────────────────────────────
   const themeId = useSettings(selectThemeId)
   const terminalScheme = useSettings(selectTerminalScheme)
+  const terminalMenuTrigger = useSettings(selectTerminalMenuTrigger)
   const bundle = useTheme(selectThemeBundle)
   const [summaries, setSummaries] = useState<ThemeSummary[]>([])
   // Until the first list answers, a non-default theme has no name to show: the trigger says
@@ -611,6 +624,29 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                     </span>
                   </div>
                 </div>
+
+                <div className={styles.row}>
+                  <span className={styles.label}>Copy/paste menu opens with</span>
+                  <div className={styles.controlGroup}>
+                    <Select
+                      value={terminalMenuTrigger}
+                      options={TERMINAL_MENU_TRIGGER_OPTIONS}
+                      onChange={(next) =>
+                        void persistSetting(
+                          { terminalMenuTrigger: next },
+                          'the copy/paste menu click'
+                        )
+                      }
+                      ariaLabel="Copy/paste menu opens with"
+                      testId="settings-terminal-menu-trigger"
+                      align="end"
+                    />
+                  </div>
+                </div>
+                <p className={styles.hint}>
+                  Change this if claude runs its full-screen renderer with mouse support: there,
+                  right-click already pastes. Shift + Right-click is never sent to claude.
+                </p>
               </>
             )}
             {category === 'keyboard' && (

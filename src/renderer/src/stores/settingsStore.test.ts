@@ -17,7 +17,8 @@ import {
   selectThemeId,
   selectWallpaperByTheme,
   selectShellPaneRatio,
-  selectTerminalScheme
+  selectTerminalScheme,
+  selectTerminalMenuTrigger
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
@@ -46,7 +47,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       wallpaperByTheme: {},
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
-      terminalScheme: 'light'
+      terminalScheme: 'light',
+      terminalMenuTrigger: 'ctrl-right-click'
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -55,6 +57,7 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectReminderCount(s)).toBe(5)
     expect(selectReminderFirstDelayMinutes(s)).toBe(10)
     expect(selectTerminalScheme(s)).toBe('light')
+    expect(selectTerminalMenuTrigger(s)).toBe('ctrl-right-click')
   })
 
   it('applyPatch updates ONLY the named field (soundEnabled) — immediate effect', () => {

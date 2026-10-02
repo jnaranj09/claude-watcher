@@ -622,6 +622,25 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(setCalls).toEqual([{ terminalScheme: 'dark' }])
   })
 
+  it('Copy/paste menu click: opens on Right-click, offers the modifiers, and persists the pick', async () => {
+    const { setCalls } = stubSettings()
+    stubApi()
+    stubThemes([paper])
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    openCategory(r, 'terminal')
+    await flush()
+    expect(optionValues(r.container, 'settings-terminal-menu-trigger')).toEqual([
+      'right-click',
+      'shift-right-click',
+      'ctrl-right-click'
+    ])
+    expect(selectedValue(r.container, 'settings-terminal-menu-trigger')).toBe('right-click')
+    expect(r.container.textContent).toContain('full-screen renderer with mouse support')
+    chooseOption(r.container, 'settings-terminal-menu-trigger', 'shift-right-click')
+    expect(setCalls).toEqual([{ terminalMenuTrigger: 'shift-right-click' }])
+  })
+
   it('Reload themes reloads, then re-lists', async () => {
     stubSettings()
     stubApi()

@@ -49,7 +49,8 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       wallpaperByTheme: {},
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
-      terminalScheme: 'theme'
+      terminalScheme: 'theme',
+      terminalMenuTrigger: 'right-click'
     })
     expect(get()).toEqual(result)
   })

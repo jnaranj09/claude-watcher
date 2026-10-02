@@ -20,7 +20,8 @@ import type { Settings, SettingsPatch } from '../../../shared/ipc/contract'
 import {
   DEFAULT_SETTINGS,
   type ReminderFirstDelayMinutes,
-  type TerminalScheme
+  type TerminalScheme,
+  type TerminalMenuTrigger
 } from '../../../shared/schemas/settings'
 
 export interface SettingsState {
@@ -49,6 +50,8 @@ export interface SettingsState {
   shellPaneRatio: number
   /** Terminal colours — follow the theme, or a built-in dark / light palette. */
   terminalScheme: TerminalScheme
+  /** Which click opens the terminal Copy/Paste menu. */
+  terminalMenuTrigger: TerminalMenuTrigger
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
@@ -83,6 +86,7 @@ export function createSettingsStore(): SettingsStoreApi {
     notificationsEnabled: DEFAULT_SETTINGS.notificationsEnabled,
     shellPaneRatio: DEFAULT_SETTINGS.shellPaneRatio,
     terminalScheme: DEFAULT_SETTINGS.terminalScheme,
+    terminalMenuTrigger: DEFAULT_SETTINGS.terminalMenuTrigger,
     loaded: false,
     authoritative: DEFAULT_SETTINGS,
 
@@ -100,6 +104,7 @@ export function createSettingsStore(): SettingsStoreApi {
         notificationsEnabled: settings.notificationsEnabled,
         shellPaneRatio: settings.shellPaneRatio,
         terminalScheme: settings.terminalScheme,
+        terminalMenuTrigger: settings.terminalMenuTrigger,
         loaded: true,
         authoritative: settings
       })
@@ -127,7 +132,10 @@ export function createSettingsStore(): SettingsStoreApi {
           ? { notificationsEnabled: patch.notificationsEnabled }
           : {}),
         ...(patch.shellPaneRatio !== undefined ? { shellPaneRatio: patch.shellPaneRatio } : {}),
-        ...(patch.terminalScheme !== undefined ? { terminalScheme: patch.terminalScheme } : {})
+        ...(patch.terminalScheme !== undefined ? { terminalScheme: patch.terminalScheme } : {}),
+        ...(patch.terminalMenuTrigger !== undefined
+          ? { terminalMenuTrigger: patch.terminalMenuTrigger }
+          : {})
       })
     }
   }))
@@ -148,6 +156,9 @@ export const selectShellPaneRatio = (state: SettingsState): number => state.shel
 export const selectTerminalFontSize = (state: SettingsState): number => state.terminalFontSize
 /** Terminal colours — the live scheme (primitive). */
 export const selectTerminalScheme = (state: SettingsState): TerminalScheme => state.terminalScheme
+/** The live terminal Copy/Paste menu click (primitive). */
+export const selectTerminalMenuTrigger = (state: SettingsState): TerminalMenuTrigger =>
+  state.terminalMenuTrigger
 /** Attention reminders — the live reminder count (primitive; 0 = off). */
 export const selectReminderCount = (state: SettingsState): number => state.reminderCount
 /** Attention reminders — the live first-reminder delay in minutes (primitive). */

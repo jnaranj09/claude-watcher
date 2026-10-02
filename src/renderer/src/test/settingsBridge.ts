@@ -28,7 +28,8 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     wallpaperByTheme: patch.wallpaperByTheme ?? DEFAULT_SETTINGS.wallpaperByTheme,
     notificationsEnabled: patch.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled,
     shellPaneRatio: patch.shellPaneRatio ?? DEFAULT_SETTINGS.shellPaneRatio,
-    terminalScheme: patch.terminalScheme ?? DEFAULT_SETTINGS.terminalScheme
+    terminalScheme: patch.terminalScheme ?? DEFAULT_SETTINGS.terminalScheme,
+    terminalMenuTrigger: patch.terminalMenuTrigger ?? DEFAULT_SETTINGS.terminalMenuTrigger
   }
 }
 

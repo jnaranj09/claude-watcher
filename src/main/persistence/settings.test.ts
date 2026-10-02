@@ -113,7 +113,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       wallpaperByTheme: {},
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
-      terminalScheme: 'dark'
+      terminalScheme: 'dark',
+      terminalMenuTrigger: 'shift-right-click'
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
@@ -147,7 +148,8 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       wallpaperByTheme: {},
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
-      terminalScheme: 'theme'
+      terminalScheme: 'theme',
+      terminalMenuTrigger: 'right-click'
     })
   })
 })
