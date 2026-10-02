@@ -247,6 +247,7 @@ describe('App — the header ☰ menu', () => {
       })
       await flush()
       expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+      expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
       openSettings(r)
       expect(boardStore.getState().settingsDialogOpen).toBe(false)
     })

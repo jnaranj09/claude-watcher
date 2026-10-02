@@ -11,7 +11,7 @@
 //
 // The board is the v1 board view; the xterm cockpit is Epic-3's focused-session
 // concern. [Source: story 1.4 Task 6]
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Board } from './components/board/Board'
 import { SmokeCockpit } from './SmokeCockpit'
 // Session templates — the header `+ New session` popover (folder / templates / Manage) and the
@@ -313,9 +313,12 @@ function App(): React.JSX.Element {
   }, [])
 
   // Action feedback (spec 2026-09-29 §2.3) — ONE native folder picker at a time, from every entry
-  // (the header, the empty board, the dead pane, Ctrl+N). The header button shows it busy.
+  // (the header, the empty board, the dead pane). The header button shows it busy.
   const pickFolder = useAsyncAction(handleNewSession)
   const runPickFolder = pickFolder.run
+  // Workspaces W-13 [OPERATOR] — Ctrl+N opens the header's `+ New session` popover, never the
+  // picker directly: no launch path skips the popover. The header button writes its opener here.
+  const openNewSessionMenu = useRef<(() => void) | null>(null)
 
   // Session templates — a template row was picked from the header popover. Skips the directory
   // picker entirely: the template already carries its cwd, so this opens the SAME name prompt
@@ -469,12 +472,13 @@ function App(): React.JSX.Element {
   // Session-templates parity (2026-09-05): the dead pane's button now opens the SAME popover as
   // the header, and this is the flow behind its `Pick a folder…` row (picker → launch → focused
   // view). Its two sibling rows reach handleTemplateSession / handleManageTemplates — the very
-  // same handlers the header button uses. Ctrl+N still calls this directly (the fast path).
+  // same handlers the header button uses. Ctrl+N opens the header popover instead (W-13).
   const handleNewSessionSync = useCallback((): void => {
     void runPickFolder()
   }, [runPickFolder])
 
-  // Story 3.2 (FR-11 / UX-DR21) — global keybindings: Ctrl+N → new session; Esc → Board.
+  // Story 3.2 (FR-11 / UX-DR21) — global keybindings: Ctrl+N → the `+ New session` popover (W-13);
+  // Esc → Board.
   // Story 4.2 (FR-14) — adds Ctrl+Q → requestQuit (the one chokepoint); Esc-guard-open → cancel.
   //
   // Focused-view keys (R1, R27, R10 — decision b, 2026-09-28): claude KEEPS EVERY KEY while its
@@ -502,7 +506,9 @@ function App(): React.JSX.Element {
       if (isInsideTerminal(e.target)) return
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault()
-        void runPickFolder()
+        // Same single-modal rule as every other opener (UX-DR14): nothing opens over a modal.
+        if (isModalOpen()) return
+        openNewSessionMenu.current?.()
         return
       }
       // Story 4.2 (FR-14 / UX-DR21) — Ctrl+Q → requestQuit (the ONE quit chokepoint).
@@ -652,6 +658,7 @@ function App(): React.JSX.Element {
         </div>
         <div className={styles.headerActions}>
           <NewSessionButton
+            openRef={openNewSessionMenu}
             busy={pickFolder.busy}
             onPickFolder={() => void runPickFolder()}
             onPickTemplate={handleTemplateSession}

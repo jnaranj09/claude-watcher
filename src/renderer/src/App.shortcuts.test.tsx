@@ -182,6 +182,7 @@ describe('App — shortcuts entry point', () => {
     })
     await flush()
     expect(pickDirectory).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   })
 
   // Workspaces (Task 10, UX-DR14 fault injection) — the Manage-workspaces dialog is renderer
@@ -197,6 +198,7 @@ describe('App — shortcuts entry point', () => {
     })
     await flush()
     expect(pickDirectory).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   })
 
   it('✕ closes the dialog', async () => {

@@ -170,6 +170,7 @@ function press(target: EventTarget, init: KeyboardEventInit): KeyboardEvent {
 function expectNoAppAction(): void {
   expect(window.launch.archiveSession).not.toHaveBeenCalled()
   expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+  expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   expect(requestQuit).not.toHaveBeenCalled()
   expect(boardStore.getState().viewMode).toBe('focused')
 }
@@ -203,11 +204,12 @@ describe('focused-view keys — outside the terminal the app chords work', () =>
     expect(boardStore.getState().viewMode).toBe('board')
   })
 
-  it('Ctrl+N on the page opens the new-session flow', async () => {
-    await renderFocused()
+  it('Ctrl+N on the page opens the + New session popover (W-13)', async () => {
+    const r = await renderFocused()
     press(document.body, { key: 'n', ctrlKey: true })
     await flush()
-    expect(window.launch.pickDirectory).toHaveBeenCalledTimes(1)
+    expect(r.container.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+    expect(window.launch.pickDirectory).not.toHaveBeenCalled()
   })
 
   it('Ctrl+Q on the page requests quit', async () => {

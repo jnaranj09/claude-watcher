@@ -11,7 +11,8 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type JSX
+  type JSX,
+  type RefObject
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '../Button/Button'
@@ -36,6 +37,9 @@ export interface NewSessionButtonProps {
   testId?: string
   /** Action feedback (spec 2026-09-29 §2.3): the native folder picker is open — one at a time. */
   busy?: boolean | undefined
+  /** Workspaces W-13: App's Ctrl+N opens THIS popover through the opener written here (header
+   *  only). A busy button is disabled, so the opener does nothing while the picker is open. */
+  openRef?: RefObject<(() => void) | null>
 }
 
 /** Gap between the button and the portaled popover, and the margin kept off the viewport edge. */
@@ -48,7 +52,8 @@ export function NewSessionButton({
   onManage,
   variant = 'header',
   testId = 'header-new-session',
-  busy = false
+  busy = false,
+  openRef
 }: NewSessionButtonProps): JSX.Element {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<CSSProperties | null>(null)
@@ -69,6 +74,14 @@ export function NewSessionButton({
     setOpen(false)
     buttonRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (openRef === undefined) return
+    openRef.current = busy ? () => {} : () => setOpen(true)
+    return () => {
+      openRef.current = null
+    }
+  }, [openRef, busy])
 
   useEffect(() => {
     if (!open) return

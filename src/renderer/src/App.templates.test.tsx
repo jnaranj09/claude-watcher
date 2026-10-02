@@ -214,6 +214,7 @@ describe('App — session templates', () => {
     })
     await flush()
     expect(pickDirectory).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     click(q(r, '[data-testid="templates-close"]'))
     expect(r.container.querySelector('[data-testid="templates-overlay"]')).toBeNull()
   })

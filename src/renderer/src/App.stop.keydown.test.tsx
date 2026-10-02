@@ -411,7 +411,7 @@ describe('App — the Delete confirm and Quit guard join the single-modal rule (
     })
   }
 
-  it('Ctrl+N does not open the folder picker over the Delete confirm', async () => {
+  it('Ctrl+N opens nothing over the Delete confirm', async () => {
     await renderApp()
     openConfirm()
     await act(async () => {
@@ -421,9 +421,10 @@ describe('App — the Delete confirm and Quit guard join the single-modal rule (
       await Promise.resolve()
     })
     expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   })
 
-  it('Ctrl+N does not open the folder picker over the Quit guard', async () => {
+  it('Ctrl+N opens nothing over the Quit guard', async () => {
     await renderApp()
     act(() => boardStore.getState().showQuitGuard(makeGuardPayload()))
     await act(async () => {
@@ -433,6 +434,7 @@ describe('App — the Delete confirm and Quit guard join the single-modal rule (
       await Promise.resolve()
     })
     expect(window.launch.pickDirectory).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   })
 
   it('the header behind the Delete confirm is inert, so Tab cannot walk out to the terminal', async () => {

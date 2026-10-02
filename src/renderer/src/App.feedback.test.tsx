@@ -154,7 +154,7 @@ describe('App — the folder picker', () => {
     expect(toasts()).toEqual([['error', 'Could not open the folder picker.']])
   })
 
-  it('one native picker at a time: Ctrl+N while it is open opens none; the header is busy', async () => {
+  it('one native picker at a time: Ctrl+N while it is open opens nothing; the header is busy', async () => {
     let answer: (v: string | null) => void = () => {}
     bridges.pickDirectory.mockImplementation(
       () =>
@@ -170,6 +170,8 @@ describe('App — the folder picker', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true }))
     })
     expect(bridges.pickDirectory).toHaveBeenCalledTimes(1)
+    // The busy header button is disabled, so Ctrl+N must not open its popover either.
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     await act(async () => {
       answer(null)
       await Promise.resolve()

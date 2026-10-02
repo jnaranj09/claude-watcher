@@ -232,12 +232,21 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
     expect(r.container.querySelector('[data-testid="session-name-overlay"]')).toBeNull()
   })
 
-  it('Ctrl+N triggers the launch flow (UX-DR21)', async () => {
+  // Workspaces W-13 [OPERATOR]: `+ New session` and Ctrl+N ALWAYS open the popover — no launch
+  // path skips it, so Ctrl+N offers the active workspace's templates like the button does.
+  it('Ctrl+N opens the + New session popover, not the folder picker (W-13)', async () => {
     const r = await renderApp()
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true }))
       await Promise.resolve()
     })
+    await flush()
+    expect(r.container.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+    expect(pickSpy).not.toHaveBeenCalled()
+    // Its folder row is the same launch flow as the button's.
+    act(() =>
+      (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    )
     await flush()
     expect(pickSpy).toHaveBeenCalledTimes(1)
     await submitNamePrompt(r)
@@ -382,6 +391,7 @@ describe('App — session-naming: the create-time name prompt', () => {
     await flush()
 
     expect(pickSpy).toHaveBeenCalledTimes(1) // still 1 — the re-entry was refused
+    expect(r.container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     // The prompt payload is a create/rename union — narrow before reading the create-only `cwd`.
     const prompt = boardStore.getState().sessionNamePrompt
     expect(prompt?.mode).toBe('create')
