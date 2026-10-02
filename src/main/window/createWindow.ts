@@ -80,8 +80,8 @@ export function makeCreateWindow(deps: CreateWindowDeps): () => void {
     })
 
     // Fallback show (2026-08-03). `ready-to-show` fires off the renderer's FIRST PAINTED FRAME.
-    // With hardware acceleration disabled (2026-08-03 to 2026-09-22; see the GPU block below
-    // createWindow()) it never fired at all on this KWin/Wayland host, so
+    // With hardware acceleration disabled (2026-08-03 to 2026-09-22; see the "GPU ON" block in
+    // src/main/index.ts) it never fired at all on this KWin/Wayland host, so
     // `show()` was never called and the app ran headless: process alive, window never mapped, no
     // error anywhere. `did-finish-load` fires off the DOM/load lifecycle instead, so it is
     // independent of whether a frame ever reached the compositor. `show()` is idempotent, and
