@@ -208,6 +208,19 @@ describe('Board — empty states never collapse (AC-4)', () => {
       expect(onOpenPastSessions).toHaveBeenCalledTimes(1)
     })
 
+    it('both buttons share one row offset (the spacing sits on the row, not on one anchor)', () => {
+      // A margin on NewSessionButton's primary anchor alone put `+ New session` 4px below
+      // `Past sessions…` (drive run 2026-10-02). jsdom has no layout, so the CSS is the proxy.
+      const read = (file: string): string =>
+        readFileSync(resolve(process.cwd(), file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+      const menu = read('src/renderer/src/components/NewSessionMenu/NewSessionMenu.module.css')
+      const board = read('src/renderer/src/components/board/Board.module.css')
+      expect(/\.anchorPrimary \{([^}]*)\}/.exec(menu)?.[1] ?? '').not.toMatch(/margin/)
+      expect(/\.emptyBoardActions \{([^}]*)\}/.exec(board)?.[1] ?? '').toMatch(
+        /margin-top: var\(--gap-inline\)/
+      )
+    })
+
     it('is absent without the seam', () => {
       boardStore.setState({ coldLoaded: true })
       const { container, unmount } = renderComponent(<Board />)

@@ -264,7 +264,7 @@ export function PastSessionsDialog({
               }}
             >
               <TextInput
-                variant="field"
+                variant="inline"
                 testId="past-session-resume-id"
                 ariaLabel="Claude session id"
                 placeholder="Paste a claude session id"
@@ -273,6 +273,7 @@ export function PastSessionsDialog({
               />
               <Button
                 type="submit"
+                size="sm"
                 testId="past-session-resume-id-submit"
                 busy={resumeById.busy}
                 disabled={resumeId.trim().length === 0 || busy}

@@ -3,11 +3,9 @@
   position: relative;
   display: inline-flex;
 }
-/* The empty board's centered primary (was Board.module.css .newSessionButton): same anchor
-   plus the top margin the empty-board copy expects; its menu is centered under the button. */
-.anchorPrimary {
-  margin-top: var(--gap-inline);
-}
+/* The empty board's centered primary (was Board.module.css .newSessionButton): its menu is
+   centered under the button. The top margin the empty-board copy expects sits on the board's
+   button row (Board.module.css .emptyBoardActions), so `Past sessions…` beside it lines up. */
 .anchorPrimary .menu {
   left: 50%;
   right: auto;
