@@ -50,6 +50,7 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
     <ManageDialog.List>
       <TextInput
         inputRef={searchRef}
+        variant="inline"
         testId="template-search"
         ariaLabel="Search templates"
         placeholder="Search"

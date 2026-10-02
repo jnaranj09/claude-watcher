@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import inputStyles from '../TextInput/TextInput.module.css'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
@@ -214,6 +215,12 @@ describe('TemplatesDialog', () => {
       )
     })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+  it('the rail search is the inline field, like every rail search (spec 2026-10-02)', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="template-search"]').classList.contains(inputStyles.inline!)).toBe(
+      true
+    )
   })
   it('search filters the list; ✕ and Escape call onClose', () => {
     const { r, onClose } = render()
