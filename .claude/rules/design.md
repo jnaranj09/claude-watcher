@@ -313,7 +313,8 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   `TextInput.test.tsx` fails on any other `.input`/`.search`/`.textField` class. Checkboxes/radios/
   ranges stay bare.
 - **`<button className=…>` → `components/Button/Button.tsx`.** Variants: `primary` (ONE main
-  action, only accent fill), `secondary` (outlined), `danger`, `ghost` (borderless icons). Sizes
+  action: RAISED `--bg-surface-raised` fill + strong border + 600 weight, never an accent colour —
+  a blue primary was rejected 2026-09-23), `secondary` (outlined), `danger`, `ghost` (borderless icons). Sizes
   (fixed heights): `md` 32px, `sm` 26px, `xs` 20px; `icon` = square. `lit` = toggle ON
   (`data-lit` present only when on — test `hasAttribute`). **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.

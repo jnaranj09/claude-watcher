@@ -8,6 +8,10 @@ session engine (several dir/channel names keep the historical `c9watch` prefix).
 item right away: validate it with a systematic approach (bmad / superpowers), then implement the
 same way.
 
+**Designing, speccing, planning or choosing without the owner?** Read `technical-taste.md` first:
+how the owner decides, default answers, reversed decisions not to revive, and when to stop instead
+of guess. Unattended runs decide by it and tag their own picks `[AGENT]` in the spec.
+
 ## Never commit (`.gitignore`) — this repo is PUBLIC
 
 Planning records hold home paths, work email and internal names:
