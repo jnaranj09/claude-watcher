@@ -26,12 +26,6 @@
   font-size: var(--font-size-meta);
   color: var(--text-secondary);
 }
-/* UX-15 — the cap, said once at the foot of the rail (where `+ New` sits in the sibling dialogs). */
-.capNote {
-  margin: auto 0 0;
-  font-size: var(--font-size-meta);
-  color: var(--text-secondary);
-}
 .empty {
   margin: 0;
   padding: var(--inset-item-y) var(--inset-item-x);
@@ -66,16 +60,11 @@
   color: var(--text-secondary);
 }
 
-/* Action feedback (spec 2026-09-29 §2.5) — Retry after a failed history load, in the rail foot
-   above the cap note. A wrapper carries the layout: a button never takes a class (design.md). */
-.retrySlot {
-  display: flex;
-  justify-content: flex-start;
-  padding: var(--gap-inline) 0 0;
-}
-
-/* Resume by id — the rail's bottom row: the field takes the width, the button keeps its own. */
+/* Resume by id — a row in the rail's bottom slot (ManageDialog.ListBottom owns where the slot sits
+   and its spacing; UX-15's cap note is its ListNote). The row spans the slot; the field takes the
+   width, the button keeps its own. */
 .resumeById {
+  align-self: stretch;
   display: flex;
   align-items: center;
   gap: var(--gap-inline);

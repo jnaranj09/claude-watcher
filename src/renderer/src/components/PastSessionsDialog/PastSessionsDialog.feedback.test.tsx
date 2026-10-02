@@ -69,6 +69,10 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
     await settle()
     expect(find('past-session-error')?.textContent).toBe('Could not load past sessions')
     expect(find('past-sessions-loading')).toBeNull()
+    // Retry is the bottom slot's first action, above Resume by id (spec 2026-10-02).
+    expect(
+      r.container.querySelector('[data-manage-list-bottom] [data-testid="past-sessions-retry"]')
+    ).toBeTruthy()
     list.mockImplementationOnce(() => Promise.resolve([ROW]))
     act(() => (find('past-sessions-retry') as HTMLButtonElement).click())
     await settle()

@@ -246,44 +246,45 @@ export function PastSessionsDialog({
                 </p>
               )}
             </ManageDialog.Rows>
-            {loadFailed && (
-              <div className={styles.retrySlot}>
+            {/* The rail's bottom slot (siblings put `+ New` here; this dialog has none): Retry after
+                a failed load, Resume by id — a claude session started outside the app comes in by
+                its id — and the cap footnote under them. */}
+            <ManageDialog.ListBottom>
+              {loadFailed && (
                 <ManageDialog.GhostButton testId="past-sessions-retry" onClick={retryLoad}>
                   Retry
                 </ManageDialog.GhostButton>
-              </div>
-            )}
-            {/* Resume by id — the rail's bottom slot (siblings put `+ New` here; this dialog has
-                none). A claude session started outside the app comes in by its id. */}
-            <form
-              className={styles.resumeById}
-              data-testid="past-session-resume-by-id"
-              onSubmit={(e) => {
-                e.preventDefault()
-                void resumeById.run()
-              }}
-            >
-              <TextInput
-                variant="inline"
-                testId="past-session-resume-id"
-                ariaLabel="Claude session id"
-                placeholder="Paste a claude session id"
-                value={resumeId}
-                onChange={setResumeId}
-              />
-              <Button
-                type="submit"
-                size="sm"
-                testId="past-session-resume-id-submit"
-                busy={resumeById.busy}
-                disabled={resumeId.trim().length === 0 || busy}
+              )}
+              <form
+                className={styles.resumeById}
+                data-testid="past-session-resume-by-id"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void resumeById.run()
+                }}
               >
-                Resume
-              </Button>
-            </form>
-            <p className={styles.capNote} data-testid="past-sessions-cap-note">
-              {pastSessionsCapNote(PAST_SESSIONS_MAX)}
-            </p>
+                <TextInput
+                  variant="inline"
+                  testId="past-session-resume-id"
+                  ariaLabel="Claude session id"
+                  placeholder="Paste a claude session id"
+                  value={resumeId}
+                  onChange={setResumeId}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  testId="past-session-resume-id-submit"
+                  busy={resumeById.busy}
+                  disabled={resumeId.trim().length === 0 || busy}
+                >
+                  Resume
+                </Button>
+              </form>
+              <ManageDialog.ListNote testId="past-sessions-cap-note">
+                {pastSessionsCapNote(PAST_SESSIONS_MAX)}
+              </ManageDialog.ListNote>
+            </ManageDialog.ListBottom>
           </ManageDialog.List>
           {selected !== null ? (
             <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>

@@ -440,6 +440,14 @@ describe('PastSessionsDialog', () => {
     )
   })
 
+  it('Resume by id and the cap note sit in the rail`s bottom slot (spec 2026-10-02)', async () => {
+    const { r } = render()
+    await flush()
+    const slot = q(r, '[data-manage-list-bottom]')
+    expect(slot?.querySelector('[data-testid="past-session-resume-by-id"]')).toBeTruthy()
+    expect(slot?.querySelector('[data-testid="past-sessions-cap-note"]')).toBeTruthy()
+  })
+
   it('focuses the search box on open (an aria-modal dialog takes focus)', async () => {
     const { r } = render()
     await flush()
