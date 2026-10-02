@@ -339,3 +339,20 @@ describe('ManageDialog region spacing', () => {
     expect(ruleBody(css, '.headerText')).toMatch(/gap:\s*var\(--gap-field\)/)
   })
 })
+
+// Region spacing inside the dialogs' own sheets (spec 2026-10-02-region-spacing-design.md).
+describe('dialog sheets keep the region rules', () => {
+  it('Settings rows share one height: a checkbox row is as tall as a dropdown row', () => {
+    const css = readFileSync(join(componentsDir, 'Settings/Settings.module.css'), 'utf8')
+    expect(ruleBody(css, '.row')).toMatch(
+      /min-height:\s*calc\(36px \+ 2 \* var\(--inset-card\) \+ 1px\)/
+    )
+  })
+
+  it('a Rules state note clears the next control by --gap-inline (form gap + the rest)', () => {
+    const css = readFileSync(join(componentsDir, 'RulesDialog/RulesDialog.module.css'), 'utf8')
+    expect(ruleBody(css, '.note')).toMatch(
+      /margin-bottom:\s*calc\(var\(--gap-inline\) - var\(--gap-field\)\)/
+    )
+  })
+})

@@ -32,6 +32,11 @@
   gap: var(--gap-page);
   padding: var(--inset-card) 0;
   border-top: 1px solid var(--border);
+  /* Same kind, same size (spec 2026-10-02-region-spacing): every row is as tall as a row holding
+     a 36px field-size Select / TextInput (+ its insets + this 1px border, border-box), so a
+     checkbox row no longer sits 17px shorter than the dropdown row under it. A MIN height: the API
+     row that wraps still grows. */
+  min-height: calc(36px + 2 * var(--inset-card) + 1px);
 }
 
 .row:first-of-type {
