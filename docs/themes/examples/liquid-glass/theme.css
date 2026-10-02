@@ -590,6 +590,9 @@ section[data-column]::after,
 [data-toast] {
   position: relative;
   isolation: isolate;
+  /* The popover's radius too: the directional rim's two 1px-offset lines cross at a corner, and on
+     the app's `--rounded-md` (12px) that read as a cut, brighter 45° corner (2026-10-02). */
+  border-radius: var(--rounded-lg);
   background-color: var(--glass-fill);
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--glass-rim-pop), var(--shadow-pop);
