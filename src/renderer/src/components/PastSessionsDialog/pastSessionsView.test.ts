@@ -6,7 +6,8 @@ import {
   folderBasename,
   pastSessionErrorMessage,
   pastSessionsEmptyCopy,
-  relativeEnded
+  relativeEnded,
+  resumeByIdErrorMessage
 } from './pastSessionsView'
 import type { PastSession } from '../../../../shared/ipc/contract'
 
@@ -84,5 +85,36 @@ describe('pastSessionsView', () => {
     expect(folderBasename('/home/op/work/api')).toBe('api')
     expect(folderBasename('/home/op/work/api/')).toBe('api')
     expect(folderBasename('/')).toBe('/')
+  })
+})
+
+describe('resumeByIdErrorMessage', () => {
+  const wrapped = (code: string): Error =>
+    new Error(`Error invoking remote method 'past-sessions:import': Error: ${code}`)
+  it.each([
+    ['invalid_id', 'That is not a claude session id'],
+    ['transcript_missing', 'Claude has no conversation with that id'],
+    ['folder_missing', 'That folder no longer exists'],
+    [
+      'session_running_elsewhere',
+      'This session is running in another terminal. Close it there first'
+    ]
+  ])('%s → its copy', (code, copy) => {
+    expect(resumeByIdErrorMessage(wrapped(code))).toBe(copy)
+  })
+  it('workspace_not_found gets its own copy (never the `not_found` line)', () => {
+    expect(resumeByIdErrorMessage(wrapped('workspace_not_found'))).toBe(
+      'That workspace no longer exists'
+    )
+  })
+  it('anything else → the generic line, never the message', () => {
+    expect(resumeByIdErrorMessage(new Error('/home/op/secret'))).toBe(
+      'Could not resume the session'
+    )
+  })
+  it('Open keeps its own transcript_missing copy', () => {
+    expect(pastSessionErrorMessage(wrapped('transcript_missing'))).toBe(
+      'Claude no longer has this conversation. Forget it to remove it from the list'
+    )
   })
 })

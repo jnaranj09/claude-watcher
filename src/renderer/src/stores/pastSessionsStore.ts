@@ -50,6 +50,16 @@ export async function forgetPastSession(id: string): Promise<void> {
   pastSessionsStore.getState().hydrate(await window.pastSessions.forget(id))
 }
 
+/** Open's tail, shared with Resume by id: the launch's workspace becomes the active one first,
+ *  then the terminal opens exactly like the `+ New session` popover's. */
+async function openResumed(result: PastSessionOpenResult): Promise<PastSessionOpenResult> {
+  if (workspacesStore.getState().activeId !== result.workspaceId) {
+    await setActiveWorkspace(result.workspaceId)
+  }
+  boardStore.getState().openLaunchedTerminal(result.terminalId, result.name, result.workspaceId)
+  return result
+}
+
 /**
  * D-1 / D-12 — resume a record IN THE APP and take the view. Main registers the `--resume`
  * recipe and answers with the terminal to open; this opens it exactly like the `+ New session`
@@ -59,12 +69,17 @@ export async function forgetPastSession(id: string): Promise<void> {
  * (`already_open` first tries `focusLiveSession`).
  */
 export async function openPastSession(id: string): Promise<PastSessionOpenResult> {
-  const result = await window.pastSessions.open(id)
-  if (workspacesStore.getState().activeId !== result.workspaceId) {
-    await setActiveWorkspace(result.workspaceId)
-  }
-  boardStore.getState().openLaunchedTerminal(result.terminalId, result.name, result.workspaceId)
-  return result
+  return openResumed(await window.pastSessions.open(id))
+}
+
+/**
+ * Resume by id — a claude session the app did not launch, into the ACTIVE workspace (an id the
+ * app already knows resumes as its record, in that record's workspace). `id` must already be
+ * trimmed and lower-cased by the caller. Rethrows the code for the dialog's error line.
+ */
+export async function resumeSessionById(id: string): Promise<PastSessionOpenResult> {
+  const workspaceId = workspacesStore.getState().activeId
+  return openResumed(await window.pastSessions.resumeById(id, workspaceId))
 }
 
 /**

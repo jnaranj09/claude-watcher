@@ -73,3 +73,14 @@
   justify-content: flex-start;
   padding: var(--gap-inline) 0 0;
 }
+
+/* Resume by id — the rail's bottom row: the field takes the width, the button keeps its own. */
+.resumeById {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.resumeById > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}

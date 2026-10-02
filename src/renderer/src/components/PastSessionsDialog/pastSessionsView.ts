@@ -40,7 +40,7 @@ export function relativeEnded(endedAt: number, now: number): string {
   return new Date(endedAt).toLocaleDateString()
 }
 
-const ERROR_COPY: Readonly<Record<string, string>> = {
+const ERROR_COPY = {
   not_found: 'That session is no longer in the history',
   folder_missing: 'That folder no longer exists',
   already_open: 'That session is already open',
@@ -51,6 +51,29 @@ const ERROR_COPY: Readonly<Record<string, string>> = {
   session_running_elsewhere: 'This session is running in another terminal. Close it there first',
   // Spec 2026-09-29 §2.4 — main no longer shows a native box for a too-old claude.
   claude_version: `Update claude to ${formatVersion(MIN_CLAUDE_VERSION)} or newer to open a past session`
+} satisfies Readonly<Record<string, string>>
+
+// Resume by id — its own map, in match order (codes are matched with `includes`, so
+// `workspace_not_found` must come before anything ending in `not_found`; Open's `not_found`
+// cannot happen here: an id with a record runs Open, and Open found it).
+const RESUME_BY_ID_COPY: Readonly<Record<string, string>> = {
+  workspace_not_found: 'That workspace no longer exists',
+  invalid_id: 'That is not a claude session id',
+  transcript_missing: 'Claude has no conversation with that id',
+  folder_missing: ERROR_COPY.folder_missing,
+  already_open: ERROR_COPY.already_open,
+  session_running_elsewhere: ERROR_COPY.session_running_elsewhere,
+  claude_version: ERROR_COPY.claude_version
+}
+
+function copyForCode(
+  err: unknown,
+  copy: Readonly<Record<string, string>>,
+  fallback: string
+): string {
+  const text = err instanceof Error ? err.message : ''
+  for (const [code, line] of Object.entries(copy)) if (text.includes(code)) return line
+  return fallback
 }
 
 /**
@@ -60,9 +83,12 @@ const ERROR_COPY: Readonly<Record<string, string>> = {
  * code is never the whole message in the real app.
  */
 export function pastSessionErrorMessage(err: unknown): string {
-  const text = err instanceof Error ? err.message : ''
-  for (const [code, copy] of Object.entries(ERROR_COPY)) if (text.includes(code)) return copy
-  return 'Could not open the session'
+  return copyForCode(err, ERROR_COPY, 'Could not open the session')
+}
+
+/** Resume by id's error line — the same matching as Open, its own copy. */
+export function resumeByIdErrorMessage(err: unknown): string {
+  return copyForCode(err, RESUME_BY_ID_COPY, 'Could not resume the session')
 }
 
 /** Open's `already_open` refusal — the session is live on the board (spec Open step 3: the
