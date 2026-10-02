@@ -8,6 +8,16 @@ planning docs, stories and retros, a bug-hunt report, and about 550 messages the
 build sessions. **Later decisions win.** Where an old decision was reversed, only the new one is
 written here as a rule. The reversal log (§12) exists so you do not bring an old idea back.
 
+Merged 2026-10-01 with a research pass on what the best engineers (Karpathy, Ousterhout, Beck,
+Fowler, Hickey, Carmack, Metz, Willison, Hashimoto, Ronacher and others), the AI coding vendors
+(Anthropic, OpenAI) and the empirical studies say about code that agents can build and maintain.
+
+- **The owner's taste decides product, UX, visuals and copy.**
+- **On engineering, the owner's decisions stand, and the research fills the gaps.** §5b holds the
+  merged rules. Each one has a **grade** (evidence-backed / expert consensus / taste) and a
+  **sensor** (the check that goes red when the rule is broken), or says "prose only".
+- Where the owner's taste and the evidence pull apart, §5c says so honestly.
+
 ## 0. How to use this file
 
 **Precedence (highest first):**
@@ -30,7 +40,10 @@ If a rule file and the code disagree, the newer one wins. Check with `git log`. 
 3. **Copy the house pattern** over a new elegant one: "Consistency with the existing sibling
    wins."
 4. **Follow good, standard UX patterns.** Linear and Raycast are the reference apps.
-5. **Write the choice down.** In the spec, tag it `[AGENT]` (the owner's picks are `[OPERATOR]`)
+5. **When experts split, pick the option a sensor can enforce** (a type, a lint rule, a guard
+   test, a hook). A rule that turns something red holds up under unattended agents; a paragraph of
+   prose does not.
+6. **Write the choice down.** In the spec, tag it `[AGENT]` (the owner's picks are `[OPERATOR]`)
    and list it under "Assumed (correct me in review)". An `[AGENT]` decision is the first thing the
    owner will challenge, so give a one-line reason.
 
@@ -218,6 +231,180 @@ them:
 - **Keep versions current, but test the upgrade.** Electron went from 39 to 44 after a test run.
   Upgrade a major version in its own change, with the full gate plus smoke, never in passing.
 
+## 5b. Engineering canon (owner taste + expert research)
+
+**The core finding.** The best engineers disagree a lot about code _style_ (function length, DRY,
+test order). They agree strongly about the _harness_ around the code:
+
+- a fast check the agent runs itself;
+- small changes;
+- untrusted input parsed once into precise types;
+- every important rule turned into a test, lint rule or hook.
+
+Agents obey a red check far better than a paragraph. The data adds that agents fail by **volume**:
+more code, more near-copies, more swallowed errors, less refactoring. So the rules below are
+mostly checks and budgets, not style.
+
+**Grades:**
+
+- **Evidence**: at least one empirical study supports it.
+- **Consensus**: most of the experts and vendors agree, but there is no data.
+- **Taste**: experts split or say nothing; we chose a side.
+
+**Sensor**: the check that goes red when the rule is broken. "Prose only" means nothing checks it
+yet. Prefer turning prose-only rules into sensors.
+
+### Verification
+
+1. **Every change passes the gate the agent runs itself, and the turn cannot end red.** The gate is
+   typecheck, lint, test and build, plus `build:dir` + smoke for pty, preload or packaging. Report
+   the command and its real output, never just "done". _Evidence_ (DORA, agent-PR CI data, Anthropic
+   Stop-hook guidance). Sensor: the PostToolUse and Stop hooks, and `ci.yml`.
+2. **Fault-inject every guard. Never use a coverage percentage as a target.** Coverage barely
+   predicts whether tests catch faults. Injected faults ("mutants") do track real faults. _Evidence_
+   (Inozemtseva & Holmes 2014; Google mutation study 2021). Sensor: the `code-reviewer` Step 2.
+3. **Never delete, skip, `.only`, loosen or re-record a test to get green.** Fix the code, or report
+   the test's removal as a decision in the commit. Agents are known to "fix" a red test by
+   disabling it. A conditional runtime skip with a stated reason (the e2e port guard) is not
+   tampering. _Consensus_ (Beck, Huntley). Sensor: prose only.
+4. **Review in a fresh context, aimed at correctness and the spec.** Don't chase every finding
+   into extra layers: a reviewer told to find gaps always finds some. Code review mostly transfers
+   understanding and catches fewer bugs than people think, so it does not replace tests. _Evidence_
+   (Bacchelli & Bird 2013) plus Anthropic guidance. Sensor: the `code-reviewer` agent.
+
+### Change size and commits
+
+5. **One task per run, small diffs.** What matters is small, steady steps, more than whether the
+   test comes first. Large agent PRs touching many files get rejected more often, and each failed
+   CI check cuts merge odds by about 15%. _Evidence_ (Fucci et al. 2017; 33,596 agent PRs, 2026).
+   Sensor: prose only.
+6. **Keep structural (tidy) commits apart from behaviour commits.** A refactor commit changes no
+   behaviour; a feature or fix commit does not reshuffle code. _Consensus_ (Beck). Sensor: prose
+   only.
+7. **Parallel agents only in separate worktrees, with one writer per build and test gate.** Two
+   agents editing one tree break each other's gates. _Taste_ (Hashimoto and Huntley vs
+   Steinberger). Sensor: prose only.
+
+### Types and data
+
+8. **Parse each untrusted input once, at one boundary, into a precise type.** After the boundary,
+   the type is the proof: no re-validation, no `as` to force a value through. _Consensus_, backed
+   by a mechanism: type checking catches about 15% of shipped JS bugs (Gao, Bird & Barr 2017).
+   Sensors: `zod-boundaries.md`, strict TS and type-aware lint.
+9. **`as` only inside a small, named, tested helper.** About 74 `as` casts sit in non-test `src`
+   today; don't add more. _Consensus_ (Effective TypeScript). Sensor: prose only.
+10. **Model state as discriminated unions with an exhaustive `never` check.** Use one `status`
+    union instead of boolean pairs. Store ids and derive the objects from them. A forgotten case
+    then becomes a compile error the agent's own gate reports. _Consensus_ (Minsky, Vanderkam,
+    react.dev). Sensor: TS for the unions. No `switch-exhaustiveness-check` lint rule yet.
+11. **Never loosen a strict TS flag. Upgrade majors alone.** TS 7.0 shipped without the API that
+    typescript-eslint needs (it arrives in 7.1). Stay on 5.x until it does, or the lint gates break.
+    _Evidence_ for type checking; _taste_ for the specific flags. Sensor: `tsconfig` plus the gate.
+
+### Design and structure
+
+12. **The enemy is hidden state and entanglement, not long functions.** Split a file or function
+    where the pieces would otherwise be tangled together (you'd have to read both to understand
+    either), not at a line count. Prefer a few "deep" modules: a small interface over a lot of
+    behaviour. _Consensus_ (Ousterhout; Carmack; Hickey). Robert Martin conceded much of this in
+    his 2024–25 debate with Ousterhout. Sensor: prose only.
+13. **Refactor the biggest, most-changed file first.** Size and relative churn are the
+    best-validated predictors of defects. _Evidence_ (Nagappan & Ball 2005). Today that file is
+    `src/main/index.ts` (§14). Sensor: prose only.
+14. **Search for the existing helper before writing one. Add no abstraction without a second real
+    caller. Inline a shared helper when it grows a flag or a branch for just one caller.** "Duplication
+    is far cheaper than the wrong abstraction" (Metz). Agents have the opposite failure: they paste
+    near-copies instead of finding the helper (GitClear 2026: duplicated blocks +81%, refactoring
+    down to 3.8% of changes). So both halves are needed. _Consensus_, with weak (vendor) evidence.
+    Sensors: the primitive-ban guards (one Button, one Popover…). No duplicate detector yet.
+15. **Plain functions and data over classes and inheritance. Explicit over magic. Long, specific
+    names.** _Taste_ (Ronacher, Hickey, Carmack). Sensor: prose only. Today there is 1 class in
+    non-test `src`.
+16. **Enforce the layers.** `shared` never imports `main` or `renderer`; `renderer` never imports
+    `main`. _Consensus_ (OpenAI's layered architecture checked by structural tests). The layers are
+    clean today only by convention. Sensor: none yet.
+
+### Errors and comments
+
+17. **A contained error is logged with a `code=` and never swallowed silently.** A `catch` with only
+    a comment must say _why_ it is safe (e.g. "fail open: a false block bricks a working install").
+    Error-masking code is where AI-written code is weakest. _Consensus_, with weak (vendor) evidence
+    (GitClear +47% error-masking constructs, CodeRabbit). Sensor: none yet. About 19 comment-only
+    `catch` blocks exist today, many of them deliberately fail-open.
+18. **Interface and "why" comments stay next to the code. Never delete a commented constraint or
+    incident note without saying so in the commit.** Each agent session starts with no memory, so
+    an unwritten "why" is rediscovered or broken. Models are known to change or remove comments
+    they don't understand as a side effect. _Consensus_ (Ousterhout won this point against Martin;
+    Karpathy). Sensor: prose only. Keep comments short. A comment that a test also pins cannot
+    drift silently.
+
+### Instructions for agents
+
+19. **Always-loaded instructions hold only what an agent cannot work out from the code**: traps,
+    reasons, and bans tied to incidents. Keep them under about 200 lines, and load layer rules by
+    path. Add a line only after an agent repeats a mistake. Repository overviews in context files
+    add about 20% cost with no gain, while the instructions themselves are followed well.
+    _Evidence_ (ETH Zurich 2026) plus Anthropic and Cursor guidance. Today CLAUDE.md is 271 lines
+    and all 9 rule files load every session (about 1,100 lines), see §14. This file is read on
+    demand, not always loaded, on purpose.
+
+### Stack
+
+20. **React.**
+    - Use Effects only to sync with external systems.
+    - Derive values during render; never store derived state.
+    - Reset state by `key`.
+    - Store actions are events, not setters.
+    - If the React Compiler is adopted, pin it exactly and keep the existing memoization.
+
+    _Consensus_ (react.dev; TkDodo). Sensor: `eslint-plugin-react-hooks` recommended.
+
+21. **Tests.**
+    - Use user-facing queries on real code.
+    - Mock only at process edges: pty, fs, Electron.
+    - No snapshot tests: an agent re-records them instead of reading the diff.
+    - Use Playwright's waiting, web-first assertions.
+
+    The unit / integration / e2e ratio is _taste_; there is no evidence for any pyramid. _Consensus_
+    (Testing Library, Playwright docs). Sensor: prose only. There are 0 snapshot tests today.
+
+22. **Electron hardening, from the official checklist.**
+    - Validate each IPC sender's frame or URL.
+    - Set the Electron fuses at package time (for example, turn off `RunAsNode`).
+    - Each preload method wraps one `CH.*` invoke and never leaks the IPC `event`.
+
+    _Consensus_ (Electron security checklist). `sandbox`, `contextIsolation` and a CSP are in place.
+    Sender validation and fuses are missing (§14).
+
+### Budgets that keep agent decay in check
+
+- **A scheduled clean-up pass.** It changes no behaviour, passes the full gate, and goes in its
+  own commits. It removes duplicates (`jscpd`), dead code (`knip`) and slow tests. OpenAI calls
+  this "garbage collection" against drift. Steinberger spends about 20% of his time on it.
+  _Consensus_, with correlational evidence: AI adoption raised complexity by about 41% and
+  static-analysis warnings by about 30%, and both stayed high (CMU 2026).
+- **Code is an asset here, not throwaway.** The app has versioned, persisted user data, so the
+  "code has under a year of shelf life" view (Yegge) does not apply. _Taste_.
+
+## 5c. Where the owner's taste and the evidence pull apart
+
+- **TDD.** The owner runs every subagent with test-first TDD. The evidence says small steps matter
+  more than test-first order. **Keep TDD anyway:** a test that failed first proves the agent did
+  not claim a pass it never ran. That matters most when no human watches.
+- **"Turn every fix into a standard"** vs **"duplication is cheaper than the wrong abstraction".**
+  These fit together. The owner's standards are UI primitives with one clear job (one Button, one
+  Popover, one Callout). That is knowledge stated once, which even Metz endorses. The Metz rule
+  (§5b-14) applies to _helpers_: a shared helper that grows a flag for one caller gets inlined.
+- **Big rule files.** The owner's scar-tissue rules (R-numbers, dated incidents) are exactly the
+  practice experts recommend. But at about 1,100 always-loaded lines they are past the size the
+  vendors say still gets read. The owner already cut them from about 6k to about 2k words on
+  10-01. The next step is path-scoping, not deleting.
+- **Heavy process** (brainstorm → spec → plan) vs "just talk to it" (Steinberger). For
+  **unattended** runs the written spec wins: no human is there to redirect mid-run. Skip the plan
+  only for a one-sentence diff.
+- **Reviewer model.** §10 says a stronger model reviews, but `code-reviewer` runs on `sonnet`. The
+  evidence says a _fresh context_ matters more than model size. Unresolved: the owner's call.
+
 ## 6. Data and persistence taste
 
 - Each new domain gets its **own main-owned file** (`claude-watcher-<thing>.json`, the
@@ -304,12 +491,14 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
   screenshots in Default, Liquid Glass and Paper (`.claude/rules/run-app.md`). "Screenshots decide
   the final token values."
 - **Plan for parallel work:** "Try to design as many parallel work as possible in the plan."
-  Tasks in the same wave run in parallel.
+  Tasks in the same wave run in parallel, each in its own worktree, with one writer per gate
+  (§5b-7).
 - **Verify, don't trust.**
   - A subagent's "done" is a claim. Re-run the gates and check the working tree.
   - Put the **full** gate list in every subagent prompt.
   - A stronger model reviews: the owner uses a top-tier reviewer to approve fixes, "focusing on
     not adding new issues or restoring already fixed ones".
+  - Never touch a test to get green (§5b-3).
 - **Fault-inject every guard:** revert it, see a test go red, restore it. "A vacuous test is a
   worse failure mode than a missing test."
 - **Turn every fix into a standard.** When you fix a look in one place, make it the shared
@@ -324,6 +513,8 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
   because it "was too messy".
 - **Git:**
   - Work on a branch or worktree.
+  - Refactor commits and behaviour commits are separate (§5b-6).
+  - A commit that removes a commented constraint or incident note says so (§5b-18).
   - Use Conventional Commits. The subject is a lower-case sentence about what the operator sees,
     often stating the rule ("a workspace is a light tint, not a dot").
   - The body gives the symptom, the measured root cause, a "Fault-injected: …" line and the gate
@@ -367,6 +558,17 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Cross-platform?                         | Write it portable (`$SHELL`, POSIX). Gate Linux-only paths. Linux ships first; macOS and Windows later, unsigned at first |
 | Orphaned reference?                     | Keep it, hide it or label it, and make it fixable. Never drop it silently                                                 |
 | Bigger scope?                           | Ship the thin version. Put the rest on IdeasBoard                                                                         |
+| New helper or abstraction?              | Search for an existing one first. Only with a second real caller. Inline it when it grows a one-caller flag               |
+| Split a file or function?               | Where the pieces are tangled together, not at a line count                                                                |
+| Need `as`?                              | Parse with Zod instead. If you must, inside a small named, tested helper                                                  |
+| A state with variants?                  | A discriminated union with an exhaustive `never` check. No boolean pairs                                                  |
+| A test is red?                          | Fix the code. Never skip, delete, `.only`, loosen or re-record it to get green                                            |
+| Mock or real?                           | Real code. Mock only at process edges (pty, fs, Electron)                                                                 |
+| Snapshot test?                          | No                                                                                                                        |
+| Coverage target?                        | No. Fault-inject the guards instead                                                                                       |
+| A `catch` with nothing in it?           | Log a `code=`, or comment why swallowing is safe                                                                          |
+| Add a line to CLAUDE.md or a rule file? | Only after an agent repeated a mistake, and only what the code can't tell. Prefer a sensor                                |
+| Rewrite or refactor?                    | Refactor in small steps behind green gates. Rewrite only a local wrong abstraction                                        |
 
 ## 12. Reversals: old → current (do not revive the old side)
 
@@ -425,11 +627,29 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 - Changing claude's own theme. Weakening a contrast threshold.
 - Building releases on the dev host, `ubuntu-latest`, auto-publish, auto-update.
 - Bundling polish into a feature. Restyling working code outside the scope.
+- Coverage percentages as a target. Snapshot tests. Skipping or deleting tests to get green.
+- Line-count limits on functions ("functions must be under N lines"). Generic helpers for one
+  caller. "WET everywhere" (no top engineer endorses it).
+- Generated repository overviews in CLAUDE.md or rule files.
+- Big-bang rewrites.
+- Upgrading to TypeScript 7.0 before typescript-eslint supports it (7.1 API).
 
-## 14. Known gaps between docs and code
+## 14. Known gaps between rules and code
 
-None known (last checked 2026-10-01). When you find one, the newer side wins (check `git log`):
-fix the stale side in the same change, and note it here only if you cannot fix it.
+When you find a gap, the newer side wins (check `git log`): fix the stale side in the same change,
+and note it here only if you cannot fix it. These are known gaps between the §5b rules and the
+code, checked on 2026-10-01. Each one needs its own spec; **do not fix them in passing**.
+
+| Gap                                                                                                                                                                  | Rule        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `src/main/index.ts` is 3,462 lines and was changed by 70 commits in 60 days, against §5's own "keep logic out of `src/main/index.ts`". It is the top refactor target | §5b-12, 13  |
+| CLAUDE.md is 271 lines, and none of the 9 `.claude/rules/*.md` has `paths:` frontmatter, so about 1,100 lines load every session                                     | §5b-19      |
+| No duplicate detector (`jscpd`), no dead-code detector (`knip`), no scheduled clean-up pass                                                                          | §5b budgets |
+| No structural test for the layers (clean today by convention)                                                                                                        | §5b-16      |
+| About 19 comment-only `catch` blocks in 8 files, with no sensor                                                                                                      | §5b-17      |
+| About 74 `as` casts in non-test `src`; no `switch-exhaustiveness-check` lint rule                                                                                    | §5b-9, 10   |
+| No IPC sender-frame validation; no Electron fuses in `electron-builder.yml` (packaging change: needs smoke)                                                          | §5b-22      |
+| No sensor bans `.only` in tests                                                                                                                                      | §5b-3       |
 
 ## 15. Keep this file current
 
