@@ -164,6 +164,8 @@ declare global {
       open(id: string): Promise<PastSessionOpenResult>
       // UX-10 — the dead pane's Resume (main resolves the session id from the terminal).
       resumeTerminal(terminalId: string): Promise<PastSessionOpenResult>
+      // Resume by id — a claude session the app did not launch (main reads folder + name).
+      resumeById(id: string, workspaceId: string): Promise<PastSessionOpenResult>
     }
     // Phrase shortcuts — mirrors src/preload/index.ts `shortcutsApi`. The renderer reaches the
     // shortcuts store ONLY through this typed bridge (never electron-store, never ipcRenderer).

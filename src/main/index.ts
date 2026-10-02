@@ -34,6 +34,7 @@ import { createPastSessionsStore, type PastSessionsStore } from './persistence/p
 import { createLivePastSessions } from './persistence/livePastSessions'
 import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
 import { archiveTranscriptCheck, createTranscriptLookupFromFs } from './pty/claudeTranscript'
+import { createTranscriptInfoReaderFromFs } from './pty/claudeTranscriptInfo'
 import { createTagsStore, type TagsStore } from './persistence/tags'
 import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore'
 // Rules — the main-owned rule list (Phase 2): the store + its IPC handler bodies + its Electron
@@ -464,6 +465,7 @@ const livePastSessions = createLivePastSessions({
 /** Does claude still have a session's conversation? UX-08 (Open refuses) and NEW-5 (an archive
  *  writes no record) — the archive side only trusts a no-path scan while the hooks are bound. */
 const hasTranscript = createTranscriptLookupFromFs()
+const readTranscriptInfo = createTranscriptInfoReaderFromFs()
 const archiveHasTranscript = archiveTranscriptCheck(hasTranscript, () =>
   serverHealth.hookListening()
 )
@@ -921,6 +923,7 @@ app
       launchedSet,
       runningElsewhere,
       hasTranscript,
+      readTranscriptInfo,
       claudeVersionAllowsLaunch,
       isSessionLive,
       getTerminalManager: () => terminalManager,

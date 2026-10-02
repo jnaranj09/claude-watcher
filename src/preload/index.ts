@@ -53,6 +53,7 @@ import type {
   RulesSaveResult,
   PastSession,
   PastSessionForgetRequest,
+  PastSessionImportRequest,
   PastSessionOpenRequest,
   PastSessionResumeTerminalRequest,
   PastSessionOpenResult,
@@ -408,6 +409,13 @@ const pastSessionsApi = {
   resumeTerminal(terminalId: string): Promise<PastSessionOpenResult> {
     const req: PastSessionResumeTerminalRequest = { terminalId }
     return ipcRenderer.invoke(CH.pastSessionResumeTerminal, req)
+  },
+  /** Resume by id — a claude session the app did not launch, into the ACTIVE workspace (main
+   *  reads its folder and name from claude's transcript). Same refusals as `open`, plus
+   *  `invalid_id` / `workspace_not_found`; resolves with the launch to open. */
+  resumeById(id: string, workspaceId: string): Promise<PastSessionOpenResult> {
+    const req: PastSessionImportRequest = { id, workspaceId }
+    return ipcRenderer.invoke(CH.pastSessionImport, req)
   }
 }
 export type PastSessionsApi = typeof pastSessionsApi

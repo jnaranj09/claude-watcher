@@ -55,6 +55,8 @@ import {
 import { readStatusFromProc } from '../pty/pidCorrelation'
 import type { RunningElsewhereCheck } from '../pty/runningElsewhere'
 import type { HasTranscript } from '../pty/claudeTranscript'
+import type { ReadTranscriptInfo } from '../pty/claudeTranscriptInfo'
+import { importPastSession } from '../pty/pastSessionImport'
 import type { TerminalManager } from '../pty/terminalManager'
 import { buildPtyEnv } from '../pty/ptyEnv'
 // ZERO FOOTPRINT: the hook block is handed to claude as `--settings <file>` from the app's
@@ -126,6 +128,8 @@ export interface LaunchIpcDeps {
   launchedSet: LaunchedSet
   runningElsewhere: RunningElsewhereCheck
   hasTranscript: HasTranscript
+  /** Resume by id — folder + title from claude's transcript (fails closed). */
+  readTranscriptInfo: ReadTranscriptInfo
   claudeVersionAllowsLaunch: () => boolean
   isSessionLive: (sessionId: string) => boolean
   getTerminalManager: () => TerminalManager | null
@@ -158,6 +162,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     launchedSet,
     runningElsewhere,
     hasTranscript,
+    readTranscriptInfo,
     claudeVersionAllowsLaunch,
     isSessionLive,
     getTerminalManager,
@@ -552,6 +557,22 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     if (launchService === null) throw new Error('launch service not initialized')
     requireClaudeVersion(claudeVersionAllowsLaunch)
     const out = openPastSession(raw, pastSessionOpenDeps(launchService))
+    if (!out.ok) throw new Error(out.code)
+    return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
+  })
+
+  // past-sessions:import — Resume by id (a claude session the app did not launch). UNTRUSTED arg
+  // (parsed inside importPastSession: a bad id is a code, anything else throws). The same version
+  // gate and the same Open seams; the folder and the name come from claude's transcript. A
+  // refusal THROWS its code; the dialog maps it to copy.
+  ipc.handle(CH.pastSessionImport, (_event, raw: unknown): PastSessionOpenResult => {
+    if (launchService === null) throw new Error('launch service not initialized')
+    requireClaudeVersion(claudeVersionAllowsLaunch)
+    const out = importPastSession(raw, {
+      ...pastSessionOpenDeps(launchService),
+      workspaceExists: (id) => requireWorkspacesStore().get(id) !== null,
+      readTranscriptInfo
+    })
     if (!out.ok) throw new Error(out.code)
     return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
   })
