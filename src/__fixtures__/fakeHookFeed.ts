@@ -121,9 +121,6 @@ export const VALID_HOOK_BODY_COUNT = fakeHookBodies.length - 1
 // captures carry prompts and filesystem paths — never commit those.
 // ---------------------------------------------------------------------------------------
 
-/** The claude version the name-sync bodies below were captured from. */
-export const HOOK_NAME_SYNC_FIXTURE_VERSION = '2.1.243' as const
-
 /** Observed `UserPromptSubmit` key set on 2.1.243. This is the ONLY event verified to carry
  *  `session_title` — claude's own current name for the session, the read-back half of the
  *  naming feature. `permission_mode` and `prompt_id` are also new since 2.1.199 and must ride

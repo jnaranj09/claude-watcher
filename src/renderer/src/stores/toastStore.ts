@@ -13,7 +13,6 @@
 //
 // A toast holds operator-visible copy only, and the store never logs one.
 import { createStore, type StoreApi } from 'zustand/vanilla'
-import { useStore } from 'zustand'
 import type { WorkspaceTone } from '../components/WorkspaceTint/workspaceTint'
 
 export type ToastKind = 'success' | 'error' | 'info'
@@ -157,10 +156,6 @@ export function createToastStore(clock: ToastClock = realClock): StoreApi<ToastS
 }
 
 export const toastStore = createToastStore()
-
-export function useToasts<T>(selector: (state: ToastState) => T): T {
-  return useStore(toastStore, selector)
-}
 
 export const selectToasts = (s: ToastState): Toast[] => s.toasts
 

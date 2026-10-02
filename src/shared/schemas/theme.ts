@@ -25,9 +25,8 @@ export const THEME_TERMINAL_VALUE_MAX = 100
 /** A file NAME in the theme folder: no separators, no `..`, lower-case `.css`. */
 export const THEME_CSS_FILE_PATTERN = /^[A-Za-z0-9_.-]+\.css$/
 export const THEME_WALLPAPERS_MAX = 8
-/** The image types a wallpaper may be — a subset of THEME_ASSET_MIME (no svg, no fonts). */
-export const THEME_WALLPAPER_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const
-/** A plain file NAME with a wallpaper extension: no separators, lower- or upper-case ext. */
+/** A plain file NAME with a wallpaper extension (png, jpg, jpeg, webp — a subset of
+ *  THEME_ASSET_MIME: no svg, no fonts): no separators, lower- or upper-case ext. */
 const THEME_WALLPAPER_FILE_PATTERN = /^[A-Za-z0-9_.-]+\.(png|jpg|jpeg|webp)$/i
 
 /** Extension → MIME for the assets a theme's CSS may reference (inlined as data: URIs). */

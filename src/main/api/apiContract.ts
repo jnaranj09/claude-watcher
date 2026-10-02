@@ -18,9 +18,6 @@ export const API_DEFAULT_PORT = 9281
  *  larger is a mistake or an attack, and is refused (`body_too_large`) without being buffered. */
 export const API_MAX_BODY_BYTES = 64 * 1024
 
-/** Every route sits under this prefix, so a future `/v2` is additive. */
-export const API_PREFIX = '/v1'
-
 /** How many SSE streams may be open at once. Each one holds a socket and a hub subscription;
  *  past this the API answers `too_many_streams` rather than leaking file descriptors. */
 export const API_SSE_MAX_STREAMS = 32
