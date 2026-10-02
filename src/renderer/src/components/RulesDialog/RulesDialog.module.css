@@ -50,6 +50,13 @@
   padding: var(--inset-item-y) var(--inset-item-x);
 }
 
+/* `Always — no conditions.` belongs to the `Only if` label above it (the form's --gap-field) and
+   clears the `+ Add condition` button below it by --gap-inline (spec 2026-10-02-region-spacing:
+   hint → next control). */
+.note {
+  margin-bottom: calc(var(--gap-inline) - var(--gap-field));
+}
+
 /* One trigger / condition / action line: its controls side by side, wrapping when narrow. */
 .clause {
   display: flex;
