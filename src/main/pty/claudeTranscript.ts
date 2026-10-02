@@ -14,9 +14,8 @@
 // path.
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { CLAUDE_SESSION_ID_PATTERN } from '../../shared/schemas/pastSession'
 import { claudeConfigDir } from './claudeSessionFile'
-
-const SESSION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** `missing` only for a clean not-found; any other failure is `unknown`. */
 export type FileState = 'file' | 'missing' | 'unknown'
@@ -32,20 +31,41 @@ export interface TranscriptLookupDeps {
 /** True unless claude surely has no transcript for `sessionId`. */
 export type HasTranscript = (sessionId: string, knownPath: string | undefined) => boolean
 
+/** Where claude keeps a session's transcript. `unknown` = could not tell (non-UUID id, unlistable
+ *  projects folder, an unreadable candidate): the caller decides which way that fails. */
+export type TranscriptLocation =
+  | { kind: 'found'; path: string }
+  | { kind: 'missing' }
+  | { kind: 'unknown' }
+
+/** Scan every `projects/*` folder for `<id>.jsonl` — no guess at claude's folder-name encoding.
+ *  Never throws, never logs a path. Builds a path only from a UUID id. */
+export function locateTranscript(
+  deps: TranscriptLookupDeps,
+  sessionId: string
+): TranscriptLocation {
+  if (!CLAUDE_SESSION_ID_PATTERN.test(sessionId)) return { kind: 'unknown' }
+  let folders: string[]
+  try {
+    folders = deps.listDir(deps.projectsDir)
+  } catch {
+    return { kind: 'unknown' }
+  }
+  const file = `${sessionId}.jsonl`
+  let unsure = false
+  for (const folder of folders) {
+    const path = join(deps.projectsDir, folder, file)
+    const state = deps.fileState(path)
+    if (state === 'file') return { kind: 'found', path }
+    if (state === 'unknown') unsure = true
+  }
+  return unsure ? { kind: 'unknown' } : { kind: 'missing' }
+}
+
 export function createTranscriptLookup(deps: TranscriptLookupDeps): HasTranscript {
   return (sessionId, knownPath) => {
     if (knownPath !== undefined && deps.fileState(knownPath) !== 'missing') return true
-    if (!SESSION_UUID.test(sessionId)) return true
-    let folders: string[]
-    try {
-      folders = deps.listDir(deps.projectsDir)
-    } catch {
-      return true
-    }
-    const file = `${sessionId}.jsonl`
-    return folders.some(
-      (folder) => deps.fileState(join(deps.projectsDir, folder, file)) !== 'missing'
-    )
+    return locateTranscript(deps, sessionId).kind !== 'missing'
   }
 }
 
@@ -58,15 +78,21 @@ export function fileStateOnDisk(path: string): FileState {
   }
 }
 
-/** The production lookup over the real fs and claude's config folder (`CLAUDE_CONFIG_DIR` or
- *  `~/.claude`, read from THIS process's env — a login-profile-only override is not seen; see
- *  the hooks-listening gate on the archive side in index.ts). */
-export function createTranscriptLookupFromFs(env: NodeJS.ProcessEnv = process.env): HasTranscript {
-  return createTranscriptLookup({
+/** The real fs under claude's config folder (`CLAUDE_CONFIG_DIR` or `~/.claude`, read from THIS
+ *  process's env — a login-profile-only override is not seen; see the hooks-listening gate on the
+ *  archive side in index.ts). Shared by the Open check and the Resume-by-id reader. */
+export function transcriptLookupDepsFromFs(
+  env: NodeJS.ProcessEnv = process.env
+): TranscriptLookupDeps {
+  return {
     projectsDir: join(claudeConfigDir(env), 'projects'),
     listDir: (dir) => readdirSync(dir),
     fileState: fileStateOnDisk
-  })
+  }
+}
+
+export function createTranscriptLookupFromFs(env: NodeJS.ProcessEnv = process.env): HasTranscript {
+  return createTranscriptLookup(transcriptLookupDepsFromFs(env))
 }
 
 /**
