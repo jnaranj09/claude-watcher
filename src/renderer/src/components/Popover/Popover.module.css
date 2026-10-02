@@ -62,7 +62,7 @@
   color: var(--text-secondary);
 }
 .item:hover:not(:disabled) {
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* Every state the caller's ARIA names, one look: TagMenu's checked border + Select's fill. */
 .item[aria-selected='true'],

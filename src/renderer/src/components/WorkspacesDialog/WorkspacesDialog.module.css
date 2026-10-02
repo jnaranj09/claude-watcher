@@ -36,6 +36,10 @@
   border: 1px solid var(--ws-border);
   background: var(--ws-fill);
 }
+/* The fill IS the colour, so hover moves the swatch's BORDER (design.md), never the fill. */
+.colorOption:hover .swatch {
+  border-color: var(--text-secondary);
+}
 .folderRow {
   display: flex;
   align-items: center;

@@ -154,6 +154,17 @@ Tags dialog rail uses `TagPathLabel` instead.
 - No tag yet: the same button becomes `Create tags` → Tags dialog (`aria-haspopup="dialog"`, no
   `aria-expanded`). Hidden only when no Tags dialog exists.
 
+## Hover (`styles/hover.guard.test.ts`)
+
+- Every clickable control shows a hover, in every theme. A class with `cursor: pointer` has a
+  `:hover` rule in its sheet.
+- The hover paints the `--bg-hover` layer OVER the control's own fill:
+  `background-image: linear-gradient(var(--bg-hover), var(--bg-hover))`. Never a surface token
+  (`--bg-base` / `--bg-surface` / `--bg-surface-raised`): where it equals the panel, the hover
+  vanishes. A tinted control (workspace) moves its BORDER instead; danger fills red. Exception:
+  a rail row previews the active tab (`--bg-base`), allow-listed in the guard.
+- Themes may restyle hover (Paper: near-black pill, white ink).
+
 ## Spacing roles (`styles/spacing.guard.test.ts`)
 
 Spec `2026-10-01-spacing-roles-design.md`. Target: compact but airy — rows small, groups and

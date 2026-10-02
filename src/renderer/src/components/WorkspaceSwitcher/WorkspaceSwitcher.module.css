@@ -153,7 +153,7 @@
     opacity 150ms ease-in;
 }
 .tab:hover {
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* An invisible text strut with the button's metrics. The pill aligns to ITS baseline, which is the
    button's baseline — so the tab's digit lands on the same pixel row as the button's, whatever the

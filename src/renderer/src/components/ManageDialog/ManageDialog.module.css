@@ -141,7 +141,7 @@
   cursor: pointer;
 }
 .rowSelect:hover {
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* A workspace row (`tint`): the row is its workspace's colour (WorkspaceTint). The fill IS the
    colour, so hover and selected move to the BORDER, and the select button's own hover fill is off

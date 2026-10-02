@@ -3,10 +3,11 @@
    the colours and the radius scale; this file carries only what a token cannot say.
    Selectors are `data-*` hooks where one exists, else the same test ids Liquid Glass targets. */
 
-/* ── The header sits ON the ground, like the reference's top row: no bar, no rule. ─────────── */
+/* ── The header is a white bar with a clear edge, so its white never runs into the board's. ── */
 [data-testid='app-header'] {
-  background: var(--bg-base);
-  border-bottom-color: transparent;
+  background: var(--bg-surface);
+  border-bottom-color: var(--border-strong);
+  box-shadow: 0 1px 3px rgba(28, 28, 30, 0.08);
 }
 
 /* ── Pills: every Button, the search box and the filter chips. ─────────────────────────────── */
@@ -33,12 +34,40 @@ button[data-variant='primary']:focus-visible {
   border-color: #3a3b3a;
 }
 
-/* An ON toggle: a mid-grey pill (the reference's selected "Month"). White ink on it is 5.1:1.
+/* Hover: every button, pill and list row turns into the near-black pill with white ink, like the
+   primary. The `background` shorthand also drops the app's `--bg-hover` layer. Danger keeps its
+   red hover; a workspace-tinted row keeps its tint (its hover moves the border). Cards and the
+   Select box keep the app's hover layer. */
+button[data-variant='secondary']:hover:not(:disabled),
+button[data-variant='ghost']:hover:not(:disabled),
+button[data-variant='ghost'][aria-expanded='true'],
+button[data-testid='filter-add']:hover,
+button[data-testid='filter-pill-tag-edit']:hover,
+button[data-testid='filter-pill-tag-remove']:hover,
+button[data-testid='rail-tags-add']:hover,
+button[data-testid='workspace-switcher']:hover,
+[data-testid='attention-rail'] button[data-testid='rail-row']:hover,
+[data-testid='attention-rail'] button[data-testid='starting-rail-row']:not([data-active]):hover,
+:not([data-tone]) > [data-manage-row-select]:hover,
+[data-popover-item]:not([data-tone]):hover:not(:disabled) {
+  background: #2a2b2a;
+  border-color: #2a2b2a;
+  color: #ffffff;
+  /* Inner parts (a menu row's icon, a count) colour themselves with these; on the dark pill they
+     must be light too, and a count pill's `--border-strong` fill goes dark under its white digit.
+     Tag chips use their own tokens and keep their look. */
+  --text-primary: #ffffff;
+  --text-secondary: #ffffff;
+  --text-muted: #d8d8dd;
+  --border-strong: #4a4b4f;
+}
+
+/* An ON toggle: the near-black of the base theme (`--text-primary`), darker than the hover pill.
    Two attributes + the element outrank Button's own `.button[data-lit]` (and its :hover). */
 button[data-variant][data-lit],
 button[data-variant][data-lit]:hover:not(:disabled) {
-  background: #6e6e73;
-  border-color: #6e6e73;
+  background: #1c1c1e;
+  border-color: #1c1c1e;
   color: #ffffff;
 }
 

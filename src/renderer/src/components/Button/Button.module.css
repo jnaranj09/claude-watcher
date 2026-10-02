@@ -70,7 +70,7 @@
   font-weight: 600;
 }
 .primary:hover:not(:disabled) {
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 .primary:disabled {
   background: transparent;
@@ -83,7 +83,7 @@
   border-color: var(--border-strong);
 }
 .secondary:hover:not(:disabled) {
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 .secondary:disabled {
   border-color: var(--border);
@@ -114,7 +114,7 @@
 }
 .ghost:hover:not(:disabled),
 .ghost[aria-expanded='true'] {
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
   color: var(--text-primary);
 }
 .ghost:disabled {
@@ -128,7 +128,7 @@
   color: var(--text-on-lit);
 }
 /* A lit button STAYS lit on hover. `.secondary:hover:not(:disabled)` (0,3,0) outranks the rule
-   above (0,2,0), so without this a hovered lit Filter button took the surface fill but kept the
+   above (0,2,0), so without this a hovered lit Filter button took the hover fill but kept the
    dark lit ink, and its icon and label vanished. This rule is (0,4,0) and wins. */
 .button[data-lit]:hover:not(:disabled) {
   background: var(--text-primary);

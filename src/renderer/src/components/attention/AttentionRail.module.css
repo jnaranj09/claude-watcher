@@ -1190,7 +1190,7 @@
 .addTagButton:hover,
 .addTagButton[aria-expanded='true'] {
   border-style: solid;
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
 .addTagButton:focus-visible {

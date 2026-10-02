@@ -151,6 +151,11 @@
   transition: opacity 120ms ease-out;
 }
 
+/* The whole card is the click target (opens its terminal): the shared hover layer over its fill. */
+.root:hover {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
 .root:hover .actionSlot,
 .root:focus-within .actionSlot {
   opacity: 1;

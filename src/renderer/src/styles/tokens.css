@@ -34,6 +34,10 @@
   --bg-row-rest: #3a3833;
   --bg-terminal: #141312;
   --scrim: rgba(10, 10, 8, 0.62);
+  /* The hover layer every clickable control paints OVER its own fill (a `linear-gradient` of this
+   * colour as `background-image`). Translucent ink, so it shows on any surface in any theme; a
+   * hover painted with a surface token vanished where that surface was the panel's own colour. */
+  --bg-hover: color-mix(in srgb, var(--text-primary) 10%, transparent);
 
   /* ── Lines ──────────────────────────────────────────────────────────────── */
   --border: #34332e;

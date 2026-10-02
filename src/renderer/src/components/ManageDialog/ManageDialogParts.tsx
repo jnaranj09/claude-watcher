@@ -497,6 +497,7 @@ export function ManageDialogRow({
         type="button"
         className={styles.rowSelect}
         data-testid={selectTestId}
+        data-manage-row-select=""
         aria-current={state.selectedId === id ? 'page' : undefined}
         {...dataAttributes}
         onClick={() => actions.select(id)}

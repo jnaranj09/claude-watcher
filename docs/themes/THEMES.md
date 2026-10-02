@@ -85,6 +85,7 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `bg-row-rest` | A rail row you are NOT viewing (the active row paints bg-terminal) | `#3a3833` |
 | `bg-terminal` | The terminal frame and the active rail row (the two must match) | `#141312` |
 | `scrim` | The translucent overlay behind every dialog | `rgba(10,10,8,0.62)` |
+| `bg-hover` | The hover layer painted over a hovered control or row. Keep it translucent so it shows on every surface | `color-mix(in srgb, var(--text-primary) 10%, transparent)` |
 | `border` | The default 1px line: rows, fields, buttons at rest | `#34332e` |
 | `border-strong` | A stronger line: panel edges, a hovered button | `#423f39` |
 | `border-card` | The session card outline | `#403e37` |

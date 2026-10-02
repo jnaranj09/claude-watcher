@@ -74,6 +74,10 @@
           "type": "string",
           "maxLength": 500
         },
+        "bg-hover": {
+          "type": "string",
+          "maxLength": 500
+        },
         "border": {
           "type": "string",
           "maxLength": 500

@@ -14,6 +14,8 @@ export const TOKEN_DOCS: Record<TokenName, string> = {
   'bg-row-rest': 'A rail row you are NOT viewing (the active row paints bg-terminal)',
   'bg-terminal': 'The terminal frame and the active rail row (the two must match)',
   scrim: 'The translucent overlay behind every dialog',
+  'bg-hover':
+    'The hover layer painted over a hovered control or row. Keep it translucent so it shows on every surface',
   border: 'The default 1px line: rows, fields, buttons at rest',
   'border-strong': 'A stronger line: panel edges, a hovered button',
   'border-card': 'The session card outline',

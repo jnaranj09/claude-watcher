@@ -19,6 +19,9 @@
   cursor: pointer;
   text-align: left;
 }
+.trigger:hover:not(:disabled) {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
 .trigger:disabled {
   color: var(--text-muted);
   border-color: var(--border);

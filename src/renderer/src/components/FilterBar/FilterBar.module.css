@@ -79,7 +79,7 @@
 
 .add:hover {
   color: var(--text-primary);
-  background: var(--bg-surface-raised);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
 /* The active filter: `Tag is <chip>` (click to change) + × (remove), one rounded pill. */
@@ -111,7 +111,7 @@
 
 .pillEdit:hover {
   color: var(--text-primary);
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
 .pillKey {
@@ -136,7 +136,7 @@
 
 .pillRemove:hover {
   color: var(--text-primary);
-  background: var(--bg-surface);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
 /* The tag list popup, its rows and `Create tags…` are Popover (TagMenu positions the list). */
