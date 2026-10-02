@@ -86,7 +86,13 @@ export default defineConfig(
     },
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/consistent-type-imports': 'error'
+      '@typescript-eslint/consistent-type-imports': 'error',
+      // technical-taste §5b-10: a switch over a union names every member (or has a `default`), so
+      // a new member is a lint error in every switch that forgot it.
+      '@typescript-eslint/switch-exhaustiveness-check': [
+        'error',
+        { considerDefaultExhaustiveForUnions: true }
+      ]
     }
   },
   {

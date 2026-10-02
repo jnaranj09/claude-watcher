@@ -118,3 +118,22 @@ export function silentCatches(sf: ts.SourceFile): {
   visit(sf)
   return r
 }
+
+// ── Type assertions (technical-taste §5b-9) ─────────────────────────────────────────────────────
+
+/** `x as T` and `<T>x` in the file. `as const` is a literal-type hint, not an assertion. */
+export function assertionCount(sf: ts.SourceFile): number {
+  let n = 0
+  const visit = (node: ts.Node): void => {
+    if (ts.isAsExpression(node)) {
+      const constHint =
+        ts.isTypeReferenceNode(node.type) && node.type.typeName.getText(sf) === 'const'
+      if (!constHint) n++
+    } else if (ts.isTypeAssertionExpression(node)) {
+      n++
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return n
+}
