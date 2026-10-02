@@ -127,6 +127,22 @@ rpm:
     - xdg-utils
     - alsa-lib
 npmRebuild: false
+# Electron fuses (technical-taste §5b-22), flipped in the binary at package time. Each one closes a
+# way to run arbitrary code AS this app: ELECTRON_RUN_AS_NODE, NODE_OPTIONS / NODE_EXTRA_CA_CERTS,
+# and --inspect / SIGUSR1. Nothing in the app uses them (checked 2026-10-01: no process.fork, no
+# RUN_AS_NODE). `onlyLoadAppFromAsar` stops a loose `app/` folder beside app.asar from loading.
+# Pinned by tests/unit/electronFuses.test.ts; `npx @electron/fuses read --app <binary>` shows them.
+# Left at Electron's default, on purpose:
+# - enableCookieEncryption: on Linux it goes through the OS keyring (kwallet / libsecret) and can
+#   prompt at start; the app keeps no cookies.
+# - grantFileProtocolExtraPrivileges: the packaged renderer loads from file://; turning it off
+#   needs its own test pass.
+# - enableEmbeddedAsarIntegrityValidation: macOS and Windows only.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
 # No auto-update (spec 2026-09-30 D-4). `null`, not an omitted key: with no `publish`,
 # electron-builder infers a GitHub provider from package.json `repository` and ships an
 # app-update.yml nothing reads. Users download releases from GitHub by hand.
