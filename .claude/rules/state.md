@@ -1,3 +1,9 @@
+---
+paths:
+  - 'src/renderer/src/stores/**'
+  - 'src/main/c9watch/**'
+---
+
 # Rule: state ownership
 
 | Kind          | Owner             | Where                                                                                          |

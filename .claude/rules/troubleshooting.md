@@ -1,3 +1,9 @@
+---
+paths:
+  - 'src/**'
+  - 'tests/**'
+---
+
 # Rule: troubleshooting (characterize first, theorize second)
 
 A symptom in one layer (main / preload / renderer / session engine) is easy to blame on another.

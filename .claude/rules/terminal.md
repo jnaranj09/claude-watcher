@@ -1,3 +1,9 @@
+---
+paths:
+  - 'src/renderer/src/terminal/**'
+  - 'src/main/pty/**'
+---
+
 # Rule: xterm / terminal rendering
 
 ## Canonical example

@@ -1,3 +1,12 @@
+---
+paths:
+  - 'src/shared/ipc/**'
+  - 'src/preload/**'
+  - 'src/main/index.ts'
+  - 'src/main/ipc/**'
+  - 'eslint-rules/**'
+---
+
 # Rule: the typed IPC seam
 
 ## Canonical example (do this)

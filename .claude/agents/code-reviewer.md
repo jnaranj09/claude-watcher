@@ -16,7 +16,8 @@ tree). You are FRESH: trust no claim from the implementer — not "tests pass", 
 ## Step 0 — load the rules
 
 Read `CLAUDE.md`, then every `.claude/rules/*.md` that covers a layer the diff touches
-(`zod-boundaries`, `ipc`, `terminal`, `state`, `design`, `api`, `release`), and
+(`zod-boundaries`, `ipc`, `terminal`, `state`, `design`, `api`, `release`, `session-engine`,
+`themes`; each one's `paths:` frontmatter says which files it covers), and
 `technical-taste.md` for the owner's defaults. The precedence order in CLAUDE.md decides
 conflicts (fail-closed boundaries > never-crash > typed IPC > xterm > state > UI shape).
 

@@ -1,3 +1,12 @@
+---
+paths:
+  - 'electron-builder.yml'
+  - '.github/**'
+  - 'package.json'
+  - 'tests/install/**'
+  - 'tests/smoke/**'
+---
+
 # Rule: cutting a release
 
 Spec: `docs/superpowers/specs/2026-09-30-release-pipeline-linux-design.md` (local only).

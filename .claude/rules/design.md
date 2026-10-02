@@ -1,3 +1,8 @@
+---
+paths:
+  - 'src/renderer/**'
+---
+
 # Rule: UI shape (one shell, no second layout)
 
 Every config surface (Templates, Shortcuts, Workspaces, Tags, Rules, Past sessions, Settings) is

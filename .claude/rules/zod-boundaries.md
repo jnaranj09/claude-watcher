@@ -1,3 +1,12 @@
+---
+paths:
+  - 'src/shared/schemas/**'
+  - 'src/main/hooks/**'
+  - 'src/main/persistence/**'
+  - 'src/main/pty/**'
+  - 'src/main/api/**'
+---
+
 # Rule: fail-closed Zod boundaries
 
 ```ts

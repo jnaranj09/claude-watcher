@@ -1,3 +1,9 @@
+---
+paths:
+  - 'tests/drive/**'
+  - 'src/renderer/**/*.css'
+---
+
 # Rule: see a visual change in the real app
 
 Tests can't see CSS, stacking, animation or pixels (jsdom has no layout; CSS modules are a proxy).

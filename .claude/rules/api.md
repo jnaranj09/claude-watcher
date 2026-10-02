@@ -1,3 +1,9 @@
+---
+paths:
+  - 'src/main/api/**'
+  - 'src/shared/schemas/api.ts'
+---
+
 # Rule: the programmatic API (`src/main/api/`)
 
 Second localhost listener (beside the :9279 hook ingest) so external systems (n8n, another claude,
