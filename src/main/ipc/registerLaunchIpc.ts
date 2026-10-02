@@ -56,7 +56,7 @@ import { readStatusFromProc } from '../pty/pidCorrelation'
 import type { RunningElsewhereCheck } from '../pty/runningElsewhere'
 import type { HasTranscript } from '../pty/claudeTranscript'
 import type { ReadTranscriptInfo } from '../pty/claudeTranscriptInfo'
-import { importPastSession } from '../pty/pastSessionImport'
+import { handlePastSessionImport } from '../pty/pastSessionImport'
 import type { TerminalManager } from '../pty/terminalManager'
 import { buildPtyEnv } from '../pty/ptyEnv'
 // ZERO FOOTPRINT: the hook block is handed to claude as `--settings <file>` from the app's
@@ -567,14 +567,12 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // refusal THROWS its code; the dialog maps it to copy.
   ipc.handle(CH.pastSessionImport, (_event, raw: unknown): PastSessionOpenResult => {
     if (launchService === null) throw new Error('launch service not initialized')
-    requireClaudeVersion(claudeVersionAllowsLaunch)
-    const out = importPastSession(raw, {
+    return handlePastSessionImport(raw, {
       ...pastSessionOpenDeps(launchService),
-      workspaceExists: (id) => requireWorkspacesStore().get(id) !== null,
+      allowsLaunch: claudeVersionAllowsLaunch,
+      workspaces: requireWorkspacesStore(),
       readTranscriptInfo
     })
-    if (!out.ok) throw new Error(out.code)
-    return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
   })
 
   // past-sessions:resume-terminal (UX-10) — the dead pane's Resume. UNTRUSTED arg (parse-and-throw

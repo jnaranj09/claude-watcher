@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import {
+  handlePastSessionImport,
   importPastSession,
   importedSessionName,
   IMPORTED_SESSION_FALLBACK_NAME,
@@ -122,5 +123,43 @@ describe('importedSessionName', () => {
   })
   it('the root folder and no title → the fixed fallback', () => {
     expect(importedSessionName(null, '/')).toBe(IMPORTED_SESSION_FALLBACK_NAME)
+  })
+})
+
+describe('handlePastSessionImport (the CH.pastSessionImport handler body)', () => {
+  const openDeps = deps()
+  const handlerDeps = (
+    allowsLaunch: () => boolean,
+    known: string[] = ['w1']
+  ): Parameters<typeof handlePastSessionImport>[1] => ({
+    ...openDeps,
+    allowsLaunch,
+    workspaces: { get: (id) => (known.includes(id) ? { id } : null) }
+  })
+
+  it('a too-old claude → claude_version, before anything else runs', () => {
+    const d = handlerDeps(() => false)
+    expect(() => handlePastSessionImport({ id: ID, workspaceId: 'w1' }, d)).toThrow(
+      'claude_version'
+    )
+    expect(openDeps.launch).not.toHaveBeenCalled()
+  })
+
+  it("asks main's workspace store whether the active workspace exists", () => {
+    expect(() =>
+      handlePastSessionImport(
+        { id: ID, workspaceId: 'w-gone' },
+        handlerDeps(() => true)
+      )
+    ).toThrow('workspace_not_found')
+  })
+
+  it('answers the launch on success', () => {
+    expect(
+      handlePastSessionImport(
+        { id: ID, workspaceId: 'w1' },
+        handlerDeps(() => true)
+      )
+    ).toEqual({ terminalId: 'term-1', workspaceId: 'w1', name: 'Fix login' })
   })
 })

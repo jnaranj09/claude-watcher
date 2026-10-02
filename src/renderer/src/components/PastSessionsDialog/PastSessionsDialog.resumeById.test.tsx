@@ -8,7 +8,7 @@ import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { boardStore } from '../../stores/boardStore'
-import type { Workspace } from '../../../../shared/ipc/contract'
+import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -174,5 +174,64 @@ describe('Past sessions — Resume by id', () => {
     await flush()
     expect(boardStore.getState().focusedTerminalId).toBe('term-live')
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  describe('Open and Resume never run at once (two launches)', () => {
+    const REC: PastSession = {
+      id: 'sa',
+      name: 'billing api',
+      cwd: '/home/op/api',
+      workspaceId: 'w1',
+      tagIds: [],
+      launchedAt: 1_000,
+      endedAt: 5_000
+    }
+    const never = (): Promise<never> => new Promise<never>(() => {})
+    let open: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      open = vi.fn(never)
+      ;(window as unknown as { pastSessions: unknown }).pastSessions = {
+        list: vi.fn(() => Promise.resolve([REC])),
+        forget: vi.fn(),
+        open,
+        resumeById
+      }
+    })
+
+    async function selectRecord(r: RenderResult): Promise<void> {
+      await flush()
+      act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
+      await flush()
+    }
+    const openButton = (r: RenderResult): HTMLButtonElement | null =>
+      r.container.querySelector<HTMLButtonElement>('[data-testid="past-session-open"]')
+
+    it('Resume is disabled while Open is running', async () => {
+      const { r } = render()
+      await selectRecord(r)
+      const input = field(r)
+      if (input === null) throw new Error('no field')
+      type(input, ID)
+      expect(submit(r)?.disabled).toBe(false)
+      act(() => openButton(r)?.click())
+      await flush()
+      expect(open).toHaveBeenCalledTimes(1)
+      expect(submit(r)?.disabled).toBe(true)
+    })
+
+    it('Open is disabled while Resume is running', async () => {
+      resumeById.mockImplementationOnce(never)
+      const { r } = render()
+      await selectRecord(r)
+      expect(openButton(r)?.disabled).toBe(false)
+      const input = field(r)
+      if (input === null) throw new Error('no field')
+      type(input, ID)
+      act(() => submit(r)?.click())
+      await flush()
+      expect(resumeById).toHaveBeenCalledTimes(1)
+      expect(openButton(r)?.disabled).toBe(true)
+    })
   })
 })

@@ -7,6 +7,8 @@
 import { basename } from 'node:path'
 import { PastSessionImportSchema } from '../../shared/schemas/pastSession'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from '../../shared/schemas/launch'
+import type { PastSessionOpenResult } from '../../shared/ipc/contract'
+import { requireClaudeVersion } from './inAppLaunch'
 import { NO_LAUNCH_FLAGS } from './launchSession'
 import {
   openPastSession,
@@ -76,4 +78,29 @@ export function importPastSession(
     flags: NO_LAUNCH_FLAGS
   })
   return { ok: true, terminalId, workspaceId, name }
+}
+
+export interface PastSessionImportHandlerDeps extends Omit<
+  PastSessionImportDeps,
+  'workspaceExists'
+> {
+  /** The claude version gate (`requireClaudeVersion`): a too-old claude rejects `--resume`. */
+  allowsLaunch: () => boolean
+  /** Main's workspace store — the ONLY judge of whether the renderer's workspace exists. */
+  workspaces: { get(id: string): unknown }
+}
+
+/** The `CH.pastSessionImport` handler body (registerLaunchIpc binds the real seams): the version
+ *  gate, then the decision. A refusal THROWS its code; the dialog maps it to copy. */
+export function handlePastSessionImport(
+  raw: unknown,
+  deps: PastSessionImportHandlerDeps
+): PastSessionOpenResult {
+  requireClaudeVersion(deps.allowsLaunch)
+  const out = importPastSession(raw, {
+    ...deps,
+    workspaceExists: (id) => deps.workspaces.get(id) !== null
+  })
+  if (!out.ok) throw new Error(out.code)
+  return { terminalId: out.terminalId, workspaceId: out.workspaceId, name: out.name }
 }
