@@ -150,7 +150,9 @@ change and report `write_failed` (`persistOrReport()`; removal paths never throw
 
 ## Security (never weaken)
 
-`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. **Smoke channels exist only
+`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. Every main IPC listener goes
+through `ipc` (`ipc/trustedIpc.ts`): only the app's own renderer top frame is answered. Packaged
+fuses: no RunAsNode / NODE_OPTIONS / `--inspect`, asar-only (`electron-builder.yml`). **Smoke channels exist only
 under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
 `smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered.
 

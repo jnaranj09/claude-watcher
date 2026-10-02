@@ -21,9 +21,10 @@ export const CH = {
 export type Channel = (typeof CH)[keyof typeof CH]
 export type PtyResizeRequest = { cols: number; rows: number }
 
-// main: ipcMain.handle(CH.smokeConfig, () => ({ ... }))      ✅ CH.* const
+// main: ipc.handle(CH.smokeConfig, () => ({ ... }))          ✅ CH.* const, trusted wrapper
 // preload: ipcRenderer.invoke(CH.settingsGet)                ✅ CH.* const
-// NEVER: ipcMain.on('pty:start', ...)                        ❌ string literal
+// NEVER: ipc.on('pty:start', ...)                            ❌ string literal
+// NEVER: ipcMain.handle(CH.x, ...) in main                    ❌ skips the sender check
 ```
 
 ## The rule
@@ -47,7 +48,10 @@ rename a channel in one place and every call site moves with it.
 2. **`src/shared/schemas/*.ts`** — if the channel carries EXTERNAL/cross-process
    input, add (or reuse) a Zod schema for it. Cross-process args are untrusted.
 3. **`src/main/index.ts`** (or the relevant main module) —
-   `ipcMain.handle(CH.x, (e, raw) => { const arg = XSchema.parse(raw); ... })`.
+   `ipc.handle(CH.x, (e, raw) => { const arg = XSchema.parse(raw); ... })`. `ipc` is the
+   trusted-sender wrapper (`src/main/ipc/trustedIpc.ts`): it answers only the top frame of this
+   app's own renderer and fails closed (`ipc_sender_rejected`). Never call `ipcMain` directly
+   (`trustedIpc.test.ts` fails on it; the lint rule checks `ipc` like `ipcMain`).
    Parse-and-throw-typed on bad input (see `.claude/rules/zod-boundaries.md`).
 4. **`src/preload/index.ts`** — expose a typed wrapper through `contextBridge`
    (`ipcRenderer.invoke(CH.x, payload)`); the renderer calls `window.<api>.x(...)`,

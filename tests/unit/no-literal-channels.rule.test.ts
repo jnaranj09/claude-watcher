@@ -60,4 +60,15 @@ describe('no-literal-channels — automated fixture runner (AC-4)', () => {
     const ruleHits = messages.filter((m) => m.ruleId === RULE_ID)
     expect(ruleHits).toHaveLength(0)
   })
+
+  // The trusted-sender wrapper (src/main/ipc/trustedIpc.ts) is named `ipc` at every main call
+  // site; the rule must keep checking those, or the wrapper would hide a literal channel.
+  it('checks the trusted wrapper `ipc` like ipcMain', async () => {
+    const results = await eslint.lintText(
+      "ipc.handle('tags:list', () => [])\nipc.on(`x:${y}`, () => {})\nipc.handle(CH.tagsList, () => [])\n",
+      { filePath: resolve(FIXTURE_DIR, 'inline-wrapper.ts') }
+    )
+    const ruleHits = results.flatMap((r) => r.messages).filter((m) => m.ruleId === RULE_ID)
+    expect(ruleHits.map((m) => m.line)).toEqual([1, 2])
+  })
 })

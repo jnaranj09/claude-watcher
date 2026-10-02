@@ -39,8 +39,10 @@ const IPC_METHODS = new Set([
   'removeHandler'
 ])
 
-/** Objects on which those methods are IPC calls. */
-const IPC_OBJECTS = new Set(['ipcMain', 'ipcRenderer'])
+/** Objects on which those methods are IPC calls. `ipc` is main's trusted-sender wrapper
+ *  (src/main/ipc/trustedIpc.ts) and the smoke registrar's target — every main handler goes through
+ *  it, so it must be checked exactly like `ipcMain`. */
+const IPC_OBJECTS = new Set(['ipcMain', 'ipcRenderer', 'ipc'])
 
 /** @type {import('eslint').Rule.RuleModule} */
 const noLiteralChannels = {

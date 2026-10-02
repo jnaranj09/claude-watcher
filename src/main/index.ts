@@ -293,12 +293,26 @@ import { renameLaunched as renameLaunchedCard } from './hooks/renameLaunched'
 // rather than inline, so it is testable: nothing can import index.ts.
 import { titleReadBackRename } from './hooks/titleReadBack'
 import { PROFILE } from './profile'
+import { createTrustedIpc, isTrustedSender, rendererSource } from './ipc/trustedIpc'
 
 // Smoke mode (Story 0.1 AC-3): when C9_SMOKE=1, the renderer runs a scripted
 // type -> read-back -> resize -> TUI sequence and reports a JSON verdict, which
 // we persist to C9_SMOKE_OUT (or stdout) and then exit. This makes the packaged
 // exit gate machine-verifiable in a headless/autonomous run.
 const SMOKE = process.env.C9_SMOKE === '1'
+
+// The ONE place main decides where its renderer comes from: `createWindow` loads it, and every IPC
+// listener (registered through `ipc`, never `ipcMain` directly) answers only a top frame loaded
+// from it (`ipc/trustedIpc.ts`, technical-taste §5b-22).
+const RENDERER_SOURCE = rendererSource(
+  is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
+  join(__dirname, '../renderer/index.html')
+)
+const ipc = createTrustedIpc({
+  ipcMain,
+  isTrusted: (event) => isTrustedSender(event.senderFrame, RENDERER_SOURCE),
+  log: (line) => console.warn(line)
+})
 const SMOKE_OUT = process.env.C9_SMOKE_OUT || ''
 
 // The run profile (`./profile.ts`): `npm run dev` keeps its data in its OWN userData dir and
@@ -1504,7 +1518,7 @@ function registerPtyIpc(): void {
   }
 
   // SEC-8: outside smoke only `smokeConfig` exists (App.tsx asks it on every start).
-  registerSmokeIpc(ipcMain, SMOKE, {
+  registerSmokeIpc(ipc, SMOKE, {
     config,
     ptyStart,
     ptyInput,
@@ -1642,7 +1656,7 @@ let telemetryStore: TelemetryStore | null = null
 // and returns the new validated Settings. CH.* consts only — never a string literal.
 function registerSettingsIpc(): void {
   // settings:get — return the current validated settings (the value directly, no envelope).
-  ipcMain.handle(CH.settingsGet, () => {
+  ipc.handle(CH.settingsGet, () => {
     if (settingsStore === null) {
       // Defensive: handlers register after the store is built; if a get races construction,
       // fail loudly rather than ship garbage (the renderer's get() catch falls back to defaults).
@@ -1656,7 +1670,7 @@ function registerSettingsIpc(): void {
   // `raw` is annotated `unknown` (Electron types it contextually as `any`) so the trust
   // boundary is explicit at the signature — the value is untrusted until SettingsPatchSchema
   // validates it. [.claude/rules/zod-boundaries.md IPC-arg row]
-  ipcMain.handle(CH.settingsSet, (_evt, raw: unknown) => {
+  ipc.handle(CH.settingsSet, (_evt, raw: unknown) => {
     if (settingsStore === null) throw new Error('settings store not initialized')
     const patch = SettingsPatchSchema.parse(raw)
     const before = settingsStore.get()
@@ -1681,18 +1695,18 @@ function registerSettingsIpc(): void {
 // `mkdir -p` so there is always something to open. Handler bodies are one line each; the logic
 // lives in themes/themeScanner.ts + themes/themeLifecycle.ts (unit-tested).
 function registerThemesIpc(): void {
-  ipcMain.handle(CH.themesList, () => {
+  ipc.handle(CH.themesList, () => {
     if (themeScanner === null) throw new Error('theme scanner not initialized')
     return themeScanner.scan()
   })
-  ipcMain.handle(CH.themeReload, () => {
+  ipc.handle(CH.themeReload, () => {
     if (themeLifecycle === null || settingsStore === null)
       throw new Error('theme lifecycle not initialized')
     const s = settingsStore.get()
     return themeLifecycle.apply(s.themeId, chosenWallpaper(s))
   })
   // Answers at once, never awaiting the opener — see openThemesFolder.ts (Linux never settles it).
-  ipcMain.handle(CH.themesOpenFolder, () => {
+  ipc.handle(CH.themesOpenFolder, () => {
     if (themeScanner === null) throw new Error('theme scanner not initialized')
     openThemesFolder(themeScanner.dir(), {
       mkdir: (dir) => mkdirSync(dir, { recursive: true }),
@@ -1706,11 +1720,11 @@ function registerThemesIpc(): void {
 // whole blob) but in its own 0600 file, so this is the only way the Settings panel can show it.
 // NEITHER handler logs the token — it IS the secret.
 function registerApiIpc(): void {
-  ipcMain.handle(CH.apiTokenGet, () => {
+  ipc.handle(CH.apiTokenGet, () => {
     if (apiTokenStore === null) throw new Error('api token store not initialized')
     return { token: apiTokenStore.current() }
   })
-  ipcMain.handle(CH.apiTokenRegenerate, () => {
+  ipc.handle(CH.apiTokenRegenerate, () => {
     if (apiTokenStore === null) throw new Error('api token store not initialized')
     // A regenerate is a REVOCATION. When the write fails the store throws `token_write_failed` and
     // keeps the previous token; that throw PROPAGATES to the renderer (which maps the code to
@@ -1726,9 +1740,9 @@ function registerTemplatesIpc(): void {
   // Called AFTER the store is built, so the handlers can be bound once instead of rebuilt on
   // every invoke. requireTemplatesStore() stays — it throws a clear error if ever mis-ordered.
   const handlers = createTemplatesIpcHandlers(requireTemplatesStore())
-  ipcMain.handle(CH.templatesList, () => handlers.list())
-  ipcMain.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
-  ipcMain.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+  ipc.handle(CH.templatesList, () => handlers.list())
+  ipc.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipc.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
 }
 
 // Past sessions — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1737,8 +1751,8 @@ function registerTemplatesIpc(): void {
 // main handlers are wired later — they need the launch service and the reducer.
 function registerPastSessionsIpc(): void {
   const handlers = createPastSessionsIpcHandlers(requirePastSessionsStore())
-  ipcMain.handle(CH.pastSessionsList, () => handlers.list())
-  ipcMain.handle(CH.pastSessionsForget, (_evt, raw: unknown) => handlers.forget(raw))
+  ipc.handle(CH.pastSessionsList, () => handlers.list())
+  ipc.handle(CH.pastSessionsForget, (_evt, raw: unknown) => handlers.forget(raw))
   // CH.pastSessionOpen is bound in registerLaunchIpc (it needs the launch service) — Task 9.
 }
 
@@ -1752,13 +1766,13 @@ function registerTagsIpc(): void {
   const pruneEverywhere = (): void => {
     for (const seam of launchBoardSeams.values()) seam.pruneTags((id) => store.get(id))
   }
-  ipcMain.handle(CH.tagsList, () => handlers.list())
-  ipcMain.handle(CH.tagsSave, (_evt, raw: unknown) => {
+  ipc.handle(CH.tagsList, () => handlers.list())
+  ipc.handle(CH.tagsSave, (_evt, raw: unknown) => {
     const result = handlers.save(raw)
     pruneEverywhere()
     return result
   })
-  ipcMain.handle(CH.tagsDelete, (_evt, raw: unknown) => {
+  ipc.handle(CH.tagsDelete, (_evt, raw: unknown) => {
     const tags = handlers.remove(raw)
     pruneEverywhere()
     return tags
@@ -1770,28 +1784,28 @@ function registerTagsIpc(): void {
 // (T-13 — nothing fires at save), a deleted one cancels them. A move changes no timer.
 function registerRulesIpc(): void {
   const handlers = createRulesIpcHandlers(requireRulesStore())
-  ipcMain.handle(CH.rulesList, () => handlers.list())
-  ipcMain.handle(CH.rulesSave, (_evt, raw: unknown) => {
+  ipc.handle(CH.rulesList, () => handlers.list())
+  ipc.handle(CH.rulesSave, (_evt, raw: unknown) => {
     const result = handlers.save(raw)
     for (const engine of ruleEngines.values()) engine.onRuleSaved(result.saved.id)
     return result
   })
-  ipcMain.handle(CH.rulesDelete, (_evt, raw: unknown) => {
+  ipc.handle(CH.rulesDelete, (_evt, raw: unknown) => {
     const view = handlers.remove(raw)
     for (const engine of ruleEngines.values()) engine.onRulesRemoved()
     return view
   })
-  ipcMain.handle(CH.rulesMove, (_evt, raw: unknown) => handlers.move(raw))
+  ipc.handle(CH.rulesMove, (_evt, raw: unknown) => handlers.move(raw))
 }
 
 // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
 // persistence/workspacesIpc.ts (unit-tested); this only binds them to CH.* channels.
 function registerWorkspacesIpc(): void {
   const handlers = createWorkspacesIpcHandlers(requireWorkspacesStore())
-  ipcMain.handle(CH.workspacesList, () => handlers.list())
-  ipcMain.handle(CH.workspacesSave, (_evt, raw: unknown) => handlers.save(raw))
-  ipcMain.handle(CH.workspacesDelete, (_evt, raw: unknown) => handlers.remove(raw))
-  ipcMain.handle(CH.workspacesSetActive, (_evt, raw: unknown) => handlers.setActive(raw))
+  ipc.handle(CH.workspacesList, () => handlers.list())
+  ipc.handle(CH.workspacesSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipc.handle(CH.workspacesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+  ipc.handle(CH.workspacesSetActive, (_evt, raw: unknown) => handlers.setActive(raw))
 }
 
 // Phrase shortcuts — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -1802,9 +1816,9 @@ function registerShortcutsIpc(): void {
   // Called AFTER the store is built, so the handlers are bound once instead of rebuilt on every
   // invoke. requireShortcutsStore() stays — it throws a clear error if ever mis-ordered.
   const handlers = createShortcutsIpcHandlers(requireShortcutsStore())
-  ipcMain.handle(CH.shortcutsList, () => handlers.list())
-  ipcMain.handle(CH.shortcutsSave, (_evt, raw: unknown) => handlers.save(raw))
-  ipcMain.handle(CH.shortcutsDelete, (_evt, raw: unknown) => handlers.remove(raw))
+  ipc.handle(CH.shortcutsList, () => handlers.list())
+  ipc.handle(CH.shortcutsSave, (_evt, raw: unknown) => handlers.save(raw))
+  ipc.handle(CH.shortcutsDelete, (_evt, raw: unknown) => handlers.remove(raw))
 }
 
 // Story 3.5 (SM-2) — register the telemetry-acknowledge IPC ONCE (mirrors registerSettingsIpc:
@@ -1815,7 +1829,7 @@ function registerShortcutsIpc(): void {
 // value — log path+code only (Guardrail #6; the arg carries sessionId which is an opaque UUID
 // but the rule is uniform). The invoke returns void. [story 3.5 Task 3.3 / FROZEN-3]
 function registerTelemetryIpc(): void {
-  ipcMain.handle(CH.telemetryAcknowledge, (evt, raw: unknown) => {
+  ipc.handle(CH.telemetryAcknowledge, (evt, raw: unknown) => {
     // PARSE-AND-THROW at the untrusted cross-process input boundary (zod-boundaries.md IPC-arg
     // row). A malformed arg rejects the invoke — the throw is the signal, nothing is logged here.
     const { sessionId, acknowledgedAt } = TelemetryAcknowledgeSchema.parse(raw)
@@ -2002,7 +2016,7 @@ function registerTerminalIpc(): void {
   // view:focused-terminal (UX-13) — the renderer reports which terminal its focused view shows
   // (null on the board). View-state only; read by `isViewingSession` to skip the alert for the
   // session the operator is typing in. A malformed push is dropped, logged by PATH + CODE.
-  ipcMain.on(CH.viewFocusedTerminal, (event, raw: unknown) => {
+  ipc.on(CH.viewFocusedTerminal, (event, raw: unknown) => {
     const parsed = ViewFocusedTerminalSchema.safeParse(raw)
     if (!parsed.success) {
       const issue = parsed.error.issues[0]
@@ -2021,7 +2035,7 @@ function registerTerminalIpc(): void {
   // open rejects). Returns nothing structural — the port IS the return, transferred via
   // `event.ports` on the reply. We use `ipcMain.on` + `event.senderFrame`/`port` transfer
   // semantics: Electron transfers ports posted back to the sender via webContents.postMessage.
-  ipcMain.on(CH.terminalOpen, (event, raw: unknown) => {
+  ipc.on(CH.terminalOpen, (event, raw: unknown) => {
     // We use `ipcMain.on` (not `handle`) because the open must TRANSFER a MessagePort back, which
     // rides `wc.postMessage(channel, msg, [port])` — an `invoke` handler cannot RETURN a port.
     // So failures cannot reject the invoke; instead a failure that has a VALID terminalId pushes a
@@ -2144,7 +2158,7 @@ function registerTerminalIpc(): void {
   // terminal:resize — main resizes the pty FIRST (the renderer already computed cols/rows via
   // fit(); terminal.md). UNTRUSTED arg → parse-and-throw-typed (this is an invoke so a reject
   // surfaces to the renderer). An out-of-range dim FAILS CLOSED.
-  ipcMain.handle(CH.terminalResize, (_event, raw: unknown) => {
+  ipc.handle(CH.terminalResize, (_event, raw: unknown) => {
     if (terminalManager === null) throw new Error('terminal manager not initialized')
     const { terminalId, cols, rows } = TerminalResizeSchema.parse(raw)
     terminalManager.resize(terminalId, cols, rows)
@@ -2152,7 +2166,7 @@ function registerTerminalIpc(): void {
 
   // terminal:stop — destroy the terminal (port.close() THEN pty.kill(), in the manager).
   // UNTRUSTED arg → parse-and-throw-typed.
-  ipcMain.handle(CH.terminalStop, (_event, raw: unknown) => {
+  ipc.handle(CH.terminalStop, (_event, raw: unknown) => {
     if (terminalManager === null) throw new Error('terminal manager not initialized')
     const { terminalId, openToken } = TerminalStopSchema.parse(raw)
     const parentWasLive = terminalManager.has(terminalId)
@@ -2500,7 +2514,7 @@ function registerLaunchIpc(): void {
   // session:pick-directory — open the NATIVE KDE directory chooser in MAIN and return the chosen
   // path, or null on cancel (UX-DR23). The renderer NEVER opens a dialog itself. Modal-to-window
   // (pass the owning BrowserWindow) on KDE. This is an invoke (returns the value directly).
-  ipcMain.handle(CH.sessionPickDirectory, async (event, raw: unknown) => {
+  ipc.handle(CH.sessionPickDirectory, async (event, raw: unknown) => {
     // Story 5.4 — TEST-ONLY seam (mirrors the C9_SMOKE env gate): when C9_TEST_PICK_DIR is set,
     // bypass the native KDE dialog (which Playwright cannot drive) and return that path. This
     // exists SOLELY so the launch-path e2e can exercise `+ New session → claude` end-to-end on the
@@ -2530,7 +2544,7 @@ function registerLaunchIpc(): void {
   // On a valid cwd, the launch service spawns raw `claude` (via the reused terminal manager) and
   // returns the opaque terminalId the renderer's EmbeddedTerminal opens against. The terminal is
   // typeable IMMEDIATELY; the Tgid correlation reconciles asynchronously on feed deltas (UX-DR19).
-  ipcMain.handle(CH.sessionLaunch, (_event, raw: unknown) => {
+  ipc.handle(CH.sessionLaunch, (_event, raw: unknown) => {
     if (launchService === null) throw new Error('launch service not initialized')
     // Both fields are UNTRUSTED cross-process input. `name` comes back already TRIMMED and
     // length-bounded (SessionNameSchema); a blank/whitespace-only/over-long name rejects the
@@ -2553,7 +2567,7 @@ function registerLaunchIpc(): void {
   // session:launch-from-template — resolve the template FIRST (untrusted arg → main-owned
   // cwd/model/permissionMode via resolveTemplateLaunch; throws template_not_found on an unknown
   // id), then run the SAME version gate as session:launch before anything spawns.
-  ipcMain.handle(CH.sessionLaunchFromTemplate, (_event, raw: unknown) => {
+  ipc.handle(CH.sessionLaunchFromTemplate, (_event, raw: unknown) => {
     if (launchService === null) throw new Error('launch service not initialized')
     const req = resolveTemplateLaunch(requireTemplatesStore(), raw)
     const service = launchService
@@ -2574,7 +2588,7 @@ function registerLaunchIpc(): void {
   // An unknown id is NOT an error here: the reducer logs `rename_unknown_id` and emits nothing
   // (a rename racing a stop/exit that already removed the card). Returns void — the retitled card
   // arrives as a normal `session.updated` delta.
-  ipcMain.handle(CH.sessionRename, (event, raw: unknown) => {
+  ipc.handle(CH.sessionRename, (event, raw: unknown) => {
     const { id, name } = SessionRenameSchema.parse(raw)
     launchBoardSeams.get(event.sender)?.renameLaunched(id, name)
   })
@@ -2594,7 +2608,7 @@ function registerLaunchIpc(): void {
   // session:archive — UNTRUSTED cross-process input; parse-and-throw at THIS boundary (a blank
   // terminalId rejects the invoke). Explicit "Archive"/Stop from the board: stop the pty, archive
   // the card.
-  ipcMain.handle(CH.sessionArchive, (_event, raw: unknown) => {
+  ipc.handle(CH.sessionArchive, (_event, raw: unknown) => {
     const { terminalId } = SessionArchiveSchema.parse(raw)
     if (terminalManager === null) throw new Error('terminal manager not initialized')
     stopTerminalAndRemoveBound(
@@ -2612,7 +2626,7 @@ function registerLaunchIpc(): void {
   // EXITED there is no binding and the renderer's `sessionId` is null (its card is gone), so the
   // record that exit archived is found through the launch override's `lastSessionId`. The
   // renderer's id is only a hint, removed too (idempotent).
-  ipcMain.handle(CH.sessionDelete, (_event, raw: unknown) => {
+  ipc.handle(CH.sessionDelete, (_event, raw: unknown) => {
     const { terminalId, sessionId } = SessionDeleteSchema.parse(raw)
     if (terminalManager === null) throw new Error('terminal manager not initialized')
     deleteTerminalSession(
@@ -2631,7 +2645,7 @@ function registerLaunchIpc(): void {
   // OWN launch recipe (never from the arg) and answers the companion's id. A refusal THROWS its
   // code (`terminal_not_found` / `folder_missing`, the pastSessionOpen precedent); the renderer maps
   // it to copy. The spawn itself rides the renderer's terminal:open for the returned id.
-  ipcMain.handle(CH.shellOpen, (_event, raw: unknown): ShellOpenResult => {
+  ipc.handle(CH.shellOpen, (_event, raw: unknown): ShellOpenResult => {
     const { parentTerminalId } = ShellOpenSchema.parse(raw)
     if (shellCompanions === null) throw new Error('terminal manager not initialized')
     const out = shellCompanions.register(parentTerminalId)
@@ -2660,7 +2674,7 @@ function registerLaunchIpc(): void {
     launch: (req) => service.launch(req)
   })
 
-  ipcMain.handle(CH.pastSessionOpen, (_event, raw: unknown): PastSessionOpenResult => {
+  ipc.handle(CH.pastSessionOpen, (_event, raw: unknown): PastSessionOpenResult => {
     if (launchService === null) throw new Error('launch service not initialized')
     requireClaudeVersion(claudeVersionAllowsLaunch)
     const out = openPastSession(raw, pastSessionOpenDeps(launchService))
@@ -2672,7 +2686,7 @@ function registerLaunchIpc(): void {
   // inside resumeTerminalSession). Only the terminal id crosses: the session id is the launch
   // override's `lastSessionId` (main's own record, moved by /clear), then the same Open checks and
   // the same version gate. A refusal THROWS its code; the pane maps it to copy.
-  ipcMain.handle(CH.pastSessionResumeTerminal, (_event, raw: unknown): PastSessionOpenResult => {
+  ipc.handle(CH.pastSessionResumeTerminal, (_event, raw: unknown): PastSessionOpenResult => {
     if (launchService === null) throw new Error('launch service not initialized')
     requireClaudeVersion(claudeVersionAllowsLaunch)
     const service = launchService
@@ -2691,7 +2705,7 @@ function registerLaunchIpc(): void {
   // does not exist would strand it where no view can show it, so that fails closed with a code
   // instead of being applied. An unknown SESSION id is not an error (the reducer logs
   // set_workspace_unknown_id and emits nothing — a move racing a stop that already removed it).
-  ipcMain.handle(CH.sessionSetWorkspace, (event, raw: unknown) => {
+  ipc.handle(CH.sessionSetWorkspace, (event, raw: unknown) => {
     // Both gates live in persistence/workspacesIpc.ts (unit-testable in node, unlike this file);
     // index.ts only binds the CH.* channel and routes to the sender's seam.
     const { sessionId, workspaceId } = parseSessionWorkspaceMove(requireWorkspacesStore(), raw)
@@ -2702,7 +2716,7 @@ function registerLaunchIpc(): void {
   // must exist and be visible to the card's workspace (tagsIpc.ts parseSessionSetTags — unit-
   // testable, unlike this file). Routed by event.sender to the owning window's seam (session truth
   // is per-window). Returns void; the tagged card arrives as a normal `session.updated` delta.
-  ipcMain.handle(CH.sessionSetTags, (event, raw: unknown) => {
+  ipc.handle(CH.sessionSetTags, (event, raw: unknown) => {
     const seam = launchBoardSeams.get(event.sender)
     const { sessionId, tagIds } = parseSessionSetTags(requireTagsStore(), raw, (id) =>
       seam?.workspaceOf(id)
@@ -2714,7 +2728,7 @@ function registerLaunchIpc(): void {
   // event.sender to the owning window's seam (session truth is per-window). The reducer's
   // markSeen guard makes a stale seen harmless — only YourTurn demotes. Returns void; the
   // demoted card arrives as a normal `session.updated` delta.
-  ipcMain.handle(CH.sessionSeen, (event, raw: unknown) => {
+  ipc.handle(CH.sessionSeen, (event, raw: unknown) => {
     const { id } = SessionSeenSchema.parse(raw)
     launchBoardSeams.get(event.sender)?.seenLaunched(id)
   })
@@ -2735,12 +2749,12 @@ const externalLinks = createExternalLinks({ openExternal: (url) => shell.openExt
 // scheme check and every log line (code only, never the URL) live in externalLinks.
 // Server and storage health — the renderer asks once on mount; every later change is a push.
 function registerServerHealthIpc(): void {
-  ipcMain.handle(CH.serverHealthGet, () => serverHealth.get())
-  ipcMain.handle(CH.storageHealthGet, () => storageHealth.get())
+  ipc.handle(CH.serverHealthGet, () => serverHealth.get())
+  ipc.handle(CH.storageHealthGet, () => storageHealth.get())
 }
 
 function registerLinksIpc(): void {
-  ipcMain.handle(CH.linkOpenExternal, (_evt, raw: unknown) => {
+  ipc.handle(CH.linkOpenExternal, (_evt, raw: unknown) => {
     const { url } = LinkOpenExternalSchema.parse(raw)
     externalLinks.open(url)
   })
@@ -2750,7 +2764,7 @@ function registerClipboardIpc(): void {
   // clipboard:read-text — read the OS clipboard text and return it directly. No arg to
   // parse; the read is safe (no cross-process input). Returns '' if the clipboard has no
   // text (e.g. image-only clipboard), which the renderer interprets as "Paste disabled".
-  ipcMain.handle(CH.clipboardReadText, () => clipboard.readText()) // a Promise since Electron 44
+  ipc.handle(CH.clipboardReadText, () => clipboard.readText()) // a Promise since Electron 44
 
   // clipboard:write-text — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS
   // boundary (a malformed write arg rejects the invoke). NEVER log the text value —
@@ -2758,7 +2772,7 @@ function registerClipboardIpc(): void {
   // (Guardrail #6; .claude/rules/zod-boundaries.md IPC-arg row).
   // Electron 44 made the main clipboard async (W3C-shaped): await the write so a refused write
   // rejects the invoke instead of floating.
-  ipcMain.handle(CH.clipboardWriteText, async (_evt, raw: unknown) => {
+  ipc.handle(CH.clipboardWriteText, async (_evt, raw: unknown) => {
     const { text } = ClipboardWriteTextSchema.parse(raw)
     await clipboard.writeText(text)
   })
@@ -2774,13 +2788,13 @@ function registerQuitIpc(): void {
   // app:request-quit — renderer asks main to begin a true quit. Routes through app.quit() so
   // it flows through the ONE before-quit guard decision (the one chokepoint, FROZEN #3).
   // The renderer NEVER calls app.quit() directly (it can't — sandboxed). Returns void.
-  ipcMain.handle(CH.appRequestQuit, () => {
+  ipc.handle(CH.appRequestQuit, () => {
     app.quit()
   })
 
   // quit:confirm — "Quit anyway" was clicked. Main proceeds: sets isQuitting, teardown, quit.
   // The re-entrant before-quit (triggered by the quit) sees isQuitting=true and short-circuits.
-  ipcMain.handle(CH.quitConfirm, () => {
+  ipc.handle(CH.quitConfirm, () => {
     handleQuitConfirm(quitGuardState, {
       teardownAllSessions,
       teardownDeps: {
@@ -2806,7 +2820,7 @@ function registerQuitIpc(): void {
 
   // quit:cancel — the operator cancelled. No teardown; every PTY stays live (FROZEN #1).
   // The before-quit's e.preventDefault() already aborted this quit attempt.
-  ipcMain.handle(CH.quitCancel, () => {
+  ipc.handle(CH.quitCancel, () => {
     handleQuitCancel(quitGuardState)
   })
 }
@@ -2952,10 +2966,10 @@ function createWindow(): void {
   // Load the remote URL for development or the local html file for production.
   // Load failures surface via the `did-fail-load` webContents event, so the load
   // promise is intentionally fire-and-forget (voided to satisfy no-floating-promises).
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (RENDERER_SOURCE.kind === 'dev') {
+    void mainWindow.loadURL(RENDERER_SOURCE.url)
   } else {
-    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    void mainWindow.loadFile(RENDERER_SOURCE.path)
   }
 }
 
