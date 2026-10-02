@@ -24,7 +24,7 @@ const formOpen = dialog.state.creating || selected !== null
         <ManageDialog.Rows>
           <ManageDialog.Row id={t.id} testId="template-row">{t.name}</ManageDialog.Row>
         </ManageDialog.Rows>
-        <ManageDialog.New testId="template-new" />   {/* bottom of rail; startNew() */}
+        <ManageDialog.New testId="template-new" />   {/* in the rail's ListBottom; startNew() */}
       </ManageDialog.List>
       {formOpen ? (
         <ManageDialog.Form onSubmit={submit}>
@@ -103,7 +103,7 @@ title.
 - **Flat list in every scope, no section headers.**
 - Scope change closes what was open. A save that moves a row re-points the filter to its scope.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
-- `+ New` at rail bottom (`margin-top: auto`).
+- `+ New` at rail bottom (`ManageDialog.ListBottom`, `margin-top: auto`).
 - Options pass a `WorkspaceLabel` as `display`.
 
 ## Workspaces in the UI — a TINT, never a dot
@@ -197,6 +197,44 @@ sections clearly apart. Every `gap`/`padding`/`margin` in a component stylesheet
   peek toggle, 14px icon, 8px dot), each with a reason. A new one needs a reason, not a habit.
 - `--gutter` / `--card-gap` are aliases kept for themes; components use the roles.
 
+## Regions and breathing (`ManageDialog.styles.test.ts`)
+
+Spec `2026-10-02-region-spacing-design.md`. The roles say WHICH value a relation gets; this says
+which relation two neighbours ARE. Items of one kind close, different regions clearly apart.
+
+1. **A screen is a stack of regions.** Header (title row, optional description) · body (rail |
+   pane) · message slot. Rail: top tool (search) · list · bottom slot (`+ New` or an action row,
+   plus an optional footnote). Form: blocks (label + control + hint) · footer.
+2. **Two different regions never sit closer than `--gap-group` (12px)**; rows of one list keep
+   `--gap-row` / `--gap-row-filled`. Check: the space AROUND a group is at least twice the largest
+   space INSIDE it (rows 4 → regions 12; field block 6 → blocks 20).
+3. **One role per boundary:**
+
+| From → to                            | Role                                                 |
+| ------------------------------------ | ---------------------------------------------------- |
+| title → its description              | `--gap-field` (6)                                    |
+| header → body                        | `--gap-section` (20)                                 |
+| rail top tool → list                 | `--gap-group` (12)                                   |
+| list → bottom slot                   | `--gap-group` (12), slot pinned `margin-top: auto`   |
+| bottom slot's action → its footnote  | `--gap-field` (6)                                    |
+| label → control, control → its hint  | `--gap-field` (6)                                    |
+| hint / state note → the next control | `--gap-inline` (8)                                   |
+| block → block                        | `--gap-section` (20)                                 |
+| last block → footer buttons          | `--gap-actions` (24) as the footer's own padding-top |
+
+4. **Same kind, same size.** Settings rows share one `min-height` (a 36px field Select/TextInput
+   - insets), so a checkbox row matches a dropdown row. Every rail search is
+     `<TextInput variant="inline">`.
+5. **A scroll region never ends flush on a fixed region.** The rail list stops `--gap-group` above
+   the bottom slot. The sticky footer's space is its PADDING (stays while the form scrolls under
+   it), and the form's `--gap-field` stays above the footer box: the box paints over what is under
+   it, so flush would cover the last field's focus ring. `scroll-padding-block` clears the whole
+   footer box, so Tab never parks a field under it.
+6. **A new screen picks slots, not gaps.** Rail foot content goes in `ManageDialog.ListBottom`
+   (items `--gap-field` apart), a footnote in `ManageDialog.ListNote`. No slot fits → add one to
+   the shell with its role from the table, never a local gap in the component sheet. Themes may
+   restyle a region, never re-space it.
+
 ## Board filter bar (`components/FilterBar/FilterBar.tsx`)
 
 The ONE place the board is filtered/searched; above the columns, never in the header.
@@ -212,8 +250,8 @@ variant="inline">` + magnifier `icon`. Escape with text clears and stops; empty 
 - `Filter` = `<Button variant="secondary" lit>`, word + 16px filter-list icon, 32px (same as search
   box — pinned by test), titled `Show filters`/`Hide filters`. No chevron. LIT while chip row open
   AND while closed with a filter on (then also shows count: `Filter, 1 on`). Search never counted.
-- Spacing: 8px under header, 8px above columns (`Board.module.css` `.filterSlot`). Never a negative
-  margin on the grid (covers the bar's clicks).
+- Spacing: `--gap-group` (12px) under header, `--gap-page` (16px) above columns (`FilterBar` `.bar`,
+  `Board.module.css` `.filterSlot`). Never a negative margin on the grid (covers the bar's clicks).
 - Empty sentences name what hides cards (`lib/filterCopy.ts`): `No sessions tagged prod match “dep”
 here.` aria-live too.
 - Tag is the only filter type: `+ Add filter` opens the tag list directly. One tag at a time
@@ -244,7 +282,8 @@ not load past sessions`, suppresses the empty sentence.
   nothing is kept in Past sessions. Claude's own files are not touched." — Cancel default-focused.
 - **No key archives** (R27); Archive button label names no chord.
 - `Esc to return` only while focus is outside the terminal.
-- Rail foot: "Keeps the 200 most recent sessions" (UX-15), `--text-secondary`.
+- Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` under the Resume-by-id row
+  in `ListBottom`.
 - `transcript_missing`: "Claude no longer has this conversation. Forget it to remove it from the
   list". `session_running_elsewhere`: "This session is running in another terminal. Close it there
   first" (dead pane: "This conversation is running…").
