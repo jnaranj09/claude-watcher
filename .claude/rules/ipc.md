@@ -47,7 +47,7 @@ rename a channel in one place and every call site moves with it.
    directly, NO `{ data, error }` wrapper; events are discriminated unions on `type`).
 2. **`src/shared/schemas/*.ts`** — if the channel carries EXTERNAL/cross-process
    input, add (or reuse) a Zod schema for it. Cross-process args are untrusted.
-3. **`src/main/index.ts`** (or the relevant main module) —
+3. **`src/main/ipc/register*.ts`** (the registrar for that area; `index.ts` only wires them) —
    `ipc.handle(CH.x, (e, raw) => { const arg = XSchema.parse(raw); ... })`. `ipc` is the
    trusted-sender wrapper (`src/main/ipc/trustedIpc.ts`): it answers only the top frame of this
    app's own renderer and fails closed (`ipc_sender_rejected`). Never call `ipcMain` directly

@@ -266,7 +266,8 @@ yet. Prefer turning prose-only rules into sensors.
 3. **Never delete, skip, `.only`, loosen or re-record a test to get green.** Fix the code, or report
    the test's removal as a decision in the commit. Agents are known to "fix" a red test by
    disabling it. A conditional runtime skip with a stated reason (the e2e port guard) is not
-   tampering. _Consensus_ (Beck, Huntley). Sensor: prose only.
+   tampering. _Consensus_ (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per
+   project) and Playwright (`forbidOnly: true`). Deleting or loosening a test is still prose only.
 4. **Review in a fresh context, aimed at correctness and the spec.** Don't chase every finding
    into extra layers: a reviewer told to find gaps always finds some. Code review mostly transfers
    understanding and catches fewer bugs than people think, so it does not replace tests. _Evidence_
@@ -291,12 +292,13 @@ yet. Prefer turning prose-only rules into sensors.
    the type is the proof: no re-validation, no `as` to force a value through. _Consensus_, backed
    by a mechanism: type checking catches about 15% of shipped JS bugs (Gao, Bird & Barr 2017).
    Sensors: `zod-boundaries.md`, strict TS and type-aware lint.
-9. **`as` only inside a small, named, tested helper.** About 74 `as` casts sit in non-test `src`
-   today; don't add more. _Consensus_ (Effective TypeScript). Sensor: prose only.
+9. **`as` only inside a small, named, tested helper.** 47 `as` casts sit in non-test `src` (AST
+   count, 2026-10-01); don't add more. _Consensus_ (Effective TypeScript). Sensor: a per-file
+   budget that only falls (`tests/main/typeAssertions.guard.test.ts`).
 10. **Model state as discriminated unions with an exhaustive `never` check.** Use one `status`
     union instead of boolean pairs. Store ids and derive the objects from them. A forgotten case
     then becomes a compile error the agent's own gate reports. _Consensus_ (Minsky, Vanderkam,
-    react.dev). Sensor: TS for the unions. No `switch-exhaustiveness-check` lint rule yet.
+    react.dev). Sensors: TS for the unions; ESLint `switch-exhaustiveness-check`.
 11. **Never loosen a strict TS flag. Upgrade majors alone.** TS 7.0 shipped without the API that
     typescript-eslint needs (it arrives in 7.1). Stay on 5.x until it does, or the lint gates break.
     _Evidence_ for type checking; _taste_ for the specific flags. Sensor: `tsconfig` plus the gate.
@@ -310,27 +312,31 @@ yet. Prefer turning prose-only rules into sensors.
     his 2024–25 debate with Ousterhout. Sensor: prose only.
 13. **Refactor the biggest, most-changed file first.** Size and relative churn are the
     best-validated predictors of defects. _Evidence_ (Nagappan & Ball 2005). Today that file is
-    `src/main/index.ts` (§14). Sensor: prose only.
+    `src/main/index.ts`: cut from 3,476 to 1,176 lines on 2026-10-01; registrars live in
+    `src/main/ipc/`, the per-window feed in `src/main/window/`. Sensor: prose only.
 14. **Search for the existing helper before writing one. Add no abstraction without a second real
     caller. Inline a shared helper when it grows a flag or a branch for just one caller.** "Duplication
     is far cheaper than the wrong abstraction" (Metz). Agents have the opposite failure: they paste
     near-copies instead of finding the helper (GitClear 2026: duplicated blocks +81%, refactoring
     down to 3.8% of changes). So both halves are needed. _Consensus_, with weak (vendor) evidence.
-    Sensors: the primitive-ban guards (one Button, one Popover…). No duplicate detector yet.
+    Sensors: the primitive-ban guards (one Button, one Popover…); jscpd in `npm run lint` fails over
+    0.5% duplication (0.3% today).
 15. **Plain functions and data over classes and inheritance. Explicit over magic. Long, specific
     names.** _Taste_ (Ronacher, Hickey, Carmack). Sensor: prose only. Today there is 1 class in
     non-test `src`.
 16. **Enforce the layers.** `shared` never imports `main` or `renderer`; `renderer` never imports
     `main`. _Consensus_ (OpenAI's layered architecture checked by structural tests). The layers are
-    clean today only by convention. Sensor: none yet.
+    Sensor: `tests/main/layers.guard.test.ts` (`shared` and `renderer` also never import electron or
+    node-pty).
 
 ### Errors and comments
 
 17. **A contained error is logged with a `code=` and never swallowed silently.** A `catch` with only
     a comment must say _why_ it is safe (e.g. "fail open: a false block bricks a working install").
     Error-masking code is where AI-written code is weakest. _Consensus_, with weak (vendor) evidence
-    (GitClear +47% error-masking constructs, CodeRabbit). Sensor: none yet. About 19 comment-only
-    `catch` blocks exist today, many of them deliberately fail-open.
+    (GitClear +47% error-masking constructs, CodeRabbit). Sensor: `tests/main/catchBlocks.guard.test.ts`
+    — 19 comment-only catches in 8 listed files, each with its reason; the list only shrinks; a
+    comment under 3 words fails.
 18. **Interface and "why" comments stay next to the code. Never delete a commented constraint or
     incident note without saying so in the commit.** Each agent session starts with no memory, so
     an unwritten "why" is rediscovered or broken. Models are known to change or remove comments
@@ -344,9 +350,9 @@ yet. Prefer turning prose-only rules into sensors.
     reasons, and bans tied to incidents. Keep them under about 200 lines, and load layer rules by
     path. Add a line only after an agent repeats a mistake. Repository overviews in context files
     add about 20% cost with no gain, while the instructions themselves are followed well.
-    _Evidence_ (ETH Zurich 2026) plus Anthropic and Cursor guidance. Today CLAUDE.md is 271 lines
-    and all 9 rule files load every session (about 1,100 lines), see §14. This file is read on
-    demand, not always loaded, on purpose.
+    _Evidence_ (ETH Zurich 2026) plus Anthropic and Cursor guidance. Sensor:
+    `tests/unit/agentContext.guard.test.ts` (CLAUDE.md ≤ 200 lines; every rule file has `paths:`).
+    This file is read on demand, not always loaded, on purpose.
 
 ### Stack
 
@@ -374,12 +380,15 @@ yet. Prefer turning prose-only rules into sensors.
     - Each preload method wraps one `CH.*` invoke and never leaks the IPC `event`.
 
     _Consensus_ (Electron security checklist). `sandbox`, `contextIsolation` and a CSP are in place.
-    Sender validation and fuses are missing (§14).
+    Sensors: every main listener goes through `ipc/trustedIpc.ts` (a guard fails on a direct
+    `ipcMain` call); `tests/unit/electronFuses.test.ts` pins four fuses. File-protocol privileges
+    are still on (§14).
 
 ### Budgets that keep agent decay in check
 
 - **A scheduled clean-up pass.** It changes no behaviour, passes the full gate, and goes in its
-  own commits. It removes duplicates (`jscpd`), dead code (`knip`) and slow tests. OpenAI calls
+  own commits, before each release (`release.md` step 0). It removes duplicates (`jscpd`), dead
+  code (`knip`; also red in `npm run lint`) and slow tests. OpenAI calls
   this "garbage collection" against drift. Steinberger spends about 20% of his time on it.
   _Consensus_, with correlational evidence: AI adoption raised complexity by about 41% and
   static-analysis warnings by about 30%, and both stayed high (CMU 2026).
@@ -396,7 +405,7 @@ yet. Prefer turning prose-only rules into sensors.
   Popover, one Callout). That is knowledge stated once, which even Metz endorses. The Metz rule
   (§5b-14) applies to _helpers_: a shared helper that grows a flag for one caller gets inlined.
 - **Big rule files.** The owner's scar-tissue rules (R-numbers, dated incidents) are exactly the
-  practice experts recommend. But at about 1,100 always-loaded lines they are past the size the
+  practice experts recommend. But at about 1,100 always-loaded lines they were past the size the
   vendors say still gets read. The owner already cut them from about 6k to about 2k words on
   10-01. The next step is path-scoping, not deleting.
 - **Heavy process** (brainstorm → spec → plan) vs "just talk to it" (Steinberger). For
@@ -637,19 +646,15 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 ## 14. Known gaps between rules and code
 
 When you find a gap, the newer side wins (check `git log`): fix the stale side in the same change,
-and note it here only if you cannot fix it. These are known gaps between the §5b rules and the
-code, checked on 2026-10-01. Each one needs its own spec; **do not fix them in passing**.
+and note it here only if you cannot fix it. The eight gaps found on 2026-10-01 were closed the same
+day (spec `2026-10-01-engineering-gaps-design.md`). What is left:
 
-| Gap                                                                                                                                                                  | Rule        |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `src/main/index.ts` is 3,462 lines and was changed by 70 commits in 60 days, against §5's own "keep logic out of `src/main/index.ts`". It is the top refactor target | §5b-12, 13  |
-| CLAUDE.md is 271 lines, and none of the 9 `.claude/rules/*.md` has `paths:` frontmatter, so about 1,100 lines load every session                                     | §5b-19      |
-| No duplicate detector (`jscpd`), no dead-code detector (`knip`), no scheduled clean-up pass                                                                          | §5b budgets |
-| No structural test for the layers (clean today by convention)                                                                                                        | §5b-16      |
-| About 19 comment-only `catch` blocks in 8 files, with no sensor                                                                                                      | §5b-17      |
-| About 74 `as` casts in non-test `src`; no `switch-exhaustiveness-check` lint rule                                                                                    | §5b-9, 10   |
-| No IPC sender-frame validation; no Electron fuses in `electron-builder.yml` (packaging change: needs smoke)                                                          | §5b-22      |
-| No sensor bans `.only` in tests                                                                                                                                      | §5b-3       |
+| Gap                                                                                                                            | Rule       |
+| ------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `grantFileProtocolExtraPrivileges` fuse still on: the packaged renderer loads from `file://`; turning it off needs a test pass | §5b-22     |
+| 47 `as` casts and 19 comment-only catches remain (budgeted; they only fall)                                                    | §5b-9, 17  |
+| Deleting or loosening a test to get green is still prose only (`.only` is caught)                                              | §5b-3      |
+| `src/main/index.ts` is still the largest main file (1,176 lines); go lower in a later pass                                     | §5b-12, 13 |
 
 ## 15. Keep this file current
 
