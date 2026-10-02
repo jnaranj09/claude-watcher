@@ -123,6 +123,13 @@
   max-width: 42ch;
 }
 
+/* `+ New session` (primary) and `Past sessions…` (secondary) on one row. */
+.emptyBoardActions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+
 /* The empty board's `+ New session` is NewSessionButton `variant="primary"` — its rules live in
    NewSessionMenu.module.css (.anchorPrimary / .buttonPrimary). */
 

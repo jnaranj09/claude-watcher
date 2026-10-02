@@ -697,6 +697,7 @@ function App(): React.JSX.Element {
               onNewSession={() => void runPickFolder()}
               onPickTemplate={handleTemplateSession}
               onManageTemplates={handleManageTemplates}
+              onOpenPastSessions={handleOpenPastSessions}
               onActivateCard={handleActivateCard}
               onRenameCard={handleRenameSession}
               onMoveCardToWorkspace={handleMoveCardToWorkspace}

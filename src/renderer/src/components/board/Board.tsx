@@ -21,6 +21,7 @@ import { LiveAnnouncer } from '../../styles/LiveAnnouncer'
 // Story 5.6 (AC-3, AC-6) — the compact starting-terminals banner (status-line region).
 import { StartingBanner } from './StartingBanner'
 import { NewSessionButton } from '../NewSessionMenu/NewSessionButton'
+import { Button } from '../Button/Button'
 import { FilterBar } from '../FilterBar/FilterBar'
 import {
   boardStore,
@@ -87,6 +88,9 @@ export interface BoardProps {
   onPickTemplate?: (template: Template) => void
   /** Session templates — the popover's `Manage templates…`. Defaults to a no-op. */
   onManageTemplates?: () => void
+  /** Past sessions — the empty board's `Past sessions…`, beside `+ New session` (the same opener
+   *  as the ☰ item). Omitted ⇒ no button. */
+  onOpenPastSessions?: () => void
   /** Session-naming A2 — card rename seam (the pencil). Omitted ⇒ no pencil is rendered. */
   onRenameCard?: (id: string) => void
   /** Task 12 — card move-to-workspace seam. Omitted ⇒ no move affordance is rendered. */
@@ -106,6 +110,7 @@ export function Board({
   onNewSession,
   onPickTemplate,
   onManageTemplates,
+  onOpenPastSessions,
   onRenameCard,
   onMoveCardToWorkspace,
   onSetCardTags,
@@ -234,7 +239,8 @@ export function Board({
         // AC-4 — empty board (cold-loaded, zero sessions). Headline + line + the ONE
         // primary action. `+ New session` launches an in-app session (Epic-3 / FR-11).
         // Story 3.3 (FR-1 amended) — the Board shows ONLY app-launched sessions, so the empty
-        // board is the NORMAL cold state and the ONLY affordance is `+ New session`. The old
+        // board is the NORMAL cold state and the main affordance is `+ New session`, with `Past sessions…`
+        // beside it. The old
         // "…or start one in Konsole and it'll appear here" invite is GONE: external/Konsole
         // sessions are intentionally never shown (the launched-set is the single gate, AC-4/F5).
         // Story 5.6 (AC-6 optional) — when starting terminals exist, soften the "No sessions
@@ -250,13 +256,22 @@ export function Board({
               ? 'Waiting for c9watch to register the session.'
               : 'Launch one with + New session to get started.'}
           </p>
-          <NewSessionButton
-            variant="primary"
-            testId="new-session"
-            onPickFolder={() => onNewSession?.()}
-            onPickTemplate={(template) => onPickTemplate?.(template)}
-            onManage={() => onManageTemplates?.()}
-          />
+          <div className={styles.emptyBoardActions}>
+            <NewSessionButton
+              variant="primary"
+              testId="new-session"
+              onPickFolder={() => onNewSession?.()}
+              onPickTemplate={(template) => onPickTemplate?.(template)}
+              onManage={() => onManageTemplates?.()}
+            />
+            {/* A way back to an earlier conversation from the empty board — not while a launch
+                is starting (the board is about to fill). */}
+            {startingCount === 0 && onOpenPastSessions !== undefined && (
+              <Button testId="empty-board-past-sessions" onClick={onOpenPastSessions}>
+                Past sessions…
+              </Button>
+            )}
+          </div>
         </div>
       ) : total === 0 ? (
         // The workspace HAS sessions and the filter bar (its tag, its search, or both) hides them

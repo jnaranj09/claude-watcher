@@ -189,6 +189,44 @@ describe('Board — cold-load-complete via watch:status (Story 5.3/6.4 — the e
 })
 
 describe('Board — empty states never collapse (AC-4)', () => {
+  describe('Past sessions… beside + New session (empty board only)', () => {
+    afterEach(() => act(() => boardStore.setState({ launchedTerminals: {} })))
+
+    it('shows next to + New session and opens Past sessions', () => {
+      boardStore.setState({ coldLoaded: true })
+      const onOpenPastSessions = vi.fn()
+      const { container, unmount } = renderComponent(
+        <Board onOpenPastSessions={onOpenPastSessions} />
+      )
+      cleanup = unmount
+      const btn = container.querySelector<HTMLButtonElement>(
+        '[data-testid="empty-board-past-sessions"]'
+      )
+      expect(btn?.textContent).toBe('Past sessions…')
+      expect(btn?.parentElement?.querySelector('[data-testid="new-session"]')).not.toBeNull()
+      act(() => btn?.click())
+      expect(onOpenPastSessions).toHaveBeenCalledTimes(1)
+    })
+
+    it('is absent without the seam', () => {
+      boardStore.setState({ coldLoaded: true })
+      const { container, unmount } = renderComponent(<Board />)
+      cleanup = unmount
+      expect(container.querySelector('[data-testid="empty-board-past-sessions"]')).toBeNull()
+    })
+
+    it('is absent while a launch is Starting…', () => {
+      boardStore.setState({ coldLoaded: true })
+      act(() => boardStore.getState().registerLaunchedTerminal('t-start', 'api', 'default'))
+      const { container, unmount } = renderComponent(<Board onOpenPastSessions={vi.fn()} />)
+      cleanup = unmount
+      expect(container.querySelector('[data-testid="empty-board"]')?.textContent).toContain(
+        'Starting…'
+      )
+      expect(container.querySelector('[data-testid="empty-board-past-sessions"]')).toBeNull()
+    })
+  })
+
   it('empty board (cold-loaded, zero sessions) shows the headline + the single + New session', () => {
     // Cold-load with NO sessions: a removed delta on an empty store flips coldLoaded.
     boardStore.setState({ coldLoaded: true })
@@ -613,6 +651,15 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     const grid = container.querySelector('[data-testid="column-grid"]')
     if (bar === null || grid === null) throw new Error('missing filter bar or column grid')
     expect(bar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('the filtered-empty board has no Past sessions… button', () => {
+    const { container, unmount } = renderComponent(<Board onOpenPastSessions={vi.fn()} />)
+    cleanup = unmount
+    applyDelta(updated(1, 'plain', 'working', 100))
+    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    expect(container.querySelector('[data-testid="empty-board-filtered"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="empty-board-past-sessions"]')).toBeNull()
   })
 
   it('names the tag when the filter hides every card — and keeps the bar to remove it', () => {
