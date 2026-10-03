@@ -335,6 +335,23 @@ describe('ManageDialog region spacing', () => {
     const body = ruleBody(css, '.listBottom')
     expect(body).toMatch(/margin-top:\s*auto/)
     expect(body).toMatch(/gap:\s*var\(--gap-field\)/)
+    // Stacked, not side by side (Retry / Resume row / note in a 220px rail); a Button keeps its width.
+    expect(body).toMatch(/flex-direction:\s*column/)
+    expect(body).toMatch(/align-items:\s*flex-start/)
+  })
+
+  it('the footnote is secondary text with no margin of its own', () => {
+    const body = ruleBody(css, '.listNote')
+    expect(body).toMatch(/margin:\s*0;/)
+    expect(body).toMatch(/color:\s*var\(--text-secondary\)/)
+  })
+
+  it('Past sessions` Resume row spans the slot (the slot is flex-start)', () => {
+    const past = readFileSync(
+      join(componentsDir, 'PastSessionsDialog/PastSessionsDialog.module.css'),
+      'utf8'
+    )
+    expect(ruleBody(past, '.resumeById')).toMatch(/align-self:\s*stretch/)
   })
 
   it('title → description is --gap-field', () => {
