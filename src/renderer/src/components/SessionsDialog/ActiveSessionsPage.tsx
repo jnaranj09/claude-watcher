@@ -4,11 +4,14 @@
 // bulk bar, the row itself for the details column — two separate controls. The list is LIVE (the
 // same watch deltas as the board): an ended session leaves it and its check; a new one arrives
 // unchecked. Main stays the source of truth; this page never writes session state.
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { exitSessions, type ExitVerb } from '../../lib/sessionExit'
-import { selectSessionsById, useBoard } from '../../stores/boardStore'
+import type { Workspace } from '../../../../shared/ipc/contract'
+import { openFromNotification } from '../../lib/openFromNotification'
+import { selectSessionsById, useBoard, type BoardSession } from '../../stores/boardStore'
+import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
@@ -17,7 +20,9 @@ import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { StatusDot } from '../StatusDot/StatusDot'
 import { statusLabel } from '../StatusDot/statusLabel'
+import { TagChipRow } from '../TagChip/TagChipRow'
 import { TextInput } from '../TextInput/TextInput'
+import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import pastStyles from '../PastSessionsDialog/PastSessionsDialog.module.css'
 import {
   activeEmptyCopy,
@@ -111,6 +116,19 @@ export function ActiveSessionsPage({
     dialog.actions.showSuccess(copy.text)
   })
   const checkedIds = checkedRows.map((s) => s.id)
+  // A session that ended is gone from the store: its details close to the placeholder.
+  const selected =
+    dialog.state.selectedId === null ? null : (sessionsById[dialog.state.selectedId] ?? null)
+
+  /** `Open` — close FIRST (the open path refuses to change the view while a modal is up,
+   *  UX-DR14), then open it exactly like a notification click: switch workspace, then the card. */
+  function openSelected(e: FormEvent<HTMLFormElement>): void {
+    e.preventDefault()
+    if (selected === null) return
+    const id = selected.id
+    dialog.actions.close()
+    void openFromNotification(id)
+  }
 
   return (
     <>
@@ -216,11 +234,103 @@ export function ActiveSessionsPage({
             </ManageDialog.ListBottomDivided>
           )}
         </ManageDialog.List>
-        <ManageDialog.Placeholder testId="active-session-placeholder">
-          Select a session on the left.
-        </ManageDialog.Placeholder>
+        {selected !== null ? (
+          <ManageDialog.Form testId="active-session-form" onSubmit={openSelected}>
+            <ActiveSessionDetails session={selected} workspaces={workspaces} />
+            {dialog.state.armedKey === 'form' && (
+              <ManageDialog.Hint testId="active-session-delete-hint">
+                {deleteConsequence(1)}
+              </ManageDialog.Hint>
+            )}
+            <ManageDialog.Footer>
+              <ManageDialog.Delete
+                testId="active-session-delete"
+                busy={exiting.busy}
+                onConfirm={() => void exiting.run('delete', [selected.id])}
+              />
+              <ManageDialog.GhostButton
+                testId="active-session-archive"
+                busy={exiting.busy}
+                onClick={() => void exiting.run('archive', [selected.id])}
+              >
+                Archive
+              </ManageDialog.GhostButton>
+              <ManageDialog.Save testId="active-session-open" disabled={exiting.busy}>
+                Open
+              </ManageDialog.Save>
+            </ManageDialog.Footer>
+          </ManageDialog.Form>
+        ) : (
+          <ManageDialog.Placeholder testId="active-session-placeholder">
+            Select a session on the left.
+          </ManageDialog.Placeholder>
+        )}
       </ManageDialog.Columns>
       <ManageDialog.Message testId="active-session-error" />
+    </>
+  )
+}
+
+/** Read-only, like Past sessions' form: name and tags change on the card itself. */
+function ActiveSessionDetails({
+  session,
+  workspaces
+}: {
+  session: BoardSession
+  workspaces: Workspace[]
+}): JSX.Element {
+  const tags = useTags(selectTags)
+  const shownTags = tagsForIds(tags, session.tagIds)
+  const workspace = workspaces.find((w) => w.id === session.workspaceId) ?? null
+  const launchedAt = useBoard((s) => {
+    const terminalId = s.terminalIdBySessionId[session.id]
+    return terminalId === undefined ? undefined : s.launchedTerminals[terminalId]?.launchedAt
+  })
+  return (
+    <>
+      <ManageDialog.Label>Name</ManageDialog.Label>
+      <p
+        className={pastStyles.value}
+        data-testid="active-session-form-name"
+        title={session.sessionName}
+      >
+        {session.sessionName}
+      </p>
+      <ManageDialog.Label>Folder</ManageDialog.Label>
+      <p
+        className={`${pastStyles.value} ${pastStyles.mono}`}
+        data-testid="active-session-form-folder"
+        title={session.projectPath}
+      >
+        {session.projectPath}
+      </p>
+      <ManageDialog.Label>Workspace</ManageDialog.Label>
+      <p className={pastStyles.valueRow} data-testid="active-session-form-workspace">
+        <WorkspaceLabel
+          name={workspace?.name ?? '(no workspace)'}
+          tone={workspace?.color ?? 'orphan'}
+        />
+      </p>
+      <ManageDialog.Label>Tags</ManageDialog.Label>
+      <div className={pastStyles.valueRow}>
+        {shownTags.length > 0 ? (
+          <TagChipRow tags={shownTags} testId="active-session-form-tags" />
+        ) : (
+          <span className={pastStyles.none}>No tags</span>
+        )}
+      </div>
+      <ManageDialog.Label>Status</ManageDialog.Label>
+      <p className={pastStyles.valueRow} data-testid="active-session-form-status">
+        <StatusDot status={session.column} />
+      </p>
+      {launchedAt !== undefined && (
+        <>
+          <ManageDialog.Label>Launched</ManageDialog.Label>
+          <p className={pastStyles.value} data-testid="active-session-form-launched">
+            {new Date(launchedAt).toLocaleString()}
+          </p>
+        </>
+      )}
     </>
   )
 }

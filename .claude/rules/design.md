@@ -304,6 +304,14 @@ not load past sessions`, suppresses the empty sentence.
 - **Every exit is Archive or Delete.** Card + focused bar carry Archive (no confirm, reversible) and
   red-at-rest Delete. Delete opens `StopConfirm`: "Delete session? The session is stopped and
   nothing is kept in Past sessions. Claude's own files are not touched." — Cancel default-focused.
+- **Sessions → Active** (spec 2026-10-03 D): the live sessions of a scope, Needs you → Working →
+  Idle, oldest first; a `RowCheck` per row + `Select all` (indeterminate) for the bulk bar
+  (`ListBottomDivided`: `N selected [Archive] [Delete]`), the row itself for the details
+  (`[Delete] [Archive] [Open]`). Delete ARMS IN PLACE (keyed: `armKey="bulk"` vs the footer's) with
+  StopConfirm's sentence as a `Hint` — StopConfirm cannot open over a dialog. Results go to the
+  message slot through the quiet exit core (`archiveTerminalCore` / `deleteTerminalCore` /
+  `exitSessions`): no toast, no jump to the board. `Open` closes the dialog, then
+  `openFromNotification`.
 - **No key archives** (R27); Archive button label names no chord.
 - `Esc to return` only while focus is outside the terminal.
 - Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` in `ListBottomDivided`

@@ -10,6 +10,11 @@ import { tagsStore } from '../../stores/tagsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { Workspace } from '../../../../shared/ipc/contract'
 import { deferred } from '../../test/deferred'
+import { openFromNotification } from '../../lib/openFromNotification'
+
+vi.mock('../../lib/openFromNotification', () => ({
+  openFromNotification: vi.fn(() => Promise.resolve())
+}))
 import { toastStore } from '../../stores/toastStore'
 
 const WS: Workspace[] = [
@@ -254,5 +259,87 @@ describe('Sessions → Active — the bulk bar', () => {
     expect(archive).toHaveBeenCalledTimes(1)
     held.resolve()
     await flush()
+  })
+})
+
+describe('Sessions → Active — details', () => {
+  function openRow(r: RenderResult, id: string): void {
+    click(q(r, `[data-testid="active-session-select-${id}"]`))
+  }
+
+  it('the row opens read-only details: Name, Folder, Workspace, Tags, Status, Launched', () => {
+    act(() =>
+      boardStore.setState({
+        launchedTerminals: {
+          tb: { terminalId: 'tb', launchedAt: 1_000, label: 'b', workspaceId: 'w1' }
+        }
+      })
+    )
+    const r = render()
+    openRow(r, 'b')
+    expect(text(r, 'active-session-form-name')).toBe('name-b')
+    expect(text(r, 'active-session-form-folder')).toBe('/home/op/b')
+    expect(
+      q(r, '[data-testid="active-session-form-workspace"] [data-tone]')?.getAttribute('data-tone')
+    ).toBe('blue')
+    expect(
+      q(r, '[data-testid="active-session-form-status"] [data-testid="status-label"]')?.textContent
+    ).toBe('Needs you')
+    expect(q(r, '[data-testid="active-session-form-launched"]')).not.toBeNull()
+    openRow(r, 'c') // no registry entry → no Launched row
+    expect(q(r, '[data-testid="active-session-form-launched"]')).toBeNull()
+  })
+
+  it('the footer is [Delete] [Archive] [Open], Open the primary', () => {
+    const r = render()
+    openRow(r, 'b')
+    const footer = q(r, '[data-manage-footer]')
+    expect([...(footer?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual([
+      'Delete',
+      'Archive',
+      'Open'
+    ])
+  })
+
+  it('Open closes the dialog FIRST, then opens the session like a notification click', () => {
+    const onClose = vi.fn()
+    const r = renderComponent(
+      <SessionsDialog page="active" onPageChange={() => {}} onClose={onClose} now={() => NOW} />
+    )
+    cleanup = r.unmount
+    openRow(r, 'b')
+    click(q(r, '[data-testid="active-session-open"]'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(openFromNotification).toHaveBeenCalledWith('b')
+    expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(openFromNotification).mock.invocationCallOrder[0] ?? 0
+    )
+  })
+
+  it('Archive here archives this one session and closes the details', async () => {
+    const r = render()
+    openRow(r, 'b')
+    click(q(r, '[data-testid="active-session-archive"]'))
+    expect(archive).toHaveBeenCalledWith('tb')
+    act(() => {
+      const { b: _gone, ...rest } = SESSIONS
+      void _gone
+      boardStore.setState({ sessionsById: rest })
+    })
+    await flush()
+    expect(text(r, 'sessions-success')).toBe('Archived "name-b".')
+    expect(q(r, '[data-testid="active-session-placeholder"]')).not.toBeNull()
+  })
+
+  it('Delete here arms in place with the singular sentence; the bulk Delete stays at rest', () => {
+    const r = render()
+    click(box(r, 'c'))
+    openRow(r, 'b')
+    click(q(r, '[data-testid="active-session-delete"]'))
+    expect(text(r, 'active-session-delete')).toBe('Confirm delete')
+    expect(text(r, 'active-bulk-delete')).toBe('Delete')
+    expect(text(r, 'active-session-delete-hint')).toBe(
+      "The session is stopped and nothing is kept in Past sessions. Claude's own files are not touched."
+    )
   })
 })
