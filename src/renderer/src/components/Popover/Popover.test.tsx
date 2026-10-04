@@ -212,3 +212,25 @@ describe('Popover.Surface — overlay motion (spec 2026-10-04 §4)', () => {
     expect(css).not.toMatch(/\.surface[^{]*\{[^}]*transform:/)
   })
 })
+
+// Measured on Liquid Glass (2026-10-04 drive, stripes under the ☰ menu): a surface that HOLDS a
+// submenu blurs from a ::before layer, and opacity < 1 on it cut that blur off for the whole exit —
+// sharp stripes through the glass. A container must never fade itself.
+describe('Popover.Surface — a container (holds a submenu) never fades itself', () => {
+  const css = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/Popover/Popover.module.css'),
+    'utf8'
+  )
+  it('keeps opacity 1 while leaving and clears its box instead', () => {
+    const i = css.indexOf('.surface[data-leaving]:has(.surface) {')
+    expect(i).toBeGreaterThanOrEqual(0)
+    const rule = css.slice(i, css.indexOf('}', i))
+    expect(rule).toMatch(/opacity:\s*1;/)
+    expect(rule).toMatch(/background-color:\s*transparent;/)
+    expect(rule).toMatch(/box-shadow:\s*none;/)
+  })
+  it('fades its rows and its own ::before layer, not the submenu that holds a blur', () => {
+    expect(css).toMatch(/\.surface\[data-leaving\]:has\(\.surface\)::before/)
+    expect(css).toMatch(/\.surface\[data-leaving\]:has\(\.surface\) > :not\(:has\(\.surface\)\)/)
+  })
+})

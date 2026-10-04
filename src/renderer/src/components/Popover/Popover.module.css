@@ -41,6 +41,28 @@
   transition-duration: var(--motion-exit);
   transition-timing-function: var(--motion-ease-exit);
 }
+/* A surface that HOLDS another (the ☰ menu with a submenu open) is a CONTAINER. Liquid Glass blurs
+   a container from a ::before layer, and opacity < 1 on the container cut that blur off for the
+   whole exit (measured 2026-10-04: sharp stripes through the glass). So a container never fades
+   itself: it keeps opacity 1, clears its own box, and fades its rows and its ::before layer. The
+   open submenu is a leaf and fades by its own opacity (a leaf's own opacity keeps its blur). */
+.surface[data-leaving]:has(.surface) {
+  opacity: 1;
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transition:
+    translate var(--motion-exit) var(--motion-ease-exit),
+    background-color var(--motion-exit) var(--motion-ease-exit),
+    border-color var(--motion-exit) var(--motion-ease-exit),
+    box-shadow var(--motion-exit) var(--motion-ease-exit);
+}
+.surface[data-leaving]:has(.surface)::before,
+.surface[data-leaving]:has(.surface) > :not(:has(.surface)),
+.surface[data-leaving]:has(.surface) > :has(.surface) > [data-popover-item] {
+  opacity: 0;
+  transition: opacity var(--motion-exit) var(--motion-ease-exit);
+}
 /* Opened or closed from the keyboard: instant (it is done many times a day). */
 :root[data-input='keyboard'] .surface {
   transition: none;
