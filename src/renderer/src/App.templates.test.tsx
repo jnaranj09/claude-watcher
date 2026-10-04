@@ -7,7 +7,7 @@
 //     prefill, hint = the template's cwd, and does NOT touch window.launch.pickDirectory;
 //   - submitting the prompt launches via window.launch.launchFromTemplate (never launch());
 //   - "Pick a folder…" still runs the plain folder flow unchanged;
-//   - "Manage templates…" opens the TemplatesDialog; UX-DR14 single-modal rule refuses Ctrl+N
+//   - "Manage templates…" opens the Sessions dialog on its Templates page; UX-DR14 single-modal rule refuses Ctrl+N
 //     while it is open; ✕ closes it.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
@@ -208,15 +208,15 @@ describe('App — session templates', () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
     click(q(r, '[data-testid="menu-manage"]'))
-    expect(q(r, '[data-testid="templates-overlay"]')).toBeTruthy()
+    expect(q(r, '[data-testid="sessions-overlay"]')).toBeTruthy()
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
     })
     await flush()
     expect(pickDirectory).not.toHaveBeenCalled()
     expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
-    click(q(r, '[data-testid="templates-close"]'))
-    expect(r.container.querySelector('[data-testid="templates-overlay"]')).toBeNull()
+    click(q(r, '[data-testid="sessions-close"]'))
+    expect(r.container.querySelector('[data-testid="sessions-overlay"]')).toBeNull()
   })
 
   it('the dialog takes focus on mount; Escape from the page body closes it', async () => {
@@ -233,7 +233,7 @@ describe('App — session templates', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
-    expect(r.container.querySelector('[data-testid="templates-overlay"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="sessions-overlay"]')).toBeNull()
     expect(boardStore.getState().sessionsDialog).toBeNull()
   })
 

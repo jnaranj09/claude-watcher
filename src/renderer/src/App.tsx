@@ -14,10 +14,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Board } from './components/board/Board'
 import { SmokeCockpit } from './SmokeCockpit'
-// Session templates — the header `+ New session` popover (folder / templates / Manage) and the
-// Manage-templates modal. See NewSessionButton.tsx / TemplatesDialog.tsx for their own docs.
+// Session templates — the header `+ New session` popover (folder / templates / Manage templates…,
+// which opens the Sessions dialog's Templates page). See NewSessionButton.tsx / TemplatesPage.tsx.
 import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
-import { TemplatesDialog } from './components/TemplatesDialog/TemplatesDialog'
 // Phrase shortcuts — the Manage-shortcuts modal (☰ menu → Shortcuts…) + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 // Workspaces (Task 9b) — the header switcher + the startup workspaces load. Task 10 wires
@@ -33,7 +32,7 @@ import { setSessionTags } from './stores/tagsStore'
 import { RulesDialog } from './components/RulesDialog/RulesDialog'
 // Past sessions (D-6) — the history modal (☰ menu → Past sessions…, always the last row). It loads
 // the history itself on open; nothing loads at startup.
-import { PastSessionsDialog } from './components/PastSessionsDialog/PastSessionsDialog'
+import { SessionsDialog } from './components/SessionsDialog/SessionsDialog'
 import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (☰ menu → Settings…; the `#terminals` proof view keeps
 // its own ⚙ gear) + the startup settings load.
@@ -746,13 +745,8 @@ function App(): React.JSX.Element {
           Cancel → clearStopConfirm(). Delete → sessionExit.deleteTerminal (window.launch.deleteSession
           THEN clearStopConfirm + showBoard). Esc = Cancel (guarded in keydown above). */}
       {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
-      {/* Session templates — the Manage-templates modal (renderer view-state; UX-DR14 single-modal
-          rule enforced by isModalOpen() at every open call site + the quit-guard listener above). */}
-      {sessionsDialog === 'templates' && (
-        <TemplatesDialog onClose={() => boardStore.getState().closeSessionsDialog()} />
-      )}
       {/* Phrase shortcuts — the Manage-shortcuts modal (renderer view-state; same z-60 layer and
-          the same UX-DR14 single-modal rule as the Templates dialog). */}
+          the same UX-DR14 single-modal rule as the Sessions dialog). */}
       {shortcutsDialogOpen && (
         <ShortcutsDialog onClose={() => boardStore.getState().closeShortcutsDialog()} />
       )}
@@ -769,10 +763,14 @@ function App(): React.JSX.Element {
       {settingsDialogOpen && (
         <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />
       )}
-      {/* Past sessions (D-6) — the history dialog (☰ menu → Past sessions…; same z-60 layer and
-          single-modal rule). Its Open takes the view itself (pastSessionsStore.openPastSession). */}
-      {sessionsDialog === 'past' && (
-        <PastSessionsDialog onClose={() => boardStore.getState().closeSessionsDialog()} />
+      {/* Sessions (spec 2026-10-03 B) — Past / Templates as pages of one dialog (same z-60 layer and
+          single-modal rule). A page row hands its page to the store. */}
+      {sessionsDialog !== null && (
+        <SessionsDialog
+          page={sessionsDialog}
+          onPageChange={(next) => boardStore.getState().openSessionsDialog(next)}
+          onClose={() => boardStore.getState().closeSessionsDialog()}
+        />
       )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and main answering the submit). Before submit NOTHING is

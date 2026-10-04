@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues } from '../../test/selectHarness'
-import { PastSessionsDialog } from './PastSessionsDialog'
+import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
@@ -78,7 +78,9 @@ async function flush(): Promise<void> {
 
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
-  const r = renderComponent(<PastSessionsDialog onClose={onClose} />)
+  const r = renderComponent(
+    <SessionsDialog page="past" onPageChange={() => {}} onClose={onClose} />
+  )
   cleanup = r.unmount
   return { r, onClose }
 }
@@ -105,7 +107,7 @@ describe('PastSessionsDialog', () => {
     const { r } = render()
     await flush()
     expect(list).toHaveBeenCalledTimes(1)
-    expect(q(r, '[data-testid="past-sessions-panel"]')).not.toBeNull()
+    expect(q(r, '[data-testid="sessions-panel"]')).not.toBeNull()
     expect(rows(r)).toEqual(['billing api'])
     expect(optionValues(r.container, 'past-session-scope-filter')).toEqual([
       'all',
@@ -160,7 +162,9 @@ describe('PastSessionsDialog', () => {
     const { r } = render()
     await flush()
     act(() => q(r, '[data-testid="past-session-select-sa"]')?.focus())
-    act(() => r.root.render(<PastSessionsDialog onClose={vi.fn()} />))
+    act(() =>
+      r.root.render(<SessionsDialog page="past" onPageChange={() => {}} onClose={vi.fn()} />)
+    )
     await flush()
     expect(list).toHaveBeenCalledTimes(1)
     expect(document.activeElement).toBe(q(r, '[data-testid="past-session-select-sa"]'))
@@ -200,7 +204,12 @@ describe('PastSessionsDialog', () => {
   it('a row draws the folder basename, the relative end and only SURVIVING tag chips', async () => {
     const onClose = vi.fn()
     const r = renderComponent(
-      <PastSessionsDialog onClose={onClose} now={() => A.endedAt + 5 * 60_000} />
+      <SessionsDialog
+        page="past"
+        onPageChange={() => {}}
+        onClose={onClose}
+        now={() => A.endedAt + 5 * 60_000}
+      />
     )
     cleanup = r.unmount
     await flush()
@@ -400,7 +409,7 @@ describe('PastSessionsDialog', () => {
     await flush()
     expect(forget).toHaveBeenCalledWith('sa')
     expect(q(r, '[data-testid="past-session-form-name"]')).toBeNull()
-    expect(q(r, '[data-testid="past-sessions-success"]')?.textContent).toBe('Session forgotten.')
+    expect(q(r, '[data-testid="sessions-success"]')?.textContent).toBe('Session forgotten.')
   })
 
   it('a refused Forget keeps the record and says so on the error line', async () => {

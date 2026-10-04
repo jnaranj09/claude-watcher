@@ -3,7 +3,7 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
-import { TemplatesDialog } from '../components/TemplatesDialog/TemplatesDialog'
+import { SessionsDialog } from '../components/SessionsDialog/SessionsDialog'
 import { ShortcutsDialog } from '../components/ShortcutsDialog/ShortcutsDialog'
 import { TagsDialog } from '../components/TagsDialog/TagsDialog'
 import { RulesDialog } from '../components/RulesDialog/RulesDialog'
@@ -43,7 +43,11 @@ afterEach(() => {
 
 describe('a failed startup load is named in each dialog', () => {
   it.each([
-    ['Templates', <TemplatesDialog key="t" onClose={() => {}} />, 'Could not load templates.'],
+    [
+      'Templates',
+      <SessionsDialog page="templates" onPageChange={() => {}} key="t" onClose={() => {}} />,
+      'Could not load templates.'
+    ],
     ['Shortcuts', <ShortcutsDialog key="s" onClose={() => {}} />, 'Could not load shortcuts.'],
     ['Tags', <TagsDialog key="g" onClose={() => {}} />, 'Could not load tags.'],
     ['Rules', <RulesDialog key="r" onClose={() => {}} />, 'Could not load rules.'],
@@ -55,7 +59,9 @@ describe('a failed startup load is named in each dialog', () => {
   })
 
   it('a later successful hydrate clears it (Templates)', () => {
-    r = renderComponent(<TemplatesDialog onClose={() => {}} />)
+    r = renderComponent(
+      <SessionsDialog page="templates" onPageChange={() => {}} onClose={() => {}} />
+    )
     act(() => templatesStore.getState().hydrate([]))
     expect(r.container.textContent).not.toContain('Could not load templates.')
     expect(r.container.textContent).toContain('No templates yet')

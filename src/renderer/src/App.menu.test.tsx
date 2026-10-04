@@ -219,7 +219,7 @@ describe('App — the header ☰ menu', () => {
 
   describe('Past sessions…', () => {
     const panel = (r: RenderResult): Element | null =>
-      r.container.querySelector('[data-testid="past-sessions-panel"]')
+      r.container.querySelector('[data-testid="sessions-panel"]')
 
     function openPastSessions(r: RenderResult): void {
       click(q(r, '[data-testid="app-menu"]'))
@@ -266,7 +266,7 @@ describe('App — the header ☰ menu', () => {
       })
       expect(panel(r)).toBeNull()
       openPastSessions(r)
-      click(q(r, '[data-testid="past-sessions-close"]'))
+      click(q(r, '[data-testid="sessions-close"]'))
       expect(panel(r)).toBeNull()
     })
 

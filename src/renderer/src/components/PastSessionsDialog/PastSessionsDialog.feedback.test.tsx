@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { deferred } from '../../test/deferred'
-import { PastSessionsDialog } from './PastSessionsDialog'
+import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
@@ -54,7 +54,7 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
   it('says Loading… while the history is fetched, then lists it', async () => {
     const d = deferred<unknown>()
     list.mockImplementation(() => d.promise)
-    r = renderComponent(<PastSessionsDialog onClose={() => {}} />)
+    r = renderComponent(<SessionsDialog page="past" onPageChange={() => {}} onClose={() => {}} />)
     expect(find('past-sessions-loading')?.textContent).toBe('Loading…')
     d.resolve([ROW])
     await settle()
@@ -65,7 +65,7 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
   it('a failed load keeps the error line and offers Retry, which loads again', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     list.mockImplementationOnce(() => Promise.reject(new Error('x')))
-    r = renderComponent(<PastSessionsDialog onClose={() => {}} />)
+    r = renderComponent(<SessionsDialog page="past" onPageChange={() => {}} onClose={() => {}} />)
     await settle()
     expect(find('past-session-error')?.textContent).toBe('Could not load past sessions')
     expect(find('past-sessions-loading')).toBeNull()
@@ -86,7 +86,7 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
     act(() => pastSessionsStore.setState({ sessions: [ROW], loaded: true }))
     const d = deferred<unknown>()
     list.mockImplementation(() => d.promise)
-    r = renderComponent(<PastSessionsDialog onClose={() => {}} />)
+    r = renderComponent(<SessionsDialog page="past" onPageChange={() => {}} onClose={() => {}} />)
     expect(find('past-sessions-loading')).toBeNull()
     expect(r.container.querySelectorAll('[data-testid="past-session-row"]')).toHaveLength(1)
     expect(list).toHaveBeenCalledTimes(1)

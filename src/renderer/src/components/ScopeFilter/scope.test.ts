@@ -6,6 +6,7 @@ import {
   filterByScope,
   hasOrphans,
   knownWorkspaceIds,
+  openingScope,
   scopeOf,
   scopeWorkspaceId,
   workspaceScope
@@ -65,5 +66,13 @@ describe('scope filter', () => {
     expect(hasOrphans(ROWS, KNOWN)).toBe(true)
     // A global row is not an orphan — its scope is Global, on purpose.
     expect(hasOrphans([GLOBAL], KNOWN)).toBe(false)
+  })
+})
+
+describe('openingScope', () => {
+  const WS = [{ id: 'w1', name: 'Ops', color: 'blue' as const, defaultCwd: null }]
+  it('opens on the active workspace when the dropdown offers it, else on the unfiltered entry', () => {
+    expect(openingScope(WS, 'w1')).toBe('ws:w1')
+    expect(openingScope(WS, 'gone')).toBe('all')
   })
 })

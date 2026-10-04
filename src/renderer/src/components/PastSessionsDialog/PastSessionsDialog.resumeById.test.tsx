@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
-import { PastSessionsDialog } from './PastSessionsDialog'
+import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
@@ -66,7 +66,9 @@ async function flush(): Promise<void> {
 
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
-  const r = renderComponent(<PastSessionsDialog onClose={onClose} />)
+  const r = renderComponent(
+    <SessionsDialog page="past" onPageChange={() => {}} onClose={onClose} />
+  )
   cleanup = r.unmount
   return { r, onClose }
 }

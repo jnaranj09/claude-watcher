@@ -3,7 +3,7 @@ import inputStyles from '../TextInput/TextInput.module.css'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
-import { TemplatesDialog } from './TemplatesDialog'
+import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
 import { rulesStore } from '../../stores/rulesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
@@ -57,7 +57,9 @@ async function flush(): Promise<void> {
 }
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
-  const r = renderComponent(<TemplatesDialog onClose={onClose} />)
+  const r = renderComponent(
+    <SessionsDialog page="templates" onPageChange={() => {}} onClose={onClose} />
+  )
   cleanup = r.unmount
   return { r, onClose }
 }
@@ -117,7 +119,7 @@ describe('TemplatesDialog', () => {
       params: []
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
-    expect(q(r, '[data-testid="templates-success"]').textContent).toBe('Template saved.')
+    expect(q(r, '[data-testid="sessions-success"]').textContent).toBe('Template saved.')
   })
   it('selecting a row loads it; the error copy shows when main says template_name_taken', async () => {
     const { r } = render()
@@ -182,7 +184,7 @@ describe('TemplatesDialog', () => {
     await flush()
     expect(remove).toHaveBeenCalledWith('a')
     expect(r.container.querySelector('[data-testid="template-delete"]')).toBeNull()
-    expect(q(r, '[data-testid="templates-success"]').textContent).toBe('Template deleted.')
+    expect(q(r, '[data-testid="sessions-success"]').textContent).toBe('Template deleted.')
   })
   it('a dirty-but-invalid draft explains WHY Save is disabled; the hint clears when it is fixed', async () => {
     const { r } = render()
@@ -205,7 +207,7 @@ describe('TemplatesDialog', () => {
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
       )
     })
-    expect(r.container.querySelector('[data-testid="templates-overlay"]')).toBeTruthy()
+    expect(r.container.querySelector('[data-testid="sessions-overlay"]')).toBeTruthy()
     expect(onClose).not.toHaveBeenCalled()
     expect(q(r, '[data-testid="template-delete"]').textContent).toBe('Delete')
     // Disarmed now — a SECOND Escape falls through to the dialog and closes it.
@@ -226,9 +228,9 @@ describe('TemplatesDialog', () => {
     const { r, onClose } = render()
     type(q(r, '[data-testid="template-search"]'), 'zzz')
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(0)
-    click(q(r, '[data-testid="templates-close"]'))
+    click(q(r, '[data-testid="sessions-close"]'))
     act(() => {
-      q(r, '[data-testid="templates-overlay"]').dispatchEvent(
+      q(r, '[data-testid="sessions-overlay"]').dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
       )
     })

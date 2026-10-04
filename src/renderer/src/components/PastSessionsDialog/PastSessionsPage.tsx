@@ -1,4 +1,4 @@
-// Past sessions (D-6) — the history dialog, on ManageDialog like its siblings: a header scope
+// Past sessions (D-6) — the Past PAGE of the Sessions dialog (spec 2026-10-03 E), on ManageDialog: a header scope
 // filter (`All sessions` · each workspace — no Global, no orphans: every record has a workspace
 // and the delete cascade keeps it so), a search box over the NAME, a FLAT list newest first, a
 // READ-ONLY form, and a [Forget] [Open] footer. The rail's bottom row resumes a claude session the
@@ -11,18 +11,15 @@ import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
 import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { Button } from '../Button/Button'
-import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
+import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
+import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
-import {
-  selectActiveWorkspaceId,
-  selectWorkspaces,
-  useWorkspaces
-} from '../../stores/workspacesStore'
+import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
   focusLiveSession,
   forgetPastSession,
@@ -47,27 +44,17 @@ import {
 } from './pastSessionsView'
 import styles from './PastSessionsDialog.module.css'
 
-export interface PastSessionsDialogProps {
-  onClose: () => void
-  /** Injected clock for the relative times (tests). */
-  now?: () => number
-}
-
-export function PastSessionsDialog({
-  onClose,
-  now = Date.now
-}: PastSessionsDialogProps): JSX.Element {
-  const dialog = useManageDialog({ title: 'Past sessions', testIdPrefix: 'past-sessions', onClose })
+export function PastSessionsPage({
+  scope,
+  setScope,
+  pages,
+  now
+}: DialogPageProps & { now: () => number }): JSX.Element {
+  const dialog = useManageDialogContext()
   const sessions = usePastSessions(selectPastSessions)
   const loaded = usePastSessions(selectPastSessionsLoaded)
   const tags = useTags(selectTags)
-  const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
-  // Opens on the workspace you are working in; falls back to `All sessions` when that id names no
-  // known workspace, so the dropdown never sits on a value it does not offer (design.md).
-  const [scope, setScope] = useState<PastScope>(() =>
-    workspaces.some((w) => w.id === activeWorkspaceId) ? `ws:${activeWorkspaceId}` : 'all'
-  )
   const [query, setQuery] = useState('')
   const [resumeId, setResumeId] = useState('')
   const [busy, setBusy] = useState(false)
@@ -115,7 +102,10 @@ export function PastSessionsDialog({
     setLoadGeneration((g) => g + 1)
   }
 
-  const scoped = filterPastByScope(sessions, scope)
+  // Past offers no Global or `(no workspace)`: every record has a workspace. The dialog already
+  // resets those on the way in (scopeOnPage); the narrowing keeps the type honest.
+  const pastScope: PastScope = scope === 'global' || scope === 'orphans' ? 'all' : scope
+  const scoped = filterPastByScope(sessions, pastScope)
   const listed = filterPastByName(scoped, query)
   const selected = sessions.find((s) => s.id === dialog.state.selectedId) ?? null
 
@@ -181,136 +171,133 @@ export function PastSessionsDialog({
   })
 
   return (
-    <ManageDialog.Provider {...dialog}>
-      <ManageDialog.Frame>
-        <ManageDialog.Header>
-          <ScopeFilter
-            value={scope}
-            workspaces={workspaces}
-            showGlobal={false}
-            showOrphans={false}
-            onChange={changeScope}
-            allLabel="All sessions"
-            testId="past-session-scope-filter"
-            ariaLabel="Filter past sessions by workspace"
+    <>
+      <ManageDialog.Header>
+        <ScopeFilter
+          value={pastScope}
+          workspaces={workspaces}
+          showGlobal={false}
+          showOrphans={false}
+          onChange={changeScope}
+          allLabel="All sessions"
+          testId="past-session-scope-filter"
+          ariaLabel="Filter past sessions by workspace"
+        />
+      </ManageDialog.Header>
+      <ManageDialog.Columns>
+        {pages}
+        <ManageDialog.List size="wide">
+          <TextInput
+            inputRef={searchRef}
+            variant="inline"
+            testId="past-session-search"
+            ariaLabel="Search past sessions"
+            placeholder="Search"
+            value={query}
+            onChange={setQuery}
           />
-        </ManageDialog.Header>
-        <ManageDialog.Columns>
-          <ManageDialog.List size="wide">
-            <TextInput
-              inputRef={searchRef}
-              variant="inline"
-              testId="past-session-search"
-              ariaLabel="Search past sessions"
-              placeholder="Search"
-              value={query}
-              onChange={setQuery}
-            />
-            <ManageDialog.Rows>
-              {listed.map((s) => (
-                <ManageDialog.Row
-                  key={s.id}
-                  id={s.id}
-                  testId="past-session-row"
-                  selectTestId={`past-session-select-${s.id}`}
-                >
-                  <span className={styles.rowMain}>
-                    <span className={styles.rowName} data-testid="past-session-name" title={s.name}>
-                      {s.name}
-                    </span>
-                    <span className={styles.rowMeta}>
-                      <span data-testid="past-session-folder">{folderBasename(s.cwd)}</span>
-                      {' · '}
-                      <span data-testid="past-session-ended">
-                        {relativeEnded(s.endedAt, now())}
-                      </span>
-                    </span>
-                    <TagChipRow
-                      tags={tagsForIds(tags, s.tagIds)}
-                      testId={`past-session-tags-${s.id}`}
-                    />
+          <ManageDialog.Rows>
+            {listed.map((s) => (
+              <ManageDialog.Row
+                key={s.id}
+                id={s.id}
+                testId="past-session-row"
+                selectTestId={`past-session-select-${s.id}`}
+              >
+                <span className={styles.rowMain}>
+                  <span className={styles.rowName} data-testid="past-session-name" title={s.name}>
+                    {s.name}
                   </span>
-                </ManageDialog.Row>
-              ))}
-              {/* Nothing is said until the list has loaded: the first open of a run would otherwise
+                  <span className={styles.rowMeta}>
+                    <span data-testid="past-session-folder">{folderBasename(s.cwd)}</span>
+                    {' · '}
+                    <span data-testid="past-session-ended">{relativeEnded(s.endedAt, now())}</span>
+                  </span>
+                  <TagChipRow
+                    tags={tagsForIds(tags, s.tagIds)}
+                    testId={`past-session-tags-${s.id}`}
+                  />
+                </span>
+              </ManageDialog.Row>
+            ))}
+            {/* Nothing is said until the list has loaded: the first open of a run would otherwise
                   claim "No past sessions yet." while the history is still in flight. A failed load
                   says so on the error line instead. */}
-              {loading && !loadFailed && sessions.length === 0 && (
-                <p className={styles.empty} data-testid="past-sessions-loading">
-                  Loading…
-                </p>
-              )}
-              {loaded && !loading && !loadFailed && listed.length === 0 && (
-                <p className={styles.empty} data-testid="past-sessions-empty">
-                  {pastSessionsEmptyCopy(sessions.length, scoped.length, query)}
-                </p>
-              )}
-            </ManageDialog.Rows>
-            {/* The rail's bottom slot (siblings put `+ New` here; this dialog has none): Retry after
+            {loading && !loadFailed && sessions.length === 0 && (
+              <p className={styles.empty} data-testid="past-sessions-loading">
+                Loading…
+              </p>
+            )}
+            {loaded && !loading && !loadFailed && listed.length === 0 && (
+              <p className={styles.empty} data-testid="past-sessions-empty">
+                {pastSessionsEmptyCopy(sessions.length, scoped.length, query)}
+              </p>
+            )}
+          </ManageDialog.Rows>
+          {/* The rail's bottom slot (siblings put `+ New` here; this dialog has none): Retry after
                 a failed load, Resume by id — a claude session started outside the app comes in by
                 its id — and the cap footnote under them. */}
-            <ManageDialog.ListBottomDivided>
-              {loadFailed && (
-                <ManageDialog.GhostButton testId="past-sessions-retry" onClick={retryLoad}>
-                  Retry
-                </ManageDialog.GhostButton>
-              )}
-              <form
-                className={styles.resumeById}
-                data-testid="past-session-resume-by-id"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void resumeById.run()
-                }}
+          <ManageDialog.ListBottomDivided>
+            {loadFailed && (
+              <ManageDialog.GhostButton testId="past-sessions-retry" onClick={retryLoad}>
+                Retry
+              </ManageDialog.GhostButton>
+            )}
+            <form
+              className={styles.resumeById}
+              data-testid="past-session-resume-by-id"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void resumeById.run()
+              }}
+            >
+              <TextInput
+                variant="inline"
+                testId="past-session-resume-id"
+                ariaLabel="Claude session id"
+                placeholder="Paste a claude session id"
+                value={resumeId}
+                onChange={setResumeId}
+              />
+              <Button
+                type="submit"
+                size="sm"
+                testId="past-session-resume-id-submit"
+                busy={resumeById.busy}
+                disabled={resumeId.trim().length === 0 || busy}
               >
-                <TextInput
-                  variant="inline"
-                  testId="past-session-resume-id"
-                  ariaLabel="Claude session id"
-                  placeholder="Paste a claude session id"
-                  value={resumeId}
-                  onChange={setResumeId}
-                />
-                <Button
-                  type="submit"
-                  size="sm"
-                  testId="past-session-resume-id-submit"
-                  busy={resumeById.busy}
-                  disabled={resumeId.trim().length === 0 || busy}
-                >
-                  Resume
-                </Button>
-              </form>
-              <ManageDialog.ListNote testId="past-sessions-cap-note">
-                {pastSessionsCapNote(PAST_SESSIONS_MAX)}
-              </ManageDialog.ListNote>
-            </ManageDialog.ListBottomDivided>
-          </ManageDialog.List>
-          {selected !== null ? (
-            <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
-              <PastSessionDetails session={selected} workspaces={workspaces} />
-              <ManageDialog.Footer>
-                <ManageDialog.Delete
-                  testId="past-session-forget"
-                  label="Forget"
-                  confirmLabel="Confirm forget"
-                  disabled={busy}
-                  onConfirm={() => void confirmForget()}
-                />
-                <ManageDialog.Save testId="past-session-open" disabled={busy || resumeById.busy}>
-                  Open
-                </ManageDialog.Save>
-              </ManageDialog.Footer>
-            </ManageDialog.Form>
-          ) : (
-            <ManageDialog.Placeholder testId="past-session-placeholder">
-              Select a session on the left.
-            </ManageDialog.Placeholder>
-          )}
-        </ManageDialog.Columns>
-        <ManageDialog.Message testId="past-session-error" />
-      </ManageDialog.Frame>
-    </ManageDialog.Provider>
+                Resume
+              </Button>
+            </form>
+            <ManageDialog.ListNote testId="past-sessions-cap-note">
+              {pastSessionsCapNote(PAST_SESSIONS_MAX)}
+            </ManageDialog.ListNote>
+          </ManageDialog.ListBottomDivided>
+        </ManageDialog.List>
+        {selected !== null ? (
+          <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
+            <PastSessionDetails session={selected} workspaces={workspaces} />
+            <ManageDialog.Footer>
+              <ManageDialog.Delete
+                testId="past-session-forget"
+                label="Forget"
+                confirmLabel="Confirm forget"
+                disabled={busy}
+                onConfirm={() => void confirmForget()}
+              />
+              <ManageDialog.Save testId="past-session-open" disabled={busy || resumeById.busy}>
+                Open
+              </ManageDialog.Save>
+            </ManageDialog.Footer>
+          </ManageDialog.Form>
+        ) : (
+          <ManageDialog.Placeholder testId="past-session-placeholder">
+            Select a session on the left.
+          </ManageDialog.Placeholder>
+        )}
+      </ManageDialog.Columns>
+      <ManageDialog.Message testId="past-session-error" />
+    </>
   )
 }
 

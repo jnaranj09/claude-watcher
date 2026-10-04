@@ -46,7 +46,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const dialog = useManageDialog({ title: 'Shortcuts', testIdPrefix: 'shortcuts', onClose })
   const known = knownWorkspaceIds(workspaces)
-  // Opens on the workspace you are working in — same rule as TemplatesDialog.
+  // Opens on the workspace you are working in — same rule as the Sessions dialog.
   const [scope, setScope] = useState<ScopeFilterValue>(() =>
     workspaces.some((w) => w.id === activeWorkspaceId)
       ? workspaceScope(activeWorkspaceId)

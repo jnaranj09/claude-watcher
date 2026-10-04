@@ -14,6 +14,13 @@ export function workspaceScope(id: string): ScopeFilterValue {
   return `ws:${id}`
 }
 
+/** Where a scoped dialog OPENS: the active workspace — the rows you most likely came for — or the
+ *  unfiltered entry when that id names no known workspace (a dropdown never sits on a value it does
+ *  not offer — design.md). */
+export function openingScope(workspaces: Workspace[], activeId: string): ScopeFilterValue {
+  return workspaces.some((w) => w.id === activeId) ? workspaceScope(activeId) : ALL_SCOPE
+}
+
 /** The workspace id a value names, or null for the three non-workspace values. */
 export function scopeWorkspaceId(value: ScopeFilterValue): string | null {
   return value.startsWith('ws:') ? value.slice('ws:'.length) : null

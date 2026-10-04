@@ -45,6 +45,9 @@ const formOpen = dialog.state.creating || selected !== null
 </ManageDialog.Provider>
 ```
 
+A dialog with sibling pages owns this state and renders each page's Header/Columns/Message — see
+"Page column".
+
 ## Two-column rules
 
 - Right column is PLACEHOLDER (nothing open), FORM (a row or New), or PANE (settings-like, no
@@ -296,7 +299,7 @@ Only header control besides `+ New session`; filters nothing.
 
 ## Past sessions and exits
 
-- Nothing selected → placeholder "Select a session on the left." Load failure → error line `Could
+- Past sessions is the Past PAGE of the Sessions dialog (☰ → Sessions). Nothing selected → placeholder "Select a session on the left." Load failure → error line `Could
 not load past sessions`, suppresses the empty sentence.
 - **Every exit is Archive or Delete.** Card + focused bar carry Archive (no confirm, reversible) and
   red-at-rest Delete. Delete opens `StopConfirm`: "Delete session? The session is stopped and

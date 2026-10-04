@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { deferred, type Deferred } from '../../test/deferred'
-import { TemplatesDialog } from './TemplatesDialog'
+import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 
@@ -36,7 +36,9 @@ function el<T extends Element = HTMLElement>(id: string): T {
 describe('TemplatesDialog — Browse…', () => {
   it('is busy while the picker is open, and a failed picker says so', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    r = renderComponent(<TemplatesDialog onClose={() => {}} />)
+    r = renderComponent(
+      <SessionsDialog page="templates" onPageChange={() => {}} onClose={() => {}} />
+    )
     act(() => el('template-new').click())
     act(() => el('template-browse').click())
     expect(el('template-browse').getAttribute('aria-busy')).toBe('true')

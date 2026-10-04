@@ -9,7 +9,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionLabel, optionValues, selectedValue } from '../../test/selectHarness'
-import { TemplatesDialog } from './TemplatesDialog'
+import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
@@ -75,7 +75,9 @@ function seed(templates: Template[], activeId = 'w1'): void {
 }
 
 function render(): RenderResult {
-  const r = renderComponent(<TemplatesDialog onClose={vi.fn()} />)
+  const r = renderComponent(
+    <SessionsDialog page="templates" onPageChange={() => {}} onClose={vi.fn()} />
+  )
   cleanup = r.unmount
   return r
 }
