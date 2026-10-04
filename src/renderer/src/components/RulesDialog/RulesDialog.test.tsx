@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { rowText } from '../../test/rowText'
+import { settingsStore } from '../../stores/settingsStore'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
 import { TagsDialog } from '../TagsDialog/TagsDialog'
@@ -43,6 +44,8 @@ let remove: ReturnType<typeof vi.fn>
 let move: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  // These tests read the strict (unchecked) list; Include global has its own tests.
+  settingsStore.getState().applyPatch({ includeGlobal: false })
   save = vi.fn((req: RuleSaveRequest) => {
     const saved: Rule = { ...req, id: req.id ?? 'r-new' }
     return Promise.resolve({ saved, rules: [R_A, R_B, R_C, saved], brokenIds: ['rc'] })

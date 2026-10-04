@@ -109,8 +109,9 @@ For everything else, decide, record it, and continue.
     with a fixed option list, the recommended value as default, and `Off` as one of the options.
   - Internal mechanics: hard-code them.
 - **Settings are global.** Config items (templates, shortcuts, rules) carry
-  `workspaceId | null`, where null means global. Filters are strict both ways. Nothing is merged or
-  overridden.
+  `workspaceId | null`, where null means global. A workspace view also lists the global rows when
+  the operator's one remembered `Include global` choice is on (default); every row is marked with
+  where it lives. Nothing is overridden.
 - **Prefer ids and intents from the renderer.** The renderer sends a template id and main stamps
   everything else. Make the wrong state impossible to represent instead of checking for it.
 - **Keyboard:**
@@ -426,7 +427,8 @@ yet. Prefer turning prose-only rules into sensors.
   downgrade does not wipe a file.
 - **Corrupt file:** back it up, start fresh, and say so (`StorageNotice`).
 - **Persist view state only when it must survive a restart** (for example, the active workspace).
-  Filters and search are not persisted.
+  Filters and search are not persisted. Exception: `Include global` (settings blob, one value for
+  every config list) — the owner asked for it to be remembered and shared.
 - **Enum-lock only the values we generate** (flags, colours, delays). Never enum-lock claude's
   outputs (`status`, hook names).
 - **Free text or select:** use a select over a closed set when a bad value would silently do
@@ -539,47 +541,47 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 
 ## 11. Default answers
 
-| Question                                | Answer                                                                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| New config surface?                     | `ManageDialog`: rail \| right column, placeholder when nothing is open, `+ New` at the bottom of the rail                 |
-| Settings-like surface?                  | Categories as rail rows, opens on the first, saves on change, no Save button                                              |
-| Global or per-workspace?                | Items: `workspaceId \| null` with strict filter. App settings: global. Alerts: global                                     |
-| Setting or hard-code?                   | Felt by the operator → setting with a fixed list, recommended default, `Off` as an option. Internal → hard-code           |
-| Confirm dialog?                         | Reversible → no. Destructive → arm in place (`Delete` → `Confirm delete`)                                                 |
-| A control the user can't use now?       | Do not render it (only exception: disabled reorder arrows)                                                                |
-| Menu, dropdown or list popup?           | `Popover` parts. `Select` for value pickers                                                                               |
-| Spacing?                                | A role token by job. Never `--space-N` or px                                                                              |
-| Colour?                                 | An existing token. Otherwise a new documented, themeable token                                                            |
-| Show a workspace?                       | Tint plus name (`WorkspaceLabel`). Never a dot                                                                            |
-| Show status?                            | Dot plus text label, fixed colours                                                                                        |
-| Need feedback?                          | §9                                                                                                                        |
-| Async button?                           | `useAsyncAction` / `busy`                                                                                                 |
-| Error copy?                             | Map a code to a plain sentence                                                                                            |
-| Bad config or input?                    | Fail closed to a safe default, keep the user's setting, show it in the UI, log code + path                                |
-| Optimistic update?                      | Only as view-state that expires when main answers. Revert and toast on failure                                            |
-| Library or build it?                    | Build a small primitive. No UI kit                                                                                        |
-| New key binding?                        | Avoid. Never global. Never steal a key from claude's terminal                                                             |
-| Background event takes focus?           | Never                                                                                                                     |
-| Auto-submit into claude?                | Never                                                                                                                     |
-| File watcher or live reload?            | No. Rescan on open, plus a Reload button                                                                                  |
-| Per-workspace or per-terminal override? | Out of scope. One global choice                                                                                           |
-| Light-theme support?                    | Yes, with tested contrast floors                                                                                          |
-| New status or state?                    | No. Use tags and rules                                                                                                    |
-| Feature naming?                         | A name that can't be confused with an existing field ("workspace", not "project"). New code says `claude-watcher`         |
-| Cross-platform?                         | Write it portable (`$SHELL`, POSIX). Gate Linux-only paths. Linux ships first; macOS and Windows later, unsigned at first |
-| Orphaned reference?                     | Keep it, hide it or label it, and make it fixable. Never drop it silently                                                 |
-| Bigger scope?                           | Ship the thin version. Put the rest on IdeasBoard                                                                         |
-| New helper or abstraction?              | Search for an existing one first. Only with a second real caller. Inline it when it grows a one-caller flag               |
-| Split a file or function?               | Where the pieces are tangled together, not at a line count                                                                |
-| Need `as`?                              | Parse with Zod instead. If you must, inside a small named, tested helper                                                  |
-| A state with variants?                  | A discriminated union with an exhaustive `never` check. No boolean pairs                                                  |
-| A test is red?                          | Fix the code. Never skip, delete, `.only`, loosen or re-record it to get green                                            |
-| Mock or real?                           | Real code. Mock only at process edges (pty, fs, Electron)                                                                 |
-| Snapshot test?                          | No                                                                                                                        |
-| Coverage target?                        | No. Fault-inject the guards instead                                                                                       |
-| A `catch` with nothing in it?           | Log a `code=`, or comment why swallowing is safe                                                                          |
-| Add a line to CLAUDE.md or a rule file? | Only after an agent repeated a mistake, and only what the code can't tell. Prefer a sensor                                |
-| Rewrite or refactor?                    | Refactor in small steps behind green gates. Rewrite only a local wrong abstraction                                        |
+| Question                                | Answer                                                                                                                                                          |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New config surface?                     | `ManageDialog`: rail \| right column, placeholder when nothing is open, `+ New` at the bottom of the rail                                                       |
+| Settings-like surface?                  | Categories as rail rows, opens on the first, saves on change, no Save button                                                                                    |
+| Global or per-workspace?                | Items: `workspaceId \| null`; a workspace view lists its own rows + global (Include global, remembered), every row marked. App settings: global. Alerts: global |
+| Setting or hard-code?                   | Felt by the operator → setting with a fixed list, recommended default, `Off` as an option. Internal → hard-code                                                 |
+| Confirm dialog?                         | Reversible → no. Destructive → arm in place (`Delete` → `Confirm delete`)                                                                                       |
+| A control the user can't use now?       | Do not render it (only exception: disabled reorder arrows)                                                                                                      |
+| Menu, dropdown or list popup?           | `Popover` parts. `Select` for value pickers                                                                                                                     |
+| Spacing?                                | A role token by job. Never `--space-N` or px                                                                                                                    |
+| Colour?                                 | An existing token. Otherwise a new documented, themeable token                                                                                                  |
+| Show a workspace?                       | Tint plus name (`WorkspaceLabel`). Never a dot                                                                                                                  |
+| Show status?                            | Dot plus text label, fixed colours                                                                                                                              |
+| Need feedback?                          | §9                                                                                                                                                              |
+| Async button?                           | `useAsyncAction` / `busy`                                                                                                                                       |
+| Error copy?                             | Map a code to a plain sentence                                                                                                                                  |
+| Bad config or input?                    | Fail closed to a safe default, keep the user's setting, show it in the UI, log code + path                                                                      |
+| Optimistic update?                      | Only as view-state that expires when main answers. Revert and toast on failure                                                                                  |
+| Library or build it?                    | Build a small primitive. No UI kit                                                                                                                              |
+| New key binding?                        | Avoid. Never global. Never steal a key from claude's terminal                                                                                                   |
+| Background event takes focus?           | Never                                                                                                                                                           |
+| Auto-submit into claude?                | Never                                                                                                                                                           |
+| File watcher or live reload?            | No. Rescan on open, plus a Reload button                                                                                                                        |
+| Per-workspace or per-terminal override? | Out of scope. One global choice                                                                                                                                 |
+| Light-theme support?                    | Yes, with tested contrast floors                                                                                                                                |
+| New status or state?                    | No. Use tags and rules                                                                                                                                          |
+| Feature naming?                         | A name that can't be confused with an existing field ("workspace", not "project"). New code says `claude-watcher`                                               |
+| Cross-platform?                         | Write it portable (`$SHELL`, POSIX). Gate Linux-only paths. Linux ships first; macOS and Windows later, unsigned at first                                       |
+| Orphaned reference?                     | Keep it, hide it or label it, and make it fixable. Never drop it silently                                                                                       |
+| Bigger scope?                           | Ship the thin version. Put the rest on IdeasBoard                                                                                                               |
+| New helper or abstraction?              | Search for an existing one first. Only with a second real caller. Inline it when it grows a one-caller flag                                                     |
+| Split a file or function?               | Where the pieces are tangled together, not at a line count                                                                                                      |
+| Need `as`?                              | Parse with Zod instead. If you must, inside a small named, tested helper                                                                                        |
+| A state with variants?                  | A discriminated union with an exhaustive `never` check. No boolean pairs                                                                                        |
+| A test is red?                          | Fix the code. Never skip, delete, `.only`, loosen or re-record it to get green                                                                                  |
+| Mock or real?                           | Real code. Mock only at process edges (pty, fs, Electron)                                                                                                       |
+| Snapshot test?                          | No                                                                                                                                                              |
+| Coverage target?                        | No. Fault-inject the guards instead                                                                                                                             |
+| A `catch` with nothing in it?           | Log a `code=`, or comment why swallowing is safe                                                                                                                |
+| Add a line to CLAUDE.md or a rule file? | Only after an agent repeated a mistake, and only what the code can't tell. Prefer a sensor                                                                      |
+| Rewrite or refactor?                    | Refactor in small steps behind green gates. Rewrite only a local wrong abstraction                                                                              |
 
 ## 12. Reversals: old → current (do not revive the old side)
 
@@ -598,6 +600,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Each dialog with its own layout; Settings one long column; Shortcuts as a table                     | One `ManageDialog` list \| form, categories for Settings                                            | One standard                                         |
 | Blank New form when the dialog opens                                                                | Placeholder sentence                                                                                | "is this a record or a create?"                      |
 | Bare red or neutral text feedback, no success colour                                                | `Callout` box, green `--success`                                                                    | "no box? no colors?"                                 |
+| Strict scope filter both ways                                                                       | `Include global` (opt-in, remembered, shared) with a where-it-lives marker on every row             | The operator wants to see what applies to them       |
 | Settings "Saved" for 1.5 s                                                                          | Compact Callout for 2.5 s                                                                           | Too short to read                                    |
 | Hand-made popovers                                                                                  | `Popover` standard                                                                                  | Theme consistency                                    |
 | Spacing tuned per component                                                                         | Role tokens plus a guard test                                                                       | "doesn't look like a real app"                       |

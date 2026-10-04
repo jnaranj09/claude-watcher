@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
 import { rowText } from '../../test/rowText'
+import { settingsStore } from '../../stores/settingsStore'
+import { stubSettings } from '../../test/settingsBridge'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionLabel, optionValues, selectedValue } from '../../test/selectHarness'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
@@ -46,6 +48,8 @@ let cleanup: (() => void) | undefined
 let save: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  // The strict tests below read the UNCHECKED behaviour; the Include global test turns it on.
+  settingsStore.getState().applyPatch({ includeGlobal: false })
   save = vi.fn((req: Template) => {
     const saved = { ...req, id: req.id ?? 'new' }
     return Promise.resolve({ saved, templates: [saved] })
@@ -212,5 +216,26 @@ describe('where each row lives (spec 2026-10-03 H)', () => {
     const rows = [...r.container.querySelectorAll('[data-testid="template-row"]')]
     expect(rows.length).toBeGreaterThan(1)
     for (const row of rows) expect(row.querySelector('[data-testid="scope-marker"]')).not.toBeNull()
+  })
+})
+
+describe('Include global (spec 2026-10-03 H)', () => {
+  it('on: the workspace rows, then the global ones; off: own rows only', async () => {
+    stubSettings()
+    act(() => settingsStore.getState().applyPatch({ includeGlobal: true }))
+    seed([GLOBAL, OWN])
+    const r = render()
+    const ids = (): (string | null | undefined)[] =>
+      [...r.container.querySelectorAll('[data-template-id]')].map((e) =>
+        e.getAttribute('data-template-id')
+      )
+    expect(ids()).toEqual(['own', 'g'])
+    await act(async () => {
+      r.container
+        .querySelector<HTMLInputElement>('[data-testid="template-include-global"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(ids()).toEqual(['own'])
   })
 })

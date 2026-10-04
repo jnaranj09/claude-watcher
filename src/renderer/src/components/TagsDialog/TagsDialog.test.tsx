@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { rowText } from '../../test/rowText'
+import { settingsStore } from '../../stores/settingsStore'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption } from '../../test/selectHarness'
 import { TagsDialog } from './TagsDialog'
@@ -23,6 +24,8 @@ let save: ReturnType<typeof vi.fn>
 let remove: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  // These tests read the strict (unchecked) list; Include global has its own tests.
+  settingsStore.getState().applyPatch({ includeGlobal: false })
   save = vi.fn((req: TagSaveRequest) => {
     const saved: Tag = {
       id: req.id ?? 't-new',

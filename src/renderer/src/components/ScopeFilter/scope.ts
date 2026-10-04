@@ -60,6 +60,20 @@ export function filterByScope<T extends { workspaceId: string | null }>(
   })
 }
 
+/** A workspace view with global rows mixed in: the workspace's own rows first, then the global
+ *  ones, each group in its saved order — still ONE flat list, no section headers (design.md). Any
+ *  other scope is returned as is. */
+export function workspaceRowsFirst<T extends { workspaceId: string | null }>(
+  rows: T[],
+  scope: ScopeFilterValue
+): T[] {
+  if (scopeWorkspaceId(scope) === null) return rows
+  return [
+    ...rows.filter((r) => r.workspaceId !== null),
+    ...rows.filter((r) => r.workspaceId === null)
+  ]
+}
+
 /** True when any row's workspace is gone — the ONLY condition that puts `(no workspace)` on the
  *  dropdown. Offering it always would advertise a state that normally cannot happen. */
 export function hasOrphans(

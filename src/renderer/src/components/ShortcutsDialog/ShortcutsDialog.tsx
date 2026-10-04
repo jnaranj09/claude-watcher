@@ -2,6 +2,7 @@
 // two-column standard: a rail of shortcuts (name + alias) and the form on the right, the
 // placeholder while nothing is open (spec 2026-09-29 §4). The open chord is set in Settings →
 // Keyboard; the subtitle shows it. UX-DR14: App.tsx guards it against the other modals.
+import { IncludeGlobal } from '../ScopeFilter/IncludeGlobal'
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
@@ -18,13 +19,14 @@ import {
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { ShortcutForm } from './ShortcutForm'
 import { ChordKeys } from './ChordKeys'
-import { selectExpanderKey, useSettings } from '../../stores/settingsStore'
+import { selectExpanderKey, selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
 import { expanderChord } from '../../../../shared/schemas/settings'
 import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   ALL_SCOPE,
   filterByScope,
+  workspaceRowsFirst,
   hasOrphans,
   knownWorkspaceIds,
   scopeOf,
@@ -55,7 +57,8 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   )
   const selected = shortcuts.find((s) => s.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
-  const listed = filterByScope(shortcuts, scope, known, false)
+  const includeGlobal = useSettings(selectIncludeGlobal)
+  const listed = workspaceRowsFirst(filterByScope(shortcuts, scope, known, includeGlobal), scope)
 
   function changeScope(next: ScopeFilterValue): void {
     setScope(next)
@@ -66,7 +69,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   /** design.md — a save that moves a row to another scope follows it. */
   function revealSaved(saved: Shortcut): void {
     dialog.actions.select(saved.id)
-    if (filterByScope([saved], scope, known, false).length === 0) {
+    if (filterByScope([saved], scope, known, includeGlobal).length === 0) {
       setScope(scopeOf(saved.workspaceId, known))
     }
     dialog.actions.showSuccess('Shortcut saved.')
@@ -102,6 +105,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
             testId="shortcut-scope-filter"
             ariaLabel="Filter shortcuts by workspace"
           />
+          <IncludeGlobal scope={scope} testId="shortcut-include-global" />
         </ManageDialog.Header>
         <ManageDialog.Columns>
           <ManageDialog.List size="wide">

@@ -3,6 +3,8 @@
 // (T-14): rows are never sorted, and ↑ / ↓ in each row's RowActions slot are the only reorder — the
 // one row action with no form equivalent (design.md). A broken rule (T-23) carries a marker.
 // UX-DR14: App.tsx guards it against the other modals and closes it on the quit guard.
+import { selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
+import { IncludeGlobal } from '../ScopeFilter/IncludeGlobal'
 import { useEffect, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Rule } from '../../../../shared/ipc/contract'
@@ -38,7 +40,9 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
   const brokenIds = useRules(useShallow(selectBrokenIds))
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const known = knownWorkspaceIds(workspaces)
-  const listed = filterByScope(rules, scope, known, false)
+  const includeGlobal = useSettings(selectIncludeGlobal)
+  // The list IS the run order (T-14): mixed with global rules it keeps the saved order, never grouped.
+  const listed = filterByScope(rules, scope, known, includeGlobal)
   const broken = new Set(brokenIds)
   const selected = rules.find((r) => r.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
@@ -58,7 +62,7 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
    *  reads as a save that failed. */
   function revealSaved(rule: Rule): void {
     dialog.actions.select(rule.id)
-    if (filterByScope([rule], scope, known, false).length === 0)
+    if (filterByScope([rule], scope, known, includeGlobal).length === 0)
       setScope(scopeOf(rule.workspaceId, known))
     dialog.actions.showSuccess('Rule saved.')
   }
@@ -96,6 +100,7 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
           testId="rule-scope-filter"
           ariaLabel="Filter rules by workspace"
         />
+        <IncludeGlobal scope={scope} testId="rule-include-global" />
       </ManageDialog.Header>
       <ManageDialog.Columns>
         {pages}

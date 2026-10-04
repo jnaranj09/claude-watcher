@@ -107,9 +107,15 @@ title.
   because `Global` is a subset), `Global`, each workspace, `(no workspace)` only if `hasOrphans`.
 - Past sessions: `showGlobal={false} showOrphans={false}`.
 - Opens on the ACTIVE workspace; unknown active id → unfiltered.
-- **Strict filtering both ways** (workspace shows only its rows; Global only global). Editing a
-  global row from a workspace view breaks it for everyone. (`+ New session` popover merges global +
-  active on purpose.)
+- **Include global** (spec 2026-10-03 H; reverses "strict filtering both ways", owner-approved
+  2026-10-03): beside a WORKSPACE scope, an `Include global` checkbox (`ScopeFilter/IncludeGlobal`)
+  also lists the global rows — what applies there. ONE remembered choice (`settings.includeGlobal`,
+  default on) for Templates / Shortcuts / Tags / Rules; saved on change, a refused write rolls back
+  and says so; not in the Settings dialog; not rendered under All / Global / `(no workspace)`.
+  Workspace rows first, then global, one flat list (Rules keeps the saved RUN order). Global alone
+  still shows only global rows. **Every row carries `ScopeMarker`** (its workspace in tint,
+  `Global`, or `(no workspace)`), in every scope — that marker is what keeps a global row from
+  being edited by mistake. (`+ New session` popover merges global + active, unchanged.)
 - **Flat list in every scope, no section headers.**
 - Scope change closes what was open. A save that moves a row re-points the filter to its scope.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.

@@ -1,11 +1,17 @@
 // Session templates — the Manage dialog's LEFT column: search + the row list + "+ New". The rows
 // and "+ New" are ManageDialog parts, so the selection is the shell's state (TemplatesDialog.tsx
 // creates it) rather than props threaded through here.
+import { selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
 import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { Template, Workspace } from '../../../../shared/ipc/contract'
 import { filterTemplates } from '../NewSessionMenu/filterTemplates'
-import { filterByScope, knownWorkspaceIds, type ScopeFilterValue } from '../ScopeFilter/scope'
+import {
+  filterByScope,
+  knownWorkspaceIds,
+  workspaceRowsFirst,
+  type ScopeFilterValue
+} from '../ScopeFilter/scope'
 import { ManageDialog } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
 import { selectTemplatesLoadFailed, useTemplates } from '../../stores/templatesStore'
@@ -32,7 +38,8 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
     searchRef.current?.focus()
   }, [])
   const known = knownWorkspaceIds(workspaces)
-  const scoped = filterByScope(templates, scope, known, false)
+  const includeGlobal = useSettings(selectIncludeGlobal)
+  const scoped = workspaceRowsFirst(filterByScope(templates, scope, known, includeGlobal), scope)
   const filtered = filterTemplates(scoped, query)
 
   // Three different nothings, three different answers: no templates at all, none in the scope you

@@ -5,6 +5,8 @@
 // the `all` entry, which is the state the sibling test file already covers.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
+import { settingsStore } from '../../stores/settingsStore'
+import { stubSettings } from '../../test/settingsBridge'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionLabel, optionValues, selectedValue } from '../../test/selectHarness'
 import { ShortcutsDialog } from './ShortcutsDialog'
@@ -46,6 +48,8 @@ const ORPHAN: Shortcut = {
 let cleanup: (() => void) | undefined
 
 beforeEach(() => {
+  // The strict tests below read the UNCHECKED behaviour; the Include global test turns it on.
+  settingsStore.getState().applyPatch({ includeGlobal: false })
   ;(window as unknown as { shortcuts: unknown }).shortcuts = {
     list: vi.fn(() => Promise.resolve([])),
     save: vi.fn(() => Promise.resolve({ saved: OWN, shortcuts: [OWN] })),
@@ -220,5 +224,26 @@ describe('where each row lives (spec 2026-10-03 H)', () => {
     const rows = [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')]
     expect(rows.length).toBeGreaterThan(1)
     for (const row of rows) expect(row.querySelector('[data-testid="scope-marker"]')).not.toBeNull()
+  })
+})
+
+describe('Include global (spec 2026-10-03 H)', () => {
+  it('on: the workspace rows, then the global ones; off: own rows only', async () => {
+    stubSettings()
+    act(() => settingsStore.getState().applyPatch({ includeGlobal: true }))
+    seed([GLOBAL, OWN])
+    const r = render()
+    const ids = (): (string | null | undefined)[] =>
+      [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')].map((e) =>
+        e.getAttribute('data-testid')?.replace('shortcut-row-', '')
+      )
+    expect(ids()).toEqual(['own', 'g'])
+    await act(async () => {
+      r.container
+        .querySelector<HTMLInputElement>('[data-testid="shortcut-include-global"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(ids()).toEqual(['own'])
   })
 })

@@ -9,6 +9,7 @@ import {
   openingScope,
   scopeOf,
   scopeWorkspaceId,
+  workspaceRowsFirst,
   workspaceScope
 } from './scope'
 
@@ -99,5 +100,11 @@ describe('filterByScope with includeGlobal (spec 2026-10-03 H)', () => {
       expect(ids(filterByScope(rows, 'orphans', known, include))).toEqual(['o'])
       expect(ids(filterByScope(rows, 'all', known, include))).toHaveLength(5)
     }
+  })
+
+  it('workspaceRowsFirst: the workspace rows, then the global rows, each in saved order', () => {
+    const mixed = filterByScope(rows, 'ws:w1', known, true)
+    expect(ids(workspaceRowsFirst(mixed, 'ws:w1'))).toEqual(['a', 'g1', 'g2'])
+    expect(ids(workspaceRowsFirst(rows, 'all'))).toEqual(ids(rows))
   })
 })

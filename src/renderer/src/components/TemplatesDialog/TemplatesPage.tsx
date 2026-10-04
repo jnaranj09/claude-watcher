@@ -2,6 +2,8 @@
 // ManageDialog shell (.claude/rules/design.md). The dialog owns the shell state, the scope and the
 // page column; this page owns the "follow a row a save moved" rule. The list and the form are
 // separate units. `+ New session` → `Manage templates…` opens the dialog on this page.
+import { selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
+import { IncludeGlobal } from '../ScopeFilter/IncludeGlobal'
 import type { JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
@@ -27,6 +29,7 @@ export function TemplatesPage({ scope, setScope, pages }: DialogPageProps): JSX.
   const templates = useTemplates(selectTemplates)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const dialog = useManageDialogContext()
+  const includeGlobal = useSettings(selectIncludeGlobal)
   const selected = templates.find((t) => t.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
   const known = knownWorkspaceIds(workspaces)
@@ -42,7 +45,7 @@ export function TemplatesPage({ scope, setScope, pages }: DialogPageProps): JSX.
    *  saved it from, and a row that vanishes on save reads as a failed save. */
   function revealSaved(template: Template): void {
     dialog.actions.select(template.id)
-    if (filterByScope([template], scope, known, false).length === 0) {
+    if (filterByScope([template], scope, known, includeGlobal).length === 0) {
       setScope(scopeOf(template.workspaceId, known))
     }
     dialog.actions.showSuccess('Template saved.')
@@ -60,6 +63,7 @@ export function TemplatesPage({ scope, setScope, pages }: DialogPageProps): JSX.
           testId="template-scope-filter"
           ariaLabel="Filter templates by workspace"
         />
+        <IncludeGlobal scope={scope} testId="template-include-global" />
       </ManageDialog.Header>
       <ManageDialog.Columns>
         {pages}

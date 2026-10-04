@@ -2,6 +2,8 @@
 // scope filter (`All tags` · Global · each workspace), a FLAT list of TagChips, a form (name /
 // colour / workspace) and a [Delete] [Save] footer. UX-DR14: App.tsx guards it against the other
 // modals (isModalOpen) and closes it on the quit guard.
+import { selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
+import { IncludeGlobal } from '../ScopeFilter/IncludeGlobal'
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Tag, TagSaveRequest } from '../../../../shared/ipc/contract'
@@ -12,6 +14,7 @@ import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   filterByScope,
+  workspaceRowsFirst,
   hasOrphans,
   knownWorkspaceIds,
   scopeOf,
@@ -45,7 +48,8 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
   const loadFailed = useTags(selectTagsLoadFailed)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const known = knownWorkspaceIds(workspaces)
-  const listed = filterByScope(tags, scope, known, false)
+  const includeGlobal = useSettings(selectIncludeGlobal)
+  const listed = workspaceRowsFirst(filterByScope(tags, scope, known, includeGlobal), scope)
   const selected = tags.find((t) => t.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
 
@@ -65,7 +69,7 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
    *  reads as a save that failed. */
   function revealSaved(tag: Tag): void {
     dialog.actions.select(tag.id)
-    if (filterByScope([tag], scope, known, false).length === 0)
+    if (filterByScope([tag], scope, known, includeGlobal).length === 0)
       setScope(scopeOf(tag.workspaceId, known))
     dialog.actions.showSuccess('Tag saved.')
   }
@@ -89,6 +93,7 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
           testId="tag-scope-filter"
           ariaLabel="Filter tags by workspace"
         />
+        <IncludeGlobal scope={scope} testId="tag-include-global" />
       </ManageDialog.Header>
       <ManageDialog.Columns>
         {pages}

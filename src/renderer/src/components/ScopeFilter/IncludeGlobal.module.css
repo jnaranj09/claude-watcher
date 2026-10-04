@@ -1,0 +1,10 @@
+/* Beside the scope dropdown in the dialog header: the box, then its word. */
+.includeGlobal {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline-tight);
+  flex: none;
+  font-size: var(--font-size-body);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
