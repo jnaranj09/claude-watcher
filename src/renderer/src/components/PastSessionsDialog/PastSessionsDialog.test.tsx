@@ -103,12 +103,13 @@ function type(el: HTMLInputElement, value: string): void {
 }
 
 describe('PastSessionsDialog', () => {
-  it('loads on open, opens on the ACTIVE workspace, lists newest first, no Global / orphan entry', async () => {
+  it('loads on open, opens on ALL sessions, lists newest first, no Global / orphan entry', async () => {
     const { r } = render()
     await flush()
     expect(list).toHaveBeenCalledTimes(1)
     expect(q(r, '[data-testid="sessions-panel"]')).not.toBeNull()
-    expect(rows(r)).toEqual(['billing api'])
+    // Sessions are never global: the dropdown opens on every workspace (owner 2026-10-03).
+    expect(rows(r)).toEqual(['deploy', 'billing api'])
     expect(optionValues(r.container, 'past-session-scope-filter')).toEqual([
       'all',
       'ws:default',
@@ -196,6 +197,7 @@ describe('PastSessionsDialog', () => {
     list.mockReturnValueOnce(Promise.resolve([B]))
     const { r } = render()
     await flush()
+    chooseOption(r.container, 'past-session-scope-filter', 'ws:w1')
     expect(q(r, '[data-testid="past-sessions-empty"]')?.textContent).toBe(
       'No past sessions in this workspace.'
     )
@@ -213,6 +215,7 @@ describe('PastSessionsDialog', () => {
     )
     cleanup = r.unmount
     await flush()
+    chooseOption(r.container, 'past-session-scope-filter', 'ws:w1')
     const row = q(r, '[data-testid="past-session-row"]')
     expect(row?.querySelector('[data-testid="past-session-folder"]')?.textContent).toBe('api')
     expect(row?.querySelector('[data-testid="past-session-ended"]')?.textContent).toBe('5 min ago')

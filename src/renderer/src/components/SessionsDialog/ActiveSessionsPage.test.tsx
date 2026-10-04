@@ -73,11 +73,17 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function render(): RenderResult {
+function renderOpening(): RenderResult {
   const r = renderComponent(
     <SessionsDialog page="active" onPageChange={() => {}} onClose={() => {}} now={() => NOW} />
   )
   cleanup = r.unmount
+  return r
+}
+/** Most cases test one workspace's list: the page OPENS on All (owner 2026-10-03), so pick Ops. */
+function render(): RenderResult {
+  const r = renderOpening()
+  chooseOption(r.container, 'active-session-scope-filter', 'ws:w1')
   return r
 }
 const q = <T extends Element = HTMLElement>(r: RenderResult, sel: string): T | null =>
@@ -93,7 +99,12 @@ const all = (r: RenderResult): HTMLInputElement | null =>
 const click = (el: Element | null): void => act(() => (el as HTMLElement | null)?.click())
 
 describe('Sessions → Active', () => {
-  it('opens on the active workspace: Needs you → Working → Idle, oldest first', () => {
+  it('opens on All sessions: every workspace, Needs you → Working → Idle, oldest first', () => {
+    const r = renderOpening()
+    expect(names(r)).toEqual(['name-d', 'name-b', 'name-c', 'name-a'])
+  })
+
+  it('one workspace: its sessions only, same order', () => {
     const r = render()
     expect(names(r)).toEqual(['name-b', 'name-c', 'name-a'])
   })

@@ -177,3 +177,23 @@ describe('a late Active-page exit (final review 1)', () => {
     expect(q(r, '[data-testid="sessions-success"]')).toBeNull()
   })
 })
+
+describe('where the dropdown opens (owner 2026-10-03)', () => {
+  it('a SESSION page opens on All sessions, not the active workspace', async () => {
+    for (const [page, id] of [
+      ['active', 'active-session-scope-filter'],
+      ['past', 'past-session-scope-filter']
+    ] as const) {
+      const r = render(page)
+      await flush()
+      expect(selectedValue(r.container, id)).toBe('all')
+      r.unmount()
+      cleanup = undefined
+    }
+  })
+
+  it('Templates still opens on the active workspace', () => {
+    const r = render('templates')
+    expect(selectedValue(r.container, 'template-scope-filter')).toBe('ws:w1')
+  })
+})

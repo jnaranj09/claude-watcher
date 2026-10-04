@@ -14,11 +14,11 @@ import {
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { PastSessionsPage } from '../PastSessionsDialog/PastSessionsPage'
-import { openingScope, type ScopeFilterValue } from '../ScopeFilter/scope'
+import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { TemplatesPage } from '../TemplatesDialog/TemplatesPage'
 import { ActiveSessionsPage } from './ActiveSessionsPage'
 import { ImportSessionPage } from './ImportSessionPage'
-import { SESSIONS_PAGES, scopeOnPage } from './sessionsPages'
+import { SESSIONS_PAGES, openingScopeFor, scopeOnPage } from './sessionsPages'
 
 export interface SessionsDialogProps {
   page: SessionsPage
@@ -39,7 +39,7 @@ export function SessionsDialog({
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const [scope, setScope] = useState<ScopeFilterValue>(() =>
-    scopeOnPage(page, openingScope(workspaces, activeWorkspaceId))
+    openingScopeFor(page, workspaces, activeWorkspaceId)
   )
 
   function switchPage(next: SessionsPage): void {

@@ -106,7 +106,9 @@ title.
 - Entries in order: unfiltered (`allLabel`: `All templates`, `All shortcuts` — named after the LIST,
   because `Global` is a subset), `Global`, each workspace, `(no workspace)` only if `hasOrphans`.
 - Past sessions: `showGlobal={false} showOrphans={false}`.
-- Opens on the ACTIVE workspace; unknown active id → unfiltered.
+- Opens on the ACTIVE workspace; unknown active id → unfiltered. Exception: the Sessions dialog's
+  SESSION pages (Active, Past) open on `All sessions` — sessions are never global, and every
+  workspace is the useful first view (owner 2026-10-03).
 - **Include global** (spec 2026-10-03 H; reverses "strict filtering both ways", owner-approved
   2026-10-03): beside a WORKSPACE scope, an `Include global` checkbox (`ScopeFilter/IncludeGlobal`)
   also lists the global rows — what applies there. ONE remembered choice (`settings.includeGlobal`,
