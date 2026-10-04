@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { deferred, type Deferred } from '../../test/deferred'
-import { RulesDialog } from './RulesDialog'
+import { TagsDialog } from '../TagsDialog/TagsDialog'
 import { rulesStore } from '../../stores/rulesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { templatesStore } from '../../stores/templatesStore'
@@ -57,7 +57,7 @@ function el<T extends Element = HTMLElement>(id: string): T {
 describe('RulesDialog — ↑/↓ feedback', () => {
   it('the arrows are busy while a move is in flight; a refusal says so', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    r = renderComponent(<RulesDialog onClose={() => {}} />)
+    r = renderComponent(<TagsDialog page="rules" onPageChange={() => {}} onClose={() => {}} />)
     act(() => el('rule-down-ra').click())
     expect(el('rule-down-ra').getAttribute('aria-busy')).toBe('true')
     expect(el<HTMLButtonElement>('rule-up-rb').disabled).toBe(true)
@@ -73,7 +73,7 @@ describe('RulesDialog — ↑/↓ feedback', () => {
 
   it('a stale refusal clears when the next move starts', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    r = renderComponent(<RulesDialog onClose={() => {}} />)
+    r = renderComponent(<TagsDialog page="rules" onPageChange={() => {}} onClose={() => {}} />)
     act(() => el('rule-down-ra').click())
     await act(async () => {
       pending.reject(new Error('rule_not_found'))

@@ -29,7 +29,6 @@ import { AppMenu } from './components/AppMenu/AppMenu'
 import { TagsDialog } from './components/TagsDialog/TagsDialog'
 import { setSessionTags } from './stores/tagsStore'
 // Rules — the Manage-rules modal (+ the startup rules load).
-import { RulesDialog } from './components/RulesDialog/RulesDialog'
 // Past sessions (D-6) — the history modal (☰ menu → Past sessions…, always the last row). It loads
 // the history itself on open; nothing loads at startup.
 import { SessionsDialog } from './components/SessionsDialog/SessionsDialog'
@@ -62,8 +61,7 @@ import {
   selectSessionsDialog,
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
-  selectTagsDialogOpen,
-  selectRulesDialogOpen,
+  selectTagsDialog,
   selectSettingsDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
@@ -174,10 +172,8 @@ function App(): React.JSX.Element {
   const shortcutsDialogOpen = useBoard(selectShortcutsDialogOpen)
   // Workspaces — whether the Manage-workspaces dialog is open.
   const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
-  // Tags — whether the Manage-tags dialog is open.
-  const tagsDialogOpen = useBoard(selectTagsDialogOpen)
-  // Rules — whether the Manage-rules dialog is open.
-  const rulesDialogOpen = useBoard(selectRulesDialogOpen)
+  // Tags — the Tags dialog's open page (Tags · Rules), or null.
+  const tagsDialog = useBoard(selectTagsDialog)
   // Settings — whether the Settings dialog is open.
   const settingsDialogOpen = useBoard(selectSettingsDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
@@ -265,7 +261,6 @@ function App(): React.JSX.Element {
       boardStore.getState().closeShortcutsDialog()
       boardStore.getState().closeWorkspacesDialog()
       boardStore.getState().closeTagsDialog()
-      boardStore.getState().closeRulesDialog()
       boardStore.getState().closeSettingsDialog()
       // R9 — the Delete confirm too: a Delete confirmed under the guard would act on a session
       // main already counted in the guard's list.
@@ -356,13 +351,14 @@ function App(): React.JSX.Element {
   // Same single-modal guard as every opener.
   const handleManageTags = useCallback((): void => {
     if (isModalOpen()) return
-    boardStore.getState().openTagsDialog()
+    boardStore.getState().openTagsDialog('tags')
   }, [])
 
-  // Rules — "Manage rules…" from the ☰ menu's Tags submenu. Same single-modal guard as every opener.
+  // Rules — "Manage rules…" from the ☰ menu's Tags submenu: the Tags dialog's Rules page. Same
+  // single-modal guard as every opener.
   const handleManageRules = useCallback((): void => {
     if (isModalOpen()) return
-    boardStore.getState().openRulesDialog()
+    boardStore.getState().openTagsDialog('rules')
   }, [])
 
   // Settings — "Settings…" from the ☰ menu. Same single-modal guard as every opener.
@@ -552,7 +548,6 @@ function App(): React.JSX.Element {
           boardStore.getState().closeShortcutsDialog()
           boardStore.getState().closeWorkspacesDialog()
           boardStore.getState().closeTagsDialog()
-          boardStore.getState().closeRulesDialog()
           boardStore.getState().closeSettingsDialog()
           return
         }
@@ -640,8 +635,7 @@ function App(): React.JSX.Element {
     sessionsDialog !== null ||
     shortcutsDialogOpen ||
     workspacesDialogOpen ||
-    tagsDialogOpen ||
-    rulesDialogOpen ||
+    tagsDialog !== null ||
     settingsDialogOpen ||
     // R9 — the Delete confirm and the Quit guard are modals too: Shift+Tab out of the confirm
     // reached the live terminal behind it.
@@ -755,10 +749,15 @@ function App(): React.JSX.Element {
       {workspacesDialogOpen && (
         <WorkspacesDialog onClose={() => boardStore.getState().closeWorkspacesDialog()} />
       )}
-      {/* Tags — the Manage-tags modal (same z-60 layer and single-modal rule as the three above). */}
-      {tagsDialogOpen && <TagsDialog onClose={() => boardStore.getState().closeTagsDialog()} />}
-      {/* Rules — the Manage-rules modal (same z-60 layer and single-modal rule). */}
-      {rulesDialogOpen && <RulesDialog onClose={() => boardStore.getState().closeRulesDialog()} />}
+      {/* Tags (spec 2026-10-03 C) — Tags · Rules as pages of one dialog (same z-60 layer and
+          single-modal rule). */}
+      {tagsDialog !== null && (
+        <TagsDialog
+          page={tagsDialog}
+          onPageChange={(next) => boardStore.getState().openTagsDialog(next)}
+          onClose={() => boardStore.getState().closeTagsDialog()}
+        />
+      )}
       {/* Settings — the Settings dialog (☰ menu → Settings…; same single-modal rule). */}
       {settingsDialogOpen && (
         <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />

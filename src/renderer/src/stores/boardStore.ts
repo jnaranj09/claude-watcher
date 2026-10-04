@@ -52,6 +52,9 @@ import { effectiveTagFilter, useTags } from './tagsStore'
  *  dialog opens on the page it was asked for, like the Settings category. */
 export type SessionsPage = 'active' | 'past' | 'templates' | 'import'
 
+/** The Tags dialog's pages (spec 2026-10-03 C). Transient view-state, never persisted. */
+export type TagsDialogPage = 'tags' | 'rules'
+
 export interface StopConfirmPayload {
   /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
   terminalId: string
@@ -318,15 +321,10 @@ export interface BoardState {
    */
   workspacesDialogOpen: boolean
   /**
-   * Tags — whether the Manage-tags dialog is open (RENDERER VIEW-STATE).
-   * [state.md: modal open/closed = renderer view-state]
+   * Tags (spec 2026-10-03 C) — the Tags dialog's page (Tags · Rules) while open, else null
+   * (RENDERER VIEW-STATE). [state.md: modal open/closed = renderer view-state]
    */
-  tagsDialogOpen: boolean
-  /**
-   * Rules — whether the Manage-rules dialog is open (RENDERER VIEW-STATE).
-   * [state.md: modal open/closed = renderer view-state]
-   */
-  rulesDialogOpen: boolean
+  tagsDialog: TagsDialogPage | null
   /**
    * Settings — whether the Settings dialog is open (RENDERER VIEW-STATE). Opened from the header ☰
    * menu, so it joins the single-modal rule like every other dialog.
@@ -503,14 +501,10 @@ export interface BoardState {
    * Workspaces — close the Manage-workspaces dialog. No-op if already closed.
    */
   closeWorkspacesDialog: () => void
-  /** Tags — open the Manage-tags dialog. No-op if already open. */
-  openTagsDialog: () => void
-  /** Tags — close the Manage-tags dialog. No-op if already closed. */
+  /** Tags — open the dialog on `page`, or switch to it while open. Same page: no-op. */
+  openTagsDialog: (page: TagsDialogPage) => void
+  /** Tags — close the dialog. No-op if already closed. */
   closeTagsDialog: () => void
-  /** Rules — open the Manage-rules dialog. No-op if already open. */
-  openRulesDialog: () => void
-  /** Rules — close the Manage-rules dialog. No-op if already closed. */
-  closeRulesDialog: () => void
   /** Settings — open the Settings dialog. No-op if already open. */
   openSettingsDialog: () => void
   /** Settings — close the Settings dialog. No-op if already closed. */
@@ -586,9 +580,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // Workspaces — the Manage-workspaces dialog starts closed.
     workspacesDialogOpen: false,
     // Tags — the Manage-tags dialog starts closed.
-    tagsDialogOpen: false,
+    tagsDialog: null,
     // Rules — the Manage-rules dialog starts closed.
-    rulesDialogOpen: false,
     // Settings — the Settings dialog starts closed.
     settingsDialogOpen: false,
     // Past sessions — the Past-sessions dialog starts closed.
@@ -932,18 +925,11 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (get().workspacesDialogOpen) set({ workspacesDialogOpen: false })
     },
 
-    openTagsDialog: () => {
-      if (!get().tagsDialogOpen) set({ tagsDialogOpen: true })
+    openTagsDialog: (page) => {
+      if (get().tagsDialog !== page) set({ tagsDialog: page })
     },
     closeTagsDialog: () => {
-      if (get().tagsDialogOpen) set({ tagsDialogOpen: false })
-    },
-
-    openRulesDialog: () => {
-      if (!get().rulesDialogOpen) set({ rulesDialogOpen: true })
-    },
-    closeRulesDialog: () => {
-      if (get().rulesDialogOpen) set({ rulesDialogOpen: false })
+      if (get().tagsDialog !== null) set({ tagsDialog: null })
     },
 
     openSettingsDialog: () => {
@@ -1130,11 +1116,8 @@ export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.s
  */
 export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.workspacesDialogOpen
 
-/**
- * Tags — whether the Manage-tags dialog is open (RENDERER VIEW-STATE).
- * [state.md: modal open/closed = renderer view-state]
- */
-export const selectTagsDialogOpen = (state: BoardState): boolean => state.tagsDialogOpen
+/** Tags — the open page (Tags · Rules), or null while the dialog is closed (RENDERER VIEW-STATE). */
+export const selectTagsDialog = (state: BoardState): TagsDialogPage | null => state.tagsDialog
 
 /**
  * Settings — whether the Settings dialog is open (RENDERER VIEW-STATE).
@@ -1144,12 +1127,6 @@ export const selectSettingsDialogOpen = (state: BoardState): boolean => state.se
 
 /** The filter bar's search text, as typed (a primitive). */
 export const selectSearchQuery = (state: BoardState): string => state.searchQuery
-
-/**
- * Rules — whether the Manage-rules dialog is open (RENDERER VIEW-STATE).
- * [state.md: modal open/closed = renderer view-state]
- */
-export const selectRulesDialogOpen = (state: BoardState): boolean => state.rulesDialogOpen
 
 /**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.

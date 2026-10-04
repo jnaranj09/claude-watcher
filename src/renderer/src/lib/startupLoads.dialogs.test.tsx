@@ -6,7 +6,6 @@ import { renderComponent, type RenderResult } from '../test/renderComponent'
 import { SessionsDialog } from '../components/SessionsDialog/SessionsDialog'
 import { ShortcutsDialog } from '../components/ShortcutsDialog/ShortcutsDialog'
 import { TagsDialog } from '../components/TagsDialog/TagsDialog'
-import { RulesDialog } from '../components/RulesDialog/RulesDialog'
 import { WorkspacesDialog } from '../components/WorkspacesDialog/WorkspacesDialog'
 import { templatesStore } from '../stores/templatesStore'
 import { shortcutsStore } from '../stores/shortcutsStore'
@@ -49,8 +48,16 @@ describe('a failed startup load is named in each dialog', () => {
       'Could not load templates.'
     ],
     ['Shortcuts', <ShortcutsDialog key="s" onClose={() => {}} />, 'Could not load shortcuts.'],
-    ['Tags', <TagsDialog key="g" onClose={() => {}} />, 'Could not load tags.'],
-    ['Rules', <RulesDialog key="r" onClose={() => {}} />, 'Could not load rules.'],
+    [
+      'Tags',
+      <TagsDialog key="g" page="tags" onPageChange={() => {}} onClose={() => {}} />,
+      'Could not load tags.'
+    ],
+    [
+      'Rules',
+      <TagsDialog key="r" page="rules" onPageChange={() => {}} onClose={() => {}} />,
+      'Could not load rules.'
+    ],
     ['Workspaces', <WorkspacesDialog key="w" onClose={() => {}} />, 'Could not load workspaces.']
   ])('%s', (_name, element, copy) => {
     r = renderComponent(element)
@@ -68,7 +75,7 @@ describe('a failed startup load is named in each dialog', () => {
   })
 
   it('a later successful hydrate clears it (Rules)', () => {
-    r = renderComponent(<RulesDialog onClose={() => {}} />)
+    r = renderComponent(<TagsDialog page="rules" onPageChange={() => {}} onClose={() => {}} />)
     act(() => rulesStore.getState().hydrate({ rules: [], brokenIds: [] }))
     expect(r.container.textContent).not.toContain('Could not load rules.')
     expect(r.container.textContent).toContain('No rules yet')

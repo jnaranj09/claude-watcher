@@ -31,8 +31,7 @@ beforeEach(() => {
     launchedTerminals: {},
     sessionNamePrompt: null,
     sessionsDialog: null,
-    tagsDialogOpen: false,
-    rulesDialogOpen: false,
+    tagsDialog: null,
     settingsDialogOpen: false,
     quitGuard: null
   })

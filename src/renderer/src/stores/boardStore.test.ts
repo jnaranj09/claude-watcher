@@ -30,8 +30,7 @@ import {
   selectNeedsYouCountByWorkspace,
   selectCardCountByWorkspace,
   selectWorkingCountByWorkspace,
-  selectTagsDialogOpen,
-  selectRulesDialogOpen,
+  selectTagsDialog,
   selectSessionsDialog,
   selectSearchQuery,
   selectShellPane,
@@ -1380,16 +1379,6 @@ describe('tag filtering (spec §4.1)', () => {
     // argument at all — this proves a tag filter can never mute an alert.
     expect(selectNeedsYouCountByWorkspace(seeded().getState())).toEqual({ default: 2 })
   })
-
-  it('opens and closes the Tags dialog, idempotently', () => {
-    const store = createBoardStore()
-    expect(selectTagsDialogOpen(store.getState())).toBe(false)
-    store.getState().openTagsDialog()
-    store.getState().openTagsDialog()
-    expect(selectTagsDialogOpen(store.getState())).toBe(true)
-    store.getState().closeTagsDialog()
-    expect(selectTagsDialogOpen(store.getState())).toBe(false)
-  })
 })
 
 describe('search — the filter bar narrows the board by card NAME', () => {
@@ -1470,15 +1459,17 @@ describe('search — the filter bar narrows the board by card NAME', () => {
   })
 })
 
-describe('the Rules dialog flag', () => {
-  it('opens and closes, idempotently', () => {
+describe('the Tags dialog flag (spec 2026-10-03 C)', () => {
+  it('opens on a page, switches page while open, closes; idempotent', () => {
     const store = createBoardStore()
-    expect(selectRulesDialogOpen(store.getState())).toBe(false)
-    store.getState().openRulesDialog()
-    store.getState().openRulesDialog()
-    expect(selectRulesDialogOpen(store.getState())).toBe(true)
-    store.getState().closeRulesDialog()
-    expect(selectRulesDialogOpen(store.getState())).toBe(false)
+    expect(selectTagsDialog(store.getState())).toBeNull()
+    store.getState().openTagsDialog('rules')
+    expect(selectTagsDialog(store.getState())).toBe('rules')
+    store.getState().openTagsDialog('tags')
+    expect(selectTagsDialog(store.getState())).toBe('tags')
+    store.getState().closeTagsDialog()
+    store.getState().closeTagsDialog()
+    expect(selectTagsDialog(store.getState())).toBeNull()
   })
 })
 

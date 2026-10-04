@@ -12,8 +12,7 @@ export function dialogOpenIn(s: BoardState): boolean {
     s.sessionsDialog !== null ||
     s.shortcutsDialogOpen ||
     s.workspacesDialogOpen ||
-    s.tagsDialogOpen ||
-    s.rulesDialogOpen ||
+    s.tagsDialog !== null ||
     s.settingsDialogOpen
   )
 }

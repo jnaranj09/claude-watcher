@@ -52,8 +52,7 @@ beforeEach(() => {
     launchedTerminals: {},
     sessionNamePrompt: null,
     sessionsDialog: null,
-    tagsDialogOpen: false,
-    rulesDialogOpen: false,
+    tagsDialog: null,
     quitGuard: null
   })
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -212,15 +211,15 @@ describe('App — tags', () => {
     const r = await renderApp()
     act(() => boardStore.getState().openSessionsDialog('templates'))
     openManageTags(r)
-    expect(boardStore.getState().tagsDialogOpen).toBe(false)
+    expect(boardStore.getState().tagsDialog).toBeNull()
   })
 
   it('the quit guard closes the Tags dialog (never two modals stacked)', async () => {
     const r = await renderApp()
     openManageTags(r)
-    expect(boardStore.getState().tagsDialogOpen).toBe(true)
+    expect(boardStore.getState().tagsDialog).toBe('tags')
     act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
-    expect(boardStore.getState().tagsDialogOpen).toBe(false)
+    expect(boardStore.getState().tagsDialog).toBeNull()
   })
 
   it('with no tags yet, a card tags button opens the Tags dialog', async () => {
@@ -233,16 +232,20 @@ describe('App — tags', () => {
     expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()
   })
 
-  it('Manage rules… opens the Rules dialog under the single-modal rule; Escape closes it', async () => {
+  it('Manage rules… opens the Tags dialog on Rules under the single-modal rule; Escape closes it', async () => {
     const r = await renderApp()
     chooseFromTagsSubmenu(r, 'manage-rules')
-    expect(r.container.querySelector('[data-testid="rules-overlay"]')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()
+    expect(
+      r.container.querySelector('[data-testid="tags-page-rules"]')?.getAttribute('aria-current')
+    ).toBe('page')
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
-    expect(r.container.querySelector('[data-testid="rules-overlay"]')).toBeNull()
-    act(() => boardStore.getState().openTagsDialog())
+    expect(r.container.querySelector('[data-testid="tags-overlay"]')).toBeNull()
+    act(() => boardStore.getState().openTagsDialog('tags'))
     chooseFromTagsSubmenu(r, 'manage-rules')
-    expect(boardStore.getState().rulesDialogOpen).toBe(false)
+    // The opener refused: the open dialog stays on Tags.
+    expect(boardStore.getState().tagsDialog).toBe('tags')
   })
 })

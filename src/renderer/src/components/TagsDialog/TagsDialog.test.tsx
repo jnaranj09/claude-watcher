@@ -59,7 +59,7 @@ async function flush(): Promise<void> {
 
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
-  const r = renderComponent(<TagsDialog onClose={onClose} />)
+  const r = renderComponent(<TagsDialog page="tags" onPageChange={() => {}} onClose={onClose} />)
   cleanup = r.unmount
   return { r, onClose }
 }
