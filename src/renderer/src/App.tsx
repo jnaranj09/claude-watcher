@@ -50,6 +50,7 @@ import { FocusedSession } from './views/FocusedSession'
 import { useShallow } from 'zustand/react/shallow'
 import {
   boardStore,
+  type SessionsPage,
   useBoard,
   selectViewMode,
   selectFocusedTerminalId,
@@ -59,13 +60,12 @@ import {
   selectSessionNamePrompt,
   selectSessionNamePromptBusy,
   selectSessionNamePromptError,
-  selectTemplatesDialogOpen,
+  selectSessionsDialog,
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
   selectTagsDialogOpen,
   selectRulesDialogOpen,
-  selectSettingsDialogOpen,
-  selectPastSessionsDialogOpen
+  selectSettingsDialogOpen
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -169,8 +169,8 @@ function App(): React.JSX.Element {
   // Action feedback — the prompt's in-flight flag and its mapped refusal copy.
   const sessionNamePromptBusy = useBoard(selectSessionNamePromptBusy)
   const sessionNamePromptError = useBoard(selectSessionNamePromptError)
-  // Session templates — whether the Manage-templates dialog is open.
-  const templatesDialogOpen = useBoard(selectTemplatesDialogOpen)
+  // Sessions — the Sessions dialog's open page, or null.
+  const sessionsDialog = useBoard(selectSessionsDialog)
   // Phrase shortcuts — whether the Manage-shortcuts dialog is open.
   const shortcutsDialogOpen = useBoard(selectShortcutsDialogOpen)
   // Workspaces — whether the Manage-workspaces dialog is open.
@@ -181,8 +181,6 @@ function App(): React.JSX.Element {
   const rulesDialogOpen = useBoard(selectRulesDialogOpen)
   // Settings — whether the Settings dialog is open.
   const settingsDialogOpen = useBoard(selectSettingsDialogOpen)
-  // Past sessions — whether the Past-sessions dialog is open.
-  const pastSessionsDialogOpen = useBoard(selectPastSessionsDialogOpen)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -264,13 +262,12 @@ function App(): React.JSX.Element {
       // reason (UX-DR14 single-modal rule; a stray dialog must never be left stacked under the
       // quit guard). Workspaces: the Manage-workspaces dialog is a modal too, same reasoning.
       boardStore.getState().clearSessionNamePrompt()
-      boardStore.getState().closeTemplatesDialog()
+      boardStore.getState().closeSessionsDialog()
       boardStore.getState().closeShortcutsDialog()
       boardStore.getState().closeWorkspacesDialog()
       boardStore.getState().closeTagsDialog()
       boardStore.getState().closeRulesDialog()
       boardStore.getState().closeSettingsDialog()
-      boardStore.getState().closePastSessionsDialog()
       // R9 — the Delete confirm too: a Delete confirmed under the guard would act on a session
       // main already counted in the guard's list.
       boardStore.getState().clearStopConfirm()
@@ -335,12 +332,19 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  // Session templates — "Manage templates…" from the header popover. Opens the Manage-templates
-  // modal (TemplatesDialog); guarded by the same single-modal rule as every other entry point.
-  const handleManageTemplates = useCallback((): void => {
+  // Sessions (spec 2026-10-03 B) — every way into the Sessions dialog: `Manage templates…`, the
+  // empty board's Past sessions link (and the ☰ Sessions submenu). Same single-modal guard as every
+  // opener.
+  const handleOpenSessions = useCallback((page: SessionsPage): void => {
     if (isModalOpen()) return
-    boardStore.getState().openTemplatesDialog()
+    boardStore.getState().openSessionsDialog(page)
   }, [])
+  // Session templates — "Manage templates…" from the header popover. Opens the Sessions dialog's
+  // Templates page.
+  const handleManageTemplates = useCallback(
+    (): void => handleOpenSessions('templates'),
+    [handleOpenSessions]
+  )
 
   // Workspaces — "Manage workspaces…" from the header switcher. Opens the Manage-workspaces
   // modal (WorkspacesDialog); guarded by the same single-modal rule as every other entry point.
@@ -374,11 +378,11 @@ function App(): React.JSX.Element {
     boardStore.getState().openShortcutsDialog()
   }, [])
 
-  // Past sessions (D-6) — "Past sessions…" from the ☰ menu. Same single-modal guard as every opener.
-  const handleOpenPastSessions = useCallback((): void => {
-    if (isModalOpen()) return
-    boardStore.getState().openPastSessionsDialog()
-  }, [])
+  // Past sessions (D-6) — "Past sessions…" from the ☰ menu. Opens the Sessions dialog's Past page.
+  const handleOpenPastSessions = useCallback(
+    (): void => handleOpenSessions('past'),
+    [handleOpenSessions]
+  )
 
   // Tags — a card's Tags… menu or a rail peek changed a session's tags. The ✓ answers at once
   // (tagsStore's pending queue, view-state); the tagged card itself comes back as a
@@ -545,13 +549,12 @@ function App(): React.JSX.Element {
         // on the page BODY — the dialog's own onKeyDown never sees that keydown.
         if (isDialogOpen()) {
           boardStore.getState().clearSessionNamePrompt()
-          boardStore.getState().closeTemplatesDialog()
+          boardStore.getState().closeSessionsDialog()
           boardStore.getState().closeShortcutsDialog()
           boardStore.getState().closeWorkspacesDialog()
           boardStore.getState().closeTagsDialog()
           boardStore.getState().closeRulesDialog()
           boardStore.getState().closeSettingsDialog()
-          boardStore.getState().closePastSessionsDialog()
           return
         }
         // Story 4.3 — Esc disambiguation: if the Stop-confirm is open, Esc = Cancel it.
@@ -635,13 +638,12 @@ function App(): React.JSX.Element {
   // is open," not just "the name prompt is open."
   const namePromptOpen =
     sessionNamePrompt !== null ||
-    templatesDialogOpen ||
+    sessionsDialog !== null ||
     shortcutsDialogOpen ||
     workspacesDialogOpen ||
     tagsDialogOpen ||
     rulesDialogOpen ||
     settingsDialogOpen ||
-    pastSessionsDialogOpen ||
     // R9 — the Delete confirm and the Quit guard are modals too: Shift+Tab out of the confirm
     // reached the live terminal behind it.
     stopConfirm !== null ||
@@ -746,8 +748,8 @@ function App(): React.JSX.Element {
       {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
       {/* Session templates — the Manage-templates modal (renderer view-state; UX-DR14 single-modal
           rule enforced by isModalOpen() at every open call site + the quit-guard listener above). */}
-      {templatesDialogOpen && (
-        <TemplatesDialog onClose={() => boardStore.getState().closeTemplatesDialog()} />
+      {sessionsDialog === 'templates' && (
+        <TemplatesDialog onClose={() => boardStore.getState().closeSessionsDialog()} />
       )}
       {/* Phrase shortcuts — the Manage-shortcuts modal (renderer view-state; same z-60 layer and
           the same UX-DR14 single-modal rule as the Templates dialog). */}
@@ -769,8 +771,8 @@ function App(): React.JSX.Element {
       )}
       {/* Past sessions (D-6) — the history dialog (☰ menu → Past sessions…; same z-60 layer and
           single-modal rule). Its Open takes the view itself (pastSessionsStore.openPastSession). */}
-      {pastSessionsDialogOpen && (
-        <PastSessionsDialog onClose={() => boardStore.getState().closePastSessionsDialog()} />
+      {sessionsDialog === 'past' && (
+        <PastSessionsDialog onClose={() => boardStore.getState().closeSessionsDialog()} />
       )}
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and main answering the submit). Before submit NOTHING is

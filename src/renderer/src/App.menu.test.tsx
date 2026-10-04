@@ -30,11 +30,10 @@ beforeEach(() => {
     terminalIdBySessionId: {},
     launchedTerminals: {},
     sessionNamePrompt: null,
-    templatesDialogOpen: false,
+    sessionsDialog: null,
     tagsDialogOpen: false,
     rulesDialogOpen: false,
     settingsDialogOpen: false,
-    pastSessionsDialogOpen: false,
     quitGuard: null
   })
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -205,7 +204,7 @@ describe('App — the header ☰ menu', () => {
   // what makes this test able to fail: the Settings opener itself must refuse.
   it('the single-modal rule: Settings… does nothing while another dialog is open', async () => {
     const r = await renderApp()
-    act(() => boardStore.getState().openTemplatesDialog())
+    act(() => boardStore.getState().openSessionsDialog('templates'))
     openSettings(r)
     expect(boardStore.getState().settingsDialogOpen).toBe(false)
   })
@@ -254,9 +253,9 @@ describe('App — the header ☰ menu', () => {
 
     it('does nothing while another dialog is open', async () => {
       const r = await renderApp()
-      act(() => boardStore.getState().openTemplatesDialog())
+      act(() => boardStore.getState().openSessionsDialog('templates'))
       openPastSessions(r)
-      expect(boardStore.getState().pastSessionsDialogOpen).toBe(false)
+      expect(boardStore.getState().sessionsDialog).toBe('templates')
     })
 
     it('Escape from the page body closes it; ✕ closes it too', async () => {
@@ -274,9 +273,9 @@ describe('App — the header ☰ menu', () => {
     it('the quit guard closes it (never two modals stacked)', async () => {
       const r = await renderApp()
       openPastSessions(r)
-      expect(boardStore.getState().pastSessionsDialogOpen).toBe(true)
+      expect(boardStore.getState().sessionsDialog).toBe('past')
       act(() => guardShow?.({ total: 1, workingCount: 0, sessions: [] }))
-      expect(boardStore.getState().pastSessionsDialogOpen).toBe(false)
+      expect(boardStore.getState().sessionsDialog).toBeNull()
     })
   })
 })

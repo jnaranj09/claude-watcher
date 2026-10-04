@@ -45,7 +45,7 @@ let pickDirectory: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   // Reset the singleton store view-state between cases (App uses the app singleton boardStore).
-  // Mirrors App.rename.test.tsx's beforeEach body, plus templatesDialogOpen: false.
+  // Mirrors App.rename.test.tsx's beforeEach body, plus sessionsDialog: null.
   boardStore.setState({
     viewMode: 'board',
     focusedTerminalId: null,
@@ -55,7 +55,7 @@ beforeEach(() => {
     terminalIdBySessionId: {},
     launchedTerminals: {},
     sessionNamePrompt: null,
-    templatesDialogOpen: false
+    sessionsDialog: null
   })
 
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
@@ -234,7 +234,7 @@ describe('App — session templates', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
     expect(r.container.querySelector('[data-testid="templates-overlay"]')).toBeNull()
-    expect(boardStore.getState().templatesDialogOpen).toBe(false)
+    expect(boardStore.getState().sessionsDialog).toBeNull()
   })
 
   // THE BUG THIS CHANGE FIXES. The dead pane's `New session` used to run the folder picker

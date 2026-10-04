@@ -48,6 +48,10 @@ import { effectiveTagFilter, useTags } from './tagsStore'
  * Set via `showStopConfirm(payload)`; cleared via `clearStopConfirm()`.
  * [state.md: modal open/closed = renderer view-state; session truth = main]
  */
+/** The Sessions dialog's pages (spec 2026-10-03 B). Transient view-state, never persisted — the
+ *  dialog opens on the page it was asked for, like the Settings category. */
+export type SessionsPage = 'past' | 'templates'
+
 export interface StopConfirmPayload {
   /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
   terminalId: string
@@ -298,10 +302,11 @@ export interface BoardState {
   /** The prompt's mapped refusal copy (never a thrown message), or null. Reset by show/clear. */
   sessionNamePromptError: string | null
   /**
-   * Session templates — whether the templates picker dialog is open (RENDERER VIEW-STATE).
-   * [state.md: modal open/closed = renderer view-state]
+   * Sessions (spec 2026-10-03 B) — the Sessions dialog's page while it is open, else null. ONE flag
+   * for Past / Templates (and later Active / Import): one dialog cannot be open twice, and two
+   * flags could say it was (RENDERER VIEW-STATE). [state.md: modal open/closed = view-state]
    */
-  templatesDialogOpen: boolean
+  sessionsDialog: SessionsPage | null
   /**
    * Phrase shortcuts — whether the Manage-shortcuts dialog is open (RENDERER VIEW-STATE).
    * [state.md: modal open/closed = renderer view-state]
@@ -328,12 +333,6 @@ export interface BoardState {
    * [state.md: modal open/closed = renderer view-state]
    */
   settingsDialogOpen: boolean
-  /**
-   * Past sessions (D-6) — whether the Past-sessions dialog is open (RENDERER VIEW-STATE). Opened
-   * from the header ☰ menu's last row; joins the single-modal rule like every other dialog.
-   * [state.md: modal open/closed = renderer view-state]
-   */
-  pastSessionsDialogOpen: boolean
   /**
    * The filter bar's search box — the text VERBATIM, as typed (RENDERER VIEW-STATE, never
    * persisted). `useBoardFilter` hands it to the board and rail selectors, which match it against
@@ -484,14 +483,10 @@ export interface BoardState {
   /** Mark the prompt's invoke in flight (true also clears the error line) or done. */
   setSessionNamePromptBusy: (busy: boolean) => void
   setSessionNamePromptError: (message: string | null) => void
-  /**
-   * Session templates — open the templates picker dialog. No-op if already open.
-   */
-  openTemplatesDialog: () => void
-  /**
-   * Session templates — close the templates picker dialog. No-op if already closed.
-   */
-  closeTemplatesDialog: () => void
+  /** Sessions — open the dialog on `page`, or switch to `page` while it is open. Same page: no-op. */
+  openSessionsDialog: (page: SessionsPage) => void
+  /** Sessions — close the dialog. No-op if already closed. */
+  closeSessionsDialog: () => void
   /**
    * Phrase shortcuts — open the Manage-shortcuts dialog. No-op if already open.
    */
@@ -520,10 +515,6 @@ export interface BoardState {
   openSettingsDialog: () => void
   /** Settings — close the Settings dialog. No-op if already closed. */
   closeSettingsDialog: () => void
-  /** Past sessions — open the Past-sessions dialog. No-op if already open. */
-  openPastSessionsDialog: () => void
-  /** Past sessions — close the Past-sessions dialog. No-op if already closed. */
-  closePastSessionsDialog: () => void
   /** The filter bar's search box — store the text as typed (the selectors trim it). */
   setSearchQuery: (query: string) => void
 }
@@ -589,7 +580,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     sessionNamePromptBusy: false,
     sessionNamePromptError: null,
     // Session templates — the templates picker dialog starts closed.
-    templatesDialogOpen: false,
+    sessionsDialog: null,
     // Phrase shortcuts — the Manage-shortcuts dialog starts closed.
     shortcutsDialogOpen: false,
     // Workspaces — the Manage-workspaces dialog starts closed.
@@ -601,7 +592,6 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // Settings — the Settings dialog starts closed.
     settingsDialogOpen: false,
     // Past sessions — the Past-sessions dialog starts closed.
-    pastSessionsDialogOpen: false,
     // The filter bar's search box starts empty: nothing hidden.
     searchQuery: '',
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
@@ -921,11 +911,11 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (get().sessionNamePromptError !== message) set({ sessionNamePromptError: message })
     },
 
-    openTemplatesDialog: () => {
-      if (!get().templatesDialogOpen) set({ templatesDialogOpen: true })
+    openSessionsDialog: (page) => {
+      if (get().sessionsDialog !== page) set({ sessionsDialog: page })
     },
-    closeTemplatesDialog: () => {
-      if (get().templatesDialogOpen) set({ templatesDialogOpen: false })
+    closeSessionsDialog: () => {
+      if (get().sessionsDialog !== null) set({ sessionsDialog: null })
     },
 
     openShortcutsDialog: () => {
@@ -961,13 +951,6 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     closeSettingsDialog: () => {
       if (get().settingsDialogOpen) set({ settingsDialogOpen: false })
-    },
-
-    openPastSessionsDialog: () => {
-      if (!get().pastSessionsDialogOpen) set({ pastSessionsDialogOpen: true })
-    },
-    closePastSessionsDialog: () => {
-      if (get().pastSessionsDialogOpen) set({ pastSessionsDialogOpen: false })
     },
     setSearchQuery: (query) => {
       if (get().searchQuery !== query) set({ searchQuery: query })
@@ -1127,11 +1110,8 @@ export const selectSessionNamePromptBusy = (state: BoardState): boolean =>
 export const selectSessionNamePromptError = (state: BoardState): string | null =>
   state.sessionNamePromptError
 
-/**
- * Session templates — whether the templates picker dialog is open (RENDERER VIEW-STATE).
- * [state.md: modal open/closed = renderer view-state]
- */
-export const selectTemplatesDialogOpen = (state: BoardState): boolean => state.templatesDialogOpen
+/** Sessions — the open page, or null while the dialog is closed (RENDERER VIEW-STATE). */
+export const selectSessionsDialog = (state: BoardState): SessionsPage | null => state.sessionsDialog
 
 /**
  * Phrase shortcuts — whether the Manage-shortcuts dialog is open (RENDERER VIEW-STATE).
@@ -1165,13 +1145,6 @@ export const selectSearchQuery = (state: BoardState): string => state.searchQuer
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectRulesDialogOpen = (state: BoardState): boolean => state.rulesDialogOpen
-
-/**
- * Past sessions — whether the Past-sessions dialog is open (RENDERER VIEW-STATE).
- * [state.md: modal open/closed = renderer view-state]
- */
-export const selectPastSessionsDialogOpen = (state: BoardState): boolean =>
-  state.pastSessionsDialogOpen
 
 /**
  * Workspaces — needs-you counts keyed by workspace, INCLUDING workspaces that are not active.

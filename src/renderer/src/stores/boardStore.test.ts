@@ -26,14 +26,13 @@ import {
   selectRailActiveSessionId,
   selectRailSection,
   selectRailOrder,
-  selectTemplatesDialogOpen,
   selectShortcutsDialogOpen,
   selectNeedsYouCountByWorkspace,
   selectCardCountByWorkspace,
   selectWorkingCountByWorkspace,
   selectTagsDialogOpen,
   selectRulesDialogOpen,
-  selectPastSessionsDialogOpen,
+  selectSessionsDialog,
   selectSearchQuery,
   selectShellPane,
   HERO_COLUMN,
@@ -1311,18 +1310,6 @@ describe('session templates — view-state', () => {
     const folder = store.getState().sessionNamePrompt
     expect(folder !== null && folder.mode === 'create' ? folder.templateId : 'x').toBeUndefined()
   })
-  it('templatesDialogOpen starts false; open/close toggle it; close when closed is a no-op', () => {
-    const store = createBoardStore({ now: () => FIXED_NOW })
-    expect(selectTemplatesDialogOpen(store.getState())).toBe(false)
-    const unsub = vi.fn()
-    store.subscribe(unsub)
-    store.getState().closeTemplatesDialog()
-    expect(unsub).not.toHaveBeenCalled()
-    store.getState().openTemplatesDialog()
-    expect(selectTemplatesDialogOpen(store.getState())).toBe(true)
-    store.getState().closeTemplatesDialog()
-    expect(selectTemplatesDialogOpen(store.getState())).toBe(false)
-  })
   it('shortcutsDialogOpen starts false; open/close toggle it; both are idempotent', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     expect(selectShortcutsDialogOpen(store.getState())).toBe(false)
@@ -1495,16 +1482,27 @@ describe('the Rules dialog flag', () => {
   })
 })
 
-describe('the Past sessions dialog flag', () => {
-  it('starts closed, opens and closes, idempotently', () => {
-    const store = createBoardStore()
-    expect(selectPastSessionsDialogOpen(store.getState())).toBe(false)
-    store.getState().openPastSessionsDialog()
-    store.getState().openPastSessionsDialog()
-    expect(selectPastSessionsDialogOpen(store.getState())).toBe(true)
-    store.getState().closePastSessionsDialog()
-    store.getState().closePastSessionsDialog()
-    expect(selectPastSessionsDialogOpen(store.getState())).toBe(false)
+describe('the Sessions dialog flag (spec 2026-10-03 B)', () => {
+  it('starts closed; open(page) opens on that page; open again switches page; close nulls it', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    expect(selectSessionsDialog(store.getState())).toBeNull()
+    store.getState().openSessionsDialog('past')
+    expect(selectSessionsDialog(store.getState())).toBe('past')
+    store.getState().openSessionsDialog('templates')
+    expect(selectSessionsDialog(store.getState())).toBe('templates')
+    store.getState().closeSessionsDialog()
+    expect(selectSessionsDialog(store.getState())).toBeNull()
+  })
+
+  it('is idempotent: the same page or a second close sets nothing', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    const listener = vi.fn()
+    store.subscribe(listener)
+    store.getState().closeSessionsDialog()
+    expect(listener).not.toHaveBeenCalled()
+    store.getState().openSessionsDialog('past')
+    store.getState().openSessionsDialog('past')
+    expect(listener).toHaveBeenCalledTimes(1)
   })
 })
 

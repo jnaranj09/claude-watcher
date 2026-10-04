@@ -51,7 +51,7 @@ beforeEach(() => {
     terminalIdBySessionId: {},
     launchedTerminals: {},
     sessionNamePrompt: null,
-    templatesDialogOpen: false,
+    sessionsDialog: null,
     tagsDialogOpen: false,
     rulesDialogOpen: false,
     quitGuard: null
@@ -210,7 +210,7 @@ describe('App — tags', () => {
   // Reverting its `isModalOpen()` guard turns this red.
   it('the single-modal rule: Manage tags… does nothing while another dialog is open', async () => {
     const r = await renderApp()
-    act(() => boardStore.getState().openTemplatesDialog())
+    act(() => boardStore.getState().openSessionsDialog('templates'))
     openManageTags(r)
     expect(boardStore.getState().tagsDialogOpen).toBe(false)
   })

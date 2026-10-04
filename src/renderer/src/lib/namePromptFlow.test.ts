@@ -181,13 +181,13 @@ describe('submitLaunch', () => {
     const started = toastStore.getState().toasts.find((t) => t.title === 'Started "api"')
     if (started === undefined) throw new Error('no Started toast')
     toastStore.getState().runAction(started.id)
-    boardStore.getState().openTemplatesDialog() // a modal opens during the switch's round trip
+    boardStore.getState().openSessionsDialog('templates') // a modal opens during the switch's round trip
     ws.resolve({ activeId: 'other', workspaces: [] })
     await settle()
     expect(workspacesStore.getState().activeId).toBe('other')
     expect(boardStore.getState().viewMode).toBe('board')
     expect(boardStore.getState().focusedTerminalId).toBeNull()
-    boardStore.getState().closeTemplatesDialog()
+    boardStore.getState().closeSessionsDialog()
   })
 
   it('the guard says nothing once the operator has already closed the prompt', async () => {

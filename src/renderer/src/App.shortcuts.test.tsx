@@ -43,7 +43,7 @@ beforeEach(() => {
     terminalIdBySessionId: {},
     launchedTerminals: {},
     sessionNamePrompt: null,
-    templatesDialogOpen: false,
+    sessionsDialog: null,
     shortcutsDialogOpen: false,
     workspacesDialogOpen: false
   })
