@@ -172,10 +172,14 @@ them:
     with each other.
   - The primary look is a raised grey fill with a strong border and bold label, never a coloured
     accent (a blue primary "pulled the eye off the board").
-- **Motion:** only needs-you pulses. Everything else is at most a 150 ms fade plus a small rise,
-  and nothing under `prefers-reduced-motion`.
+- **Motion:** only needs-you pulses loop. Overlays (popovers, dialogs, toasts) enter with a 150 ms
+  fade plus a small rise on `--motion-ease-enter`, and leave the way they came in 150 ms on
+  `--motion-ease-exit`. The workspace menu waits for the tab to tuck. Buttons scale to 97% while
+  pressed. Anything opened or closed from the keyboard is instant. Nothing new moves under
+  `prefers-reduced-motion`.
 - **Layout stability:** nothing moves under the pointer. Button feedback swaps in place, the
-  message slot reserves its height, and the Manage footer is sticky.
+  message slot reserves its height, and the Manage footer is sticky. A press scale is in place and
+  is allowed.
 - **No native widgets.** No native `<select>` (GTK paints it light on a dark app), no native
   scrollbar (the app has a rounded custom one), no `alert`/`confirm`/error boxes.
 
