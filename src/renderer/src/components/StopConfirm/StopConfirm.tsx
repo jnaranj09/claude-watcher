@@ -59,6 +59,7 @@ import { deleteTerminal } from '../../lib/sessionExit'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { Button } from '../Button/Button'
 import styles from './StopConfirm.module.css'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 
 interface StopConfirmProps {
   /** The payload (terminalId + sessionId + sessionName) for the session being deleted. */
@@ -74,6 +75,8 @@ interface StopConfirmProps {
  */
 export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
   const cancelRef = useRef<HTMLButtonElement | null>(null)
+  // Overlay motion (spec 2026-10-04 §6): leaving = playing its exit inside <Presence>.
+  const leaving = useLeaving()
   const { terminalId, sessionId } = payload
 
   // Cancel is DEFAULT-FOCUSED on mount (UX-DR14: reflexive Enter cancels, not deletes).
@@ -94,6 +97,8 @@ export function StopConfirm({ payload }: StopConfirmProps): JSX.Element {
   return (
     <div
       className={styles.overlay}
+      data-motion="dialog"
+      {...leavingProps(leaving)}
       data-testid="stop-confirm-overlay"
       role="dialog"
       aria-modal="true"

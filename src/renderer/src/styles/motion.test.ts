@@ -24,3 +24,27 @@ describe('motion values', () => {
     expect(main).toContain("@import '../styles/motion.css';")
   })
 })
+
+describe('dialog motion (spec 2026-10-04 §6)', () => {
+  const D = "[role='dialog'][data-motion='dialog']"
+  /** The declarations of the first rule whose selector is exactly `sel`. */
+  const rule = (sel: string): string => {
+    const i = css.indexOf(`${sel} {`)
+    expect(i, sel).toBeGreaterThanOrEqual(0)
+    return css.slice(i, css.indexOf('}', i))
+  }
+  it('the scrim fades its colour, never the overlay opacity (Liquid Glass backdrop root)', () => {
+    expect(rule(D)).toContain('background-color var(--motion-enter)')
+    expect(rule(D)).not.toContain('opacity')
+    expect(rule(`${D}[data-leaving]`)).toContain('background-color: transparent')
+  })
+  it('the panel moves (translate + scale) and only its content fades', () => {
+    expect(rule(`${D} > *`)).not.toContain('opacity')
+    expect(rule(`${D} > * > *`)).toContain('opacity var(--motion-enter)')
+    expect(rule(`${D}[data-leaving] > *`)).toMatch(/translate:\s*0 6px;\s*scale:\s*0\.98;/)
+  })
+  it('is instant on keyboard and under reduced motion', () => {
+    expect(css).toContain(`:root[data-input='keyboard'] ${D},`)
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\[role='dialog'\]/)
+  })
+})

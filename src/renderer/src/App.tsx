@@ -17,6 +17,7 @@ import { SmokeCockpit } from './SmokeCockpit'
 // Session templates — the header `+ New session` popover (folder / templates / Manage templates…,
 // which opens the Sessions dialog's Templates page). See NewSessionButton.tsx / TemplatesPage.tsx.
 import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
+import { Presence } from './components/Presence/Presence'
 // Phrase shortcuts — the Manage-shortcuts modal (☰ menu → Shortcuts…) + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 // Workspaces (Task 9b) — the header switcher + the startup workspaces load. Task 10 wires
@@ -729,7 +730,7 @@ function App(): React.JSX.Element {
           (z-60, above Settings z-50) — UX-DR14 single-modal rule: the guard takes precedence.
           The Quit-guard modal does NOT teardown on close (FROZEN #1 — no teardown-via-unmount).
           Cancel → clearQuitGuard() + window.quit.cancel(). Esc = Cancel (guarded in keydown). */}
-      {quitGuard !== null && <QuitGuard payload={quitGuard} />}
+      <Presence value={quitGuard}>{(p) => <QuitGuard payload={p} />}</Presence>
       {/* Past sessions (D-5) — the Delete-confirm modal (was Story 4.3's Stop-confirm; renderer
           view-state, non-null when the operator triggered Delete from a card, the focused bar's
           Delete button, or App's onDeleteCard seam — never from Archive, which has no
@@ -738,82 +739,89 @@ function App(): React.JSX.Element {
           explicit delete runs INSIDE the modal's confirm handler, not on mount/unmount).
           Cancel → clearStopConfirm(). Delete → sessionExit.deleteTerminal (window.launch.deleteSession
           THEN clearStopConfirm + showBoard). Esc = Cancel (guarded in keydown above). */}
-      {stopConfirm !== null && <StopConfirm payload={stopConfirm} />}
+      <Presence value={stopConfirm}>{(p) => <StopConfirm payload={p} />}</Presence>
       {/* Phrase shortcuts — the Manage-shortcuts modal (renderer view-state; same z-60 layer and
           the same UX-DR14 single-modal rule as the Sessions dialog). */}
-      {shortcutsDialogOpen && (
-        <ShortcutsDialog onClose={() => boardStore.getState().closeShortcutsDialog()} />
-      )}
+      <Presence value={shortcutsDialogOpen || null}>
+        {() => <ShortcutsDialog onClose={() => boardStore.getState().closeShortcutsDialog()} />}
+      </Presence>
       {/* Workspaces — the Manage-workspaces modal (renderer view-state; same z-60 layer and the
           same UX-DR14 single-modal rule as the Templates/Shortcuts dialogs). */}
-      {workspacesDialogOpen && (
-        <WorkspacesDialog onClose={() => boardStore.getState().closeWorkspacesDialog()} />
-      )}
+      <Presence value={workspacesDialogOpen || null}>
+        {() => <WorkspacesDialog onClose={() => boardStore.getState().closeWorkspacesDialog()} />}
+      </Presence>
       {/* Tags (spec 2026-10-03 C) — Tags · Rules as pages of one dialog (same z-60 layer and
           single-modal rule). */}
-      {tagsDialog !== null && (
-        <TagsDialog
-          page={tagsDialog}
-          onPageChange={(next) => boardStore.getState().openTagsDialog(next)}
-          onClose={() => boardStore.getState().closeTagsDialog()}
-        />
-      )}
+      <Presence value={tagsDialog}>
+        {(page) => (
+          <TagsDialog
+            page={page}
+            onPageChange={(next) => boardStore.getState().openTagsDialog(next)}
+            onClose={() => boardStore.getState().closeTagsDialog()}
+          />
+        )}
+      </Presence>
       {/* Settings — the Settings dialog (☰ menu → Settings…; same single-modal rule). */}
-      {settingsDialogOpen && (
-        <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />
-      )}
+      <Presence value={settingsDialogOpen || null}>
+        {() => <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />}
+      </Presence>
       {/* Sessions (spec 2026-10-03 B) — Past / Templates as pages of one dialog (same z-60 layer and
           single-modal rule). A page row hands its page to the store. */}
-      {sessionsDialog !== null && (
-        <SessionsDialog
-          page={sessionsDialog}
-          onPageChange={(next) => boardStore.getState().openSessionsDialog(next)}
-          onClose={() => boardStore.getState().closeSessionsDialog()}
-        />
-      )}
+      <Presence value={sessionsDialog}>
+        {(page) => (
+          <SessionsDialog
+            page={page}
+            onPageChange={(next) => boardStore.getState().openSessionsDialog(next)}
+            onClose={() => boardStore.getState().closeSessionsDialog()}
+          />
+        )}
+      </Presence>
       {/* Session-naming — the create-time NAME PROMPT (renderer view-state; non-null between the
           directory picker returning a path and main answering the submit). Before submit NOTHING is
           spawned, so Cancel/Esc is a complete no-op. Submit fires the launch (submitLaunch) and the
           prompt stays open, busy, until main answers; a Cancel then leaves the result to the flow's
           late-result path (registry only, never the view). Same z-60 overlay layer as the other
           two modals — it cannot co-exist with them (it only lives before a session exists). */}
-      {sessionNamePrompt !== null &&
-        (sessionNamePrompt.mode === 'create' ? (
-          <SessionNameDialog
-            // The dialog seeds its input from `initialName` on MOUNT only. Keying on the
-            // templateId (falling back to the cwd for the plain folder flow) forces a REMOUNT if
-            // the payload is ever replaced under it, so the input can never show one directory's
-            // name while `onSubmit` closes over another's path/template. `handleNewSession` /
-            // `handleTemplateSession` already refuse to re-enter while a prompt is open — this is
-            // the second line.
-            key={`create:${sessionNamePrompt.templateId ?? sessionNamePrompt.cwd}`}
-            initialName={sessionNamePrompt.initialName}
-            hint={sessionNamePrompt.cwd}
-            busy={sessionNamePromptBusy}
-            busyLabel="Starting…"
-            error={sessionNamePromptError}
-            onEdit={clearNamePromptError}
-            onSubmit={(name) => void submitLaunch(sessionNamePrompt, name)}
-            onCancel={() => boardStore.getState().clearSessionNamePrompt()}
-          />
-        ) : (
-          // A2 — the SAME dialog, reused unchanged (that is why it was built generic). Only the
-          // copy and the submit target differ: rename an existing session instead of launching a
-          // new one. Keyed by session id for the same remount reason as create.
-          <SessionNameDialog
-            key={`rename:${sessionNamePrompt.sessionId}`}
-            initialName={sessionNamePrompt.initialName}
-            title="Rename session"
-            confirmLabel="Rename"
-            helper="Applies in Claude on your next prompt."
-            busy={sessionNamePromptBusy}
-            busyLabel="Renaming…"
-            error={sessionNamePromptError}
-            onEdit={clearNamePromptError}
-            onSubmit={(name) => void submitRename(sessionNamePrompt, name)}
-            onCancel={() => boardStore.getState().clearSessionNamePrompt()}
-          />
-        ))}
+      <Presence value={sessionNamePrompt}>
+        {(prompt) =>
+          prompt.mode === 'create' ? (
+            <SessionNameDialog
+              // The dialog seeds its input from `initialName` on MOUNT only. Keying on the
+              // templateId (falling back to the cwd for the plain folder flow) forces a REMOUNT if
+              // the payload is ever replaced under it, so the input can never show one directory's
+              // name while `onSubmit` closes over another's path/template. `handleNewSession` /
+              // `handleTemplateSession` already refuse to re-enter while a prompt is open — this is
+              // the second line.
+              key={`create:${prompt.templateId ?? prompt.cwd}`}
+              initialName={prompt.initialName}
+              hint={prompt.cwd}
+              busy={sessionNamePromptBusy}
+              busyLabel="Starting…"
+              error={sessionNamePromptError}
+              onEdit={clearNamePromptError}
+              onSubmit={(name) => void submitLaunch(prompt, name)}
+              onCancel={() => boardStore.getState().clearSessionNamePrompt()}
+            />
+          ) : (
+            // A2 — the SAME dialog, reused unchanged (that is why it was built generic). Only the
+            // copy and the submit target differ: rename an existing session instead of launching a
+            // new one. Keyed by session id for the same remount reason as create.
+            <SessionNameDialog
+              key={`rename:${prompt.sessionId}`}
+              initialName={prompt.initialName}
+              title="Rename session"
+              confirmLabel="Rename"
+              helper="Applies in Claude on your next prompt."
+              busy={sessionNamePromptBusy}
+              busyLabel="Renaming…"
+              error={sessionNamePromptError}
+              onEdit={clearNamePromptError}
+              onSubmit={(name) => void submitRename(prompt, name)}
+              onCancel={() => boardStore.getState().clearSessionNamePrompt()}
+            />
+          )
+        }
+      </Presence>
       {/* Action feedback — toasts. A sibling of the modals, never inside the header or a view
           layer, so it is not `inert` under a dialog: its ✕ works over one. */}
       <Toaster />

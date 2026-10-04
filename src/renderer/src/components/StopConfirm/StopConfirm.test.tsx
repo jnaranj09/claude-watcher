@@ -15,8 +15,11 @@
 //  ../../lib/sessionExit.ts (deleteTerminal owns the F1 ordering now)]
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { act } from 'react'
+import { act, type JSX } from 'react'
 import { StopConfirm } from './StopConfirm'
+import { Presence } from '../Presence/Presence'
+import { MOTION_EXIT_MS } from '../../styles/motion'
+import { pointerInput } from '../../test/pointerInput'
 import { renderComponent } from '../../test/renderComponent'
 import { boardStore } from '../../stores/boardStore'
 import type { StopConfirmPayload } from '../../stores/boardStore'
@@ -434,5 +437,33 @@ describe('StopConfirm — dialog accessibility', () => {
     cleanup = unmount
     const overlay = container.querySelector('[data-testid="stop-confirm-overlay"]')
     expect(overlay?.getAttribute('aria-label')).toBe('Delete session?')
+  })
+})
+
+describe('StopConfirm — overlay motion (spec 2026-10-04 §6)', () => {
+  it('marks its overlay data-motion=dialog, and data-leaving + inert while leaving', () => {
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    const p = makePayload()
+    const tree = (payload: StopConfirmPayload | null): JSX.Element => (
+      <Presence value={payload}>{(x) => <StopConfirm payload={x} />}</Presence>
+    )
+    const r = renderComponent(tree(p))
+    const overlay = (): HTMLElement | null =>
+      r.container.querySelector<HTMLElement>('[data-testid="stop-confirm-overlay"]')
+    expect(overlay()?.dataset.motion).toBe('dialog')
+    expect(overlay()?.hasAttribute('data-leaving')).toBe(false)
+    act(() => {
+      r.root.render(tree(null))
+    })
+    expect(overlay()?.hasAttribute('data-leaving')).toBe(true)
+    expect(overlay()?.hasAttribute('inert')).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(MOTION_EXIT_MS)
+    })
+    expect(overlay()).toBeNull()
+    r.unmount()
+    vi.useRealTimers()
+    clearInput()
   })
 })

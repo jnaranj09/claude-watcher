@@ -29,6 +29,7 @@ import styles from './ManageDialog.module.css'
 import { Button, type ButtonSize } from '../Button/Button'
 import { Callout } from '../Callout/Callout'
 import { workspaceTintClass, type WorkspaceTone } from '../WorkspaceTint/workspaceTint'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 
 function cx(...classes: (string | false | undefined)[]): string {
   return classes.filter((c): c is string => typeof c === 'string' && c.length > 0).join(' ')
@@ -60,6 +61,8 @@ export function ManageDialogFrame({
   children
 }: ManageDialogFrameProps): JSX.Element {
   const { actions, meta } = useManageDialogContext()
+  // Overlay motion (spec 2026-10-04 §6): leaving = playing its exit inside <Presence>.
+  const leaving = useLeaving()
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (e.key === 'Escape') {
@@ -71,6 +74,8 @@ export function ManageDialogFrame({
   return (
     <div
       className={styles.overlay}
+      data-motion="dialog"
+      {...leavingProps(leaving)}
       role="dialog"
       aria-modal="true"
       aria-label={meta.title}

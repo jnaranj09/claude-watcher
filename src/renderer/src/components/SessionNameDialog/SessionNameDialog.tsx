@@ -30,6 +30,7 @@ import { Button } from '../Button/Button'
 import { TextInput } from '../TextInput/TextInput'
 import { Callout } from '../Callout/Callout'
 import styles from './SessionNameDialog.module.css'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 
 export interface SessionNameDialogProps {
   /** The value the input starts at (the cwd basename on create; the current name on rename). */
@@ -73,6 +74,8 @@ export function SessionNameDialog({
   onEdit
 }: SessionNameDialogProps): JSX.Element {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  // Overlay motion (spec 2026-10-04 §6): leaving = playing its exit inside <Presence>.
+  const leaving = useLeaving()
   const [value, setValue] = useState(initialName)
 
   // Focus the input AND select its text on mount, so typing replaces the prefill instead of
@@ -112,6 +115,8 @@ export function SessionNameDialog({
   return (
     <div
       className={styles.overlay}
+      data-motion="dialog"
+      {...leavingProps(leaving)}
       data-testid="session-name-overlay"
       role="dialog"
       aria-modal="true"

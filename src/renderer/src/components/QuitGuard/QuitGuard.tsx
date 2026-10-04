@@ -42,6 +42,7 @@ import { Button } from '../Button/Button'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { toast } from '../../stores/toastStore'
 import styles from './QuitGuard.module.css'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 
 interface QuitGuardProps {
   /** The payload main computed + pushed (total, workingCount, sessions). */
@@ -55,6 +56,8 @@ interface QuitGuardProps {
  */
 export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
   const cancelRef = useRef<HTMLButtonElement | null>(null)
+  // Overlay motion (spec 2026-10-04 §6): leaving = playing its exit inside <Presence>.
+  const leaving = useLeaving()
 
   // Cancel is DEFAULT-FOCUSED on mount (UX-DR14: reflexive Enter cancels, not quits).
   useEffect(() => {
@@ -86,6 +89,8 @@ export function QuitGuard({ payload }: QuitGuardProps): JSX.Element {
   return (
     <div
       className={styles.overlay}
+      data-motion="dialog"
+      {...leavingProps(leaving)}
       data-testid="quit-guard-overlay"
       role="dialog"
       aria-modal="true"

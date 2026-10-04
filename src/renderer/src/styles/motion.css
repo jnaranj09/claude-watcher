@@ -9,3 +9,64 @@
   --motion-enter: 150ms;
   --motion-exit: 150ms;
 }
+
+/* ── Modal dialogs (spec 2026-10-04 §6) ─────────────────────────────────────────────────────
+   ManageDialogFrame, StopConfirm, QuitGuard and SessionNameDialog put data-motion="dialog" on
+   their overlay; its only child is the panel. `[role='dialog']` in every selector lifts it above
+   the modules' `.overlay` / `.panel` whatever order the sheets load in.
+   The SCRIM fades its colour, not the overlay's opacity, and the PANEL moves with
+   translate/scale while only its CONTENT fades: on Liquid Glass an element with opacity < 1 may
+   become a backdrop root and cut the panel's `::before` blur off from the board for the length of
+   the fade (guess, not checked — the built-app drive check decides). */
+[role='dialog'][data-motion='dialog'] {
+  transition: background-color var(--motion-enter) var(--motion-ease-enter);
+}
+[role='dialog'][data-motion='dialog'] > * {
+  transition:
+    translate var(--motion-enter) var(--motion-ease-enter),
+    scale var(--motion-enter) var(--motion-ease-enter);
+}
+[role='dialog'][data-motion='dialog'] > * > * {
+  transition: opacity var(--motion-enter) var(--motion-ease-enter);
+}
+@starting-style {
+  [role='dialog'][data-motion='dialog'] {
+    background-color: transparent;
+  }
+  [role='dialog'][data-motion='dialog'] > * {
+    translate: 0 6px;
+    scale: 0.98;
+  }
+  [role='dialog'][data-motion='dialog'] > * > * {
+    opacity: 0;
+  }
+}
+[role='dialog'][data-motion='dialog'][data-leaving] {
+  background-color: transparent;
+  pointer-events: none;
+}
+[role='dialog'][data-motion='dialog'][data-leaving] > * {
+  translate: 0 6px;
+  scale: 0.98;
+}
+[role='dialog'][data-motion='dialog'][data-leaving] > * > * {
+  opacity: 0;
+}
+[role='dialog'][data-motion='dialog'][data-leaving],
+[role='dialog'][data-motion='dialog'][data-leaving] > *,
+[role='dialog'][data-motion='dialog'][data-leaving] > * > * {
+  transition-duration: var(--motion-exit);
+  transition-timing-function: var(--motion-ease-exit);
+}
+:root[data-input='keyboard'] [role='dialog'][data-motion='dialog'],
+:root[data-input='keyboard'] [role='dialog'][data-motion='dialog'] > *,
+:root[data-input='keyboard'] [role='dialog'][data-motion='dialog'] > * > * {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [role='dialog'][data-motion='dialog'],
+  [role='dialog'][data-motion='dialog'] > *,
+  [role='dialog'][data-motion='dialog'] > * > * {
+    transition: none;
+  }
+}
