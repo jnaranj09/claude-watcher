@@ -11,7 +11,7 @@
 //
 // The board is the v1 board view; the xterm cockpit is Epic-3's focused-session
 // concern. [Source: story 1.4 Task 6]
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './components/board/Board'
 import { SmokeCockpit } from './SmokeCockpit'
 // Session templates — the header `+ New session` popover (folder / templates / Manage templates…,
@@ -167,6 +167,15 @@ function App(): React.JSX.Element {
   // Action feedback — the prompt's in-flight flag and its mapped refusal copy.
   const sessionNamePromptBusy = useBoard(selectSessionNamePromptBusy)
   const sessionNamePromptError = useBoard(selectSessionNamePromptError)
+  // Overlay motion: the prompt's busy/error ride WITH it into <Presence>. Main's answer clears all
+  // three in one update, and the dialog fading out must keep the label it had ("Starting…").
+  const namePrompt = useMemo(
+    () =>
+      sessionNamePrompt === null
+        ? null
+        : { prompt: sessionNamePrompt, busy: sessionNamePromptBusy, error: sessionNamePromptError },
+    [sessionNamePrompt, sessionNamePromptBusy, sessionNamePromptError]
+  )
   // Sessions — the Sessions dialog's open page, or null.
   const sessionsDialog = useBoard(selectSessionsDialog)
   // Phrase shortcuts — whether the Manage-shortcuts dialog is open.
@@ -782,8 +791,8 @@ function App(): React.JSX.Element {
           prompt stays open, busy, until main answers; a Cancel then leaves the result to the flow's
           late-result path (registry only, never the view). Same z-60 overlay layer as the other
           two modals — it cannot co-exist with them (it only lives before a session exists). */}
-      <Presence value={sessionNamePrompt}>
-        {(prompt) =>
+      <Presence value={namePrompt}>
+        {({ prompt, busy, error }) =>
           prompt.mode === 'create' ? (
             <SessionNameDialog
               // The dialog seeds its input from `initialName` on MOUNT only. Keying on the
@@ -795,9 +804,9 @@ function App(): React.JSX.Element {
               key={`create:${prompt.templateId ?? prompt.cwd}`}
               initialName={prompt.initialName}
               hint={prompt.cwd}
-              busy={sessionNamePromptBusy}
+              busy={busy}
               busyLabel="Starting…"
-              error={sessionNamePromptError}
+              error={error}
               onEdit={clearNamePromptError}
               onSubmit={(name) => void submitLaunch(prompt, name)}
               onCancel={() => boardStore.getState().clearSessionNamePrompt()}
@@ -812,9 +821,9 @@ function App(): React.JSX.Element {
               title="Rename session"
               confirmLabel="Rename"
               helper="Applies in Claude on your next prompt."
-              busy={sessionNamePromptBusy}
+              busy={busy}
               busyLabel="Renaming…"
-              error={sessionNamePromptError}
+              error={error}
               onEdit={clearNamePromptError}
               onSubmit={(name) => void submitRename(prompt, name)}
               onCancel={() => boardStore.getState().clearSessionNamePrompt()}

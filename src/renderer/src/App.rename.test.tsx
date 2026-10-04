@@ -14,6 +14,7 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
 import App from './App'
 import { boardStore } from './stores/boardStore'
+import { pointerInput } from './test/pointerInput'
 import type { WatchEventsPayload } from '../../shared/ipc/contract'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
@@ -360,5 +361,27 @@ describe('App — rename an existing session (session-naming A2)', () => {
     // Still the FIRST session's prompt — the second click was refused, so the dialog's input can
     // never hold one session's typed name while onSubmit closes over another's id.
     expect(boardStore.getState().sessionNamePrompt).toEqual(firstPrompt)
+  })
+
+  // Overlay motion (2026-10-04 review): main's answer clears the prompt AND its busy flag in one
+  // update. The dialog fading out must keep the label it had ("Renaming…"), not flip back to
+  // "Rename" for its last 150 ms.
+  it('the prompt fading out after a busy submit keeps its busy label', async () => {
+    const { r, pencil } = await renderWithCard()
+    act(() => pencil.click())
+    await flush()
+    act(() => boardStore.getState().setSessionNamePromptBusy(true))
+    const confirm = (): HTMLButtonElement | null =>
+      r.container.querySelector<HTMLButtonElement>('[data-testid="session-name-confirm"]')
+    expect(confirm()?.textContent).toContain('Renaming…')
+    const clearInput = pointerInput()
+    act(() => boardStore.getState().clearSessionNamePrompt())
+    expect(
+      r.container
+        .querySelector('[data-testid="session-name-overlay"]')
+        ?.hasAttribute('data-leaving')
+    ).toBe(true)
+    expect(confirm()?.textContent).toContain('Renaming…')
+    clearInput()
   })
 })
