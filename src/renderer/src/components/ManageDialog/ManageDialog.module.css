@@ -173,6 +173,9 @@
    selected rail row keeps the fill, so the two highlights never look the same. An inset shadow,
    so the bar takes no width. */
 .page {
+  /* The shared rule's `flex: 1` fills a rail ROW; in this flex COLUMN it would stretch each page
+     row to fill the column. */
+  flex: none;
   color: var(--text-secondary);
 }
 .page[aria-current='page'] {

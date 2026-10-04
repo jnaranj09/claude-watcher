@@ -422,4 +422,10 @@ describe('ManageDialog page column (spec 2026-10-03 C)', () => {
     expect(stripped).toMatch(/\.rowSelect:hover,\s*\.page:hover\s*\{/)
     expect(stripped).toMatch(/\.rowSelect:focus-visible,\s*\.page:focus-visible\s*\{/)
   })
+
+  it('a page row keeps its own height: it never grows to fill the column (drive 2026-10-03)', () => {
+    // The shared `.rowSelect, .page` rule carries `flex: 1` (a rail row fills its ROW); in the
+    // page column's flex COLUMN that would stretch each page row to a quarter of the column.
+    expect(stripped).toMatch(/\n\.page\s*\{[^}]*flex:\s*none/)
+  })
 })

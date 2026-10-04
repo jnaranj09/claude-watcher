@@ -11,17 +11,24 @@
   font-size: var(--font-size-body);
   color: var(--text-secondary);
 }
+/* A native checkbox carries a browser margin; the row boxes have none (RowCheck). */
+.selectAll input {
+  margin: 0;
+}
 
-/* `3 selected  [Archive] [Delete]` — one row across the rail; the count takes the free width. */
+/* `3 selected` on its own line, `[Archive] [Delete]` under it. One line does not fit the rail
+   once Delete arms (`Confirm delete` is wider), and a bar that re-flows on the first press moves
+   the button under the pointer; so the count always takes its own line. */
 .bulkBar {
   align-self: stretch;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--gap-inline);
+  gap: var(--gap-field) var(--gap-inline);
 }
 .bulkCount {
-  flex: 1;
-  min-width: 0;
+  flex: 1 0 100%;
+  white-space: nowrap;
   color: var(--text-secondary);
   font-size: var(--font-size-body);
 }
