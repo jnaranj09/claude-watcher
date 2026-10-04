@@ -152,7 +152,11 @@ export const SettingsSchema = z.object({
   // Terminal colours. Additive on v1, same `.default()` reasoning as above.
   terminalScheme: TerminalSchemeSchema.default(DEFAULT_TERMINAL_SCHEME),
   // Terminal Copy/Paste menu click. Additive on v1, same `.default()` reasoning as above.
-  terminalMenuTrigger: TerminalMenuTriggerSchema.default(DEFAULT_TERMINAL_MENU_TRIGGER)
+  terminalMenuTrigger: TerminalMenuTriggerSchema.default(DEFAULT_TERMINAL_MENU_TRIGGER),
+  // Include global (spec 2026-10-03 H): in a workspace view of Templates / Shortcuts / Tags /
+  // Rules, also list the global rows. ONE remembered choice shared by every list that offers it.
+  // Additive on v1, same `.default()` reasoning as above; on by default — "what applies to me here".
+  includeGlobal: z.boolean().default(true)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -183,7 +187,8 @@ export const SettingsPatchSchema = z
     notificationsEnabled: z.boolean(),
     shellPaneRatio: ShellPaneRatioSchema,
     terminalScheme: TerminalSchemeSchema,
-    terminalMenuTrigger: TerminalMenuTriggerSchema
+    terminalMenuTrigger: TerminalMenuTriggerSchema,
+    includeGlobal: z.boolean()
   })
   .partial()
 
@@ -207,7 +212,8 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationsEnabled: true,
   shellPaneRatio: DEFAULT_SHELL_PANE_RATIO,
   terminalScheme: DEFAULT_TERMINAL_SCHEME,
-  terminalMenuTrigger: DEFAULT_TERMINAL_MENU_TRIGGER
+  terminalMenuTrigger: DEFAULT_TERMINAL_MENU_TRIGGER,
+  includeGlobal: true
 }
 
 /**

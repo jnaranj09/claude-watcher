@@ -18,6 +18,7 @@ import {
   selectWallpaperByTheme,
   selectShellPaneRatio,
   selectTerminalScheme,
+  selectIncludeGlobal,
   selectTerminalMenuTrigger
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
@@ -48,7 +49,8 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
       terminalScheme: 'light',
-      terminalMenuTrigger: 'ctrl-right-click'
+      terminalMenuTrigger: 'ctrl-right-click',
+      includeGlobal: true
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -73,6 +75,15 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     store.getState().applyPatch({ terminalFontSize: 18 })
     expect(selectTerminalFontSize(store.getState())).toBe(18)
     expect(selectSoundEnabled(store.getState())).toBe(DEFAULT_SETTINGS.soundEnabled)
+  })
+
+  it('includeGlobal: default true; hydrate and applyPatch carry it (spec 2026-10-03 H)', () => {
+    const store = createSettingsStore()
+    expect(selectIncludeGlobal(store.getState())).toBe(true)
+    store.getState().applyPatch({ includeGlobal: false })
+    expect(selectIncludeGlobal(store.getState())).toBe(false)
+    store.getState().hydrate({ ...DEFAULT_SETTINGS, includeGlobal: true })
+    expect(selectIncludeGlobal(store.getState())).toBe(true)
   })
 
   it('an empty patch is a no-op', () => {

@@ -52,6 +52,9 @@ export interface SettingsState {
   terminalScheme: TerminalScheme
   /** Which click opens the terminal Copy/Paste menu. */
   terminalMenuTrigger: TerminalMenuTrigger
+  /** Include global (spec 2026-10-03 H) — a workspace view of a config list also shows the global
+   *  rows. One value for every list. */
+  includeGlobal: boolean
   /** Whether the initial load from main has completed (until then the defaults are shown). */
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
@@ -87,6 +90,7 @@ export function createSettingsStore(): SettingsStoreApi {
     shellPaneRatio: DEFAULT_SETTINGS.shellPaneRatio,
     terminalScheme: DEFAULT_SETTINGS.terminalScheme,
     terminalMenuTrigger: DEFAULT_SETTINGS.terminalMenuTrigger,
+    includeGlobal: DEFAULT_SETTINGS.includeGlobal,
     loaded: false,
     authoritative: DEFAULT_SETTINGS,
 
@@ -105,6 +109,7 @@ export function createSettingsStore(): SettingsStoreApi {
         shellPaneRatio: settings.shellPaneRatio,
         terminalScheme: settings.terminalScheme,
         terminalMenuTrigger: settings.terminalMenuTrigger,
+        includeGlobal: settings.includeGlobal,
         loaded: true,
         authoritative: settings
       })
@@ -135,7 +140,8 @@ export function createSettingsStore(): SettingsStoreApi {
         ...(patch.terminalScheme !== undefined ? { terminalScheme: patch.terminalScheme } : {}),
         ...(patch.terminalMenuTrigger !== undefined
           ? { terminalMenuTrigger: patch.terminalMenuTrigger }
-          : {})
+          : {}),
+        ...(patch.includeGlobal !== undefined ? { includeGlobal: patch.includeGlobal } : {})
       })
     }
   }))
@@ -159,6 +165,8 @@ export const selectTerminalScheme = (state: SettingsState): TerminalScheme => st
 /** The live terminal Copy/Paste menu click (primitive). */
 export const selectTerminalMenuTrigger = (state: SettingsState): TerminalMenuTrigger =>
   state.terminalMenuTrigger
+/** Include global — the one remembered choice every config list reads (primitive). */
+export const selectIncludeGlobal = (state: SettingsState): boolean => state.includeGlobal
 /** Attention reminders — the live reminder count (primitive; 0 = off). */
 export const selectReminderCount = (state: SettingsState): number => state.reminderCount
 /** Attention reminders — the live first-reminder delay in minutes (primitive). */

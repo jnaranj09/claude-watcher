@@ -50,7 +50,8 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
       terminalScheme: 'theme',
-      terminalMenuTrigger: 'right-click'
+      terminalMenuTrigger: 'right-click',
+      includeGlobal: true
     })
     expect(get()).toEqual(result)
   })

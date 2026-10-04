@@ -49,7 +49,8 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       notificationsEnabled: true,
       shellPaneRatio: 0.3,
       terminalScheme: 'theme',
-      terminalMenuTrigger: 'right-click'
+      terminalMenuTrigger: 'right-click',
+      includeGlobal: true
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -455,5 +456,22 @@ describe('terminalMenuTrigger — additive on v1 (terminal Copy/Paste menu click
       SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, terminalMenuTrigger: 'middle' }).success
     ).toBe(false)
     expect(SettingsPatchSchema.safeParse({ terminalMenuTrigger: '' }).success).toBe(false)
+  })
+})
+
+describe('includeGlobal — additive on v1 (spec 2026-10-03 H)', () => {
+  it('a v1 blob without it parses as true and keeps every other value', () => {
+    const { includeGlobal: _omit, ...without } = { ...DEFAULT_SETTINGS, soundEnabled: false }
+    void _omit
+    const parsed = parseSettings(without)
+    expect(parsed.includeGlobal).toBe(true)
+    expect(parsed.soundEnabled).toBe(false)
+    expect(parsed.version).toBe(SETTINGS_VERSION)
+  })
+  it('a patch carries a boolean with NO default; anything else fails closed', () => {
+    expect(SettingsPatchSchema.parse({ includeGlobal: false })).toEqual({ includeGlobal: false })
+    expect(SettingsPatchSchema.parse({ soundEnabled: true })).toEqual({ soundEnabled: true })
+    expect(SettingsPatchSchema.safeParse({ includeGlobal: 'yes' }).success).toBe(false)
+    expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, includeGlobal: 1 }).success).toBe(false)
   })
 })

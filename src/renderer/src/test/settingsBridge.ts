@@ -29,7 +29,8 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     notificationsEnabled: patch.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled,
     shellPaneRatio: patch.shellPaneRatio ?? DEFAULT_SETTINGS.shellPaneRatio,
     terminalScheme: patch.terminalScheme ?? DEFAULT_SETTINGS.terminalScheme,
-    terminalMenuTrigger: patch.terminalMenuTrigger ?? DEFAULT_SETTINGS.terminalMenuTrigger
+    terminalMenuTrigger: patch.terminalMenuTrigger ?? DEFAULT_SETTINGS.terminalMenuTrigger,
+    includeGlobal: patch.includeGlobal ?? DEFAULT_SETTINGS.includeGlobal
   }
 }
 
