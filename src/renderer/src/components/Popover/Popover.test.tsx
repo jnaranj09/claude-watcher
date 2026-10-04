@@ -232,5 +232,9 @@ describe('Popover.Surface — a container (holds a submenu) never fades itself',
   it('fades its rows and its own ::before layer, not the submenu that holds a blur', () => {
     expect(css).toMatch(/\.surface\[data-leaving\]:has\(\.surface\)::before/)
     expect(css).toMatch(/\.surface\[data-leaving\]:has\(\.surface\) > :not\(:has\(\.surface\)\)/)
+    // The open submenu's own trigger row ("Tags ‹") sits one level down; it fades with its siblings.
+    expect(css).toMatch(
+      /\.surface\[data-leaving\]:has\(\.surface\) > :has\(\.surface\) > \[data-popover-item\]/
+    )
   })
 })

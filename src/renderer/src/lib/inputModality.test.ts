@@ -39,3 +39,16 @@ describe('inputModality', () => {
     expect(lastInput()).toBeNull()
   })
 })
+
+describe('the renderer entry installs it', () => {
+  // Without the call nothing ever sets data-input: every exit is instant and the keyboard rules
+  // never apply — silently. It must run before the first render.
+  it('main.tsx calls installInputModality() before createRoot', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const src = readFileSync(join(process.cwd(), 'src/renderer/src/main.tsx'), 'utf8')
+    const install = src.indexOf('installInputModality()')
+    expect(install).toBeGreaterThan(0)
+    expect(install).toBeLessThan(src.indexOf('createRoot('))
+  })
+})
