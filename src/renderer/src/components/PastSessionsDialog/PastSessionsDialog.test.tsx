@@ -444,6 +444,7 @@ describe('PastSessionsDialog', () => {
     const { r } = render()
     await flush()
     const slot = q(r, '[data-manage-list-bottom]')
+    expect(slot?.hasAttribute('data-manage-list-divided')).toBe(true) // spec 2026-10-03 I
     expect(slot?.querySelector('[data-testid="past-session-resume-by-id"]')).toBeTruthy()
     expect(slot?.querySelector('[data-testid="past-sessions-cap-note"]')).toBeTruthy()
   })

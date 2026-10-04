@@ -249,7 +249,7 @@ export function PastSessionsDialog({
             {/* The rail's bottom slot (siblings put `+ New` here; this dialog has none): Retry after
                 a failed load, Resume by id — a claude session started outside the app comes in by
                 its id — and the cap footnote under them. */}
-            <ManageDialog.ListBottom>
+            <ManageDialog.ListBottomDivided>
               {loadFailed && (
                 <ManageDialog.GhostButton testId="past-sessions-retry" onClick={retryLoad}>
                   Retry
@@ -284,7 +284,7 @@ export function PastSessionsDialog({
               <ManageDialog.ListNote testId="past-sessions-cap-note">
                 {pastSessionsCapNote(PAST_SESSIONS_MAX)}
               </ManageDialog.ListNote>
-            </ManageDialog.ListBottom>
+            </ManageDialog.ListBottomDivided>
           </ManageDialog.List>
           {selected !== null ? (
             <ManageDialog.Form testId="past-session-form" onSubmit={(e) => void resume(e)}>
