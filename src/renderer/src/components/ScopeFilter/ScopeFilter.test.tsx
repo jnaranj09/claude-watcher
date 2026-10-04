@@ -32,4 +32,22 @@ describe('ScopeFilter workspace names', () => {
     expect(tones).toEqual(['global', 'blue', 'orphan'])
     expect(r.container.querySelector('[data-testid="scope-list"] [aria-hidden="true"]')).toBeNull()
   })
+
+  it('the closed trigger shows the workspace NAME as plain text, no tint box (spec 2026-10-03 G)', () => {
+    const r = renderComponent(
+      <ScopeFilter
+        value="ws:w1"
+        workspaces={[{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }]}
+        allLabel="All templates"
+        showOrphans={false}
+        onChange={vi.fn()}
+        testId="scope"
+        ariaLabel="Scope"
+      />
+    )
+    cleanup = r.unmount
+    const trigger = r.container.querySelector('[data-testid="scope"]')
+    expect(trigger?.querySelector('[data-tone]')).toBeNull()
+    expect(trigger?.textContent).toContain('Ops')
+  })
 })

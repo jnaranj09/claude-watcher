@@ -26,8 +26,10 @@ export interface SelectOption<T extends string> {
   label: string
   /** Optional leading element — the Tags dialog's colour picker draws its chip preview here. */
   adornment?: ReactNode
-  /** Drawn IN PLACE of the label text, in the trigger and in this option's row — a workspace name
-   *  in its tint (WorkspaceLabel). `label` stays the option's text for tests and assistive tech. */
+  /** Drawn IN PLACE of the label text in this option's ROW of the open list — a workspace name in
+   *  its tint (WorkspaceLabel). The closed trigger always shows the plain `label`: a tint box never
+   *  sits inside the dropdown's own box (spec 2026-10-03 G). `label` is also the text for tests
+   *  and assistive tech. */
   display?: ReactNode
 }
 
@@ -139,7 +141,7 @@ export function Select<T extends string>({
         onKeyDown={handleTriggerKeyDown}
       >
         {selected?.adornment}
-        <span className={styles.label}>{selected?.display ?? selected?.label ?? ''}</span>
+        <span className={styles.label}>{selected?.label ?? ''}</span>
         <span className={styles.caret} aria-hidden="true">
           ▾
         </span>

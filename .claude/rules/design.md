@@ -104,7 +104,9 @@ title.
 - Scope change closes what was open. A save that moves a row re-points the filter to its scope.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
 - `+ New` at rail bottom (`ManageDialog.ListBottom`, `margin-top: auto`).
-- Options pass a `WorkspaceLabel` as `display`.
+- Options pass a `WorkspaceLabel` as `display`: the OPEN list shows each name in its tint; the closed
+  trigger shows the plain `label` — a tint box never sits inside the dropdown box (spec 2026-10-03
+  G). Every `Select` follows it, so a form's `Workspace` field too.
 
 ## Workspaces in the UI — a TINT, never a dot
 

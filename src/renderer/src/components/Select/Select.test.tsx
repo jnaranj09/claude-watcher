@@ -173,7 +173,9 @@ describe('Select', () => {
 
   // A workspace dropdown draws the name in its tint (WorkspaceLabel) instead of plain text. The
   // label stays the option's text for tests and assistive tech.
-  it('draws `display` in place of the label text, in the trigger and the row', () => {
+  // spec 2026-10-03 G: a tint box never sits inside the dropdown box. The open list keeps
+  // `display` (a workspace is still found by colour when choosing); the closed trigger is plain.
+  it('draws `display` in the open list only; the closed trigger shows the plain label', () => {
     const opts: SelectOption<'a' | 'b'>[] = [
       { value: 'a', label: 'Alpha', display: <em data-testid="shown-a">Alpha</em> },
       { value: 'b', label: 'Beta' }
@@ -183,7 +185,7 @@ describe('Select', () => {
     )
     cleanup = r.unmount
     const trigger = q(r, '[data-testid="letter"]')
-    expect(trigger.querySelector('[data-testid="shown-a"]')).not.toBeNull()
+    expect(trigger.querySelector('[data-testid="shown-a"]')).toBeNull()
     expect(trigger.textContent).toContain('Alpha')
     click(trigger)
     const row = q(r, '[data-testid="letter-option-a"]')
