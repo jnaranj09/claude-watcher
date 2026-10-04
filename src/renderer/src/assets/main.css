@@ -1,6 +1,7 @@
 /* Story 0.1 bare cockpit shell — minimal reset.
  * Story 1.3 — design tokens imported here once at the renderer root (AC-1). */
 @import '../styles/tokens.css';
+@import '../styles/motion.css';
 
 * {
   box-sizing: border-box;

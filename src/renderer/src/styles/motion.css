@@ -1,0 +1,11 @@
+/* Overlay motion (spec 2026-10-04-overlay-motion-design.md). NOT theme tokens on purpose: the
+   unmount timer (MOTION_EXIT_MS, motion.ts) is fixed, so a theme that lengthened --motion-exit
+   would have every exit cut off. motion.test.ts pins --motion-exit to the timer. */
+:root {
+  /* Strong ease-out: starts fast, so the eye sees the overlay react at once. */
+  --motion-ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Plain ease: the strong curve is 97% done at 40 ms, so a short exit read as no exit. */
+  --motion-ease-exit: ease;
+  --motion-enter: 150ms;
+  --motion-exit: 150ms;
+}

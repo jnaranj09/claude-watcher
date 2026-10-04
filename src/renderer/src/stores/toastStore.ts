@@ -14,6 +14,7 @@
 // A toast holds operator-visible copy only, and the store never logs one.
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { WorkspaceTone } from '../components/WorkspaceTint/workspaceTint'
+import { MOTION_EXIT_MS } from '../styles/motion'
 
 export type ToastKind = 'success' | 'error' | 'info'
 
@@ -47,7 +48,8 @@ export type ToastOptions = Omit<ToastInput, 'kind' | 'title'>
 export const TOAST_MAX = 3
 export const TOAST_MS = 5000
 export const TOAST_ACTION_MS = 6000
-export const TOAST_EXIT_MS = 150
+/** The fade-out before removal: the shared overlay exit (styles/motion.ts). */
+export const TOAST_EXIT_MS = MOTION_EXIT_MS
 
 export interface ToastClock {
   now: () => number
