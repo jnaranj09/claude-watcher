@@ -44,7 +44,7 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
   const loadFailed = useTags(selectTagsLoadFailed)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const known = knownWorkspaceIds(workspaces)
-  const listed = filterByScope(tags, scope, known)
+  const listed = filterByScope(tags, scope, known, false)
   const selected = tags.find((t) => t.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
 
@@ -64,7 +64,8 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
    *  reads as a save that failed. */
   function revealSaved(tag: Tag): void {
     dialog.actions.select(tag.id)
-    if (filterByScope([tag], scope, known).length === 0) setScope(scopeOf(tag.workspaceId, known))
+    if (filterByScope([tag], scope, known, false).length === 0)
+      setScope(scopeOf(tag.workspaceId, known))
     dialog.actions.showSuccess('Tag saved.')
   }
 

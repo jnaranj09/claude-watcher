@@ -31,7 +31,7 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
     searchRef.current?.focus()
   }, [])
   const known = knownWorkspaceIds(workspaces)
-  const scoped = filterByScope(templates, scope, known)
+  const scoped = filterByScope(templates, scope, known, false)
   const filtered = filterTemplates(scoped, query)
 
   // Three different nothings, three different answers: no templates at all, none in the scope you

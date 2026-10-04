@@ -43,22 +43,22 @@ describe('scope filter', () => {
   })
 
   it('shows every row under All', () => {
-    expect(filterByScope(ROWS, ALL_SCOPE, KNOWN)).toEqual(ROWS)
+    expect(filterByScope(ROWS, ALL_SCOPE, KNOWN, false)).toEqual(ROWS)
   })
 
   // STRICT, both ways: Global shows global rows ONLY (never "everything usable in a workspace"),
   // and a workspace shows its own rows ONLY (never the global ones it can also run).
   it('narrows to exactly one scope', () => {
-    expect(filterByScope(ROWS, 'global', KNOWN)).toEqual([GLOBAL])
-    expect(filterByScope(ROWS, workspaceScope('w1'), KNOWN)).toEqual([OWN])
-    expect(filterByScope(ROWS, workspaceScope('w2'), KNOWN)).toEqual([OTHER])
-    expect(filterByScope(ROWS, 'orphans', KNOWN)).toEqual([ORPHAN])
+    expect(filterByScope(ROWS, 'global', KNOWN, false)).toEqual([GLOBAL])
+    expect(filterByScope(ROWS, workspaceScope('w1'), KNOWN, false)).toEqual([OWN])
+    expect(filterByScope(ROWS, workspaceScope('w2'), KNOWN, false)).toEqual([OTHER])
+    expect(filterByScope(ROWS, 'orphans', KNOWN, false)).toEqual([ORPHAN])
   })
 
   // A row whose workspace is gone belongs to orphans and NOWHERE else — asking for that gone id
   // must not surface it, or a deleted workspace would still have a working view.
   it('never surfaces an orphan under the id it names', () => {
-    expect(filterByScope(ROWS, workspaceScope('gone'), KNOWN)).toEqual([])
+    expect(filterByScope(ROWS, workspaceScope('gone'), KNOWN, false)).toEqual([])
   })
 
   it('reports orphans only when a row has one', () => {
@@ -74,5 +74,30 @@ describe('openingScope', () => {
   it('opens on the active workspace when the dropdown offers it, else on the unfiltered entry', () => {
     expect(openingScope(WS, 'w1')).toBe('ws:w1')
     expect(openingScope(WS, 'gone')).toBe('all')
+  })
+})
+
+describe('filterByScope with includeGlobal (spec 2026-10-03 H)', () => {
+  const known = new Set(['w1', 'w2'])
+  const rows = [
+    { id: 'g1', workspaceId: null },
+    { id: 'a', workspaceId: 'w1' },
+    { id: 'o', workspaceId: 'gone' },
+    { id: 'b', workspaceId: 'w2' },
+    { id: 'g2', workspaceId: null }
+  ]
+  const ids = (r: { id: string }[]): string[] => r.map((x) => x.id)
+
+  it('a workspace scope adds the global rows when asked, in the input order', () => {
+    expect(ids(filterByScope(rows, 'ws:w1', known, true))).toEqual(['g1', 'a', 'g2'])
+    expect(ids(filterByScope(rows, 'ws:w1', known, false))).toEqual(['a'])
+  })
+
+  it('Global, (no workspace) and All ignore it', () => {
+    for (const include of [true, false]) {
+      expect(ids(filterByScope(rows, 'global', known, include))).toEqual(['g1', 'g2'])
+      expect(ids(filterByScope(rows, 'orphans', known, include))).toEqual(['o'])
+      expect(ids(filterByScope(rows, 'all', known, include))).toHaveLength(5)
+    }
   })
 })

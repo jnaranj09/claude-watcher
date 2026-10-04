@@ -38,19 +38,26 @@ export function scopeOf(workspaceId: string | null, known: ReadonlySet<string>):
 }
 
 /**
- * STRICT filtering — a value shows only the rows scoped to it. Global shows global rows ONLY
- * (not "everything usable here"): the Manage dialogs edit rows where they live, and a global row
- * edited from inside a workspace view is the mistake that costs an operator a shared template.
- * `'all'` is the one wide value, and it is what keeps this dialog the ONE place every row is
- * visible.
+ * Filtering by scope. A workspace value shows that workspace's rows and — when `includeGlobal`, the
+ * operator's ONE remembered choice (spec 2026-10-03 H, `settings.includeGlobal`) — the global rows
+ * too, because those apply there as well: "what applies to me here". Every row carries a marker
+ * saying where it lives (`ScopeMarker`), so a global row is never edited by mistake as if it were
+ * the workspace's. Global shows global rows only; `(no workspace)` the orphans; `'all'` every row.
+ * The INPUT order is kept; a list that wants its own rows first groups them itself. `includeGlobal`
+ * is REQUIRED: every call site decides.
  */
 export function filterByScope<T extends { workspaceId: string | null }>(
   rows: T[],
   scope: ScopeFilterValue,
-  known: ReadonlySet<string>
+  known: ReadonlySet<string>,
+  includeGlobal: boolean
 ): T[] {
   if (scope === ALL_SCOPE) return rows
-  return rows.filter((r) => scopeOf(r.workspaceId, known) === scope)
+  const withGlobal = includeGlobal && scopeWorkspaceId(scope) !== null
+  return rows.filter((r) => {
+    const own = scopeOf(r.workspaceId, known)
+    return own === scope || (withGlobal && own === 'global')
+  })
 }
 
 /** True when any row's workspace is gone — the ONLY condition that puts `(no workspace)` on the

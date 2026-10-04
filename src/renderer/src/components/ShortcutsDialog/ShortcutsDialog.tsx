@@ -54,7 +54,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   )
   const selected = shortcuts.find((s) => s.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
-  const listed = filterByScope(shortcuts, scope, known)
+  const listed = filterByScope(shortcuts, scope, known, false)
 
   function changeScope(next: ScopeFilterValue): void {
     setScope(next)
@@ -65,7 +65,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   /** design.md — a save that moves a row to another scope follows it. */
   function revealSaved(saved: Shortcut): void {
     dialog.actions.select(saved.id)
-    if (filterByScope([saved], scope, known).length === 0) {
+    if (filterByScope([saved], scope, known, false).length === 0) {
       setScope(scopeOf(saved.workspaceId, known))
     }
     dialog.actions.showSuccess('Shortcut saved.')

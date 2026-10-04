@@ -42,7 +42,7 @@ export function TemplatesPage({ scope, setScope, pages }: DialogPageProps): JSX.
    *  saved it from, and a row that vanishes on save reads as a failed save. */
   function revealSaved(template: Template): void {
     dialog.actions.select(template.id)
-    if (filterByScope([template], scope, known).length === 0) {
+    if (filterByScope([template], scope, known, false).length === 0) {
       setScope(scopeOf(template.workspaceId, known))
     }
     dialog.actions.showSuccess('Template saved.')

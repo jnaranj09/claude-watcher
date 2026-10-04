@@ -37,7 +37,7 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
   const brokenIds = useRules(useShallow(selectBrokenIds))
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const known = knownWorkspaceIds(workspaces)
-  const listed = filterByScope(rules, scope, known)
+  const listed = filterByScope(rules, scope, known, false)
   const broken = new Set(brokenIds)
   const selected = rules.find((r) => r.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
@@ -57,7 +57,8 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
    *  reads as a save that failed. */
   function revealSaved(rule: Rule): void {
     dialog.actions.select(rule.id)
-    if (filterByScope([rule], scope, known).length === 0) setScope(scopeOf(rule.workspaceId, known))
+    if (filterByScope([rule], scope, known, false).length === 0)
+      setScope(scopeOf(rule.workspaceId, known))
     dialog.actions.showSuccess('Rule saved.')
   }
 
