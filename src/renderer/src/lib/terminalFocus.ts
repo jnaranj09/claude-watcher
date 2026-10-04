@@ -10,3 +10,15 @@
 export function isInsideTerminal(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('.xterm') !== null
 }
+
+/** True when focus sits in an open dialog, so a terminal must not take it. A dialog playing its
+ *  exit (`data-leaving`, overlay motion) is already closed: Chromium moves focus off its now-inert
+ *  button only some ms later, and that must not keep the terminal from taking focus. */
+export function dialogHoldsFocus(active: Element | null): boolean {
+  return (
+    active !== null &&
+    active.closest(
+      '[role="dialog"]:not([data-leaving]),[role="alertdialog"]:not([data-leaving])'
+    ) !== null
+  )
+}

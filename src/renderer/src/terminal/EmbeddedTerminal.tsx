@@ -76,6 +76,7 @@ import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
 import { toast } from '../stores/toastStore'
 import { Callout } from '../components/Callout/Callout'
 import styles from './EmbeddedTerminal.module.css'
+import { dialogHoldsFocus } from '../lib/terminalFocus'
 
 /** Card shell pane — the companion this terminal hosts UNDER itself. */
 export interface ShellPaneSlot {
@@ -165,8 +166,7 @@ let openTokenSeq = 0
 /** Focus a terminal unless a dialog holds focus: a switch that lands while a modal is open (a
  *  notification click over the rename prompt) must not pull the operator's keys out of it. */
 function focusTerminal(term: Terminal): void {
-  const current = document.activeElement
-  if (current instanceof Element && current.closest('[role="dialog"],[role="alertdialog"]')) return
+  if (dialogHoldsFocus(document.activeElement)) return
   term.focus()
 }
 
