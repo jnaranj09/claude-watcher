@@ -412,20 +412,9 @@ describe('ManageDialog page column (spec 2026-10-03 C)', () => {
     )
   })
 
-  it('the current page is QUIETER than a selected row: ink + a 2px bar, no fill', () => {
-    const current = /\.page\[aria-current='page'\]\s*\{([^}]*)\}/.exec(stripped)?.[1] ?? ''
-    expect(current).toMatch(/color:\s*var\(--text-primary\)/)
-    expect(current).toMatch(/box-shadow:\s*inset 2px 0 0 var\(--border-strong\)/)
-    expect(current).not.toMatch(/background/)
-    // Same height, font and hover as a rail row (and a Settings category row): one rule.
-    expect(stripped).toMatch(/\.rowSelect,\s*\.page\s*\{/)
-    expect(stripped).toMatch(/\.rowSelect:hover,\s*\.page:hover\s*\{/)
-    expect(stripped).toMatch(/\.rowSelect:focus-visible,\s*\.page:focus-visible\s*\{/)
-  })
-
-  it('a page row keeps its own height: it never grows to fill the column (drive 2026-10-03)', () => {
-    // The shared `.rowSelect, .page` rule carries `flex: 1` (a rail row fills its ROW); in the
-    // page column's flex COLUMN that would stretch each page row to a quarter of the column.
-    expect(stripped).toMatch(/\n\.page\s*\{[^}]*flex:\s*none/)
+  it('one selected look: the page column has NO style of its own for its rows (design.md)', () => {
+    // Its rows are rail rows (`.row` + `.rowSelect`), so the current page is drawn by
+    // `.row[data-selected='true']`, the same as a Settings category. A `.page` rule is a second look.
+    expect(stripped).not.toMatch(/\.page[\s,:[{]/)
   })
 })

@@ -556,6 +556,17 @@ describe('ManageDialog.Pages (spec 2026-10-03 C)', () => {
     expect([one.textContent, two.textContent]).toEqual(['One', 'Two'])
   })
 
+  it('its rows are rail rows: the current page has the one selected look (design.md)', () => {
+    const r = renderComponent(<PagesHarness onSelect={vi.fn()} />)
+    cleanup = r.unmount
+    const one = q(r, '[data-testid="things-page-one"]')
+    const two = q(r, '[data-testid="things-page-two"]')
+    expect(one.classList.contains(styles.rowSelect!)).toBe(true)
+    expect(one.parentElement?.classList.contains(styles.row!)).toBe(true)
+    expect(one.parentElement?.getAttribute('data-selected')).toBe('true')
+    expect(two.parentElement?.getAttribute('data-selected')).toBe('false')
+  })
+
   it('a row press hands its page to onSelect', () => {
     const onSelect = vi.fn()
     const r = renderComponent(<PagesHarness onSelect={onSelect} />)

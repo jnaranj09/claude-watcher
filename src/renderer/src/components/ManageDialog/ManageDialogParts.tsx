@@ -455,8 +455,8 @@ export interface ManageDialogPagesProps<P extends string> {
 
 /** The page column (spec 2026-10-03 C): a dialog's SIBLING pages as text rows at the far left —
  *  never tabs (they read as the header's workspace switcher), never a second dialog. A `nav`, not
- *  a tablist; the current row carries `aria-current="page"` and a quieter mark than a selected
- *  rail row, so the two highlights never look alike. */
+ *  a tablist; the current row carries `aria-current="page"` and the one selected look of a rail
+ *  row (design.md). */
 export function ManageDialogPages<P extends string>({
   label,
   pages,
@@ -466,17 +466,20 @@ export function ManageDialogPages<P extends string>({
 }: ManageDialogPagesProps<P>): JSX.Element {
   return (
     <nav className={styles.pages} aria-label={label} data-manage-pages="">
+      {/* Rail rows (`.row` + `.rowSelect`): the current page has the ONE selected look, the same
+          as a Settings category (design.md "One selected look"). */}
       {pages.map((p) => (
-        <button
-          key={p.id}
-          type="button"
-          className={styles.page}
-          data-testid={`${testIdPrefix}-${p.id}`}
-          aria-current={p.id === current ? 'page' : undefined}
-          onClick={() => onSelect(p.id)}
-        >
-          {p.label}
-        </button>
+        <div key={p.id} className={styles.row} data-selected={p.id === current}>
+          <button
+            type="button"
+            className={styles.rowSelect}
+            data-testid={`${testIdPrefix}-${p.id}`}
+            aria-current={p.id === current ? 'page' : undefined}
+            onClick={() => onSelect(p.id)}
+          >
+            {p.label}
+          </button>
+        </div>
       ))}
     </nav>
   )

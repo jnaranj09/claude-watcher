@@ -152,8 +152,7 @@
   background: var(--bg-surface);
   border-color: var(--border-strong);
 }
-.rowSelect,
-.page {
+.rowSelect {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -169,21 +168,7 @@
   font-size: var(--font-size-body);
   cursor: pointer;
 }
-/* Rows read secondary; the CURRENT page gets primary ink and a 2px bar on its left, NO fill — the
-   selected rail row keeps the fill, so the two highlights never look the same. An inset shadow,
-   so the bar takes no width. */
-.page {
-  /* The shared rule's `flex: 1` fills a rail ROW; in this flex COLUMN it would stretch each page
-     row to fill the column. */
-  flex: none;
-  color: var(--text-secondary);
-}
-.page[aria-current='page'] {
-  color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--border-strong);
-}
-.rowSelect:hover,
-.page:hover {
+.rowSelect:hover {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* A workspace row (`tint`): the row is its workspace's colour (WorkspaceTint). The fill IS the
@@ -352,8 +337,7 @@
 /* The buttons — Save, Delete, Cancel, + New, ✕ — are `components/Button` (design.md): primary,
    danger (armed in place), secondary, ghost. Nothing button-shaped is declared here. */
 
-.rowSelect:focus-visible,
-.page:focus-visible {
+.rowSelect:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
