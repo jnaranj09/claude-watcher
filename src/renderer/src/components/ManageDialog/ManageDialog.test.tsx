@@ -7,6 +7,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, type JSX } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ManageDialog, useManageDialog, useManageDialogContext } from './ManageDialog'
+import styles from './ManageDialog.module.css'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -457,6 +458,8 @@ describe('ManageDialog.ListBottomDivided (spec 2026-10-03 I)', () => {
     cleanup = r.unmount
     const slot = q(r, '[data-manage-list-divided]')
     expect(slot.hasAttribute('data-manage-list-bottom')).toBe(true)
+    // The class carries the divider and the rows' margin above it; the attribute alone draws nothing.
+    expect(slot.classList.contains(styles.listBottomDivided!)).toBe(true)
     expect(slot.querySelector('[data-testid="things-note"]')).toBeTruthy()
   })
 
