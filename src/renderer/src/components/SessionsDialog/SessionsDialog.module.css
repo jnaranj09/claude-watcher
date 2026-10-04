@@ -11,3 +11,17 @@
   font-size: var(--font-size-body);
   color: var(--text-secondary);
 }
+
+/* `3 selected  [Archive] [Delete]` — one row across the rail; the count takes the free width. */
+.bulkBar {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.bulkCount {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}

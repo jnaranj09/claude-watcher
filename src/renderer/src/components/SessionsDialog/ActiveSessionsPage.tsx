@@ -6,6 +6,8 @@
 // unchecked. Main stays the source of truth; this page never writes session state.
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
+import { exitSessions, type ExitVerb } from '../../lib/sessionExit'
 import { selectSessionsById, useBoard } from '../../stores/boardStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
@@ -17,7 +19,13 @@ import { StatusDot } from '../StatusDot/StatusDot'
 import { statusLabel } from '../StatusDot/statusLabel'
 import { TextInput } from '../TextInput/TextInput'
 import pastStyles from '../PastSessionsDialog/PastSessionsDialog.module.css'
-import { activeEmptyCopy, activeRows, statusAge } from './activeSessionsView'
+import {
+  activeEmptyCopy,
+  activeRows,
+  deleteConsequence,
+  exitResultCopy,
+  statusAge
+} from './activeSessionsView'
 import styles from './SessionsDialog.module.css'
 
 export function ActiveSessionsPage({
@@ -79,6 +87,30 @@ export function ActiveSessionsPage({
       return next
     })
   }
+  // One press, one action (spec 2026-09-29 §2.3): Archive and Delete — bulk or the footer's — share
+  // one in-flight flag. Results go to the message slot: inside the dialog there is no toast and no
+  // jump to the board (spec D feedback rule).
+  const exiting = useAsyncAction(async (verb: ExitVerb, ids: string[]): Promise<void> => {
+    dialog.actions.setError(null)
+    const outcomes = await exitSessions(verb, ids)
+    const landed = new Set(outcomes.filter((o) => o.ok).map((o) => o.id))
+    setChecked((prev) => new Set([...prev].filter((id) => !landed.has(id))))
+    const copy = exitResultCopy(verb, outcomes)
+    if (copy.tone === 'error') {
+      // A refused row stays checked and Delete stays armed: one more press retries.
+      dialog.actions.setError(copy.text)
+      return
+    }
+    // Every row left: nothing is armed any more, and an open row that left closes (`select` before
+    // `showSuccess` — design.md).
+    if (dialog.state.selectedId !== null && landed.has(dialog.state.selectedId)) {
+      dialog.actions.select(null)
+    } else {
+      dialog.actions.disarm()
+    }
+    dialog.actions.showSuccess(copy.text)
+  })
+  const checkedIds = checkedRows.map((s) => s.id)
 
   return (
     <>
@@ -153,6 +185,36 @@ export function ActiveSessionsPage({
               </p>
             )}
           </ManageDialog.Rows>
+          {/* The bulk bar: a DIFFERENT region from the list, so behind the divider (design.md rule
+              7). Rendered only while a row is checked — a control you cannot use is not drawn. */}
+          {checkedRows.length > 0 && (
+            <ManageDialog.ListBottomDivided>
+              <div className={styles.bulkBar}>
+                <span className={styles.bulkCount} data-testid="active-bulk-count">
+                  {checkedRows.length} selected
+                </span>
+                <ManageDialog.GhostButton
+                  testId="active-bulk-archive"
+                  busy={exiting.busy}
+                  onClick={() => void exiting.run('archive', checkedIds)}
+                >
+                  Archive
+                </ManageDialog.GhostButton>
+                <ManageDialog.Delete
+                  armKey="bulk"
+                  testId="active-bulk-delete"
+                  busy={exiting.busy}
+                  onConfirm={() => void exiting.run('delete', checkedIds)}
+                />
+              </div>
+              {/* StopConfirm cannot open over a dialog (single-modal rule): its sentence moves here. */}
+              {dialog.state.armedKey === 'bulk' && (
+                <ManageDialog.Hint testId="active-bulk-delete-hint">
+                  {deleteConsequence(checkedRows.length)}
+                </ManageDialog.Hint>
+              )}
+            </ManageDialog.ListBottomDivided>
+          )}
         </ManageDialog.List>
         <ManageDialog.Placeholder testId="active-session-placeholder">
           Select a session on the left.
