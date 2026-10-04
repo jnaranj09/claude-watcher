@@ -57,6 +57,13 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - Settings-like surface: CATEGORIES are rail rows (Notifications, Appearance, Terminal, Keyboard,
   API), opens on the first (`initialSelectedId`), right column is `ManageDialog.Pane` headed by the
   category. New setting → existing category; new category is a design question.
+- **Page column** (spec 2026-10-03 C): a dialog with SIBLING pages (Sessions: Active · Past ·
+  Templates · Import; Tags: Tags · Rules) puts them in `ManageDialog.Pages` at the far left —
+  `pages | rail | form`, or `pages | form` with no list. Text rows, a `nav` with
+  `aria-current="page"`; the current page is primary ink + a 2px `--border-strong` bar, NO fill,
+  so it never looks like the selected row. Never tabs, never a second dialog. The dialog owns the
+  scope (it survives a page switch) and the shell state; each page renders `Header` + `Columns`
+  (page column first) + `Message` and takes `DialogPageProps`. A page switch closes what was open.
 - No exceptions: a surface that "needs" a table or card is a design question.
 
 ## Dialog rules

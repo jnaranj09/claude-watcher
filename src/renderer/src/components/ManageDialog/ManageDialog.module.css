@@ -95,6 +95,23 @@
   gap: var(--gap-section);
   min-height: 320px;
 }
+/* A paged dialog (spec 2026-10-03 C): `pages | rail | form`. The third track exists only beside a
+   rail — Import is `pages | form` and keeps the two tracks above. */
+.columns:has(> .pages):has(> .list) {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+/* The page column: sibling pages as text rows, far left. A DIFFERENT region from the rail, so it
+   has its own edge (design.md rule 7), drawn like the rail's. 132px fits "Templates" at the body
+   size with --inset-item-x each side (geometry, not spacing). */
+.pages {
+  width: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+  border-right: 1px solid var(--border);
+  padding-right: var(--gap-page);
+}
+
 .list {
   width: 220px;
   display: flex;
@@ -135,7 +152,8 @@
   background: var(--bg-surface);
   border-color: var(--border-strong);
 }
-.rowSelect {
+.rowSelect,
+.page {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -151,7 +169,18 @@
   font-size: var(--font-size-body);
   cursor: pointer;
 }
-.rowSelect:hover {
+/* Rows read secondary; the CURRENT page gets primary ink and a 2px bar on its left, NO fill — the
+   selected rail row keeps the fill, so the two highlights never look the same. An inset shadow,
+   so the bar takes no width. */
+.page {
+  color: var(--text-secondary);
+}
+.page[aria-current='page'] {
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--border-strong);
+}
+.rowSelect:hover,
+.page:hover {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* A workspace row (`tint`): the row is its workspace's colour (WorkspaceTint). The fill IS the
@@ -314,7 +343,8 @@
 /* The buttons — Save, Delete, Cancel, + New, ✕ — are `components/Button` (design.md): primary,
    danger (armed in place), secondary, ghost. Nothing button-shaped is declared here. */
 
-.rowSelect:focus-visible {
+.rowSelect:focus-visible,
+.page:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }

@@ -424,9 +424,49 @@ export function ManageDialogGhostButton({
   )
 }
 
-/** The `rail | form` grid. The rail sets its own width (List `size`), the form takes the rest. */
+/** The `rail | form` grid — `pages | rail | form` when a <Pages> column leads it, `pages | form`
+ *  without a rail (Import). The rail sets its own width (List `size`), the form takes the rest. */
 export function ManageDialogColumns({ children }: { children: ReactNode }): JSX.Element {
   return <div className={styles.columns}>{children}</div>
+}
+
+export interface ManageDialogPagesProps<P extends string> {
+  /** Names the nav for assistive tech: `Sessions pages`, `Tags pages`. */
+  label: string
+  pages: readonly { id: P; label: string }[]
+  current: P
+  onSelect: (page: P) => void
+  /** Each row's test id is `<testIdPrefix>-<id>`. */
+  testIdPrefix: string
+}
+
+/** The page column (spec 2026-10-03 C): a dialog's SIBLING pages as text rows at the far left —
+ *  never tabs (they read as the header's workspace switcher), never a second dialog. A `nav`, not
+ *  a tablist; the current row carries `aria-current="page"` and a quieter mark than a selected
+ *  rail row, so the two highlights never look alike. */
+export function ManageDialogPages<P extends string>({
+  label,
+  pages,
+  current,
+  onSelect,
+  testIdPrefix
+}: ManageDialogPagesProps<P>): JSX.Element {
+  return (
+    <nav className={styles.pages} aria-label={label} data-manage-pages="">
+      {pages.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          className={styles.page}
+          data-testid={`${testIdPrefix}-${p.id}`}
+          aria-current={p.id === current ? 'page' : undefined}
+          onClick={() => onSelect(p.id)}
+        >
+          {p.label}
+        </button>
+      ))}
+    </nav>
+  )
 }
 
 export interface ManageDialogListProps {

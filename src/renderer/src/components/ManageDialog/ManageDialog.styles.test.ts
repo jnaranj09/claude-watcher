@@ -404,3 +404,30 @@ describe('dialog sheets keep the region rules', () => {
     )
   })
 })
+
+describe('ManageDialog page column (spec 2026-10-03 C)', () => {
+  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
+  // Raw-sheet matches: `ruleBody` builds a RegExp from the selector; `(`, `[` and `>` break it.
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('sits left of the rail behind its own edge; a third track only beside a rail', () => {
+    const pages = /\n\.pages\s*\{([^}]*)\}/.exec(stripped)?.[1] ?? ''
+    expect(pages).toMatch(/width:\s*132px/)
+    expect(pages).toMatch(/border-right:\s*1px solid var\(--border\)/)
+    expect(pages).toMatch(/padding-right:\s*var\(--gap-page\)/)
+    expect(stripped).toMatch(
+      /\.columns:has\(> \.pages\):has\(> \.list\)\s*\{[^}]*grid-template-columns:\s*auto auto minmax\(0, 1fr\)/
+    )
+  })
+
+  it('the current page is QUIETER than a selected row: ink + a 2px bar, no fill', () => {
+    const current = /\.page\[aria-current='page'\]\s*\{([^}]*)\}/.exec(stripped)?.[1] ?? ''
+    expect(current).toMatch(/color:\s*var\(--text-primary\)/)
+    expect(current).toMatch(/box-shadow:\s*inset 2px 0 0 var\(--border-strong\)/)
+    expect(current).not.toMatch(/background/)
+    // Same height, font and hover as a rail row (and a Settings category row): one rule.
+    expect(stripped).toMatch(/\.rowSelect,\s*\.page\s*\{/)
+    expect(stripped).toMatch(/\.rowSelect:hover,\s*\.page:hover\s*\{/)
+    expect(stripped).toMatch(/\.rowSelect:focus-visible,\s*\.page:focus-visible\s*\{/)
+  })
+})

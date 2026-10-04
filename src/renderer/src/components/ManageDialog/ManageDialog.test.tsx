@@ -517,3 +517,50 @@ describe('ManageDialog.Rows — the end fade (spec 2026-10-03 I)', () => {
     expect(rows.hasAttribute('data-overflow-end')).toBe(true)
   })
 })
+
+function PagesHarness(props: { onSelect: (page: 'one' | 'two') => void }): JSX.Element {
+  const dialog = useManageDialog({ title: 'Things', testIdPrefix: 'things', onClose: () => {} })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Columns>
+          <ManageDialog.Pages
+            label="Things pages"
+            pages={[
+              { id: 'one', label: 'One' },
+              { id: 'two', label: 'Two' }
+            ]}
+            current="one"
+            onSelect={props.onSelect}
+            testIdPrefix="things-page"
+          />
+          <ManageDialog.Placeholder testId="things-placeholder">Pick one.</ManageDialog.Placeholder>
+        </ManageDialog.Columns>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.Pages (spec 2026-10-03 C)', () => {
+  it('is a named nav of text rows; the current one carries aria-current="page"', () => {
+    const r = renderComponent(<PagesHarness onSelect={vi.fn()} />)
+    cleanup = r.unmount
+    const nav = q(r, 'nav[data-manage-pages]')
+    expect(nav.getAttribute('aria-label')).toBe('Things pages')
+    expect(nav.getAttribute('role')).toBeNull() // not a tablist: they are not tabs
+    const one = q<HTMLButtonElement>(r, '[data-testid="things-page-one"]')
+    const two = q<HTMLButtonElement>(r, '[data-testid="things-page-two"]')
+    expect(one.type).toBe('button')
+    expect(one.getAttribute('aria-current')).toBe('page')
+    expect(two.hasAttribute('aria-current')).toBe(false)
+    expect([one.textContent, two.textContent]).toEqual(['One', 'Two'])
+  })
+
+  it('a row press hands its page to onSelect', () => {
+    const onSelect = vi.fn()
+    const r = renderComponent(<PagesHarness onSelect={onSelect} />)
+    cleanup = r.unmount
+    click(q(r, '[data-testid="things-page-two"]'))
+    expect(onSelect).toHaveBeenCalledWith('two')
+  })
+})

@@ -5,6 +5,7 @@
 // purpose: an object export beside components would trip react-refresh/only-export-components.
 import {
   ManageDialogColumns,
+  ManageDialogPages,
   ManageDialogDelete,
   ManageDialogFooter,
   ManageDialogForm,
@@ -33,6 +34,7 @@ export const ManageDialog = {
   Frame: ManageDialogFrame,
   Header: ManageDialogHeader,
   Columns: ManageDialogColumns,
+  Pages: ManageDialogPages,
   List: ManageDialogList,
   ListBottom: ManageDialogListBottom,
   ListBottomDivided: ManageDialogListBottomDivided,
