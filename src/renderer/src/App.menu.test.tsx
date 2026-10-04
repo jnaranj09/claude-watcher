@@ -217,16 +217,17 @@ describe('App — the header ☰ menu', () => {
     expect(boardStore.getState().settingsDialogOpen).toBe(false)
   })
 
-  describe('Past sessions…', () => {
+  describe('Sessions ‹', () => {
     const panel = (r: RenderResult): Element | null =>
       r.container.querySelector('[data-testid="sessions-panel"]')
 
     function openPastSessions(r: RenderResult): void {
       click(q(r, '[data-testid="app-menu"]'))
-      click(q(r, '[data-testid="app-menu-past-sessions"]'))
+      click(q(r, '[data-testid="app-menu-sessions"]'))
+      click(q(r, '[data-testid="sessions-menu-past"]'))
     }
 
-    it('is the last ☰ row and opens the Past sessions dialog, which loads the history', async () => {
+    it('is the last ☰ row; Past sessions… opens the Sessions dialog on Past, which loads the history', async () => {
       const r = await renderApp()
       expect(panel(r)).toBeNull()
       openPastSessions(r)

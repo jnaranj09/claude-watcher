@@ -1,14 +1,23 @@
-// The header ☰ MENU (2026-09-14): the ONE header control besides `+ New session`. It replaced three
-// icon buttons (⚙ settings, ⌨ shortcuts, the tag icon). Rows: `Settings…`, `Shortcuts…`, `Tags`, a
-// SUBMENU holding the tag icon's own two rows unchanged (`Manage tags…` / `Manage rules…`), and
-// `Past sessions…` — ALWAYS the last row, after `Tags` (D-6). The submenu opens to the LEFT: the
-// menu sits at the window's right edge. Each row keeps the icon its old header button had (⚙, ⌨, the
-// tag glyph), so it is still found by shape; `Past sessions…` carries a clock.
+// The header ☰ MENU (2026-09-14): the ONE header control besides `+ New session`. Rows:
+// `Settings…`, `Shortcuts…`, `Tags ‹` (Manage tags… / Manage rules…) and `Sessions ‹` (spec
+// 2026-10-03 A: Past sessions… / Templates… / Import session…) — ALWAYS the last row, in the slot
+// `Past sessions…` held, with its clock. Both submenus are ONE `Submenu`: they open to the LEFT
+// (the menu sits at the window's right edge), hover opens, click OPENS (never toggles), ArrowRight
+// opens on the first row, ArrowLeft goes back, and only one is open at a time.
 //
-// Escape peels ONE layer: the submenu first, then the menu, and never the app's own Escape
+// Escape peels ONE layer: the open submenu first, then the menu, and never the app's own Escape
 // (Focused → Board) while either is open. It listens on the whole anchor, so it also works while
 // focus is still on the ☰ button, where a mouse click leaves it.
-import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject
+} from 'react'
+import type { SessionsPage } from '../../stores/boardStore'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { Button } from '../Button/Button'
 import { Popover } from '../Popover/Popover'
@@ -20,8 +29,9 @@ export interface AppMenuProps {
   onManageTags: () => void
   /** Rules — the `Manage rules…` row. Omitted ⇒ no row (a control nobody handles is not rendered). */
   onManageRules?: () => void
-  /** Past sessions (D-6) — ALWAYS the last row, after Tags. Omitted ⇒ no row. */
-  onOpenPastSessions?: () => void
+  /** Sessions (spec 2026-10-03 A) — ALWAYS the last row, a submenu; each row opens the Sessions
+   *  dialog on its page. Omitted ⇒ no row (a control nobody handles is not rendered). */
+  onOpenSessions?: (page: SessionsPage) => void
 }
 
 function MenuIcon(): JSX.Element {
@@ -37,7 +47,7 @@ function MenuIcon(): JSX.Element {
   )
 }
 
-/** Past sessions — a clock face, on the tag glyph's 14px grid and 1.5 stroke. */
+/** Sessions — a clock face, on the tag glyph's 14px grid and 1.5 stroke. */
 function ClockIcon(): JSX.Element {
   return (
     <svg
@@ -57,40 +67,127 @@ function ClockIcon(): JSX.Element {
   )
 }
 
+type SubmenuId = 'tags' | 'sessions'
+
+/** The Sessions submenu's rows, in the dialog's page order. */
+const SESSIONS_ROWS: readonly { page: SessionsPage; label: string }[] = [
+  { page: 'past', label: 'Past sessions…' },
+  { page: 'templates', label: 'Templates…' },
+  { page: 'import', label: 'Import session…' }
+]
+
+interface SubmenuProps {
+  id: SubmenuId
+  label: string
+  icon: ReactNode
+  open: boolean
+  /** Grows (> 0) each time ArrowRight opened THIS submenu: its first row then takes focus. */
+  focusRequest: number
+  triggerRef: RefObject<HTMLButtonElement | null>
+  onOpen: () => void
+  onOpenFromKey: () => void
+  onBack: () => void
+  children: ReactNode
+}
+
+/** A menu row that opens a submenu to its LEFT — Tags and Sessions share this one. */
+function Submenu({
+  id,
+  label,
+  icon,
+  open,
+  focusRequest,
+  triggerRef,
+  onOpen,
+  onOpenFromKey,
+  onBack,
+  children
+}: SubmenuProps): JSX.Element {
+  const listRef = useRef<HTMLDivElement | null>(null)
+  // Focus follows the KEY that opened it, once the render that draws the list is done. A hover
+  // open never changes `focusRequest`, so it never pulls focus in.
+  useEffect(() => {
+    if (focusRequest > 0) listRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+  }, [focusRequest])
+  return (
+    <div className={styles.subAnchor}>
+      <Popover.Item
+        role="menuitem"
+        buttonRef={triggerRef}
+        testId={`app-menu-${id}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        // OPEN, never toggle: a mouse points at the row (opening it) before it clicks.
+        onClick={onOpen}
+        onMouseEnter={onOpen}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowRight') return
+          e.preventDefault()
+          onOpenFromKey()
+        }}
+      >
+        <Popover.ItemIcon>{icon}</Popover.ItemIcon>
+        {label}
+        {/* Points LEFT: the way the submenu opens. */}
+        <Popover.ItemEnd>
+          <span className={styles.chevron} aria-hidden="true">
+            ‹
+          </span>
+        </Popover.ItemEnd>
+      </Popover.Item>
+      {open && (
+        <div className={styles.submenuWrap} ref={listRef}>
+          <Popover.Surface
+            role="menu"
+            aria-label={label}
+            testId={`app-menu-${id}-list`}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowLeft') return
+              e.preventDefault()
+              onBack()
+            }}
+          >
+            {children}
+          </Popover.Surface>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AppMenu({
   onOpenSettings,
   onOpenShortcuts,
   onManageTags,
   onManageRules,
-  onOpenPastSessions
+  onOpenSessions
 }: AppMenuProps): JSX.Element {
   const [open, setOpen] = useState(false)
-  const [tagsOpen, setTagsOpen] = useState(false)
+  // ONE submenu at a time: pointing at a row closes the other.
+  const [submenu, setSubmenu] = useState<SubmenuId | null>(null)
+  const [focusFirst, setFocusFirst] = useState<{ id: SubmenuId; n: number } | null>(null)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const tagsRef = useRef<HTMLButtonElement | null>(null)
-  const firstTagRowRef = useRef<HTMLButtonElement | null>(null)
-  // Bumped by ArrowRight: the submenu's first row takes focus once the render that draws it is done.
-  const [submenuFocusTick, setSubmenuFocusTick] = useState(0)
+  const sessionsRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     if (!open) return
     const onMouseDown = (e: MouseEvent): void => {
       if (anchorRef.current?.contains(e.target as Node) === true) return
+      // State setters only (stable): the effect needs no function from the render in its deps.
       setOpen(false)
-      setTagsOpen(false)
+      setSubmenu(null)
+      setFocusFirst(null)
     }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [open])
 
-  useEffect(() => {
-    if (submenuFocusTick > 0) firstTagRowRef.current?.focus()
-  }, [submenuFocusTick])
-
   function closeAll(): void {
     setOpen(false)
-    setTagsOpen(false)
+    setSubmenu(null)
+    setFocusFirst(null)
   }
 
   function choose(action: () => void): void {
@@ -98,33 +195,27 @@ export function AppMenu({
     action()
   }
 
+  /** ArrowLeft / Escape inside a submenu: close it and put focus back on ITS row. */
   function closeSubmenu(): void {
-    setTagsOpen(false)
-    tagsRef.current?.focus()
+    if (submenu === 'tags') tagsRef.current?.focus()
+    if (submenu === 'sessions') sessionsRef.current?.focus()
+    setSubmenu(null)
+  }
+
+  function openFromKey(id: SubmenuId): void {
+    setSubmenu(id)
+    setFocusFirst((f) => ({ id, n: (f?.n ?? 0) + 1 }))
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     if (e.key !== 'Escape' || !open) return
     e.stopPropagation()
-    if (tagsOpen) {
+    if (submenu !== null) {
       closeSubmenu()
       return
     }
     setOpen(false)
     buttonRef.current?.focus()
-  }
-
-  function handleTagsKeyDown(e: KeyboardEvent<HTMLButtonElement>): void {
-    if (e.key !== 'ArrowRight') return
-    e.preventDefault()
-    setTagsOpen(true)
-    setSubmenuFocusTick((n) => n + 1)
-  }
-
-  function handleSubmenuKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
-    if (e.key !== 'ArrowLeft') return
-    e.preventDefault()
-    closeSubmenu()
   }
 
   return (
@@ -152,7 +243,7 @@ export function AppMenu({
               role="menuitem"
               testId="app-menu-settings"
               onClick={() => choose(onOpenSettings)}
-              onMouseEnter={() => setTagsOpen(false)}
+              onMouseEnter={() => setSubmenu(null)}
             >
               <Popover.ItemIcon>⚙</Popover.ItemIcon>
               Settings…
@@ -161,75 +252,62 @@ export function AppMenu({
               role="menuitem"
               testId="app-menu-shortcuts"
               onClick={() => choose(onOpenShortcuts)}
-              onMouseEnter={() => setTagsOpen(false)}
+              onMouseEnter={() => setSubmenu(null)}
             >
               <Popover.ItemIcon>⌨</Popover.ItemIcon>
               Shortcuts…
             </Popover.Item>
-            <div className={styles.subAnchor}>
+            <Submenu
+              id="tags"
+              label="Tags"
+              icon={<TagGlyphIcon size={14} />}
+              open={submenu === 'tags'}
+              focusRequest={focusFirst?.id === 'tags' ? focusFirst.n : 0}
+              triggerRef={tagsRef}
+              onOpen={() => setSubmenu('tags')}
+              onOpenFromKey={() => openFromKey('tags')}
+              onBack={closeSubmenu}
+            >
               <Popover.Item
                 role="menuitem"
-                buttonRef={tagsRef}
-                testId="app-menu-tags"
-                aria-haspopup="menu"
-                aria-expanded={tagsOpen}
-                // OPEN, never toggle: a mouse points at the row (opening it) before it clicks.
-                onClick={() => setTagsOpen(true)}
-                onMouseEnter={() => setTagsOpen(true)}
-                onKeyDown={handleTagsKeyDown}
+                testId="tags-menu-manage-tags"
+                onClick={() => choose(onManageTags)}
               >
-                <Popover.ItemIcon>
-                  <TagGlyphIcon size={14} />
-                </Popover.ItemIcon>
-                Tags
-                {/* Points LEFT: the way the submenu opens. */}
-                <Popover.ItemEnd>
-                  <span className={styles.chevron} aria-hidden="true">
-                    ‹
-                  </span>
-                </Popover.ItemEnd>
+                Manage tags…
               </Popover.Item>
-              {tagsOpen && (
-                <div className={styles.submenuWrap}>
-                  <Popover.Surface
-                    role="menu"
-                    aria-label="Tags"
-                    testId="app-menu-tags-list"
-                    onKeyDown={handleSubmenuKeyDown}
-                  >
-                    <Popover.Item
-                      role="menuitem"
-                      buttonRef={firstTagRowRef}
-                      testId="tags-menu-manage-tags"
-                      onClick={() => choose(onManageTags)}
-                    >
-                      Manage tags…
-                    </Popover.Item>
-                    {onManageRules !== undefined && (
-                      <Popover.Item
-                        role="menuitem"
-                        testId="tags-menu-manage-rules"
-                        onClick={() => choose(onManageRules)}
-                      >
-                        Manage rules…
-                      </Popover.Item>
-                    )}
-                  </Popover.Surface>
-                </div>
+              {onManageRules !== undefined && (
+                <Popover.Item
+                  role="menuitem"
+                  testId="tags-menu-manage-rules"
+                  onClick={() => choose(onManageRules)}
+                >
+                  Manage rules…
+                </Popover.Item>
               )}
-            </div>
-            {onOpenPastSessions !== undefined && (
-              <Popover.Item
-                role="menuitem"
-                testId="app-menu-past-sessions"
-                onClick={() => choose(onOpenPastSessions)}
-                onMouseEnter={() => setTagsOpen(false)}
+            </Submenu>
+            {onOpenSessions !== undefined && (
+              <Submenu
+                id="sessions"
+                label="Sessions"
+                icon={<ClockIcon />}
+                open={submenu === 'sessions'}
+                focusRequest={focusFirst?.id === 'sessions' ? focusFirst.n : 0}
+                triggerRef={sessionsRef}
+                onOpen={() => setSubmenu('sessions')}
+                onOpenFromKey={() => openFromKey('sessions')}
+                onBack={closeSubmenu}
               >
-                <Popover.ItemIcon>
-                  <ClockIcon />
-                </Popover.ItemIcon>
-                Past sessions…
-              </Popover.Item>
+                {SESSIONS_ROWS.map((row) => (
+                  <Popover.Item
+                    key={row.page}
+                    role="menuitem"
+                    testId={`sessions-menu-${row.page}`}
+                    onClick={() => choose(() => onOpenSessions(row.page))}
+                  >
+                    {row.label}
+                  </Popover.Item>
+                ))}
+              </Submenu>
             )}
           </Popover.Surface>
         </div>

@@ -1,6 +1,6 @@
 // The header ☰ menu (2026-09-14): the ONE header control besides + New session. Settings…,
-// Shortcuts…, a Tags ▸ submenu holding Manage tags… / Manage rules…, and Past sessions… — ALWAYS
-// the last row (D-6). jsdom `unit`.
+// Shortcuts…, a Tags ‹ submenu holding Manage tags… / Manage rules…, and a Sessions ‹ submenu —
+// ALWAYS the last row (spec 2026-10-03 A). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { readFileSync } from 'node:fs'
@@ -20,7 +20,7 @@ function render(props: Partial<AppMenuProps> = {}): RenderResult {
       onOpenShortcuts={vi.fn()}
       onManageTags={vi.fn()}
       onManageRules={vi.fn()}
-      onOpenPastSessions={vi.fn()}
+      onOpenSessions={vi.fn()}
       {...props}
     />
   )
@@ -41,6 +41,7 @@ const hover = (el: Element | null): void => {
 }
 const mainMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-list')
 const subMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-tags-list')
+const sessionsMenu = (r: RenderResult): HTMLElement | null => q(r, 'app-menu-sessions-list')
 /** A row's name without its decorative (aria-hidden) icon. */
 const rowName = (el: Element): string => {
   const copy = el.cloneNode(true) as Element
@@ -65,15 +66,17 @@ describe('AppMenu', () => {
     expect(button?.querySelector('svg')).not.toBeNull()
   })
 
-  it('opens Settings…, Shortcuts…, Tags and Past sessions…, with Tags as a closed submenu', () => {
+  it('opens Settings…, Shortcuts…, Tags and Sessions, both as closed submenus', () => {
     const r = render()
     click(q(r, 'app-menu'))
     expect(q(r, 'app-menu')?.getAttribute('aria-expanded')).toBe('true')
-    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags', 'Past sessions…'])
-    const tags = q(r, 'app-menu-tags')
-    expect(tags?.getAttribute('aria-haspopup')).toBe('menu')
-    expect(tags?.getAttribute('aria-expanded')).toBe('false')
+    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags', 'Sessions'])
+    for (const id of ['app-menu-tags', 'app-menu-sessions']) {
+      expect(q(r, id)?.getAttribute('aria-haspopup')).toBe('menu')
+      expect(q(r, id)?.getAttribute('aria-expanded')).toBe('false')
+    }
     expect(subMenu(r)).toBeNull()
+    expect(sessionsMenu(r)).toBeNull()
   })
 
   it('keeps the icons the header buttons had: ⚙ Settings…, ⌨ Shortcuts…, the tag glyph on Tags', () => {
@@ -104,21 +107,38 @@ describe('AppMenu', () => {
     expect(mainMenu(r)).toBeNull()
   })
 
-  it('Past sessions… is the LAST row, has a clock icon, closes the menu and calls its handler', () => {
-    const onOpenPastSessions = vi.fn()
-    const r = render({ onOpenPastSessions })
+  it('Sessions is the LAST row, keeps the clock icon and opens its submenu', () => {
+    const r = render()
     click(q(r, 'app-menu'))
     const all = labels(mainMenu(r))
-    expect(all[all.length - 1]).toBe('Past sessions…')
+    expect(all[all.length - 1]).toBe('Sessions')
     expect(
-      q(r, 'app-menu-past-sessions')?.querySelector(':scope > [aria-hidden="true"] svg')
+      q(r, 'app-menu-sessions')?.querySelector(':scope > [aria-hidden="true"] svg')
     ).not.toBeNull()
-    click(q(r, 'app-menu-past-sessions'))
-    expect(onOpenPastSessions).toHaveBeenCalledTimes(1)
-    expect(mainMenu(r)).toBeNull()
+    click(q(r, 'app-menu-sessions'))
+    expect(sessionsMenu(r)?.getAttribute('aria-label')).toBe('Sessions')
+    expect(labels(sessionsMenu(r))).toEqual(['Past sessions…', 'Templates…', 'Import session…'])
   })
 
-  it('offers no Past sessions… row when nobody handles it', () => {
+  it.each([
+    ['past', 'Past sessions…'],
+    ['templates', 'Templates…'],
+    ['import', 'Import session…']
+  ] as const)(
+    '%s: its row (%s) closes both menus and opens the Sessions dialog on that page',
+    (page, label) => {
+      const onOpenSessions = vi.fn()
+      const r = render({ onOpenSessions })
+      click(q(r, 'app-menu'))
+      click(q(r, 'app-menu-sessions'))
+      expect(q(r, `sessions-menu-${page}`)?.textContent).toBe(label)
+      click(q(r, `sessions-menu-${page}`))
+      expect(onOpenSessions).toHaveBeenCalledWith(page)
+      expect(mainMenu(r)).toBeNull()
+    }
+  )
+
+  it('offers no Sessions row when nobody handles it', () => {
     const r = renderComponent(
       <AppMenu onOpenSettings={vi.fn()} onOpenShortcuts={vi.fn()} onManageTags={vi.fn()} />
     )
@@ -127,14 +147,50 @@ describe('AppMenu', () => {
     expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags'])
   })
 
-  // It sits outside the Tags submenu: pointing at it must close that submenu like any other row.
-  it('pointing at Past sessions… closes the Tags submenu', () => {
+  it('only one submenu is open: pointing at Sessions closes Tags, and the other way round', () => {
     const r = render()
     click(q(r, 'app-menu'))
     hover(q(r, 'app-menu-tags'))
-    expect(subMenu(r)).not.toBeNull()
-    hover(q(r, 'app-menu-past-sessions'))
+    hover(q(r, 'app-menu-sessions'))
     expect(subMenu(r)).toBeNull()
+    expect(sessionsMenu(r)).not.toBeNull()
+    hover(q(r, 'app-menu-tags'))
+    expect(sessionsMenu(r)).toBeNull()
+    expect(subMenu(r)).not.toBeNull()
+  })
+
+  it('clicking Sessions after pointing at it keeps its submenu open', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    hover(q(r, 'app-menu-sessions'))
+    click(q(r, 'app-menu-sessions'))
+    expect(sessionsMenu(r)).not.toBeNull()
+  })
+
+  it('ArrowRight on Sessions opens on its first row; ArrowLeft and Escape go back to Sessions', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    act(() => q(r, 'app-menu-sessions')?.focus())
+    key(q(r, 'app-menu-sessions'), 'ArrowRight')
+    expect(document.activeElement).toBe(q(r, 'sessions-menu-past'))
+    key(q(r, 'sessions-menu-past'), 'ArrowLeft')
+    expect(sessionsMenu(r)).toBeNull()
+    expect(document.activeElement).toBe(q(r, 'app-menu-sessions'))
+    key(q(r, 'app-menu-sessions'), 'ArrowRight')
+    key(q(r, 'sessions-menu-past'), 'Escape')
+    expect(sessionsMenu(r)).toBeNull()
+    expect(mainMenu(r)).not.toBeNull()
+    expect(document.activeElement).toBe(q(r, 'app-menu-sessions'))
+  })
+
+  // A key-opened Tags submenu must not make a later HOVER-opened Sessions submenu grab focus.
+  it('hover-opening a submenu never moves focus into it', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    act(() => q(r, 'app-menu-tags')?.focus())
+    key(q(r, 'app-menu-tags'), 'ArrowRight')
+    hover(q(r, 'app-menu-sessions'))
+    expect(document.activeElement).not.toBe(q(r, 'sessions-menu-past'))
   })
 
   it('Tags opens the tags submenu: Manage tags… and Manage rules…', () => {

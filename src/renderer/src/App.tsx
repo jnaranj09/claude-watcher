@@ -673,7 +673,7 @@ function App(): React.JSX.Element {
             onOpenShortcuts={handleOpenShortcuts}
             onManageTags={handleManageTags}
             onManageRules={handleManageRules}
-            onOpenPastSessions={handleOpenPastSessions}
+            onOpenSessions={handleOpenSessions}
           />
         </div>
       </header>

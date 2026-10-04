@@ -288,14 +288,14 @@ here.` aria-live too.
 
 Only header control besides `+ New session`; filters nothing.
 
-- Rows: `Settings…` (⚙), `Shortcuts…` (⌨), `Tags` submenu (`Manage tags…` / `Manage rules…`),
-  `Past sessions…` (clock) ALWAYS LAST. New rows go before it. Icons in a fixed-width slot; `‹` at
-  right.
-- Submenu opens LEFT, level with its row; hover opens/closes; ArrowRight/Left; click OPENS, never
-  toggles.
+- Rows: `Settings…` (⚙), `Shortcuts…` (⌨), `Tags ‹` (`Manage tags…` / `Manage rules…`),
+  `Sessions ‹` (clock; `Active sessions…` / `Past sessions…` / `Templates…` / `Import session…`)
+  ALWAYS LAST. New rows go before it. Icons in a fixed-width slot; `‹` at right.
+- Submenus are ONE `Submenu` (AppMenu.tsx): open LEFT, level with their row; hover opens, click
+  OPENS (never toggles); ArrowRight opens on the first row, ArrowLeft back; ONE open at a time.
 - Escape peels one layer (submenu, then menu), listens on the whole menu; closed → passes through.
-- Every row opens a dialog under the single-modal rule (`settingsDialogOpen` in `boardStore` joins
-  `isModalOpen()`).
+- Every row opens a dialog under the single-modal rule (`settingsDialogOpen`, `sessionsDialog`,
+  `tagsDialog` in `boardStore` join `isModalOpen()`).
 
 ## Past sessions and exits
 
