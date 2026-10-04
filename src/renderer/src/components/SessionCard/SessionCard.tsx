@@ -41,6 +41,7 @@ import { Button } from '../Button/Button'
 import { Popover } from '../Popover/Popover'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './SessionCard.module.css'
+import { Presence } from '../Presence/Presence'
 
 export type SessionCardVariant = 'hero' | 'calm'
 
@@ -477,40 +478,42 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
                 </svg>
               </Button>
             </span>
-            {moveOpen && (
-              <div className={styles.moveMenuWrap}>
-                <Popover.Surface
-                  role="menu"
-                  onKeyDown={handleMoveMenuKeyDown}
-                  {...(droppedOnMove > 0 ? { 'aria-describedby': moveWarningId } : {})}
-                >
-                  {/* T-9 — say what the move costs BEFORE it happens: this workspace's own tags do
+            <Presence value={moveOpen || null}>
+              {() => (
+                <div className={styles.moveMenuWrap}>
+                  <Popover.Surface
+                    role="menu"
+                    onKeyDown={handleMoveMenuKeyDown}
+                    {...(droppedOnMove > 0 ? { 'aria-describedby': moveWarningId } : {})}
+                  >
+                    {/* T-9 — say what the move costs BEFORE it happens: this workspace's own tags do
                       not exist elsewhere. `role="none"` keeps the menu's children menu items only;
                       aria-describedby reads it out. */}
-                  {droppedOnMove > 0 && (
-                    <p
-                      id={moveWarningId}
-                      className={styles.moveWarning}
-                      role="none"
-                      data-testid="card-move-warning"
-                    >
-                      {`Moving drops ${droppedOnMove} ${droppedOnMove === 1 ? 'tag' : 'tags'} from ${currentWorkspaceName}`}
-                    </p>
-                  )}
-                  {otherWorkspaces.map((w) => (
-                    <Popover.CompactItem
-                      key={w.id}
-                      role="menuitem"
-                      testId={`card-move-${w.id}`}
-                      onClick={(e) => handleMoveItemClick(e, w.id)}
-                      onKeyDown={handleMoveItemKeyDown}
-                    >
-                      {w.name}
-                    </Popover.CompactItem>
-                  ))}
-                </Popover.Surface>
-              </div>
-            )}
+                    {droppedOnMove > 0 && (
+                      <p
+                        id={moveWarningId}
+                        className={styles.moveWarning}
+                        role="none"
+                        data-testid="card-move-warning"
+                      >
+                        {`Moving drops ${droppedOnMove} ${droppedOnMove === 1 ? 'tag' : 'tags'} from ${currentWorkspaceName}`}
+                      </p>
+                    )}
+                    {otherWorkspaces.map((w) => (
+                      <Popover.CompactItem
+                        key={w.id}
+                        role="menuitem"
+                        testId={`card-move-${w.id}`}
+                        onClick={(e) => handleMoveItemClick(e, w.id)}
+                        onKeyDown={handleMoveItemKeyDown}
+                      >
+                        {w.name}
+                      </Popover.CompactItem>
+                    ))}
+                  </Popover.Surface>
+                </div>
+              )}
+            </Presence>
           </div>
         )}
         {/* Tags (T-26) — the Tags… menu. Same reveal-on-hover + always-tab-reachable treatment as
@@ -544,19 +547,21 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
                 <TagGlyphIcon />
               </Button>
             </span>
-            {tagsOpen && (
-              <TagPicker
-                id={tagPickerId}
-                sessionId={sessionId}
-                tags={pickable}
-                selectedIds={cardTags.map((t) => t.id)}
-                onChange={(tagIds) => onSetTags(tagIds)}
-                onClose={closeTags}
-                anchorRef={tagsAnchorRef}
-                testId="card-tag-picker"
-                label={`Tags for ${sessionName}`}
-              />
-            )}
+            <Presence value={tagsOpen || null}>
+              {() => (
+                <TagPicker
+                  id={tagPickerId}
+                  sessionId={sessionId}
+                  tags={pickable}
+                  selectedIds={cardTags.map((t) => t.id)}
+                  onChange={(tagIds) => onSetTags(tagIds)}
+                  onClose={closeTags}
+                  anchorRef={tagsAnchorRef}
+                  testId="card-tag-picker"
+                  label={`Tags for ${sessionName}`}
+                />
+              )}
+            </Presence>
           </div>
         )}
         {/* Past sessions (D-3) — Archive. Same reveal-on-hover + always-tab-reachable treatment

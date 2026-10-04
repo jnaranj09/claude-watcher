@@ -45,6 +45,7 @@ import { Popover } from '../Popover/Popover'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
+import { Presence } from '../Presence/Presence'
 
 export interface FilterBarProps {
   /** Sessions the board shows under the current filter and search. */
@@ -276,38 +277,40 @@ export function FilterBar({
                 </button>
               </span>
             )}
-            {open && (
-              <TagMenu
-                align="start"
-                role="menu"
-                ariaLabel="Filter by tag"
-                onKeyDown={handleMenuKeyDown}
-              >
-                {ordered.length === 0 ? (
-                  <>
-                    <TagMenuNote testId="filter-no-tags">No tags yet</TagMenuNote>
-                    <Popover.QuietItem
-                      role="menuitem"
-                      testId="filter-create-tags"
-                      onClick={createTags}
-                    >
-                      Create tags…
-                    </Popover.QuietItem>
-                  </>
-                ) : (
-                  ordered.map((t) => (
-                    <TagMenuRow
-                      key={t.id}
-                      tag={t}
-                      checked={t.id === activeTagId}
-                      role="menuitemradio"
-                      testId={`filter-tag-row-${t.id}`}
-                      onClick={() => pick(t.id)}
-                    />
-                  ))
-                )}
-              </TagMenu>
-            )}
+            <Presence value={open || null}>
+              {() => (
+                <TagMenu
+                  align="start"
+                  role="menu"
+                  ariaLabel="Filter by tag"
+                  onKeyDown={handleMenuKeyDown}
+                >
+                  {ordered.length === 0 ? (
+                    <>
+                      <TagMenuNote testId="filter-no-tags">No tags yet</TagMenuNote>
+                      <Popover.QuietItem
+                        role="menuitem"
+                        testId="filter-create-tags"
+                        onClick={createTags}
+                      >
+                        Create tags…
+                      </Popover.QuietItem>
+                    </>
+                  ) : (
+                    ordered.map((t) => (
+                      <TagMenuRow
+                        key={t.id}
+                        tag={t}
+                        checked={t.id === activeTagId}
+                        role="menuitemradio"
+                        testId={`filter-tag-row-${t.id}`}
+                        onClick={() => pick(t.id)}
+                      />
+                    ))
+                  )}
+                </TagMenu>
+              )}
+            </Presence>
           </div>
         </div>
       )}

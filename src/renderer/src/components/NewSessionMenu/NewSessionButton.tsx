@@ -21,6 +21,7 @@ import type { Template } from '../../../../shared/ipc/contract'
 import { makeSelectVisibleTemplates, useTemplates } from '../../stores/templatesStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { NewSessionMenu } from './NewSessionMenu'
+import { Presence } from '../Presence/Presence'
 import styles from './NewSessionMenu.module.css'
 
 export type NewSessionButtonVariant = 'header' | 'primary' | 'dead'
@@ -160,15 +161,18 @@ export function NewSessionButton({
           `overflow: clip`, so an in-anchor popover would be cut at the frame edge with no
           scrollbar to recover it (the TerminalContextMenu precedent). The inline variants are
           unchanged — their frames do not clip. */}
-      {open &&
-        (portaled
-          ? createPortal(
-              <div ref={portalRef} className={styles.portalAnchor} style={coords ?? undefined}>
-                {menu}
-              </div>,
-              document.body
-            )
-          : menu)}
+      <Presence value={open || null}>
+        {() =>
+          portaled
+            ? createPortal(
+                <div ref={portalRef} className={styles.portalAnchor} style={coords ?? undefined}>
+                  {menu}
+                </div>,
+                document.body
+              )
+            : menu
+        }
+      </Presence>
     </div>
   )
 }

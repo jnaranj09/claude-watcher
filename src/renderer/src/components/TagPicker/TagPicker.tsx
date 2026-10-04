@@ -16,6 +16,7 @@ import { useEffect, type JSX, type KeyboardEvent, type MouseEvent, type RefObjec
 import type { Tag } from '../../../../shared/ipc/contract'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { applyPendingTags, useTags } from '../../stores/tagsStore'
+import { useLeaving } from '../Presence/leaving'
 
 export interface TagPickerProps {
   /** DOM id for the popup root. Lets a trigger button point `aria-controls` at it (SessionCard's
@@ -53,14 +54,17 @@ export function TagPicker({
   const pending = useTags((s) =>
     sessionId === undefined ? undefined : s.pendingBySession.get(sessionId)
   )
+  const leaving = useLeaving()
   useEffect(() => {
+    // Leaving (overlay motion): it is already closing; a second outside click must not close again.
+    if (leaving) return
     const onMouseDown = (e: globalThis.MouseEvent): void => {
       if (anchorRef.current?.contains(e.target as Node) === true) return
       onClose('outside')
     }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [anchorRef, onClose])
+  }, [anchorRef, onClose, leaving])
 
   const selected = new Set(applyPendingTags(selectedIds, pending))
 

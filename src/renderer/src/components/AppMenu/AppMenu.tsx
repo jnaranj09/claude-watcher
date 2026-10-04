@@ -21,6 +21,7 @@ import type { SessionsPage } from '../../stores/boardStore'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { Button } from '../Button/Button'
 import { Popover } from '../Popover/Popover'
+import { Presence } from '../Presence/Presence'
 import styles from './AppMenu.module.css'
 
 export interface AppMenuProps {
@@ -177,18 +178,24 @@ export function AppMenu({
     const onMouseDown = (e: MouseEvent): void => {
       if (anchorRef.current?.contains(e.target as Node) === true) return
       // State setters only (stable): the effect needs no function from the render in its deps.
+      // `submenu` is NOT cleared: it fades out with the menu and is reset on the next open
+      // (overlay motion, spec 2026-10-04).
       setOpen(false)
-      setSubmenu(null)
       setFocusFirst(null)
     }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [open])
 
+  // The open submenu stays while the menu fades out (overlay motion); opening resets it.
   function closeAll(): void {
     setOpen(false)
-    setSubmenu(null)
     setFocusFirst(null)
+  }
+
+  function openMenu(): void {
+    setSubmenu(null)
+    setOpen(true)
   }
 
   function choose(action: () => void): void {
@@ -232,87 +239,89 @@ export function AppMenu({
         aria-expanded={open}
         onClick={() => {
           if (open) closeAll()
-          else setOpen(true)
+          else openMenu()
         }}
       >
         <MenuIcon />
       </Button>
-      {open && (
-        <div className={styles.menuWrap}>
-          <Popover.Surface role="menu" aria-label="Menu" testId="app-menu-list">
-            <Popover.Item
-              role="menuitem"
-              testId="app-menu-settings"
-              onClick={() => choose(onOpenSettings)}
-              onMouseEnter={() => setSubmenu(null)}
-            >
-              <Popover.ItemIcon>⚙</Popover.ItemIcon>
-              Settings…
-            </Popover.Item>
-            <Popover.Item
-              role="menuitem"
-              testId="app-menu-shortcuts"
-              onClick={() => choose(onOpenShortcuts)}
-              onMouseEnter={() => setSubmenu(null)}
-            >
-              <Popover.ItemIcon>⌨</Popover.ItemIcon>
-              Shortcuts…
-            </Popover.Item>
-            <Submenu
-              id="tags"
-              label="Tags"
-              icon={<TagGlyphIcon size={14} />}
-              open={submenu === 'tags'}
-              focusRequest={focusFirst?.id === 'tags' ? focusFirst.n : 0}
-              triggerRef={tagsRef}
-              onOpen={() => setSubmenu('tags')}
-              onOpenFromKey={() => openFromKey('tags')}
-              onBack={closeSubmenu}
-            >
+      <Presence value={open || null}>
+        {() => (
+          <div className={styles.menuWrap}>
+            <Popover.Surface role="menu" aria-label="Menu" testId="app-menu-list">
               <Popover.Item
                 role="menuitem"
-                testId="tags-menu-manage-tags"
-                onClick={() => choose(onManageTags)}
+                testId="app-menu-settings"
+                onClick={() => choose(onOpenSettings)}
+                onMouseEnter={() => setSubmenu(null)}
               >
-                Manage tags…
+                <Popover.ItemIcon>⚙</Popover.ItemIcon>
+                Settings…
               </Popover.Item>
-              {onManageRules !== undefined && (
-                <Popover.Item
-                  role="menuitem"
-                  testId="tags-menu-manage-rules"
-                  onClick={() => choose(onManageRules)}
-                >
-                  Manage rules…
-                </Popover.Item>
-              )}
-            </Submenu>
-            {onOpenSessions !== undefined && (
+              <Popover.Item
+                role="menuitem"
+                testId="app-menu-shortcuts"
+                onClick={() => choose(onOpenShortcuts)}
+                onMouseEnter={() => setSubmenu(null)}
+              >
+                <Popover.ItemIcon>⌨</Popover.ItemIcon>
+                Shortcuts…
+              </Popover.Item>
               <Submenu
-                id="sessions"
-                label="Sessions"
-                icon={<ClockIcon />}
-                open={submenu === 'sessions'}
-                focusRequest={focusFirst?.id === 'sessions' ? focusFirst.n : 0}
-                triggerRef={sessionsRef}
-                onOpen={() => setSubmenu('sessions')}
-                onOpenFromKey={() => openFromKey('sessions')}
+                id="tags"
+                label="Tags"
+                icon={<TagGlyphIcon size={14} />}
+                open={submenu === 'tags'}
+                focusRequest={focusFirst?.id === 'tags' ? focusFirst.n : 0}
+                triggerRef={tagsRef}
+                onOpen={() => setSubmenu('tags')}
+                onOpenFromKey={() => openFromKey('tags')}
                 onBack={closeSubmenu}
               >
-                {SESSIONS_ROWS.map((row) => (
+                <Popover.Item
+                  role="menuitem"
+                  testId="tags-menu-manage-tags"
+                  onClick={() => choose(onManageTags)}
+                >
+                  Manage tags…
+                </Popover.Item>
+                {onManageRules !== undefined && (
                   <Popover.Item
-                    key={row.page}
                     role="menuitem"
-                    testId={`sessions-menu-${row.page}`}
-                    onClick={() => choose(() => onOpenSessions(row.page))}
+                    testId="tags-menu-manage-rules"
+                    onClick={() => choose(onManageRules)}
                   >
-                    {row.label}
+                    Manage rules…
                   </Popover.Item>
-                ))}
+                )}
               </Submenu>
-            )}
-          </Popover.Surface>
-        </div>
-      )}
+              {onOpenSessions !== undefined && (
+                <Submenu
+                  id="sessions"
+                  label="Sessions"
+                  icon={<ClockIcon />}
+                  open={submenu === 'sessions'}
+                  focusRequest={focusFirst?.id === 'sessions' ? focusFirst.n : 0}
+                  triggerRef={sessionsRef}
+                  onOpen={() => setSubmenu('sessions')}
+                  onOpenFromKey={() => openFromKey('sessions')}
+                  onBack={closeSubmenu}
+                >
+                  {SESSIONS_ROWS.map((row) => (
+                    <Popover.Item
+                      key={row.page}
+                      role="menuitem"
+                      testId={`sessions-menu-${row.page}`}
+                      onClick={() => choose(() => onOpenSessions(row.page))}
+                    >
+                      {row.label}
+                    </Popover.Item>
+                  ))}
+                </Submenu>
+              )}
+            </Popover.Surface>
+          </div>
+        )}
+      </Presence>
     </div>
   )
 }

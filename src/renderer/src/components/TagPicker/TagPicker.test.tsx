@@ -1,8 +1,10 @@
 // Tags — the checkbox list that edits one card's tags (spec §4.3). jsdom `unit` project.
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { act } from 'react'
+import { act, type JSX } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { TagPicker, type TagPickerProps } from './TagPicker'
+import { Presence } from '../Presence/Presence'
+import { pointerInput } from '../../test/pointerInput'
 import type { Tag } from '../../../../shared/ipc/contract'
 
 const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
@@ -124,5 +126,39 @@ describe('TagPicker', () => {
     expect(row(r, 't-prod').querySelector('[data-testid="tag-chip"]')?.textContent).toBe(
       'deploy/prod'
     )
+  })
+})
+
+describe('TagPicker — leaving (spec 2026-10-04 Review Focus 5)', () => {
+  it('while leaving, a second outside mousedown does not call onClose again', () => {
+    const onClose = vi.fn()
+    const anchorRef = { current: document.createElement('div') }
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    const tree = (open: boolean): JSX.Element => (
+      <Presence value={open || null}>
+        {() => (
+          <TagPicker
+            tags={[DEPLOY]}
+            selectedIds={[]}
+            onChange={() => {}}
+            onClose={onClose}
+            anchorRef={anchorRef}
+            testId="tp"
+            label="Tags"
+          />
+        )}
+      </Presence>
+    )
+    const r = renderComponent(tree(true))
+    act(() => {
+      r.root.render(tree(false))
+    })
+    expect(r.container.querySelector('[data-testid="tp"]')).not.toBeNull()
+    fireEvent(document.body, new MouseEvent('mousedown', { bubbles: true }))
+    expect(onClose).not.toHaveBeenCalled()
+    r.unmount()
+    vi.useRealTimers()
+    clearInput()
   })
 })

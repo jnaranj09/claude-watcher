@@ -6,6 +6,8 @@ import { act } from 'react'
 import { readFileSync } from 'node:fs'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { AppMenu, type AppMenuProps } from './AppMenu'
+import { MOTION_EXIT_MS } from '../../styles/motion'
+import { pointerInput } from '../../test/pointerInput'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -352,5 +354,27 @@ describe('AppMenu', () => {
     expect(sub).toMatch(/top:\s*calc\(-1 \* var\(--space-2\) - 1px\)/)
     expect(sub).toMatch(/right:\s*calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/)
     expect(rule('.subAnchor')).toMatch(/position:\s*relative/)
+  })
+})
+
+describe('AppMenu — overlay motion (spec 2026-10-04 §4)', () => {
+  it('a pointer close keeps the open submenu inside the fading menu, then both go', () => {
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    const r = render()
+    click(q(r, 'app-menu'))
+    click(q(r, 'app-menu-tags'))
+    expect(q(r, 'app-menu-tags-list')).not.toBeNull()
+    click(q(r, 'app-menu')) // toggle closed with the pointer
+    expect(q(r, 'app-menu-list')?.hasAttribute('data-leaving')).toBe(true)
+    expect(q(r, 'app-menu-tags-list')?.hasAttribute('data-leaving')).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(MOTION_EXIT_MS)
+    })
+    expect(q(r, 'app-menu-list')).toBeNull()
+    click(q(r, 'app-menu')) // re-open: no submenu left over
+    expect(q(r, 'app-menu-tags-list')).toBeNull()
+    vi.useRealTimers()
+    clearInput()
   })
 })

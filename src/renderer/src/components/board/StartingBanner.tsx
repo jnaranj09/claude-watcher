@@ -26,6 +26,7 @@ import {
 import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
 import { Popover } from '../Popover/Popover'
 import styles from './StartingBanner.module.css'
+import { Presence } from '../Presence/Presence'
 
 export function StartingBanner(): JSX.Element | null {
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
@@ -73,28 +74,34 @@ export function StartingBanner(): JSX.Element | null {
       </button>
 
       {/* Popover (multi-entry only) — shows the calm-neutral list. */}
-      {count > 1 && open && (
-        <div className={styles.popoverWrap}>
-          <Popover.Surface role="listbox" aria-label="Starting terminals" testId="starting-popover">
-            {startingTerminals.map((lt) => (
-              <Popover.Item
-                key={lt.terminalId}
-                role="option"
-                aria-selected={false}
-                testId="starting-entry"
-                onClick={() => handleEntryClick(lt.terminalId)}
-              >
-                <span className={styles.entryText}>
-                  {/* font-mono cwd-basename — calm, no accent */}
-                  <span className={styles.entryLabel}>{lt.label}</span>
-                  {/* muted "starting…" — NO status dot, NO gold */}
-                  <span className={styles.entryStatus}>starting…</span>
-                </span>
-              </Popover.Item>
-            ))}
-          </Popover.Surface>
-        </div>
-      )}
+      <Presence value={(count > 1 && open) || null}>
+        {() => (
+          <div className={styles.popoverWrap}>
+            <Popover.Surface
+              role="listbox"
+              aria-label="Starting terminals"
+              testId="starting-popover"
+            >
+              {startingTerminals.map((lt) => (
+                <Popover.Item
+                  key={lt.terminalId}
+                  role="option"
+                  aria-selected={false}
+                  testId="starting-entry"
+                  onClick={() => handleEntryClick(lt.terminalId)}
+                >
+                  <span className={styles.entryText}>
+                    {/* font-mono cwd-basename — calm, no accent */}
+                    <span className={styles.entryLabel}>{lt.label}</span>
+                    {/* muted "starting…" — NO status dot, NO gold */}
+                    <span className={styles.entryStatus}>starting…</span>
+                  </span>
+                </Popover.Item>
+              ))}
+            </Popover.Surface>
+          </div>
+        )}
+      </Presence>
     </div>
   )
 }

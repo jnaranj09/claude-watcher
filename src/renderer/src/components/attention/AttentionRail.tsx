@@ -88,6 +88,7 @@ import { Button } from '../Button/Button'
 import { shortName } from './railName'
 import { statusLabel } from '../StatusDot/statusLabel'
 import styles from './AttentionRail.module.css'
+import { Presence } from '../Presence/Presence'
 
 /** The status dot state IS the session's column (the three live columns are the three dot states).
  *  Keyed on `Column` (from the contract) so a fourth column would FAIL TO COMPILE here (no silent
@@ -358,19 +359,21 @@ function RailRow(props: {
           >
             + tag
           </button>
-          {editing && (
-            <TagPicker
-              id={tagPickerId}
-              sessionId={id}
-              tags={pickable}
-              selectedIds={tags.map((t) => t.id)}
-              onChange={(next) => onSetTags?.(id, next)}
-              onClose={() => setEditing(false)}
-              anchorRef={addGroupRef}
-              testId="rail-tag-picker"
-              label={`Tags for ${name}`}
-            />
-          )}
+          <Presence value={editing || null}>
+            {() => (
+              <TagPicker
+                id={tagPickerId}
+                sessionId={id}
+                tags={pickable}
+                selectedIds={tags.map((t) => t.id)}
+                onChange={(next) => onSetTags?.(id, next)}
+                onClose={() => setEditing(false)}
+                anchorRef={addGroupRef}
+                testId="rail-tag-picker"
+                label={`Tags for ${name}`}
+              />
+            )}
+          </Presence>
         </span>
       )}
     </div>

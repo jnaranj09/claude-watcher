@@ -70,6 +70,7 @@ import { selectActiveWorkspaceId, useWorkspaces } from '../stores/workspacesStor
 import { TerminalContextMenu } from './TerminalContextMenu'
 import { opensTerminalMenu } from './menuTrigger'
 import { NewSessionButton } from '../components/NewSessionMenu/NewSessionButton'
+import { Presence } from '../components/Presence/Presence'
 import { Button } from '../components/Button/Button'
 import { exitReasonCopy, resumeErrorCopy, type ExitInfo } from './exitReason'
 import { toast } from '../stores/toastStore'
@@ -915,19 +916,21 @@ export function EmbeddedTerminal({
       )}
       {/* Terminal clipboard feature — context menu portal (renders into document.body via
           createPortal; position:fixed; z-index 1000 above all kept-alive frames).
-          Mounted only when the user right-clicks this terminal (menu !== null).
+          Mounted while `menu !== null`, and for MOTION_EXIT_MS after a pointer dismiss (Presence).
           Siblings' menus are untouched: each EmbeddedTerminal owns its own `menu` state. */}
-      {menu !== null && (
-        <TerminalContextMenu
-          x={menu.x}
-          y={menu.y}
-          canCopy={menu.canCopy}
-          canPaste={menu.canPaste}
-          onCopy={handleCopy}
-          onPaste={handlePaste}
-          onDismiss={handleMenuDismiss}
-        />
-      )}
+      <Presence value={menu}>
+        {(m) => (
+          <TerminalContextMenu
+            x={m.x}
+            y={m.y}
+            canCopy={m.canCopy}
+            canPaste={m.canPaste}
+            onCopy={handleCopy}
+            onPaste={handlePaste}
+            onDismiss={handleMenuDismiss}
+          />
+        )}
+      </Presence>
     </div>
   )
 }
