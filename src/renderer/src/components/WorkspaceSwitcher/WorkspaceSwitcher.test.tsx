@@ -16,6 +16,8 @@ import { renderComponent, fireEvent, type RenderResult } from '../../test/render
 import { boardStore } from '../../stores/boardStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
+import { MOTION_EXIT_MS } from '../../styles/motion'
+import { pointerInput } from '../../test/pointerInput'
 import type { Column } from '../../../../shared/ipc/contract'
 
 const rows = [
@@ -527,5 +529,63 @@ describe('WorkspaceSwitcher', () => {
     expect(manage?.hasAttribute('data-quiet')).toBe(true)
     expect(manage?.hasAttribute('data-tone')).toBe(false)
     expect(document.querySelector('[data-popover-divider]')).not.toBeNull()
+  })
+})
+
+describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
+  it('after a pointer close the tab stays tucked until the menu has gone', () => {
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    const tab = q(r, '[data-testid="workspace-elsewhere-tab"]')
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(r.container.querySelector('[role="menu"]')?.hasAttribute('data-leaving')).toBe(true)
+    expect(tab.hasAttribute('data-tucked')).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(MOTION_EXIT_MS)
+    })
+    expect(r.container.querySelector('[role="menu"]')).toBeNull()
+    expect(tab.hasAttribute('data-tucked')).toBe(false)
+    vi.useRealTimers()
+    clearInput()
+  })
+
+  it('a pick keeps the rows it showed while the menu fades out', () => {
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    seedNeedsYou('w1', 'b')
+    const r = renderSwitcher()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(r.container.querySelector('[data-testid="workspace-row-w1"]')).not.toBeNull()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    act(() => {
+      workspacesStore.setState({ activeId: 'w1' })
+    })
+    // Still the row the operator saw, though w1 is now active and no longer an "other".
+    expect(r.container.querySelector('[data-testid="workspace-row-w1"]')).not.toBeNull()
+    vi.useRealTimers()
+    clearInput()
+  })
+
+  it('CSS: the tab tucks on the enter curve, the menu waits for it, keyboard is instant', () => {
+    const css = readFileSync(
+      join(
+        process.cwd(),
+        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
+      ),
+      'utf8'
+    )
+    const tucked = css.slice(css.indexOf('.tab[data-tucked] {'))
+    expect(tucked.slice(0, tucked.indexOf('}'))).not.toContain('ease-in')
+    expect(css).toMatch(/\.tab\s*\{[^}]*transform var\(--motion-enter\) var\(--motion-ease-enter\)/)
+    expect(css).toMatch(
+      /\.menuWrap > \[data-popover\]\s*\{\s*transition-delay:\s*var\(--motion-enter\);/
+    )
+    expect(css).toMatch(
+      /\.menuWrap > \[data-popover\]\[data-leaving\]\s*\{\s*transition-delay:\s*0s;/
+    )
+    expect(css).toMatch(/:root\[data-input='keyboard'\] \.tab\s*\{\s*transition:\s*none;/)
   })
 })

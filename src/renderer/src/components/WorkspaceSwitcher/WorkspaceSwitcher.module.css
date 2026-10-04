@@ -136,10 +136,12 @@
   font-size: var(--font-size-body);
   line-height: var(--switcher-line);
   cursor: pointer;
-  animation: tab-slide-out 150ms ease-out;
+  animation: tab-slide-out var(--motion-enter) var(--motion-ease-enter);
+  /* Both ways on the enter curve (spec 2026-10-04 §5): ease-in started slow, at the moment the eye
+     is on it. */
   transition:
-    transform 150ms ease-out,
-    opacity 150ms ease-out;
+    transform var(--motion-enter) var(--motion-ease-enter),
+    opacity var(--motion-enter) var(--motion-ease-enter);
 }
 /* The menu is open: its rows carry every other workspace's pills, so the tab slides back under the
    button (and fades — a see-through theme would show it through the button). It keeps its box, so
@@ -148,9 +150,6 @@
   transform: translateX(-100%);
   opacity: 0;
   pointer-events: none;
-  transition:
-    transform 150ms ease-in,
-    opacity 150ms ease-in;
 }
 .tab:hover {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
@@ -187,6 +186,17 @@
   z-index: 50;
   min-width: 220px;
   max-width: 320px;
+}
+/* The menu waits for the tab to finish tucking (spec 2026-10-04 §5); its exit does not wait. */
+.menuWrap > [data-popover] {
+  transition-delay: var(--motion-enter);
+}
+.menuWrap > [data-popover][data-leaving] {
+  transition-delay: 0s;
+}
+/* Escape / keyboard: the tab moves at once too. */
+:root[data-input='keyboard'] .tab {
+  transition: none;
 }
 
 .rowName {

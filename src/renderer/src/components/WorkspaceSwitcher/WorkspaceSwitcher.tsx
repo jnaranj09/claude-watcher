@@ -9,7 +9,15 @@
 // slides back BEHIND the button: every other workspace is then a row with its own pills, and the tab's
 // sums would count those cards a second time (operator, 2026-09-30). The popover's open state is LOCAL
 // and transient, like NewSessionButton's.
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type JSX
+} from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   boardStore,
@@ -25,7 +33,9 @@ import {
   useWorkspaces,
   workspacesStore
 } from '../../stores/workspacesStore'
+import { usePresentValue } from '../../hooks/usePresence'
 import { Popover } from '../Popover/Popover'
+import { LeavingContext } from '../Presence/leaving'
 import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
 import styles from './WorkspaceSwitcher.module.css'
 
@@ -66,7 +76,6 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
   const workingCounts = useBoard(useShallow(selectWorkingCountByWorkspace))
 
   const active = workspaces.find((w) => w.id === activeId) ?? null
-  const others = workspaces.filter((w) => w.id !== activeId)
   const activeName = active?.name ?? 'Workspace'
   const activeTotal = totals[activeId] ?? 0
   const here = counts[activeId] ?? 0
@@ -81,6 +90,18 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
   const elsewhere = sumOthers(counts)
   const elsewhereWorking = sumOthers(workingCounts)
   const elsewhereGrey = greyCount(elsewhereCards, elsewhereWorking, elsewhere)
+
+  // Overlay motion (spec 2026-10-04 §5). The rows are FROZEN while the menu fades out: a pick
+  // switches the active workspace within the exit, and the fading list would redraw with the new
+  // "other workspaces". `present` (not `open`) tucks the tab, so the tab comes back only once the
+  // menu is gone.
+  const rows = useMemo(
+    () => ({ others: workspaces.filter((w) => w.id !== activeId), totals, counts, workingCounts }),
+    [workspaces, activeId, totals, counts, workingCounts]
+  )
+  const menu = usePresentValue(open ? rows : null)
+  const listed = menu.value
+  const present = listed !== null
 
   const label =
     describeCounts(activeName, activeTotal, activeWorking, here) +
@@ -169,7 +190,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           data-testid="workspace-elsewhere-tab"
           aria-hidden="true"
           // Tucked behind the button while the menu lists the same cards row by row.
-          data-tucked={open ? '' : undefined}
+          data-tucked={present ? '' : undefined}
           onClick={() => setOpen((v) => !v)}
         >
           {/* Grey, blue, yellow — the button's order, summed over every OTHER workspace. */}
@@ -190,63 +211,68 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
           )}
         </span>
       )}
-      {open && (
-        <div className={styles.menuWrap}>
-          <Popover.Surface role="menu" onKeyDown={handleMenuKeyDown}>
-            {/* The OTHER workspaces only: the button already names the active one, and listing it
+      {listed !== null && (
+        <LeavingContext value={menu.leaving}>
+          <div className={styles.menuWrap}>
+            <Popover.Surface role="menu" onKeyDown={handleMenuKeyDown}>
+              {/* The OTHER workspaces only: the button already names the active one, and listing it
                 again read as a duplicate (operator, 2026-09-28). */}
-            {others.map((w) => {
-              const total = totals[w.id] ?? 0
-              const needsYou = counts[w.id] ?? 0
-              const working = workingCounts[w.id] ?? 0
-              const grey = greyCount(total, working, needsYou)
-              return (
-                <Popover.Item
-                  key={w.id}
-                  role="menuitem"
-                  tone={w.color}
-                  testId={`workspace-row-${w.id}`}
-                  aria-label={describeCounts(w.name, total, working, needsYou)}
-                  onClick={() => pick(w.id)}
-                >
-                  <span className={styles.rowName}>{w.name}</span>
-                  {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
-                  <Popover.ItemEnd>
-                    {grey !== null && (
-                      <span className={styles.rowCount} data-testid={`workspace-row-count-${w.id}`}>
-                        {grey}
-                      </span>
-                    )}
-                    {working > 0 && (
-                      <span
-                        className={styles.working}
-                        data-testid={`workspace-row-working-${w.id}`}
-                      >
-                        {working}
-                      </span>
-                    )}
-                    {needsYou > 0 && (
-                      <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
-                        {needsYou}
-                      </span>
-                    )}
-                  </Popover.ItemEnd>
-                </Popover.Item>
-              )
-            })}
-            {others.length > 0 && <Popover.Divider />}
-            <Popover.QuietItem
-              role="menuitem"
-              testId="workspace-manage"
-              onClick={() => {
-                setOpen(false)
-                onManage()
-              }}
-            >
-              Manage workspaces…
-            </Popover.QuietItem>
-          </Popover.Surface>
-        </div>
+              {listed.others.map((w) => {
+                const total = listed.totals[w.id] ?? 0
+                const needsYou = listed.counts[w.id] ?? 0
+                const working = listed.workingCounts[w.id] ?? 0
+                const grey = greyCount(total, working, needsYou)
+                return (
+                  <Popover.Item
+                    key={w.id}
+                    role="menuitem"
+                    tone={w.color}
+                    testId={`workspace-row-${w.id}`}
+                    aria-label={describeCounts(w.name, total, working, needsYou)}
+                    onClick={() => pick(w.id)}
+                  >
+                    <span className={styles.rowName}>{w.name}</span>
+                    {/* Grey, blue, yellow — the button's order, so the pills read the same everywhere. */}
+                    <Popover.ItemEnd>
+                      {grey !== null && (
+                        <span
+                          className={styles.rowCount}
+                          data-testid={`workspace-row-count-${w.id}`}
+                        >
+                          {grey}
+                        </span>
+                      )}
+                      {working > 0 && (
+                        <span
+                          className={styles.working}
+                          data-testid={`workspace-row-working-${w.id}`}
+                        >
+                          {working}
+                        </span>
+                      )}
+                      {needsYou > 0 && (
+                        <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
+                          {needsYou}
+                        </span>
+                      )}
+                    </Popover.ItemEnd>
+                  </Popover.Item>
+                )
+              })}
+              {listed.others.length > 0 && <Popover.Divider />}
+              <Popover.QuietItem
+                role="menuitem"
+                testId="workspace-manage"
+                onClick={() => {
+                  setOpen(false)
+                  onManage()
+                }}
+              >
+                Manage workspaces…
+              </Popover.QuietItem>
+            </Popover.Surface>
+          </div>
+        </LeavingContext>
       )}
     </div>
   )
