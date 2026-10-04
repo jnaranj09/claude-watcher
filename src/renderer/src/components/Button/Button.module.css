@@ -27,6 +27,24 @@
   white-space: nowrap;
   cursor: pointer;
 }
+
+/* Press feedback (spec 2026-10-04 §8): the button shrinks a little while held, in place — the
+   owner's "nothing moves under the pointer" allows a press scale. `scale`, never `transform`, so
+   it cannot fight a caller's transform. */
+.button {
+  transition: scale 160ms var(--motion-ease-enter);
+}
+.button:active:not(:disabled) {
+  scale: 0.97;
+}
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+  .button:active {
+    scale: none;
+  }
+}
 .sm {
   height: 26px;
   padding: 0 var(--inset-compact-x);

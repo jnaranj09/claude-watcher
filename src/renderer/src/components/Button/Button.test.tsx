@@ -269,3 +269,20 @@ describe('Button owns every button style', () => {
     expect(css).toMatch(/\n\.swapHidden \{[^}]*visibility: hidden;/)
   })
 })
+
+describe('Button — press feedback (spec 2026-10-04 §8)', () => {
+  const css = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/Button/Button.module.css'),
+    'utf8'
+  )
+  it('scales to 97% while held, never when disabled, with `scale` (not `transform`)', () => {
+    expect(css).toMatch(/\.button:active:not\(:disabled\)\s*\{\s*scale:\s*0\.97;/)
+    expect(css).toMatch(/transition:\s*scale 160ms var\(--motion-ease-enter\)/)
+    expect(css).not.toMatch(/\.button[^{]*\{[^}]*transform:/)
+  })
+  it('does not move under reduced motion', () => {
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.button\s*\{\s*transition:\s*none;\s*\}\s*\.button:active\s*\{\s*scale:\s*none;/
+    )
+  })
+})
