@@ -21,6 +21,7 @@ import {
 import { Popover } from '../Popover/Popover'
 import { Presence } from '../Presence/Presence'
 import styles from './Select.module.css'
+import { leavingProps } from '../Presence/leaving'
 
 export interface SelectOption<T extends string> {
   value: T
@@ -148,9 +149,10 @@ export function Select<T extends string>({
         </span>
       </button>
       <Presence value={open || null}>
-        {() => (
+        {(_, leaving) => (
           <div
             className={align === 'end' ? `${styles.listWrap} ${styles.listEnd}` : styles.listWrap}
+            {...leavingProps(leaving)}
           >
             <Popover.Surface>
               <Popover.List

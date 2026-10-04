@@ -23,6 +23,7 @@ import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesS
 import { NewSessionMenu } from './NewSessionMenu'
 import { Presence } from '../Presence/Presence'
 import styles from './NewSessionMenu.module.css'
+import { leavingProps } from '../Presence/leaving'
 
 export type NewSessionButtonVariant = 'header' | 'primary' | 'dead'
 
@@ -162,10 +163,15 @@ export function NewSessionButton({
           scrollbar to recover it (the TerminalContextMenu precedent). The inline variants are
           unchanged — their frames do not clip. */}
       <Presence value={open || null}>
-        {() =>
+        {(_, leaving) =>
           portaled
             ? createPortal(
-                <div ref={portalRef} className={styles.portalAnchor} style={coords ?? undefined}>
+                <div
+                  ref={portalRef}
+                  className={styles.portalAnchor}
+                  style={coords ?? undefined}
+                  {...leavingProps(leaving)}
+                >
                   {menu}
                 </div>,
                 document.body

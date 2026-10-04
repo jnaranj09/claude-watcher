@@ -42,6 +42,7 @@ import { Popover } from '../Popover/Popover'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './SessionCard.module.css'
 import { Presence } from '../Presence/Presence'
+import { leavingProps } from '../Presence/leaving'
 
 export type SessionCardVariant = 'hero' | 'calm'
 
@@ -479,8 +480,8 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
               </Button>
             </span>
             <Presence value={moveOpen || null}>
-              {() => (
-                <div className={styles.moveMenuWrap}>
+              {(_, leaving) => (
+                <div className={styles.moveMenuWrap} {...leavingProps(leaving)}>
                   <Popover.Surface
                     role="menu"
                     onKeyDown={handleMoveMenuKeyDown}

@@ -27,6 +27,7 @@ import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesS
 import { Popover } from '../Popover/Popover'
 import styles from './StartingBanner.module.css'
 import { Presence } from '../Presence/Presence'
+import { leavingProps } from '../Presence/leaving'
 
 export function StartingBanner(): JSX.Element | null {
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
@@ -75,8 +76,8 @@ export function StartingBanner(): JSX.Element | null {
 
       {/* Popover (multi-entry only) — shows the calm-neutral list. */}
       <Presence value={(count > 1 && open) || null}>
-        {() => (
-          <div className={styles.popoverWrap}>
+        {(_, leaving) => (
+          <div className={styles.popoverWrap} {...leavingProps(leaving)}>
             <Popover.Surface
               role="listbox"
               aria-label="Starting terminals"

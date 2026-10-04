@@ -12,6 +12,7 @@ import type { Tag } from '../../../../shared/ipc/contract'
 import { Popover } from '../Popover/Popover'
 import { TagChip } from '../TagChip/TagChip'
 import styles from './TagMenu.module.css'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 
 export interface TagMenuProps {
   /** Which edge of the anchor it lines up with: the filter opens under its pill (`start`), the
@@ -36,8 +37,13 @@ export function TagMenu({
   onClick,
   children
 }: TagMenuProps): JSX.Element {
+  // Overlay motion: while it fades out, clicks pass through its box (not just the Surface).
+  const leaving = useLeaving()
   return (
-    <div className={`${styles.wrap} ${align === 'end' ? styles.alignEnd : styles.alignStart}`}>
+    <div
+      className={`${styles.wrap} ${align === 'end' ? styles.alignEnd : styles.alignStart}`}
+      {...leavingProps(leaving)}
+    >
       <Popover.Surface
         role={role}
         aria-label={ariaLabel}

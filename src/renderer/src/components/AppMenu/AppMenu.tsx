@@ -23,6 +23,7 @@ import { Button } from '../Button/Button'
 import { Popover } from '../Popover/Popover'
 import { Presence } from '../Presence/Presence'
 import styles from './AppMenu.module.css'
+import { leavingProps } from '../Presence/leaving'
 
 export interface AppMenuProps {
   onOpenSettings: () => void
@@ -245,8 +246,8 @@ export function AppMenu({
         <MenuIcon />
       </Button>
       <Presence value={open || null}>
-        {() => (
-          <div className={styles.menuWrap}>
+        {(_, leaving) => (
+          <div className={styles.menuWrap} {...leavingProps(leaving)}>
             <Popover.Surface role="menu" aria-label="Menu" testId="app-menu-list">
               <Popover.Item
                 role="menuitem"

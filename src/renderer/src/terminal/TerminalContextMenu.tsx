@@ -16,6 +16,7 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Popover } from '../components/Popover/Popover'
 import styles from './TerminalContextMenu.module.css'
+import { leavingProps, useLeaving } from '../components/Presence/leaving'
 
 export interface TerminalContextMenuProps {
   /** Cursor position (viewport pixels) where the menu anchors (from contextmenu event). */
@@ -58,6 +59,8 @@ export function TerminalContextMenu({
   onDismiss
 }: TerminalContextMenuProps): React.JSX.Element {
   const menuRef = useRef<HTMLDivElement | null>(null)
+  // Overlay motion: while it fades out, clicks pass through its box (not just the Surface).
+  const leaving = useLeaving()
 
   useEffect(() => {
     // Dismiss on outside mousedown (before click fires, catches drag-out too).
@@ -100,7 +103,12 @@ export function TerminalContextMenu({
   }, [onDismiss])
 
   const menu = (
-    <div ref={menuRef} className={styles.wrap} style={{ top: y, left: x }}>
+    <div
+      ref={menuRef}
+      className={styles.wrap}
+      style={{ top: y, left: x }}
+      {...leavingProps(leaving)}
+    >
       <Popover.Surface role="menu" testId="terminal-context-menu">
         {/* Copy: enabled only when the terminal has a non-empty selection. */}
         <Popover.CompactItem role="menuitem" disabled={!canCopy} onClick={onCopy}>

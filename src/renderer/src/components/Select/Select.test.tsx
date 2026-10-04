@@ -225,6 +225,8 @@ describe('Select — the list fades out after a pointer pick (spec 2026-10-04 §
     click(q(r, '[data-testid="letter"]'))
     click(q(r, '[data-testid="letter-option-a"]'))
     expect(q(r, '[data-popover]').hasAttribute('data-leaving')).toBe(true)
+    // Its positioned wrapper too, or a click where the list was lands on the wrapper.
+    expect(q(r, '[data-popover]').parentElement?.hasAttribute('inert')).toBe(true)
     act(() => {
       vi.advanceTimersByTime(MOTION_EXIT_MS)
     })

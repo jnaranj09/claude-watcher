@@ -7,6 +7,7 @@ import { filterTemplates } from './filterTemplates'
 import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './NewSessionMenu.module.css'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 
 export interface NewSessionMenuProps {
   templates: Template[]
@@ -29,6 +30,8 @@ export function NewSessionMenu({
   const searchRef = useRef<HTMLInputElement | null>(null)
   const [query, setQuery] = useState('')
   const filtered = filterTemplates(templates, query)
+  // Overlay motion: while it fades out, clicks pass through its box (not just the Surface).
+  const leaving = useLeaving()
 
   useEffect(() => {
     searchRef.current?.focus()
@@ -60,7 +63,7 @@ export function NewSessionMenu({
   }
 
   return (
-    <div className={styles.menu}>
+    <div className={styles.menu} {...leavingProps(leaving)}>
       <Popover.Surface
         surfaceRef={rootRef}
         role="dialog"

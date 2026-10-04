@@ -35,7 +35,7 @@ import {
 } from '../../stores/workspacesStore'
 import { usePresentValue } from '../../hooks/usePresence'
 import { Popover } from '../Popover/Popover'
-import { LeavingContext } from '../Presence/leaving'
+import { LeavingContext, leavingProps } from '../Presence/leaving'
 import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
 import styles from './WorkspaceSwitcher.module.css'
 
@@ -213,7 +213,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
       )}
       {listed !== null && (
         <LeavingContext value={menu.leaving}>
-          <div className={styles.menuWrap}>
+          <div className={styles.menuWrap} {...leavingProps(menu.leaving)}>
             <Popover.Surface role="menu" onKeyDown={handleMenuKeyDown}>
               {/* The OTHER workspaces only: the button already names the active one, and listing it
                 again read as a duplicate (operator, 2026-09-28). */}

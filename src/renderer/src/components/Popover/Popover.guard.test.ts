@@ -110,3 +110,23 @@ describe('Popover owns every menu and list popup', () => {
     expect(rawMenuRoles(tmp)).toEqual([])
   })
 })
+
+// Overlay motion (2026-10-04 review): a leaving Surface is inert, but the caller's positioned
+// WRAPPER is still a hit target the size of the menu — a click during the 150 ms exit landed on it
+// (and on a card, bubbled to the card and opened it). Every file that wraps a Surface marks its
+// wrapper with `leavingProps`. ExpanderBox opens only from its chord, so it never plays an exit.
+describe('a leaving popover lets clicks through its wrapper too', () => {
+  const EXEMPT = new Set(['components/ExpanderBox/ExpanderBox.tsx'])
+  const EXTRA = ['components/NewSessionMenu/NewSessionButton.tsx'] // its portal anchor
+  it('every Popover.Surface caller puts leavingProps on its wrapper', () => {
+    const callers = files('.tsx')
+      .map((f) => relative(rendererDir, f))
+      .filter((f) => !f.startsWith('components/Popover/') && !EXEMPT.has(f))
+      .filter((f) => readFileSync(join(rendererDir, f), 'utf8').includes('<Popover.Surface'))
+    expect(callers.length).toBeGreaterThan(5)
+    const missing = [...callers, ...EXTRA].filter(
+      (f) => !readFileSync(join(rendererDir, f), 'utf8').includes('leavingProps(')
+    )
+    expect(missing).toEqual([])
+  })
+})
