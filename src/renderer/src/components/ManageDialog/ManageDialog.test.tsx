@@ -564,3 +564,25 @@ describe('ManageDialog.Pages (spec 2026-10-03 C)', () => {
     expect(onSelect).toHaveBeenCalledWith('two')
   })
 })
+
+function TwoDeletes(): JSX.Element {
+  const dialog = useManageDialog({ title: 'Things', testIdPrefix: 'things', onClose: () => {} })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Delete armKey="bulk" testId="bulk-delete" onConfirm={() => {}} />
+        <ManageDialog.Delete testId="form-delete" onConfirm={() => {}} />
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.Delete — two on one surface (spec 2026-10-03 D)', () => {
+  it('arming one leaves the other at rest', () => {
+    const r = renderComponent(<TwoDeletes />)
+    cleanup = r.unmount
+    click(q(r, '[data-testid="bulk-delete"]'))
+    expect(q(r, '[data-testid="bulk-delete"]').textContent).toBe('Confirm delete')
+    expect(q(r, '[data-testid="form-delete"]').textContent).toBe('Delete')
+  })
+})

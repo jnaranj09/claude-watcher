@@ -18,8 +18,11 @@ export interface ManageDialogState {
   /** True while the New form is open (`+ New`). `selectedId: null` + `creating: false` is
    *  NOTHING open — the right column shows `ManageDialog.Placeholder` (spec 2026-09-29 §1). */
   creating: boolean
-  /** True between the first press of Delete and the second (`Confirm delete`). */
+  /** True between the first press of a Delete and the second (`Confirm delete`). */
   armed: boolean
+  /** WHICH Delete is armed: the footer's `'form'` (the default), or a key a page names when it has
+   *  a second Delete on screen (the Active page's bulk bar: `'bulk'`). Null when none is. */
+  armedKey: string | null
   /** The ONE error line's operator copy, or null. Never a raw `error.message` (design.md). */
   error: string | null
   /** The message slot's success copy, shown for SUCCESS_MS. Every other action clears it, so a
@@ -34,8 +37,9 @@ export interface ManageDialogActions {
   select: (id: string | null) => void
   /** `+ New`: open the empty New form. Disarms Delete and clears the error line. */
   startNew: () => void
-  /** The first press of Delete. Clears the error line — arming starts a new flow. */
-  arm: () => void
+  /** The first press of a Delete (`key` names which; default `'form'`). Clears the error line —
+   *  arming starts a new flow. */
+  arm: (key?: string) => void
   disarm: () => void
   /** Any value clears the success: a refusal replaces it, and an edit (`setError(null)`) ends it. */
   setError: (message: string | null) => void
@@ -84,7 +88,7 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
   } = options
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId)
   const [creating, setCreating] = useState(false)
-  const [armed, setArmed] = useState(false)
+  const [armedKey, setArmedKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, flashSuccess, clearSuccess] = useFlash<string>(SUCCESS_MS)
   const closeRef = useRef<HTMLButtonElement | null>(null)
@@ -95,22 +99,22 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
         clearSuccess()
         setSelectedId(id)
         setCreating(false)
-        setArmed(false)
+        setArmedKey(null)
         if (!keepErrorOnSelect) setError(null)
       },
       startNew: () => {
         clearSuccess()
         setSelectedId(null)
         setCreating(true)
-        setArmed(false)
+        setArmedKey(null)
         setError(null)
       },
-      arm: () => {
+      arm: (key = 'form') => {
         clearSuccess()
-        setArmed(true)
+        setArmedKey(key)
         setError(null)
       },
-      disarm: () => setArmed(false),
+      disarm: () => setArmedKey(null),
       setError: (message) => {
         clearSuccess()
         setError(message)
@@ -125,7 +129,7 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
   )
 
   return {
-    state: { selectedId, creating, armed, error, success },
+    state: { selectedId, creating, armed: armedKey !== null, armedKey, error, success },
     actions,
     meta: { title, testIdPrefix, closeRef }
   }

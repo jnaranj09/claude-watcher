@@ -174,3 +174,51 @@ describe('ManageDialog.Row tint (spec 2026-09-29)', () => {
     expect(css).toMatch(/\.row\[data-tone\] \.rowSelect:hover\s*\{[^}]*background:\s*transparent/)
   })
 })
+
+function CheckHarness(props: { onCheck: (next: boolean) => void }): JSX.Element {
+  const dialog = useManageDialog({ title: 'Things', testIdPrefix: 'things', onClose: () => {} })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Columns>
+          <ManageDialog.List>
+            <ManageDialog.Rows>
+              <ManageDialog.Row id="a" testId="row-a" selectTestId="select-a">
+                <ManageDialog.RowCheck
+                  checked={false}
+                  onChange={props.onCheck}
+                  label="Select a"
+                  testId="check-a"
+                />
+                Row a
+              </ManageDialog.Row>
+            </ManageDialog.Rows>
+          </ManageDialog.List>
+          <Selected />
+        </ManageDialog.Columns>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.RowCheck (spec 2026-10-03 D)', () => {
+  it('sits BEFORE the select button, never inside it, and is labelled', () => {
+    const r = renderComponent(<CheckHarness onCheck={vi.fn()} />)
+    cleanup = r.unmount
+    const check = r.container.querySelector<HTMLInputElement>('[data-testid="check-a"]')
+    const select = r.container.querySelector('[data-testid="select-a"]')
+    expect(check?.type).toBe('checkbox')
+    expect(check?.getAttribute('aria-label')).toBe('Select a')
+    expect(check?.closest('button')).toBeNull()
+    expect(check?.nextElementSibling).toBe(select)
+  })
+
+  it('checking it reports the new value and does NOT select the row', () => {
+    const onCheck = vi.fn()
+    const r = renderComponent(<CheckHarness onCheck={onCheck} />)
+    cleanup = r.unmount
+    act(() => r.container.querySelector<HTMLInputElement>('[data-testid="check-a"]')?.click())
+    expect(onCheck).toHaveBeenCalledWith(true)
+    expect(r.container.querySelector('[data-testid="probe-selected"]')?.textContent).toBe('none')
+  })
+})

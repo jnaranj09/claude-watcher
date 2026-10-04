@@ -222,6 +222,12 @@
 .row:focus-within .rowActions {
   visibility: visible;
 }
+/* A row's checkbox (`RowCheck`): before the select button, the row's own left inset from the box,
+   so the label keeps the same left edge as an unchecked row's would after the box. */
+.rowCheck {
+  flex: none;
+  margin: 0 0 0 var(--inset-item-x);
+}
 /* The rail's bottom slot (`ListBottom`): `+ New`, or an action row plus its footnote. Pinned to
    the BOTTOM of the rail, not directly under the last row: `.rows` stops at its max-height, so
    without this the slot floats mid-column whenever the form is the taller side. Its own items sit

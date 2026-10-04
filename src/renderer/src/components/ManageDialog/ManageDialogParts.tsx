@@ -212,6 +212,9 @@ export function ManageDialogFooter({ children }: { children: ReactNode }): JSX.E
 export interface ManageDialogDeleteProps {
   /** The SECOND press. The first press only arms. */
   onConfirm: () => void
+  /** Which Delete this is when one surface shows two (the Active page: `'bulk'` in the rail, the
+   *  footer's default `'form'`). Only the armed one reads `Confirm delete`. */
+  armKey?: string | undefined
   testId: string
   /** The armed button's test id, when a test must tell the two presses apart
    *  (Workspaces: `workspace-delete-<id>` → `workspace-delete-confirm`). Defaults to `testId`. */
@@ -246,15 +249,16 @@ export function ManageDialogDelete({
   confirmLabel = 'Confirm delete',
   busy = false,
   feedback,
-  feedbackShown
+  feedbackShown,
+  armKey = 'form'
 }: ManageDialogDeleteProps): JSX.Element {
   const { state, actions } = useManageDialogContext()
-  const { armed } = state
+  const armed = state.armedKey === armKey
 
   function handleClick(): void {
     if (busy) return
     if (armed) onConfirm()
-    else actions.arm()
+    else actions.arm(armKey)
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLButtonElement>): void {
@@ -505,8 +509,9 @@ export interface ManageDialogRowProps {
   selectTestId?: string
   /** Extra attributes for the select button (`data-template-id`). */
   dataAttributes?: Readonly<Record<`data-${string}`, string>>
-  /** The row's label, plus at most one <ManageDialog.RowActions> — a DIRECT child of this row,
-   *  not wrapped in a Fragment or a wrapper component (see `ManageDialogRowActions`). */
+  /** The row's label, plus at most one <ManageDialog.RowCheck> (drawn before the select button)
+   *  and one <ManageDialog.RowActions> — DIRECT children of this row, not wrapped in a Fragment or
+   *  a wrapper component (see `ManageDialogRowActions`). */
   children: ReactNode
   /** A workspace row (the Workspaces dialog): the row is tinted with that colour, and its hover /
    *  selected states move to the border (spec 2026-09-29). */
@@ -534,7 +539,8 @@ export function ManageDialogRow({
   const { state, actions } = useManageDialogContext()
   const parts = Children.toArray(children)
   const rowActions = parts.filter(isRowActions)
-  const label = parts.filter((part) => !isRowActions(part))
+  const rowChecks = parts.filter((p) => isValidElement(p) && p.type === ManageDialogRowCheck)
+  const label = parts.filter((part) => !isRowActions(part) && !rowChecks.includes(part))
   return (
     <div
       className={cx(styles.row, tint !== undefined && workspaceTintClass(tint))}
@@ -542,6 +548,7 @@ export function ManageDialogRow({
       data-selected={state.selectedId === id}
       data-tone={tint}
     >
+      {rowChecks}
       <button
         type="button"
         className={styles.rowSelect}
@@ -574,6 +581,37 @@ export function ManageDialogRow({
  */
 export function ManageDialogRowActions({ children }: { children: ReactNode }): JSX.Element {
   return <>{children}</>
+}
+
+export interface ManageDialogRowCheckProps {
+  checked: boolean
+  onChange: (next: boolean) => void
+  /** Names the box for assistive tech: `Select <name>`. */
+  label: string
+  testId: string
+}
+
+/**
+ * A row's checkbox (the Active sessions page's bulk select, spec 2026-10-03 D). A DIRECT child of
+ * `Row`, which lifts it out of the select button and draws it BEFORE the button — a control inside
+ * a <button> is invalid HTML — so checking a row and opening it stay two separate controls.
+ */
+export function ManageDialogRowCheck({
+  checked,
+  onChange,
+  label,
+  testId
+}: ManageDialogRowCheckProps): JSX.Element {
+  return (
+    <input
+      type="checkbox"
+      className={styles.rowCheck}
+      data-testid={testId}
+      aria-label={label}
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+    />
+  )
 }
 
 function isRowActions(node: ReactNode): boolean {
