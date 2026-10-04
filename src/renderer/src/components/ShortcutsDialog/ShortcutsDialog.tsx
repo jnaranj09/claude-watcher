@@ -20,6 +20,7 @@ import { ShortcutForm } from './ShortcutForm'
 import { ChordKeys } from './ChordKeys'
 import { selectExpanderKey, useSettings } from '../../stores/settingsStore'
 import { expanderChord } from '../../../../shared/schemas/settings'
+import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   ALL_SCOPE,
@@ -116,6 +117,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
                   <span className={styles.rowAlias} data-testid={`shortcut-alias-${s.id}`}>
                     {s.alias}
                   </span>
+                  <ScopeMarker workspaceId={s.workspaceId} workspaces={workspaces} />
                 </ManageDialog.Row>
               ))}
               {shortcuts.length === 0 &&

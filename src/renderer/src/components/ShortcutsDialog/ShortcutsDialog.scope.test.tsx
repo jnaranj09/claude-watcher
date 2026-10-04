@@ -211,3 +211,14 @@ describe('a save that moves the row follows it (Review Focus 5)', () => {
     expect(q(r, '[data-testid="shortcut-row-own"]').getAttribute('data-selected')).toBe('true')
   })
 })
+
+describe('where each row lives (spec 2026-10-03 H)', () => {
+  it('every row carries a marker', () => {
+    seed([GLOBAL, OWN])
+    const r = render()
+    chooseOption(r.container, FILTER, 'all')
+    const rows = [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')]
+    expect(rows.length).toBeGreaterThan(1)
+    for (const row of rows) expect(row.querySelector('[data-testid="scope-marker"]')).not.toBeNull()
+  })
+})

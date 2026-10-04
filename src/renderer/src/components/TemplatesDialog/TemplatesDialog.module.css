@@ -35,3 +35,11 @@
   font-size: var(--font-size-meta);
   color: var(--text-muted);
 }
+
+/* A row's name beside its ScopeMarker: it truncates first, the marker keeps its text. */
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

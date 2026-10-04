@@ -50,3 +50,12 @@ describe('WorkspaceLabel', () => {
     expect(CSS).toMatch(/\.label\[data-tone='orphan'\]\s*\{[^}]*color:\s*var\(--text-secondary\)/)
   })
 })
+
+describe('WorkspaceLabel — Global (spec 2026-10-03 H)', () => {
+  it('Global is an outlined chip: --border-strong, --text-secondary, no fill', () => {
+    expect(CSS).toMatch(
+      /\.label\[data-tone='global'\]\s*\{[^}]*border-color:\s*var\(--border-strong\)[^}]*color:\s*var\(--text-secondary\)/
+    )
+    expect(CSS).not.toMatch(/\.label\[data-tone='global'\]\s*\{[^}]*background/)
+  })
+})

@@ -8,6 +8,7 @@ import type { Tag, TagSaveRequest } from '../../../../shared/ipc/contract'
 import { TAG_COLORS, TAG_NAME_MAX_LENGTH, type TagColor } from '../../../../shared/schemas/tag'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
+import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   filterByScope,
@@ -91,7 +92,7 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
       </ManageDialog.Header>
       <ManageDialog.Columns>
         {pages}
-        <ManageDialog.List>
+        <ManageDialog.List size="wide">
           <ManageDialog.Rows>
             {listed.map((t) => (
               <ManageDialog.Row
@@ -101,6 +102,7 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
                 selectTestId={`tag-select-${t.id}`}
               >
                 <TagPathLabel tag={t} />
+                <ScopeMarker workspaceId={t.workspaceId} workspaces={workspaces} />
               </ManageDialog.Row>
             ))}
             {listed.length === 0 && (

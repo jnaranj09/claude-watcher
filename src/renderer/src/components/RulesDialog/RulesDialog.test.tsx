@@ -2,6 +2,7 @@
 // `selectHarness`, like TemplatesDialog.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
+import { rowText } from '../../test/rowText'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
 import { TagsDialog } from '../TagsDialog/TagsDialog'
@@ -98,7 +99,7 @@ function type(el: HTMLInputElement, value: string): void {
 
 const click = (el: Element): void => act(() => (el as HTMLElement).click())
 const rowTexts = (r: RenderResult): string[] =>
-  [...r.container.querySelectorAll('[data-testid^="rule-select-"]')].map((b) => b.textContent ?? '')
+  [...r.container.querySelectorAll('[data-testid^="rule-select-"]')].map(rowText)
 
 describe('RulesDialog', () => {
   it('lists the rules in RUN order with their trigger summaries, and marks a broken one', () => {
@@ -319,5 +320,23 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     click(q(r, '[data-testid="rule-select-ra"]'))
     expect(r.container.querySelector('[data-testid="rule-placeholder"]')).toBeNull()
     expect(r.container.querySelector('#rule-name')).not.toBeNull()
+  })
+})
+
+describe('where each row lives (spec 2026-10-03 H)', () => {
+  it('every row carries a marker, before its row actions', () => {
+    const { r } = render()
+    chooseOption(r.container, 'rule-scope-filter', 'all')
+    const rows = [...r.container.querySelectorAll('[data-testid="rule-row"]')]
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      const marker = row.querySelector('[data-testid="scope-marker"]')
+      const actions = row.querySelector('[data-testid="manage-row-actions"]')
+      expect(marker).not.toBeNull()
+      expect(actions).not.toBeNull()
+      expect(
+        (marker as Node).compareDocumentPosition(actions as Node) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
   })
 })

@@ -19,3 +19,9 @@
 .label[data-tone='orphan'] {
   color: var(--text-secondary);
 }
+/* `Global` (spec 2026-10-03 H): an outlined chip — no fill, a strong edge, secondary ink — so it
+   reads as "everywhere", never as a workspace colour. */
+.label[data-tone='global'] {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}

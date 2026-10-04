@@ -8,6 +8,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { Rule } from '../../../../shared/ipc/contract'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
+import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import {
   filterByScope,
@@ -123,6 +124,7 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
                       <span className="sr-only"> (broken)</span>
                     </span>
                   )}
+                  <ScopeMarker workspaceId={r.workspaceId} workspaces={workspaces} />
                   {/* R-uniform (controller ruling): render the slot — and BOTH controls in it —
                         on every row once there is more than one, so the 56px slot is identical on
                         every row and the rail never goes ragged (design.md). A control that can

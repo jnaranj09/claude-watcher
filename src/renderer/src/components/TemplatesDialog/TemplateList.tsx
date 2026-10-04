@@ -1,6 +1,7 @@
 // Session templates — the Manage dialog's LEFT column: search + the row list + "+ New". The rows
 // and "+ New" are ManageDialog parts, so the selection is the shell's state (TemplatesDialog.tsx
 // creates it) rather than props threaded through here.
+import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { Template, Workspace } from '../../../../shared/ipc/contract'
 import { filterTemplates } from '../NewSessionMenu/filterTemplates'
@@ -47,7 +48,7 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
         : 'No matches'
 
   return (
-    <ManageDialog.List>
+    <ManageDialog.List size="wide">
       <TextInput
         inputRef={searchRef}
         variant="inline"
@@ -65,7 +66,8 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
             testId="template-row"
             dataAttributes={{ 'data-template-id': t.id }}
           >
-            {t.name}
+            <span className={styles.rowName}>{t.name}</span>
+            <ScopeMarker workspaceId={t.workspaceId} workspaces={workspaces} />
           </ManageDialog.Row>
         ))}
         {filtered.length === 0 && <p className={styles.empty}>{emptyCopy}</p>}

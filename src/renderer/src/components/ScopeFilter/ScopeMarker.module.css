@@ -1,0 +1,10 @@
+/* At the row's right end (before RowActions), never squeezed below its text, never wider than
+   half the row: the name keeps the rest and truncates first. Meta size: it annotates the row. */
+.marker {
+  flex: none;
+  max-width: 50%;
+  min-width: 0;
+  margin-left: auto;
+  display: inline-flex;
+  font-size: var(--font-size-meta);
+}

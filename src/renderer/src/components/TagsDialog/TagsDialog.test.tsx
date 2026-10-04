@@ -2,6 +2,7 @@
 // `selectHarness` for the Select dropdowns, like TemplatesDialog.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
+import { rowText } from '../../test/rowText'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption } from '../../test/selectHarness'
 import { TagsDialog } from './TagsDialog'
@@ -80,7 +81,7 @@ function type(el: HTMLInputElement, value: string): void {
 
 const click = (el: Element): void => act(() => (el as HTMLElement).click())
 const rowNames = (r: RenderResult): string[] =>
-  [...r.container.querySelectorAll('[data-testid="tag-row"]')].map((row) => row.textContent ?? '')
+  [...r.container.querySelectorAll('[data-testid="tag-row"]')].map(rowText)
 
 describe('TagsDialog', () => {
   it('opens on the active workspace — its own tags only (strict scope); All tags shows every row', () => {
@@ -244,5 +245,15 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     click(q(r, '[data-testid="tag-select-t-deploy"]'))
     expect(r.container.querySelector('[data-testid="tag-placeholder"]')).toBeNull()
     expect(r.container.querySelector('#tag-name')).not.toBeNull()
+  })
+})
+
+describe('where each row lives (spec 2026-10-03 H)', () => {
+  it('every row carries a marker', () => {
+    const { r } = render()
+    chooseOption(r.container, 'tag-scope-filter', 'all')
+    const rows = [...r.container.querySelectorAll('[data-testid="tag-row"]')]
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) expect(row.querySelector('[data-testid="scope-marker"]')).not.toBeNull()
   })
 })

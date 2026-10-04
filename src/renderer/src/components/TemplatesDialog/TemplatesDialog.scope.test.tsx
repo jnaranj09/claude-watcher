@@ -7,6 +7,7 @@
 // file exercise, and why none of them noticed the filter arriving.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
+import { rowText } from '../../test/rowText'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionLabel, optionValues, selectedValue } from '../../test/selectHarness'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
@@ -96,9 +97,7 @@ function q<T extends Element>(r: RenderResult, sel: string): T {
 }
 
 function names(r: RenderResult): string[] {
-  return [...r.container.querySelectorAll('[data-testid="template-row"]')].map(
-    (el) => el.textContent ?? ''
-  )
+  return [...r.container.querySelectorAll('[data-testid="template-row"]')].map(rowText)
 }
 
 const FILTER = 'template-scope-filter'
@@ -202,5 +201,16 @@ describe('TemplatesDialog scope filter', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: null }))
     expect(selectedValue(r.container, FILTER)).toBe('global')
     expect(names(r)).toEqual(['ops-one'])
+  })
+})
+
+describe('where each row lives (spec 2026-10-03 H)', () => {
+  it('every row carries a marker', () => {
+    seed([GLOBAL, OWN])
+    const r = render()
+    chooseOption(r.container, FILTER, 'all')
+    const rows = [...r.container.querySelectorAll('[data-testid="template-row"]')]
+    expect(rows.length).toBeGreaterThan(1)
+    for (const row of rows) expect(row.querySelector('[data-testid="scope-marker"]')).not.toBeNull()
   })
 })
