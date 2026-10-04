@@ -56,6 +56,8 @@ If a rule file and the code disagree, the newer one wins. Check with `git log`. 
   silently re-decide").
 - A product-semantics change: what a status _means_, what counts as an alert, what the API
   exposes.
+- A new look for a meaning the app already draws (selected, current, hover, armed, a marker…).
+  Reuse the existing part (design.md "Reuse before you draw"); a different look needs the owner.
 
 For everything else, decide, record it, and continue.
 

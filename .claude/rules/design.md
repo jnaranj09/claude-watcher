@@ -10,6 +10,13 @@ built on ONE shell: `components/ManageDialog/` (`ManageDialog`, `useManageDialog
 `ManageDialog.ts`). Read a sibling dialog first. Two dialogs doing one job in two layouts is a
 defect. (`UX-DR<n>` ids come from design docs not in this tree; this file is the rule set.)
 
+**Reuse before you draw.** Before giving anything a look (selected, current, hover, focus, armed,
+disabled, empty, a divider, a marker), find where the app ALREADY draws that meaning and reuse
+that part or class. The meaning is what counts, not the component: a "current page" is a
+"selected row", so it gets the selected-row look. A NEW look for a meaning the app already draws
+is never an `[AGENT]` pick in a spec: stop and ask the owner. ("The standard was already on the
+settings page. No need to reinvent the wheel visually." — 2026-10-03)
+
 ## Canonical shape
 
 ```tsx
