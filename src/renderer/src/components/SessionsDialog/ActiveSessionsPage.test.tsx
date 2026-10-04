@@ -343,3 +343,64 @@ describe('Sessions → Active — details', () => {
     )
   })
 })
+
+describe('Sessions → Active — the arm and the visible rows (final review 2, 4b–4d)', () => {
+  const type = (r: RenderResult, value: string): void => {
+    const search = q<HTMLInputElement>(r, '[data-testid="active-session-search"]')
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(search, value)
+      search?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
+  it('an armed bulk Delete whose rows ended comes back at rest, never pre-armed', () => {
+    const r = render()
+    click(box(r, 'b'))
+    click(q(r, '[data-testid="active-bulk-delete"]'))
+    expect(text(r, 'active-bulk-delete')).toBe('Confirm delete')
+    act(() => {
+      const { b: _gone, ...rest } = SESSIONS
+      void _gone
+      boardStore.setState({ sessionsById: rest })
+    })
+    click(box(r, 'c'))
+    expect(text(r, 'active-bulk-delete')).toBe('Delete')
+    expect(q(r, '[data-testid="active-bulk-delete-hint"]')).toBeNull()
+  })
+
+  it('a half-failed bulk Delete stays armed: one more press retries', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    del.mockImplementation((t: string) =>
+      t === 'tc' ? Promise.reject(new Error('x')) : Promise.resolve()
+    )
+    const r = render()
+    click(box(r, 'b'))
+    click(box(r, 'c'))
+    click(q(r, '[data-testid="active-bulk-delete"]'))
+    click(q(r, '[data-testid="active-bulk-delete"]'))
+    await flush()
+    expect(text(r, 'active-bulk-delete')).toBe('Confirm delete')
+  })
+
+  it('a bulk Delete that all landed disarms: the next selection starts at rest', async () => {
+    const r = render()
+    click(box(r, 'b'))
+    click(q(r, '[data-testid="active-bulk-delete"]'))
+    click(q(r, '[data-testid="active-bulk-delete"]'))
+    await flush()
+    click(box(r, 'c'))
+    expect(text(r, 'active-bulk-delete')).toBe('Delete')
+  })
+
+  it('acts only on the checked rows the search leaves visible', async () => {
+    const r = render()
+    click(box(r, 'b'))
+    click(box(r, 'c'))
+    type(r, 'name-b')
+    expect(text(r, 'active-bulk-count')).toBe('1 selected')
+    click(q(r, '[data-testid="active-bulk-archive"]'))
+    await flush()
+    expect(archive.mock.calls.map((c) => c[0])).toEqual(['tb'])
+  })
+})

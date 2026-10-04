@@ -11,6 +11,8 @@
 import {
   Children,
   isValidElement,
+  useEffect,
+  useEffectEvent,
   useRef,
   type FormEvent,
   type JSX,
@@ -254,6 +256,13 @@ export function ManageDialogDelete({
 }: ManageDialogDeleteProps): JSX.Element {
   const { state, actions } = useManageDialogContext()
   const armed = state.armedKey === armKey
+  // An armed Delete that unmounts (the Active bulk bar once its rows end) must not leave the arm
+  // behind: React never calls the unmounting button's onBlur, and the next Delete with this key
+  // would come back already reading `Confirm delete` (final review 2).
+  const disarmIfArmed = useEffectEvent((): void => {
+    if (armed) actions.disarm()
+  })
+  useEffect(() => () => disarmIfArmed(), [])
 
   function handleClick(): void {
     if (busy) return

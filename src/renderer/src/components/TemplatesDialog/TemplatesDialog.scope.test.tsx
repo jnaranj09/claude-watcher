@@ -239,3 +239,22 @@ describe('Include global (spec 2026-10-03 H)', () => {
     expect(ids()).toEqual(['own'])
   })
 })
+
+describe('Include global closes what was open (final review 3)', () => {
+  it('unchecking it with a global row open closes the form: the row left the list', async () => {
+    stubSettings()
+    act(() => settingsStore.getState().applyPatch({ includeGlobal: true }))
+    seed([GLOBAL, OWN])
+    const r = render()
+    click(r.container.querySelector('[data-template-id="g"]') as Element)
+    expect(r.container.querySelector('[data-testid="template-name"]')).not.toBeNull()
+    await act(async () => {
+      r.container
+        .querySelector<HTMLInputElement>('[data-testid="template-include-global"]')
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(r.container.querySelector('[data-testid="template-name"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="template-placeholder"]')).not.toBeNull()
+  })
+})

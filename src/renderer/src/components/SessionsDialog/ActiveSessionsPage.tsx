@@ -46,6 +46,15 @@ export function ActiveSessionsPage({
   const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set())
   const searchRef = useRef<HTMLInputElement | null>(null)
   const allRef = useRef<HTMLInputElement | null>(null)
+  // False once this page unmounts (a page switch, or the dialog closed): a late Archive / Delete
+  // answer must never write into the shell of the page open now (final review 1).
+  const aliveRef = useRef(true)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
 
   // The dialog resets Global / `(no workspace)` on the way in (scopeOnPage); this keeps the type honest.
   const activeScope: PastScope = scope === 'global' || scope === 'orphans' ? 'all' : scope
@@ -98,6 +107,7 @@ export function ActiveSessionsPage({
   const exiting = useAsyncAction(async (verb: ExitVerb, ids: string[]): Promise<void> => {
     dialog.actions.setError(null)
     const outcomes = await exitSessions(verb, ids)
+    if (!aliveRef.current) return
     const landed = new Set(outcomes.filter((o) => o.ok).map((o) => o.id))
     setChecked((prev) => new Set([...prev].filter((id) => !landed.has(id))))
     const copy = exitResultCopy(verb, outcomes)

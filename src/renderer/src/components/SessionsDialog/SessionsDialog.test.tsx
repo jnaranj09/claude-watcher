@@ -10,6 +10,8 @@ import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { templatesStore } from '../../stores/templatesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
+import { boardStore } from '../../stores/boardStore'
+import { deferred } from '../../test/deferred'
 import type { Template, Workspace } from '../../../../shared/ipc/contract'
 
 const WS: Workspace[] = [
@@ -128,5 +130,50 @@ describe('SessionsDialog', () => {
     click(q(r, '[data-testid="sessions-page-templates"]'))
     await flush()
     expect(selectedValue(r.container, 'template-scope-filter')).toBe('all')
+  })
+})
+
+describe('a late Active-page exit (final review 1)', () => {
+  afterEach(() => act(() => boardStore.setState({ sessionsById: {}, terminalIdBySessionId: {} })))
+
+  it('never writes into the page open now, and never closes its form', async () => {
+    const held = deferred<void>()
+    ;(window as unknown as { launch: unknown }).launch = {
+      archiveSession: vi.fn(() => held.promise),
+      deleteSession: vi.fn()
+    }
+    act(() =>
+      boardStore.setState({
+        sessionsById: {
+          b: {
+            id: 'b',
+            sessionName: 'name-b',
+            projectPath: '/home/op/b',
+            status: 'x',
+            pid: 1,
+            column: 'idle',
+            enteredColumnAt: 0,
+            workspaceId: 'w1',
+            tagIds: []
+          }
+        },
+        terminalIdBySessionId: { b: 'tb' },
+        launchedTerminals: {},
+        selectedId: null
+      })
+    )
+    const r = render('active')
+    click(q(r, '[data-testid="active-session-select-b"]'))
+    click(q(r, '[data-testid="active-session-archive"]'))
+    click(q(r, '[data-testid="sessions-page-templates"]'))
+    await flush()
+    click(q(r, '[data-template-id="t1"]'))
+    expect(q(r, '[data-testid="template-name"]')).not.toBeNull()
+    await act(async () => {
+      held.resolve()
+      for (let i = 0; i < 6; i++) await Promise.resolve()
+    })
+    expect(q(r, '[data-testid="template-name"]')).not.toBeNull()
+    expect(q(r, '[data-testid="sessions-success"]')).toBeNull()
   })
 })

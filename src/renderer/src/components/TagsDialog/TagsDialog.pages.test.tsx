@@ -56,3 +56,13 @@ describe('TagsDialog — Tags · Rules pages', () => {
     expect(selectedValue(r.container, 'tag-scope-filter')).toBe('global')
   })
 })
+
+describe('TagsDialog — a page switch closes what was open (final review 4a)', () => {
+  it('+ New on Tags, then Rules: the Rules page shows its placeholder, never an empty form', () => {
+    const r = render('tags')
+    act(() => q(r, '[data-testid="tag-new"]')?.click())
+    expect(r.container.querySelector('#tag-name')).not.toBeNull()
+    act(() => q(r, '[data-testid="tags-page-rules"]')?.click())
+    expect(q(r, '[data-testid="rule-placeholder"]')).not.toBeNull()
+  })
+})

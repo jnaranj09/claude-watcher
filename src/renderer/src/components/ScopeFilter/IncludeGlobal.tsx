@@ -29,6 +29,8 @@ export function IncludeGlobal({
         data-testid={testId}
         checked={includeGlobal}
         onChange={(e) => {
+          // The list changes under the open row: close it, like a scope change (design.md).
+          actions.select(null)
           void persistSettingsPatch({ includeGlobal: e.target.checked }).catch(() =>
             actions.setError(INCLUDE_GLOBAL_SAVE_FAILED)
           )

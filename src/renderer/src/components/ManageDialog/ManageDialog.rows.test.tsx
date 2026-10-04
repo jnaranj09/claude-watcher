@@ -211,6 +211,9 @@ describe('ManageDialog.RowCheck (spec 2026-10-03 D)', () => {
     expect(check?.getAttribute('aria-label')).toBe('Select a')
     expect(check?.closest('button')).toBeNull()
     expect(check?.nextElementSibling).toBe(select)
+    // Drawn ONCE, outside the button: never a second copy inside it (final review 4e).
+    expect(r.container.querySelectorAll('[data-testid="check-a"]')).toHaveLength(1)
+    expect(select?.querySelector('input')).toBeNull()
   })
 
   it('checking it reports the new value and does NOT select the row', () => {
