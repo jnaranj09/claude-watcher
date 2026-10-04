@@ -4,9 +4,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { act } from 'react'
+import { act, type JSX } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { Popover } from './Popover'
+import { Presence } from '../Presence/Presence'
+import { pointerInput } from '../../test/pointerInput'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -163,5 +165,50 @@ describe('Popover.module.css', () => {
     expect(body('.item[data-tone]')).toMatch(/border-color: var\(--ws-border\);/)
     expect(body('.item[data-tone]:hover')).toMatch(/border-color: var\(--text-secondary\);/)
     expect(body('.item[data-tone]:hover')).toMatch(/background: var\(--ws-fill\);/)
+  })
+})
+
+describe('Popover.Surface — overlay motion (spec 2026-10-04 §4)', () => {
+  it('is marked data-leaving + inert inside a leaving Presence, and not otherwise', () => {
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    const tree = (open: boolean): JSX.Element => (
+      <Presence value={open || null}>
+        {() => (
+          <Popover.Surface testId="surf">
+            <span>x</span>
+          </Popover.Surface>
+        )}
+      </Presence>
+    )
+    const r = renderComponent(tree(true))
+    const surf = (): Element | null => r.container.querySelector('[data-testid="surf"]')
+    expect(surf()?.hasAttribute('data-leaving')).toBe(false)
+    act(() => {
+      r.root.render(tree(false))
+    })
+    expect(surf()?.hasAttribute('data-leaving')).toBe(true)
+    expect(surf()?.hasAttribute('inert')).toBe(true)
+    r.unmount()
+    vi.useRealTimers()
+    clearInput()
+  })
+
+  it('CSS: enters from opacity 0 + 4px up, leaves the same way, instant on keyboard and reduced motion', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Popover/Popover.module.css'),
+      'utf8'
+    )
+    expect(css).toMatch(
+      /@starting-style\s*\{\s*\.surface\s*\{\s*opacity:\s*0;\s*translate:\s*0 -4px;/
+    )
+    expect(css).toMatch(/\.surface\[data-leaving\]\s*\{[^}]*opacity:\s*0;[^}]*translate:\s*0 -4px;/)
+    expect(css).toMatch(/\.surface\[data-leaving\]\s*\{[^}]*var\(--motion-ease-exit\)/)
+    expect(css).toMatch(/:root\[data-input='keyboard'\] \.surface\s*\{\s*transition:\s*none;/)
+    expect(css).toMatch(
+      /prefers-reduced-motion: reduce\)\s*\{\s*\.surface\s*\{\s*transition:\s*none;/
+    )
+    // Never `transform`: callers' wrappers centre with it (ExpanderBox, the dead-pane menu).
+    expect(css).not.toMatch(/\.surface[^{]*\{[^}]*transform:/)
   })
 })

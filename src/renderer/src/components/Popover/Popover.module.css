@@ -20,6 +20,37 @@
   text-align: left;
 }
 
+/* Overlay motion (spec 2026-10-04 §4): fade in with a 4px drop, leave the same way. On the
+   SURFACE, never the caller's wrapper (ExpanderBox and the dead-pane menu centre their wrapper
+   with `transform`). `translate`, not `transform`, for the same reason. */
+.surface {
+  transition:
+    opacity var(--motion-enter) var(--motion-ease-enter),
+    translate var(--motion-enter) var(--motion-ease-enter);
+}
+@starting-style {
+  .surface {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+.surface[data-leaving] {
+  opacity: 0;
+  translate: 0 -4px;
+  pointer-events: none;
+  transition-duration: var(--motion-exit);
+  transition-timing-function: var(--motion-ease-exit);
+}
+/* Opened or closed from the keyboard: instant (it is done many times a day). */
+:root[data-input='keyboard'] .surface {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface {
+    transition: none;
+  }
+}
+
 /* A group with no divider before the list (a menu's search field) is still a group: it gets the
    group gap, not the row gap, or the field reads as the list's first row (spec
    2026-10-01-spacing-roles). A divider already spaces its own neighbours. */

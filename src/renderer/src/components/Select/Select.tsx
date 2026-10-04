@@ -19,6 +19,7 @@ import {
   type ReactNode
 } from 'react'
 import { Popover } from '../Popover/Popover'
+import { Presence } from '../Presence/Presence'
 import styles from './Select.module.css'
 
 export interface SelectOption<T extends string> {
@@ -146,35 +147,39 @@ export function Select<T extends string>({
           ▾
         </span>
       </button>
-      {open && (
-        <div className={align === 'end' ? `${styles.listWrap} ${styles.listEnd}` : styles.listWrap}>
-          <Popover.Surface>
-            <Popover.List
-              role="listbox"
-              aria-label={ariaLabel}
-              testId={`${testId}-list`}
-              onKeyDown={handleListKeyDown}
-            >
-              {options.map((o, i) => (
-                <Popover.Item
-                  key={o.value}
-                  buttonRef={(el) => {
-                    optionRefs.current[i] = el
-                  }}
-                  role="option"
-                  aria-selected={o.value === value}
-                  testId={`${testId}-option-${o.value}`}
-                  data-value={o.value}
-                  onClick={() => commit(o.value)}
-                >
-                  {o.adornment}
-                  <span className={styles.label}>{o.display ?? o.label}</span>
-                </Popover.Item>
-              ))}
-            </Popover.List>
-          </Popover.Surface>
-        </div>
-      )}
+      <Presence value={open || null}>
+        {() => (
+          <div
+            className={align === 'end' ? `${styles.listWrap} ${styles.listEnd}` : styles.listWrap}
+          >
+            <Popover.Surface>
+              <Popover.List
+                role="listbox"
+                aria-label={ariaLabel}
+                testId={`${testId}-list`}
+                onKeyDown={handleListKeyDown}
+              >
+                {options.map((o, i) => (
+                  <Popover.Item
+                    key={o.value}
+                    buttonRef={(el) => {
+                      optionRefs.current[i] = el
+                    }}
+                    role="option"
+                    aria-selected={o.value === value}
+                    testId={`${testId}-option-${o.value}`}
+                    data-value={o.value}
+                    onClick={() => commit(o.value)}
+                  >
+                    {o.adornment}
+                    <span className={styles.label}>{o.display ?? o.label}</span>
+                  </Popover.Item>
+                ))}
+              </Popover.List>
+            </Popover.Surface>
+          </div>
+        )}
+      </Presence>
     </div>
   )
 }

@@ -6,6 +6,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { Select, type SelectOption } from './Select'
+import { MOTION_EXIT_MS } from '../../styles/motion'
+import { pointerInput } from '../../test/pointerInput'
 
 const OPTIONS: SelectOption<'a' | 'b' | 'c'>[] = [
   { value: 'a', label: 'Alpha' },
@@ -212,5 +214,22 @@ describe('Select', () => {
     expect(css).toMatch(
       /\.listWrap\s*\{[^}]*position:\s*absolute;[^}]*top:\s*calc\(100% \+ var\(--space-1\)\);[^}]*left:\s*0;[^}]*z-index:\s*10;[^}]*min-width:\s*100%;[^}]*--popover-max-height:\s*244px;/
     )
+  })
+})
+
+describe('Select — the list fades out after a pointer pick (spec 2026-10-04 §4)', () => {
+  it('keeps the list leaving for MOTION_EXIT_MS, then removes it', () => {
+    const clearInput = pointerInput()
+    vi.useFakeTimers()
+    const r = render()
+    click(q(r, '[data-testid="letter"]'))
+    click(q(r, '[data-testid="letter-option-a"]'))
+    expect(q(r, '[data-popover]').hasAttribute('data-leaving')).toBe(true)
+    act(() => {
+      vi.advanceTimersByTime(MOTION_EXIT_MS)
+    })
+    expect(r.container.querySelector('[data-popover]')).toBeNull()
+    vi.useRealTimers()
+    clearInput()
   })
 })

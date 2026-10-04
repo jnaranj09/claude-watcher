@@ -12,6 +12,7 @@
 // one exception: the expander's highlighted row follows its own index, not focus.
 import type { ButtonHTMLAttributes, HTMLAttributes, JSX, ReactNode, Ref } from 'react'
 import { workspaceTintClass, type WorkspaceTone } from '../WorkspaceTint/workspaceTint'
+import { leavingProps, useLeaving } from '../Presence/leaving'
 import styles from './Popover.module.css'
 
 type DivProps = Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'style'>
@@ -29,12 +30,15 @@ export function PopoverSurface({
   children,
   ...rest
 }: PopoverSurfaceProps): JSX.Element {
+  // Inside a leaving <Presence>: play the exit (data-leaving) and let clicks pass (inert).
+  const leaving = useLeaving()
   return (
     <div
       {...rest}
       ref={surfaceRef}
       className={styles.surface}
       data-popover=""
+      {...leavingProps(leaving)}
       {...(testId !== undefined ? { 'data-testid': testId } : {})}
     >
       {children}
