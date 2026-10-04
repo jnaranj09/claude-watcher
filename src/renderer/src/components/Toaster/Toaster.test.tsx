@@ -166,3 +166,21 @@ describe('Toaster stylesheet', () => {
     expect(css).toMatch(/\.glyph\[data-kind='error'\]\s*\{[^}]*color:\s*var\(--danger\)/)
   })
 })
+
+describe('Toaster — motion (spec 2026-10-04 §7)', () => {
+  const css = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/Toaster/Toaster.module.css'),
+    'utf8'
+  )
+  it('enters and leaves by transition (interruptible), the same way: 8px below', () => {
+    expect(css).not.toContain('@keyframes')
+    expect(css).toMatch(/@starting-style\s*\{\s*\.toast\s*\{\s*opacity:\s*0;\s*translate:\s*0 8px;/)
+    expect(css).toMatch(/\.toast\[data-leaving\]\s*\{[^}]*opacity:\s*0;[^}]*translate:\s*0 8px;/)
+    expect(css).toMatch(/\.toast\[data-leaving\]\s*\{[^}]*var\(--motion-ease-exit\)/)
+  })
+  it('reduced motion keeps a fade with no movement', () => {
+    const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reduce).toMatch(/translate:\s*none;/)
+    expect(reduce).toMatch(/transition-property:\s*opacity;/)
+  })
+})

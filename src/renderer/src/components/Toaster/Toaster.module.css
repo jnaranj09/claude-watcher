@@ -31,11 +31,24 @@
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
   pointer-events: auto;
-  animation: toast-in 150ms ease-out;
+  transition:
+    opacity var(--motion-enter) var(--motion-ease-enter),
+    translate var(--motion-enter) var(--motion-ease-enter);
 }
 
+/* Enter and leave by TRANSITION (spec 2026-10-04 §7): a keyframe restarts from zero when toasts
+   fire fast; a transition picks up from where it is. It leaves the way it came: 8px down. */
+@starting-style {
+  .toast {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
 .toast[data-leaving] {
-  animation: toast-out 150ms ease-in forwards;
+  opacity: 0;
+  translate: 0 8px;
+  transition-duration: var(--motion-exit);
+  transition-timing-function: var(--motion-ease-exit);
 }
 
 .glyph {
@@ -83,40 +96,11 @@
   white-space: nowrap;
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes toast-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes toast-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
+/* Reduced motion keeps the fade the toast always had, with no movement. */
 @media (prefers-reduced-motion: reduce) {
-  .toast {
-    animation-name: toast-fade-in;
-  }
+  .toast,
   .toast[data-leaving] {
-    animation-name: toast-out;
+    translate: none;
+    transition-property: opacity;
   }
 }
