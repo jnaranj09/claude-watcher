@@ -35,6 +35,8 @@ const ALLOWED = new Set([
   'components/ManageDialog/ManageDialog.module.css scroll-padding-block: var(--inset-compact-x) calc(32px + var(--gap-actions) + var(--inset-compact-y) + var(--inset-compact-x))',
   // Geometry: a row reached by keyboard parks above the rail list's 32px end fade.
   'components/ManageDialog/ManageDialog.module.css scroll-padding-bottom: 32px',
+  // Geometry: Select all's box lines up with the row boxes past the row's 1px border.
+  'components/SessionsDialog/SessionsDialog.module.css padding-left: calc(var(--inset-item-x) + 1px)',
   // Geometry: the 14px search icon the text starts past.
   'components/TextInput/TextInput.module.css padding-left: calc(var(--inset-compact-x) + 14px + var(--gap-inline))',
   // The rail header and pinned slot compensate the rail's 1px right border.

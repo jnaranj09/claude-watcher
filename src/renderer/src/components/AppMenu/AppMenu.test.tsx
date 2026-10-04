@@ -117,10 +117,16 @@ describe('AppMenu', () => {
     ).not.toBeNull()
     click(q(r, 'app-menu-sessions'))
     expect(sessionsMenu(r)?.getAttribute('aria-label')).toBe('Sessions')
-    expect(labels(sessionsMenu(r))).toEqual(['Past sessions…', 'Templates…', 'Import session…'])
+    expect(labels(sessionsMenu(r))).toEqual([
+      'Active sessions…',
+      'Past sessions…',
+      'Templates…',
+      'Import session…'
+    ])
   })
 
   it.each([
+    ['active', 'Active sessions…'],
     ['past', 'Past sessions…'],
     ['templates', 'Templates…'],
     ['import', 'Import session…']
@@ -172,12 +178,12 @@ describe('AppMenu', () => {
     click(q(r, 'app-menu'))
     act(() => q(r, 'app-menu-sessions')?.focus())
     key(q(r, 'app-menu-sessions'), 'ArrowRight')
-    expect(document.activeElement).toBe(q(r, 'sessions-menu-past'))
-    key(q(r, 'sessions-menu-past'), 'ArrowLeft')
+    expect(document.activeElement).toBe(q(r, 'sessions-menu-active'))
+    key(q(r, 'sessions-menu-active'), 'ArrowLeft')
     expect(sessionsMenu(r)).toBeNull()
     expect(document.activeElement).toBe(q(r, 'app-menu-sessions'))
     key(q(r, 'app-menu-sessions'), 'ArrowRight')
-    key(q(r, 'sessions-menu-past'), 'Escape')
+    key(q(r, 'sessions-menu-active'), 'Escape')
     expect(sessionsMenu(r)).toBeNull()
     expect(mainMenu(r)).not.toBeNull()
     expect(document.activeElement).toBe(q(r, 'app-menu-sessions'))

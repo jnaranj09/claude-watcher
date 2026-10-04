@@ -1,5 +1,5 @@
 // Sessions (spec 2026-10-03 B) — ONE Manage dialog for everything about sessions, its pages in a
-// page column on the left. The page is the store's view-state (`boardStore.sessionsDialog`, never
+// page column on the left (Active · Past · Templates · Import). The page is the store's view-state (`boardStore.sessionsDialog`, never
 // persisted): App hands it in and takes page changes back. This dialog owns the shell state and
 // the scope, so a page switch closes what was open (the search lives in the page and goes with it)
 // but KEEPS the scope. UX-DR14: App guards every opener and closes it on the quit guard.
@@ -16,6 +16,7 @@ import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { PastSessionsPage } from '../PastSessionsDialog/PastSessionsPage'
 import { openingScope, type ScopeFilterValue } from '../ScopeFilter/scope'
 import { TemplatesPage } from '../TemplatesDialog/TemplatesPage'
+import { ActiveSessionsPage } from './ActiveSessionsPage'
 import { ImportSessionPage } from './ImportSessionPage'
 import { SESSIONS_PAGES, scopeOnPage } from './sessionsPages'
 
@@ -63,6 +64,8 @@ export function SessionsDialog({
 
   function body(): JSX.Element {
     switch (page) {
+      case 'active':
+        return <ActiveSessionsPage {...props} now={now} />
       case 'past':
         return <PastSessionsPage {...props} now={now} />
       case 'templates':

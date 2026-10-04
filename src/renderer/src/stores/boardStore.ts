@@ -50,7 +50,7 @@ import { effectiveTagFilter, useTags } from './tagsStore'
  */
 /** The Sessions dialog's pages (spec 2026-10-03 B). Transient view-state, never persisted — the
  *  dialog opens on the page it was asked for, like the Settings category. */
-export type SessionsPage = 'past' | 'templates' | 'import'
+export type SessionsPage = 'active' | 'past' | 'templates' | 'import'
 
 export interface StopConfirmPayload {
   /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */
@@ -1042,6 +1042,11 @@ export const selectColdLoaded = (state: BoardState): boolean => state.coldLoaded
 /** Story 2.2 (FR-9) — the SELECTED card's id (a primitive — safe without useShallow). The
  *  card with this id renders the selected affordance; null when nothing is selected. */
 export const selectSelectedId = (state: BoardState): string | null => state.selectedId
+
+/** Every live session by id — the Sessions dialog's Active page lists them across workspaces
+ *  (same object until a delta replaces it, so safe without `useShallow`). */
+export const selectSessionsById = (state: BoardState): Record<string, BoardSession> =>
+  state.sessionsById
 
 /** Story 3.2 (FR-11) — the current view mode (primitive). App.tsx switches Board ↔ Focused. */
 export const selectViewMode = (state: BoardState): 'board' | 'focused' => state.viewMode

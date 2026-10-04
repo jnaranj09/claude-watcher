@@ -71,6 +71,7 @@ type SubmenuId = 'tags' | 'sessions'
 
 /** The Sessions submenu's rows, in the dialog's page order. */
 const SESSIONS_ROWS: readonly { page: SessionsPage; label: string }[] = [
+  { page: 'active', label: 'Active sessions…' },
   { page: 'past', label: 'Past sessions…' },
   { page: 'templates', label: 'Templates…' },
   { page: 'import', label: 'Import session…' }
