@@ -1,16 +1,14 @@
 // Past sessions (D-6) — the Past PAGE of the Sessions dialog (spec 2026-10-03 E), on ManageDialog: a header scope
 // filter (`All sessions` · each workspace — no Global, no orphans: every record has a workspace
 // and the delete cascade keeps it so), a search box over the NAME, a FLAT list newest first, a
-// READ-ONLY form, and a [Forget] [Open] footer. The rail's bottom row resumes a claude session the
-// app did not launch, by its id. No `+ New` (there is nothing to create) and no
+// READ-ONLY form, and a [Forget] [Open] footer. Importing a session the app did not
+// launch is the dialog's Import page. No `+ New` (there is nothing to create) and no
 // RowActions. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
 // guard. Never logs a record value.
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
 import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
-import { useAsyncAction } from '../../hooks/useAsyncAction'
-import { Button } from '../Button/Button'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
@@ -25,7 +23,6 @@ import {
   forgetPastSession,
   loadPastSessions,
   openPastSession,
-  resumeSessionById,
   selectPastSessions,
   selectPastSessionsLoaded,
   usePastSessions
@@ -39,7 +36,6 @@ import {
   pastSessionsCapNote,
   pastSessionsEmptyCopy,
   relativeEnded,
-  resumeByIdErrorMessage,
   type PastScope
 } from './pastSessionsView'
 import styles from './PastSessionsDialog.module.css'
@@ -56,7 +52,6 @@ export function PastSessionsPage({
   const tags = useTags(selectTags)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const [query, setQuery] = useState('')
-  const [resumeId, setResumeId] = useState('')
   const [busy, setBusy] = useState(false)
   // THIS open's load failed. The store keeps the list it already held, but no empty sentence may
   // stand beside the error line: "No past sessions yet." is exactly what could not be checked.
@@ -151,25 +146,6 @@ export function PastSessionsPage({
     }
   }
 
-  /** Resume by id — a claude session the app did not launch. A paste is trimmed and lower-cased
-   *  (claude writes ids lower case; main compares them exactly). `already_open` takes the view to
-   *  the live card, like Open. */
-  const resumeById = useAsyncAction(async (): Promise<void> => {
-    const id = resumeId.trim().toLowerCase()
-    if (id.length === 0) return
-    dialog.actions.setError(null)
-    try {
-      await resumeSessionById(id)
-      dialog.actions.close()
-    } catch (err) {
-      if (isAlreadyOpenError(err) && (await focusLiveSession(id))) {
-        dialog.actions.close()
-        return
-      }
-      dialog.actions.setError(resumeByIdErrorMessage(err))
-    }
-  })
-
   return (
     <>
       <ManageDialog.Header>
@@ -234,41 +210,14 @@ export function PastSessionsPage({
               </p>
             )}
           </ManageDialog.Rows>
-          {/* The rail's bottom slot (siblings put `+ New` here; this dialog has none): Retry after
-                a failed load, Resume by id — a claude session started outside the app comes in by
-                its id — and the cap footnote under them. */}
+          {/* The rail's foot, behind a divider (a different region from the list): Retry after a
+              failed load, and the cap footnote. */}
           <ManageDialog.ListBottomDivided>
             {loadFailed && (
               <ManageDialog.GhostButton testId="past-sessions-retry" onClick={retryLoad}>
                 Retry
               </ManageDialog.GhostButton>
             )}
-            <form
-              className={styles.resumeById}
-              data-testid="past-session-resume-by-id"
-              onSubmit={(e) => {
-                e.preventDefault()
-                void resumeById.run()
-              }}
-            >
-              <TextInput
-                variant="inline"
-                testId="past-session-resume-id"
-                ariaLabel="Claude session id"
-                placeholder="Paste a claude session id"
-                value={resumeId}
-                onChange={setResumeId}
-              />
-              <Button
-                type="submit"
-                size="sm"
-                testId="past-session-resume-id-submit"
-                busy={resumeById.busy}
-                disabled={resumeId.trim().length === 0 || busy}
-              >
-                Resume
-              </Button>
-            </form>
             <ManageDialog.ListNote testId="past-sessions-cap-note">
               {pastSessionsCapNote(PAST_SESSIONS_MAX)}
             </ManageDialog.ListNote>
@@ -285,7 +234,7 @@ export function PastSessionsPage({
                 disabled={busy}
                 onConfirm={() => void confirmForget()}
               />
-              <ManageDialog.Save testId="past-session-open" disabled={busy || resumeById.busy}>
+              <ManageDialog.Save testId="past-session-open" disabled={busy}>
                 Open
               </ManageDialog.Save>
             </ManageDialog.Footer>

@@ -346,14 +346,6 @@ describe('ManageDialog region spacing', () => {
     expect(body).toMatch(/color:\s*var\(--text-secondary\)/)
   })
 
-  it('Past sessions` Resume row spans the slot (the slot is flex-start)', () => {
-    const past = readFileSync(
-      join(componentsDir, 'PastSessionsDialog/PastSessionsDialog.module.css'),
-      'utf8'
-    )
-    expect(ruleBody(past, '.resumeById')).toMatch(/align-self:\s*stretch/)
-  })
-
   it('title → description is --gap-field', () => {
     expect(ruleBody(css, '.headerText')).toMatch(/gap:\s*var\(--gap-field\)/)
   })

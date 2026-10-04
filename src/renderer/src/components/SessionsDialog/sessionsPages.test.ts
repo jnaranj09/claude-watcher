@@ -3,7 +3,7 @@ import { SESSIONS_PAGES, scopeOnPage } from './sessionsPages'
 
 describe('Sessions pages (spec 2026-10-03 B)', () => {
   it('lists the pages in order', () => {
-    expect(SESSIONS_PAGES.map((p) => p.label)).toEqual(['Past', 'Templates'])
+    expect(SESSIONS_PAGES.map((p) => p.label)).toEqual(['Past', 'Templates', 'Import'])
   })
 
   it('a session page never sits on Global or (no workspace): those fall back to All', () => {

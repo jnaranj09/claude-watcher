@@ -306,8 +306,10 @@ not load past sessions`, suppresses the empty sentence.
   nothing is kept in Past sessions. Claude's own files are not touched." — Cancel default-focused.
 - **No key archives** (R27); Archive button label names no chord.
 - `Esc to return` only while focus is outside the terminal.
-- Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` under the Resume-by-id row
-  in `ListBottomDivided` (behind a divider: a different region from the list).
+- Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` in `ListBottomDivided`
+  (behind a divider: a different region from the list). Importing a session the app did not
+  launch is the Sessions dialog's **Import** page (`pages | form`: `Claude session id`,
+  `Workspace` opening on the active one, `[Import]`; no explaining text).
 - `transcript_missing`: "Claude no longer has this conversation. Forget it to remove it from the
   list". `session_running_elsewhere`: "This session is running in another terminal. Close it there
   first" (dead pane: "This conversation is running…").

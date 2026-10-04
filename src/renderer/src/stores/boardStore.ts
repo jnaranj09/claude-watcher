@@ -50,7 +50,7 @@ import { effectiveTagFilter, useTags } from './tagsStore'
  */
 /** The Sessions dialog's pages (spec 2026-10-03 B). Transient view-state, never persisted — the
  *  dialog opens on the page it was asked for, like the Settings category. */
-export type SessionsPage = 'past' | 'templates'
+export type SessionsPage = 'past' | 'templates' | 'import'
 
 export interface StopConfirmPayload {
   /** The opaque terminalId to delete (via window.launch.deleteSession — CH.sessionDelete). */

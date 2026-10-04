@@ -7,7 +7,8 @@ import { ALL_SCOPE, type ScopeFilterValue } from '../ScopeFilter/scope'
 /** Page column order: the lists you manage first, the one-off action last. */
 export const SESSIONS_PAGES: readonly { id: SessionsPage; label: string }[] = [
   { id: 'past', label: 'Past' },
-  { id: 'templates', label: 'Templates' }
+  { id: 'templates', label: 'Templates' },
+  { id: 'import', label: 'Import' }
 ]
 
 /** A page that lists SESSIONS offers no Global and no `(no workspace)` (every session has a

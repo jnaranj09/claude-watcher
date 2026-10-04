@@ -59,17 +59,3 @@
 .none {
   color: var(--text-secondary);
 }
-
-/* Resume by id — a row in the rail's bottom slot (ManageDialog.ListBottom owns where the slot sits
-   and its spacing; UX-15's cap note is its ListNote). The row spans the slot; the field takes the
-   width, the button keeps its own. */
-.resumeById {
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  gap: var(--gap-inline);
-}
-.resumeById > :first-child {
-  flex: 1 1 auto;
-  min-width: 0;
-}

@@ -1,14 +1,15 @@
-// Resume by id — the rail's bottom row in Past sessions. jsdom `unit`; the same harness as
-// PastSessionsDialog.test.tsx.
+// Sessions → Import (spec 2026-10-03 E): a claude session the app did not launch, by its id, into
+// the workspace you pick. jsdom `unit`; the same harness as PastSessionsDialog.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
-import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
+import { SessionsDialog } from './SessionsDialog'
+import { chooseOption, selectedValue } from '../../test/selectHarness'
 import { pastSessionsStore } from '../../stores/pastSessionsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { boardStore } from '../../stores/boardStore'
-import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
+import type { Workspace } from '../../../../shared/ipc/contract'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -67,7 +68,7 @@ async function flush(): Promise<void> {
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
   const r = renderComponent(
-    <SessionsDialog page="past" onPageChange={() => {}} onClose={onClose} />
+    <SessionsDialog page="import" onPageChange={() => {}} onClose={onClose} />
   )
   cleanup = r.unmount
   return { r, onClose }
@@ -76,9 +77,9 @@ function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
 const q = (r: RenderResult, sel: string): HTMLElement | null =>
   r.container.querySelector<HTMLElement>(sel)
 const field = (r: RenderResult): HTMLInputElement | null =>
-  r.container.querySelector<HTMLInputElement>('[data-testid="past-session-resume-id"]')
+  r.container.querySelector<HTMLInputElement>('[data-testid="import-session-id"]')
 const submit = (r: RenderResult): HTMLButtonElement | null =>
-  r.container.querySelector<HTMLButtonElement>('[data-testid="past-session-resume-id-submit"]')
+  r.container.querySelector<HTMLButtonElement>('[data-testid="import-submit"]')
 
 function type(el: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
@@ -88,13 +89,21 @@ function type(el: HTMLInputElement, value: string): void {
   })
 }
 
-describe('Past sessions — Resume by id', () => {
-  it('shows the field and a disabled Resume while the field is empty or blank', async () => {
+describe('Sessions → Import (spec 2026-10-03 E)', () => {
+  it('is pages | form: an id field, a Workspace field, Import — and no explaining text', async () => {
     const { r } = render()
     await flush()
+    expect(q(r, '[data-manage-rows]')).toBeNull() // no list on this page
     expect(field(r)?.placeholder).toBe('Paste a claude session id')
-    expect(field(r)?.getAttribute('aria-label')).toBe('Claude session id')
-    expect(submit(r)?.textContent).toBe('Resume')
+    expect(q(r, 'label[for="import-session-id"]')?.textContent).toBe('Claude session id')
+    expect(submit(r)?.textContent).toBe('Import')
+    expect(q(r, '[data-testid="import-form"] p')).toBeNull() // no hint, no sentence
+    expect(document.activeElement).toBe(field(r))
+  })
+
+  it('Import is disabled while the id is empty or blank', async () => {
+    const { r } = render()
+    await flush()
     expect(submit(r)?.disabled).toBe(true)
     const input = field(r)
     if (input === null) throw new Error('no field')
@@ -102,17 +111,23 @@ describe('Past sessions — Resume by id', () => {
     expect(submit(r)?.disabled).toBe(true)
   })
 
-  it('resumes into the ACTIVE workspace, opens the terminal and closes the dialog', async () => {
+  it('the Workspace field opens on the ACTIVE workspace', async () => {
+    const { r } = render()
+    await flush()
+    expect(selectedValue(r.container, 'import-workspace')).toBe('w1')
+  })
+
+  it('imports into the CHOSEN workspace, opens the terminal and closes the dialog', async () => {
     const { r, onClose } = render()
     await flush()
+    chooseOption(r.container, 'import-workspace', 'default')
     const input = field(r)
     if (input === null) throw new Error('no field')
     type(input, ID)
     act(() => submit(r)?.click())
     await flush()
-    expect(resumeById).toHaveBeenCalledWith(ID, 'w1')
+    expect(resumeById).toHaveBeenCalledWith(ID, 'default')
     expect(boardStore.getState().launchedTerminals['term-7']).toBeDefined()
-    expect(boardStore.getState().focusedTerminalId).toBe('term-7')
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -138,7 +153,7 @@ describe('Past sessions — Resume by id', () => {
     type(input, ID)
     act(() => submit(r)?.click())
     await flush()
-    expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
+    expect(q(r, '[data-testid="import-error"]')?.textContent).toBe(
       'Claude has no conversation with that id'
     )
     expect(onClose).not.toHaveBeenCalled()
@@ -176,64 +191,5 @@ describe('Past sessions — Resume by id', () => {
     await flush()
     expect(boardStore.getState().focusedTerminalId).toBe('term-live')
     expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  describe('Open and Resume never run at once (two launches)', () => {
-    const REC: PastSession = {
-      id: 'sa',
-      name: 'billing api',
-      cwd: '/home/op/api',
-      workspaceId: 'w1',
-      tagIds: [],
-      launchedAt: 1_000,
-      endedAt: 5_000
-    }
-    const never = (): Promise<never> => new Promise<never>(() => {})
-    let open: ReturnType<typeof vi.fn>
-
-    beforeEach(() => {
-      open = vi.fn(never)
-      ;(window as unknown as { pastSessions: unknown }).pastSessions = {
-        list: vi.fn(() => Promise.resolve([REC])),
-        forget: vi.fn(),
-        open,
-        resumeById
-      }
-    })
-
-    async function selectRecord(r: RenderResult): Promise<void> {
-      await flush()
-      act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
-      await flush()
-    }
-    const openButton = (r: RenderResult): HTMLButtonElement | null =>
-      r.container.querySelector<HTMLButtonElement>('[data-testid="past-session-open"]')
-
-    it('Resume is disabled while Open is running', async () => {
-      const { r } = render()
-      await selectRecord(r)
-      const input = field(r)
-      if (input === null) throw new Error('no field')
-      type(input, ID)
-      expect(submit(r)?.disabled).toBe(false)
-      act(() => openButton(r)?.click())
-      await flush()
-      expect(open).toHaveBeenCalledTimes(1)
-      expect(submit(r)?.disabled).toBe(true)
-    })
-
-    it('Open is disabled while Resume is running', async () => {
-      resumeById.mockImplementationOnce(never)
-      const { r } = render()
-      await selectRecord(r)
-      expect(openButton(r)?.disabled).toBe(false)
-      const input = field(r)
-      if (input === null) throw new Error('no field')
-      type(input, ID)
-      act(() => submit(r)?.click())
-      await flush()
-      expect(resumeById).toHaveBeenCalledTimes(1)
-      expect(openButton(r)?.disabled).toBe(true)
-    })
   })
 })

@@ -16,6 +16,7 @@ import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { PastSessionsPage } from '../PastSessionsDialog/PastSessionsPage'
 import { openingScope, type ScopeFilterValue } from '../ScopeFilter/scope'
 import { TemplatesPage } from '../TemplatesDialog/TemplatesPage'
+import { ImportSessionPage } from './ImportSessionPage'
 import { SESSIONS_PAGES, scopeOnPage } from './sessionsPages'
 
 export interface SessionsDialogProps {
@@ -49,19 +50,16 @@ export function SessionsDialog({
     onPageChange(next)
   }
 
-  const props: DialogPageProps = {
-    scope,
-    setScope,
-    pages: (
-      <ManageDialog.Pages
-        label="Sessions pages"
-        pages={SESSIONS_PAGES}
-        current={page}
-        onSelect={switchPage}
-        testIdPrefix="sessions-page"
-      />
-    )
-  }
+  const pages = (
+    <ManageDialog.Pages
+      label="Sessions pages"
+      pages={SESSIONS_PAGES}
+      current={page}
+      onSelect={switchPage}
+      testIdPrefix="sessions-page"
+    />
+  )
+  const props: DialogPageProps = { scope, setScope, pages }
 
   function body(): JSX.Element {
     switch (page) {
@@ -69,6 +67,8 @@ export function SessionsDialog({
         return <PastSessionsPage {...props} now={now} />
       case 'templates':
         return <TemplatesPage {...props} />
+      case 'import':
+        return <ImportSessionPage pages={pages} />
     }
   }
 

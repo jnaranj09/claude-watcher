@@ -73,12 +73,15 @@ export async function openPastSession(id: string): Promise<PastSessionOpenResult
 }
 
 /**
- * Resume by id — a claude session the app did not launch, into the ACTIVE workspace (an id the
- * app already knows resumes as its record, in that record's workspace). `id` must already be
- * trimmed and lower-cased by the caller. Rethrows the code for the dialog's error line.
+ * Import (spec 2026-10-03 E) — a claude session the app did not launch, into the workspace the
+ * operator CHOSE on the Import page (an id the app already knows resumes as its record, in that
+ * record's workspace). `id` must already be trimmed and lower-cased by the caller. Rethrows the
+ * code for the page's error line.
  */
-export async function resumeSessionById(id: string): Promise<PastSessionOpenResult> {
-  const workspaceId = workspacesStore.getState().activeId
+export async function resumeSessionById(
+  id: string,
+  workspaceId: string
+): Promise<PastSessionOpenResult> {
   return openResumed(await window.pastSessions.resumeById(id, workspaceId))
 }
 
