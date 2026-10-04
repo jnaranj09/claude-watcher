@@ -15,9 +15,9 @@
    their overlay; its only child is the panel. `[role='dialog']` in every selector lifts it above
    the modules' `.overlay` / `.panel` whatever order the sheets load in.
    The SCRIM fades its colour, not the overlay's opacity, and the PANEL moves with
-   translate/scale while only its CONTENT fades: on Liquid Glass an element with opacity < 1 may
-   become a backdrop root and cut the panel's `::before` blur off from the board for the length of
-   the fade (guess, not checked — the built-app drive check decides). */
+   translate/scale while only its CONTENT fades: on Liquid Glass, opacity < 1 on the panel cuts its
+   `::before` blur off from the board for the length of the fade (measured 2026-10-04 with stripes
+   under the dialog: a fading panel showed them sharp; this shape keeps them blurred). */
 [role='dialog'][data-motion='dialog'] {
   transition: background-color var(--motion-enter) var(--motion-ease-enter);
 }

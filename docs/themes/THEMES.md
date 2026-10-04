@@ -311,6 +311,12 @@ What you can target:
   `[data-popover-divider]`, and `[data-popover-note]` (a muted line inside a popover: an empty list or a note). Row states are ARIA: `[aria-selected="true"]`,
   `[aria-checked="true"]`, `[aria-expanded="true"]`, plus `[data-active]`. Style popovers here,
   not by role: a new list in the app picks your look up with no change to your theme.
+- **Motion states.** A popover, dialog or toast that is closing keeps its box for 150 ms with
+  `[data-leaving]`; a modal overlay carries `[data-motion="dialog"]`. `<html>` carries
+  `[data-input="keyboard"]` or `[data-input="pointer"]` (the last input), and anything opened or
+  closed from the keyboard does not animate. If you add your own motion, gate it the same way and
+  under `prefers-reduced-motion`. Do not put `opacity` below 1 on an element whose child blurs
+  with `backdrop-filter` (or a `::before` that does): Chromium then cuts that blur off.
 - **Test ids.** `[data-testid="app-header"]`, `[data-testid="settings-panel"]`,
   `[data-testid="embedded-terminal"]` and the other `data-testid` attributes in the app. They are
   pinned by the app's tests, so they are stable.

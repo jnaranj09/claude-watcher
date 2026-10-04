@@ -439,6 +439,15 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   (+ `[data-density='compact']`, `[data-quiet]`, `[data-tone]`), `[data-popover-divider]`.
   `Popover.guard.test.ts` fails on a raw `role="menu"`/`listbox`/`option` or a `--shadow-pop` box
   elsewhere.
+- **Overlay motion** (spec `2026-10-04-overlay-motion-design.md`; values in `styles/motion.css`, not
+  theme tokens). A popover or modal renders through `<Presence value={x}>` (`open || null` for a
+  boolean), never `open && <…>`: it stays mounted `MOTION_EXIT_MS` with `data-leaving` + `inert`
+  after a POINTER close, and unmounts at once after a keyboard close or under reduced motion
+  (`lib/inputModality.ts` → `data-input` on `<html>`). `Popover.Surface` and the dialog frames read
+  the leaving state from context; the caller's positioned wrapper takes `leavingProps(leaving)` or
+  it swallows clicks during the exit (guard). Payload a fading dialog shows (busy label, error)
+  rides IN the Presence value. A surface that holds a submenu never fades its own opacity (it
+  cuts Liquid Glass's `::before` blur — measured).
 
 ## Testing CSS
 
