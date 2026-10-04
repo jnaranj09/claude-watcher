@@ -231,9 +231,20 @@ which relation two neighbours ARE. Items of one kind close, different regions cl
    it, so flush would cover the last field's focus ring. `scroll-padding-block` clears the whole
    footer box, so Tab never parks a field under it.
 6. **A new screen picks slots, not gaps.** Rail foot content goes in `ManageDialog.ListBottom`
-   (items `--gap-field` apart), a footnote in `ManageDialog.ListNote`. No slot fits → add one to
-   the shell with its role from the table, never a local gap in the component sheet. Themes may
-   restyle a region, never re-space it.
+   (items `--gap-field` apart), a footnote in `ManageDialog.ListNote`. A DIFFERENT region under
+   the list (a footnote, a bulk bar) goes in `ManageDialog.ListBottomDivided`: a divider with
+   `--gap-section` each side (rule 7); `+ New` alone keeps the plain slot. No slot fits → add one
+   to the shell with its role from the table, never a local gap in the component sheet. Themes
+   may restyle a region, never re-space it.
+7. **Space groups; an edge separates.** The eye reads one surface as one block, whatever the
+   distance. Space alone is enough only between items of the SAME kind (rows of a list, fields of
+   a form). Two DIFFERENT kinds of region on the same surface also need a visible edge: their own
+   fill, or a divider line between them. Measure space as the eye sees it (ink to ink, padding
+   included), not box to box: a row's own padding is space too.
+8. **A scroll region shows where it ends.** A frame, a fill or a divider marks its edge, so a row
+   cut by the scroll reads as "more below", not as broken layout, and what sits outside it is
+   clearly outside. Every `ManageDialog.Rows` fades its bottom 32px while more rows are below
+   (`useOverflowEnd`); none at rest.
 
 ## Board filter bar (`components/FilterBar/FilterBar.tsx`)
 
@@ -283,7 +294,7 @@ not load past sessions`, suppresses the empty sentence.
 - **No key archives** (R27); Archive button label names no chord.
 - `Esc to return` only while focus is outside the terminal.
 - Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` under the Resume-by-id row
-  in `ListBottom`.
+  in `ListBottomDivided` (behind a divider: a different region from the list).
 - `transcript_missing`: "Claude no longer has this conversation. Forget it to remove it from the
   list". `session_running_elsewhere`: "This session is running in another terminal. Close it there
   first" (dead pane: "This conversation is running…").
