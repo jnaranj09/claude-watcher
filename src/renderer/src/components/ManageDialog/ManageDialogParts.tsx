@@ -11,6 +11,7 @@
 import {
   Children,
   isValidElement,
+  useRef,
   type FormEvent,
   type JSX,
   type KeyboardEvent,
@@ -21,6 +22,7 @@ import {
   useManageDialogContext,
   type ManageDialogContextValue
 } from './manageDialogState'
+import { useOverflowEnd } from './useOverflowEnd'
 import styles from './ManageDialog.module.css'
 import { Button, type ButtonSize } from '../Button/Button'
 import { Callout } from '../Callout/Callout'
@@ -443,9 +445,15 @@ export function ManageDialogList({
 }
 
 /** The scrolling row list. Rows are its DIRECT children — the list is flat in every scope, never
- *  sectioned (design.md "Scoped lists"). */
+ *  sectioned (design.md "Scoped lists"). Fades at its end while more rows are below (rule 8). */
 export function ManageDialogRows({ children }: { children: ReactNode }): JSX.Element {
-  return <div className={styles.rows}>{children}</div>
+  const ref = useRef<HTMLDivElement | null>(null)
+  useOverflowEnd(ref)
+  return (
+    <div className={styles.rows} ref={ref} data-manage-rows="">
+      {children}
+    </div>
+  )
 }
 
 export interface ManageDialogRowProps {

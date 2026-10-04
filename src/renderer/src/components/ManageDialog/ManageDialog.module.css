@@ -116,6 +116,13 @@
   overflow-y: auto;
   max-height: 360px;
 }
+/* More rows below the visible end: the bottom 32px fades out (design.md rule 8), so a row cut by
+   the scroll reads as "more below", not as broken layout. `useOverflowEnd` sets the attribute; at
+   the end, or when everything fits, there is no mask and the last row (and its focus ring) is
+   whole. `black`/`transparent` are mask alpha, not colours. 32px is geometry: about one row. */
+.rows[data-overflow-end] {
+  mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent);
+}
 .row {
   display: flex;
   align-items: center;

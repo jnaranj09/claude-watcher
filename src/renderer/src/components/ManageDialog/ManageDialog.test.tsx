@@ -466,3 +466,51 @@ describe('ManageDialog.ListBottomDivided (spec 2026-10-03 I)', () => {
     expect(q(r, '[data-manage-list-bottom] [data-testid="things-new"]')).toBeTruthy()
   })
 })
+
+/** jsdom has no layout: give the scroll box the sizes a real one would have. */
+function setBox(
+  el: HTMLElement,
+  box: { clientHeight: number; scrollHeight: number; scrollTop: number }
+): void {
+  for (const [key, value] of Object.entries(box)) {
+    Object.defineProperty(el, key, { configurable: true, writable: true, value })
+  }
+}
+
+describe('ManageDialog.Rows — the end fade (spec 2026-10-03 I)', () => {
+  it('marks overflow-end while rows sit below the visible end, and clears it at the bottom', () => {
+    const r = renderState()
+    const rows = q<HTMLElement>(r, '[data-manage-rows]')
+    setBox(rows, { clientHeight: 100, scrollHeight: 300, scrollTop: 0 })
+    act(() => {
+      rows.dispatchEvent(new Event('scroll'))
+    })
+    expect(rows.hasAttribute('data-overflow-end')).toBe(true)
+    setBox(rows, { clientHeight: 100, scrollHeight: 300, scrollTop: 200 })
+    act(() => {
+      rows.dispatchEvent(new Event('scroll'))
+    })
+    expect(rows.hasAttribute('data-overflow-end')).toBe(false)
+  })
+
+  it('no fade when everything fits', () => {
+    const r = renderState()
+    const rows = q<HTMLElement>(r, '[data-manage-rows]')
+    setBox(rows, { clientHeight: 300, scrollHeight: 300, scrollTop: 0 })
+    act(() => {
+      rows.dispatchEvent(new Event('scroll'))
+    })
+    expect(rows.hasAttribute('data-overflow-end')).toBe(false)
+  })
+
+  it('re-checks when rows are added without a scroll (async load, search)', async () => {
+    const r = renderState()
+    const rows = q<HTMLElement>(r, '[data-manage-rows]')
+    setBox(rows, { clientHeight: 100, scrollHeight: 300, scrollTop: 0 })
+    await act(async () => {
+      rows.appendChild(document.createElement('div'))
+      await Promise.resolve() // MutationObserver callbacks run as a microtask
+    })
+    expect(rows.hasAttribute('data-overflow-end')).toBe(true)
+  })
+})

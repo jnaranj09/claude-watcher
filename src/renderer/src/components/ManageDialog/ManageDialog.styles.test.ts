@@ -370,6 +370,16 @@ describe('ManageDialog region spacing', () => {
       /\.rows:has\(\+ \.listBottomDivided\)\s*\{[^}]*margin-bottom:\s*calc\(var\(--gap-section\) - var\(--gap-group\)\)/
     )
   })
+
+  it('the list fades at its end only while more rows are below (design.md rule 8)', () => {
+    // Raw-sheet match: `[` in the selector would break `ruleBody`'s RegExp.
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(stripped).toMatch(
+      /\.rows\[data-overflow-end\]\s*\{[^}]*mask-image:\s*linear-gradient\(to bottom, black calc\(100% - 32px\), transparent\)/
+    )
+    // Exactly one mask in the sheet, and it is that rule: never on the plain .rows at rest.
+    expect(stripped.match(/mask-image/g)).toHaveLength(1)
+  })
 })
 
 // Region spacing inside the dialogs' own sheets (spec 2026-10-02-region-spacing-design.md).
