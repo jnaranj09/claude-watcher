@@ -196,6 +196,19 @@
   align-items: flex-start;
   gap: var(--gap-field);
 }
+/* A DIFFERENT region under the list (Past sessions' foot, a bulk bar) — `ListBottomDivided`. Space
+   alone reads as one block (design.md rule 7), so it gets an edge: a divider with --gap-section on
+   each side. Below the line: this padding. Above it: the rail's --gap-group plus the rows' margin
+   below. `stretch`: the line spans the rail; the slot's own items stay flex-start. `+ New` alone is
+   the list's own action and keeps the plain slot. */
+.listBottomDivided {
+  align-self: stretch;
+  border-top: 1px solid var(--border);
+  padding-top: var(--gap-section);
+}
+.rows:has(+ .listBottomDivided) {
+  margin-bottom: calc(var(--gap-section) - var(--gap-group));
+}
 /* A footnote under the slot's action (Past sessions' cap). --text-secondary on the raised panel. */
 .listNote {
   margin: 0;

@@ -543,6 +543,20 @@ export function ManageDialogListBottom({ children }: { children: ReactNode }): J
   )
 }
 
+/** The bottom slot for a DIFFERENT region under the list (a footnote, a bulk bar): the same slot,
+ *  behind a divider (design.md rule 7). `+ New` alone uses the plain `ListBottom`. */
+export function ManageDialogListBottomDivided({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <div
+      className={cx(styles.listBottom, styles.listBottomDivided)}
+      data-manage-list-bottom=""
+      data-manage-list-divided=""
+    >
+      {children}
+    </div>
+  )
+}
+
 /** A footnote under the bottom slot's action (Past sessions' cap) — meta size, secondary text. */
 export function ManageDialogListNote({
   testId,

@@ -357,6 +357,19 @@ describe('ManageDialog region spacing', () => {
   it('title → description is --gap-field', () => {
     expect(ruleBody(css, '.headerText')).toMatch(/gap:\s*var\(--gap-field\)/)
   })
+
+  it('a different region under the list sits behind a divider, --gap-section each side (spec 2026-10-03 I)', () => {
+    const body = ruleBody(css, '.listBottomDivided')
+    expect(body).toMatch(/border-top:\s*1px solid var\(--border\)/)
+    expect(body).toMatch(/padding-top:\s*var\(--gap-section\)/)
+    // The line spans the rail; the slot's own items stay flex-start.
+    expect(body).toMatch(/align-self:\s*stretch/)
+    // Above the line: the rail's --gap-group plus the rows' margin = --gap-section. Matched on the
+    // raw sheet: `ruleBody` builds a RegExp from the selector, and `(`, `+` would break it.
+    expect(css).toMatch(
+      /\.rows:has\(\+ \.listBottomDivided\)\s*\{[^}]*margin-bottom:\s*calc\(var\(--gap-section\) - var\(--gap-group\)\)/
+    )
+  })
 })
 
 // Region spacing inside the dialogs' own sheets (spec 2026-10-02-region-spacing-design.md).

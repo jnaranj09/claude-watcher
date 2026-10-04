@@ -429,3 +429,40 @@ describe('ManageDialog.Pane', () => {
     expect(text(r, 'sp-armed')).toBe('false')
   })
 })
+
+function DividedHarness(): JSX.Element {
+  const dialog = useManageDialog({ title: 'Things', testIdPrefix: 'things', onClose: () => {} })
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Columns>
+          <ManageDialog.List>
+            <ManageDialog.Rows>{null}</ManageDialog.Rows>
+            <ManageDialog.ListBottomDivided>
+              <ManageDialog.ListNote testId="things-note">A footnote.</ManageDialog.ListNote>
+            </ManageDialog.ListBottomDivided>
+          </ManageDialog.List>
+          <ManageDialog.Placeholder testId="things-placeholder">
+            Select a thing on the left.
+          </ManageDialog.Placeholder>
+        </ManageDialog.Columns>
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
+
+describe('ManageDialog.ListBottomDivided (spec 2026-10-03 I)', () => {
+  it('is the bottom slot, marked divided, holding its children', () => {
+    const r = renderComponent(<DividedHarness />)
+    cleanup = r.unmount
+    const slot = q(r, '[data-manage-list-divided]')
+    expect(slot.hasAttribute('data-manage-list-bottom')).toBe(true)
+    expect(slot.querySelector('[data-testid="things-note"]')).toBeTruthy()
+  })
+
+  it('+ New keeps the plain slot (no divider)', () => {
+    const r = renderState()
+    expect(r.container.querySelector('[data-manage-list-divided]')).toBeNull()
+    expect(q(r, '[data-manage-list-bottom] [data-testid="things-new"]')).toBeTruthy()
+  })
+})
