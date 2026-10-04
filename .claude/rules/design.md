@@ -60,11 +60,16 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - Settings-like surface: CATEGORIES are rail rows (Notifications, Appearance, Terminal, Keyboard,
   API), opens on the first (`initialSelectedId`), right column is `ManageDialog.Pane` headed by the
   category. New setting → existing category; new category is a design question.
+- **One selected look.** Every list where ONE entry is the current one — rail rows, Settings
+  categories, the page column — draws it the same way: the row markup (`.row` + `.rowSelect`) and
+  `.row[data-selected='true']` (`--bg-surface` fill, `--border-strong` edge). Never a second
+  "selected" style (a bar, a tint, bold text) for another list. Hover is the shared `.rowSelect`
+  hover.
 - **Page column** (spec 2026-10-03 C): a dialog with SIBLING pages (Sessions: Active · Past ·
   Templates · Import; Tags: Tags · Rules) puts them in `ManageDialog.Pages` at the far left —
   `pages | rail | form`, or `pages | form` with no list. Text rows, a `nav` with
-  `aria-current="page"`; the current page is primary ink + a 2px `--border-strong` bar, NO fill,
-  so it never looks like the selected row. Never tabs, never a second dialog. The dialog owns the
+  `aria-current="page"`; its rows ARE rail rows, so the current page has the one selected look
+  (above), the same as a Settings category. Never tabs, never a second dialog. The dialog owns the
   scope (it survives a page switch) and the shell state; each page renders `Header` + `Columns`
   (page column first) + `Message` and takes `DialogPageProps`. A page switch closes what was open.
 - No exceptions: a surface that "needs" a table or card is a design question.
