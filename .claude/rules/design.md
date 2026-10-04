@@ -244,7 +244,8 @@ which relation two neighbours ARE. Items of one kind close, different regions cl
 8. **A scroll region shows where it ends.** A frame, a fill or a divider marks its edge, so a row
    cut by the scroll reads as "more below", not as broken layout, and what sits outside it is
    clearly outside. Every `ManageDialog.Rows` fades its bottom 32px while more rows are below
-   (`useOverflowEnd`); none at rest.
+   (`useOverflowEnd`); none at rest. `scroll-padding-bottom: 32px` parks a row reached by keyboard
+   above the fade.
 
 ## Board filter bar (`components/FilterBar/FilterBar.tsx`)
 

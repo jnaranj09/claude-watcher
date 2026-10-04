@@ -115,6 +115,8 @@
   flex: 1;
   overflow-y: auto;
   max-height: 360px;
+  /* A row reached by keyboard parks above the end fade, not inside it (same 32px). */
+  scroll-padding-bottom: 32px;
 }
 /* More rows below the visible end: the bottom 32px fades out (design.md rule 8), so a row cut by
    the scroll reads as "more below", not as broken layout. `useOverflowEnd` sets the attribute; at

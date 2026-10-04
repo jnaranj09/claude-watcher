@@ -380,6 +380,12 @@ describe('ManageDialog region spacing', () => {
     // Exactly one mask in the sheet, and it is that rule: never on the plain .rows at rest.
     expect(stripped.match(/mask-image/g)).toHaveLength(1)
   })
+
+  it('a row reached by keyboard parks above the fade, not inside it', () => {
+    // Chromium scrolls a focused row to the nearest edge; without this its lower 32px (and focus
+    // ring) would sit in the faded band. Same length as the fade.
+    expect(ruleBody(css, '.rows')).toMatch(/scroll-padding-bottom:\s*32px/)
+  })
 })
 
 // Region spacing inside the dialogs' own sheets (spec 2026-10-02-region-spacing-design.md).
