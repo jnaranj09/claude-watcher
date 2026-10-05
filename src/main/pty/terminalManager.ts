@@ -22,6 +22,7 @@
 // resize-math / flow-control accounting WITHOUT a real port or pty. The real
 // `MessagePortMain` is adapted to `PortLike` in `src/main/ipc/registerTerminalIpc.ts`. [Source:
 //  architecture.md:512/:553-559; AR-11; src/main/kde/tray.ts DI-seam precedent]
+import * as path from 'path'
 import type { IPtyLike, PtyFactory, CreatePtyOptions } from './ptyFactory'
 import { createPty as defaultCreatePty } from './ptyFactory'
 import { createFlowController, type FlowControlOptions } from './flowControl'
@@ -322,7 +323,16 @@ export function createTerminalManager(options: TerminalManagerOptions): Terminal
     try {
       // Story 3.2 — the launch passes a spawnOverride (file='claude', cwd=<picked>); without it
       // this is the Story-3.1 shell spawn (spawnDefaults), unchanged.
-      term = ptyFactory({ ...options.spawnDefaults, ...spawnOverride, cols, rows })
+      // The cwd is normalized HERE, the one spawn call: node-pty copies it into env.PWD and bash
+      // keeps an inherited PWD that names the same folder — slash included — so a stored
+      // `…/proj/` printed an empty `\W` in the operator's prompt (2026-10-05).
+      const spawn = { ...options.spawnDefaults, ...spawnOverride }
+      term = ptyFactory({
+        ...spawn,
+        ...(spawn.cwd !== undefined ? { cwd: path.resolve(spawn.cwd) } : {}),
+        cols,
+        rows
+      })
     } catch {
       // A spawn failure degrades to an immediate dead-terminal signal — NEVER throws across
       // the seam (never-crash; the renderer shows the dead pane). Close the just-transferred

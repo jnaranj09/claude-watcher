@@ -634,6 +634,25 @@ describe('createTerminalManager — Story 3.2 pidOf + spawnOverride', () => {
       cwd: '/home/op/proj'
     })
   })
+
+  // A folder stored with a trailing slash reached the pty verbatim; node-pty sets env.PWD = cwd
+  // and bash keeps that PWD, so `\W` in the operator's PS1 printed nothing (2026-10-05).
+  it('normalizes the spawn cwd: a trailing slash is dropped, a clean cwd is unchanged, none stays none', () => {
+    const cwds: Array<string | undefined> = []
+    const ptyFactory: PtyFactory = (opts) => {
+      cwds.push(opts.cwd)
+      return makeFakePty().pty
+    }
+    const mgr = createTerminalManager({
+      ptyFactory,
+      spawnDefaults: { file: '/bin/bash' },
+      onExit: vi.fn()
+    })
+    mgr.open('a', makeFakePort([]).port, 80, 24, { cwd: '/home/op/proj/' })
+    mgr.open('b', makeFakePort([]).port, 80, 24, { cwd: '/home/op/proj' })
+    mgr.open('c', makeFakePort([]).port, 80, 24)
+    expect(cwds).toEqual(['/home/op/proj', '/home/op/proj', undefined])
+  })
 })
 
 // REGRESSION (2026-08-27). `onInput` was added to the SPAWN port's message handler only.
