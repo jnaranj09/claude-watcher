@@ -45,12 +45,19 @@ describe('buildHookResponseBody', () => {
     'PreToolUse',
     'PostToolUse',
     'Notification',
+    // A body on PermissionRequest can carry a permission decision (allow/deny a tool). The
+    // app only watches: it must always answer this one with an empty 200 (ST-5).
+    'PermissionRequest',
+    // A body on Elicitation / ElicitationResult can accept, decline or rewrite an MCP server's
+    // input form for the operator. The app only watches: always an empty 200 (ST-6).
+    'Elicitation',
+    'ElicitationResult',
     'SomeFutureEvent'
   ])('returns null for %s even WITH a pending title', (eventName) => {
     // UserPromptSubmit is the only event verified to accept sessionTitle on output AND to
     // report session_title on input, so it is the only one the name round-trips through.
-    // SessionStart is explicitly excluded: never observed firing under `claude -p`, so its
-    // behaviour is unverified, and a mid-session rename could never reach it anyway.
+    // SessionStart never reaches an http hook (ST-7), and a mid-session rename could never
+    // reach it anyway.
     expect(buildHookResponseBody(eventName, takesOnce('billing api'))).toBeNull()
   })
 

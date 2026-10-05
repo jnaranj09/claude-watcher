@@ -93,7 +93,28 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
 - **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
   otherwise) — don't narrow.
 - **Status rules:** turn ending with `background_tasks` running = `Working` (until next event; Esc
-  always demotes to idle). `PreToolUse`/`PostToolUse` never pull a card out of `NeedsPermission`
-  (R20); Enter/`1`/`2` in that terminal → `Working` (R4, `code=permission_answered_key`).
-  `pendingToolName` set only while waiting (R14). `SessionStart source:"compact"` ignored (R19).
+  demotes any card not already idle). Ctrl+C demotes only a `Working` card (ST-4: an early cancel
+  sends no hook and no marker; idle prompt: not an interrupt; needs-you: not counted, unprobed) —
+  `interruptDemotes`. Tool events never pull a card out of `NeedsPermission` (R20) — except
+  the `PostToolUse`/`PostToolUseFailure` whose `tool_use_id` opened the last open prompt (ST-1: a
+  click or shift+tab answer sends nothing else). `PermissionRequest` has no `tool_use_id`: it opens
+  the prompt for the same `agent_id`'s last `PreToolUse`, only if the tool names match;
+  `PreToolUse(AskUserQuestion)` opens its own. Any non-tool status but `NeedsPermission` closes every
+  open prompt (a denied one sends no tool event). Enter/`1`/`2` in that terminal → `Working` (R4,
+  `code=permission_answered_key`), except while an AskUserQuestion prompt is open (ST-2: Enter may
+  answer question 1 only; its PostToolUse is the way out; one with no `tool_use_id` keeps R4). `pendingToolName` set only while waiting (R14).
+  `PermissionRequest` (dialog open, 6 s before its `Notification`) → `NeedsPermission`, except
+  AskUserQuestion (ST-5). An API error ends the turn
+  with `StopFailure` and no `Stop` → `YourTurn` (ST-3). A dialog waiting on the operator
+  (`Notification` `permission_prompt`, `worker_permission_prompt`, `agent_needs_input`) →
+  `NeedsPermission`; an MCP server asking for input (`Elicitation`, then
+  `Notification(elicitation_dialog|elicitation_url_dialog)` 6 s later) → `NeedsAttention`, ended by
+  `ElicitationResult` → `Working` or the MCP tool's `PostToolUse`; both elicitation sides act as tool
+  events (never out of `NeedsPermission`) and get an empty 200, never an action (ST-6). A manual `/compact`
+  sends only `PreCompact`/`PostCompact` (`trigger:"manual"`) → `Working` / `YourTurn`; `auto`
+  (mid-turn) is ignored, so it never touches an open prompt; a failed compact sends no
+  `PostCompact` (ST-8). `!` bash mode sends nothing: known limit, no heuristic. claude refuses http hooks for `SessionStart`/`Setup`, so neither is registered:
+  `/clear` is seen as `SessionEnd reason:"clear"` on a live pty → `WaitingForInput` under the old
+  id, then adoption (ST-7, `clearedSessionStatus`); a fresh spawn stays `Connecting` until its
+  first prompt.
   Hook body cap 8 MiB (R22).

@@ -36,11 +36,29 @@ export type HookStatusChange =
       /** `PreToolUse` only: the tool claude is about to run. The reducer remembers the last one,
        *  because the `Notification(permission_prompt)` that follows does not name it (R14). */
       toolName?: string
-      /** A `PreToolUse` / `PostToolUse` status. It never pulls a card OUT of `NeedsPermission`:
+      /** A `PreToolUse` / `PostToolUse` status, or an MCP server's input form opening or being
+       *  answered from inside its tool call (ST-6). It never pulls a card OUT of `NeedsPermission`:
        *  a parallel subagent's tool events would otherwise clear a prompt that is still open
        *  (R20). The approval keystroke (`approvedLaunched`), a prompt, a Stop or an interrupt
        *  still do. */
       fromTool?: true
+      /** The tool call this event belongs to (`tool_use_id`: PreToolUse, PostToolUse,
+       *  PostToolUseFailure). Opaque. */
+      toolUseId?: string
+      /** The subagent that sent it (`agent_id`); absent = the main agent. Opaque. */
+      agentId?: string
+      /** PostToolUse / PostToolUseFailure: the tool call is over. When it is the call that opened
+       *  the last open prompt, it DOES pull the card out of `NeedsPermission`: a prompt answered by
+       *  click or shift+tab sends no key the app can read, only this (ST-1). */
+      toolDone?: true
+      /** PermissionRequest / PreToolUse(AskUserQuestion): a prompt for a tool call just opened.
+       *  With no `toolUseId` (PermissionRequest carries none) it is the same agent's last
+       *  PreToolUse, and only when the tool names match. */
+      opensPrompt?: true
+      /** The approval keystroke (R4, `pty/approvalKey.ts`). Ignored while an AskUserQuestion
+       *  prompt is open: Enter may answer only its first question, and its own PostToolUse is the
+       *  way out (ST-2). */
+      fromKey?: true
     }
   | { kind: 'removed' }
 
@@ -212,6 +230,11 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   const map = new Map<string, Session>()
   // The tool of each session's last PreToolUse — what a following permission prompt is for.
   const lastToolName = new Map<string, string>()
+  // ST-1 — per session: each agent's last PreToolUse (key: `agent_id`, '' = the main agent), and
+  // the tool calls whose prompt is open (id → tool name). A prompt closes when its own tool call
+  // finishes.
+  const lastPreTool = new Map<string, Map<string, { toolUseId: string; toolName?: string }>>()
+  const openPrompts = new Map<string, Map<string, string | undefined>>()
   // The epoch is a CONSTANT 0 in the native engine (no snapshot reconcile ever bumps
   // it). Kept in the frame so the renderer's `payload.epoch < state.epoch` stale-drop
   // contract is untouched (0 < 0 is false → every delta applies).
@@ -243,13 +266,19 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       // SessionEnd / stop / exit: remove the session from the map and emit session.removed.
       map.delete(id)
       lastToolName.delete(id)
+      lastPreTool.delete(id)
+      openPrompts.delete(id)
       lastApplied = now()
       return [frame(toRemoved(id, stored))]
     }
 
     // kind === 'status': hooks own the status — update it, keep the other fields.
+    if (change.fromKey === true && questionOpen(id)) return []
     if (change.toolName !== undefined) lastToolName.set(id, change.toolName)
-    if (change.fromTool === true && stored.status === 'NeedsPermission') return []
+    const closedLastPrompt = trackPrompts(id, change)
+    if (change.fromTool === true && stored.status === 'NeedsPermission' && !closedLastPrompt) {
+      return []
+    }
     // `pendingToolName` names the tool the card WAITS on, so it lives only as long as the wait:
     // the last PreToolUse's tool for a permission prompt, AskUserQuestion for its own question,
     // and nothing for any other status (R14 — nothing set it before, so every permission alert
@@ -266,6 +295,56 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     map.set(id, updated)
     lastApplied = now()
     return [frame(toUpdated(updated))]
+  }
+
+  /**
+   * ST-1 — keep the open-prompt bookkeeping for one status change. Returns true only when this
+   * change is a finished tool call that closed the LAST open prompt: the one tool event allowed
+   * to pull a card out of `NeedsPermission`. Every other tool event keeps R20 (a parallel
+   * subagent's calls have other ids).
+   */
+  function trackPrompts(id: string, change: HookStatusChange & { kind: 'status' }): boolean {
+    const agent = change.agentId ?? ''
+    const scopes =
+      lastPreTool.get(id) ?? new Map<string, { toolUseId: string; toolName?: string }>()
+    lastPreTool.set(id, scopes)
+    const prompts = openPrompts.get(id) ?? new Map<string, string | undefined>()
+    openPrompts.set(id, prompts)
+
+    if (change.toolDone === true) {
+      if (change.toolUseId === undefined) return false
+      if (scopes.get(agent)?.toolUseId === change.toolUseId) scopes.delete(agent)
+      return prompts.delete(change.toolUseId) && prompts.size === 0
+    }
+    if (change.fromTool === true && change.toolUseId !== undefined) {
+      const pre: { toolUseId: string; toolName?: string } = { toolUseId: change.toolUseId }
+      if (change.toolName !== undefined) pre.toolName = change.toolName
+      scopes.set(agent, pre)
+    }
+    if (change.opensPrompt === true) {
+      const last = scopes.get(agent)
+      const promptId =
+        change.toolUseId ??
+        (last !== undefined && last.toolName === change.toolName ? last.toolUseId : undefined)
+      if (promptId !== undefined) prompts.set(promptId, change.toolName)
+      return false
+    }
+    // A prompt, a Stop, an interrupt or the approval key: every open prompt is over (a denied one
+    // sends no tool event, so its id must not linger and hold a later prompt open).
+    if (change.fromTool !== true && change.status !== 'NeedsPermission') prompts.clear()
+    return false
+  }
+
+  /**
+   * ST-2 — is an AskUserQuestion prompt open? Then a key cannot be read as its answer (Enter on a
+   * multi-question one answers question 1 only), and its own PostToolUse will close it. A question
+   * opened without a `tool_use_id` is not tracked, so it keeps the key path (never stuck).
+   */
+  function questionOpen(id: string): boolean {
+    for (const toolName of openPrompts.get(id)?.values() ?? []) {
+      if (toolName === 'AskUserQuestion') return true
+    }
+    return false
   }
 
   /**

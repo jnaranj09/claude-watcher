@@ -12,6 +12,12 @@
 // options). `3` / Escape is "no" — Escape already runs the interrupt path. EXACT match, like
 // `isInterruptKey`: a paste or a typed word containing a `1` is not an answer.
 //
+// NOT FOR AN OPEN QUESTION (ST-2). Enter on a multi-question AskUserQuestion answers question 1
+// only; the next question and a "Submit answers" screen follow with no hook. So the change is
+// marked `fromKey` and the reducer ignores it while an AskUserQuestion prompt is open: that
+// question's own PostToolUse moves the card (ST-1). A regular permission prompt still needs the
+// key: an approved long Bash command sends its PostToolUse minutes later.
+//
 // THE KNOWN FALSE POSITIVE. Enter on an option the operator arrowed down to (`No`) also reads
 // as an approval, and the card shows Working while claude waits for their instructions. The
 // operator is looking at that terminal when it happens, and their next prompt corrects it.
@@ -29,5 +35,23 @@ export function approvalStatusChange(
   data: string
 ): HookStatusChange | null {
   if (status !== 'NeedsPermission' || !APPROVAL_KEYS.has(data)) return null
-  return { kind: 'status', status: 'Working' }
+  return { kind: 'status', status: 'Working', fromKey: true }
+}
+
+/**
+ * The key seam (`watchFeed.keyLaunched`): apply the key's change and call `logAnswered` only when
+ * it moved the card. The reducer returns [] for an open AskUserQuestion (ST-2): not an answer, so
+ * nothing is logged. Returns the deltas to ship.
+ */
+export function applyApprovalKey<D>(
+  status: string | undefined,
+  data: string,
+  apply: (change: HookStatusChange) => D[],
+  logAnswered: () => void
+): D[] {
+  const change = approvalStatusChange(status, data)
+  if (change === null) return []
+  const deltas = apply(change)
+  if (deltas.length > 0) logAnswered()
+  return deltas
 }

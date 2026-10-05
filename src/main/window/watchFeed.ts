@@ -61,7 +61,8 @@ import type { LaunchedSet } from '../pty/launchedSet'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
 import type { ProcessSessionSource } from '../pty/claudeSessionFile'
-import { approvalStatusChange } from '../pty/approvalKey'
+import { applyApprovalKey } from '../pty/approvalKey'
+import { applyInterruptKey } from '../pty/interruptKey'
 import { createApiEventHub, type ApiEventHub, type ApiSeam } from '../api/apiSeam'
 import { projectApiSession } from '../api/apiSession'
 // Hook-status feature — real-time session status from Claude Code lifecycle hooks.
@@ -78,7 +79,7 @@ import {
   claimByProcess,
   findAdoptionTarget,
   namedByShellPane,
-  sessionEndKeepsCard,
+  keepCardOnLiveSessionEnd,
   type OrphanRegistry
 } from '../hooks/sessionRebind'
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
@@ -103,12 +104,14 @@ export interface LaunchBoardSeam {
   /** Story 6.3 removal, now with the exit's REASON (D-3): `archive` snapshots the card into the
    *  past-sessions store BEFORE it goes; `delete` drops any record. Idempotent either way. */
   removeLaunched(sessionId: string, reason: RemovalReason): void
-  /** ESCAPE-INTERRUPT — demote a session to idle because the operator pressed Escape.
-   *  Interrupting fires no hook and (when interrupted early) leaves no transcript trace,
-   *  so the keystroke is the only evidence. A session already idle is a quiet no-op. */
-  interruptLaunched(sessionId: string): void
+  /** KEY-INTERRUPT — demote a session to idle because the operator pressed Escape, or Ctrl+C
+   *  while it is Working (ST-4). Interrupting fires no hook and (when interrupted early) leaves
+   *  no transcript trace, so the keystroke is the only evidence. `interruptDemotes` decides;
+   *  anything else is a quiet no-op. */
+  interruptLaunched(sessionId: string, data: string): void
   /** R4 — a key typed into a launched terminal: Enter/1/2 on an open permission prompt moves
-   *  the card to Working (claude sends no hook on approval). Anything else is a no-op. */
+   *  the card to Working (claude sends no hook on approval). Not while an AskUserQuestion is
+   *  open (ST-2: its PostToolUse is the way out). Anything else is a no-op. */
   keyLaunched(sessionId: string, data: string): void
   /** Session-naming A2 — retitle an existing session (renameSession → handleDelta). Unknown id
    *  is a quiet no-op inside the reducer, so this never needs a caller-side existence check. */
@@ -510,19 +513,25 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // the applyStop-style already-gone no-op), so the belt-and-suspenders SessionEnd hook
       // arriving later is quiet.
       removeLaunched: (sessionId, reason) => removeLaunchedSession(sessionId, reason),
-      // ESCAPE-INTERRUPT — the operator pressed Escape, so claude stopped and is sitting at
-      // its prompt. Rides the SAME applyHookStatus → handleDelta chokepoint as every other
-      // status change. Guarded on an ACTUAL change so a stray Escape (dismissing an
-      // autocomplete menu in an already-idle session) emits nothing.
-      interruptLaunched: (sessionId) => {
-        if (reducer.snapshotMap().get(sessionId)?.status === 'WaitingForInput') return
-        demoteOnInterrupt(sessionId, 'interrupt_key')
+      // KEY-INTERRUPT — the operator pressed Escape (or Ctrl+C on a Working card, ST-4), so
+      // claude stopped and is sitting at its prompt. Rides the SAME applyHookStatus →
+      // handleDelta chokepoint as every other status change. `interruptDemotes` guards on an
+      // ACTUAL change (`applyInterruptKey`), so a stray Escape (closing a menu in an idle session) or a Ctrl+C at an
+      // idle prompt emits nothing.
+      interruptLaunched: (sessionId, data) => {
+        applyInterruptKey(reducer.snapshotMap().get(sessionId)?.status, data, () => {
+          demoteOnInterrupt(sessionId, 'interrupt_key')
+        })
       },
       keyLaunched: (sessionId, data) => {
-        const change = approvalStatusChange(reducer.snapshotMap().get(sessionId)?.status, data)
-        if (change === null) return
-        console.log(`[claude-watcher][hooks] code=permission_answered_key session=${sessionId}`)
-        reducer.applyHookStatus(sessionId, change).forEach(handleDelta)
+        applyApprovalKey(
+          reducer.snapshotMap().get(sessionId)?.status,
+          data,
+          (change) => reducer.applyHookStatus(sessionId, change),
+          () => {
+            console.log(`[claude-watcher][hooks] code=permission_answered_key session=${sessionId}`)
+          }
+        ).forEach(handleDelta)
       },
       // Session-naming A2 — the rename takes the SAME handleDelta chokepoint as every other delta
       // (tracker → tray → enrich → ship gate), so the retitled card reaches the renderer as an
@@ -797,18 +806,18 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         const launchService = getLaunchService()
         const terminalManager = getTerminalManager()
         if (change.kind === 'removed' && launchService !== null && terminalManager !== null) {
-          const keptTerminalId = sessionEndKeepsCard(evt.session_id, launchService, terminalManager)
-          if (keptTerminalId !== null) {
-            orphanRegistry.mark({
-              terminalId: keptTerminalId,
-              sessionId: evt.session_id,
-              cwd: evt.cwd ?? '',
-              orphanedAt: Date.now()
-            })
-            // PATH + CODE only — never the cwd or any hook field.
-            console.warn('[c9watch][hooks] path=(hook) code=hook_sessionend_pty_alive')
-            return
-          }
+          // ST-7 — on a /clear the kept card also goes idle under its old id (no SessionStart
+          // reaches an http hook); the new id's first hook adopts it as usual.
+          const kept = keepCardOnLiveSessionEnd(evt, {
+            launch: launchService,
+            live: terminalManager,
+            orphans: orphanRegistry,
+            now: Date.now(),
+            applyStatus: (sessionId, status) =>
+              reducer.applyHookStatus(sessionId, status).forEach(handleDelta),
+            log: (message) => console.warn(message)
+          })
+          if (kept) return
         }
 
         // Past sessions (D-3) — a SessionEnd that reaches here (the pty-alive guard above did NOT

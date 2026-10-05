@@ -36,6 +36,56 @@ describe('buildHookSettings', () => {
     expect(buildHookSettings().hooks['UserPromptSubmit']).toBeDefined()
   })
 
+  it('carries StopFailure — the only turn end an API error sends (ST-3)', () => {
+    // Rate limit / overload / network / bad model end the turn with StopFailure and NO Stop.
+    // Drop it from the block and the card stays Working forever with no alert.
+    expect(buildHookSettings().hooks['StopFailure']).toBeDefined()
+  })
+
+  it.each(['SessionStart', 'Setup'])(
+    'does NOT register %s — claude refuses http hooks for it (ST-7)',
+    (eventName) => {
+      // claude 2.1.289 drops an http hook for these two events before running it ("HTTP hooks
+      // are not supported for SessionStart"). Registering one only pretends a mapping works.
+      expect(buildHookSettings().hooks[eventName]).toBeUndefined()
+    }
+  )
+
+  it('carries SessionEnd — the only event a /clear sends (ST-7)', () => {
+    // `SessionEnd reason:"clear"` for the old id is how the card learns of a /clear.
+    expect(buildHookSettings().hooks['SessionEnd']).toBeDefined()
+  })
+
+  it('carries PermissionRequest — the instant a permission dialog opens (ST-5)', () => {
+    // Notification(permission_prompt) comes 6 s after the dialog. Drop PermissionRequest from
+    // the block and the card says Working for those 6 s while claude waits on the operator.
+    expect(buildHookSettings().hooks['PermissionRequest']).toBeDefined()
+  })
+
+  it('carries PostToolUseFailure — an approved tool that fails ends with it, not PostToolUse (ST-1)', () => {
+    // A prompt answered by click is cleared only by its own tool finishing. A failing tool sends
+    // PostToolUseFailure instead of PostToolUse; drop it and that card stays needs-you all turn.
+    expect(buildHookSettings().hooks['PostToolUseFailure']).toBeDefined()
+  })
+
+  it.each(['Elicitation', 'ElicitationResult'])(
+    'carries %s — an MCP server asking for input opens and closes the wait (ST-6)',
+    (eventName) => {
+      // Elicitation fires the instant an MCP server asks (its Notification comes 6 s later);
+      // ElicitationResult is the only event after the operator answers the form.
+      expect(buildHookSettings().hooks[eventName]).toBeDefined()
+    }
+  )
+
+  it.each(['PreCompact', 'PostCompact'])(
+    'carries %s — the only events a manual /compact sends (ST-8)',
+    (eventName) => {
+      // Probe S11: /compact sends these two and nothing else. Drop them and the card keeps its
+      // old status while claude compacts.
+      expect(buildHookSettings().hooks[eventName]).toBeDefined()
+    }
+  )
+
   it('points at the loopback URL only — never a routable address', () => {
     const serialized = JSON.stringify(buildHookSettings())
 

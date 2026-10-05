@@ -44,6 +44,10 @@
 // NEVER LOG cwd (it leaks the filesystem layout) or any hook field — codes only.
 // [.claude/rules/zod-boundaries.md; .claude/rules/state.md; CLAUDE.md "Removal is stop/exit-driven"]
 
+import type { HookStatusChange } from '../c9watch/reducer'
+import type { HookEvent } from '../../shared/schemas/hookEvent'
+import { clearedSessionStatus } from './hookStatus'
+
 /** A live app-launched pty whose bound session id stopped being the one claude reports. */
 export interface OrphanedLaunch {
   /** The app's terminal id — the thing that actually survived the id change. */
@@ -143,6 +147,38 @@ export function sessionEndKeepsCard(
   const terminalId = launch.terminalIdFor(sessionId)
   if (terminalId === null) return null // not an app launch (or its binding was already consumed)
   return live.has(terminalId) ? terminalId : null
+}
+
+/**
+ * The whole SessionEnd step for a card whose pty may still be alive (watchFeed calls this, then
+ * removes the session only when it returns `false`). Kept → mark the orphan so the new id can
+ * adopt it, and apply `clearedSessionStatus` to the OLD id: a /clear leaves claude at an empty
+ * prompt and no SessionStart follows (claude refuses http hooks for it — ST-7).
+ * Logs a code only — never the cwd or any hook field.
+ */
+export function keepCardOnLiveSessionEnd(
+  evt: HookEvent,
+  deps: {
+    launch: RebindBindingSource
+    live: LiveTerminals
+    orphans: OrphanRegistry
+    now: number
+    applyStatus: (sessionId: string, change: HookStatusChange) => void
+    log: (message: string) => void
+  }
+): boolean {
+  const terminalId = sessionEndKeepsCard(evt.session_id, deps.launch, deps.live)
+  if (terminalId === null) return false
+  deps.orphans.mark({
+    terminalId,
+    sessionId: evt.session_id,
+    cwd: evt.cwd ?? '',
+    orphanedAt: deps.now
+  })
+  deps.log('[c9watch][hooks] path=(hook) code=hook_sessionend_pty_alive')
+  const cleared = clearedSessionStatus(evt)
+  if (cleared !== null) deps.applyStatus(evt.session_id, cleared)
+  return true
 }
 
 /** The orphan registry surface. Keyed by terminalId — one live pty has at most one orphan

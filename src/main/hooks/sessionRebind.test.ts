@@ -12,12 +12,15 @@ import {
   findAdoptionTarget,
   namedByShellPane,
   isAdoptableSessionId,
+  keepCardOnLiveSessionEnd,
   sessionEndKeepsCard,
   REBIND_WINDOW_MS,
   type LiveTerminals,
   type ProcessSessionRecords,
   type RebindBindingSource
 } from './sessionRebind'
+import type { HookStatusChange } from '../c9watch/reducer'
+import { HookEventSchema } from '../../shared/schemas/hookEvent'
 
 /** A launch service whose bindings are a plain sessionId → terminalId table. */
 function bindings(table: Record<string, string>): RebindBindingSource {
@@ -344,5 +347,62 @@ describe('namedByShellPane — the disproof source for a claude run inside a car
     expect(namedByShellPane(NEW_ID, ['launch-1:shell'], pids, none)).toBe(false)
     const any = { currentSessionIdsUnder: () => [NEW_ID] }
     expect(namedByShellPane(NEW_ID, ['launch-2:shell'], pids, any)).toBe(false)
+  })
+})
+
+// The SessionEnd step watchFeed runs: keep the card on a live pty, and on a /clear move it to
+// idle (ST-7 — claude sends no SessionStart to an http hook, so this is the only /clear signal).
+describe('keepCardOnLiveSessionEnd (watchFeed SessionEnd step)', () => {
+  function setup(live: LiveTerminals): {
+    run: (body: Record<string, unknown>) => boolean
+    applied: { sessionId: string; change: HookStatusChange }[]
+    orphans: ReturnType<typeof createOrphanRegistry>
+  } {
+    const applied: { sessionId: string; change: HookStatusChange }[] = []
+    const orphans = createOrphanRegistry()
+    return {
+      run: (body) =>
+        keepCardOnLiveSessionEnd(
+          HookEventSchema.parse({
+            session_id: 'sess-a',
+            hook_event_name: 'SessionEnd',
+            cwd: '/w',
+            ...body
+          }),
+          {
+            launch: bindings({ 'sess-a': 'term-1' }),
+            live,
+            orphans,
+            now: T0,
+            applyStatus: (sessionId, change) => applied.push({ sessionId, change }),
+            log: () => undefined
+          }
+        ),
+      applied,
+      orphans
+    }
+  }
+
+  it('/clear on a live pty: keeps the card, marks the orphan, moves the OLD id to idle', () => {
+    const { run, applied, orphans } = setup(alive('term-1'))
+    expect(run({ reason: 'clear' })).toBe(true)
+    expect(orphans.size()).toBe(1)
+    expect(applied).toEqual([
+      { sessionId: 'sess-a', change: { kind: 'status', status: 'WaitingForInput' } }
+    ])
+  })
+
+  it('another reason on a live pty: keeps the card, status untouched', () => {
+    const { run, applied, orphans } = setup(alive('term-1'))
+    expect(run({ reason: 'other' })).toBe(true)
+    expect(orphans.size()).toBe(1)
+    expect(applied).toEqual([])
+  })
+
+  it('a dead pty: not kept (a real removal), nothing applied, no orphan', () => {
+    const { run, applied, orphans } = setup(alive())
+    expect(run({ reason: 'clear' })).toBe(false)
+    expect(orphans.size()).toBe(0)
+    expect(applied).toEqual([])
   })
 })

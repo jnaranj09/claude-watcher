@@ -44,12 +44,23 @@ export const HookEventSchema = z
     cwd: z.string().optional(), // working dir (verified in P0 spike); safe to capture
     notification_type: z.string().optional(), // Notification kind (e.g. permission_prompt); NOT enum-locked
     tool_name: z.string().optional(), // PreToolUse tool name (e.g. AskUserQuestion); NOT enum-locked
+    // One tool call's id, on its PreToolUse and on the PostToolUse / PostToolUseFailure that ends
+    // it (NOT on PermissionRequest — probe claude 2.1.289). The finished tool that opened a prompt
+    // is what clears the card when the prompt was answered by click or shift+tab (ST-1). Opaque.
+    tool_use_id: z.string().optional(),
+    // Set on a subagent's events only (main-agent events have none). Tells which agent a
+    // PermissionRequest belongs to, so it is linked to that agent's own PreToolUse (ST-1). Opaque.
+    agent_id: z.string().optional(),
     last_assistant_message: z.string().optional(), // Stop prose (SENSITIVE — never log the value)
     session_title: z.string().optional(), // claude's CURRENT name for the session (SENSITIVE — never log)
-    // `SessionStart` only: why the session (re)started — `startup`, `resume`, `clear` or `compact`
-    // per claude's hooks reference (not probed live). NOT enum-locked. `compact` is claude
-    // restarting its context MID-TURN, not a new session at the prompt (R19). [hookStatus.ts]
-    source: z.string().optional(),
+    // `SessionEnd` only: why the session ended. `clear` = the operator ran /clear and claude
+    // goes on in the same process under a new id (probe claude 2.1.289; the only /clear signal an
+    // http hook gets — ST-7). NOT enum-locked. [hookStatus.ts `clearedSessionStatus`]
+    reason: z.string().optional(),
+    // `PreCompact` / `PostCompact` only: `manual` (the operator's /compact) or `auto` (context
+    // full, mid-turn) — claude 2.1.289. Only a manual compact moves the card (ST-8). NOT
+    // enum-locked. [hookStatus.ts]
+    trigger: z.string().optional(),
     // The session's JSONL transcript. Promoted from passthrough because the app TAILS it
     // for the two facts no hook reports: the turn was interrupted (Esc fires no hook at
     // all) and a background task finished (there is no "task done" hook). Verified present

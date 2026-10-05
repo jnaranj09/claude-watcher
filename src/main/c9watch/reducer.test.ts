@@ -102,7 +102,7 @@ describe('reducer — upsertLaunched (Story 6.2: spawn-time launch synthesis)', 
 
 describe('reducer — applyHookStatus (hooks own every status transition)', () => {
   it.each([
-    ['Working'], // UserPromptSubmit / PreToolUse / PostToolUse / SessionStart
+    ['Working'], // UserPromptSubmit / PreToolUse / PostToolUse
     ['WaitingForInput'], // Stop (plain prose)
     ['NeedsPermission'], // Notification(permission_prompt)
     ['NeedsAttention'] // PreToolUse(AskUserQuestion) / Stop ending in '?'
@@ -181,6 +181,53 @@ describe('reducer — applyHookStatus (hooks own every status transition)', () =
     expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Bash')
     expect(r.applyHookStatus(id, { kind: 'status', status: 'YourTurn' })).toHaveLength(1)
     expect(r.snapshotMap().get(id)?.status).toBe('YourTurn')
+  })
+
+  // ST-1: only the finished call that opened the prompt may clear it. A done event with no id
+  // cannot be matched, so it keeps R20.
+  it('a finished tool call without a tool_use_id never clears an open prompt', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook00a4-0000-4000-8000-000000000001'
+    r.upsertLaunched(launchedSession(id))
+    const pre = { kind: 'status', status: 'Working', toolName: 'Bash', fromTool: true } as const
+    r.applyHookStatus(id, { ...pre, toolUseId: 'tu_B' })
+    r.applyHookStatus(id, {
+      kind: 'status',
+      status: 'NeedsPermission',
+      toolName: 'Bash',
+      opensPrompt: true
+    })
+    const done = { kind: 'status', status: 'Working', fromTool: true, toolDone: true } as const
+    expect(r.applyHookStatus(id, done)).toEqual([])
+    expect(r.snapshotMap().get(id)?.status).toBe('NeedsPermission')
+  })
+
+  // ST-1: a removed session's open prompts go with it; a same-id relaunch starts clean.
+  it('removing a session mid-prompt forgets its open prompts', () => {
+    const r = createReducer({ now: () => FIXED_NOW })
+    const id = 'hook00a5-0000-4000-8000-000000000001'
+    const pre = { kind: 'status', status: 'Working', toolName: 'Bash', fromTool: true } as const
+    const ask = {
+      kind: 'status',
+      status: 'NeedsPermission',
+      toolName: 'Bash',
+      opensPrompt: true
+    } as const
+    r.upsertLaunched(launchedSession(id))
+    r.applyHookStatus(id, { ...pre, toolUseId: 'tu_old' })
+    r.applyHookStatus(id, ask)
+    r.applyHookStatus(id, { kind: 'removed' })
+    r.upsertLaunched(launchedSession(id))
+    r.applyHookStatus(id, { ...pre, toolUseId: 'tu_new' })
+    r.applyHookStatus(id, ask)
+    r.applyHookStatus(id, {
+      kind: 'status',
+      status: 'Working',
+      fromTool: true,
+      toolUseId: 'tu_new',
+      toolDone: true
+    })
+    expect(r.snapshotMap().get(id)?.status).toBe('Working')
   })
 
   it('hook removed emits session.removed and deletes from the map', () => {

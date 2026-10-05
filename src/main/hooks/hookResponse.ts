@@ -11,9 +11,9 @@
 // ONLY `UserPromptSubmit` gets a body. Two reasons, both load-bearing:
 //   - it is the only event verified to accept `sessionTitle` in its output AND to carry
 //     `session_title` on its input, so it is the one event where the name round-trips;
-//   - `SessionStart` is deliberately NOT used: it was never observed firing under `claude -p`
-//     so its behaviour is unverified, and it is pointless here anyway — the app always spawns
-//     with `-n <name>` already correct, and a mid-session rename can never reach it.
+//   - `SessionStart` cannot be used: claude never sends it to an http hook (ST-7), and it is
+//     pointless here anyway — the app always spawns with `-n <name>` already correct, and a
+//     mid-session rename can never reach it.
 //
 // [spec-claude-session-name-sync.md; .claude/rules/zod-boundaries.md]
 

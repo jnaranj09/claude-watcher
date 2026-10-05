@@ -7,7 +7,7 @@
 // unknown events → null. [spec Tasks; spec I/O & Edge-Case Matrix; plan L1.3/L2.7]
 
 import { describe, it, expect } from 'vitest'
-import { hookStatus } from './hookStatus'
+import { clearedSessionStatus, hookStatus } from './hookStatus'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 
 // Build a HookEvent-shaped object (the schema's inferred type) for the mapper.
@@ -45,7 +45,8 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
       kind: 'status',
       status: 'NeedsAttention',
       toolName: 'AskUserQuestion',
-      fromTool: true
+      fromTool: true,
+      opensPrompt: true
     })
   })
 
@@ -65,12 +66,37 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     })
   })
 
-  it('PostToolUse → Working, as a tool event', () => {
+  it('PostToolUse → Working, as a tool event that ends its call', () => {
     expect(hookStatus(evt({ hook_event_name: 'PostToolUse', tool_name: 'Bash' }))).toEqual({
       kind: 'status',
       status: 'Working',
-      fromTool: true
+      fromTool: true,
+      toolDone: true
     })
+  })
+
+  // ST-1: the call that opened a prompt is matched by its tool_use_id (and agent_id for a
+  // subagent); its PostToolUse / PostToolUseFailure is what clears a prompt answered by click.
+  it('tool events carry their tool_use_id and agent_id', () => {
+    const call = { tool_name: 'Bash', tool_use_id: 'tu_1', agent_id: 'agent-x' }
+    expect(hookStatus(evt({ hook_event_name: 'PreToolUse', ...call }))).toEqual({
+      kind: 'status',
+      status: 'Working',
+      toolName: 'Bash',
+      fromTool: true,
+      toolUseId: 'tu_1',
+      agentId: 'agent-x'
+    })
+    for (const name of ['PostToolUse', 'PostToolUseFailure']) {
+      expect(hookStatus(evt({ hook_event_name: name, ...call }))).toEqual({
+        kind: 'status',
+        status: 'Working',
+        fromTool: true,
+        toolUseId: 'tu_1',
+        agentId: 'agent-x',
+        toolDone: true
+      })
+    }
   })
 
   // --- A prompt is NOT a tool event: it always moves the card ---
@@ -81,24 +107,29 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     })
   })
 
-  // --- SessionStart is NOT claude's turn: booting/resuming lands at the prompt, idle ---
-  it('SessionStart → WaitingForInput (booting is not working)', () => {
-    expect(hookStatus(evt({ hook_event_name: 'SessionStart' }))).toEqual({
+  // --- SessionStart never arrives (ST-7): claude refuses http hooks for it and for Setup ---
+  it('SessionStart → null (claude 2.1.289 never delivers it to an http hook)', () => {
+    expect(hookStatus(evt({ hook_event_name: 'SessionStart' }))).toBeNull()
+    expect(hookStatus(evt({ hook_event_name: 'SessionStart', source: 'clear' }))).toBeNull()
+  })
+
+  // --- /clear: the old id's SessionEnd(reason "clear") is the one signal claude sends (ST-7) ---
+  it('clearedSessionStatus: SessionEnd reason=clear → WaitingForInput (claude sits at an empty prompt)', () => {
+    expect(clearedSessionStatus(evt({ hook_event_name: 'SessionEnd', reason: 'clear' }))).toEqual({
       kind: 'status',
       status: 'WaitingForInput'
     })
   })
 
-  // R19: an auto-compact restarts claude's context MID-TURN; it must not drop the card to idle.
-  // The other sources (and a future one) still mean "at the prompt".
-  it('SessionStart source=compact → ignored; other sources → WaitingForInput', () => {
-    expect(hookStatus(evt({ hook_event_name: 'SessionStart', source: 'compact' }))).toBeNull()
-    for (const source of ['startup', 'resume', 'clear', 'something-new']) {
-      expect(hookStatus(evt({ hook_event_name: 'SessionStart', source }))).toEqual({
-        kind: 'status',
-        status: 'WaitingForInput'
-      })
+  it('clearedSessionStatus: any other SessionEnd reason, or none → null (unprobed: keep the status)', () => {
+    for (const reason of ['other', 'logout', 'prompt_input_exit', 'resume']) {
+      expect(clearedSessionStatus(evt({ hook_event_name: 'SessionEnd', reason }))).toBeNull()
     }
+    expect(clearedSessionStatus(evt({ hook_event_name: 'SessionEnd' }))).toBeNull()
+  })
+
+  it('clearedSessionStatus: reason=clear on a non-SessionEnd event → null', () => {
+    expect(clearedSessionStatus(evt({ hook_event_name: 'Stop', reason: 'clear' }))).toBeNull()
   })
 
   // --- Stop: prose-question branch BOTH ways ---
@@ -132,6 +163,111 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
         last_assistant_message: 'Should I proceed?'
       })
     ).toEqual({ kind: 'status', status: 'NeedsAttention' })
+  })
+
+  // --- ST-6: claude waits for input that is not a tool permission ---
+  it.each(['worker_permission_prompt', 'agent_needs_input'])(
+    'Notification(%s) → NeedsPermission (a dialog waits, like permission_prompt)',
+    (type) => {
+      expect(hookStatus(evt({ hook_event_name: 'Notification', notification_type: type }))).toEqual(
+        { kind: 'status', status: 'NeedsPermission' }
+      )
+    }
+  )
+
+  it.each(['elicitation_dialog', 'elicitation_url_dialog'])(
+    'Notification(%s) → NeedsAttention, never pulling a card out of a permission prompt',
+    (type) => {
+      expect(hookStatus(evt({ hook_event_name: 'Notification', notification_type: type }))).toEqual(
+        { kind: 'status', status: 'NeedsAttention', fromTool: true }
+      )
+    }
+  )
+
+  it('Elicitation (an MCP server asks for input) → NeedsAttention', () => {
+    expect(hookStatus(evt({ hook_event_name: 'Elicitation' }))).toEqual({
+      kind: 'status',
+      status: 'NeedsAttention',
+      fromTool: true
+    })
+  })
+
+  it('ElicitationResult (the operator answered the form) → Working', () => {
+    expect(hookStatus(evt({ hook_event_name: 'ElicitationResult' }))).toEqual({
+      kind: 'status',
+      status: 'Working',
+      fromTool: true
+    })
+  })
+
+  // --- StopFailure: an API error ends the turn with NO Stop (ST-3) ---
+  // Rate limit / overload / network / bad model: claude sends StopFailure and never Stop. The
+  // turn is over and claude waits at the prompt, so it is the operator's turn.
+  it('StopFailure (API error, no Stop follows) → YourTurn', () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'StopFailure',
+          error: 'model_not_found',
+          last_assistant_message: 'Run /model to pick a different model.'
+        })
+      )
+    ).toEqual({ kind: 'status', status: 'YourTurn' })
+  })
+
+  it('StopFailure stays YourTurn: its message is an error text, not a question from claude', () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'StopFailure',
+          last_assistant_message: 'Did you mean a different model?'
+        })
+      )
+    ).toEqual({ kind: 'status', status: 'YourTurn' })
+  })
+
+  it('StopFailure stays YourTurn with background work running: the error still needs you', () => {
+    expect(
+      hookStatus(
+        evt({ hook_event_name: 'StopFailure', background_tasks: [{ id: 'b1', status: 'running' }] })
+      )
+    ).toEqual({ kind: 'status', status: 'YourTurn' })
+  })
+
+  // --- PermissionRequest: the dialog opened, 6 s before Notification(permission_prompt) (ST-5) ---
+  // Probe (claude 2.1.289): it fires only when a dialog shows — never for an auto-allowed tool —
+  // in the same instant as the tool's PreToolUse. It is not a tool event: it must be able to put
+  // the card INTO NeedsPermission, and it names the tool the prompt is for (R14).
+  it('PermissionRequest (a permission dialog opened) → NeedsPermission, naming the tool', () => {
+    expect(hookStatus(evt({ hook_event_name: 'PermissionRequest', tool_name: 'Bash' }))).toEqual({
+      kind: 'status',
+      status: 'NeedsPermission',
+      toolName: 'Bash',
+      opensPrompt: true
+    })
+    expect(hookStatus(evt({ hook_event_name: 'PermissionRequest' }))).toEqual({
+      kind: 'status',
+      status: 'NeedsPermission',
+      opensPrompt: true
+    })
+    // A subagent's dialog names its agent, so it links to that agent's own PreToolUse (ST-1).
+    expect(
+      hookStatus(evt({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', agent_id: 'a1' }))
+    ).toEqual({
+      kind: 'status',
+      status: 'NeedsPermission',
+      toolName: 'Bash',
+      agentId: 'a1',
+      opensPrompt: true
+    })
+  })
+
+  it('PermissionRequest for AskUserQuestion → ignored (its PreToolUse already said needs-you)', () => {
+    // The question's own PreToolUse sets NeedsAttention in the same instant, so there is no gap
+    // to close. NeedsPermission here would only let a click answer leave it stuck (ST-1).
+    expect(
+      hookStatus(evt({ hook_event_name: 'PermissionRequest', tool_name: 'AskUserQuestion' }))
+    ).toBeNull()
   })
 
   // --- SessionEnd → removed ---
@@ -194,9 +330,9 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
 
   it('background_tasks does NOT change any non-Stop event', () => {
     const bg = [{ id: 'b1', status: 'running' }]
-    expect(hookStatus(evt({ hook_event_name: 'SessionStart', background_tasks: bg }))).toEqual({
+    expect(hookStatus(evt({ hook_event_name: 'UserPromptSubmit', background_tasks: bg }))).toEqual({
       kind: 'status',
-      status: 'WaitingForInput'
+      status: 'Working'
     })
     expect(hookStatus(evt({ hook_event_name: 'SessionEnd', background_tasks: bg }))).toEqual({
       kind: 'removed'
@@ -211,4 +347,29 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
       )
     ).toEqual({ kind: 'status', status: 'NeedsPermission' })
   })
+
+  // --- PreCompact / PostCompact: a manual /compact is claude working (ST-8) ---
+  // Probe S11 (claude 2.1.289): /compact sends only these two, ~13 s apart. `trigger` is
+  // "manual" for /compact and "auto" when the context fills up mid-turn.
+  it('PreCompact(manual) → Working: claude is summarizing the conversation', () => {
+    expect(hookStatus(evt({ hook_event_name: 'PreCompact', trigger: 'manual' }))).toEqual({
+      kind: 'status',
+      status: 'Working'
+    })
+  })
+
+  it('PostCompact(manual) → YourTurn: the compaction is over and claude waits at the prompt', () => {
+    expect(
+      hookStatus(evt({ hook_event_name: 'PostCompact', trigger: 'manual', compact_summary: 's' }))
+    ).toEqual({ kind: 'status', status: 'YourTurn' })
+  })
+
+  it.each(['PreCompact', 'PostCompact'])(
+    '%s with trigger auto, absent or unknown → null (an auto compact runs inside a turn)',
+    (name) => {
+      expect(hookStatus(evt({ hook_event_name: name, trigger: 'auto' }))).toBeNull()
+      expect(hookStatus(evt({ hook_event_name: name }))).toBeNull()
+      expect(hookStatus(evt({ hook_event_name: name, trigger: 'something_new' }))).toBeNull()
+    }
+  )
 })

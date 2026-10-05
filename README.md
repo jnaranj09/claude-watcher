@@ -33,16 +33,16 @@ Every card state comes from Claude Code's own structured output — its lifecycl
 hooks, plus its session transcript for the one thing the hooks never report (an Esc
 interrupt). No polling, no screen scraping, no guessing.
 
-| Card state       | It means                                               | Enters on                                                                  | Leaves on                                                                     |
-| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Connecting       | the app spawned claude, not yet reporting              | app-launch                                                                 | `SessionStart` (→ Idle)                                                       |
-| Working          | Claude's turn, or its background work is still running | you submit a prompt / a tool runs / a turn ends with a shell still running | next event                                                                    |
-| Needs permission | Claude is blocked on an approval                       | the permission prompt                                                      | you approve or deny (`Enter`, `1` or `2` in its terminal moves it to Working) |
-| Asking you       | Claude asked you a question                            | the AskUserQuestion tool, or a turn ending in a question                   | you reply — viewing is not answering                                          |
-| Your turn        | Claude finished; the prompt is waiting                 | any finished turn                                                          | you reply, you view the session, or you press Esc                             |
-| Idle             | nothing to do here                                     | a fresh session, a finished turn you looked at, or you pressed Esc         | you submit a prompt                                                           |
+| Card state       | It means                                               | Enters on                                                                                    | Leaves on                                                                     |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Connecting       | the app spawned claude, not yet reporting              | app-launch                                                                                   | your first prompt (→ Working)                                                 |
+| Working          | Claude's turn, or its background work is still running | you submit a prompt / a tool runs / `/compact` runs / a turn ends with a shell still running | next event                                                                    |
+| Needs permission | Claude is blocked on an approval                       | the permission prompt                                                                        | you approve or deny (`Enter`, `1` or `2` in its terminal moves it to Working) |
+| Asking you       | Claude asked you a question                            | the AskUserQuestion tool, or a turn ending in a question                                     | you reply — viewing is not answering                                          |
+| Your turn        | Claude finished; the prompt is waiting                 | any finished turn                                                                            | you reply, you view the session, or you press Esc                             |
+| Idle             | nothing to do here                                     | a fresh session, a finished turn you looked at, or you pressed Esc                           | you submit a prompt                                                           |
 
-Four honest footnotes:
+Five honest footnotes:
 
 - "A turn ending in a question" is the one text heuristic in the app — and it only
   picks the FLAVOR of attention (question vs. plain your-turn). A missed question
@@ -65,6 +65,9 @@ Four honest footnotes:
   demotes the card in well under a second (measured end to end: **85ms**). Esc always drops
   to Idle, background work or not. No notification fires — you pressed the key, so you are
   already there.
+- **A `!` shell command does not show as work.** Claude Code's bash mode (`!ls`) sends no hook
+  at all, so the card keeps its status while the command runs. You typed it in that terminal, so
+  you are already there.
 
 The desktop notification fires once on the entry edge into attention, and its title
 says which of those states you landed in — `webapp · your turn`,

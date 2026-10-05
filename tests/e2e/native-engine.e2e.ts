@@ -333,7 +333,7 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI archiv
 
     // ── (2) HOOK-DRIVEN STATUS, end-to-end over REAL HTTP ────────────────────────────
     // Wait for the real claude descendant + a settle beat first: the REAL session's own
-    // startup hooks (SessionStart → WaitingForInput, same idle column) must land BEFORE our
+    // startup hooks (none today: claude sends no SessionStart to an http hook) must land BEFORE our
     // synthetic POSTs so they cannot interleave mid-assertion.
     await waitForClaudeDescendant(electronPid!, 20000)
     await page.waitForTimeout(3000)
@@ -348,8 +348,8 @@ test('native engine: instant card at launch, hook POSTs drive columns, UI archiv
 
     // Stop with plain prose (NO trailing '?') → `YourTurn` → the NEEDS-YOU column.
     // NOT idle: the deterministic-attention floor (spec DA-1) says a turn end is never idle —
-    // claude stopped, so it is the operator's move. Idle is reached only from SessionStart or
-    // the session:seen demotion. (This assertion read `idle` until now, which had been stale
+    // claude stopped, so it is the operator's move. Idle is reached only from an interrupt, a
+    // /clear or the session:seen demotion. (This assertion read `idle` until now, which had been stale
     // since the your-turn floor landed in hookStatus.ts.)
     const stopStatus = await postHook({
       ...common,

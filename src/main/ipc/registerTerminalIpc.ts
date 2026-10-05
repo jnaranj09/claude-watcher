@@ -37,7 +37,7 @@ import {
 // Session-naming — the extracted, unit-tested launch-card synthesis (see launchSynthesis.ts).
 import { buildLaunchedSession } from '../pty/launchSynthesis'
 import { buildPtyEnv } from '../pty/ptyEnv'
-import { isInterruptKey } from '../pty/interruptKey'
+import { interruptKeyName, isInterruptKey } from '../pty/interruptKey'
 import type { OrphanRegistry } from '../hooks/sessionRebind'
 import type { ReducerLike } from '../lifecycle/computeLiveLaunchedSessions'
 import type { LaunchBoardSeam } from '../window/watchFeed'
@@ -109,18 +109,19 @@ export function registerTerminalIpc(deps: TerminalIpcDeps): TerminalManager {
   // mirror the Story-0.1 spike (buildPtyEnv strips the smoke vars).
   const manager = createTerminalManager({
     spawnDefaults: { file: SHELL, cwd: os.homedir(), env: buildPtyEnv() },
-    // ESCAPE = INTERRUPT. Probe-verified on claude 2.1.250: interrupting a turn fires NO
-    // hook of any kind, and when interrupted early it leaves no transcript trace either —
+    // ESCAPE (and CTRL+C on a Working card, ST-4) = INTERRUPT. Probe-verified on claude 2.1.250
+    // (Ctrl+C on 2.1.289): interrupting a turn fires NO hook of any kind, and when interrupted
+    // early it leaves no transcript trace either —
     // claude just cancels and restores the prompt. So the keystroke the app is already
     // forwarding is the ONLY evidence the session went idle, and without it the card keeps
     // saying `Working` until the operator next uses the session.
     //
     // After an interrupt claude sits at its prompt waiting, and the operator is the one who
     // pressed the key — so this is idle-by-truth: the calm column, no notification. Guarded
-    // on an ACTUAL status change so a stray Escape (dismissing an autocomplete menu) cannot
-    // emit a pointless delta. Never logs `data` — that is what the operator is typing.
+    // on an ACTUAL status change (`interruptDemotes`) so a stray Escape (closing a menu) or a
+    // Ctrl+C at an idle prompt cannot emit a pointless delta. Never logs `data` — that is what the operator is typing.
     onInput: (terminalId, data) => {
-      // Only single-key chunks matter (Escape, or an answer to a permission prompt); a paste
+      // Only single-key chunks matter (Escape, Ctrl+C, or an answer to a permission prompt); a paste
       // or typed text is never looked up.
       if (data.length !== 1) return
       // Only an app-LAUNCHED terminal has a bound session; a plain shell has none, and an
@@ -135,8 +136,10 @@ export function registerTerminalIpc(deps: TerminalIpcDeps): TerminalManager {
       }
       // The key was SEEN on the pty. What the board then does about it is logged by
       // demoteOnInterrupt (`interrupt_key` when it demotes) — two facts, two lines.
-      console.log(`[c9watch][pty] code=interrupt_key_seen session=${sessionId}`)
-      launchBoardSeams.get(wc)?.interruptLaunched(sessionId)
+      console.log(
+        `[c9watch][pty] code=interrupt_key_seen session=${sessionId} key=${interruptKeyName(data)}`
+      )
+      launchBoardSeams.get(wc)?.interruptLaunched(sessionId, data)
     },
     onExit: (terminalId, exitCode, signal) => {
       const launchService = getLaunchService()

@@ -175,6 +175,18 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
     expect((issue?.path ?? []).join('.')).toBe('last_assistant_message')
   })
 
+  it('fails closed on a WRONG TYPE for a present compact trigger (number, not string — ST-8)', () => {
+    const result = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'PreCompact',
+      trigger: 1
+    })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    const issue = result.error.issues[0]
+    expect((issue?.path ?? []).join('.')).toBe('trigger')
+  })
+
   it('fails closed on a blank session_id', () => {
     const result = HookEventSchema.safeParse({
       session_id: '',

@@ -1,15 +1,19 @@
 ---
-title: "Ideas board"
-description: "This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list"
-last_modified: 2026-10-01
+title: 'Ideas board'
+description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
+last_modified: 2026-10-05
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort]
 ---
+
 # Sections
+
 - This document is separated in sections to categorize the ideas.
 
-***
+---
+
 ## New Features
+
 - **Use a template's initial prompt for in-app launches**: The `+ New session` popover ignores `initialPrompt` today (API launches only — the field is labelled as such). For a template with no params it could run the prompt directly; with params the name prompt would also ask for the values, validated with the same regex + max length the API uses. Decide whether the prompt is opt-in per launch. `pending_review` `medium_effort`
 - **Bound terminal memory across projects**: With Projects, kept-alive xterms pile up across every project the user visits. Two ideas to bound it, not needed for the first Projects release: (a) keep the PTY + its output in main but dispose the hidden project's xterm instances on switch and re-attach/replay on switch back; (b) keep today's kept-alive behaviour but cap the number of live xterms app-wide and dispose the oldest hidden one. Both need a scrollback/replay path that does not exist yet. `pending_review` `medium_effort`
 - **Favorites for the New session popover**: Let the user mark templates as favorites so they sort to the top of the `+ New session` popover instead of the flat saved order. Came out of the Workspaces brainstorm: a workspace-level "default template" was rejected because ordering the popover is a favorites concern, not a workspace one. Decide whether favorites are global or workspace-scoped, and whether shortcuts/workspaces get them too. `pending_review` `medium_effort`
@@ -20,9 +24,13 @@ allowed_efforts: [low_effort, medium_effort, high_effort]
 - **Action feedback polish (focus, motion, keyboard, disabled reasons)**: Left out of the action-feedback spec on purpose (`docs/superpowers/specs/2026-09-29-action-feedback-design.md`, Scope → Out). Focus return when a dialog closes; initial focus in Shortcuts and Settings; keyboard access to the terminal context menu; the StartingBanner popup's Escape and outside-click; the stale TagPicker copy ("the tag filter's Manage tags…"); disabled buttons that give no reason (name prompt, Tags, Workspaces); Rules' broken-marker reason visible only in a `title`. Toasts are Tab-reachable from inside a dialog (there is no focus trap — inert is the trap); the focus work inherits that knowingly. `pending_review` `medium_effort`
 - **macOS port (unsigned first)**: Add a `mac` job (`macos-latest`, dmg, x64 + arm64) to `.github/workflows/release.yml` beside `linux`. Mostly POSIX already (`$SHELL -l -c`, `kill(pid,0)`); the `/proc` correlation is already gated to Linux in `launchSession.ts`. Replace the scaffold `mac.extendInfo` camera/mic/Documents strings. Decide the tray/notification behaviour without KDE, and how to smoke without a display. Signing + notarization later (Apple account). Testing: a macOS VM at best. `pending_review` `medium_effort`
 - **Windows port — native claude, unsigned first**: Run the native Windows `claude.exe` through ConPTY (not WSL). Needs a platform layer for the spawn (`$SHELL -l -c` has no Windows twin), the version probe, the process-alive checks (`kill(pid,0)`, `~/.claude/sessions/<pid>.json`), paths, and an `nsis` job in `release.yml`. SmartScreen warning until a code-signing cert. Testing: the operator's Windows machine. `pending_review` `large_effort`
-***
+
+---
+
 ## Bugs
-***
+
+---
+
 - **The empty-board `+ New session` popover overflows a short window**: its list has a fixed 320px cap, so in a ~700px-tall window the popover runs past the bottom edge and `Manage templates…` cannot be reached. Found in the 2026-10-01 drive run; pre-existing on main (not caused by the Popover standard). Likely cap the list to the space below the anchor (`--popover-max-height`). `pending_review` `low_effort`
 - **Workspace switch-back should return to the last FOCUSED terminal, not the last LAUNCHED one**: `focusWorkspace` (boardStore) re-points the pin at the workspace's most recently launched terminal. Reachable today by rail-clicking back to an older terminal after a second launch, and now more likely: an API create registers a terminal without focusing it, so leaving the workspace and coming back lands the operator in the API terminal they never opened instead of the one they were typing in. Track the last focused terminal per workspace and prefer it; fall back to most-recently-launched only when none. `pending_review` `low_effort`
 - **The app header can be squeezed below `--topbar-height`**: `.app` (`App.module.css`) is a `flex-direction: column` container at `height: 100vh`, and `.header` sets neither `flex-shrink: 0` nor a `min-height` — so under content pressure it shrinks. The rail's own header pins `height: var(--topbar-height)` (`AttentionRail.module.css`), and the comment there says this header and the focused view's Board bar are deliberately the same height, so a squeezed app header breaks that alignment. Found while reworking the rail's wall (2026-09-20); pre-existing and unrelated to themes. Likely a one-line `flex-shrink: 0`, but check what actually applies the pressure before pinning a height. `pending_review` `low_effort`
