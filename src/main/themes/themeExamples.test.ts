@@ -43,7 +43,6 @@ const LEAF_BUTTONS = [
   "[data-testid='workspace-elsewhere-tab']",
   "button[data-variant='primary']:not(:disabled)",
   "button[data-variant='secondary']:not(:disabled):not([data-lit])",
-  "button[data-variant='ghost'][data-testid$='-close']",
   'button[data-variant][data-lit]:not(:disabled)'
 ]
 
@@ -405,7 +404,7 @@ describe('docs/themes/examples', () => {
         .filter((r) => r.selectors.includes(sel))
         .map((r) => r.body)
         .join('\n')
-    const edged = ["[data-testid='workspace-switcher']", ...LEAF_BUTTONS.slice(2, 5)]
+    const edged = ["[data-testid='workspace-switcher']", ...LEAF_BUTTONS.slice(2, 4)]
     for (const sel of edged) {
       const body = bodyOf(sel)
       expect(body, sel).toMatch(/border-color:\s*transparent;/)

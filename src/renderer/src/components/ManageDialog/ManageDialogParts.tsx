@@ -123,9 +123,9 @@ export function ManageDialogHeader({
       <div className={styles.headerActions}>
         {buttons}
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
-          icon
+          icon="round"
           buttonRef={closeRef}
           testId={`${testIdPrefix}-close`}
           aria-label={`Close ${title.toLowerCase()}`}

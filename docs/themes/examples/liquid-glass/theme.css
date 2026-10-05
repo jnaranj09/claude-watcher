@@ -490,41 +490,26 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]) {
 button[data-variant='primary'] {
   font-weight: var(--font-weight-body);
 }
-/* The dialog ✕ is a round SMOKED glass button (operator, 2026-10-04, from an Apple Liquid Glass
-   close button): darker than the panel, its own blur, the control edge below and a soft shadow
-   that lifts it off the panel. `background-color`, never `background`: the app's hover lays
-   `--bg-hover` on as a `background-image`, and the shorthand would wipe it. */
-button[data-variant='ghost'][data-testid$='-close'] {
-  border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.35);
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
-}
 /* THE CONTROL EDGE (operator, 2026-10-04, from Apple's Liquid Glass controls — the segmented
    control's "For You" pill): a 1px lit line along the top AND the bottom, the same strength,
    fading out on the rounded sides, with a thin dark line just outside. No visible border and no
    inner glow: the border plus `--glass-rim`'s top inset drew TWO lines at the top of a 32px
    control, which read as a blurry border. The lit line is a `::after` ring ON the border
    (`inset: -1px`), so the bright and the dark line touch. The switcher's workspace border tint
-   goes with the border; its fill still carries the tint. Comes after the switcher's and the
+   goes with the border; its fill still carries the tint. A ROUND secondary (`data-shape='round'`:
+   the dialog ✕, the rail's « and tag toggle, a toast's ✕) is the ☰'s clear glass as a circle —
+   the ring follows its radius. Comes after the switcher's and the
    buttons' own rules: same specificity, later wins. */
 [data-testid='workspace-switcher'],
 button[data-variant='primary']:not(:disabled),
-button[data-variant='secondary']:not(:disabled):not([data-lit]),
-button[data-variant='ghost'][data-testid$='-close'] {
+button[data-variant='secondary']:not(:disabled):not([data-lit]) {
   position: relative;
   border-color: transparent;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
-button[data-variant='ghost'][data-testid$='-close'] {
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.3),
-    0 2px 6px rgba(0, 0, 0, 0.35);
-}
 [data-testid='workspace-switcher']::after,
 button[data-variant='primary']:not(:disabled)::after,
-button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
-button[data-variant='ghost'][data-testid$='-close']::after {
+button[data-variant='secondary']:not(:disabled):not([data-lit])::after {
   content: '';
   position: absolute;
   inset: -1px;

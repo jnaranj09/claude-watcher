@@ -115,9 +115,9 @@ function ToastCard({
         </Button>
       )}
       <Button
-        variant="ghost"
+        variant="secondary"
         size="xs"
-        icon
+        icon="round"
         testId="toast-dismiss"
         aria-label="Dismiss"
         onClick={() => dismiss(toast.id)}

@@ -672,3 +672,18 @@ day (spec `2026-10-01-engineering-gaps-design.md`). What is left:
 
 When a decision changes something here, change this file in the same commit. Replace the rule,
 then add one row to §12. Later wins.
+
+## 16. Button standard: variant, shape and active state (2026-10-04)
+
+- **Every button comes from the one `Button` component, and its look comes from its VARIANT.**
+  `primary` is the one main action. `secondary` is every other control. Secondary buttons look
+  the same in every theme. A theme styles the variant (`data-variant`), never one button by its
+  test id.
+- **Shape is separate from variant.** The same standard can be a different shape:
+  `icon="round"` is a circle (`data-shape="round"`), `icon` is a square. A standalone icon
+  control (the dialog ✕, the rail's « and tag toggle, a toast's ✕) is a ROUND `secondary`: the ☰
+  look as a circle. `ghost` stays only for icons inside a card or a row.
+- **One active-state look for every button.** Any button with an on/active state uses `lit`
+  (Filter, the rail's tag toggle, a rail peek). No button invents its own "on" look.
+- **A new button joins a standard; it never gets a one-off style.** Before styling a button,
+  find the variant, shape or state it belongs to. If none fits, ask the owner.

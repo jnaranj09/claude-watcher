@@ -67,6 +67,10 @@
 .xs.icon {
   width: 20px;
 }
+/* A round icon (`icon="round"`): the same square, as a circle. */
+.round {
+  border-radius: 50%;
+}
 .button:disabled {
   cursor: not-allowed;
 }

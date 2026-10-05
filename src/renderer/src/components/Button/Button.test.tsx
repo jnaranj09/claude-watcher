@@ -53,6 +53,17 @@ describe('Button', () => {
     expect(b.dataset['size']).toBe('sm')
   })
 
+  // A ROUND icon button (the dialog ✕, the rail's « and tag toggle, a toast's ✕) is the same
+  // component with another SHAPE, not another variant: it keeps its variant's look in every theme,
+  // and themes reach the shape through `data-shape`, a public hook.
+  it('icon="round" is an icon button with data-shape="round"; a square icon has no data-shape', () => {
+    const round = button(render({ icon: 'round', 'aria-label': 'Close' }))
+    expect(round.dataset['shape']).toBe('round')
+    cleanup?.()
+    const square = button(render({ icon: true, 'aria-label': 'Menu' }))
+    expect(square.hasAttribute('data-shape')).toBe(false)
+  })
+
   it('marks armed and lit as boolean data attributes, absent when off', () => {
     const off = button(render({ variant: 'danger' }))
     expect(off.hasAttribute('data-armed')).toBe(false)
@@ -248,6 +259,13 @@ describe('Button owns every button style', () => {
     expect(body('.danger')).not.toMatch(/background: var\(--danger\)/)
     expect(css).toMatch(/\.danger\[data-armed\] \{[^}]*font-weight: 600;/)
     expect(css).toMatch(/\.button\[data-lit\] \{[^}]*background: var\(--text-primary\);/)
+  })
+
+  // jsdom has no layout: read the stylesheet. A round icon is a CIRCLE, and it is still an icon:
+  // the square's width per size comes from `.icon`, the shape only rounds it.
+  it('rounds a round icon into a circle', () => {
+    const css = readFileSync(join(componentsDir, 'Button/Button.module.css'), 'utf8')
+    expect(/\n\.round \{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/border-radius: 50%;/)
   })
 
   // `.secondary:hover:not(:disabled)` (0,3,0) outranks `.button[data-lit]` (0,2,0): a hovered

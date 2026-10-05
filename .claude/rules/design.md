@@ -376,8 +376,8 @@ Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
   action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`. Anatomy:
-  glyph, title, optional `detail`, optional action (`Button secondary sm`), ✕ (`Button ghost xs
-icon`, `aria-label="Dismiss"`). Success/info `role="status"`, error `role="alert"`, in `<section
+  glyph, title, optional `detail`, optional action (`Button secondary sm`), ✕ (`Button secondary xs
+icon="round"`, `aria-label="Dismiss"`). Success/info `role="status"`, error `role="alert"`, in `<section
 aria-label="Notifications">`. Themes: `[data-toast]`, `[data-toast-kind]`.
 - Toast action not rendered while a modal is open (`modalOpenIn`).
 - Toast closes when `run` is called; store contains throws silently, so a failing `run` pushes its
@@ -424,7 +424,10 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
 - **`<button className=…>` → `components/Button/Button.tsx`.** Variants: `primary` (ONE main
   action: RAISED `--bg-surface-raised` fill + strong border + 600 weight, never an accent colour —
   a blue primary was rejected 2026-09-23), `secondary` (outlined), `danger`, `ghost` (borderless icons). Sizes
-  (fixed heights): `md` 32px, `sm` 26px, `xs` 20px; `icon` = square. `lit` = toggle ON
+  (fixed heights): `md` 32px, `sm` 26px, `xs` 20px; `icon` = square, `icon="round"` = circle
+  (`data-shape="round"`): a standalone icon control (dialog ✕, rail « / tag toggle, toast ✕) is a
+  ROUND `secondary` — the ☰'s look as a circle in every theme; `ghost` stays for icons inside a
+  card or row. `lit` = toggle ON
   (`data-lit` present only when on — test `hasAttribute`). **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.
   Workspace switcher is NOT a Button (compound pill, matches `md` height); its menu lists only the

@@ -25,8 +25,11 @@ export interface ButtonProps extends Omit<
 > {
   variant?: ButtonVariant | undefined
   size?: ButtonSize | undefined
-  /** A square holding only a glyph. It has no visible text, so it needs an `aria-label`. */
-  icon?: boolean | undefined
+  /** A square holding only a glyph. It has no visible text, so it needs an `aria-label`.
+   *  `'round'` is the same icon button as a CIRCLE (the dialog ✕, the rail's « and tag toggle, a
+   *  toast's ✕): another shape, never another variant, so it keeps its variant's look in every
+   *  theme. Themes reach it through `data-shape="round"`. */
+  icon?: boolean | 'round' | undefined
   /** `danger` only: the armed second-press state — solid red, `Confirm delete`. */
   armed?: boolean | undefined
   /** A toggle that is ON (the Filter button while its row is open, an open rail peek):
@@ -72,7 +75,8 @@ export function Button({
     styles.button,
     styles[variant],
     size === 'sm' ? styles.sm : size === 'xs' ? styles.xs : null,
-    icon ? styles.icon : null
+    icon !== false ? styles.icon : null,
+    icon === 'round' ? styles.round : null
   ]
     .filter(Boolean)
     .join(' ')
@@ -106,6 +110,7 @@ export function Button({
         data-testid={testId}
         data-variant={variant}
         data-size={size}
+        {...(icon === 'round' ? { 'data-shape': 'round' } : {})}
         disabled={busy || disabled === true}
         {...(busy ? { 'aria-busy': true } : {})}
         {...(armed ? { 'data-armed': true } : {})}

@@ -714,9 +714,9 @@ export function AttentionRail({
         <span className={styles.headerTools}>
           {!collapsed && hasTags && (
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
-              icon
+              icon="round"
               lit={showAllTags}
               testId="rail-show-tags"
               aria-pressed={showAllTags}
@@ -728,9 +728,9 @@ export function AttentionRail({
             </Button>
           )}
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            icon
+            icon="round"
             testId="rail-collapse"
             aria-label={collapsed ? 'Expand sessions rail' : 'Collapse sessions rail'}
             aria-expanded={!collapsed}

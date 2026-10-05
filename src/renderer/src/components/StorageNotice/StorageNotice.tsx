@@ -30,9 +30,9 @@ export function StorageNotice({ health }: { health: StorageHealth | null }): JSX
         }
         action={
           <Button
-            variant="ghost"
+            variant="secondary"
             size="xs"
-            icon
+            icon="round"
             testId="storage-notice-dismiss"
             aria-label="Dismiss"
             title="Dismiss"
