@@ -18,7 +18,9 @@ real hook POSTs, screenshots; same seams as `tests/e2e/native-engine.e2e.ts`).
    quits anyway (`code=already_running`).
 2. `npm run build` (driver runs `out/main/index.js`). Rebuild after every change.
 3. Write a scenario in the scratchpad (not the repo), run with `node <file>.mjs`. A window opens
-   on the operator's desktop for ~30 s — say so first.
+   on a HIDDEN display (`tests/headless/headlessDisplay.mjs`: a private `kwin_wayland --virtual`
+   with the real GPU), so it never takes the operator's focus. e2e and smoke use the same display.
+   `CW_HEADED=1` shows the window on the desktop — only when the operator asks to watch.
 
    ```js
    import * as d from '/abs/path/to/repo/tests/drive/driveApp.mjs'

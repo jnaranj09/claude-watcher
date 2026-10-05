@@ -17,6 +17,8 @@ export default defineConfig({
   // The Epic-3 FR-10 specs will live here. Today only a skipped placeholder exists.
   testDir: './tests/e2e',
   testMatch: '**/*.e2e.ts',
+  // Every app opens on a hidden display, never on the desktop (CW_HEADED=1 to watch).
+  globalSetup: './tests/e2e/globalSetup.ts',
   // No web server / browser projects: Electron is driven via Playwright's
   // `_electron` launcher inside the spec (Epic-3), not a browser project here.
   fullyParallel: false,

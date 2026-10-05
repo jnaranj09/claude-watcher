@@ -20,6 +20,7 @@ import path from 'node:path'
 import http from 'node:http'
 import net from 'node:net'
 import { fileURLToPath } from 'node:url'
+import { startHeadlessDisplay } from '../headless/headlessDisplay.mjs'
 
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, '')
 export const SHOT_DIR = path.join(ROOT, 'test-results/drive')
@@ -142,9 +143,11 @@ export async function launchApp() {
     )
   }
   const pickDir = mkdtempSync(path.join(tmpdir(), 'cw-drive-'))
+  // A hidden display: the drive window never takes the operator's focus (CW_HEADED=1 to watch).
+  const display = await startHeadlessDisplay()
   const app = await electron.launch({
     args: [path.join(ROOT, 'out/main/index.js')],
-    env: { ...process.env, C9_TEST_PICK_DIR: pickDir, CLAUDE_WATCHER_PROFILE: 'drive' }
+    env: display.env({ ...process.env, C9_TEST_PICK_DIR: pickDir, CLAUDE_WATCHER_PROFILE: 'drive' })
   })
   const pid = app.process().pid
   const page = await app.firstWindow()
@@ -170,6 +173,7 @@ export async function launchApp() {
       /* group already gone */
     }
     await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))])
+    display.stop()
   }
 
   return { app, page, pickDir, teardown }

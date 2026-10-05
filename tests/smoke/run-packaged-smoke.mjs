@@ -34,6 +34,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evaluateVerdict, webglMode } from './smokeVerdict.mjs'
+import { startHeadlessDisplay } from '../headless/headlessDisplay.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const bin = resolve(root, 'dist', 'linux-unpacked', 'claude-watcher')
@@ -57,8 +58,10 @@ console.log(`[smoke] launching PACKAGED binary: ${bin}`)
 // 'inherit': inheriting would make the runner wait on descriptors held open by
 // the lingering GPU/zygote/utility helpers under Wayland. We echo the pipes for
 // debuggability but never block the runner's exit on them.
+// A hidden display: the smoke window never takes the operator's focus (CW_HEADED=1 to watch).
+const display = await startHeadlessDisplay()
 const child = spawn(bin, ['--no-sandbox'], {
-  env: { ...process.env, C9_SMOKE: '1', C9_SMOKE_OUT: out },
+  env: display.env({ ...process.env, C9_SMOKE: '1', C9_SMOKE_OUT: out }),
   detached: true,
   stdio: ['ignore', 'pipe', 'pipe']
 })
