@@ -51,6 +51,8 @@ useEffect(() => {
   shown, so output stacks; off-screen lets xterm's IntersectionObserver pause and full-refresh.
   Guarded by `terminalRules.test.ts`.
 - `convertEol: false` — the PTY owns newlines.
+- **The pty cwd is normalized** (`path.resolve`) at the one spawn call in `terminalManager.ts`:
+  node-pty copies cwd into `env.PWD`, and a stored trailing `/` made bash's `\W` print nothing.
 - **Every key reaches the terminal.** No app menu; a new `before-input-event` `preventDefault`
   steals the key from claude (only one allowed: dev F12).
 - **App takes no key typed into the terminal** (R1): App keydown returns on
