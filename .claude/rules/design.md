@@ -17,6 +17,10 @@ that part or class. The meaning is what counts, not the component: a "current pa
 is never an `[AGENT]` pick in a spec: stop and ask the owner. ("The standard was already on the
 settings page. No need to reinvent the wheel visually." — 2026-10-03)
 
+**Reuse the word, too.** Before naming anything the operator sees, search how the app already
+names that thing and reuse the word (technical-taste §4 "Same thing, same word"). A word used in
+more than one place comes from `copy/terms.ts`; a spec lists every new word in its `## Copy` table.
+
 ## Canonical shape
 
 ```tsx

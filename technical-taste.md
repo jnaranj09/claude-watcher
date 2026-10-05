@@ -185,6 +185,14 @@ them:
 
 ## 4. Copy tone
 
+- **Same thing, same word.** Consistency is the default, not a ban: before naming anything the
+  operator sees (a button, a title, a label, a toast), search how the app already names that thing
+  and reuse it word for word. A different word is the owner's choice, never a side effect. A word
+  used in more than one place lives in `src/renderer/src/copy/terms.ts`; renaming it means editing
+  it there, and every place follows. Sensors: `copyTerms.guard.test.ts` (a `terms.ts` word typed by
+  hand elsewhere fails) and the spec hook (a spec from 2026-10-06 needs a `## Copy` table:
+  `New text | Same thing in the app today`). ("You named the button Terminal instead of Shell, the
+  word that already existed. I hate inconsistency in UI." — 2026-10-05)
 - Talk operator to operator: short, literal, plain sentences that end with a period. No cheer, no
   emoji, no exclamation marks, no "Are you sure?".
 - **Name the thing and the consequence.** "2 agents are still working — quit anyway?", "That
@@ -547,47 +555,48 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 
 ## 11. Default answers
 
-| Question                                | Answer                                                                                                                                                          |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New config surface?                     | `ManageDialog`: rail \| right column, placeholder when nothing is open, `+ New` at the bottom of the rail                                                       |
-| Settings-like surface?                  | Categories as rail rows, opens on the first, saves on change, no Save button                                                                                    |
-| Global or per-workspace?                | Items: `workspaceId \| null`; a workspace view lists its own rows + global (Include global, remembered), every row marked. App settings: global. Alerts: global |
-| Setting or hard-code?                   | Felt by the operator → setting with a fixed list, recommended default, `Off` as an option. Internal → hard-code                                                 |
-| Confirm dialog?                         | Reversible → no. Destructive → arm in place (`Delete` → `Confirm delete`)                                                                                       |
-| A control the user can't use now?       | Do not render it (only exception: disabled reorder arrows)                                                                                                      |
-| Menu, dropdown or list popup?           | `Popover` parts. `Select` for value pickers                                                                                                                     |
-| Spacing?                                | A role token by job. Never `--space-N` or px                                                                                                                    |
-| Colour?                                 | An existing token. Otherwise a new documented, themeable token                                                                                                  |
-| Show a workspace?                       | Tint plus name (`WorkspaceLabel`). Never a dot                                                                                                                  |
-| Show status?                            | Dot plus text label, fixed colours                                                                                                                              |
-| Need feedback?                          | §9                                                                                                                                                              |
-| Async button?                           | `useAsyncAction` / `busy`                                                                                                                                       |
-| Error copy?                             | Map a code to a plain sentence                                                                                                                                  |
-| Bad config or input?                    | Fail closed to a safe default, keep the user's setting, show it in the UI, log code + path                                                                      |
-| Optimistic update?                      | Only as view-state that expires when main answers. Revert and toast on failure                                                                                  |
-| Library or build it?                    | Build a small primitive. No UI kit                                                                                                                              |
-| New key binding?                        | Avoid. Never global. Never steal a key from claude's terminal                                                                                                   |
-| Background event takes focus?           | Never                                                                                                                                                           |
-| Auto-submit into claude?                | Never                                                                                                                                                           |
-| File watcher or live reload?            | No. Rescan on open, plus a Reload button                                                                                                                        |
-| Per-workspace or per-terminal override? | Out of scope. One global choice                                                                                                                                 |
-| Light-theme support?                    | Yes, with tested contrast floors                                                                                                                                |
-| New status or state?                    | No. Use tags and rules                                                                                                                                          |
-| Feature naming?                         | A name that can't be confused with an existing field ("workspace", not "project"). New code says `claude-watcher`                                               |
-| Cross-platform?                         | Write it portable (`$SHELL`, POSIX). Gate Linux-only paths. Linux ships first; macOS and Windows later, unsigned at first                                       |
-| Orphaned reference?                     | Keep it, hide it or label it, and make it fixable. Never drop it silently                                                                                       |
-| Bigger scope?                           | Ship the thin version. Put the rest on IdeasBoard                                                                                                               |
-| New helper or abstraction?              | Search for an existing one first. Only with a second real caller. Inline it when it grows a one-caller flag                                                     |
-| Split a file or function?               | Where the pieces are tangled together, not at a line count                                                                                                      |
-| Need `as`?                              | Parse with Zod instead. If you must, inside a small named, tested helper                                                                                        |
-| A state with variants?                  | A discriminated union with an exhaustive `never` check. No boolean pairs                                                                                        |
-| A test is red?                          | Fix the code. Never skip, delete, `.only`, loosen or re-record it to get green                                                                                  |
-| Mock or real?                           | Real code. Mock only at process edges (pty, fs, Electron)                                                                                                       |
-| Snapshot test?                          | No                                                                                                                                                              |
-| Coverage target?                        | No. Fault-inject the guards instead                                                                                                                             |
-| A `catch` with nothing in it?           | Log a `code=`, or comment why swallowing is safe                                                                                                                |
-| Add a line to CLAUDE.md or a rule file? | Only after an agent repeated a mistake, and only what the code can't tell. Prefer a sensor                                                                      |
-| Rewrite or refactor?                    | Refactor in small steps behind green gates. Rewrite only a local wrong abstraction                                                                              |
+| Question                                   | Answer                                                                                                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New config surface?                        | `ManageDialog`: rail \| right column, placeholder when nothing is open, `+ New` at the bottom of the rail                                                       |
+| Settings-like surface?                     | Categories as rail rows, opens on the first, saves on change, no Save button                                                                                    |
+| Global or per-workspace?                   | Items: `workspaceId \| null`; a workspace view lists its own rows + global (Include global, remembered), every row marked. App settings: global. Alerts: global |
+| Setting or hard-code?                      | Felt by the operator → setting with a fixed list, recommended default, `Off` as an option. Internal → hard-code                                                 |
+| Confirm dialog?                            | Reversible → no. Destructive → arm in place (`Delete` → `Confirm delete`)                                                                                       |
+| A control the user can't use now?          | Do not render it (only exception: disabled reorder arrows)                                                                                                      |
+| Menu, dropdown or list popup?              | `Popover` parts. `Select` for value pickers                                                                                                                     |
+| Spacing?                                   | A role token by job. Never `--space-N` or px                                                                                                                    |
+| Colour?                                    | An existing token. Otherwise a new documented, themeable token                                                                                                  |
+| Show a workspace?                          | Tint plus name (`WorkspaceLabel`). Never a dot                                                                                                                  |
+| Show status?                               | Dot plus text label, fixed colours                                                                                                                              |
+| Need feedback?                             | §9                                                                                                                                                              |
+| Async button?                              | `useAsyncAction` / `busy`                                                                                                                                       |
+| Error copy?                                | Map a code to a plain sentence                                                                                                                                  |
+| Bad config or input?                       | Fail closed to a safe default, keep the user's setting, show it in the UI, log code + path                                                                      |
+| Optimistic update?                         | Only as view-state that expires when main answers. Revert and toast on failure                                                                                  |
+| Library or build it?                       | Build a small primitive. No UI kit                                                                                                                              |
+| New key binding?                           | Avoid. Never global. Never steal a key from claude's terminal                                                                                                   |
+| Background event takes focus?              | Never                                                                                                                                                           |
+| Auto-submit into claude?                   | Never                                                                                                                                                           |
+| File watcher or live reload?               | No. Rescan on open, plus a Reload button                                                                                                                        |
+| Per-workspace or per-terminal override?    | Out of scope. One global choice                                                                                                                                 |
+| Light-theme support?                       | Yes, with tested contrast floors                                                                                                                                |
+| New status or state?                       | No. Use tags and rules                                                                                                                                          |
+| Label for something the app already names? | The existing word, from `copy/terms.ts`. A new word only when the owner picks it, and then every place changes                                                  |
+| Feature naming?                            | A name that can't be confused with an existing field ("workspace", not "project"). New code says `claude-watcher`                                               |
+| Cross-platform?                            | Write it portable (`$SHELL`, POSIX). Gate Linux-only paths. Linux ships first; macOS and Windows later, unsigned at first                                       |
+| Orphaned reference?                        | Keep it, hide it or label it, and make it fixable. Never drop it silently                                                                                       |
+| Bigger scope?                              | Ship the thin version. Put the rest on IdeasBoard                                                                                                               |
+| New helper or abstraction?                 | Search for an existing one first. Only with a second real caller. Inline it when it grows a one-caller flag                                                     |
+| Split a file or function?                  | Where the pieces are tangled together, not at a line count                                                                                                      |
+| Need `as`?                                 | Parse with Zod instead. If you must, inside a small named, tested helper                                                                                        |
+| A state with variants?                     | A discriminated union with an exhaustive `never` check. No boolean pairs                                                                                        |
+| A test is red?                             | Fix the code. Never skip, delete, `.only`, loosen or re-record it to get green                                                                                  |
+| Mock or real?                              | Real code. Mock only at process edges (pty, fs, Electron)                                                                                                       |
+| Snapshot test?                             | No                                                                                                                                                              |
+| Coverage target?                           | No. Fault-inject the guards instead                                                                                                                             |
+| A `catch` with nothing in it?              | Log a `code=`, or comment why swallowing is safe                                                                                                                |
+| Add a line to CLAUDE.md or a rule file?    | Only after an agent repeated a mistake, and only what the code can't tell. Prefer a sensor                                                                      |
+| Rewrite or refactor?                       | Refactor in small steps behind green gates. Rewrite only a local wrong abstraction                                                                              |
 
 ## 12. Reversals: old → current (do not revive the old side)
 

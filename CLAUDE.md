@@ -79,6 +79,8 @@ selectors → components. Renderer never invents/mutates session truth.
    native `<select>`, bare text `<input>`, `<button className>`, hand-made popovers, bare
    error/success lines (→ `Callout`), raw spacing (→ `--gap-*`/`--inset-*` roles) (each has a
    guard test). Every action ends in visible feedback; async buttons use `useAsyncAction`/`busy`.
+   **Same thing, same word:** reuse the app's existing word for a thing (`copy/terms.ts`, spec
+   `## Copy` table; technical-taste §4).
 
 **Debugging?** Read `rules/troubleshooting.md` first (Step-0 questions before theorizing).
 
