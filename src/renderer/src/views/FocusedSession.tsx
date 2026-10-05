@@ -47,6 +47,7 @@ import {
 import { acknowledgeSession } from '../utils/acknowledgeSession'
 import { isInsideTerminal } from '../lib/terminalFocus'
 import styles from './FocusedSession.module.css'
+import { SHELL_TERMS } from '../copy/terms'
 
 /**
  * Story 4.3 (FR-15) — resolve a human-readable name for the focused terminal.
@@ -249,10 +250,10 @@ export function FocusedSession({
             lit={shellVisible}
             busy={shell.busy}
             onClick={() => void shell.run()}
-            title={shellVisible ? 'Hide shell' : 'Open shell'}
+            title={shellVisible ? SHELL_TERMS.hide : SHELL_TERMS.open}
             aria-pressed={shellVisible}
           >
-            <span aria-hidden>{'>_'}</span> Shell
+            <span aria-hidden>{'>_'}</span> {SHELL_TERMS.label}
           </Button>
           {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. The
               button is the ONLY path: Ctrl+W archives nothing (R27 — it is claude's delete-word,

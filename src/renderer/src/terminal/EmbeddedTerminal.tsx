@@ -77,6 +77,7 @@ import { toast } from '../stores/toastStore'
 import { Callout } from '../components/Callout/Callout'
 import styles from './EmbeddedTerminal.module.css'
 import { dialogHoldsFocus } from '../lib/terminalFocus'
+import { SHELL_TERMS } from '../copy/terms'
 
 /** Card shell pane — the companion this terminal hosts UNDER itself. */
 export interface ShellPaneSlot {
@@ -819,7 +820,11 @@ export function EmbeddedTerminal({
           <div className={styles.dead} role="alert" data-testid="dead-terminal">
             <span className={styles.deadMessage} data-testid="dead-terminal-reason">
               {exitReasonCopy(
-                variant === 'shell' ? 'Shell' : onNewSession !== undefined ? 'Claude' : 'Terminal',
+                variant === 'shell'
+                  ? SHELL_TERMS.label
+                  : onNewSession !== undefined
+                    ? 'Claude'
+                    : 'Terminal',
                 dead
               )}
             </span>
@@ -891,7 +896,7 @@ export function EmbeddedTerminal({
           getBounds={shellBounds}
           onDrag={setDragRatio}
           onCommit={commitShellRatio}
-          ariaLabel="Resize shell pane"
+          ariaLabel={SHELL_TERMS.resize}
           testId="shell-divider"
         />
       )}

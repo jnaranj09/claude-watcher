@@ -5,10 +5,11 @@
 // never the thrown message. Logs a code only — never the folder.
 import { boardStore, selectKeptAliveTerminalIds } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
+import { SHELL_TERMS } from '../copy/terms'
 
 const LOG_PREFIX = '[claude-watcher][shell]'
 
-export const SHELL_OPEN_GENERIC_COPY = 'Could not open a shell for this session.'
+export const SHELL_OPEN_GENERIC_COPY = SHELL_TERMS.openFailedSession
 
 const SHELL_OPEN_ERROR_COPY: readonly (readonly [string, string])[] = [
   ['folder_missing', 'That folder no longer exists.'], // the launch copy (namePromptFlow.ts)

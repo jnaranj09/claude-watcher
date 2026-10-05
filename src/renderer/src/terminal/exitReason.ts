@@ -2,6 +2,7 @@
 // state only, never pty content or a path) and a refused Resume mapped to copy (never the thrown
 // message, which Electron wraps and a handler could fill with anything).
 import { formatVersion, MIN_CLAUDE_VERSION } from '../../../shared/launch/claudeVersion'
+import type { SHELL_TERMS } from '../copy/terms'
 
 /** The signals a claude (or a shell) is usually stopped by. Anything else is named by number. */
 const SIGNAL_NAMES: Readonly<Record<number, string>> = {
@@ -23,7 +24,10 @@ export interface ExitInfo {
 
 /** `who` is what the pane ran: `Claude` on the focused surface, `Terminal` for a plain shell,
  *  `Shell` for the card shell pane. */
-export function exitReasonCopy(who: 'Claude' | 'Terminal' | 'Shell', exit: ExitInfo): string {
+export function exitReasonCopy(
+  who: 'Claude' | 'Terminal' | typeof SHELL_TERMS.label,
+  exit: ExitInfo
+): string {
   if (exit.signal !== undefined && exit.signal > 0) {
     const name = SIGNAL_NAMES[exit.signal]
     return name === undefined
