@@ -96,7 +96,7 @@ describe('docs/themes/examples', () => {
       expect(r.bundle.css.match(/url\("/g)).toHaveLength(1)
       expect(r.bundle.css).toContain('--theme-wallpaper: url("data:image/png;base64,')
       const urls = liquidGlassRules().flatMap((rule) => rule.body.match(/url\([^)]*\)/g) ?? [])
-      expect(urls).toEqual(['url(#cw-text-refraction)'])
+      expect([...new Set(urls)]).toEqual(['url(#cw-text-refraction)'])
       const users = liquidGlassRules().filter((rule) =>
         rule.body.includes('var(--theme-wallpaper)')
       )
@@ -270,11 +270,11 @@ describe('docs/themes/examples', () => {
         s
       ).toBe(true)
     }
-    // The state border is stronger than the hover border, and hover never lands on a state row.
+    // Hover draws no outline (an outline is for keyboard focus only), and never lands on a state row.
     const hover = rules.filter((r) =>
       r.selectors.some((x) => x.startsWith('[data-popover-item]:hover'))
     )
-    expect(hover.map((r) => r.body).join('\n')).toMatch(/border-color:\s*var\(--text-secondary\);/)
+    expect(hover.map((r) => r.body).join('\n')).toMatch(/border-color:\s*transparent;/)
     for (const st of [
       "[aria-selected='true']",
       "[aria-checked='true']",

@@ -401,9 +401,10 @@ body {
 
 /* Every popover ROW is a bubble (operator, 2026-10-01): the workspace switcher's material at a
    row's size. Its fill is the row's workspace tint when it has one (`--ws-fill`, set by
-   WorkspaceTint), else a faint white; a faint border and the shallow rim carry the edge. NO blur:
+   WorkspaceTint), else a faint white; THE CONTROL EDGE (below) carries the edge. NO blur:
    the popover box blurs itself and is the row's backdrop root, so a row's blur would read only the
-   box's paint. Hover moves the border; the fill IS the colour. Divider and note stay flat. */
+   box's paint. Hover lays the hover film and draws no outline (operator, 2026-10-05: an outline is
+   for keyboard focus only); the fill IS the colour. Divider and note stay flat. */
 [data-popover-item] {
   /* Medium weight: regular strokes thinned out on glass (2026-10-01). */
   font-weight: 500;
@@ -413,11 +414,11 @@ body {
     [aria-expanded='true']
   ):not([data-active]) {
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
-  border-color: var(--text-secondary);
+  border-color: transparent;
 }
 /* The current value, a tag that is on, an open submenu, the expander's highlight. Its border is
-   --text-primary, ABOVE the hover border (--text-secondary), so a keyboard-active row never reads
-   weaker than the row under the mouse; hover is excluded from these rows above. */
+   --text-primary, so a keyboard-active row still reads as chosen; hover is excluded from these rows
+   above. */
 [data-popover-item][aria-selected='true'],
 [data-popover-item][aria-checked='true'],
 [data-popover-item][aria-expanded='true'],
@@ -468,23 +469,20 @@ body {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
 }
-[data-testid='workspace-elsewhere-tab'] {
-  box-shadow: var(--glass-rim);
-}
 /* A CONTROL on the header, not a surface: it takes the raised fill `+ New session` beside it has
    (`--bg-surface-raised`, white 10%), well above the header's 3%; its edge is THE CONTROL EDGE
    (below, with the buttons). The switcher takes its WORKSPACE tint instead when it has one
-   (spec 2026-09-29): translucent, so the glass still shows. Hover moves the border only. It was
+   (spec 2026-09-29): translucent, so the glass still shows. Hover lays the hover film like every
+   button; it draws no outline (operator, 2026-10-05: an outline is for keyboard focus only). It was
    black at 22% while the header was black at 20%; on the 3% header that read as a hole. */
 [data-testid='workspace-switcher'] {
   background-color: var(--ws-fill, var(--bg-surface-raised));
 }
 [data-testid='workspace-switcher']:hover {
-  border-color: var(--text-secondary);
+  border-color: transparent;
 }
 [data-testid='workspace-elsewhere-tab'] {
   background-color: var(--bg-surface-raised);
-  border-color: rgba(255, 255, 255, 0.1);
 }
 /* The grey count pills (the button's total, the elsewhere tab's, each menu row's). The app fills
    them with `--border-strong`, which is white 28% here: over glass it lands at a light grey and the
@@ -624,6 +622,44 @@ button[data-variant='secondary']:hover:not(:disabled):not([data-lit]) {
 }
 button[data-variant='secondary']:not(:disabled):not([data-lit]) {
   background-color: rgba(255, 255, 255, 0.004);
+}
+/* The ELSEWHERE TAB takes the same edge, sheen and text light: it is a control beside the
+   switcher, and a plain bordered tab read as another material (operator, 2026-10-05). Its
+   `::before` is the app's text strut, so ONE `::after` ring draws both lines. The tab is the
+   pill's RIGHT end, where the switcher's top line has dimmed to 45% and its bottom line is at
+   full: the same two values here, so the edge runs on from the switcher. */
+[data-testid='workspace-elsewhere-tab'] {
+  border-color: transparent;
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  background-image: var(--glass-control-sheen);
+  filter: url(#cw-text-refraction);
+}
+[data-testid='workspace-elsewhere-tab']:hover {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
+}
+[data-testid='workspace-elsewhere-tab']::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  filter: blur(0.3px);
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(to top, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+/* KEYBOARD FOCUS is the only outline on a control (operator, 2026-10-05), in the search field's
+   border colour (`--border-strong`, white 28%), not the token's white 55%. */
+[data-testid='workspace-switcher']:focus-visible,
+[data-testid='workspace-elsewhere-tab']:focus-visible,
+button[data-variant='primary']:focus-visible,
+button[data-variant='secondary']:focus-visible,
+[data-popover-item]:focus-visible {
+  outline-color: var(--border-strong);
 }
 /* A LIT toggle (the Filter button while its row is open or a filter is on, an open rail peek) is
    glass too: the app's opaque `--text-primary` fill becomes a TRANSLUCENT white (82%), with the
