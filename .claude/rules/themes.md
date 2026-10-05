@@ -15,6 +15,9 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
 - Theme = `<userData>/themes/<id>/theme.json` (`shared/schemas/theme.ts`, `.strict()` — unknown
   key/token fails the whole theme) + optional CSS + assets. Main composes ONE stylesheet (tokens,
   CSS with `url()` inlined as `data:`, 5 MB cap) and pushes `ThemeBundle` over `CH.themeApplied`.
+  The only other `url()` passed is a same-document fragment `url(#name)` (`FRAGMENT_REF`): the SVG
+  filters the app ships in `renderer/index.html` (`#cw-text-refraction`). A new shared filter goes
+  there and in THEMES.md's filter table.
 - **Liquid Glass and Paper are bundled read-only** (`extraResources` →
   `<resourcesPath>/themes`; dev reads `docs/themes/examples`). `BUNDLED_THEME_IDS` is the one
   list. A user folder with a bundled id is skipped (`code=theme_id_reserved`). Smoke's

@@ -11,6 +11,59 @@
   </head>
 
   <body>
+    <!-- Shared SVG filters a theme may reference from CSS (`filter: url(#id)`): Chromium resolves
+         only same-document filter URLs, so a theme cannot ship its own. themes.md lists them. -->
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute">
+      <!-- The text's light, refracted: the bright pixels (the label and icons), moved 12px down and
+           right, warped by noise, blurred and dimmed to 16% grey, kept inside the element's own
+           shape, under the element. The region is wider than the box so its shadow is not cut. -->
+      <filter
+        id="cw-text-refraction"
+        x="-0.1"
+        y="-0.25"
+        width="1.2"
+        height="1.5"
+        color-interpolation-filters="sRGB"
+      >
+        <feColorMatrix
+          in="SourceGraphic"
+          type="matrix"
+          values="0 0 0 0 0.6  0 0 0 0 0.63  0 0 0 0 0.68  2.67 2.67 2.67 4 -10.5"
+          result="text"
+        />
+        <feOffset in="text" dx="12" dy="12" result="moved" />
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.06 0.12"
+          numOctaves="2"
+          seed="21"
+          result="noise"
+        />
+        <feDisplacementMap
+          in="moved"
+          in2="noise"
+          scale="14"
+          xChannelSelector="R"
+          yChannelSelector="G"
+          result="warped"
+        />
+        <feGaussianBlur in="warped" stdDeviation="3.2" result="soft" />
+        <feComponentTransfer in="soft" result="glow">
+          <feFuncA type="linear" slope="0.16" />
+        </feComponentTransfer>
+        <feColorMatrix
+          in="SourceAlpha"
+          type="matrix"
+          values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 255 0"
+          result="shape"
+        />
+        <feComposite in="glow" in2="shape" operator="in" result="inside" />
+        <feMerge>
+          <feMergeNode in="inside" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </svg>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

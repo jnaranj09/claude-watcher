@@ -52,6 +52,11 @@ const URL_CALL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi
 /** Matches exactly the `url("data:...")` calls THIS function emits, so the residual scan below
  *  does not trip over its own successful substitutions. */
 const OWN_DATA_URI_CALL = /url\("data:[^"]*"\)/g
+/** A same-document fragment, `#name`: an SVG filter the app ships in index.html (`filter:
+ *  url(#cw-text-refraction)`). It names an element already in the page, so it can load nothing;
+ *  it is passed through unquoted, and the residual scan strips exactly this emitted form. */
+const FRAGMENT_REF = /^#[A-Za-z][A-Za-z0-9_-]*$/
+const OWN_FRAGMENT_CALL = /url\(#[A-Za-z][A-Za-z0-9_-]*\)/g
 
 export function rewriteCssUrls(
   css: string,
@@ -67,6 +72,7 @@ export function rewriteCssUrls(
     (whole: string, dq: string | undefined, sq: string | undefined, uq: string | undefined) => {
       if (failure !== null) return whole
       const name = (dq ?? sq ?? uq ?? '').trim()
+      if (FRAGMENT_REF.test(name)) return `url(${name})`
       const m = ASSET_NAME.exec(name)
       if (m === null || name.includes('..')) {
         failure = 'theme_css_url_invalid'
@@ -105,8 +111,8 @@ export function rewriteCssUrls(
 
   // Fail closed on any `url(` form the pattern above could not fully consume — an unterminated
   // call, or any other shape nobody anticipated. Strip our OWN inlined data: URIs first, so the
-  // check does not trip over the very substitutions it made.
-  const residual = out.replace(OWN_DATA_URI_CALL, '')
+  // check does not trip over the very substitutions it made (and the fragment refs it passed).
+  const residual = out.replace(OWN_DATA_URI_CALL, '').replace(OWN_FRAGMENT_CALL, '')
   if (/url\(/i.test(residual)) return { ok: false, code: 'theme_css_url_invalid' }
 
   return { ok: true, css: out }

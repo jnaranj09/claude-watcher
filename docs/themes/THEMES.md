@@ -332,6 +332,15 @@ as a `data:` URI. Every `url(...)` in the file must resolve this way; anything e
 `data:` already, `/abs`, `../x`, `sub/dir/x`, another extension) fails the theme. All assets
 together may weigh at most 5 MB.
 
+The one other form allowed is a **same-document fragment**, `url(#name)` (a letter, then letters,
+digits, `_` or `-`): it names an element already in the page, so it cannot load anything, and it
+passes through unchanged. The app ships these SVG filters for themes (Chromium resolves only
+same-document filter URLs, so a theme cannot ship its own):
+
+| Filter                         | What it does                                                                                                                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `filter: url(#cw-text-refraction)` | The element's bright pixels (its label and icons) as faint grey light, 12px down and right, warped and blurred, kept inside the element's own shape and drawn under it. Liquid Glass puts it on its controls. The shape comes from the element's alpha: a fully clear element needs a near-invisible fill (Liquid Glass uses 0.4% white). |
+
 The whole CSS file is ALSO refused, whole, if it contains a **backslash**, `@import`, or
 `image-set(` anywhere in it — each one fails the theme with the same code a bad `url(...)` does.
 Why: CSS lets an escape sequence like `\75 rl(https://…)` be read by the browser as `url(`, which

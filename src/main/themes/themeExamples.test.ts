@@ -86,14 +86,17 @@ describe('docs/themes/examples', () => {
   // The material is the lit rim instead. The ground is the chosen WALLPAPER (spec 2026-09-24):
   // the app inlines exactly one as --theme-wallpaper and body is its only consumer; the theme CSS
   // references no asset of its own.
+  // The one other url() is `url(#cw-text-refraction)`: an SVG filter the app ships in index.html,
+  // a reference into the page, never a file.
   it('liquid-glass has no grain, no sheen, and one image: the chosen wallpaper on body only', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.bundle.wallpaperId).toBe('graphite')
-      expect(r.bundle.css.match(/url\(/g)).toHaveLength(1)
+      expect(r.bundle.css.match(/url\("/g)).toHaveLength(1)
       expect(r.bundle.css).toContain('--theme-wallpaper: url("data:image/png;base64,')
-      expect(liquidGlassRules().filter((rule) => rule.body.includes('url('))).toEqual([])
+      const urls = liquidGlassRules().flatMap((rule) => rule.body.match(/url\([^)]*\)/g) ?? [])
+      expect(urls).toEqual(['url(#cw-text-refraction)'])
       const users = liquidGlassRules().filter((rule) =>
         rule.body.includes('var(--theme-wallpaper)')
       )
@@ -220,16 +223,21 @@ describe('docs/themes/examples', () => {
     ).toEqual([])
   })
 
-  // Every popover ROW is a glass bubble (operator, 2026-10-01): a tint-aware fill, a faint border
-  // and the SHALLOW rim the header uses — never its own blur (the box is the row's backdrop root).
+  // Every popover ROW is a glass bubble (operator, 2026-10-01): a tint-aware fill and, since
+  // 2026-10-05, THE CONTROL EDGE the buttons use (no visible border, no shallow rim) — never its own
+  // blur (the box is the row's backdrop root).
   it('liquid-glass draws every popover row as a bubble, from the Popover hooks only', () => {
     const rules = liquidGlassRules()
     const row = rules.filter((r) => r.selectors.includes('[data-popover-item]'))
     const body = row.map((r) => r.body).join('\n')
     expect(body).toMatch(/background(-color)?:\s*var\(--ws-fill, rgba\(255, 255, 255, 0\.05\)\);/)
-    expect(body).toMatch(/border-color:\s*var\(--ws-border, rgba\(255, 255, 255, 0\.08\)\);/)
-    expect(body).toMatch(/box-shadow:\s*var\(--glass-rim-row\);/)
+    expect(body).not.toMatch(/--glass-rim-row/)
     expect(body).not.toMatch(/backdrop-filter/)
+    const edge = rules
+      .filter((r) => r.selectors.includes('[data-popover-item]:where(:not(:disabled))'))
+      .map((r) => r.body)
+      .join('\n')
+    expect(edge).toMatch(/border-color:\s*transparent;/)
     const root = rules
       .filter((r) => r.selectors.includes(':root'))
       .map((r) => r.body)
@@ -300,20 +308,21 @@ describe('docs/themes/examples', () => {
   // A popover is GLASS like the header: the token's white film + the sheen's dark bottom band read
   // as a flat grey card beside the glass header, and the header's own dark fill read as a black
   // slab over the near-black board (a blur of black is black). A FAINT WHITE tint lifts it. The
-  // fill sits in its own rule (the blur rule must carry no colour), the sheen is off the popovers,
-  // and the rim is the directional one — two offset inset shadows, never a `::after` ring, because
-  // a Select list and the tag picker scroll.
-  it('liquid-glass gives every popover a faint white glass fill and a directional rim, no sheen', () => {
+  // fill sits in its own rule (the blur rule must carry no colour) and the sheen is off the
+  // popovers. NO rim and no border (operator, 2026-10-05): the rows carry the control edge, and a
+  // rim around them read as a box around boxes. The rim token stays for the toast.
+  it('liquid-glass gives every popover a faint white glass fill and no rim, no sheen', () => {
     const rules = liquidGlassRules()
     const popoverRules = rules.filter((r) => POPOVERS.every((p) => r.selectors.includes(p)))
     const smoky = popoverRules.filter((r) => /background-color:/.test(r.body))
     expect(smoky).toHaveLength(1)
     expect(smoky[0]?.body).toMatch(/background-color:\s*var\(--glass-fill\);/)
     expect(smoky[0]?.body).not.toMatch(/backdrop-filter/)
-    expect(popoverRules.map((r) => r.body).join('\n')).not.toContain('--glass-sheen')
+    expect(popoverRules.map((r) => r.body).join('\n')).not.toMatch(/sheen/)
+    expect(smoky[0]?.body).toMatch(/border-color:\s*transparent;/)
     const rim = popoverRules.filter((r) => /box-shadow:/.test(r.body))
     expect(rim).toHaveLength(1)
-    expect(rim[0]?.body).toMatch(/box-shadow:\s*var\(--glass-rim-pop\), var\(--shadow-pop\);/)
+    expect(rim[0]?.body).toMatch(/box-shadow:\s*var\(--shadow-pop\);/)
     const root = rules
       .filter((r) => r.selectors.includes(':root'))
       .map((r) => r.body)
@@ -393,10 +402,12 @@ describe('docs/themes/examples', () => {
     expect(ring).not.toMatch(/z-index/)
   })
   // Primary and secondary Buttons are the switcher's glass: their own blur and THE CONTROL EDGE
-  // (2026-10-04) — no visible border, a dark 1px line outside and a lit `::after` ring on the
-  // border, so the top edge is ONE line (border + `--glass-rim`'s top inset drew two, which read as
-  // blurry). They never set a fill (primary's raised fill vs secondary's clear one is what tells
-  // them apart), and a lit button (opaque white, its own border) is excluded.
+  // (2026-10-04/05) — no visible border, a soft dark shadow down-right, a lit top ring on `::before`
+  // and a lit bottom ring on `::after`, so the top edge is ONE line (border + `--glass-rim`'s top
+  // inset drew two, which read as blurry). The fill colour is untouched (primary's raised fill vs
+  // secondary's clear one is what tells them apart; a clear secondary carries only a 0.4% film the
+  // refraction filter needs as a shape), and a lit button (opaque white, its own border) is
+  // excluded. All of them carry the corner sheen and the text's refracted light.
   it('liquid-glass gives primary and secondary buttons the switcher glass, fill untouched', () => {
     const rules = liquidGlassRules()
     const bodyOf = (sel: string): string =>
@@ -408,17 +419,24 @@ describe('docs/themes/examples', () => {
     for (const sel of edged) {
       const body = bodyOf(sel)
       expect(body, sel).toMatch(/border-color:\s*transparent;/)
-      expect(body, sel).toMatch(/box-shadow:\s*0 0 0 1px rgba\(0, 0, 0, 0\.3\)/)
+      expect(body, sel).toMatch(/box-shadow:\s*1px 1px 1px rgba\(0, 0, 0, 0\.5\);/)
       expect(body, sel).not.toMatch(/--glass-rim/)
-      const ring = bodyOf(`${sel}::after`)
-      expect(ring, sel).toMatch(/inset:\s*-1px;/)
-      expect(ring, sel).toMatch(/linear-gradient\(\s*to bottom/)
-      expect(ring, sel).toMatch(/pointer-events:\s*none;/)
+      expect(body, sel).toMatch(/background-image:\s*var\(--glass-control-sheen\);/)
+      expect(body, sel).toMatch(/filter:\s*url\(#cw-text-refraction\);/)
+      for (const [pseudo, dir] of [
+        ['::before', 'to bottom'],
+        ['::after', 'to top']
+      ] as const) {
+        const ring = bodyOf(`${sel}${pseudo}`)
+        expect(ring, sel + pseudo).toMatch(/inset:\s*-1px;/)
+        expect(ring, sel + pseudo).toMatch(new RegExp(`linear-gradient\\(\\s*${dir}`))
+        expect(ring, sel + pseudo).toMatch(/pointer-events:\s*none;/)
+      }
     }
     for (const sel of LEAF_BUTTONS.slice(2, 4)) {
       const body = bodyOf(sel)
       expect(body, sel).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
-      expect(body, sel).not.toMatch(/background/)
+      expect(body, sel).not.toMatch(/background:/)
     }
     expect(LEAF_BUTTONS.slice(2).find((s) => s.includes('secondary'))).toContain(':not([data-lit])')
   })

@@ -63,7 +63,7 @@ body {
      on it was hard to read. A dark 55% tint, a wider blur and less saturation keep the glass but
      mute what is behind it. */
   --glass-filter: blur(24px) saturate(140%);
-  --glass-fill: rgba(14, 14, 16, 0.55);
+  --glass-fill: rgba(14, 14, 16, 0.38);
   /* The ONE exception to the one material: a MODAL panel sits over the scrim, and through 3% glass
      it showed the dimmed board and read too dark (operator, 2026-09-25). It carries light of its
      own — a 5% fill, and `brightness(120%)` on its backdrop (7% / 135% read too bright), which lifts the scrim off the area
@@ -355,7 +355,10 @@ body {
 [data-popover] {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
-  box-shadow: var(--glass-rim-pop), var(--shadow-pop);
+  /* NO rim and NO border (operator, 2026-10-05): the rows carry the control edge, and a rim around
+     them read as a box around boxes. Seen first on the ☰ menu with a submenu open, whose blur layer
+     covers its own rim — the operator wanted that look on every popover. */
+  box-shadow: var(--shadow-pop);
 }
 /* GLASS like the header, not a grey slab: the token fill (`--bg-surface-raised`, white 10%) plus
    the sheen's dark bottom band and a 28% border made the ☰ menu read as a flat, opaque card next
@@ -368,7 +371,12 @@ body {
    that hides it. */
 [data-popover] {
   background-color: var(--glass-fill);
-  border-color: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
+}
+/* Its rows are FILLED bubbles, so they take the filled-row gap (operator, 2026-10-05: the rows sat
+   too close). Set as the popover's `--gap-row`, so the group gap above a list still adds up. */
+[data-popover] {
+  --gap-row: var(--gap-row-filled);
 }
 
 /* A menu that HOLDS a submenu (the ☰ menu and its `Tags ▸` list) is a container, not a leaf: if it
@@ -400,8 +408,6 @@ body {
   /* Medium weight: regular strokes thinned out on glass (2026-10-01). */
   font-weight: 500;
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
-  border-color: var(--ws-border, rgba(255, 255, 255, 0.08));
-  box-shadow: var(--glass-rim-row);
 }
 [data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
     [aria-expanded='true']
@@ -424,6 +430,27 @@ body {
      surface fill; keep the bubble's, hovered or not, with the state border. */
   background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
   border-color: var(--text-primary);
+}
+/* A workspace NAME inside a row (`WorkspaceLabel`, in the scope dropdowns) was a tinted box inside
+   the row's bubble — a bubble in a bubble (operator, 2026-10-05). In a row it is plain text and its
+   tint fills the whole ROW, the way the workspace menu's own rows are their tint: a layer from the
+   label (which carries `--ws-fill`) stretched over the row, under the row's text. */
+[data-popover-item]:has([data-tone]:not([data-popover-item])) {
+  isolation: isolate;
+}
+[data-popover-item] [data-tone] {
+  padding: 0;
+  border-color: transparent;
+  background: none;
+}
+[data-popover-item] [data-tone]::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: var(--rounded-md);
+  background: var(--ws-fill, transparent);
+  pointer-events: none;
 }
 [data-popover-item]:disabled {
   background-color: transparent;
@@ -490,60 +517,113 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]) {
 button[data-variant='primary'] {
   font-weight: var(--font-weight-body);
 }
-/* THE CONTROL EDGE (operator, 2026-10-04, from Apple's Liquid Glass controls — the segmented
-   control's "For You" pill): a 1px lit line along the top AND the bottom, the same strength,
-   fading out on the rounded sides, with a thin dark line just outside. No visible border and no
-   inner glow: the border plus `--glass-rim`'s top inset drew TWO lines at the top of a 32px
-   control, which read as a blurry border. The lit line is a `::after` ring ON the border
-   (`inset: -1px`), so the bright and the dark line touch. The switcher's workspace border tint
-   goes with the border; its fill still carries the tint. A ROUND secondary (`data-shape='round'`:
-   the dialog ✕, the rail's « and tag toggle, a toast's ✕) is the ☰'s clear glass as a circle —
-   the ring follows its radius. Comes after the switcher's and the
-   buttons' own rules: same specificity, later wins. */
+/* THE CONTROL EDGE (operator, 2026-10-04/05, from Apple's Liquid Glass controls): one 1px lit
+   line at the top and the bottom, fading out on the rounded sides, and a soft dark shadow down and
+   right. No visible border and no inner glow: the border plus `--glass-rim`'s top inset drew TWO
+   lines at the top of a 32px control, which read as a blurry border. The lit lines are rings ON
+   the border (`inset: -1px`), blurred 0.3px: at 1x a hard 1px curve shows pixel steps, a soft one
+   does not. The dark line is a soft offset shadow, not a hard ring, for the same reason; it keeps
+   the "this is a button" outline (operator, 2026-10-05). Every popover ROW takes the same edge, at
+   `:where()` weight so a row's state and hover borders still win. A ROUND secondary
+   (`data-shape='round'`) is the ☰'s clear glass as a circle — the rings follow its radius. Comes
+   after the switcher's and the buttons' own rules: same specificity, later wins. */
 [data-testid='workspace-switcher'],
 button[data-variant='primary']:not(:disabled),
-button[data-variant='secondary']:not(:disabled):not([data-lit]) {
+button[data-variant='secondary']:not(:disabled):not([data-lit]),
+[data-popover-item]:where(:not(:disabled)) {
   position: relative;
   border-color: transparent;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
 }
+/* Two layers, both the ring: `::before` is the TOP line, even end to end, with a dim top-left glint
+   (operator, 2026-10-05: the header's directional light at a control's size); `::after` is the
+   BOTTOM line, which DIMS toward the LEFT (to 45%): light entering at the top-left comes out
+   at the bottom-right, the way glass catches it (operator, 2026-10-05, from a reference button). The top line does not dim: a top edge fading to the right made the button read
+   taller on the left (operator, same day). Nothing is brighter than the even 35% line. */
+[data-testid='workspace-switcher']::before,
+button[data-variant='primary']:not(:disabled)::before,
+button[data-variant='secondary']:not(:disabled):not([data-lit])::before,
+[data-popover-item]:where(:not(:disabled))::before,
 [data-testid='workspace-switcher']::after,
 button[data-variant='primary']:not(:disabled)::after,
-button[data-variant='secondary']:not(:disabled):not([data-lit])::after {
+button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
+[data-popover-item]:where(:not(:disabled))::after {
   content: '';
   position: absolute;
   inset: -1px;
   padding: 1px;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.35),
-    rgba(255, 255, 255, 0) 40%,
-    rgba(255, 255, 255, 0) 60%,
-    rgba(255, 255, 255, 0.35)
-  );
+  filter: blur(0.3px);
+}
+[data-testid='workspace-switcher']::before,
+button[data-variant='primary']:not(:disabled)::before,
+button[data-variant='secondary']:not(:disabled):not([data-lit])::before,
+[data-popover-item]:where(:not(:disabled))::before {
+  background:
+    radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.2), transparent 20px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
   mask:
+    linear-gradient(to right, #000, rgba(0, 0, 0, 0.45)) intersect,
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
 }
-/* `+ New session`'s fill is a LENS (operator, 2026-10-04): lighter at the centre, darker toward
-   every edge, about the raised 10% on average. A backdrop blur cannot make that falloff here —
-   Chromium clamps it at the box edge, so a light shape painted behind a clear button blurred into
-   a flat fill (measured the same day) — so the gradient is painted. Set as `background-image` with
-   the hover layer stacked on top, so the hover feedback survives. */
-button[data-testid='header-new-session']:not(:disabled) {
-  background-color: transparent;
-  background-image: radial-gradient(
-    ellipse at center,
-    rgba(255, 255, 255, 0.14),
-    rgba(255, 255, 255, 0.05)
-  );
+[data-testid='workspace-switcher']::after,
+button[data-variant='primary']:not(:disabled)::after,
+button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
+[data-popover-item]:where(:not(:disabled))::after {
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
+  mask:
+    linear-gradient(to left, #000, rgba(0, 0, 0, 0.45)) intersect,
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
 }
-button[data-testid='header-new-session']:hover:not(:disabled) {
-  background-image:
-    linear-gradient(var(--bg-hover), var(--bg-hover)),
-    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+/* THE SHEEN and THE TEXT'S LIGHT (operator, 2026-10-05, from a glass button reference). The sheen:
+   a soft light filling in from the top-left corner and a weaker one at the bottom-right, eased out
+   in steps so it fades smoothly and stays near the corners. Set as `background-image` with the
+   hover layer stacked on top, so hover still shows. The text's light: the app's
+   `#cw-text-refraction` filter (index.html) — the label's light, refracted down and right through
+   the glass. A clear secondary gets a 0.4% white fill so the filter has a shape to keep the light
+   inside; it does not show. */
+:root {
+  --glass-control-sheen:
+    radial-gradient(
+      ellipse 70% 140% at 0 0,
+      rgba(255, 255, 255, 0.13),
+      rgba(255, 255, 255, 0.075) 22%,
+      rgba(255, 255, 255, 0.03) 48%,
+      rgba(255, 255, 255, 0.008) 70%,
+      transparent 85%
+    ),
+    radial-gradient(
+      ellipse 70% 140% at 100% 100%,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.045) 22%,
+      rgba(255, 255, 255, 0.018) 48%,
+      rgba(255, 255, 255, 0.005) 70%,
+      transparent 85%
+    );
+}
+[data-testid='workspace-switcher'],
+button[data-variant='primary']:not(:disabled),
+button[data-variant='secondary']:not(:disabled):not([data-lit]),
+[data-popover-item]:where(:not(:disabled)) {
+  background-image: var(--glass-control-sheen);
+  filter: url(#cw-text-refraction);
+}
+[data-testid='workspace-switcher']:hover,
+button[data-variant='primary']:hover:not(:disabled),
+button[data-variant='secondary']:hover:not(:disabled):not([data-lit]) {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
+}
+/* A row's hover in its own rule: like the row hover above, it never lands on a state row. */
+[data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
+    [aria-expanded='true']
+  ):not([data-active]) {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
+}
+button[data-variant='secondary']:not(:disabled):not([data-lit]) {
+  background-color: rgba(255, 255, 255, 0.004);
 }
 /* A LIT toggle (the Filter button while its row is open or a filter is on, an open rail peek) is
    glass too: the app's opaque `--text-primary` fill becomes a TRANSLUCENT white (82%), with the
@@ -660,4 +740,13 @@ section[data-column]::after,
   pointer-events: none;
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
+}
+
+/* Continuous (Apple-style) corners on every rounded box (operator, 2026-10-05): the curve starts
+   earlier and eases in, which softens the pixel steps of a 1px rounded edge at 1x. 60%: 100% made
+   small radii look squarish. Electron-only property; another engine ignores it. */
+*,
+*::before,
+*::after {
+  -electron-corner-smoothing: 60%;
 }

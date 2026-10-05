@@ -43,6 +43,14 @@ describe('rewriteCssUrls', () => {
       expect(r).toEqual({ ok: true, css: `url("data:${mime};base64,${b64}")` })
     }
   })
+  it.each(['url(#cw-text-refraction)', "url('#cw-text-refraction')", 'url( "#a_b-1" )'])(
+    'passes the same-document fragment %s through, unquoted',
+    (form) => {
+      const r = rewriteCssUrls(`b{filter:${form}}`, reader)
+      const id = form.includes('a_b-1') ? '#a_b-1' : '#cw-text-refraction'
+      expect(r).toEqual({ ok: true, css: `b{filter:url(${id})}` })
+    }
+  )
   it('counts a file referenced twice once against the cap', () => {
     const big = new Uint8Array(THEME_ASSETS_MAX_BYTES)
     const r = rewriteCssUrls('url(a.png) url(a.png)', createMapReader({ 'a.png': big }))
@@ -55,6 +63,11 @@ describe('rewriteCssUrls', () => {
     '/abs/a.png',
     '../a.png',
     'sub/a.png',
+    '#',
+    '#1a',
+    '#a b',
+    'x.svg#a',
+    'http://x/a.svg#a',
     ''
   ])('fails closed on %j (theme_css_url_invalid)', (bad) => {
     expect(rewriteCssUrls(`url(${bad})`, reader)).toEqual({
