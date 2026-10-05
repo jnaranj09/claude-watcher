@@ -228,7 +228,10 @@ export async function launchSession(page) {
 // ── workspaces ──────────────────────────────────────────────────────────────────────────────
 
 const switcher = (page) => page.locator('[data-testid="workspace-switcher"]')
-const menu = (page) => page.locator('[role="menu"]')
+// A menu still fading out (Popover exit motion) carries `data-leaving`: it is not the open menu.
+// Matching it made openSwitcher skip its click right after a switch, and the next row never
+// showed (a second switchWorkspace timed out).
+const menu = (page) => page.locator('[role="menu"]:not([data-leaving])')
 
 // Toggle with the button: Escape pressed while focus sits on the trigger never reaches the
 // menu's own key handler, so it does not close it.
