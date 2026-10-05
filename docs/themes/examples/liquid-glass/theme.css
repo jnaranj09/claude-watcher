@@ -440,16 +440,17 @@ body {
 [data-testid='workspace-elsewhere-tab'] {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
+}
+[data-testid='workspace-elsewhere-tab'] {
   box-shadow: var(--glass-rim);
 }
 /* A CONTROL on the header, not a surface: it takes the raised fill `+ New session` beside it has
-   (`--bg-surface-raised`, white 10%), well above the header's 3%, and a faint border so the
-   rim carries the edge. The switcher takes its WORKSPACE tint instead when it has one
+   (`--bg-surface-raised`, white 10%), well above the header's 3%; its edge is THE CONTROL EDGE
+   (below, with the buttons). The switcher takes its WORKSPACE tint instead when it has one
    (spec 2026-09-29): translucent, so the glass still shows. Hover moves the border only. It was
    black at 22% while the header was black at 20%; on the 3% header that read as a hole. */
 [data-testid='workspace-switcher'] {
   background-color: var(--ws-fill, var(--bg-surface-raised));
-  border-color: var(--ws-border, rgba(255, 255, 255, 0.1));
 }
 [data-testid='workspace-switcher']:hover {
   border-color: var(--text-secondary);
@@ -474,22 +475,90 @@ body {
 }
 
 /* Every PRIMARY and SECONDARY Button is the same glass as the workspace switcher beside them
-   (asked for 2026-09-23: `+ New session` read as an outlined box next to a piece of glass). Its
-   own blur, the crisp rim, and a faint border in place of `--border-strong` so the rim carries the
-   edge. The FILL is left alone: primary keeps the raised 10% (the switcher's own fill), secondary
-   stays clear, and that difference is what still tells the ☰ apart from `+ New session`. Primary
-   also drops to the body weight the switcher uses. Buttons are LEAVES (a menu is a sibling of its
-   trigger, never a child), so they may blur from themselves. Lit and disabled are left out: lit is
-   an opaque white fill with its own border, and a disabled button keeps its faint app look. */
+   (asked for 2026-09-23: `+ New session` read as an outlined box next to a piece of glass): its
+   own blur and the control EDGE below. The FILL is left alone: primary keeps the raised 10% (the
+   switcher's own fill), secondary stays clear, and that difference is what still tells the ☰ apart
+   from `+ New session`. Primary also drops to the body weight the switcher uses. Buttons are LEAVES
+   (a menu is a sibling of its trigger, never a child), so they may blur from themselves. Lit and
+   disabled are left out: lit is an opaque white fill with its own border, and a disabled button
+   keeps its faint app look. */
 button[data-variant='primary']:not(:disabled),
 button[data-variant='secondary']:not(:disabled):not([data-lit]) {
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
-  box-shadow: var(--glass-rim);
-  border-color: rgba(255, 255, 255, 0.1);
 }
 button[data-variant='primary'] {
   font-weight: var(--font-weight-body);
+}
+/* The dialog ✕ is a round SMOKED glass button (operator, 2026-10-04, from an Apple Liquid Glass
+   close button): darker than the panel, its own blur, the control edge below and a soft shadow
+   that lifts it off the panel. `background-color`, never `background`: the app's hover lays
+   `--bg-hover` on as a `background-image`, and the shorthand would wipe it. */
+button[data-variant='ghost'][data-testid$='-close'] {
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.35);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+}
+/* THE CONTROL EDGE (operator, 2026-10-04, from Apple's Liquid Glass controls — the segmented
+   control's "For You" pill): a 1px lit line along the top AND the bottom, the same strength,
+   fading out on the rounded sides, with a thin dark line just outside. No visible border and no
+   inner glow: the border plus `--glass-rim`'s top inset drew TWO lines at the top of a 32px
+   control, which read as a blurry border. The lit line is a `::after` ring ON the border
+   (`inset: -1px`), so the bright and the dark line touch. The switcher's workspace border tint
+   goes with the border; its fill still carries the tint. Comes after the switcher's and the
+   buttons' own rules: same specificity, later wins. */
+[data-testid='workspace-switcher'],
+button[data-variant='primary']:not(:disabled),
+button[data-variant='secondary']:not(:disabled):not([data-lit]),
+button[data-variant='ghost'][data-testid$='-close'] {
+  position: relative;
+  border-color: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+button[data-variant='ghost'][data-testid$='-close'] {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+[data-testid='workspace-switcher']::after,
+button[data-variant='primary']:not(:disabled)::after,
+button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
+button[data-variant='ghost'][data-testid$='-close']::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.35),
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.35)
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+/* `+ New session`'s fill is a LENS (operator, 2026-10-04): lighter at the centre, darker toward
+   every edge, about the raised 10% on average. A backdrop blur cannot make that falloff here —
+   Chromium clamps it at the box edge, so a light shape painted behind a clear button blurred into
+   a flat fill (measured the same day) — so the gradient is painted. Set as `background-image` with
+   the hover layer stacked on top, so the hover feedback survives. */
+button[data-testid='header-new-session']:not(:disabled) {
+  background-color: transparent;
+  background-image: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.05)
+  );
+}
+button[data-testid='header-new-session']:hover:not(:disabled) {
+  background-image:
+    linear-gradient(var(--bg-hover), var(--bg-hover)),
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
 }
 /* A LIT toggle (the Filter button while its row is open or a filter is on, an open rail peek) is
    glass too: the app's opaque `--text-primary` fill becomes a TRANSLUCENT white (82%), with the

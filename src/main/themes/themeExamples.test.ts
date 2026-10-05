@@ -43,6 +43,7 @@ const LEAF_BUTTONS = [
   "[data-testid='workspace-elsewhere-tab']",
   "button[data-variant='primary']:not(:disabled)",
   "button[data-variant='secondary']:not(:disabled):not([data-lit])",
+  "button[data-variant='ghost'][data-testid$='-close']",
   'button[data-variant][data-lit]:not(:disabled)'
 ]
 
@@ -392,9 +393,11 @@ describe('docs/themes/examples', () => {
     expect(ring).toMatch(/pointer-events:\s*none;/)
     expect(ring).not.toMatch(/z-index/)
   })
-  // Primary and secondary Buttons are the switcher's glass: same blur, rim and faint border. They
-  // never set a fill (primary's raised fill vs secondary's clear one is what tells them apart),
-  // and a lit button (opaque white, its own border) is excluded.
+  // Primary and secondary Buttons are the switcher's glass: their own blur and THE CONTROL EDGE
+  // (2026-10-04) — no visible border, a dark 1px line outside and a lit `::after` ring on the
+  // border, so the top edge is ONE line (border + `--glass-rim`'s top inset drew two, which read as
+  // blurry). They never set a fill (primary's raised fill vs secondary's clear one is what tells
+  // them apart), and a lit button (opaque white, its own border) is excluded.
   it('liquid-glass gives primary and secondary buttons the switcher glass, fill untouched', () => {
     const rules = liquidGlassRules()
     const bodyOf = (sel: string): string =>
@@ -402,16 +405,20 @@ describe('docs/themes/examples', () => {
         .filter((r) => r.selectors.includes(sel))
         .map((r) => r.body)
         .join('\n')
-    // The switcher itself now takes its workspace tint (spec 2026-09-29); the elsewhere tab beside
-    // it keeps the untinted glass border the buttons share.
-    const switcher = bodyOf("[data-testid='workspace-elsewhere-tab']")
+    const edged = ["[data-testid='workspace-switcher']", ...LEAF_BUTTONS.slice(2, 5)]
+    for (const sel of edged) {
+      const body = bodyOf(sel)
+      expect(body, sel).toMatch(/border-color:\s*transparent;/)
+      expect(body, sel).toMatch(/box-shadow:\s*0 0 0 1px rgba\(0, 0, 0, 0\.3\)/)
+      expect(body, sel).not.toMatch(/--glass-rim/)
+      const ring = bodyOf(`${sel}::after`)
+      expect(ring, sel).toMatch(/inset:\s*-1px;/)
+      expect(ring, sel).toMatch(/linear-gradient\(\s*to bottom/)
+      expect(ring, sel).toMatch(/pointer-events:\s*none;/)
+    }
     for (const sel of LEAF_BUTTONS.slice(2, 4)) {
       const body = bodyOf(sel)
       expect(body, sel).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
-      expect(body, sel).toMatch(/box-shadow:\s*var\(--glass-rim\);/)
-      const border = /border-color:\s*([^;]+);/.exec(body)?.[1]
-      expect(border, sel).toBeDefined()
-      expect(switcher).toContain(`border-color: ${border ?? ''};`)
       expect(body, sel).not.toMatch(/background/)
     }
     expect(LEAF_BUTTONS.slice(2).find((s) => s.includes('secondary'))).toContain(':not([data-lit])')
