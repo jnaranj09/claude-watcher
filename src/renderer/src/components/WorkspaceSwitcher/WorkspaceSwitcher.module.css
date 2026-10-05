@@ -187,8 +187,9 @@
   min-width: 220px;
   max-width: 320px;
 }
-/* The menu waits for the tab to finish tucking (spec 2026-10-04 §5); its exit does not wait. */
-.menuWrap > [data-popover] {
+/* The menu waits for the tab to finish tucking (spec 2026-10-04 §5); its exit does not wait.
+ * No tab drawn (no cards in other workspaces) ⇒ nothing tucks, so no wait. */
+.menuWrap[data-after-tuck] > [data-popover] {
   transition-delay: var(--motion-enter);
 }
 .menuWrap > [data-popover][data-leaving] {

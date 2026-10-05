@@ -552,6 +552,23 @@ describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
     clearInput()
   })
 
+  // Operator (2026-10-05): with no cards in other workspaces there is no tab to tuck, so the
+  // menu must not wait for one.
+  it('the menu waits for the tuck only while a tab is drawn', () => {
+    const r = renderSwitcher()
+    expect(r.container.querySelector('[data-testid="workspace-elsewhere-tab"]')).toBeNull()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    const wrap = r.container.querySelector('[role="menu"]')?.parentElement
+    expect(wrap?.hasAttribute('data-after-tuck')).toBe(false)
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    cleanup?.()
+    seedNeedsYou('w1', 'b')
+    const r2 = renderSwitcher()
+    click(q(r2, '[data-testid="workspace-switcher"]'))
+    const wrap2 = r2.container.querySelector('[role="menu"]')?.parentElement
+    expect(wrap2?.hasAttribute('data-after-tuck')).toBe(true)
+  })
+
   it('a pick keeps the rows it showed while the menu fades out', () => {
     const clearInput = pointerInput()
     vi.useFakeTimers()
@@ -581,8 +598,9 @@ describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
     expect(tucked.slice(0, tucked.indexOf('}'))).not.toContain('ease-in')
     expect(css).toMatch(/\.tab\s*\{[^}]*transform var\(--motion-enter\) var\(--motion-ease-enter\)/)
     expect(css).toMatch(
-      /\.menuWrap > \[data-popover\]\s*\{\s*transition-delay:\s*var\(--motion-enter\);/
+      /\.menuWrap\[data-after-tuck\] > \[data-popover\]\s*\{\s*transition-delay:\s*var\(--motion-enter\);/
     )
+    expect(css).not.toMatch(/\.menuWrap > \[data-popover\]\s*\{\s*transition-delay:\s*var/)
     expect(css).toMatch(
       /\.menuWrap > \[data-popover\]\[data-leaving\]\s*\{\s*transition-delay:\s*0s;/
     )

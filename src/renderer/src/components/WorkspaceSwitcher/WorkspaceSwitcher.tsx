@@ -213,7 +213,12 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
       )}
       {listed !== null && (
         <LeavingContext value={menu.leaving}>
-          <div className={styles.menuWrap} {...leavingProps(menu.leaving)}>
+          <div
+            className={styles.menuWrap}
+            // Only a drawn tab tucks; with none the menu has nothing to wait for (2026-10-05).
+            data-after-tuck={elsewhereCards > 0 ? '' : undefined}
+            {...leavingProps(menu.leaving)}
+          >
             <Popover.Surface role="menu" onKeyDown={handleMenuKeyDown}>
               {/* The OTHER workspaces only: the button already names the active one, and listing it
                 again read as a duplicate (operator, 2026-09-28). */}
