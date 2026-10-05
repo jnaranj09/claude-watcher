@@ -87,6 +87,7 @@ import { TagPicker } from '../TagPicker/TagPicker'
 import { Button } from '../Button/Button'
 import { shortName } from './railName'
 import { statusLabel } from '../StatusDot/statusLabel'
+import { CollapseChevronIcon } from './CollapseChevronIcon'
 import styles from './AttentionRail.module.css'
 import { Presence } from '../Presence/Presence'
 
@@ -736,7 +737,7 @@ export function AttentionRail({
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((c) => !c)}
           >
-            {collapsed ? '»' : '«'}
+            <CollapseChevronIcon pointing={collapsed ? 'right' : 'left'} />
           </Button>
         </span>
       </div>
