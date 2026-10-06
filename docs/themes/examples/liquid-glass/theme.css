@@ -517,7 +517,7 @@ button[data-variant='primary'] {
 }
 /* THE CONTROL EDGE (operator, 2026-10-04/05, from Apple's Liquid Glass controls): one 1px lit
    line at the top and the bottom, fading out on the rounded sides, and a soft dark shadow down and
-   right. No visible border and no inner glow: the border plus `--glass-rim`'s top inset drew TWO
+   right (25%, operator 2026-10-06: 50% was too strong). No visible border and no inner glow: the border plus `--glass-rim`'s top inset drew TWO
    lines at the top of a 32px control, which read as a blurry border. The lit lines are rings ON
    the border (`inset: -1px`), blurred 0.3px: at 1x a hard 1px curve shows pixel steps, a soft one
    does not. The dark line is a soft offset shadow, not a hard ring, for the same reason; it keeps
@@ -531,7 +531,7 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]),
 [data-popover-item]:where(:not(:disabled)) {
   position: relative;
   border-color: transparent;
-  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
 }
 /* Two layers, both the ring: `::before` is the TOP line, even end to end, with a dim top-left glint
    (operator, 2026-10-05: the header's directional light at a control's size); `::after` is the
@@ -630,7 +630,7 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]) {
    full: the same two values here, so the edge runs on from the switcher. */
 [data-testid='workspace-elsewhere-tab'] {
   border-color: transparent;
-  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
   background-image: var(--glass-control-sheen);
   filter: url(#cw-text-refraction);
 }

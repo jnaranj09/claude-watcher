@@ -433,7 +433,7 @@ describe('docs/themes/examples', () => {
     for (const sel of edged) {
       const body = bodyOf(sel)
       expect(body, sel).toMatch(/border-color:\s*transparent;/)
-      expect(body, sel).toMatch(/box-shadow:\s*1px 1px 1px rgba\(0, 0, 0, 0\.5\);/)
+      expect(body, sel).toMatch(/box-shadow:\s*1px 1px 1px rgba\(0, 0, 0, 0\.25\);/)
       expect(body, sel).not.toMatch(/--glass-rim/)
       expect(body, sel).toMatch(/background-image:\s*var\(--glass-control-sheen\);/)
       expect(body, sel).toMatch(/filter:\s*url\(#cw-text-refraction\);/)
