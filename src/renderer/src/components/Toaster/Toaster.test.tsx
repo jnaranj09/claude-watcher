@@ -167,6 +167,17 @@ describe('Toaster stylesheet', () => {
   })
 })
 
+describe('Toaster — shape', () => {
+  it('a toast is at least as tall as the header, so it reads as the same rectangle', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Toaster/Toaster.module.css'),
+      'utf8'
+    )
+    const toast = /\n\.toast\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(toast).toMatch(/min-height:\s*50px;/)
+  })
+})
+
 describe('Toaster — motion (spec 2026-10-04 §7)', () => {
   const css = readFileSync(
     join(process.cwd(), 'src/renderer/src/components/Toaster/Toaster.module.css'),
