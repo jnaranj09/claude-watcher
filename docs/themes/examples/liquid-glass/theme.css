@@ -760,12 +760,43 @@ section[data-column]::after,
 [data-toast] {
   position: relative;
   isolation: isolate;
-  /* The popover's radius too: the directional rim's two 1px-offset lines cross at a corner, and on
-     the app's `--rounded-md` (12px) that read as a cut, brighter 45° corner (2026-10-02). */
   border-radius: var(--rounded-lg);
   background-color: var(--glass-fill);
-  border-color: rgba(255, 255, 255, 0.06);
-  box-shadow: var(--glass-rim-pop), var(--shadow-pop);
+  /* THE CONTROL EDGE, the buttons' standard (operator, 2026-10-06: "only the corners look bright …
+     it doesn't look like the standard of the buttons"). The directional rim's two 1px-offset inset
+     lines and the 6% border all landed on the curve, so every corner read brighter than the
+     straight edges. No visible border, the buttons' soft dark shadow, and the lit ring below. */
+  border-color: transparent;
+  box-shadow:
+    1px 1px 1px rgba(0, 0, 0, 0.5),
+    var(--shadow-pop);
+}
+/* The ring: the buttons' two lines — the top one lit at the LEFT (with its top-left glint) and
+   dimming to 45% toward the right, the bottom one lit at the RIGHT and dimming toward the left.
+   ONE layer, because `::before` is the blur: the button splits the lines over two pseudos, each
+   with its own left/right mask. Here the left/right fade goes in the BACKGROUND, one layer per
+   half (top half fades right, bottom half fades left), and the mask carries what both lines
+   share: the top-down / bottom-up fade on the rounded sides and the 1px ring. Same values as the
+   button, so the light falls the same way. Blurred 0.3px: a 1px rounded edge shows no pixel steps
+   at 1x. */
+[data-toast]::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  filter: blur(0.3px);
+  background:
+    radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.2), transparent 20px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16)) top / 100% 50%
+      no-repeat,
+    linear-gradient(to left, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16)) bottom / 100% 50%
+      no-repeat;
+  mask:
+    linear-gradient(#000, transparent 40%, transparent 60%, #000) intersect,
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
 }
 [data-toast]::before {
   content: '';
