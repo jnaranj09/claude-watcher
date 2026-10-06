@@ -290,6 +290,45 @@ describe('EmbeddedTerminal shortcut expander', () => {
     }
   })
 
+  it('a multi-line phrase goes in as ONE bracketed paste: newlines never submit', async () => {
+    shortcutsStore.setState({
+      shortcuts: [{ ...APPROVE, alias: 'ml', text: 'first $1\nsecond' }],
+      loaded: true
+    })
+    render({ terminalId: 't-x-ml' })
+    const { port1 } = deliverPort('t-x-ml', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+    // claude turns bracketed paste on (DECSET 2004) — the write is async in xterm.
+    await new Promise<void>((resolve) => capturedTerminals[0]!.write('\x1b[?2004h', resolve))
+    act(() => void capturedKeyHandlers[0]!(ctrlAlt('x')))
+    typeInBox('ml 1')
+    pressInBox('Enter')
+    expect(byTestId('expander-box')).toBeNull()
+    expect(postSpy).toHaveBeenCalledTimes(1)
+    expect(postSpy.mock.calls[0]?.[0]).toEqual({
+      type: 'input',
+      data: '\x1b[200~first 1\rsecond\x1b[201~'
+    })
+  })
+
+  it('a multi-line phrase into a session WITHOUT bracketed paste is refused, nothing written', () => {
+    shortcutsStore.setState({
+      shortcuts: [{ ...APPROVE, alias: 'ml', text: 'first\nsecond' }],
+      loaded: true
+    })
+    render({ terminalId: 't-x-ml2' })
+    const { port1 } = deliverPort('t-x-ml2', lastOpenToken())
+    const postSpy = vi.spyOn(port1, 'postMessage')
+    act(() => void capturedKeyHandlers[0]!(ctrlAlt('x')))
+    typeInBox('ml')
+    pressInBox('Enter')
+    expect(postSpy).not.toHaveBeenCalled()
+    expect(byTestId('expander-box')).not.toBeNull()
+    expect(byTestId('expander-error')?.textContent).toBe(
+      'This session cannot take a multi-line phrase'
+    )
+  })
+
   it('Escape closes the box, writes nothing, refocuses the terminal', () => {
     render({ terminalId: 't-x-5' })
     const { port1 } = deliverPort('t-x-5', lastOpenToken())

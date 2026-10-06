@@ -12,12 +12,13 @@ function sc(alias: string, text: string, name = alias): Shortcut {
 }
 const LIST = [sc('ht', 'work on help desk ticket $1', 'help desk'), sc('dp', 'deploy $1 to $2')]
 
-let onExpand: ReturnType<typeof vi.fn<(value: string) => void>>
+type OnExpand = (value: string) => { code: 'multiline_unsupported' } | null
+let onExpand: ReturnType<typeof vi.fn<OnExpand>>
 let onClose: ReturnType<typeof vi.fn<() => void>>
 let cleanup: (() => void) | undefined
 
 beforeEach(() => {
-  onExpand = vi.fn<(value: string) => void>()
+  onExpand = vi.fn<OnExpand>(() => null)
   onClose = vi.fn<() => void>()
 })
 afterEach(() => {
@@ -43,8 +44,8 @@ function type(value: string): void {
     input().dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-function press(key: string): KeyboardEvent {
-  const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+function press(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+  const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
   act(() => {
     input().dispatchEvent(e)
   })
@@ -228,5 +229,52 @@ describe('ExpanderBox', () => {
     press('Enter')
     expect(onExpand).not.toHaveBeenCalled()
     expect(byTestId('expander-error')?.textContent).toBe('A value contains a control character')
+  })
+
+  it('Tab completes the highlighted alias, keeps the values and keeps focus in the box', () => {
+    render()
+    type('d 12')
+    const e = press('Tab')
+    expect(e.defaultPrevented).toBe(true)
+    expect(input().value).toBe('dp 12')
+    expect(document.activeElement).toBe(input())
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('Tab completes the row moved to with the arrows', () => {
+    render()
+    press('ArrowDown')
+    press('Tab')
+    expect(input().value).toBe('dp ')
+    expect(highlighted()).toBe('expander-option-dp')
+  })
+
+  it('Tab with no match and Shift+Tab change nothing and keep focus', () => {
+    render()
+    type('zzz')
+    expect(press('Tab').defaultPrevented).toBe(true)
+    expect(input().value).toBe('zzz')
+    type('d')
+    expect(press('Tab', { shiftKey: true }).defaultPrevented).toBe(true)
+    expect(input().value).toBe('d')
+  })
+
+  it("shows the highlighted row's usage under the list", () => {
+    render()
+    expect(byTestId('expander-usage')?.textContent).toContain('ht $1')
+    press('ArrowDown')
+    expect(byTestId('expander-usage')?.textContent).toContain('dp $1 $2')
+    type('zzz')
+    expect(byTestId('expander-usage')).toBeNull()
+  })
+
+  it('a phrase the terminal refuses shows the error line and keeps the box open', () => {
+    onExpand.mockReturnValue({ code: 'multiline_unsupported' })
+    render()
+    type('ht 1')
+    press('Enter')
+    expect(byTestId('expander-error')?.textContent).toBe(
+      'This session cannot take a multi-line phrase'
+    )
   })
 })

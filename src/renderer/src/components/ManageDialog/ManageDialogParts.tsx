@@ -84,6 +84,7 @@ export function ManageDialogFrame({
     >
       <div
         className={cx(styles.panel, size === 'wide' && styles.panelWide)}
+        data-manage-panel=""
         data-testid={`${meta.testIdPrefix}-panel`}
       >
         {children}

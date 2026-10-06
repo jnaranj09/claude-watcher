@@ -41,10 +41,17 @@ describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
     expect(ShortcutSchema.safeParse({ ...noAlias, keys: ['Ctrl+Alt+A'] }).success).toBe(false)
   })
 
-  // --- text: the S-1 guard. A phrase can never carry a submit or an escape. ---
+  // --- text: the S-1 guard. A phrase can never carry a submit or an escape. A newline is the one
+  // control char allowed: the terminal types a multi-line phrase as a bracketed paste. ---
+  it('accepts a multi-line phrase and keeps its newlines', () => {
+    expect(ShortcutSchema.parse({ ...VALID, text: 'first\nsecond\n' }).text).toBe('first\nsecond\n')
+  })
+
   it.each([
-    ['newline', 'yes\n'],
     ['carriage return', 'yes\r'],
+    ['CRLF', 'yes\r\nno'],
+    ['tab', 'yes\tno'],
+    ['only newlines', '\n\n'],
     ['ANSI escape', 'yes\u001b[A'],
     ['NUL', 'yes\u0000'],
     ['empty', ''],

@@ -71,13 +71,15 @@ function isContinuousFromOne(numbers: ReadonlySet<number>): boolean {
  * Base text validation: the four checks shared by v3 (ShortcutTextSchema) and v2 migration.
  * NOT trimmed — a trailing space is meaningful for a phrase the operator will continue after
  * ("run the tests and "). The control-character ban (spec S-1) makes `\r` and ANSI escapes
- * structurally impossible. The blank check rejects whitespace-only phrases.
+ * structurally impossible. `\n` is the ONE control char allowed: the terminal types a multi-line
+ * phrase as a bracketed paste (and refuses it when the session has bracketed paste off), so a
+ * newline never submits. The blank check rejects whitespace-only phrases.
  */
 const ShortcutTextBaseSchema = z
   .string()
   .min(1)
   .max(SHORTCUT_TEXT_MAX_LENGTH)
-  .regex(/^[^\p{Cc}]+$/u, { error: 'must not contain control characters' })
+  .refine((t) => !/(?!\n)\p{Cc}/u.test(t), { error: 'must not contain control characters' })
   .refine((t) => t.trim().length > 0, { error: 'must not be blank' })
 
 /**

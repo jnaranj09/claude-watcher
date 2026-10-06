@@ -87,7 +87,9 @@ export function shortcutDraftProblem(draft: ShortcutDraft): string | null {
     for (let n = 1; n <= numbers.size; n++) {
       if (!numbers.has(n)) return 'Use $1, $2… in order, with no gap.'
     }
-    return `The phrase is one line, up to ${SHORTCUT_TEXT_MAX_LENGTH} characters.`
+    if (draft.text.length > SHORTCUT_TEXT_MAX_LENGTH)
+      return `The phrase is up to ${SHORTCUT_TEXT_MAX_LENGTH} characters.`
+    return 'The phrase cannot hold tabs or other control characters.'
   }
   return 'Finish the shortcut before saving.'
 }

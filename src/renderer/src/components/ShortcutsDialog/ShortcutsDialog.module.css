@@ -99,3 +99,66 @@
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
 }
+
+/* --- The Phrase field's label row: the label, then the editor button at the far right -------- */
+.phraseLabelRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap-inline);
+}
+
+/* --- The placeholder reference (PlaceholderHelp) ------------------------------------------- */
+.placeholders {
+  display: grid;
+  gap: var(--gap-row);
+  margin: 0;
+}
+.placeholderRow {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  gap: var(--gap-inline);
+  align-items: baseline;
+}
+.placeholderToken {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-primary);
+}
+/* --text-secondary on the raised panel, never --text-muted (design.md). */
+.placeholderMeaning {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+}
+
+/* --- The phrase editor: takes over the whole panel ------------------------------------------
+   It draws NO fill of its own: a theme's panel may be translucent (Liquid Glass), so a fill would
+   either differ from the panel or let the form show through. Instead, while it is open, the
+   panel's other content is `visibility: hidden` (which also takes it out of the Tab order) and
+   the editor alone opts back in. */
+:global([data-manage-panel]):has(.phraseEditor) > * {
+  visibility: hidden;
+}
+.phraseEditor {
+  visibility: visible;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+  padding: var(--inset-panel);
+}
+.phraseEditorTitle {
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  color: var(--text-secondary);
+}
+.phraseEditorFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--gap-actions);
+}

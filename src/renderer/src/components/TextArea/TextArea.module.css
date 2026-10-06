@@ -17,6 +17,13 @@
   resize: vertical;
   min-height: 4.5em;
 }
+/* `fill`: the field takes the height its flex column gives it (the phrase editor), so there is
+   nothing to drag. */
+.textArea[data-fill] {
+  flex: 1;
+  min-height: 12em;
+  resize: none;
+}
 /* --text-secondary, NOT --text-muted. Measured on --bg-surface: muted is 2.85:1, secondary is
    6.08:1. A hint nobody can read is not a hint. */
 .textArea::placeholder {

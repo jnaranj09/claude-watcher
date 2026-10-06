@@ -7,6 +7,9 @@ import {
   expand,
   expandInput,
   expandErrorCopy,
+  completeAlias,
+  usageFor,
+  PLACEHOLDER_HELP,
   EXPANDED_TEXT_MAX_LENGTH
 } from './expand'
 
@@ -168,5 +171,40 @@ describe('expandErrorCopy', () => {
       `Result is longer than ${EXPANDED_TEXT_MAX_LENGTH} characters`
     )
     expect(expandErrorCopy({ code: 'control_char' })).toBe('A value contains a control character')
+    expect(expandErrorCopy({ code: 'multiline_unsupported' })).toBe(
+      'This session cannot take a multi-line phrase'
+    )
+  })
+})
+
+describe('completeAlias', () => {
+  it('replaces the first word with the alias and adds a space', () => {
+    expect(completeAlias('h', 'ht')).toBe('ht ')
+    expect(completeAlias('', 'ht')).toBe('ht ')
+    expect(completeAlias('  h', 'ht')).toBe('ht ')
+  })
+  it('keeps the values already typed', () => {
+    expect(completeAlias('h 1234', 'ht')).toBe('ht 1234')
+    expect(completeAlias('h  "a b" c', 'ht')).toBe('ht  "a b" c')
+  })
+  it('an already complete alias with a space stays as it is', () => {
+    expect(completeAlias('ht ', 'ht')).toBe('ht ')
+  })
+})
+
+describe('usageFor', () => {
+  it('lists the alias then the placeholders it takes, in order, $* last', () => {
+    expect(usageFor(DP)).toBe('dp $1 $2')
+    expect(usageFor(ALL)).toBe('say $*')
+    expect(usageFor(sc('x', '$2 $1 $* $$'))).toBe('x $1 $2 $*')
+  })
+  it('a phrase with no placeholder is the alias alone', () => {
+    expect(usageFor(HELLO)).toBe('hello')
+  })
+})
+
+describe('PLACEHOLDER_HELP', () => {
+  it('names every placeholder token once', () => {
+    expect(PLACEHOLDER_HELP.map((h) => h.token)).toEqual(['$1 $2 … $9', '$*', '$$'])
   })
 })

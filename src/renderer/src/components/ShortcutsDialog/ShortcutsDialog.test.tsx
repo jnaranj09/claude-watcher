@@ -7,6 +7,7 @@
 // RECORDER moved to Settings → Keyboard, and its tests with it (Settings.test.tsx).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
+import { readFileSync } from 'node:fs'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues } from '../../test/selectHarness'
 import { ShortcutsDialog } from './ShortcutsDialog'
@@ -55,8 +56,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function render(): RenderResult {
-  const r = renderComponent(<ShortcutsDialog onClose={() => {}} />)
+function render(onClose: () => void = () => {}): RenderResult {
+  const r = renderComponent(<ShortcutsDialog onClose={onClose} />)
   cleanup = r.unmount
   return r
 }
@@ -73,8 +74,12 @@ function click(el: Element | null): void {
 
 function type(el: Element | null, value: string): void {
   act(() => {
-    const input = el as HTMLInputElement
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    const input = el as HTMLInputElement | HTMLTextAreaElement
+    const proto =
+      input instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
     setter?.call(input, value)
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
@@ -86,7 +91,9 @@ describe('ShortcutsDialog', () => {
     expect(byTestId('shortcut-row-sc-1')?.textContent).toContain('approve')
     expect(byTestId('shortcut-alias-sc-1')?.textContent).toBe('ap')
     click(byTestId('shortcut-select-sc-1'))
-    expect((byTestId('shortcut-text-input') as HTMLInputElement).value).toBe('I explicitly approve')
+    expect((byTestId('shortcut-text-input') as HTMLTextAreaElement).value).toBe(
+      'I explicitly approve'
+    )
   })
 
   it('shows an empty state when there are none', () => {
@@ -371,5 +378,93 @@ describe('Shortcuts on the two-column standard (spec 2026-09-29 §4)', () => {
     })
     expect((byTestId('shortcut-name-input') as HTMLInputElement).value).toBe('deploy')
     expect(byTestId('shortcut-row-sc-9')?.getAttribute('data-selected')).toBe('true')
+  })
+})
+
+describe('Multi-line phrase and the phrase editor', () => {
+  function press(el: Element | null, key: string): KeyboardEvent {
+    const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    act(() => {
+      el?.dispatchEvent(e)
+    })
+    return e
+  }
+
+  it('the phrase is a multi-line field and a phrase with newlines saves as is', () => {
+    render()
+    click(byTestId('shortcut-new'))
+    expect(byTestId('shortcut-text-input')?.tagName).toBe('TEXTAREA')
+    type(byTestId('shortcut-name-input'), 'review')
+    type(byTestId('shortcut-alias-input'), 'rv')
+    type(byTestId('shortcut-text-input'), 'review $1\nthen run the tests')
+    click(byTestId('shortcut-save'))
+    expect(saveMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'review $1\nthen run the tests' })
+    )
+  })
+
+  it('a tab in the phrase greys Save and says why', () => {
+    render()
+    click(byTestId('shortcut-new'))
+    type(byTestId('shortcut-name-input'), 'review')
+    type(byTestId('shortcut-alias-input'), 'rv')
+    type(byTestId('shortcut-text-input'), 'a\tb')
+    expect(byTestId('shortcut-hint')?.textContent).toBe(
+      'The phrase cannot hold tabs or other control characters.'
+    )
+  })
+
+  it('lists every placeholder under the phrase', () => {
+    render()
+    click(byTestId('shortcut-new'))
+    const help = byTestId('shortcut-placeholders')
+    expect(help?.textContent).toContain('$1 $2 … $9')
+    expect(help?.textContent).toContain('$*')
+    expect(help?.textContent).toContain('$$')
+  })
+
+  it('Open phrase editor shows the phrase full size; edits there reach the form', () => {
+    render()
+    click(byTestId('shortcut-select-sc-1'))
+    click(byTestId('shortcut-text-expand'))
+    const editor = byTestId('phrase-editor')
+    expect(editor).not.toBeNull()
+    const big = byTestId('phrase-editor-text') as HTMLTextAreaElement
+    expect(document.activeElement).toBe(big)
+    expect(big.value).toBe('I explicitly approve')
+    expect(editor?.querySelector('[data-testid="phrase-editor-placeholders"]')).not.toBeNull()
+    type(big, 'line one\nline two')
+    click(byTestId('phrase-editor-done'))
+    expect(byTestId('phrase-editor')).toBeNull()
+    expect((byTestId('shortcut-text-input') as HTMLTextAreaElement).value).toBe(
+      'line one\nline two'
+    )
+    expect(document.activeElement).toBe(byTestId('shortcut-text-expand'))
+  })
+
+  it('Escape closes only the editor, never the dialog', () => {
+    const onClose = vi.fn()
+    render(onClose)
+    click(byTestId('shortcut-select-sc-1'))
+    click(byTestId('shortcut-text-expand'))
+    const e = press(byTestId('phrase-editor-text'), 'Escape')
+    expect(e.defaultPrevented).toBe(true)
+    expect(byTestId('phrase-editor')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('the editor hides the rest of the panel and draws no fill of its own (translucent themes)', () => {
+    const css = readFileSync(
+      'src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.module.css',
+      'utf8'
+    )
+    expect(css).toMatch(
+      /:global\(\[data-manage-panel\]\):has\(\.phraseEditor\) > \*\s*\{\s*visibility: hidden;/
+    )
+    const editor = /\.phraseEditor\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(editor).toMatch(/visibility:\s*visible/)
+    expect(editor).not.toMatch(/background/)
+    render()
+    expect(byTestId('shortcuts-panel')?.hasAttribute('data-manage-panel')).toBe(true)
   })
 })

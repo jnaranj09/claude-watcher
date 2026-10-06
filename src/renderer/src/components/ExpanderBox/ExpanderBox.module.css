@@ -38,3 +38,10 @@
 .text {
   font-family: var(--font-mono);
 }
+
+/* The highlighted row's usage (`dp $1 $2`) in the note under the list. */
+.usage {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-primary);
+}

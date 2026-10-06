@@ -6,7 +6,7 @@
 // keep one import. Its control-char policy is split there: any control char in an arg VALUE is
 // rejected (a value is untrusted and the box types the result into a pty), the RESULT is checked
 // for every control char but `\n` (the API's template prompt is multi-line prose).
-import type { Shortcut } from '../../../shared/schemas/shortcut'
+import { scanPlaceholders, type Shortcut } from '../../../shared/schemas/shortcut'
 import {
   expand,
   EXPANDED_TEXT_MAX_LENGTH,
@@ -102,9 +102,38 @@ export function expandInput(
   return expand(shortcut.text, parsed.args)
 }
 
+/** A failure only the BOX can hit: the expansion worked, but the terminal cannot take it. A
+ *  multi-line phrase goes in as a bracketed paste; a session without bracketed paste would read
+ *  each newline as Enter and submit, so the box refuses instead. */
+export type ExpanderError = ExpandError | { code: 'multiline_unsupported' }
+
+/**
+ * Tab in the box: the first word becomes `alias`, the values already typed stay. A trailing space
+ * is added when nothing follows, so the operator types the first value next.
+ */
+export function completeAlias(raw: string, alias: string): string {
+  const rest = raw.replace(/^\s*\S*/, '')
+  return rest === '' ? `${alias} ` : `${alias}${rest}`
+}
+
+/** `dp $1 $2` — the alias, then the placeholders the phrase takes in order, `$*` last. */
+export function usageFor(shortcut: Shortcut): string {
+  const { numbers, rest } = scanPlaceholders(shortcut.text)
+  const tokens = [...numbers].sort((a, b) => a - b).map((n) => `$${n}`)
+  if (rest) tokens.push('$*')
+  return [shortcut.alias, ...tokens].join(' ')
+}
+
+/** The placeholder reference shown in the Shortcuts form and the phrase editor. */
+export const PLACEHOLDER_HELP: readonly { token: string; meaning: string }[] = [
+  { token: '$1 $2 … $9', meaning: 'The values you type after the alias, in order.' },
+  { token: '$*', meaning: 'Every value no number took, joined by spaces.' },
+  { token: '$$', meaning: 'A literal $.' }
+]
+
 /** Code → operator copy. The alias is the operator's own word shown back in the UI; nothing
  *  here is logged. */
-export function expandErrorCopy(error: ExpandError): string {
+export function expandErrorCopy(error: ExpanderError): string {
   switch (error.code) {
     case 'unknown_alias':
       return `No shortcut named "${error.alias}"`
@@ -114,5 +143,7 @@ export function expandErrorCopy(error: ExpandError): string {
       return `Result is longer than ${EXPANDED_TEXT_MAX_LENGTH} characters`
     case 'control_char':
       return 'A value contains a control character'
+    case 'multiline_unsupported':
+      return 'This session cannot take a multi-line phrase'
   }
 }

@@ -3,10 +3,13 @@
 // exception. Keyed by the row it edits (`key={id ?? 'new'}`), so it owns its draft and a row
 // switch starts clean — no Cancel: picking another row or closing drops the draft, as in the
 // sibling dialogs.
-import { useState, type FormEvent, type JSX } from 'react'
+import { useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Shortcut } from '../../../../shared/ipc/contract'
-import { SHORTCUT_ALIAS_MAX_LENGTH } from '../../../../shared/schemas/shortcut'
+import {
+  SHORTCUT_ALIAS_MAX_LENGTH,
+  SHORTCUT_TEXT_MAX_LENGTH
+} from '../../../../shared/schemas/shortcut'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import { saveShortcut, removeShortcut } from '../../stores/shortcutsStore'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
@@ -24,6 +27,10 @@ import {
 import { Select } from '../Select/Select'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { TextInput } from '../TextInput/TextInput'
+import { TextArea } from '../TextArea/TextArea'
+import { Button } from '../Button/Button'
+import { PlaceholderHelp } from './PlaceholderHelp'
+import { PhraseEditor } from './PhraseEditor'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './ShortcutsDialog.module.css'
 
@@ -44,6 +51,10 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
   const [draft, setDraft] = useState<ShortcutDraft>(() =>
     shortcut === null ? emptyDraft() : toDraft(shortcut)
   )
+  // The phrase editor: the Phrase field full size over the whole panel. Closing it puts focus back
+  // on the button that opened it.
+  const [editorOpen, setEditorOpen] = useState(false)
+  const expandRef = useRef<HTMLButtonElement | null>(null)
   const result = draftToSaveRequest(draft)
   const dirty = isDraftDirty(draft, shortcut)
   // R26 — why Save is greyed, once the operator has edited something. A muted hint, NOT the
@@ -105,18 +116,42 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
       />
       <span className={styles.fieldHelp}>The word you type first in the box.</span>
 
-      <ManageDialog.Label htmlFor="shortcut-text">Phrase</ManageDialog.Label>
-      <TextInput
+      <div className={styles.phraseLabelRow}>
+        <ManageDialog.Label htmlFor="shortcut-text">Phrase</ManageDialog.Label>
+        <Button
+          variant="secondary"
+          size="xs"
+          icon="round"
+          testId="shortcut-text-expand"
+          aria-label="Open phrase editor"
+          title="Open phrase editor"
+          buttonRef={expandRef}
+          onClick={() => setEditorOpen(true)}
+        >
+          ⤢
+        </Button>
+      </div>
+      <TextArea
         id="shortcut-text"
         testId="shortcut-text-input"
         placeholder="I explicitly approve this plan"
+        maxLength={SHORTCUT_TEXT_MAX_LENGTH}
+        rows={3}
         value={draft.text}
         onChange={(text) => change({ ...draft, text })}
       />
-      <span className={styles.fieldHelp}>
-        Typed into the session, never sent. <code>$1</code>, <code>$2</code>… take the values in
-        order, <code>$*</code> takes the rest, <code>$$</code> is a literal $.
-      </span>
+      <span className={styles.fieldHelp}>Typed into the session, never sent.</span>
+      <PlaceholderHelp testId="shortcut-placeholders" />
+      {editorOpen && (
+        <PhraseEditor
+          value={draft.text}
+          onChange={(text) => change({ ...draft, text })}
+          onClose={() => {
+            setEditorOpen(false)
+            expandRef.current?.focus()
+          }}
+        />
+      )}
 
       {/* A <span> label: the Select is a button-and-listbox, which `for` cannot address. */}
       <ManageDialog.Label>Workspace</ManageDialog.Label>

@@ -11,8 +11,10 @@ import {
   expandErrorCopy,
   expandInput,
   matchAliases,
+  completeAlias,
   parseInput,
-  type ExpandError
+  usageFor,
+  type ExpanderError
 } from '../../shortcuts/expand'
 import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
@@ -22,8 +24,10 @@ import styles from './ExpanderBox.module.css'
 export interface ExpanderBoxProps {
   /** Global + active-workspace rows, the same set the terminal used to match chords on. */
   shortcuts: readonly Shortcut[]
-  /** Success: the expanded text. The caller writes it and closes the box. */
-  onExpand: (value: string) => void
+  /** Success: the expanded text. The caller writes it and closes the box — or returns the one
+   *  refusal it can hit (a multi-line phrase into a session without bracketed paste), which the
+   *  box shows on its error line. */
+  onExpand: (value: string) => { code: 'multiline_unsupported' } | null
   /** Escape, focus left the box, or — redundantly — a successful expand: `handleExpand`
    *  refocuses the terminal, which blurs the box and runs this same focus-out path. Both
    *  call sites are idempotent today, but "Nothing was written" is NOT implied by this call
@@ -37,7 +41,7 @@ const INPUT_MAX_LENGTH = 500
 export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps): JSX.Element {
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
-  const [error, setError] = useState<ExpandError | null>(null)
+  const [error, setError] = useState<ExpanderError | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -73,6 +77,14 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
       setHighlight((index + step + matches.length) % matches.length)
       return
     }
+    if (e.key === 'Tab') {
+      // Tab stays in the box: moving focus out would close it (handleFocusOut). Tab completes the
+      // highlighted alias; Shift+Tab and a Tab with no row do nothing.
+      e.preventDefault()
+      if (e.shiftKey || highlighted === null) return
+      handleChange(completeAlias(query, highlighted.alias))
+      return
+    }
     if (e.key === 'Enter') {
       e.preventDefault()
       e.stopPropagation()
@@ -80,8 +92,12 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
       // so without this guard a stray Enter would expand the top row the operator never typed.
       if (alias === '') return
       const result = expandInput(query, shortcuts, highlighted?.alias)
-      if (result.ok) onExpand(result.value)
-      else setError(result.error)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      const refused = onExpand(result.value)
+      if (refused !== null) setError(refused)
     }
   }
 
@@ -139,6 +155,11 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
               </Popover.CompactItem>
             ))}
           </Popover.List>
+        )}
+        {highlighted !== null && (
+          <Popover.Note testId="expander-usage">
+            <span className={styles.usage}>{usageFor(highlighted)}</span> · Tab completes
+          </Popover.Note>
         )}
         {error !== null && (
           <Callout

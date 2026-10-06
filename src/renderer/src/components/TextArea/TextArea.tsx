@@ -6,7 +6,7 @@
 //
 // Like TextInput it renders the FIELD only — the <label>, the character counter and the dialog's
 // one error line stay at the call site.
-import type { JSX } from 'react'
+import type { JSX, Ref } from 'react'
 import styles from './TextArea.module.css'
 
 export interface TextAreaProps {
@@ -25,6 +25,10 @@ export interface TextAreaProps {
   disabled?: boolean | undefined
   /** Visible lines at rest. The operator can still drag it taller (`resize: vertical`). */
   rows?: number | undefined
+  /** Grow to fill a flex column (the phrase editor) instead of sizing by `rows`. */
+  fill?: boolean | undefined
+  /** For focus-on-open only, like TextInput's `inputRef`. */
+  textAreaRef?: Ref<HTMLTextAreaElement> | undefined
 }
 
 export function TextArea({
@@ -37,11 +41,15 @@ export function TextArea({
   maxLength,
   invalid,
   disabled,
-  rows = 4
+  rows = 4,
+  fill,
+  textAreaRef
 }: TextAreaProps): JSX.Element {
   return (
     <textarea
       className={styles.textArea}
+      ref={textAreaRef}
+      data-fill={fill === true ? '' : undefined}
       id={id}
       data-testid={testId}
       aria-label={ariaLabel}

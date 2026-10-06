@@ -18,6 +18,8 @@
    innerHeight 700), but every dialog on this shell grows, so the cap lives here. `--space-6` is the
    panel's own padding step, reused as the gutter the centring then splits top and bottom. */
 .panel {
+  /* The containing block for a layer that takes over the whole panel (the phrase editor). */
+  position: relative;
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-lg);

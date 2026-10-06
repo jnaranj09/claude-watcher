@@ -756,15 +756,26 @@ export function EmbeddedTerminal({
 
   // ── Shortcut expander — the box's two exits ─────────────────────────────────────────
   /** Success: write the expanded text over the SAME {type:'input'} frame every keystroke uses
-   *  (no new byte path, no \r), close, and give focus back to the terminal. */
-  const handleExpand = useCallback((value: string): void => {
-    const p = portRef.current
-    if (p) {
-      const msg: TerminalPortRendererMessage = { type: 'input', data: value }
-      p.postMessage(msg)
+   *  (no new byte path, no \r), close, and give focus back to the terminal.
+   *  A MULTI-LINE phrase goes through `term.paste` instead: xterm wraps it in bracketed-paste
+   *  markers (its `\n` become `\r` INSIDE them), so claude reads newlines as text, never Enter.
+   *  Without bracketed paste on, those `\r` would submit — refuse, write nothing (type, never
+   *  submit). The paste still reaches the port through the onData handler. */
+  const handleExpand = useCallback((value: string): { code: 'multiline_unsupported' } | null => {
+    const term = termRef.current
+    if (value.includes('\n')) {
+      if (term === null || !term.modes.bracketedPasteMode) return { code: 'multiline_unsupported' }
+      term.paste(value)
+    } else {
+      const p = portRef.current
+      if (p) {
+        const msg: TerminalPortRendererMessage = { type: 'input', data: value }
+        p.postMessage(msg)
+      }
     }
     setExpanderOpen(false)
-    termRef.current?.focus()
+    term?.focus()
+    return null
   }, [])
 
   const handleExpanderClose = useCallback((): void => {

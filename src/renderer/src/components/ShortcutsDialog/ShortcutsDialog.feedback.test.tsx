@@ -49,8 +49,12 @@ function el<T extends Element = HTMLElement>(id: string): T {
 }
 
 function type(id: string, value: string): void {
-  const input = el<HTMLInputElement>(id)
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  const input = el<HTMLInputElement | HTMLTextAreaElement>(id)
+  const proto =
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
   act(() => {
     setter?.call(input, value)
     input.dispatchEvent(new Event('input', { bubbles: true }))
