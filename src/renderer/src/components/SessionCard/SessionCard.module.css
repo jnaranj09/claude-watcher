@@ -165,6 +165,9 @@
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
+/* `[data-menu-open]`: a move / tags menu stays open when focus and the pointer leave the card, so
+   the slots stay open with it — folding them would slide the menu's anchor sideways. */
+.root[data-menu-open] .actionSlot,
 .root:hover .actionSlot,
 .root:focus-within .actionSlot {
   max-width: none;
@@ -191,6 +194,7 @@
      bare `.actionSlot`, so a long title keeps the full width (see the action-slot rule above). */
   margin-left: calc(-1 * var(--gap-inline));
 }
+.root[data-menu-open] .moveWrap,
 .root:hover .moveWrap,
 .root:focus-within .moveWrap {
   margin-left: 0;

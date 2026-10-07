@@ -863,6 +863,19 @@ describe('Archive / Delete (D-3, D-5)', () => {
   // jsdom applies no :hover, so the reveal is pinned on the stylesheet. It lives on the WRAPPER
   // (Button takes no className), as `opacity` + `max-width` — never `display:none` — so the
   // controls stay in the tab order, and a focused one opens its slot through `.root:focus-within`.
+  // A move / tags menu stays open when focus and the pointer leave the card (it closes on Escape
+  // or an outside click). The slots must stay open with it, or the folding buttons slide the
+  // menu's anchor sideways under the operator (review finding, 2026-10-07).
+  it('the slots stay open while a card menu is open, even with no hover or focus', async () => {
+    const css = await readCss()
+    const shown = (cls: string): string =>
+      new RegExp(
+        `\\.root\\[data-menu-open\\] \\.${cls},\\s*\\.root:hover \\.${cls},\\s*\\.root:focus-within \\.${cls}\\s*\\{([^}]*)\\}`
+      ).exec(css)?.[1] ?? ''
+    expect(shown('actionSlot')).toMatch(/max-width:\s*none;/)
+    expect(shown('moveWrap')).toMatch(/margin-left:\s*0;/)
+  })
+
   // The move and tags slots sit inside a `.moveWrap` (the anchor for their popover), so the
   // HEADER's gap falls before the wrap, not the slot: the wrap must cancel it at rest too, or each
   // leaves an 8px hole after the title (review finding, 2026-10-07).
