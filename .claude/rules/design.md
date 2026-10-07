@@ -69,8 +69,8 @@ A dialog with sibling pages owns this state and renders each page's Header/Colum
 - Placeholder = ONE sentence, `--text-secondary`, centred: `Select a <thing> on the left, or create
 a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - Settings-like surface: CATEGORIES are rail rows (Notifications, Appearance, Terminal, Keyboard,
-  API), opens on the first (`initialSelectedId`), right column is `ManageDialog.Pane` headed by the
-  category. New setting → existing category; new category is a design question.
+  API), opens on the first (`initialSelectedId`), right column is `ManageDialog.Pane` with no title
+  (the rail row names the page). New setting → existing category; new category is a design question.
 - **One selected look.** Every list where ONE entry is the current one — rail rows, Settings
   categories, the page column — draws it the same way: the row markup (`.row` + `.rowSelect`) and
   `.row[data-selected='true']` (`--bg-surface` fill, `--border-strong` edge). Never a second

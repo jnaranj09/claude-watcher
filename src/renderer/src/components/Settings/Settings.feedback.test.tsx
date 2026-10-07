@@ -1,5 +1,5 @@
-// Action feedback (spec 2026-09-29 §2.1) — every Settings action says what happened: `✓ Saved`
-// beside the pane heading; a refused change snaps the control back and names the setting; Copy,
+// Action feedback (spec 2026-09-29 §2.1) — every Settings action says what happened: `Saved`
+// in the dialog's message slot; a refused change snaps the control back and names the setting; Copy,
 // Reload and Regenerate report on the button; Regenerate, Reload and Open folder cannot run twice;
 // the Theme trigger never shows a raw id while the list loads.
 //
