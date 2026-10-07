@@ -534,4 +534,29 @@ describe('docs/themes/examples', () => {
     expect(paperManifest().terminal).toEqual(xtermLightTheme)
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)
   })
+
+  it('liquid-glass: one 12px rhythm, concentric radii, the Settings inset group (spec 2026-10-07 B)', () => {
+    const manifest = JSON.parse(
+      readFileSync(resolve(examples, 'liquid-glass/theme.json'), 'utf8')
+    ) as { tokens: Record<string, string> }
+    expect(manifest.tokens['gutter']).toBe('12px')
+    expect(manifest.tokens['rounded-lg']).toBe('20px')
+    const rules = liquidGlassRules()
+    const bodyOf = (sel: string): string =>
+      rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => r.body)
+        .join('\n')
+    // Header → filter bar is the filter bar's own 12px: the bubble has no bottom margin.
+    expect(bodyOf("[data-testid='app-header']")).toMatch(
+      /margin:\s*var\(--inset-compact-x\) var\(--inset-compact-x\) 0;/
+    )
+    // Column 24 = card 12 + the column's 12 padding (inner = outer − padding).
+    expect(bodyOf('section[data-column]')).toMatch(/border-radius:\s*24px;/)
+    const group = bodyOf('[data-settings-group]')
+    expect(group).toMatch(/background:\s*rgba\(255, 255, 255, 0\.04\);/)
+    expect(group).toMatch(/border:\s*1px solid var\(--border\);/)
+    expect(group).toMatch(/border-radius:\s*var\(--rounded-md\);/)
+    expect(group).toMatch(/padding:\s*4px 16px 12px;/)
+  })
 })

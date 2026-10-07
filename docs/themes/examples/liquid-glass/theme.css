@@ -172,9 +172,11 @@ body {
    bottom-only rule on a rounded, detached box reads as a stray underline.
    ONE inset on every side, `--inset-compact-x` (8px): a 16px side margin under an 8px top one read as a wider
    left edge than top edge. The board's own side padding drops to the same 8px (below), so the
-   bubble's left and right edges still line up with the columns under it. */
+   bubble's left and right edges still line up with the columns under it.
+   No BOTTOM margin (spec 2026-10-07 B.1): the filter bar's own `--gap-group` (12) is the whole
+   gap, so header → filter → columns → column gap are all 12. */
 [data-testid='app-header'] {
-  margin: var(--inset-compact-x);
+  margin: var(--inset-compact-x) var(--inset-compact-x) 0;
   border: 1px solid var(--border);
   border-radius: var(--rounded-lg);
 }
@@ -686,9 +688,12 @@ button[data-variant][data-lit]:hover:not(:disabled) {
    `--bg-col-hero` on Needs you), and the hero keeps its gold hairline inside the rim. No sheen:
    it laid the same even white film on the columns that it laid on the header.
    `section[data-column]`, never a bare `[data-column]`: the focused view's rail groups carry
-   `data-column` too (a <div> each), and the bare selector drew a square glass box around them. */
+   `data-column` too (a <div> each), and the bare selector drew a square glass box around them.
+   Radius 24 is CONCENTRIC (spec 2026-10-07 B.2): the card's `rounded-md` 12 + the column's 12
+   padding (inner = outer − padding). The `::before` / `::after` layers inherit it. */
 section[data-column],
 [data-testid='skeleton-column'] {
+  border-radius: 24px;
   position: relative;
   isolation: isolate;
   border-color: rgba(255, 255, 255, 0.06);
@@ -816,4 +821,14 @@ section[data-column]::after,
 *::before,
 *::after {
   -electron-corner-smoothing: 60%;
+}
+
+/* Settings: the fields of a pane sit on ONE inset glass group (spec 2026-10-07 B.3), drawn on the
+   app's `[data-settings-group]` hook. Default and Paper draw nothing there. The rows keep their
+   own hairlines inside it; the first row has none (the app's `.row:first-of-type`). */
+[data-settings-group] {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+  padding: 4px 16px 12px;
 }
