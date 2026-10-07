@@ -348,8 +348,15 @@ export function ManageDialogSave({
  *  the caller's test id; the success is `<testIdPrefix>-success`.
  *  The slot is ALWAYS in the page: it is the polite live region (a status inserted together with
  *  its text is announced unreliably), and it reserves one callout's height, so a message that
- *  comes and goes never moves the centred dialog under the pointer. */
-export function ManageDialogMessage({ testId }: { testId: string }): JSX.Element {
+ *  comes and goes never moves the centred dialog under the pointer.
+ *  `compact`: the success Callout is one line (Settings' `Saved`). An error is always `block`. */
+export function ManageDialogMessage({
+  testId,
+  compact = false
+}: {
+  testId: string
+  compact?: boolean
+}): JSX.Element {
   const { state, meta } = useManageDialogContext()
   return (
     <div className={styles.message} role="status" data-testid={`${meta.testIdPrefix}-message`}>
@@ -358,6 +365,7 @@ export function ManageDialogMessage({ testId }: { testId: string }): JSX.Element
       ) : state.success !== null ? (
         <Callout
           tone="success"
+          size={compact ? 'compact' : 'block'}
           title={state.success}
           announce={false}
           testId={`${meta.testIdPrefix}-success`}

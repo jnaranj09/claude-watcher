@@ -1,29 +1,6 @@
 /* Settings — what is the panel's own inside the ManageDialog shell (spec 2026-09-29 §3): the
-   category heading and the `label | control` rows of the right column. The overlay, panel, header,
+   `label | control` rows of the right column. The overlay, panel, header,
    rail and scroll region are ManageDialog.module.css. Tokens only — NO new colors. */
-
-/* The category's own heading at the top of the right column: which page this is. */
-.categoryTitle {
-  margin: 0;
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-/* The heading and the `✓ Saved` mark (spec 2026-09-29 §2.1): the mark sits beside the heading so
-   the operator reads "this page saved", and its empty box costs no height. */
-.paneHeading {
-  display: flex;
-  align-items: baseline;
-  gap: var(--gap-inline);
-  margin: 0 0 var(--gap-inline);
-}
-
-/* Neutral ink — no --success token (the spec's rule); --text-secondary on the raised panel. */
-/* The `Saved` slot beside the heading: holds the compact success Callout (which draws itself). */
-.savedSlot {
-  display: inline-flex;
-}
 
 .row {
   display: flex;

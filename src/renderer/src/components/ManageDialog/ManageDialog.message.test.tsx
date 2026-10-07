@@ -9,14 +9,14 @@ import { ManageDialog, useManageDialog, type ManageDialogContextValue } from './
 import { SUCCESS_MS } from './manageDialogState'
 
 let api: ManageDialogContextValue | null = null
-function Harness(): JSX.Element {
+function Harness({ compact = false }: { compact?: boolean }): JSX.Element {
   const dialog = useManageDialog({ title: 'Probe', testIdPrefix: 'probe', onClose: () => {} })
   useEffect(() => {
     api = dialog
   })
   return (
     <ManageDialog.Provider {...dialog}>
-      <ManageDialog.Message testId="probe-error" />
+      <ManageDialog.Message testId="probe-error" compact={compact} />
     </ManageDialog.Provider>
   )
 }
@@ -121,6 +121,20 @@ describe('ManageDialog.Message', () => {
     act(() => actions().showSuccess('Saved.'))
     expect(q('probe-message')).toBe(slot)
     expect(slot?.textContent).toBe('Saved.')
+  })
+
+  // Settings' one-word `Saved` (spec 2026-10-07): a `compact` slot shows its SUCCESS as a compact
+  // callout. An error is a block either way — it carries a sentence.
+  it('a compact slot shows a compact success; an error stays block; without compact both are block', () => {
+    r = renderComponent(<Harness compact />)
+    act(() => actions().showSuccess('Saved'))
+    expect(q('probe-success')?.getAttribute('data-callout-size')).toBe('compact')
+    act(() => actions().setError('No.'))
+    expect(q('probe-error')?.getAttribute('data-callout-size')).toBe('block')
+    r.unmount()
+    r = renderComponent(<Harness />)
+    act(() => actions().showSuccess('Saved'))
+    expect(q('probe-success')?.getAttribute('data-callout-size')).toBe('block')
   })
 
   it('the slot reserves one callout of height, with no extra margin', () => {

@@ -96,20 +96,20 @@ async function flush(): Promise<void> {
 }
 
 describe('Settings — ✓ Saved and rollback', () => {
-  it('a change main stored shows a compact Saved callout beside the heading for SUCCESS_MS', async () => {
+  it('a change main stored shows a compact Saved callout in the message slot for SUCCESS_MS', async () => {
     vi.useFakeTimers()
     stubSettings()
     stubThemes()
     const r = render()
     await flush()
-    const mark = q(r, '[data-testid="settings-saved"]')
+    const mark = q(r, '[data-testid="settings-message"]')
     expect(mark.getAttribute('role')).toBe('status')
     expect(mark.textContent).toBe('')
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush()
     expect(mark.textContent).toBe('Saved')
     // The slot is the live region (always in the page); the callout inside does not re-announce.
-    const callout = mark.querySelector('[data-callout]')
+    const callout = mark.querySelector('[data-testid="settings-success"]')
     expect(callout?.getAttribute('data-callout-tone')).toBe('success')
     expect(callout?.getAttribute('data-callout-size')).toBe('compact')
     expect(callout?.hasAttribute('role')).toBe(false)
@@ -137,7 +137,7 @@ describe('Settings — ✓ Saved and rollback', () => {
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Could not save the attention sound.'
     )
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('')
+    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
     expect(r.container.textContent).not.toContain('EACCES')
     expect(warn.mock.calls.flat().join(' ')).not.toContain('/home/op')
   })
@@ -224,9 +224,9 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     await flush()
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush()
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('Saved')
+    expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
     openCategory(r, 'terminal')
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('')
+    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
   })
 
   it('a refusal right after a success clears ✓ Saved — never both at once', async () => {
@@ -240,14 +240,14 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     await flush()
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush()
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('Saved')
+    expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
     refuse = true
     click(q(r, '[data-testid="settings-notifications-toggle"]'))
     await flush()
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Could not save desktop notifications.'
     )
-    expect(q(r, '[data-testid="settings-saved"]').textContent).toBe('')
+    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
   })
 })
 

@@ -9,6 +9,8 @@
 //   - every control is labeled (accessibility floor);
 //   - the API block, the Theme group, and the Keyboard chord recorder (moved from Shortcuts).
 import { describe, it, expect, afterEach, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act } from 'react'
 import { SettingsPanel } from './Settings'
 import { settingsStore } from '../../stores/settingsStore'
@@ -1031,7 +1033,40 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     ).toBe('page')
     expect(q(r, '[data-testid="settings-sound-toggle"]')).toBeTruthy()
     expect(r.container.querySelector('[data-testid="settings-theme"]')).toBeNull()
-    expect(q(r, 'h3').textContent).toBe('Notifications')
+    // The rail row already names the page; the pane repeats no title (spec 2026-10-07 A.7).
+    expect(r.container.querySelector('h3')).toBeNull()
+  })
+
+  it('the on/off settings are switches', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderPanel()
+    for (const id of ['settings-sound-toggle', 'settings-notifications-toggle']) {
+      expect(q(r, `[data-testid="${id}"]`).getAttribute('role'), id).toBe('switch')
+    }
+    openCategory(r, 'api')
+    expect(q(r, '[data-testid="settings-api-enabled"]').getAttribute('role')).toBe('switch')
+  })
+
+  it('each pane draws its fields inside ONE [data-settings-group] (a theme hook)', () => {
+    stubSettings()
+    stubThemes()
+    const r = renderPanel()
+    const groups = r.container.querySelectorAll(
+      '[data-testid="settings-pane-notifications"] [data-settings-group]'
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.querySelector('[data-testid="settings-sound-toggle"]')).not.toBeNull()
+    expect(groups[0]?.querySelector('[data-testid="settings-reminder-summary"]')).not.toBeNull()
+  })
+
+  // Guard: an on/off setting is a Switch, never the native blue checkbox.
+  it('Settings.tsx renders no bare checkbox', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Settings/Settings.tsx'),
+      'utf8'
+    )
+    expect(src).not.toMatch(/type="checkbox"/)
   })
 
   const ALL_CONTROLS = [

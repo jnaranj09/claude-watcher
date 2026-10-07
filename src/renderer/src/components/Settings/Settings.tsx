@@ -40,7 +40,7 @@ import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { SUCCESS_MS } from '../ManageDialog/manageDialogState'
-import { Callout } from '../Callout/Callout'
+import { Switch } from '../Switch/Switch'
 import { Button } from '../Button/Button'
 import { KeyChordRecorder } from '../ShortcutsDialog/KeyChordRecorder'
 import { reminderSummary } from './reminderSummary'
@@ -124,7 +124,8 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
 
   // ── Action feedback (spec 2026-09-29 §2.1) ────────────────────────────────────────────────
-  // Every change says it landed: a compact `Saved` callout beside the pane heading for SUCCESS_MS. When main refuses
+  // Every change says it landed: the compact success Callout `Saved` in the dialog's one message
+  // slot for SUCCESS_MS (spec 2026-10-07). When main refuses
   // one, persistSettingsPatch has already rolled the store back to main's value (the control
   // snaps back) and the error line names what did not save — until the next change that lands.
   // The flash holds the CATEGORY it was saved on, so it never follows a switch to another page.
@@ -164,8 +165,6 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
       }
     )
   }
-  const categoryLabel =
-    SETTINGS_CATEGORIES.find((c) => c.id === category)?.label ?? SETTINGS_CATEGORIES[0]?.label
   const expanderKey = useSettings(selectExpanderKey)
 
   // ── Programmatic API (spec 2026-09-15) ────────────────────────────────────────────────────
@@ -386,7 +385,14 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const regenerate = useAsyncAction(regenerateToken)
 
   return (
-    <ManageDialog.Provider {...dialog} state={{ ...dialog.state, error: errorLine }}>
+    <ManageDialog.Provider
+      {...dialog}
+      state={{
+        ...dialog.state,
+        error: errorLine,
+        success: savedOn === category ? 'Saved' : null
+      }}
+    >
       <ManageDialog.Frame>
         <ManageDialog.Header />
         <ManageDialog.Columns>
@@ -400,378 +406,370 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             </ManageDialog.Rows>
           </ManageDialog.List>
           <ManageDialog.Pane testId={`settings-pane-${category}`}>
-            <div className={styles.paneHeading}>
-              <h3 className={styles.categoryTitle}>{categoryLabel}</h3>
-              {/* The slot is the live region, always in the page, so `Saved` is announced when it
-                  appears; the callout inside it does not announce a second time. */}
-              <span className={styles.savedSlot} role="status" data-testid="settings-saved">
-                {savedOn === category && (
-                  <Callout tone="success" size="compact" title="Saved" announce={false} />
-                )}
-              </span>
-            </div>
-            {category === 'notifications' && (
-              <>
-                {/* Control 1 — SOUND on/off (a labeled native checkbox; keyboard-operable). */}
-                <div className={styles.row}>
-                  <label className={styles.label} htmlFor="settings-sound-enabled">
-                    Attention sound
-                  </label>
-                  <div className={styles.controlGroup}>
-                    <input
-                      id="settings-sound-enabled"
-                      type="checkbox"
-                      data-testid="settings-sound-toggle"
-                      checked={soundEnabled}
-                      onChange={(e) => {
-                        // Persist + apply immediately. The sound module reads the live flag (AC-5).
-                        void persistSetting(
-                          { soundEnabled: e.target.checked },
-                          'the attention sound'
-                        )
-                      }}
-                    />
+            {/* The pane's fields sit in ONE group: a theme hook (Liquid Glass draws an inset glass
+                group on it; Default and Paper draw nothing). The rail row names the page, so the
+                pane repeats no title (spec 2026-10-07). */}
+            <div data-settings-group="">
+              {category === 'notifications' && (
+                <>
+                  {/* Control 1 — SOUND on/off (a labeled Switch; keyboard-operable). */}
+                  <div className={styles.row}>
+                    <label className={styles.label} htmlFor="settings-sound-enabled">
+                      Attention sound
+                    </label>
+                    <div className={styles.controlGroup}>
+                      <Switch
+                        id="settings-sound-enabled"
+                        testId="settings-sound-toggle"
+                        checked={soundEnabled}
+                        onChange={(on) => {
+                          // Persist + apply immediately. The sound module reads the live flag (AC-5).
+                          void persistSetting({ soundEnabled: on }, 'the attention sound')
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* UX-13 — desktop POPUPS on/off (the first alert and every reminder). The sound above is
+                  {/* UX-13 — desktop POPUPS on/off (the first alert and every reminder). The sound above is
                     its own toggle. Main reads the setting live on every alert. */}
-                <div className={styles.row}>
-                  <label className={styles.label} htmlFor="settings-notifications-enabled">
-                    Desktop notifications
-                  </label>
-                  <div className={styles.controlGroup}>
-                    <input
-                      id="settings-notifications-enabled"
-                      type="checkbox"
-                      data-testid="settings-notifications-toggle"
-                      checked={notificationsEnabled}
-                      onChange={(e) => {
-                        void persistSetting(
-                          { notificationsEnabled: e.target.checked },
-                          'desktop notifications'
-                        )
-                      }}
-                    />
+                  <div className={styles.row}>
+                    <label className={styles.label} htmlFor="settings-notifications-enabled">
+                      Desktop notifications
+                    </label>
+                    <div className={styles.controlGroup}>
+                      <Switch
+                        id="settings-notifications-enabled"
+                        testId="settings-notifications-toggle"
+                        checked={notificationsEnabled}
+                        onChange={(on) => {
+                          void persistSetting({ notificationsEnabled: on }, 'desktop notifications')
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Control 2 — ATTENTION REMINDERS: how many times a session still blocked on a
+                  {/* Control 2 — ATTENTION REMINDERS: how many times a session still blocked on a
                     permission prompt or a question is re-notified (spec 2026-09-10). 0 = Off. Sits
                     directly after Attention sound (spec §4) — both are attention settings. The label
                     is a <span>: a <label for> cannot address the Select's button (design.md). */}
-                <div className={styles.row}>
-                  <span className={styles.label}>Reminders</span>
-                  <div className={styles.controlGroup}>
-                    <Select
-                      value={String(reminderCount)}
-                      options={REMINDER_COUNT_OPTIONS}
-                      onChange={(next) => {
-                        const n = Number(next)
-                        if (Number.isInteger(n))
-                          void persistSetting({ reminderCount: n }, 'the reminders')
-                      }}
-                      ariaLabel="Reminders"
-                      testId="settings-reminder-count"
-                      align="end"
-                    />
+                  <div className={styles.row}>
+                    <span className={styles.label}>Reminders</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={String(reminderCount)}
+                        options={REMINDER_COUNT_OPTIONS}
+                        onChange={(next) => {
+                          const n = Number(next)
+                          if (Number.isInteger(n))
+                            void persistSetting({ reminderCount: n }, 'the reminders')
+                        }}
+                        ariaLabel="Reminders"
+                        testId="settings-reminder-count"
+                        align="end"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Control 3 — the first reminder's delay; every later gap doubles. NOT rendered when
+                  {/* Control 3 — the first reminder's delay; every later gap doubles. NOT rendered when
                     reminders are Off (design.md: a control the operator must not use is not rendered). */}
-                {reminderCount > 0 && (
-                  <div className={styles.row}>
-                    <span className={styles.label}>First reminder after</span>
-                    <div className={styles.controlGroup}>
-                      <Select
-                        value={String(reminderFirstDelayMinutes)}
-                        options={REMINDER_DELAY_OPTIONS}
-                        onChange={(next) => {
-                          const minutes = REMINDER_FIRST_DELAY_OPTIONS.find(
-                            (m) => String(m) === next
-                          )
-                          if (minutes !== undefined) {
-                            void persistSetting(
-                              { reminderFirstDelayMinutes: minutes },
-                              'the first reminder delay'
-                            )
-                          }
-                        }}
-                        ariaLabel="First reminder after"
-                        testId="settings-reminder-first-delay"
-                        align="end"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <p className={styles.hint} data-testid="settings-reminder-summary">
-                  {reminderSummary(reminderCount, reminderFirstDelayMinutes)}
-                </p>
-              </>
-            )}
-            {category === 'appearance' && (
-              <>
-                {/* Custom themes — the picker (a Select; never a native <select>), a Wallpaper picker when
-                    the applied theme lists 2+ (spec 2026-09-24), the two actions, the
-                    broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
-                <div className={styles.row}>
-                  <span className={styles.label}>Theme</span>
-                  <div className={styles.controlGroup}>
-                    <Select
-                      value={themeId}
-                      options={themeOptions}
-                      onChange={pickTheme}
-                      ariaLabel="Theme"
-                      testId="settings-theme"
-                      align="end"
-                    />
-                  </div>
-                </div>
-                {wallpaperOptions.length >= 2 && appliedWallpaper !== null && (
-                  <div className={styles.row}>
-                    <span className={styles.label}>Wallpaper</span>
-                    <div className={styles.controlGroup}>
-                      <Select
-                        value={appliedWallpaper}
-                        options={wallpaperOptions}
-                        onChange={(next) =>
-                          void persistSetting(
-                            { wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next } },
-                            'the wallpaper'
-                          )
-                        }
-                        ariaLabel="Wallpaper"
-                        testId="settings-wallpaper"
-                        align="end"
-                      />
-                    </div>
-                  </div>
-                )}
-                <div className={styles.themeActions}>
-                  <ManageDialog.GhostButton
-                    testId="settings-theme-reload"
-                    busy={reload.busy}
-                    feedback="✓ Reloaded"
-                    feedbackShown={reloaded !== null}
-                    onClick={() => void reload.run()}
-                  >
-                    Reload themes
-                  </ManageDialog.GhostButton>
-                  <ManageDialog.GhostButton
-                    testId="settings-theme-open-folder"
-                    busy={openFolder.busy}
-                    onClick={() => void openFolder.run()}
-                  >
-                    Open themes folder
-                  </ManageDialog.GhostButton>
-                </div>
-                {brokenLine !== null && (
-                  <p className={styles.hint} data-testid="settings-theme-broken">
-                    {brokenLine}
-                  </p>
-                )}
-                {bundle.terminal.allowTransparency === true && (
-                  <p className={styles.hint} data-testid="settings-theme-transparency">
-                    Transparency applies to terminals opened from now on.
-                  </p>
-                )}
-                {/* Terminal colours (spec 2026-09-30): follow the theme, or a built-in dark / light
-                    palette whatever the app theme is. Every open terminal re-themes live. */}
-                <div className={styles.row}>
-                  <span className={styles.label}>Terminal colours</span>
-                  <div className={styles.controlGroup}>
-                    <Select
-                      value={terminalScheme}
-                      options={TERMINAL_SCHEME_OPTIONS}
-                      onChange={(next) =>
-                        void persistSetting({ terminalScheme: next }, 'the terminal colours')
-                      }
-                      ariaLabel="Terminal colours"
-                      testId="settings-terminal-scheme"
-                      align="end"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-            {category === 'terminal' && (
-              <>
-                {/* Control 4 — TERMINAL FONT-SIZE (a labeled range + readout; keyboard-operable). */}
-                <div className={styles.row}>
-                  <label className={styles.label} htmlFor="settings-terminal-font-size">
-                    Terminal font size
-                  </label>
-                  <div className={styles.controlGroup}>
-                    <input
-                      id="settings-terminal-font-size"
-                      type="range"
-                      data-testid="settings-font-size"
-                      min={TERMINAL_FONT_SIZE_MIN}
-                      max={TERMINAL_FONT_SIZE_MAX}
-                      step={1}
-                      value={terminalFontSize}
-                      onChange={(e) => {
-                        const next = Number(e.target.value)
-                        if (Number.isFinite(next)) {
-                          void persistSetting({ terminalFontSize: next }, 'the terminal font size')
-                        }
-                      }}
-                    />
-                    <span className={styles.fontSizeValue} data-testid="settings-font-size-value">
-                      {terminalFontSize}px
-                    </span>
-                  </div>
-                </div>
-
-                <div className={styles.row}>
-                  <span className={styles.label}>Copy/paste menu opens with</span>
-                  <div className={styles.controlGroup}>
-                    <Select
-                      value={terminalMenuTrigger}
-                      options={TERMINAL_MENU_TRIGGER_OPTIONS}
-                      onChange={(next) =>
-                        void persistSetting(
-                          { terminalMenuTrigger: next },
-                          'the copy/paste menu click'
-                        )
-                      }
-                      ariaLabel="Copy/paste menu opens with"
-                      testId="settings-terminal-menu-trigger"
-                      align="end"
-                    />
-                  </div>
-                </div>
-                <p className={styles.hint}>
-                  Change this if claude runs its full-screen renderer with mouse support: there,
-                  right-click already pastes. Shift + Right-click is never sent to claude.
-                </p>
-              </>
-            )}
-            {category === 'keyboard' && (
-              <>
-                <div className={styles.row}>
-                  <span className={styles.label}>Open shortcuts with</span>
-                  <div className={styles.controlGroup}>
-                    <KeyChordRecorder
-                      value={expanderChord(expanderKey)}
-                      onChange={(chord) => {
-                        // The chord is `Ctrl+Alt+<letter>`; the letter is the last character.
-                        void persistSetting({ expanderKey: chord.slice(-1) }, 'the shortcut chord')
-                      }}
-                    />
-                  </div>
-                </div>
-                <p className={styles.hint}>Opens the shortcut box inside the focused terminal.</p>
-              </>
-            )}
-            {category === 'api' && (
-              <>
-                {/* Control 5 — the PROGRAMMATIC API, off by default. The token, its buttons and the docs
-                    URL are only rendered while it is on (design.md: a control the operator must not use
-                    is not rendered). */}
-                <div className={styles.row}>
-                  <label className={styles.label} htmlFor="settings-api-enabled">
-                    Local API
-                  </label>
-                  <div className={styles.controlGroup}>
-                    <input
-                      id="settings-api-enabled"
-                      type="checkbox"
-                      data-testid="settings-api-enabled"
-                      checked={apiEnabled}
-                      onChange={(e) => setApiEnabled(e.target.checked)}
-                    />
-                  </div>
-                </div>
-
-                <div className={styles.row}>
-                  <label className={styles.label} htmlFor="settings-api-port">
-                    API port
-                  </label>
-                  <div className={styles.controlGroup}>
-                    <span className={styles.portField}>
-                      <TextInput
-                        id="settings-api-port"
-                        testId="settings-api-port"
-                        value={portValue}
-                        invalid={portInvalid}
-                        onChange={(next) => {
-                          setPortDraft(next)
-                          setPortInvalid(false)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') commitPort()
-                        }}
-                        inputMode="numeric"
-                        onBlur={commitPort}
-                      />
-                    </span>
-                  </div>
-                </div>
-
-                {apiEnabled && (
-                  <>
+                  {reminderCount > 0 && (
                     <div className={styles.row}>
-                      <label className={styles.label} htmlFor="settings-api-token">
-                        Token
-                      </label>
+                      <span className={styles.label}>First reminder after</span>
                       <div className={styles.controlGroup}>
-                        {/* readOnly, not disabled — a disabled field cannot be selected, and a token
-                            you cannot select is one you cannot copy by hand. */}
-                        <span className={styles.tokenField}>
-                          <TextInput
-                            id="settings-api-token"
-                            testId="settings-api-token"
-                            value={token ?? ''}
-                            onChange={() => {}}
-                            readOnly
-                          />
-                        </span>
-                        {/* Not rendered until main answered with the token: before, it copied ''. */}
-                        {token !== null && (
-                          <ManageDialog.GhostButton
-                            testId="settings-api-copy"
-                            feedback="✓ Copied"
-                            feedbackShown={copied !== null}
-                            onClick={() => copyToken(token)}
-                          >
-                            Copy
-                          </ManageDialog.GhostButton>
-                        )}
-                        {/* Destructive: it invalidates every client holding the old token, so it arms
-                            in place through the ONE component that owns those classes (design.md).
-                            Busy while main mints: a second press cannot mint a second token. */}
-                        <ManageDialog.Delete
-                          testId="settings-api-regenerate"
-                          label="Regenerate"
-                          confirmLabel="Confirm regenerate"
-                          busy={regenerate.busy}
-                          feedback="✓ New token"
-                          feedbackShown={newToken !== null}
-                          onConfirm={() => void regenerate.run()}
+                        <Select
+                          value={String(reminderFirstDelayMinutes)}
+                          options={REMINDER_DELAY_OPTIONS}
+                          onChange={(next) => {
+                            const minutes = REMINDER_FIRST_DELAY_OPTIONS.find(
+                              (m) => String(m) === next
+                            )
+                            if (minutes !== undefined) {
+                              void persistSetting(
+                                { reminderFirstDelayMinutes: minutes },
+                                'the first reminder delay'
+                              )
+                            }
+                          }}
+                          ariaLabel="First reminder after"
+                          testId="settings-reminder-first-delay"
+                          align="end"
                         />
                       </div>
                     </div>
-                    {/* R11 — a listener that did not bind has no Docs URL to offer. The next change
+                  )}
+
+                  <p className={styles.hint} data-testid="settings-reminder-summary">
+                    {reminderSummary(reminderCount, reminderFirstDelayMinutes)}
+                  </p>
+                </>
+              )}
+              {category === 'appearance' && (
+                <>
+                  {/* Custom themes — the picker (a Select; never a native <select>), a Wallpaper picker when
+                    the applied theme lists 2+ (spec 2026-09-24), the two actions, the
+                    broken-themes helper line (D-8: never a disabled row) and the transparency hint. */}
+                  <div className={styles.row}>
+                    <span className={styles.label}>Theme</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={themeId}
+                        options={themeOptions}
+                        onChange={pickTheme}
+                        ariaLabel="Theme"
+                        testId="settings-theme"
+                        align="end"
+                      />
+                    </div>
+                  </div>
+                  {wallpaperOptions.length >= 2 && appliedWallpaper !== null && (
+                    <div className={styles.row}>
+                      <span className={styles.label}>Wallpaper</span>
+                      <div className={styles.controlGroup}>
+                        <Select
+                          value={appliedWallpaper}
+                          options={wallpaperOptions}
+                          onChange={(next) =>
+                            void persistSetting(
+                              { wallpaperByTheme: { ...wallpaperByTheme, [themeId]: next } },
+                              'the wallpaper'
+                            )
+                          }
+                          ariaLabel="Wallpaper"
+                          testId="settings-wallpaper"
+                          align="end"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className={styles.themeActions}>
+                    <ManageDialog.GhostButton
+                      testId="settings-theme-reload"
+                      busy={reload.busy}
+                      feedback="✓ Reloaded"
+                      feedbackShown={reloaded !== null}
+                      onClick={() => void reload.run()}
+                    >
+                      Reload themes
+                    </ManageDialog.GhostButton>
+                    <ManageDialog.GhostButton
+                      testId="settings-theme-open-folder"
+                      busy={openFolder.busy}
+                      onClick={() => void openFolder.run()}
+                    >
+                      Open themes folder
+                    </ManageDialog.GhostButton>
+                  </div>
+                  {brokenLine !== null && (
+                    <p className={styles.hint} data-testid="settings-theme-broken">
+                      {brokenLine}
+                    </p>
+                  )}
+                  {bundle.terminal.allowTransparency === true && (
+                    <p className={styles.hint} data-testid="settings-theme-transparency">
+                      Transparency applies to terminals opened from now on.
+                    </p>
+                  )}
+                  {/* Terminal colours (spec 2026-09-30): follow the theme, or a built-in dark / light
+                    palette whatever the app theme is. Every open terminal re-themes live. */}
+                  <div className={styles.row}>
+                    <span className={styles.label}>Terminal colours</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={terminalScheme}
+                        options={TERMINAL_SCHEME_OPTIONS}
+                        onChange={(next) =>
+                          void persistSetting({ terminalScheme: next }, 'the terminal colours')
+                        }
+                        ariaLabel="Terminal colours"
+                        testId="settings-terminal-scheme"
+                        align="end"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              {category === 'terminal' && (
+                <>
+                  {/* Control 4 — TERMINAL FONT-SIZE (a labeled range + readout; keyboard-operable). */}
+                  <div className={styles.row}>
+                    <label className={styles.label} htmlFor="settings-terminal-font-size">
+                      Terminal font size
+                    </label>
+                    <div className={styles.controlGroup}>
+                      <input
+                        id="settings-terminal-font-size"
+                        type="range"
+                        data-testid="settings-font-size"
+                        min={TERMINAL_FONT_SIZE_MIN}
+                        max={TERMINAL_FONT_SIZE_MAX}
+                        step={1}
+                        value={terminalFontSize}
+                        onChange={(e) => {
+                          const next = Number(e.target.value)
+                          if (Number.isFinite(next)) {
+                            void persistSetting(
+                              { terminalFontSize: next },
+                              'the terminal font size'
+                            )
+                          }
+                        }}
+                      />
+                      <span className={styles.fontSizeValue} data-testid="settings-font-size-value">
+                        {terminalFontSize}px
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={styles.row}>
+                    <span className={styles.label}>Copy/paste menu opens with</span>
+                    <div className={styles.controlGroup}>
+                      <Select
+                        value={terminalMenuTrigger}
+                        options={TERMINAL_MENU_TRIGGER_OPTIONS}
+                        onChange={(next) =>
+                          void persistSetting(
+                            { terminalMenuTrigger: next },
+                            'the copy/paste menu click'
+                          )
+                        }
+                        ariaLabel="Copy/paste menu opens with"
+                        testId="settings-terminal-menu-trigger"
+                        align="end"
+                      />
+                    </div>
+                  </div>
+                  <p className={styles.hint}>
+                    Change this if claude runs its full-screen renderer with mouse support: there,
+                    right-click already pastes. Shift + Right-click is never sent to claude.
+                  </p>
+                </>
+              )}
+              {category === 'keyboard' && (
+                <>
+                  <div className={styles.row}>
+                    <span className={styles.label}>Open shortcuts with</span>
+                    <div className={styles.controlGroup}>
+                      <KeyChordRecorder
+                        value={expanderChord(expanderKey)}
+                        onChange={(chord) => {
+                          // The chord is `Ctrl+Alt+<letter>`; the letter is the last character.
+                          void persistSetting(
+                            { expanderKey: chord.slice(-1) },
+                            'the shortcut chord'
+                          )
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className={styles.hint}>Opens the shortcut box inside the focused terminal.</p>
+                </>
+              )}
+              {category === 'api' && (
+                <>
+                  {/* Control 5 — the PROGRAMMATIC API, off by default. The token, its buttons and the docs
+                    URL are only rendered while it is on (design.md: a control the operator must not use
+                    is not rendered). */}
+                  <div className={styles.row}>
+                    <label className={styles.label} htmlFor="settings-api-enabled">
+                      Local API
+                    </label>
+                    <div className={styles.controlGroup}>
+                      <Switch
+                        id="settings-api-enabled"
+                        testId="settings-api-enabled"
+                        checked={apiEnabled}
+                        onChange={setApiEnabled}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.row}>
+                    <label className={styles.label} htmlFor="settings-api-port">
+                      API port
+                    </label>
+                    <div className={styles.controlGroup}>
+                      <span className={styles.portField}>
+                        <TextInput
+                          id="settings-api-port"
+                          testId="settings-api-port"
+                          value={portValue}
+                          invalid={portInvalid}
+                          onChange={(next) => {
+                            setPortDraft(next)
+                            setPortInvalid(false)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitPort()
+                          }}
+                          inputMode="numeric"
+                          onBlur={commitPort}
+                        />
+                      </span>
+                    </div>
+                  </div>
+
+                  {apiEnabled && (
+                    <>
+                      <div className={styles.row}>
+                        <label className={styles.label} htmlFor="settings-api-token">
+                          Token
+                        </label>
+                        <div className={styles.controlGroup}>
+                          {/* readOnly, not disabled — a disabled field cannot be selected, and a token
+                            you cannot select is one you cannot copy by hand. */}
+                          <span className={styles.tokenField}>
+                            <TextInput
+                              id="settings-api-token"
+                              testId="settings-api-token"
+                              value={token ?? ''}
+                              onChange={() => {}}
+                              readOnly
+                            />
+                          </span>
+                          {/* Not rendered until main answered with the token: before, it copied ''. */}
+                          {token !== null && (
+                            <ManageDialog.GhostButton
+                              testId="settings-api-copy"
+                              feedback="✓ Copied"
+                              feedbackShown={copied !== null}
+                              onClick={() => copyToken(token)}
+                            >
+                              Copy
+                            </ManageDialog.GhostButton>
+                          )}
+                          {/* Destructive: it invalidates every client holding the old token, so it arms
+                            in place through the ONE component that owns those classes (design.md).
+                            Busy while main mints: a second press cannot mint a second token. */}
+                          <ManageDialog.Delete
+                            testId="settings-api-regenerate"
+                            label="Regenerate"
+                            confirmLabel="Confirm regenerate"
+                            busy={regenerate.busy}
+                            feedback="✓ New token"
+                            feedbackShown={newToken !== null}
+                            onConfirm={() => void regenerate.run()}
+                          />
+                        </div>
+                      </div>
+                      {/* R11 — a listener that did not bind has no Docs URL to offer. The next change
                         in this panel retries the bind. */}
-                    {apiDown !== null ? (
-                      <p className={styles.hint} data-testid="settings-api-down">
-                        {apiDown}
-                      </p>
-                    ) : (
-                      <p className={styles.hint}>
-                        Docs: <span data-testid="settings-api-docs-url">{docsUrl}</span>
-                      </p>
-                    )}
-                  </>
-                )}
-              </>
-            )}
+                      {apiDown !== null ? (
+                        <p className={styles.hint} data-testid="settings-api-down">
+                          {apiDown}
+                        </p>
+                      ) : (
+                        <p className={styles.hint}>
+                          Docs: <span data-testid="settings-api-docs-url">{docsUrl}</span>
+                        </p>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </ManageDialog.Pane>
         </ManageDialog.Columns>
-        <ManageDialog.Message testId="settings-error" />
+        <ManageDialog.Message testId="settings-error" compact />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )
