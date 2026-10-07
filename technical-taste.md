@@ -632,6 +632,8 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | June "no pills, no glows, no gradients" for all                                                     | Still true for Default only. Themes may break it                                                    | The theme author owns taste                                                       |
 | Electron 39 ("don't upgrade")                                                                       | Electron 44 after a tested upgrade                                                                  | Stay current, but test                                                            |
 | "Leave work uncommitted for review" (June)                                                          | Commit on the branch; merge locally when told                                                       | The owner's later workflow                                                        |
+| Card actions reserve their space at rest, never reflow                                              | Actions take no room at rest; on hover/focus the title gets shorter, its start never moves          | Owner, 2026-10-07: the empty reserved space read as a gap                         |
+| Settings `Saved` beside the pane heading                                                            | Compact `Saved` in the dialog's one message slot; no pane heading                                   | The heading repeated the rail row; one message slot per dialog                    |
 
 ## 13. Rejected — don't propose these again
 

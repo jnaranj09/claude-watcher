@@ -259,8 +259,10 @@ which relation two neighbours ARE. Items of one kind close, different regions cl
 | last block → footer buttons          | `--gap-actions` (24) as the footer's own padding-top |
 
 4. **Same kind, same size.** Settings rows share one `min-height` (a 36px field Select/TextInput
-   - insets), so a checkbox row matches a dropdown row. Every rail search is
-     `<TextInput variant="inline">`.
+   - insets), so a switch row matches a dropdown row. Every rail search is
+     `<TextInput variant="inline">`. Every menu, list and Manage rail row is 36px, 13 / 500
+     (`Popover` `.item`, `.rowSelect`); compact and quiet popover rows keep their own size. Open-rail
+     rows 36, active row 40; collapsed rail 40 / 44 squares.
 5. **A scroll region never ends flush on a fixed region.** The rail list stops `--gap-group` above
    the bottom slot. The sticky footer's space is its PADDING (stays while the form scrolls under
    it), and the form's `--gap-field` stays above the footer box: the box paints over what is under
@@ -312,9 +314,10 @@ here.` aria-live too.
 
 Only header control besides `+ New session`; filters nothing.
 
-- Rows: `Settings…` (⚙), `Shortcuts…` (⌨), `Tags ‹` (`Manage tags…` / `Manage rules…`),
-  `Sessions ‹` (clock; `Active sessions…` / `Past sessions…` / `Templates…` / `Import session…`)
-  ALWAYS LAST. New rows go before it. Icons in a fixed-width slot; `‹` at right.
+- Rows: `Settings…` (sliders), `Shortcuts…` (keyboard), `Tags ›` (`Manage tags…` /
+  `Manage rules…`), `Sessions ›` (clock; `Active sessions…` / `Past sessions…` / `Templates…` /
+  `Import session…`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
+  14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
 - Submenus are ONE `Submenu` (AppMenu.tsx): open LEFT, level with their row; hover opens, click
   OPENS (never toggles); ArrowRight opens on the first row, ArrowLeft back; ONE open at a time.
 - Escape peels one layer (submenu, then menu), listens on the whole menu; closed → passes through.
@@ -370,7 +373,7 @@ Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error
   message.** Tinted box (`--success-fill`/`--danger-fill`), 1px tinted border, 3px `--success`/
   `--danger` left bar, icon disc drawn in CSS (text = the words), `--text-primary` title, optional
   `detail` (`--text-secondary`) and `action`. `size="block"` (dialog slot, small forms, banners) or
-  `"compact"` (one line: Settings heading, expander). Success `role="status"`, danger
+  `"compact"` (one line: Settings' `Saved` in the message slot, expander). Success `role="status"`, danger
   `role="alert"`; `announce={false}` inside something already live (dead pane, Settings' slot).
 - Success shows `SUCCESS_MS` (2.5 s); an error stays until the next action. Success copy names the
   THING (`Rule deleted.`, `Session forgotten.`), never a typed value. Green = `--success`; themes
@@ -394,7 +397,8 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
 - **Every async button uses `useAsyncAction(fn)` → `{ run, busy }` or a `busy` flag.**
 - **Every `void window.<a>.<b>(…)` ends in `.catch(`** (`lib/bridgeCatch.test.ts`). A wrapper that
   can fail rethrows a code or reports itself.
-- Settings: compact success Callout `Saved` beside pane heading, 2.5 s; refused change rolls back
+- Settings: compact success Callout `Saved` in the dialog's message slot
+  (`ManageDialog.Message compact`), 2.5 s; refused change rolls back
   (`persistSettingsPatch` → `settings_persist_failed`), error line `Could not save <setting>.`
 - **Name prompt stays open while main answers** (`lib/namePromptFlow.ts`): busy `Starting…` /
   `Renaming…`; refusal keeps the name + mapped copy (`folder_missing`, `claude_version`,
@@ -423,12 +427,13 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   error at call site). Needs `id` (with `<label htmlFor>`) or `ariaLabel`. `onChange` gets the
   string. `inputRef` for focus-on-open only. `invalid` sets `aria-invalid` (never the only signal).
   Placeholder `--text-secondary`. Same box as Select's `field` — change one, change both.
-  `TextInput.test.tsx` fails on any other `.input`/`.search`/`.textField` class. Checkboxes/radios/
+  `TextInput.test.tsx` fails on any other `.input`/`.search`/`.textField` class. An on/off setting is
+  `components/Switch` (guard in `Settings.test.tsx`); checkboxes that SELECT things, radios and
   ranges stay bare.
 - **`<button className=…>` → `components/Button/Button.tsx`.** Variants: `primary` (ONE main
   action: RAISED `--bg-surface-raised` fill + strong border + 600 weight, never an accent colour —
   a blue primary was rejected 2026-09-23), `secondary` (outlined), `danger`, `ghost` (borderless icons). Sizes
-  (fixed heights): `md` 32px, `sm` 26px, `xs` 20px; `icon` = square, `icon="round"` = circle
+  (fixed heights): `md` 32px, `sm` 28px, `xs` 20px; `icon` = square, `icon="round"` = circle
   (`data-shape="round"`): a standalone icon control (dialog ✕, rail « / tag toggle, toast ✕) is a
   ROUND `secondary` — the ☰'s look as a circle in every theme; `ghost` stays for icons inside a
   card or row. `lit` = toggle ON
