@@ -109,6 +109,26 @@ export interface FocusedSessionProps {
   onManageTags?: () => void
 }
 
+/** Back to the board — a line arrow on the ☰ menu icons' 16 grid, 1.5 stroke, 14px. */
+function ArrowLeftIcon(): JSX.Element {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M13 8H3.5M7.5 4 3.5 8l4 4" />
+    </svg>
+  )
+}
+
 export function FocusedSession({
   onBack,
   onNewSession,
@@ -212,11 +232,13 @@ export function FocusedSession({
         <div className={styles.bar}>
           <Button
             variant="secondary"
+            size="sm"
             testId="focused-back"
             onClick={onBack}
             aria-label="Back to board (Esc)"
           >
-            ← Board
+            <ArrowLeftIcon />
+            Board
           </Button>
           {/* The session's name is the bar's TITLE, read as a breadcrumb: `← Board / ● name`. At the
               right edge it read as a stray label beside Archive/Delete. Its dot is the session's

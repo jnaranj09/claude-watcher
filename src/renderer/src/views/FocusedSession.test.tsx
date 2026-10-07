@@ -162,6 +162,16 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(onBack).toHaveBeenCalledTimes(1)
   })
 
+  it('Board is an sm button: a line arrow icon, then the word Board; the label is unchanged', () => {
+    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
+    const r = render(vi.fn())
+    const back = r.container.querySelector<HTMLButtonElement>('[data-testid="focused-back"]')
+    expect(back?.dataset['size']).toBe('sm')
+    expect(back?.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+    expect(back?.textContent).toBe('Board')
+    expect(back?.getAttribute('aria-label')).toBe('Back to board (Esc)')
+  })
+
   it('a rail-row click SWITCHES the visible terminal + ACKNOWLEDGES (no input sent — AC-3)', () => {
     // Seed two correlated sessions; focus the first.
     boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
@@ -470,7 +480,7 @@ describe('FocusedSession — the bar buttons are the shared Button', () => {
     'utf8'
   )
 
-  it('Back is secondary md; Archive secondary sm; Delete danger sm', () => {
+  it('Back is secondary sm (one 28px bar); Archive secondary sm; Delete danger sm', () => {
     boardStore.getState().openLaunchedTerminal('launch-button-test', 'button-test', 'default')
     const r = render()
     const button = (testId: string): HTMLButtonElement => {
@@ -478,7 +488,7 @@ describe('FocusedSession — the bar buttons are the shared Button', () => {
       if (el === null) throw new Error(`missing ${testId}`)
       return el
     }
-    expect(button('focused-back').dataset).toMatchObject({ variant: 'secondary', size: 'md' })
+    expect(button('focused-back').dataset).toMatchObject({ variant: 'secondary', size: 'sm' })
     expect(button('focused-archive').dataset).toMatchObject({ variant: 'secondary', size: 'sm' })
     expect(button('focused-delete').dataset).toMatchObject({ variant: 'danger', size: 'sm' })
     expect(button('focused-delete').hasAttribute('data-armed')).toBe(false)
