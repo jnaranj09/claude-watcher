@@ -1,0 +1,36 @@
+/* The settings on/off switch (spec 2026-10-07 A.6). The knob is a radial-gradient on the track:
+   an <input> draws no ::before. Off: the raised glass fill, the control edge, a secondary knob.
+   On: LIT — the `lit` Button's --text-primary fill with a --text-on-lit knob. */
+.switch {
+  appearance: none;
+  box-sizing: border-box;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-full);
+  background-color: var(--bg-surface-raised);
+  background-image: radial-gradient(
+    circle at 9px 50%,
+    var(--text-secondary) 6px,
+    transparent 6.5px
+  );
+  cursor: pointer;
+}
+.switch:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+.switch:checked {
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+  background-image: radial-gradient(circle at 23px 50%, var(--text-on-lit) 6px, transparent 6.5px);
+}
+.switch:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
