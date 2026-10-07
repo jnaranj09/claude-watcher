@@ -97,14 +97,15 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  min-height: 36px;
   padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid transparent;
   border-radius: var(--rounded-md);
   background: transparent;
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
+  font-size: var(--font-size-body);
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
 }
@@ -113,6 +114,15 @@
 }
 .item[data-quiet] {
   color: var(--text-secondary);
+}
+/* One row size (spec 2026-10-07): every menu and list row is 36px, 13 / 500. The tight rows
+   (card move menu, terminal Copy/Paste, expander) and the quiet end-of-list action keep their own,
+   smaller size. */
+.item[data-density='compact'],
+.item[data-quiet] {
+  min-height: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
 }
 .item:hover:not(:disabled) {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));

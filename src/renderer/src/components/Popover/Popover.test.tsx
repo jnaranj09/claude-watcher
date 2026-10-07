@@ -238,3 +238,24 @@ describe('Popover.Surface — a container (holds a submenu) never fades itself',
     )
   })
 })
+
+describe('Popover rows — one size and text style (spec 2026-10-07 A.5)', () => {
+  const css = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/Popover/Popover.module.css'),
+    'utf8'
+  )
+  const rule = (sel: string): string =>
+    new RegExp(`\\n${sel.replace(/[.[\]'=()]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+  it('a row is 36px, body size, 500', () => {
+    expect(rule('.item')).toMatch(/min-height: 36px;/)
+    expect(rule('.item')).toMatch(/font-size: var\(--font-size-body\);/)
+    expect(rule('.item')).toMatch(/font-weight: 500;/)
+  })
+  it('compact and quiet rows keep their own size (no 36px, label text)', () => {
+    const own =
+      /\n\.item\[data-density='compact'\],\s*\.item\[data-quiet\] \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(own).toMatch(/min-height: 0;/)
+    expect(own).toMatch(/font-size: var\(--font-size-label\);/)
+    expect(own).toMatch(/font-weight: var\(--font-weight-label\);/)
+  })
+})

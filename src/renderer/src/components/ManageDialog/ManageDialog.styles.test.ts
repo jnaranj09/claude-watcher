@@ -142,6 +142,12 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.panel')).toMatch(/max-height:\s*calc\(100vh/)
   })
 
+  it('a rail row is 36px, 13 / 500 — the same row as a menu row', () => {
+    expect(ruleBody(css, '.rowSelect')).toMatch(/min-height: 36px;/)
+    expect(ruleBody(css, '.rowSelect')).toMatch(/font-size: var\(--font-size-body\);/)
+    expect(ruleBody(css, '.rowSelect')).toMatch(/font-weight: 500;/)
+  })
+
   it('caps the body grid row so the form cannot size the panel past that cap', () => {
     expect(ruleBody(css, '.columns')).toMatch(/grid-template-rows:\s*minmax\(0,\s*1fr\)/)
   })

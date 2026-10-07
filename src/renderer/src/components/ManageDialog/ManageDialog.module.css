@@ -160,6 +160,7 @@
   display: flex;
   align-items: center;
   gap: var(--gap-inline);
+  min-height: 36px;
   text-align: left;
   padding: var(--inset-item-y) var(--inset-item-x);
   border: none;
@@ -168,6 +169,7 @@
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--font-size-body);
+  font-weight: 500;
   cursor: pointer;
 }
 .rowSelect:hover {
