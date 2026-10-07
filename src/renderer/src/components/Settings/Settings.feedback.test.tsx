@@ -175,6 +175,34 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     })
   }
 
+  // The slot draws the error ahead of the success, so a refusal HIDES `Saved` even if nothing
+  // clears it. This pins the clearing itself: once the error goes away without a save (the
+  // current port committed again), the earlier `Saved` must not come back.
+  it('a refused save forgets the earlier Saved: clearing the error without a save shows nothing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let refuse = false
+    stubSettings((patch) =>
+      refuse ? Promise.reject(new Error('x')) : Promise.resolve(mergedSettings(patch))
+    )
+    stubThemes()
+    stubApi()
+    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
+    const r = render()
+    await flush()
+    openCategory(r, 'api')
+    commitPort(r, '30000')
+    await flush()
+    expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
+    refuse = true
+    commitPort(r, '30001')
+    await flush()
+    expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not save the API port.')
+    commitPort(r, '30000')
+    await flush()
+    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
+  })
+
   it('a refused save does not hide a newer error: an invalid port after it shows the port message', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubSettings(() => Promise.reject(new Error('x')))
