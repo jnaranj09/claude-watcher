@@ -78,6 +78,7 @@ import { forgetSession, trackHookEvent, type SessionTrackingDeps } from '../hook
 import {
   claimByProcess,
   claimUnlessParked,
+  cwdFallbackMayAdopt,
   findAdoptionTarget,
   isAgentListNotification,
   namedByShellPane,
@@ -650,7 +651,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     //
     // The old id is deliberately LEFT in the launched-set: the set has no delete, membership is a
     // per-run board-eligibility gate, and the old card is gone anyway (a stale member gates nothing).
-    function adoptOrphanedCard(cwd: string, newSessionId: string): boolean {
+    function adoptOrphanedCard(cwd: string, newSessionId: string, cwdMayAdopt: boolean): boolean {
       const launchService = getLaunchService()
       const terminalManager = getTerminalManager()
       if (launchService === null || terminalManager === null) return false
@@ -667,7 +668,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
           byProcess: () =>
             claimByProcess(newSessionId, service.bindings(), terminals, processSessions),
           byOrphan: () =>
-            claimUnlessParked(orphanRegistry.claim(cwd, Date.now(), terminals), terminalParked),
+            cwdMayAdopt
+              ? claimUnlessParked(orphanRegistry.claim(cwd, Date.now(), terminals), terminalParked)
+              : null,
           // Card shell pane — a claude the operator runs in a card's shell is never that card.
           byCompanion: () =>
             namedByShellPane(
@@ -810,7 +813,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         // unchanged `hook_unknown_id` no-op below. Runs BEFORE the tracking gate, so a session
         // under its new `/clear` id is known by then and keeps its transcript tail.
         if (change?.kind === 'status' && !reducer.snapshotMap().has(evt.session_id)) {
-          adoptOrphanedCard(evt.cwd ?? '', evt.session_id)
+          adoptOrphanedCard(evt.cwd ?? '', evt.session_id, cwdFallbackMayAdopt(evt))
         }
 
         // Tail the transcript and record the background verdict — for a KNOWN id only (SEC-2:

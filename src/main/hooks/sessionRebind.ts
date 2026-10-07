@@ -362,6 +362,17 @@ export function parkedAwayFromJob(
 }
 
 /**
+ * May this event adopt a card through the cwd heuristic? Never a `Notification`: after a re-key
+ * to a parked job, the agent list keeps sending them under the terminal's OLD (now unknown) id,
+ * and the heuristic could hand that id ANOTHER card in the same folder that just ran `/clear`
+ * (false Needs you on the wrong card). A real re-key starts with a prompt (`UserPromptSubmit`),
+ * so no legitimate adoption is lost. The exact proof stays open to every event.
+ */
+export function cwdFallbackMayAdopt(evt: HookEvent): boolean {
+  return evt.hook_event_name !== 'Notification'
+}
+
+/**
  * The cwd fallback never claims an orphan whose terminal is parked: an orphan marked by a
  * `/clear` just before ← would otherwise let a session started from the agent list (same cwd)
  * take the card within the window. The parked job is found by the exact proof instead.

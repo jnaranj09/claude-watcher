@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   claimByProcess,
   claimUnlessParked,
+  cwdFallbackMayAdopt,
   createOrphanRegistry,
   findAdoptionTarget,
   namedByShellPane,
@@ -532,5 +533,24 @@ describe('claimUnlessParked — an orphan from before ← is never claimed while
 
   it('passes null through', () => {
     expect(claimUnlessParked(null, () => true)).toBeNull()
+  })
+})
+
+describe('cwdFallbackMayAdopt — a Notification never adopts through the cwd heuristic', () => {
+  // After a re-key to a parked job, the agent list keeps sending Notifications under the
+  // terminal's OLD (now unknown) id. Through the cwd fallback that id could take ANOTHER card in
+  // the same folder that just ran `/clear`. A real re-key always starts with a prompt
+  // (`UserPromptSubmit`), so excluding Notification costs no legitimate adoption.
+  const evt = (name: string, extra: Record<string, unknown> = {}): HookEvent =>
+    HookEventSchema.parse({ session_id: 'sess-orig', hook_event_name: name, ...extra })
+
+  it('refuses a Notification (agent-list chatter under an old id)', () => {
+    expect(
+      cwdFallbackMayAdopt(evt('Notification', { notification_type: 'agent_needs_input' }))
+    ).toBe(false)
+  })
+
+  it('allows the first prompt after a /clear', () => {
+    expect(cwdFallbackMayAdopt(evt('UserPromptSubmit'))).toBe(true)
   })
 })
