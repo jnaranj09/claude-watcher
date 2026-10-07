@@ -4,6 +4,8 @@
 // `accent` (gold / blue / idle-muted); prominent (hero) vs flank presentations
 // differ. `count` is a prop, never computed here.
 import { describe, it, expect, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { ColumnHeader, type ColumnAccent } from './ColumnHeader'
 import { renderComponent } from '../../test/renderComponent'
 
@@ -62,5 +64,25 @@ describe('ColumnHeader — always present, accent tick, prominent/flank (AC-5)',
     flank.unmount()
 
     expect(heroClass).not.toBe(flankClass)
+  })
+})
+
+describe('ColumnHeader — one height in every column (spec 2026-10-07 A.1)', () => {
+  const css = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/ColumnHeader/ColumnHeader.module.css'),
+    'utf8'
+  )
+  const body = (sel: string): string =>
+    new RegExp(`\\n${sel.replace(/\./g, '\\.')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+  it('every header carries the same bottom padding and a 1px bottom border', () => {
+    expect(body('.root')).toMatch(/padding-bottom: var\(--inset-compact-x\);/)
+    expect(body('.root')).toMatch(/border-bottom: 1px solid transparent;/)
+    expect(body('.prominent')).toMatch(/border-bottom-color: var\(--border\);/)
+    expect(body('.prominent')).not.toMatch(/padding|border-bottom:/)
+  })
+  it('the name line has ONE fixed line height, so the bold hero name is not taller', () => {
+    expect(body('.name')).toMatch(/line-height: 20px;/)
+    expect(body('.prominent .name')).not.toMatch(/line-height/)
+    expect(body('.flank .name')).not.toMatch(/line-height/)
   })
 })

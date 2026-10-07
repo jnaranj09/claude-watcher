@@ -1,7 +1,10 @@
 /* Story 1.3 — ColumnHeader (AC-5).
  * name + live muted count + a top accent tick in the column's accent.
  * Always present even when empty (never collapses). `prominent` = hero header
- * (larger `heading` + divider); flank = smaller, `text-secondary`. */
+ * (larger `heading` + divider); flank = smaller, `text-secondary`.
+ * Both presentations are the SAME height (spec 2026-10-07 A.1), so card tops line up across
+ * columns: every header has the bottom padding and a 1px bottom border (the hero's divider is
+ * that border, coloured), and the name line has one fixed line height. */
 
 .root {
   display: flex;
@@ -10,6 +13,8 @@
   /* The top accent tick — a short bar in the column's accent color. */
   border-top: 2px solid var(--accent-color, var(--idle));
   padding-top: var(--inset-compact-x);
+  padding-bottom: var(--inset-compact-x);
+  border-bottom: 1px solid transparent;
 }
 
 /* Accent tick color per column accent (gold / blue / idle-muted). */
@@ -33,18 +38,17 @@
 
 .name {
   font-family: var(--font-ui);
+  line-height: 20px;
 }
 
 /* prominent (hero) — larger heading + a divider under the header. */
 .prominent {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: var(--inset-compact-x);
+  border-bottom-color: var(--border);
 }
 
 .prominent .name {
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-heading);
-  line-height: var(--line-height-heading);
   letter-spacing: var(--letter-spacing-heading);
   color: var(--text-primary);
 }
@@ -53,7 +57,6 @@
 .flank .name {
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-label);
-  line-height: var(--line-height-label);
   color: var(--text-secondary);
 }
 
