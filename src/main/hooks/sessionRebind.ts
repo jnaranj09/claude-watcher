@@ -41,6 +41,13 @@
 //   fallback for a claude that keeps no such record; when only its window refuses, it says
 //   so (`onWindowRefusal`) so the freeze is at least diagnosable from the log.
 //
+//   AGENT VIEW (2026-10-06) — ← parks the conversation into a background job OUTSIDE the pty.
+//   The records source (pty/claudeSessionFile.ts) lists a parked terminal by the job's current
+//   id, so PART 2b adopts it unchanged. Two guards here: a parked terminal's SessionEnd marks NO
+//   orphan (a session started from the agent list shares the cwd — the heuristic must never get
+//   the card), and `isAgentListNotification` drops the agent list's Notifications about OTHER
+//   agents, which claude sends under the terminal's old id.
+//
 // NEVER LOG cwd (it leaks the filesystem layout) or any hook field — codes only.
 // [.claude/rules/zod-boundaries.md; .claude/rules/state.md; CLAUDE.md "Removal is stop/exit-driven"]
 
@@ -162,6 +169,9 @@ export function keepCardOnLiveSessionEnd(
     launch: RebindBindingSource
     live: LiveTerminals
     orphans: OrphanRegistry
+    /** Agent view — the terminal's claude moved its conversation into a background job; no
+     *  orphan then. */
+    parked: (terminalId: string) => boolean
     now: number
     applyStatus: (sessionId: string, change: HookStatusChange) => void
     log: (message: string) => void
@@ -169,12 +179,14 @@ export function keepCardOnLiveSessionEnd(
 ): boolean {
   const terminalId = sessionEndKeepsCard(evt.session_id, deps.launch, deps.live)
   if (terminalId === null) return false
-  deps.orphans.mark({
-    terminalId,
-    sessionId: evt.session_id,
-    cwd: evt.cwd ?? '',
-    orphanedAt: deps.now
-  })
+  if (!deps.parked(terminalId)) {
+    deps.orphans.mark({
+      terminalId,
+      sessionId: evt.session_id,
+      cwd: evt.cwd ?? '',
+      orphanedAt: deps.now
+    })
+  }
   deps.log('[c9watch][hooks] path=(hook) code=hook_sessionend_pty_alive')
   const cleared = clearedSessionStatus(evt)
   if (cleared !== null) deps.applyStatus(evt.session_id, cleared)
@@ -305,6 +317,60 @@ export function claimByProcess(
     match = { terminalId: launch.terminalId, sessionId: launch.sessionId }
   }
   return match
+}
+
+/**
+ * Agent view — is this a Notification the agent LIST sent about another agent? claude sends
+ * those under the terminal's old id (drive runs 2026-10-06: `agent_completed`,
+ * `agent_needs_input` for a session started from the list). One card = one session, so they
+ * never move the card. `parkedAway(terminalId, sessionId)` is true when the terminal is parked
+ * AND `sessionId` is not its job's current id — the job's OWN Notification (after the re-key the
+ * card's id IS the job's id) is kept. Pure: the caller does the reading.
+ */
+export function isAgentListNotification(
+  evt: HookEvent,
+  deps: {
+    launch: RebindBindingSource
+    live: LiveTerminals
+    parkedAway: (terminalId: string, sessionId: string) => boolean
+  }
+): boolean {
+  if (evt.hook_event_name !== 'Notification') return false
+  const terminalId = deps.launch.terminalIdFor(evt.session_id)
+  if (terminalId === null || !deps.live.has(terminalId)) return false
+  return deps.parkedAway(terminalId, evt.session_id)
+}
+
+/** The records surface the agent-view guards read (satisfied by `ProcessSessionSource`). */
+export interface ParkedRecords extends ProcessSessionRecords {
+  parkedUnder(leaderPid: number): boolean
+}
+
+/**
+ * Is `sessionId` NOT the parked job of the terminal led by `leaderPid`? True only on POSITIVE
+ * evidence: the terminal is parked AND a job id is readable AND `sessionId` differs. No readable
+ * job id → false, so the job's own Notification is never dropped by a missing/torn record.
+ */
+export function parkedAwayFromJob(
+  sessionId: string,
+  leaderPid: number,
+  records: ParkedRecords
+): boolean {
+  if (!records.parkedUnder(leaderPid)) return false
+  const jobIds = records.currentSessionIdsUnder(leaderPid)
+  return jobIds.length > 0 && !jobIds.includes(sessionId)
+}
+
+/**
+ * The cwd fallback never claims an orphan whose terminal is parked: an orphan marked by a
+ * `/clear` just before ← would otherwise let a session started from the agent list (same cwd)
+ * take the card within the window. The parked job is found by the exact proof instead.
+ */
+export function claimUnlessParked(
+  orphan: OrphanedLaunch | null,
+  parked: (terminalId: string) => boolean
+): OrphanedLaunch | null {
+  return orphan !== null && parked(orphan.terminalId) ? null : orphan
 }
 
 /**

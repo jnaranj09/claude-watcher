@@ -77,9 +77,12 @@ import { forgetSession, trackHookEvent, type SessionTrackingDeps } from '../hook
 // one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
 import {
   claimByProcess,
+  claimUnlessParked,
   findAdoptionTarget,
+  isAgentListNotification,
   namedByShellPane,
   keepCardOnLiveSessionEnd,
+  parkedAwayFromJob,
   type OrphanRegistry
 } from '../hooks/sessionRebind'
 // Name-sync — the per-window store of names waiting to be pushed to claude on its next
@@ -663,7 +666,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         {
           byProcess: () =>
             claimByProcess(newSessionId, service.bindings(), terminals, processSessions),
-          byOrphan: () => orphanRegistry.claim(cwd, Date.now(), terminals),
+          byOrphan: () =>
+            claimUnlessParked(orphanRegistry.claim(cwd, Date.now(), terminals), terminalParked),
           // Card shell pane — a claude the operator runs in a card's shell is never that card.
           byCompanion: () =>
             namedByShellPane(
@@ -748,6 +752,20 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         .forEach(handleDelta)
     }
 
+    // Agent view (spec 2026-10-06-agent-view-parked-session) — has this terminal's claude moved
+    // its conversation into a background job (←)? Read from claude's own records; false on any
+    // failure (fail closed = today's behaviour).
+    function terminalParked(terminalId: string): boolean {
+      const pid = getTerminalManager()?.pidOf(terminalId) ?? null
+      return pid !== null && processSessions.parkedUnder(pid)
+    }
+    /** Parked, and `sessionId` is not the parked job's readable current id (positive evidence
+     *  only — the job's own events, and every event when no job id is readable, are kept). */
+    function parkedAway(terminalId: string, sessionId: string): boolean {
+      const pid = getTerminalManager()?.pidOf(terminalId) ?? null
+      return pid !== null && parkedAwayFromJob(sessionId, pid, processSessions)
+    }
+
     const hookServer = createHookServer({
       onHookEvent: (evt) => {
         // Name-sync READ-BACK — claude's own name for the session, reported on every
@@ -769,6 +787,19 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         )
         if (readBack !== null) {
           reducer.renameSession(evt.session_id, readBack).forEach(handleDelta)
+        }
+
+        // Agent view — the agent LIST reports OTHER agents under this card's old id. One card =
+        // one session: drop it before it can move the card (sessionRebind.ts).
+        const listLaunch = getLaunchService()
+        const listTerminals = getTerminalManager()
+        if (
+          listLaunch !== null &&
+          listTerminals !== null &&
+          isAgentListNotification(evt, { launch: listLaunch, live: listTerminals, parkedAway })
+        ) {
+          console.warn('[c9watch][hooks] path=(hook) code=hook_agent_view_notification_ignored')
+          return
         }
 
         const change = hookStatus(evt)
@@ -812,6 +843,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
             launch: launchService,
             live: terminalManager,
             orphans: orphanRegistry,
+            parked: terminalParked,
             now: Date.now(),
             applyStatus: (sessionId, status) =>
               reducer.applyHookStatus(sessionId, status).forEach(handleDelta),

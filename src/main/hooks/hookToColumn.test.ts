@@ -142,6 +142,7 @@ describe('Phase 2 end-to-end — hook event → board column (the whole point)',
       launch: { terminalIdFor: (s) => (s === id ? 'term-1' : null) },
       live: { has: (t) => t === 'term-1' },
       orphans: createOrphanRegistry(),
+      parked: () => false,
       now: FIXED_NOW,
       applyStatus: (sessionId, change) => ship(reducer.applyHookStatus(sessionId, change)),
       log: () => undefined

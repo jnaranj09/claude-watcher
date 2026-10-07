@@ -90,6 +90,14 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   `claude -p` from the Bash tool is never proof; ambiguous → cwd heuristic fallback (cwd +
   single match + alive + 5-min window). Logs: `hook_sessionend_pty_alive`,
   `hook_session_id_rebound proof=pid|cwd`, `hook_rebind_window_expired`.
+  **Agent view (←) parks the conversation** into a background job outside the pty: the
+  terminal's record gets `parkedJobId`, the job's record (`kind:"bg"`, `jobId`) holds the current
+  id; the records source lists a parked terminal by the job's id only (spec
+  2026-10-06-agent-view-parked-session). A parked terminal's `SessionEnd` marks no orphan; a
+  `Notification` under a parked card's id that differs from the job's READABLE id is agent-list
+  chatter (`hook_agent_view_notification_ignored`; no readable job id → kept); an orphan is never
+  claimed while its terminal is parked. Quitting does not stop the job (claude's native
+  behaviour); park → quit unused → Resume opens a copy (known limit).
 - **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
   otherwise) — don't narrow.
 - **Status rules:** turn ending with `background_tasks` running = `Working` (until next event; Esc

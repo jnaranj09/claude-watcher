@@ -248,7 +248,7 @@ describe('createProcessSessionSource — the exact "pid P now runs session B" pr
   }
   const PARKED = rec(LEADER, 'sess-orig', { kind: 'interactive', parkedJobId: 'cda9ce2d' })
 
-  it('parked: returns the JOB\'s current id, never the terminal\'s own (stale) id', () => {
+  it("parked: returns the JOB's current id, never the terminal's own (stale) id", () => {
     const { source } = sourceOver(
       {
         [`${LEADER}.json`]: PARKED,
@@ -316,7 +316,12 @@ describe('createProcessSessionSource — the exact "pid P now runs session B" pr
 
   it('two parked terminals in one folder each find ONLY their own job', () => {
     const LEADER2 = 32970
-    const tree = readStatusFrom({ [LEADER]: ELECTRON, [LEADER2]: ELECTRON, [JOB]: 1, [OTHER_JOB]: 1 })
+    const tree = readStatusFrom({
+      [LEADER]: ELECTRON,
+      [LEADER2]: ELECTRON,
+      [JOB]: 1,
+      [OTHER_JOB]: 1
+    })
     const { source } = sourceOver(
       {
         [`${LEADER}.json`]: PARKED,

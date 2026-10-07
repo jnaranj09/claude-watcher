@@ -8,19 +8,23 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   claimByProcess,
+  claimUnlessParked,
   createOrphanRegistry,
   findAdoptionTarget,
   namedByShellPane,
   isAdoptableSessionId,
+  isAgentListNotification,
   keepCardOnLiveSessionEnd,
+  parkedAwayFromJob,
   sessionEndKeepsCard,
   REBIND_WINDOW_MS,
   type LiveTerminals,
+  type ParkedRecords,
   type ProcessSessionRecords,
   type RebindBindingSource
 } from './sessionRebind'
 import type { HookStatusChange } from '../c9watch/reducer'
-import { HookEventSchema } from '../../shared/schemas/hookEvent'
+import { HookEventSchema, type HookEvent } from '../../shared/schemas/hookEvent'
 
 /** A launch service whose bindings are a plain sessionId → terminalId table. */
 function bindings(table: Record<string, string>): RebindBindingSource {
@@ -158,6 +162,26 @@ describe("claimByProcess (Part 2b — the EXACT proof from claude's own per-proc
   function recorded(table: Readonly<Record<number, readonly string[]>>): ProcessSessionRecords {
     return { currentSessionIdsUnder: (leaderPid) => table[leaderPid] ?? [] }
   }
+
+  // Agent view — the records source lists a parked terminal by its JOB's id only (Task 2), so
+  // the job's first hook re-keys the card, and an agent-list hook under the OLD id never re-keys
+  // it back.
+  it('parked: adopts the job id, and after the re-key never adopts the old id back', () => {
+    const first = claimByProcess(
+      'job-sess',
+      [{ terminalId: 'term-1', sessionId: 'sess-orig' }],
+      pids({ 'term-1': 111 }),
+      recorded({ 111: ['job-sess'] })
+    )
+    expect(first).toEqual({ terminalId: 'term-1', sessionId: 'sess-orig' })
+    const back = claimByProcess(
+      'sess-orig',
+      [{ terminalId: 'term-1', sessionId: 'job-sess' }],
+      pids({ 'term-1': 111 }),
+      recorded({ 111: ['job-sess'] })
+    )
+    expect(back).toBeNull()
+  })
 
   it('adopts the launch whose process now records the incoming id — no cwd, no window', () => {
     const claim = claimByProcess(
@@ -353,7 +377,10 @@ describe('namedByShellPane — the disproof source for a claude run inside a car
 // The SessionEnd step watchFeed runs: keep the card on a live pty, and on a /clear move it to
 // idle (ST-7 — claude sends no SessionStart to an http hook, so this is the only /clear signal).
 describe('keepCardOnLiveSessionEnd (watchFeed SessionEnd step)', () => {
-  function setup(live: LiveTerminals): {
+  function setup(
+    live: LiveTerminals,
+    parked = false
+  ): {
     run: (body: Record<string, unknown>) => boolean
     applied: { sessionId: string; change: HookStatusChange }[]
     orphans: ReturnType<typeof createOrphanRegistry>
@@ -373,6 +400,7 @@ describe('keepCardOnLiveSessionEnd (watchFeed SessionEnd step)', () => {
             launch: bindings({ 'sess-a': 'term-1' }),
             live,
             orphans,
+            parked: () => parked,
             now: T0,
             applyStatus: (sessionId, change) => applied.push({ sessionId, change }),
             log: () => undefined
@@ -399,10 +427,110 @@ describe('keepCardOnLiveSessionEnd (watchFeed SessionEnd step)', () => {
     expect(applied).toEqual([])
   })
 
+  it('a PARKED terminal (agent view): keeps the card but marks NO orphan', () => {
+    // A session started from the agent list runs in the same folder; an orphan would let the
+    // cwd fallback hand it this card. The parked job is found by the exact proof instead.
+    const { run, applied, orphans } = setup(alive('term-1'), true)
+    expect(run({ reason: 'clear' })).toBe(true)
+    expect(orphans.size()).toBe(0)
+    expect(applied).toEqual([
+      { sessionId: 'sess-a', change: { kind: 'status', status: 'WaitingForInput' } }
+    ])
+  })
+
   it('a dead pty: not kept (a real removal), nothing applied, no orphan', () => {
     const { run, applied, orphans } = setup(alive())
     expect(run({ reason: 'clear' })).toBe(false)
     expect(orphans.size()).toBe(0)
     expect(applied).toEqual([])
+  })
+})
+
+describe('isAgentListNotification — agent-view chatter never moves the card', () => {
+  const notif = (sessionId: string, type = 'agent_needs_input'): HookEvent =>
+    HookEventSchema.parse({
+      session_id: sessionId,
+      hook_event_name: 'Notification',
+      notification_type: type
+    })
+  const launch = bindings({ 'sess-orig': 'term-1', 'job-sess': 'term-2' })
+  /** term-1 is parked to a job whose current id is `job-sess`; term-2 is that re-keyed card. */
+  const parkedAway = (terminalId: string, sessionId: string): boolean =>
+    (terminalId === 'term-1' || terminalId === 'term-2') && sessionId !== 'job-sess'
+
+  it('drops a Notification under the OLD id of a parked terminal (another agent asks)', () => {
+    expect(
+      isAgentListNotification(notif('sess-orig'), { launch, live: alive('term-1'), parkedAway })
+    ).toBe(true)
+  })
+
+  it("keeps the parked job's OWN permission prompt after the re-key (card goes to Needs you)", () => {
+    expect(
+      isAgentListNotification(notif('job-sess', 'permission_prompt'), {
+        launch,
+        live: alive('term-2'),
+        parkedAway
+      })
+    ).toBe(false)
+  })
+
+  it('keeps every Notification of a terminal that is not parked', () => {
+    expect(
+      isAgentListNotification(notif('sess-orig', 'permission_prompt'), {
+        launch,
+        live: alive('term-1'),
+        parkedAway: () => false
+      })
+    ).toBe(false)
+  })
+
+  it('ignores other events, unknown ids and dead terminals', () => {
+    const stop = HookEventSchema.parse({ session_id: 'sess-orig', hook_event_name: 'Stop' })
+    expect(isAgentListNotification(stop, { launch, live: alive('term-1'), parkedAway })).toBe(false)
+    expect(
+      isAgentListNotification(notif('nobody'), { launch, live: alive('term-1'), parkedAway })
+    ).toBe(false)
+    expect(isAgentListNotification(notif('sess-orig'), { launch, live: alive(), parkedAway })).toBe(
+      false
+    )
+  })
+})
+
+describe('parkedAwayFromJob — drop only on POSITIVE evidence', () => {
+  const records = (parked: boolean, ids: readonly string[]): ParkedRecords => ({
+    parkedUnder: () => parked,
+    currentSessionIdsUnder: () => ids
+  })
+
+  it('parked, job id readable, event under another id → away (agent-list chatter)', () => {
+    expect(parkedAwayFromJob('sess-orig', 111, records(true, ['job-sess']))).toBe(true)
+  })
+
+  it("parked, event under the job's own id → not away (the job's own Notification)", () => {
+    expect(parkedAwayFromJob('job-sess', 111, records(true, ['job-sess']))).toBe(false)
+  })
+
+  it('parked but NO job id readable (record not written / torn) → not away: keep the event', () => {
+    expect(parkedAwayFromJob('job-sess', 111, records(true, []))).toBe(false)
+  })
+
+  it('not parked → never away', () => {
+    expect(parkedAwayFromJob('sess-orig', 111, records(false, ['other']))).toBe(false)
+  })
+})
+
+describe('claimUnlessParked — an orphan from before ← is never claimed while parked', () => {
+  const orphan = { terminalId: 'term-1', sessionId: 'sess-old', cwd: '/w', orphanedAt: T0 }
+
+  it('refuses an orphan whose terminal is parked (agent-list session in the same cwd)', () => {
+    expect(claimUnlessParked(orphan, (t) => t === 'term-1')).toBeNull()
+  })
+
+  it('passes an orphan through when its terminal is not parked (plain /clear)', () => {
+    expect(claimUnlessParked(orphan, () => false)).toBe(orphan)
+  })
+
+  it('passes null through', () => {
+    expect(claimUnlessParked(null, () => true)).toBeNull()
   })
 })

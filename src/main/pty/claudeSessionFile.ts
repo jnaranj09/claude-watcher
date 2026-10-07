@@ -50,7 +50,10 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { parseClaudeSessionFile, type ClaudeSessionFile } from '../../shared/schemas/claudeSessionFile'
+import {
+  parseClaudeSessionFile,
+  type ClaudeSessionFile
+} from '../../shared/schemas/claudeSessionFile'
 import {
   isAncestorOf,
   parseStatusField,
