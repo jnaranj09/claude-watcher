@@ -46,7 +46,7 @@
   }
 }
 .sm {
-  height: 26px;
+  height: 28px;
   padding: 0 var(--inset-compact-x);
   font-size: var(--font-size-label);
 }
@@ -62,7 +62,7 @@
   padding: 0;
 }
 .sm.icon {
-  width: 26px;
+  width: 28px;
 }
 .xs.icon {
   width: 20px;

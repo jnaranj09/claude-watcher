@@ -251,7 +251,8 @@ describe('Button owns every button style', () => {
     const body = (cls: string): string =>
       new RegExp(`\\n\\${cls} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
     expect(body('.button')).toMatch(/height: 32px;/)
-    expect(body('.sm')).toMatch(/height: 26px;/)
+    expect(body('.sm')).toMatch(/height: 28px;/)
+    expect(/\n\.sm\.icon \{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/width: 28px;/)
     expect(body('.xs')).toMatch(/height: 20px;/)
     expect(/\n\.toolbar \{([^}]*)\}/.exec(field)?.[1] ?? '').toMatch(/height: 32px;/)
     // Delete's contract (design.md): red outline at rest, solid red only when armed.

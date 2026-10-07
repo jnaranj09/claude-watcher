@@ -15,8 +15,9 @@ import styles from './Button.module.css'
  *  other outlined control (☰, Back, Cancel, Filter). `danger` is red at rest and fills when armed
  *  (design.md's Delete). `ghost` is borderless: the icon buttons on cards, rows and dialog headers. */
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost'
-/** Heights: `md` 32px (the header, the filter bar, dialog footers), `sm` 26px (pills, the rail),
- *  `xs` 20px (the icon buttons inside a card or a rail row). */
+/** Heights: `md` 32px (the header, the filter bar, dialog footers), `sm` 28px (the focused bar,
+ *  the rail header, the dialog ✕, toast actions), `xs` 20px (the icon buttons inside a card or a
+ *  rail row). */
 export type ButtonSize = 'md' | 'sm' | 'xs'
 
 export interface ButtonProps extends Omit<
