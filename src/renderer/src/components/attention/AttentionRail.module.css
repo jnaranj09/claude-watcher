@@ -6,9 +6,10 @@
  * here the rail composes its OWN row styling and keeps the static parts in reduced-motion, dropping
  * only the bounce). Idle rows stay calm.
  *
- * TWO ROW SIZES, ONE SMALL STEP. Rows are 40px; the ACTIVE row alone is 44px. That 4px is one
- * `--space-1` — enough to read as "this one sits forward", small enough that nothing jumps when the
- * active session changes. Nothing ELSE may use the larger size.
+ * TWO ROW SIZES, ONE SMALL STEP. In the OPEN rail rows are 36px and the ACTIVE row alone is 40px;
+ * the COLLAPSED rail keeps 40px squares and a 44px active square (operator, 2026-10-07). That 4px
+ * is one `--space-1` — enough to read as "this one sits forward", small enough that nothing jumps
+ * when the active session changes. Nothing ELSE may use the larger size.
  *
  * In particular NEEDS-YOU DOES NOT GROW. It used to enlarge 44→56px, and a big enlarge driven by
  * SESSION STATE is the bad kind: rows reflow under the operator mid-read, as sessions they are not
@@ -131,11 +132,10 @@
 
 .title {
   flex: 1;
+  /* The rail's ONE section-label style (spec 2026-10-07 A.10), shared with `.dividerLabel`. */
   font-size: var(--font-size-label);
-  font-weight: var(--font-weight-heading);
-  color: var(--text-secondary);
-  letter-spacing: var(--letter-spacing-heading);
-  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* The header's two buttons (the collapse chevron, "Show all tags") are the shared `Button`
@@ -400,13 +400,11 @@
   gap: var(--gap-inline);
 }
 
-/* The `──── Label ────` rule.
+/* A group's label. In the OPEN rail it stands alone, left-aligned, with no rules — the same
+ * section-label style as the rail's `.title` (spec 2026-10-07 A.10). Only the COLLAPSED rail, where
+ * the label is hidden, draws a rule: two pseudo-elements, so it always fits the rail's width.
  *
- * The two rules are pseudo-elements, NOT dash characters: a fixed run of dashes cannot know the
- * rail's width, so it would over-run at 240px and wrap on a long label. `flex: 1 1 auto` on each
- * side fills exactly the space the label leaves, at any width.
- *
- * The label is sentence case, regular weight, and MUTED for every group, needs-you included. Gold is reserved for the rows that
+ * The label is sentence case and MUTED for every group, needs-you included. Gold is reserved for the rows that
  * actually need the operator (the dot, the border spine, the 14% fill, the bounce); a gold section
  * header would be a fourth gold surface in the same view, and the loudest one would then be a
  * static piece of furniture rather than a live session. */
@@ -417,28 +415,24 @@
   padding: 0 var(--inset-item-x);
 }
 
-.divider::before,
-.divider::after {
+.collapsed .divider::before,
+.collapsed .divider::after {
   content: '';
   flex: 1 1 auto;
   height: 1px;
   background: var(--border);
 }
 
-/* Sentence case, NOT uppercase, and NOT bold. The text comes from `statusLabel()` already written
- * that way ("Needs you" / "Working" / "Idle"), so there is no `text-transform` here — the label is
- * printed exactly as the one shared status-name definition spells it, which is also what the rows'
- * accessible names say.
- *
- * `--font-weight-label` (500) rather than `--font-weight-heading` (600): these dividers are
- * furniture between the rows, not the rows themselves. A bold uppercase run competed with the
- * session names it sits above — the label only has to be findable while scanning, and at 12px
- * muted it already is. `--letter-spacing-heading` went with the uppercase; tracking exists to open
- * up all-caps and does nothing for sentence case. */
+/* One section-label style for the rail title and the group labels (spec 2026-10-07 A.10):
+ * sentence case, 12 / 600, muted. The text comes from `statusLabel()` already written that way
+ * ("Needs you" / "Working" / "Idle"), so there is no `text-transform` — the label is printed
+ * exactly as the one shared status-name definition spells it, which is also what the rows'
+ * accessible names say. No tracking: it exists to open up all-caps. Muted keeps it below the
+ * 13 / 500 session names it introduces. */
 .dividerLabel {
   flex: 0 0 auto;
   font-size: var(--font-size-label);
-  font-weight: var(--font-weight-label);
+  font-weight: 600;
   line-height: 1;
   color: var(--text-muted);
   white-space: nowrap;
@@ -497,15 +491,15 @@
   align-self: stretch;
 }
 
-/* Idle/calm row: the baseline. 44px tall, no enlarge, no pulse, no gold. */
+/* Idle/calm row: the baseline. 36px tall in the open rail, no enlarge, no pulse, no gold. */
 .row {
   display: flex;
   align-items: center;
   gap: var(--gap-inline);
   width: 100%;
-  /* The RESTING height. The active row steps up to 44px (see `.active`); everything else — needs-you
-   * included — stays here. */
-  min-height: 40px;
+  /* The open rail's RESTING height. The active row steps up to 40px (see `.active`); everything
+   * else — needs-you included — stays here. */
+  min-height: 36px;
   box-sizing: border-box;
   padding: var(--inset-item-y) var(--inset-item-x);
   border: 1px solid transparent;
@@ -526,6 +520,8 @@
 .collapsed .row {
   width: 40px;
   min-width: 40px;
+  /* The collapsed square keeps its 40px (the open rail's rows are 36). */
+  min-height: 40px;
   justify-content: center;
   padding: var(--inset-item-y) 0;
   gap: 0;
@@ -592,6 +588,7 @@
 .name {
   flex: 1 1 auto;
   min-width: 0;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -726,13 +723,14 @@
    * container is opt-in; this is the opt-in. (`flex-shrink`, not `flex: none`: the row must keep
    * `flex-basis: auto` so the width above is what it grows from.) */
   flex-shrink: 0;
-  /* One `--space-1` taller than a resting row (40→44px) — the ONLY size step in the rail, and a
+  /* One `--space-1` taller than a resting row (36→40px open; the collapsed square steps 40→44
+   * below) — the ONLY size step in the rail, and a
    * deliberately small one. It is a fourth signal on top of the terminal fill, the squared right
    * corners and the flush edge, so it does not have to shout; it only has to make this row sit
    * forward. Safe to spend HERE and nowhere else: this height changes when the OPERATOR switches
    * session, never when a session they are not watching changes status. See TWO ROW SIZES at the
    * top of this file. */
-  min-height: 44px;
+  min-height: 40px;
   /* `--border`, the SAME token every other line in this rail is drawn with: the header's
    * `border-bottom` and the group dividers' rules. The tab is a cut through the rail's own chrome,
    * so it is drawn in the rail's own line colour — one family, not a second one. (It was

@@ -633,16 +633,16 @@ describe('AttentionRail — the active row is NOT a control', () => {
     )
   })
 
-  // TWO ROW SIZES, ONE SMALL STEP: rows are 40px and the ACTIVE row alone is 44px. The values are
-  // read out of the sheet rather than hardcoded, so retuning the step is a one-line CSS change and
-  // this test follows it; what is pinned is the SHAPE of the rule, not the numbers.
+  // TWO RAILS, TWO PAIRS (operator 2026-10-07): the OPEN rail's rows are 36px and its active row
+  // 40px; the COLLAPSED rail keeps its 40px squares and the 44px active square. Each pair is one
+  // small step, and only an `.active` rule spends the larger size.
   //
-  // The load-bearing half is the last assertion. Needs-you used to enlarge 44->56px, and a size
+  // The load-bearing half is the active-only check. Needs-you used to enlarge 44->56px, and a size
   // driven by SESSION STATE reflows rows under the operator as sessions they are not watching
   // change status. The active row is different in kind — it changes only when the operator switches
   // session — so it is the one state allowed to spend size. Sweeping EVERY row rule (rather than
   // naming `.emphasized`) is what makes that hold for a state nobody has written yet.
-  it('rows come in exactly two sizes, one small step apart, and only .active takes the larger', () => {
+  it('open rail: 36 rows + 40 active; collapsed: 40 squares + 44 active; only .active takes the larger', () => {
     const css = readCss('./AttentionRail.module.css')
 
     // A ROW rule is one whose selector names a row class. The lookahead keeps `.rowWrap`,
@@ -660,27 +660,40 @@ describe('AttentionRail — the active row is NOT a control', () => {
     }
     expect(rules.length).toBeGreaterThan(0) // non-vacuity: the sweep found row rules at all
 
-    const all = [...new Set(rules.flatMap((r) => r.sizes))].sort((a, b) => a - b)
-    expect(all).toHaveLength(2)
-    const [resting, active] = all as [number, number]
-    expect(active).toBeGreaterThan(resting)
-    // "A tiny bit" — a step, not an enlarge. 56px (the old needs-you size) would fail this.
-    expect(active - resting).toBeLessThanOrEqual(6)
-
-    // The EXPANDED step specifically. Without this the sweep stays green when the expanded step is
-    // flattened but the collapsed square keeps the larger value — the set is still {40, 44} and the
-    // only rule using 44 is still an `.active` rule. (Found by fault injection, not by review.)
-    expect(/^\.active\s*\{([^}]*)/m.exec(css)?.[1] ?? '').toMatch(
-      new RegExp(`min-height:\\s*${active}px`)
-    )
-
-    // Every rule that spends the larger size must be an ACTIVE rule. This is the needs-you guard.
-    for (const rule of rules) {
-      if (!rule.sizes.includes(active)) continue
-      expect(rule.selector, `${rule.selector} uses the active-only size`).toMatch(
-        /\.active(?![A-Za-z])/
-      )
+    // Two rails, two pairs. In each, the larger size is spent by an `.active` rule only — the
+    // needs-you guard.
+    const check = (group: typeof rules, expected: [number, number]): void => {
+      expect(group.length).toBeGreaterThan(0)
+      const sizes = [...new Set(group.flatMap((r) => r.sizes))].sort((a, b) => a - b)
+      expect(sizes).toEqual(expected)
+      for (const rule of group) {
+        if (!rule.sizes.includes(expected[1])) continue
+        expect(rule.selector, `${rule.selector} uses the active-only size`).toMatch(
+          /\.active(?![A-Za-z])/
+        )
+      }
     }
+    const collapsed = rules.filter((r) => r.selector.includes('.collapsed'))
+    const open = rules.filter((r) => !r.selector.includes('.collapsed'))
+    check(open, [36, 40])
+    check(collapsed, [40, 44])
+    // The OPEN step lives on `.active` itself (fault injection found this hole before).
+    expect(/^\.active\s*\{([^}]*)/m.exec(css)?.[1] ?? '').toMatch(/min-height:\s*40px/)
+  })
+
+  it('section labels are one style: sentence case, 12 / 600, muted, no rules in the open rail', () => {
+    const css = readCss('./AttentionRail.module.css')
+    const body = (sel: string): string =>
+      new RegExp(`\\n${sel.replace(/[.:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+    for (const sel of ['.title', '.dividerLabel']) {
+      expect(body(sel), sel).not.toMatch(/text-transform|letter-spacing/)
+      expect(body(sel), sel).toMatch(/font-size: var\(--font-size-label\);/)
+      expect(body(sel), sel).toMatch(/font-weight: 600;/)
+      expect(body(sel), sel).toMatch(/color: var\(--text-muted\);/)
+    }
+    expect(css).not.toMatch(/\n\.divider::before/)
+    expect(css).toMatch(/\n\.collapsed \.divider::before,\s*\.collapsed \.divider::after \{/)
+    expect(body('.name')).toMatch(/font-weight: 500;/)
   })
 })
 
