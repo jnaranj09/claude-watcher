@@ -230,6 +230,132 @@ describe('createProcessSessionSource — the exact "pid P now runs session B" pr
     )
     expect([...source.currentSessionIdsUnder(LEADER)].sort()).toEqual(['sess-a', 'sess-b'])
   })
+
+  // Agent view (claude 2.1.291, drive runs 2026-10-06): ← moves the conversation into a
+  // background job run by claude's daemon — NOT under the pty. The terminal's record keeps its
+  // OLD sessionId and gains `parkedJobId`; the job's record carries `kind:"bg"` + `jobId` and the
+  // session id every later hook uses.
+  const JOB = 60001 // the daemon process running the parked job (parent: the daemon, not the pty)
+  const OTHER_JOB = 60002
+  const PARKED_TREE = readStatusFrom({
+    [LEADER]: ELECTRON, // the leader IS claude (login shell exec'd it)
+    [JOB]: 1,
+    [OTHER_JOB]: 1,
+    [STRANGER]: 1
+  })
+  function rec(pid: number, sessionId: string, extra: Record<string, unknown>): string {
+    return JSON.stringify({ pid, sessionId, cwd: '/home/operator/project', name: 'ZYPF', ...extra })
+  }
+  const PARKED = rec(LEADER, 'sess-orig', { kind: 'interactive', parkedJobId: 'cda9ce2d' })
+
+  it('parked: returns the JOB\'s current id, never the terminal\'s own (stale) id', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: PARKED,
+        [`${JOB}.json`]: rec(JOB, 'cda9ce2d-job', { kind: 'bg', jobId: 'cda9ce2d' })
+      },
+      PARKED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['cda9ce2d-job'])
+    expect(source.parkedUnder(LEADER)).toBe(true)
+  })
+
+  it('parked + /clear inside the job: same jobId, new sessionId → the new id', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: PARKED,
+        [`${JOB}.json`]: rec(JOB, '36bc4859-new', { kind: 'bg', jobId: 'cda9ce2d' })
+      },
+      PARKED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['36bc4859-new'])
+  })
+
+  it('parked but the job record is not written yet → nothing now, found on a later call', () => {
+    const files: Record<string, string> = { [`${LEADER}.json`]: PARKED }
+    const { source } = sourceOver(files, PARKED_TREE)
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+    files[`${JOB}.json`] = rec(JOB, 'cda9ce2d-job', { kind: 'bg', jobId: 'cda9ce2d' })
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['cda9ce2d-job'])
+  })
+
+  it('parked: TWO job records with that jobId → ambiguous, nothing', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: PARKED,
+        [`${JOB}.json`]: rec(JOB, 'a-job', { kind: 'bg', jobId: 'cda9ce2d' }),
+        [`${OTHER_JOB}.json`]: rec(OTHER_JOB, 'b-job', { kind: 'bg', jobId: 'cda9ce2d' })
+      },
+      PARKED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+  })
+
+  it('parked: a spare (other jobId) or a non-bg record with the right jobId never matches', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: PARKED,
+        [`${JOB}.json`]: rec(JOB, 'spare', { kind: 'bg', jobId: '96ab0e1a', spare: true }),
+        [`${OTHER_JOB}.json`]: rec(OTHER_JOB, 'not-bg', { kind: 'interactive', jobId: 'cda9ce2d' })
+      },
+      PARKED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+  })
+
+  it('parked: a job record whose pid disagrees with its file name never matches', () => {
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: PARKED,
+        [`${JOB}.json`]: rec(OTHER_JOB, 'copied', { kind: 'bg', jobId: 'cda9ce2d' })
+      },
+      PARKED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual([])
+  })
+
+  it('two parked terminals in one folder each find ONLY their own job', () => {
+    const LEADER2 = 32970
+    const tree = readStatusFrom({ [LEADER]: ELECTRON, [LEADER2]: ELECTRON, [JOB]: 1, [OTHER_JOB]: 1 })
+    const { source } = sourceOver(
+      {
+        [`${LEADER}.json`]: PARKED,
+        [`${LEADER2}.json`]: rec(LEADER2, 'sess-orig-2', { parkedJobId: '0a5714c6' }),
+        [`${JOB}.json`]: rec(JOB, 'cda9ce2d-job', { kind: 'bg', jobId: 'cda9ce2d' }),
+        [`${OTHER_JOB}.json`]: rec(OTHER_JOB, '0a5714c6-job', { kind: 'bg', jobId: '0a5714c6' })
+      },
+      tree
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['cda9ce2d-job'])
+    expect(source.currentSessionIdsUnder(LEADER2)).toEqual(['0a5714c6-job'])
+  })
+
+  it('NOT parked: still never opens a record outside the tree, and parkedUnder is false', () => {
+    const { source, opened } = sourceOver(
+      {
+        [`${LEADER}.json`]: rec(LEADER, 'sess-B', { kind: 'interactive' }),
+        [`${JOB}.json`]: rec(JOB, 'cda9ce2d-job', { kind: 'bg', jobId: 'cda9ce2d' })
+      },
+      PARKED_TREE
+    )
+    expect(source.currentSessionIdsUnder(LEADER)).toEqual(['sess-B'])
+    expect(source.parkedUnder(LEADER)).toBe(false)
+    expect(opened).toEqual([`${DIR}/${LEADER}.json`, `${DIR}/${LEADER}.json`])
+  })
+
+  it('parkedUnder is false when the dir cannot be listed', () => {
+    const source = createProcessSessionSource({
+      sessionsDir: DIR,
+      listDir: () => {
+        throw new Error('ENOENT')
+      },
+      readFile: () => {
+        throw new Error('must not read')
+      },
+      readStatus: TREE
+    })
+    expect(source.parkedUnder(LEADER)).toBe(false)
+  })
 })
 
 describe('claudeSessionsDir — where claude keeps the records', () => {

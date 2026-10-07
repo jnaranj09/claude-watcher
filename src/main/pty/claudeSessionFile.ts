@@ -33,13 +33,24 @@
 // `<digits>.json` names are ever opened: the directory also holds `<pid>.<hex>.key` files the
 // app has no business reading.
 //
+// AGENT VIEW — A PARKED TERMINAL (2026-10-06, claude 2.1.291). ← in claude moves the
+// conversation into a background job run by claude's daemon, OUTSIDE the pty. The terminal's own
+// record keeps its old (stale) `sessionId` and gains `parkedJobId`; the job's record has
+// `kind: "bg"`, `jobId` (stable across a `/clear` in the job) and the CURRENT `sessionId` every
+// later hook carries. For a parked outermost claude this module returns the job's current id
+// INSTEAD of the stale one (returning both would let an agent-list hook under the old id re-key
+// the card back). Finding the job means opening records OUTSIDE the tree — only while parked,
+// and only `pid`/`sessionId`/`kind`/`jobId` are compared. Zero or several job matches → no id.
+// The dir also holds `kind: "daemon"` / `"daemon-worker"` records (claude 2.1.292 enum); the
+// `kind === "bg"` filter skips them.
+//
 // NEVER LOG. The record carries the operator's cwd and session name. No path, no value, no
 // error is ever logged here. [.claude/rules/zod-boundaries.md]
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { parseClaudeSessionFile } from '../../shared/schemas/claudeSessionFile'
+import { parseClaudeSessionFile, type ClaudeSessionFile } from '../../shared/schemas/claudeSessionFile'
 import {
   isAncestorOf,
   parseStatusField,
@@ -50,9 +61,13 @@ import {
 export interface ProcessSessionSource {
   /** The session id claude currently records for each OUTERMOST claude process under the PTY
    *  leader `leaderPid` (the leader itself, or a descendant with no other claude between it and
-   *  the leader). A nested claude's id is never listed (R18). Empty when nothing is recorded,
-   *  readable, or under the leader. */
+   *  the leader). A nested claude's id is never listed (R18). A PARKED outermost claude (agent
+   *  view) is listed by its background job's CURRENT id, never its own stale one; no unique job
+   *  record → nothing for it. Empty when nothing is recorded, readable, or under the leader. */
   currentSessionIdsUnder(leaderPid: number): readonly string[]
+  /** True when an outermost claude under the leader has moved its conversation into a
+   *  background job (`parkedJobId`). False on any read failure. */
+  parkedUnder(leaderPid: number): boolean
 }
 
 export interface ProcessSessionSourceDeps {
@@ -75,39 +90,90 @@ const RECORD_NAME = /^(\d+)\.json$/
 export function createProcessSessionSource(deps: ProcessSessionSourceDeps): ProcessSessionSource {
   const { sessionsDir, listDir, readFile, readStatus } = deps
 
-  function currentSessionIdsUnder(leaderPid: number): readonly string[] {
+  /** Read and parse one `<pid>.json`; null on any failure or a pid/file-name mismatch. */
+  function readRecord(name: string, pid: number): ClaudeSessionFile | null {
+    let raw: unknown
+    try {
+      raw = JSON.parse(readFile(join(sessionsDir, name)))
+    } catch {
+      return null // unreadable or not JSON — skip this record
+    }
+    const record = parseClaudeSessionFile(raw)
+    return record === null || record.pid !== pid ? null : record // malformed, or stale/copied
+  }
+
+  /** Every `<pid>.json` name in the dir, as [name, pid]. Null when the dir cannot be listed. */
+  function recordNames(): (readonly [string, number])[] | null {
     let names: readonly string[]
     try {
       names = listDir(sessionsDir)
     } catch {
-      return [] // no directory (older claude) or unreadable — no proof, no noise
+      return null // no directory (older claude) or unreadable — no proof, no noise
     }
-
-    const records = new Map<number, string>() // pid → its recorded session id
+    const out: (readonly [string, number])[] = []
     for (const name of names) {
       const match = RECORD_NAME.exec(name)
       if (match === null) continue
       const pid = Number.parseInt(match[1] ?? '', 10)
-      if (!Number.isInteger(pid) || pid <= 0) continue
+      if (Number.isInteger(pid) && pid > 0) out.push([name, pid])
+    }
+    return out
+  }
+
+  /** The OUTERMOST claude records under the leader (R18). */
+  function outermostUnder(
+    leaderPid: number,
+    names: readonly (readonly [string, number])[]
+  ): ClaudeSessionFile[] {
+    const records = new Map<number, ClaudeSessionFile>() // pid → its record
+    for (const [name, pid] of names) {
       // Gate the READ on ancestry: a stranger's record is never even opened.
       if (!isAncestorOf(leaderPid, pid, readStatus)) continue
-
-      let raw: unknown
-      try {
-        raw = JSON.parse(readFile(join(sessionsDir, name)))
-      } catch {
-        continue // unreadable or not JSON — skip this record, keep scanning
-      }
-      const record = parseClaudeSessionFile(raw)
-      if (record === null || record.pid !== pid) continue // malformed, or a stale/copied file
-      records.set(pid, record.sessionId)
+      const record = readRecord(name, pid)
+      if (record !== null) records.set(pid, record)
     }
+    const out: ClaudeSessionFile[] = []
+    for (const [pid, record] of records) {
+      if (isOutermostClaude(pid, leaderPid, records)) out.push(record)
+    }
+    return out
+  }
 
+  /** The CURRENT session id of the ONE background job with this `jobId`; null on zero or
+   *  several. Opens records outside the tree — called only for a parked terminal. */
+  function parkedJobSessionId(
+    jobId: string,
+    names: readonly (readonly [string, number])[]
+  ): string | null {
+    let found: string | null = null
+    for (const [name, pid] of names) {
+      const record = readRecord(name, pid)
+      if (record === null || record.kind !== 'bg' || record.jobId !== jobId) continue
+      if (found !== null) return null // two jobs claim the id — ambiguous, no proof
+      found = record.sessionId
+    }
+    return found
+  }
+
+  function currentSessionIdsUnder(leaderPid: number): readonly string[] {
+    const names = recordNames()
+    if (names === null) return []
     const ids: string[] = []
-    for (const [pid, sessionId] of records) {
-      if (isOutermostClaude(pid, leaderPid, records)) ids.push(sessionId)
+    for (const record of outermostUnder(leaderPid, names)) {
+      if (record.parkedJobId === undefined) {
+        ids.push(record.sessionId)
+        continue
+      }
+      const jobSessionId = parkedJobSessionId(record.parkedJobId, names)
+      if (jobSessionId !== null) ids.push(jobSessionId)
     }
     return ids
+  }
+
+  function parkedUnder(leaderPid: number): boolean {
+    const names = recordNames()
+    if (names === null) return false
+    return outermostUnder(leaderPid, names).some((record) => record.parkedJobId !== undefined)
   }
 
   /** R18: is `pid` the outermost claude under the leader — no claude among its ancestors up to
@@ -117,7 +183,7 @@ export function createProcessSessionSource(deps: ProcessSessionSourceDeps): Proc
   function isOutermostClaude(
     pid: number,
     leaderPid: number,
-    records: ReadonlyMap<number, string>
+    records: ReadonlyMap<number, unknown>
   ): boolean {
     let current = pid
     for (let depth = 0; depth < MAX_WALK_DEPTH; depth++) {
@@ -149,7 +215,7 @@ export function createProcessSessionSource(deps: ProcessSessionSourceDeps): Proc
     return ppid > 0 && ppid !== pid ? ppid : null
   }
 
-  return { currentSessionIdsUnder }
+  return { currentSessionIdsUnder, parkedUnder }
 }
 
 /** Claude's config directory: its documented `CLAUDE_CONFIG_DIR` override, else `~/.claude`. */
