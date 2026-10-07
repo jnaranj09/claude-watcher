@@ -63,3 +63,31 @@ describe('parseClaudeSessionFile — the total, never-throwing reader over a par
     expect(parseClaudeSessionFile({ pid: 1 })).toBeNull()
   })
 })
+
+// Agent view (claude 2.1.291, 2026-10-06 drive runs): ← parks the conversation into a background
+// job. The terminal's record gains `parkedJobId`; the job's record has `kind: "bg"` + `jobId`.
+describe('ClaudeSessionFileSchema — agent-view fields (parked session)', () => {
+  it('reads kind, jobId and parkedJobId when present', () => {
+    const parked = parseClaudeSessionFile({ ...LIVE_SHAPE, parkedJobId: 'cda9ce2d' })
+    expect(parked?.parkedJobId).toBe('cda9ce2d')
+    expect(parked?.kind).toBe('interactive')
+    const job = parseClaudeSessionFile({ ...LIVE_SHAPE, kind: 'bg', jobId: 'cda9ce2d' })
+    expect(job?.kind).toBe('bg')
+    expect(job?.jobId).toBe('cda9ce2d')
+  })
+
+  it('reads them as absent on a record that has none (every pre-agent-view record)', () => {
+    const plain = parseClaudeSessionFile({ pid: 1, sessionId: 's' })
+    expect(plain?.parkedJobId).toBeUndefined()
+    expect(plain?.jobId).toBeUndefined()
+    expect(plain?.kind).toBeUndefined()
+  })
+
+  it('keeps the record but drops a MALFORMED agent-view field (not parked, not a job)', () => {
+    const odd = parseClaudeSessionFile({ ...LIVE_SHAPE, parkedJobId: 42, jobId: '', kind: {} })
+    expect(odd?.sessionId).toBe(LIVE_SHAPE.sessionId)
+    expect(odd?.parkedJobId).toBeUndefined()
+    expect(odd?.jobId).toBeUndefined()
+    expect(odd?.kind).toBeUndefined()
+  })
+})

@@ -11,6 +11,8 @@
 // The app reads TWO fields and nothing else. `.passthrough()` keeps the rest (cwd, name,
 // status, socket path, …) so a claude addition never fails the record, while a malformation of
 // the two keys the app depends on fails CLOSED (the record is ignored; no adoption happens).
+// `kind`/`jobId`/`parkedJobId` added 2026-10-06 for the agent-view parked session (spec
+// 2026-10-06-agent-view-parked-session-design); a bad value there reads as absent, never fails.
 //
 // NEVER LOG THE VALUE. The file holds the operator's cwd and session name; a ZodError
 // stringifies its input. Consumers return `null` and stay silent.
@@ -23,7 +25,16 @@ export const ClaudeSessionFileSchema = z
     /** The recording process's pid. Must agree with the file name (`<pid>.json`). */
     pid: z.number().int().positive(),
     /** The session id this process CURRENTLY runs under (the identity key). */
-    sessionId: z.string().min(1)
+    sessionId: z.string().min(1),
+    /** `"interactive"` for a terminal claude, `"bg"` for a background job (agent view). A bad
+     *  value reads as absent — it must never cost the record its identity fields. */
+    kind: z.string().min(1).optional().catch(undefined),
+    /** A background job's short id (`claude stop <jobId>`). Survives a `/clear` inside the job
+     *  while `sessionId` changes. Bad value → absent. */
+    jobId: z.string().min(1).optional().catch(undefined),
+    /** Set on a terminal claude after ← moved its conversation into the job with this `jobId`.
+     *  Bad value → absent (= not parked). */
+    parkedJobId: z.string().min(1).optional().catch(undefined)
   })
   .passthrough()
 
