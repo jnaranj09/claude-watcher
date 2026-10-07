@@ -863,6 +863,21 @@ describe('Archive / Delete (D-3, D-5)', () => {
   // jsdom applies no :hover, so the reveal is pinned on the stylesheet. It lives on the WRAPPER
   // (Button takes no className), as `opacity` + `max-width` — never `display:none` — so the
   // controls stay in the tab order, and a focused one opens its slot through `.root:focus-within`.
+  // The move and tags slots sit inside a `.moveWrap` (the anchor for their popover), so the
+  // HEADER's gap falls before the wrap, not the slot: the wrap must cancel it at rest too, or each
+  // leaves an 8px hole after the title (review finding, 2026-10-07).
+  it('a .moveWrap takes no room at rest either; its inner slot adds no second cancel', async () => {
+    const css = await readCss()
+    const rest = /^\.moveWrap\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
+    expect(rest).toMatch(/margin-left:\s*calc\(-1 \* var\(--gap-inline\)\);/)
+    const shown =
+      /\.root:hover \.moveWrap,\s*\.root:focus-within \.moveWrap\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(shown).toMatch(/margin-left:\s*0;/)
+    expect(/\n\.moveWrap > \.actionSlot\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(
+      /margin-left:\s*0;/
+    )
+  })
+
   it('the controls take no room at rest and open on hover / focus-within, still in the tab order', async () => {
     const css = await readCss()
     const rest = /^\.actionSlot\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''

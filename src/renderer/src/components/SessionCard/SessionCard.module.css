@@ -187,6 +187,17 @@
 .moveWrap {
   position: relative;
   display: inline-flex;
+  /* The wrap, not its slot, follows the header's gap: it cancels that gap at rest, exactly like a
+     bare `.actionSlot`, so a long title keeps the full width (see the action-slot rule above). */
+  margin-left: calc(-1 * var(--gap-inline));
+}
+.root:hover .moveWrap,
+.root:focus-within .moveWrap {
+  margin-left: 0;
+}
+/* The slot inside a wrap has no header gap of its own to cancel. */
+.moveWrap > .actionSlot {
+  margin-left: 0;
 }
 
 .moveMenuWrap {
