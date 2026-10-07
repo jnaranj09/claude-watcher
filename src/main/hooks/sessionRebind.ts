@@ -11,8 +11,8 @@
 //   2. every later hook carries <B>, which the reducer never learned → `hook_unknown_id`
 //      → dropped. Even a surviving card would have frozen at its last status.
 //
-// THE FIX, in two halves (both live here as injectable, Electron-free decisions; index.ts
-// wires them into `onHookEvent`, mirroring how launchRemoval.ts is wired):
+// THE FIX, in two halves (both live here as injectable, Electron-free decisions;
+// window/watchFeed.ts wires them into `onHookEvent`):
 //
 //   PART 1 — `sessionEndKeepsCard`. CLAUDE.md already declares removal STOP/EXIT-driven and
 //   the SessionEnd hook merely "belt-and-suspenders". So a SessionEnd for a session whose pty
@@ -43,10 +43,15 @@
 //
 //   AGENT VIEW (2026-10-06) — ← parks the conversation into a background job OUTSIDE the pty.
 //   The records source (pty/claudeSessionFile.ts) lists a parked terminal by the job's current
-//   id, so PART 2b adopts it unchanged. Two guards here: a parked terminal's SessionEnd marks NO
-//   orphan (a session started from the agent list shares the cwd — the heuristic must never get
-//   the card), and `isAgentListNotification` drops the agent list's Notifications about OTHER
-//   agents, which claude sends under the terminal's old id.
+//   id, so PART 2b adopts it unchanged. The agent list (still in the pty) sends Notifications
+//   about OTHER agents under the terminal's old id, and a session started from the list shares
+//   the cwd. Four guards keep them off the card:
+//     - `isAgentListNotification` drops a list Notification under a parked card's id;
+//     - a parked terminal's SessionEnd marks NO orphan (`keepCardOnLiveSessionEnd`);
+//     - `claimUnlessParked`: an orphan marked before ← is never claimed while parked;
+//     - `cwdFallbackMayAdopt`: a Notification never adopts through the cwd heuristic (after the
+//       re-key the list's Notifications carry the old, now unknown id; the heuristic could hand
+//       it another card in the same cwd that just ran `/clear`).
 //
 // NEVER LOG cwd (it leaks the filesystem layout) or any hook field — codes only.
 // [.claude/rules/zod-boundaries.md; .claude/rules/state.md; CLAUDE.md "Removal is stop/exit-driven"]
@@ -95,7 +100,8 @@ export interface AdoptionTarget {
  * Which card may take `newSessionId`? The id check comes FIRST (SEC-1): a forged id never adopts
  * a card, and never reaches `byOrphan` — claiming an orphan uses it up, so a forged POST would
  * otherwise cost a real `/clear` its fallback. Then the exact pid proof, then the cwd heuristic.
- * `byProcess` / `byOrphan` are `claimByProcess` / `orphanRegistry.claim`, bound by index.ts.
+ * `byProcess` / `byOrphan` are `claimByProcess` / `orphanRegistry.claim` (behind
+ * `cwdFallbackMayAdopt` and `claimUnlessParked`), bound by window/watchFeed.ts.
  */
 export function findAdoptionTarget(
   newSessionId: string,

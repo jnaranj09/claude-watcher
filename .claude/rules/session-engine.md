@@ -96,9 +96,10 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   2026-10-06-agent-view-parked-session). A parked terminal's `SessionEnd` marks no orphan; a
   `Notification` under a parked card's id that differs from the job's READABLE id is agent-list
   chatter (`hook_agent_view_notification_ignored`; no readable job id → kept); an orphan is never
-  claimed while its terminal is parked, and a `Notification` never adopts through the cwd
-  fallback (`cwdFallbackMayAdopt`: the list's chatter under a re-keyed card's old id). Quitting does not stop the job (claude's native
-  behaviour); park → quit unused → Resume opens a copy (known limit).
+  claimed while its terminal is parked; a `Notification` never adopts through the cwd fallback
+  (`cwdFallbackMayAdopt`: after the re-key the list's chatter carries the old, now unknown id).
+  Quitting does not stop the job (claude's native behaviour); park → quit unused → Resume opens a
+  copy (known limit).
 - **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
   otherwise) — don't narrow.
 - **Status rules:** turn ending with `background_tasks` running = `Working` (until next event; Esc

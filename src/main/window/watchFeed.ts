@@ -74,7 +74,8 @@ import { createTranscriptWatcher, type TranscriptWatcher } from '../hooks/transc
 import { forgetSession, trackHookEvent, type SessionTrackingDeps } from '../hooks/sessionTracking'
 // Session-rebind — claude can change its own session id mid-run (a `/clear` keeps the pty and
 // the terminal, but fires SessionEnd for the old id and posts every later hook under a new
-// one). These two decisions keep the card through that switch. [hooks/sessionRebind.ts]
+// one), and claude's agent view (←) moves the conversation into a background job. These
+// decisions keep the card through both. [hooks/sessionRebind.ts]
 import {
   claimByProcess,
   claimUnlessParked,
@@ -661,7 +662,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // the EXACT proof: claude's own record says which launched pty now runs this id. Needs no
       // orphan record, so it also rescues a card whose SessionEnd came late, never came, or came
       // longer than the heuristic's window ago. Fallback — the cwd + single-match + alive + window
-      // heuristic (a claude without records).
+      // heuristic (a claude without records); never for a Notification (`cwdMayAdopt`) and never
+      // for an orphan whose terminal is parked in the agent view (`claimUnlessParked`).
       const target = findAdoptionTarget(
         newSessionId,
         {

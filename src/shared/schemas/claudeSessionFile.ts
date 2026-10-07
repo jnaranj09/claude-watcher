@@ -8,11 +8,12 @@
 // (src/main/hooks/sessionRebind.ts) reads it to move a launched terminal's card onto the new
 // id with an EXACT proof, instead of the cwd-plus-time-window heuristic.
 //
-// The app reads TWO fields and nothing else. `.passthrough()` keeps the rest (cwd, name,
-// status, socket path, …) so a claude addition never fails the record, while a malformation of
-// the two keys the app depends on fails CLOSED (the record is ignored; no adoption happens).
-// `kind`/`jobId`/`parkedJobId` added 2026-10-06 for the agent-view parked session (spec
-// 2026-10-06-agent-view-parked-session-design); a bad value there reads as absent, never fails.
+// The app reads FIVE fields and nothing else. `.passthrough()` keeps the rest (cwd, name,
+// status, socket path, …) so a claude addition never fails the record. A malformation of the
+// two identity keys (`pid`, `sessionId`) fails CLOSED (the record is ignored; no adoption
+// happens). The three agent-view keys (`kind`, `jobId`, `parkedJobId`; added 2026-10-06, claude
+// 2.1.291 — ← parks the conversation into a background job) are optional: a bad value reads as
+// absent ("not parked", "not a job") and never costs the record its identity.
 //
 // NEVER LOG THE VALUE. The file holds the operator's cwd and session name; a ZodError
 // stringifies its input. Consumers return `null` and stay silent.

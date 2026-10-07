@@ -4,7 +4,7 @@
 //
 // The happy-path shape is VERBATIM (minus operator content) from a live file,
 // `~/.claude/sessions/<pid>.json` on claude 2.1.257 (2026-09-01). The file carries far more
-// than the two fields the app reads (cwd, name, status, socket path, …) — `.passthrough()`
+// than the fields the app reads (cwd, name, status, socket path, …) — `.passthrough()`
 // keeps them without the app depending on any of them.
 //
 // Every negative case is a FAULT-INJECTION target: dropping the matching constraint in
