@@ -1,5 +1,5 @@
 // The header ☰ MENU (2026-09-14): the ONE header control besides `+ New session`. Rows:
-// `Settings…`, `Shortcuts…`, `Tags ‹` (Manage tags… / Manage rules…) and `Sessions ‹` (spec
+// `Settings…`, `Shortcuts…`, `Tags ›` (Manage tags… / Manage rules…) and `Sessions ›` (spec
 // 2026-10-03 A: Past sessions… / Templates… / Import session…) — ALWAYS the last row, in the slot
 // `Past sessions…` held, with its clock. Both submenus are ONE `Submenu`: they open to the LEFT
 // (the menu sits at the window's right edge), hover opens, click OPENS (never toggles), ArrowRight
@@ -69,6 +69,47 @@ function ClockIcon(): JSX.Element {
   )
 }
 
+/** Settings — two sliders, on the clock's 16 grid and 1.5 stroke. */
+function SlidersIcon(): JSX.Element {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+    >
+      <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
+      <circle cx="10" cy="4.5" r="1.5" />
+      <circle cx="6" cy="11.5" r="1.5" />
+    </svg>
+  )
+}
+
+/** Shortcuts — a keyboard, same grid and stroke. */
+function KeyboardIcon(): JSX.Element {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+    >
+      <rect x="1.5" y="3.75" width="13" height="8.5" rx="1.75" />
+      <path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h.01M5.5 9.5h5" />
+    </svg>
+  )
+}
+
 type SubmenuId = 'tags' | 'sessions'
 
 /** The Sessions submenu's rows, in the dialog's page order. */
@@ -131,10 +172,10 @@ function Submenu({
       >
         <Popover.ItemIcon>{icon}</Popover.ItemIcon>
         {label}
-        {/* Points LEFT: the way the submenu opens. */}
+        {/* Forward, like every submenu marker; the submenu still opens to the LEFT. */}
         <Popover.ItemEnd>
           <span className={styles.chevron} aria-hidden="true">
-            ‹
+            ›
           </span>
         </Popover.ItemEnd>
       </Popover.Item>
@@ -255,7 +296,9 @@ export function AppMenu({
                 onClick={() => choose(onOpenSettings)}
                 onMouseEnter={() => setSubmenu(null)}
               >
-                <Popover.ItemIcon>⚙</Popover.ItemIcon>
+                <Popover.ItemIcon>
+                  <SlidersIcon />
+                </Popover.ItemIcon>
                 Settings…
               </Popover.Item>
               <Popover.Item
@@ -264,7 +307,9 @@ export function AppMenu({
                 onClick={() => choose(onOpenShortcuts)}
                 onMouseEnter={() => setSubmenu(null)}
               >
-                <Popover.ItemIcon>⌨</Popover.ItemIcon>
+                <Popover.ItemIcon>
+                  <KeyboardIcon />
+                </Popover.ItemIcon>
                 Shortcuts…
               </Popover.Item>
               <Submenu

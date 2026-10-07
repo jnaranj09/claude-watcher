@@ -216,7 +216,7 @@ describe('App — the header ☰ menu', () => {
     expect(boardStore.getState().settingsDialogOpen).toBe(false)
   })
 
-  describe('Sessions ‹', () => {
+  describe('Sessions ›', () => {
     const panel = (r: RenderResult): Element | null =>
       r.container.querySelector('[data-testid="sessions-panel"]')
 

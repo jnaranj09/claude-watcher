@@ -1,5 +1,5 @@
 // The header ☰ menu (2026-09-14): the ONE header control besides + New session. Settings…,
-// Shortcuts…, a Tags ‹ submenu holding Manage tags… / Manage rules…, and a Sessions ‹ submenu —
+// Shortcuts…, a Tags › submenu holding Manage tags… / Manage rules…, and a Sessions › submenu —
 // ALWAYS the last row (spec 2026-10-03 A). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
@@ -81,14 +81,29 @@ describe('AppMenu', () => {
     expect(sessionsMenu(r)).toBeNull()
   })
 
-  it('keeps the icons the header buttons had: ⚙ Settings…, ⌨ Shortcuts…, the tag glyph on Tags', () => {
+  it('draws one line icon set: an svg in every icon slot, no ⚙ or ⌨ text', () => {
     const r = render()
     click(q(r, 'app-menu'))
     const icon = (id: string): Element | null =>
       q(r, id)?.querySelector(':scope > [aria-hidden="true"]') ?? null
-    expect(icon('app-menu-settings')?.textContent).toBe('⚙')
-    expect(icon('app-menu-shortcuts')?.textContent).toBe('⌨')
-    expect(icon('app-menu-tags')?.querySelector('svg')).not.toBeNull()
+    for (const id of [
+      'app-menu-settings',
+      'app-menu-shortcuts',
+      'app-menu-tags',
+      'app-menu-sessions'
+    ]) {
+      expect(icon(id)?.querySelector('svg'), id).not.toBeNull()
+    }
+    expect(q(r, 'app-menu-list')?.textContent).not.toMatch(/[⚙⌨]/)
+  })
+
+  it('marks each submenu row with › (they still open to the left)', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    for (const id of ['app-menu-tags', 'app-menu-sessions']) {
+      expect(q(r, id)?.textContent, id).toContain('›')
+      expect(q(r, id)?.textContent, id).not.toContain('‹')
+    }
   })
 
   it('Settings… closes the menu and calls onOpenSettings', () => {
