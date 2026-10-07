@@ -861,14 +861,27 @@ describe('Archive / Delete (D-3, D-5)', () => {
   })
 
   // jsdom applies no :hover, so the reveal is pinned on the stylesheet. It lives on the WRAPPER
-  // (Button takes no className), as `opacity` — never `display:none` — so the controls stay in
-  // the tab order, and a focused one shows through `.root:focus-within`.
-  it('the controls hide in an .actionSlot wrapper that the card reveals on hover / focus-within', async () => {
+  // (Button takes no className), as `opacity` + `max-width` — never `display:none` — so the
+  // controls stay in the tab order, and a focused one opens its slot through `.root:focus-within`.
+  it('the controls take no room at rest and open on hover / focus-within, still in the tab order', async () => {
     const css = await readCss()
-    expect(/^\.actionSlot\s*\{([^}]*)\}/m.exec(css)?.[1] ?? '').toMatch(/opacity:\s*0;/)
-    expect(css).toMatch(
-      /\.root:hover \.actionSlot,\s*\.root:focus-within \.actionSlot\s*\{[^}]*opacity:\s*1/
-    )
+    const rest = /^\.actionSlot\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
+    expect(rest).toMatch(/opacity:\s*0;/)
+    expect(rest).toMatch(/max-width:\s*0;/)
+    expect(rest).toMatch(/overflow:\s*hidden;/)
+    // Zero-width slots must not leave a header gap each: the title keeps the full width at rest.
+    expect(rest).toMatch(/margin-left:\s*calc\(-1 \* var\(--gap-inline\)\);/)
+    const shown =
+      /\.root:hover \.actionSlot,\s*\.root:focus-within \.actionSlot\s*\{([^}]*)\}/.exec(
+        css
+      )?.[1] ?? ''
+    expect(shown).toMatch(/opacity:\s*1;/)
+    expect(shown).toMatch(/max-width:\s*none;/)
+    expect(shown).toMatch(/margin-left:\s*0;/)
+    // A focus ring and a move / tags popover inside the slot are never clipped once it shows.
+    expect(shown).toMatch(/overflow:\s*visible;/)
+    // Only opacity animates: the width change is instant (nothing new moves).
+    expect(rest).toMatch(/transition:\s*opacity 120ms ease-out;/)
     const { container, unmount } = renderComponent(
       <SessionCard {...baseProps({ onRename: vi.fn(), onArchive: vi.fn(), onDelete: vi.fn() })} />
     )

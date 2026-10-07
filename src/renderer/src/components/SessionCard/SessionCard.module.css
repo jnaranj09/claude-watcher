@@ -137,16 +137,25 @@
 /* ── The card's action slots (rename, move, tags, Archive, Delete) ─────────────────
  * Each control is the shared `Button` (ghost / danger, `xs`, icon) — it owns the box, the ink and
  * the focus ring. This WRAPPER owns only where the button sits and when it shows: revealed on card
- * hover / focus-within (a focused button is inside the card, so tabbing to it shows it with no
- * pointer near the card).
+ * hover / focus-within (a focused button is inside the card, so tabbing to it opens its slot with
+ * no pointer near the card).
  *
- * `opacity`, NOT `display:none` / `visibility:hidden`: the button must stay in the layout AND in
- * the tab order at all times. Hiding it would make rename keyboard-unreachable, and a hover-only
- * control is exactly the accessibility hole UX-DR29's "never the sole signal" thinking guards
- * against. Reserved space also means revealing it never reflows the header (no title jump). */
+ * The slot takes NO ROOM at rest (operator, spec 2026-10-07 §3 — replaces the old "reserved space,
+ * never reflows" rule): on hover / focus-within the title gets shorter to make room, and its start
+ * never moves. The negative margin cancels the header's `--gap-inline` before each zero-width
+ * slot, so a long title keeps the full width. Only `opacity` animates; the width changes at once.
+ *
+ * `opacity` + `max-width`, NOT `display:none` / `visibility:hidden`: the button must stay in the
+ * layout AND in the tab order at all times. Hiding it would make rename keyboard-unreachable, and
+ * a hover-only control is exactly the accessibility hole UX-DR29's "never the sole signal"
+ * thinking guards against. Once shown the slot is `overflow: visible`, so a focus ring or a
+ * move / tags popover inside it is never clipped. */
 .actionSlot {
   flex: none;
   display: inline-flex;
+  max-width: 0;
+  overflow: hidden;
+  margin-left: calc(-1 * var(--gap-inline));
   opacity: 0;
   transition: opacity 120ms ease-out;
 }
@@ -158,6 +167,9 @@
 
 .root:hover .actionSlot,
 .root:focus-within .actionSlot {
+  max-width: none;
+  overflow: visible;
+  margin-left: 0;
   opacity: 1;
 }
 
