@@ -60,8 +60,11 @@
   },
   "css": "theme.css",
   "wallpapers": [
-    { "id": "graphite", "name": "Graphite", "file": "ground.png" },
-    { "id": "aurora", "name": "Aurora gradient", "file": "aurora.png" },
-    { "id": "smoke", "name": "Warm smoke", "file": "smoke.png" }
+    { "id": "lake", "name": "Lake", "file": "lake.webp" },
+    { "id": "bridge", "name": "Bridge", "file": "bridge.webp" },
+    { "id": "subway", "name": "Subway", "file": "subway.webp" },
+    { "id": "graphite", "name": "Graphite", "file": "graphite.webp" },
+    { "id": "aurora", "name": "Aurora gradient", "file": "aurora.webp" },
+    { "id": "smoke", "name": "Warm smoke", "file": "smoke.webp" }
   ]
 }

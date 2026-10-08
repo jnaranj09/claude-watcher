@@ -1,12 +1,13 @@
 // The docs examples ARE theme folders: the scanner reads them as an operator's themes folder.
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { TOKENS } from '../../shared/theme/tokens'
 import { xtermTheme, xtermLightTheme } from '../../shared/theme/xtermTheme'
 import { contrast, hexToRgb } from '../../renderer/src/test/contrast'
 import { createThemeScanner } from './themeScanner'
+import { THEME_ASSETS_MAX_BYTES, ThemeManifestSchema } from '../../shared/schemas/theme'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const examples = resolve(here, '../../../docs/themes/examples')
@@ -56,6 +57,9 @@ describe('docs/themes/examples', () => {
         author: 'claude-watcher',
         colorScheme: 'dark',
         wallpapers: [
+          { id: 'lake', name: 'Lake' },
+          { id: 'bridge', name: 'Bridge' },
+          { id: 'subway', name: 'Subway' },
           { id: 'graphite', name: 'Graphite' },
           { id: 'aurora', name: 'Aurora gradient' },
           { id: 'smoke', name: 'Warm smoke' }
@@ -63,6 +67,29 @@ describe('docs/themes/examples', () => {
       },
       { id: 'paper', name: 'Paper', author: 'claude-watcher', colorScheme: 'light' }
     ])
+  })
+  it('liquid-glass ships six lossless WebP wallpapers under the asset cap, Lake first', () => {
+    const dir = resolve(examples, 'liquid-glass')
+    const manifest = ThemeManifestSchema.parse(
+      JSON.parse(readFileSync(resolve(dir, 'theme.json'), 'utf8'))
+    )
+    const files = (manifest.wallpapers ?? []).map((w) => w.file)
+    expect((manifest.wallpapers ?? []).map((w) => w.id)).toEqual([
+      'lake',
+      'bridge',
+      'subway',
+      'graphite',
+      'aurora',
+      'smoke'
+    ])
+    expect(files.every((f) => f.endsWith('.webp'))).toBe(true)
+    const total = files.reduce((n, f) => n + statSync(resolve(dir, f)).size, 0)
+    expect(total).toBeLessThanOrEqual(THEME_ASSETS_MAX_BYTES)
+    for (const f of files) {
+      const head = readFileSync(resolve(dir, f)).subarray(0, 16)
+      expect(head.subarray(0, 4).toString('latin1')).toBe('RIFF')
+      expect(head.subarray(12, 16).toString('latin1')).toBe('VP8L') // lossless chunk
+    }
   })
   it('builtin-dark equals TOKENS + xtermTheme', () => {
     const manifest = JSON.parse(
@@ -92,9 +119,9 @@ describe('docs/themes/examples', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect(r.bundle.wallpaperId).toBe('graphite')
+      expect(r.bundle.wallpaperId).toBe('lake')
       expect(r.bundle.css.match(/url\("/g)).toHaveLength(1)
-      expect(r.bundle.css).toContain('--theme-wallpaper: url("data:image/png;base64,')
+      expect(r.bundle.css).toContain('--theme-wallpaper: url("data:image/webp;base64,')
       const urls = liquidGlassRules().flatMap((rule) => rule.body.match(/url\([^)]*\)/g) ?? [])
       expect([...new Set(urls)]).toEqual(['url(#cw-text-refraction)'])
       const users = liquidGlassRules().filter((rule) =>
@@ -107,9 +134,12 @@ describe('docs/themes/examples', () => {
     }
   })
   it.each([
-    ['graphite', 'image/png'],
-    ['aurora', 'image/png'],
-    ['smoke', 'image/png']
+    ['lake', 'image/webp'],
+    ['bridge', 'image/webp'],
+    ['subway', 'image/webp'],
+    ['graphite', 'image/webp'],
+    ['aurora', 'image/webp'],
+    ['smoke', 'image/webp']
   ])('liquid-glass loads with wallpaper %s', (id, mime) => {
     const r = scanner.load('liquid-glass', id)
     expect(r.ok && r.bundle.wallpaperId).toBe(id)

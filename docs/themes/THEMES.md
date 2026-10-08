@@ -277,8 +277,8 @@ A theme may ship up to 8 predefined wallpapers. The operator picks one in Settin
 
 ```json
 "wallpapers": [
-  { "id": "graphite", "name": "Graphite", "file": "ground.png" },
-  { "id": "aurora", "name": "Aurora gradient", "file": "aurora.jpg" }
+  { "id": "lake", "name": "Lake", "file": "lake.webp" },
+  { "id": "graphite", "name": "Graphite", "file": "graphite.webp" }
 ]
 ```
 
@@ -457,8 +457,9 @@ path=<field>`. Never the values.
 - [`examples/builtin-dark`](examples/builtin-dark/) — the built-in look as a package: every token and
   terminal key at its default. Generated; copy it and change values.
 - [`examples/liquid-glass`](examples/liquid-glass/) — what the CSS file makes possible: translucent
-  panels, `backdrop-filter`, a transparent terminal, and three wallpapers (Graphite; Aurora
-  gradient by Mohammed Kareem on Unsplash; Warm smoke by SplitShire on Pexels).
+  panels, `backdrop-filter`, a transparent terminal, and six lossless WebP wallpapers (Lake, the
+  default; Bridge; Subway; Graphite; Aurora gradient; Warm smoke). Credits and licences:
+  [`WALLPAPERS-LICENSE.md`](examples/liquid-glass/WALLPAPERS-LICENSE.md).
 - [`examples/paper`](examples/paper/) — a light theme, tokens only.
 
 ## Editor support
