@@ -221,7 +221,7 @@ export function FocusedSession({
   }, [focusedTerminalId])
 
   return (
-    <div className={styles.focused} data-testid="focused-session">
+    <div className={styles.focused} data-testid="focused-session" data-glass="column">
       <AttentionRail
         onActivateSession={onActivateSession}
         {...(onRenameSession ? { onRenameSession } : {})}

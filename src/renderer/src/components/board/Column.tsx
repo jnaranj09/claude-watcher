@@ -248,6 +248,7 @@ export function Column({
     <section
       className={`${styles.column} ${isHero ? (styles.hero ?? '') : ''}`}
       data-column={column}
+      data-glass="column"
       aria-label={meta.name}
       {...(isHero ? { 'data-hero': true, 'data-hero-accent': cardAccentFor(column) } : {})}
     >

@@ -654,7 +654,12 @@ function App(): React.JSX.Element {
 
   return (
     <div className={styles.app}>
-      <header className={styles.header} data-testid="app-header" inert={namePromptOpen}>
+      <header
+        className={styles.header}
+        data-testid="app-header"
+        data-glass="header"
+        inert={namePromptOpen}
+      >
         {/* The switcher sits beside the brand, apart from the actions: it says WHERE you are. */}
         <div className={styles.headerLead}>
           <span className={styles.brand}>Claude Watcher</span>

@@ -204,6 +204,7 @@ export function FilterBar({
             value={query}
             onChange={setSearch}
             testId="board-search"
+            glass="field"
             ariaLabel="Search sessions"
             placeholder="Search…"
             variant="toolbar"
