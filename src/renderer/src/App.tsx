@@ -99,7 +99,8 @@ import { useServerHealth } from './hooks/useServerHealth'
 import { ServerHealthBanner } from './components/ServerHealthBanner/ServerHealthBanner'
 import { useStorageHealth } from './hooks/useStorageHealth'
 import { StorageNotice } from './components/StorageNotice/StorageNotice'
-import { themeStore } from './stores/themeStore'
+import { selectThemeBundle, themeStore, useTheme } from './stores/themeStore'
+import { GlassLayer } from './glass/GlassLayer'
 import styles from './App.module.css'
 // UX-DR14 single-modal rule — shared with the notification click (lib/openFromNotification.ts).
 import { isDialogOpen, isModalOpen } from './lib/modals'
@@ -120,6 +121,7 @@ function App(): React.JSX.Element {
 
   // Custom themes — write the applied bundle into <head> and the root color-scheme.
   useApplyTheme()
+  const themeBundle = useTheme(selectThemeBundle)
 
   // null = smoke-config not resolved yet; true/false once known.
   const [smoke, setSmoke] = useState<boolean | null>(null)
@@ -654,6 +656,9 @@ function App(): React.JSX.Element {
 
   return (
     <div className={styles.app}>
+      {themeBundle.glass !== null && (
+        <GlassLayer spec={themeBundle.glass} wallpaperId={themeBundle.wallpaperId} />
+      )}
       <header
         className={styles.header}
         data-testid="app-header"
