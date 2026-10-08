@@ -961,14 +961,15 @@ section[data-column='idle']::after {
   );
 }
 
-/* Concentric corners (spec D.6): the terminal panel sits 12px inside the 20px bubble, so its
-   radius is 20 - 12 = 8px; the dead-terminal pane takes the panel's inner radius (8 - 1px). */
+/* Concentric corners (spec D.6): the terminal panel sits 13px inside the 20px bubble (measured by
+   the drive, 2026-10-08), so its radius is 20 - 13 = 7px; the dead-terminal pane takes the panel's
+   inner radius (7 - 1px). */
 [data-terminal-panel] {
-  border-radius: 8px;
+  border-radius: 7px;
 }
 [data-testid='dead-terminal'],
 [data-testid='dead-terminal']::before {
-  border-radius: 7px;
+  border-radius: 6px;
 }
 
 /* Reduced transparency (spec D.9): near-solid, no blur. (0,4,x) beats the fallback glass rules. */
@@ -996,4 +997,23 @@ section[data-column='idle']::after {
   :root [data-glass='card'][data-glass][data-glass] [data-testid='pid'] {
     color: var(--text-secondary);
   }
+}
+
+/* The search field (spec D, drive 2026-10-08): the glass hook sits on the icon wrapper, which has no
+   radius of its own, so the WebGL rim was square under the input's rounded box. The wrapper takes
+   the input's radius; under glass-on the input's own fill and border clear, like every hooked
+   surface (its focus ring stays). */
+[data-glass='field'] {
+  border-radius: var(--rounded-md);
+}
+:root[data-glass-on] [data-glass='field'][data-glass][data-glass] input {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* The focused view's active tab (spec D.6b): it is a cut in the rail that merges with the area
+   around the terminal. Under the WebGL bubble the tab read ~4 levels brighter than that area
+   (drive 2026-10-08: 53.2 vs 48.8); a light dark film evens them. Layout unchanged. */
+:root[data-glass-on] [data-testid='attention-rail'] [data-testid='rail-row'][data-active] {
+  background-color: rgba(0, 0, 0, 0.08);
 }

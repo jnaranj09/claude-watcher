@@ -596,6 +596,20 @@ describe('docs/themes/examples', () => {
 })
 
 describe('liquid-glass v2 (spec 2026-10-08)', () => {
+  // Drive 2026-10-08: the field hook is on the icon wrapper, which had no radius, so the WebGL rim
+  // was square while the input still painted its own rounded box on top.
+  it('liquid-glass: the search field glass takes the input radius and the input clears under it', () => {
+    const css = liquidGlassRules()
+    const find = (sel: string): string =>
+      css
+        .filter((x) => x.selectors.includes(sel))
+        .map((x) => x.body)
+        .join('\n')
+    expect(find("[data-glass='field']")).toMatch(/border-radius:\s*var\(--rounded-md\)/)
+    const input = find(":root[data-glass-on] [data-glass='field'][data-glass][data-glass] input")
+    expect(input).toMatch(/background:\s*transparent/)
+    expect(input).toMatch(/border-color:\s*transparent/)
+  })
   it('liquid-glass describes the canvas glass and the 16px gap', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok && r.bundle.glass?.surfaces.card).toEqual({

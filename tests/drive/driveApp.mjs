@@ -136,7 +136,7 @@ const isLaunchedClaude = (cmdline) =>
  * For pixel checks, crop and upscale a 1× shot (see .claude/rules/run-app.md) — a CDP
  * `deviceScaleFactor` override does NOT reach Playwright's Electron screenshots.
  */
-export async function launchApp() {
+export async function launchApp({ args = [] } = {}) {
   if (await portInUse()) {
     throw new Error(
       `${HOOK_HOST}:${HOOK_PORT} is taken — another drive run is still going (the drive profile's port)`
@@ -146,7 +146,7 @@ export async function launchApp() {
   // A hidden display: the drive window never takes the operator's focus (CW_HEADED=1 to watch).
   const display = await startHeadlessDisplay()
   const app = await electron.launch({
-    args: [path.join(ROOT, 'out/main/index.js')],
+    args: [path.join(ROOT, 'out/main/index.js'), ...args],
     env: display.env({ ...process.env, C9_TEST_PICK_DIR: pickDir, CLAUDE_WATCHER_PROFILE: 'drive' })
   })
   const pid = app.process().pid
@@ -180,9 +180,9 @@ export async function launchApp() {
 }
 
 /** Launch, run `scenario`, and ALWAYS tear down. On a failure: an `error.png` shot, the error
- *  on stderr, exit code 1. */
-export async function run(scenario) {
-  const ctx = await launchApp()
+ *  on stderr, exit code 1. `args` are extra Electron switches (`--force-device-scale-factor=2`). */
+export async function run(scenario, { args = [] } = {}) {
+  const ctx = await launchApp({ args })
   let failed = false
   try {
     await scenario(ctx)
