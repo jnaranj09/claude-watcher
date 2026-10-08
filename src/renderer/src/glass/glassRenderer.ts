@@ -61,21 +61,42 @@ export function createGlassRenderer(
     return null
   }
 
+  // Every shader is deleted once linked (or on failure), and a failed program too: a theme push
+  // re-creates the renderer on the SAME context, so anything left behind adds up.
   const compile = (fs: string): Program | null => {
     const p = gl.createProgram()
+    const made: WebGLShader[] = []
+    let ok = true
     for (const [type, src] of [
       [gl.VERTEX_SHADER, VERTEX],
       [gl.FRAGMENT_SHADER, fs]
     ] as const) {
       const sh = gl.createShader(type)
-      if (sh === null) return null
+      if (sh === null) {
+        ok = false
+        break
+      }
+      made.push(sh)
       gl.shaderSource(sh, src)
       gl.compileShader(sh)
-      if (gl.getShaderParameter(sh, gl.COMPILE_STATUS) !== true) return null
+      if (gl.getShaderParameter(sh, gl.COMPILE_STATUS) !== true) {
+        ok = false
+        break
+      }
       gl.attachShader(p, sh)
     }
-    gl.linkProgram(p)
-    if (gl.getProgramParameter(p, gl.LINK_STATUS) !== true) return null
+    if (ok) {
+      gl.linkProgram(p)
+      ok = gl.getProgramParameter(p, gl.LINK_STATUS) === true
+    }
+    for (const sh of made) {
+      if (ok) gl.detachShader(p, sh)
+      gl.deleteShader(sh)
+    }
+    if (!ok) {
+      gl.deleteProgram(p)
+      return null
+    }
     const u = new Map<string, WebGLUniformLocation>()
     const n = Number(gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS))
     for (let i = 0; i < n; i++) {
@@ -90,6 +111,7 @@ export function createGlassRenderer(
   const preblur = compile(PREBLUR)
   const glass = compile(GLASS)
   if (blit === null || preblur === null || glass === null) {
+    for (const prog of [blit, preblur, glass]) if (prog !== null) gl.deleteProgram(prog.p)
     log('glass_shader_failed')
     return null
   }
@@ -327,6 +349,9 @@ export function createGlassRenderer(
       gl.disable(gl.SCISSOR_TEST)
       performance.measure('glass-draw', 'glass-draw-start')
       performance.clearMarks('glass-draw-start')
+      // Nothing stays in the timeline (entries are not capped); the drive reads it with a
+      // PerformanceObserver, which still receives the entry.
+      performance.clearMeasures('glass-draw')
       return !gl.isContextLost()
     },
     dispose() {

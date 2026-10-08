@@ -132,6 +132,9 @@ export function GlassLayer({
       // The DOM read's cost, only on frames that draw (Task 8 scenario 9 reads it next to glass-draw).
       performance.measure('glass-collect', 'glass-collect-start')
       performance.clearMarks('glass-collect-start')
+      // Nothing stays in the timeline (entries are not capped); the drive reads it with a
+      // PerformanceObserver, which still receives the entry.
+      performance.clearMeasures('glass-collect')
       const reducedMotion = matches(RM_QUERY)
       const hovered = pointer === null ? null : surfaceAt(items, pointer)
       const angles = items.map((it, i) =>

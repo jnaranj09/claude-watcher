@@ -104,6 +104,25 @@ describe('GlassLayer', () => {
     unmount()
   })
 
+  // Review 2026-10-08: User Timing entries are not capped, and the moving light draws up to 60
+  // frames a second — the layer keeps nothing in the timeline (the drive reads it with an observer).
+  it('leaves no glass-collect measure in the performance timeline', async () => {
+    stubWallpaper()
+    performance.clearMeasures()
+    const fake = fakeRenderer({ ok: true })
+    const { unmount } = renderComponent(
+      <GlassLayer
+        spec={GLASS_FIXTURE}
+        wallpaperId="lake"
+        statusColors={statusColors}
+        createRenderer={() => fake}
+      />
+    )
+    await vi.waitFor(() => expect(fake.draw).toHaveBeenCalled())
+    expect(performance.getEntriesByName('glass-collect', 'measure')).toHaveLength(0)
+    unmount()
+  })
+
   it('removes data-glass-on on unmount (theme switched away)', async () => {
     stubWallpaper()
     const fake = fakeRenderer({ ok: true })

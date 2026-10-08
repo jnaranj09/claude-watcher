@@ -379,7 +379,13 @@ async function cost([scale = '1']) {
       await size(app, page, w, h)
       await sessions(page, pickDir, 3)
       await glassOn(page)
-      await page.evaluate(() => performance.clearMeasures())
+      // The layer clears its measures at once (no timeline growth), so an observer collects them.
+      await page.evaluate(() => {
+        window.__glassTimes = { 'glass-draw': [], 'glass-collect': [] }
+        new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) window.__glassTimes[e.name]?.push(e.duration)
+        }).observe({ type: 'measure' })
+      })
       for (let i = 0; i < 120; i++) {
         await size(app, page, w + (i % 2), h)
         await page.waitForTimeout(32)
@@ -387,19 +393,16 @@ async function cost([scale = '1']) {
       const stats = await page.evaluate(() => {
         const pct = (xs, p) => xs[Math.min(xs.length - 1, Math.floor((p / 100) * xs.length))]
         const of = (name) => {
-          const xs = performance
-            .getEntriesByName(name, 'measure')
-            .map((e) => e.duration)
-            .sort((a, b) => a - b)
+          const xs = [...window.__glassTimes[name]].sort((a, b) => a - b)
           return { n: xs.length, p50: pct(xs, 50), p95: pct(xs, 95) }
         }
         const out = {
           draw: of('glass-draw'),
           collect: of('glass-collect'),
           dpr: window.devicePixelRatio,
-          devicePx: [innerWidth * devicePixelRatio, innerHeight * devicePixelRatio]
+          devicePx: [innerWidth * devicePixelRatio, innerHeight * devicePixelRatio],
+          leftInTimeline: performance.getEntriesByType('measure').length
         }
-        performance.clearMeasures()
         return out
       })
       report(`cost.${scale}x`, stats)
