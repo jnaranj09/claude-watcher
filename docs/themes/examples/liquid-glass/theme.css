@@ -834,3 +834,166 @@ section[data-column]::after,
   border-radius: var(--rounded-md);
   padding: 4px 16px 12px;
 }
+
+/* WebGL glass on (spec 2026-10-08 D.2). The layer behind the UI draws these surfaces, so they are
+   clear here: no double blur, no rings, no sheen, no text filter (the canvas buttons have none).
+   SPECIFICITY: the older rules above reach (0,3,2); [data-glass] is repeated to reach (0,5,x).
+   Overlay-hosted controls (a modal's Save, a toast's action, a popover row — the non-modal
+   `+ New session` dialog is a popover) keep today's glass. */
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *) {
+  background: transparent;
+  background-image: none;
+  border-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: none;
+}
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *)::before,
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *)::after {
+  content: none;
+}
+/* Hover keeps its film (the transparent background above would drop today's hover feedback). */
+:root[data-glass-on]
+  [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *):hover {
+  background: var(--bg-hover);
+}
+:root[data-glass-on] [data-glass='header'][data-glass][data-glass] {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+:root[data-glass-on] [data-glass='card'][data-glass][data-glass] {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+:root[data-glass-on]
+  [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *) {
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
+}
+:root[data-glass-on] [data-glass='column'][data-glass][data-glass],
+:root[data-glass-on] [data-glass='field'][data-glass][data-glass] {
+  box-shadow: none;
+}
+
+/* Column header (spec D.4): the status colour lives in the rim; a dot before the name; the
+   canvas sizes (count 12/500, the needs-you title 15/700). */
+[data-column-header] {
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+}
+[data-column-header] [data-column-mark] {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--gap-inline);
+  border-radius: 50%;
+  background: var(--accent-color);
+}
+[data-column-header] [data-count-sep] {
+  display: none;
+}
+[data-column-header] [data-testid='column-count'] {
+  font-size: 12px;
+  font-weight: 500;
+}
+[data-column-header][data-prominent='true'] [data-testid='column-name'] {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Cards (spec D.5): no coloured left edge; the width stays so nothing moves. The app colours it
+   with `.root[data-status=…]` (0,2,0); this is (0,3,0). */
+[data-glass='card'][data-glass][data-status] {
+  border-left-color: transparent;
+}
+
+/* Spacing (spec D.7): one 16px gap after the header in both views. */
+[data-testid='filter-bar'] {
+  margin-top: var(--gap-page);
+}
+[data-testid='focused-layer'] {
+  padding-top: var(--gap-page);
+}
+
+/* Round ☰ (spec D.8): a shape is each theme's choice. */
+[data-app-menu] {
+  border-radius: 50%;
+}
+
+/* Fallback status rim (spec 2026-10-08 D.3): without WebGL the column's ::after ring carries the
+   status colour at the top, fading to the neutral rim, as the WebGL rim does. Same specificity as
+   the ring rule above (0,1,2); later wins. Under glass-on these ::after are `content: none`. */
+section[data-column='working']::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--working) 90%, transparent) 0,
+    color-mix(in srgb, var(--working) 20%, transparent) 12%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+section[data-column='needs-you']::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--needs-you) 90%, transparent) 0,
+    color-mix(in srgb, var(--needs-you) 20%, transparent) 12%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+section[data-column='idle']::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--idle) 90%, transparent) 0,
+    color-mix(in srgb, var(--idle) 20%, transparent) 12%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+
+/* Concentric corners (spec D.6): the terminal panel sits 12px inside the 20px bubble, so its
+   radius is 20 - 12 = 8px; the dead-terminal pane takes the panel's inner radius (8 - 1px). */
+[data-terminal-panel] {
+  border-radius: 8px;
+}
+[data-testid='dead-terminal'],
+[data-testid='dead-terminal']::before {
+  border-radius: 7px;
+}
+
+/* Reduced transparency (spec D.9): near-solid, no blur. (0,4,x) beats the fallback glass rules. */
+@media (prefers-reduced-transparency: reduce) {
+  :root [data-glass][data-glass][data-glass] {
+    background: rgba(26, 26, 29, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  :root [data-glass][data-glass][data-glass]::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+/* More contrast (spec D.9): solid fill, a 40% border, text one step brighter. */
+@media (prefers-contrast: more) {
+  :root [data-glass][data-glass][data-glass] {
+    background: rgb(20, 20, 22);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+  }
+  :root [data-glass='card'][data-glass][data-glass] [data-testid='project-path'] {
+    color: var(--text-primary);
+  }
+  :root [data-glass='card'][data-glass][data-glass] [data-testid='pid'] {
+    color: var(--text-secondary);
+  }
+}

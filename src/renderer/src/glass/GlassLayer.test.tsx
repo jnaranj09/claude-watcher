@@ -13,9 +13,10 @@ const STATUS: GlassColors = {
 }
 const statusColors = (): GlassColors => STATUS
 
-function mediaQueries(reducedTransparency: boolean): void {
+/** `matching` = the substring of the one media query that matches ('' = none). */
+function mediaQueries(matching: '' | 'reduced-transparency' | 'prefers-contrast: more'): void {
   window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: reducedTransparency && q.includes('reduced-transparency'),
+    matches: matching !== '' && q.includes(matching),
     media: q,
     onchange: null,
     addListener: vi.fn(),
@@ -61,7 +62,7 @@ function fakeRenderer(drawResult: { ok: boolean }): FakeRenderer {
 }
 
 beforeEach(() => {
-  mediaQueries(false)
+  mediaQueries('')
   Object.defineProperty(HTMLImageElement.prototype, 'decode', {
     configurable: true,
     value: vi.fn().mockResolvedValue(undefined)
@@ -121,7 +122,16 @@ describe('GlassLayer', () => {
   })
 
   it('renders nothing under prefers-reduced-transparency', () => {
-    mediaQueries(true)
+    mediaQueries('reduced-transparency')
+    const { container, unmount } = renderComponent(
+      <GlassLayer spec={GLASS_FIXTURE} wallpaperId="lake" statusColors={statusColors} />
+    )
+    expect(container.querySelector('canvas')).toBeNull()
+    unmount()
+  })
+
+  it('renders nothing under prefers-contrast: more (spec D.9: a solid fill)', () => {
+    mediaQueries('prefers-contrast: more')
     const { container, unmount } = renderComponent(
       <GlassLayer spec={GLASS_FIXTURE} wallpaperId="lake" statusColors={statusColors} />
     )

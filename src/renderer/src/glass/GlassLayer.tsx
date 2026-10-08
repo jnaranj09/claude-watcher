@@ -14,6 +14,8 @@ import { readStatusColors, setOn, wallpaperUrl } from './glassDom'
 import styles from './GlassLayer.module.css'
 
 const RT_QUERY = '(prefers-reduced-transparency: reduce)'
+// More contrast shows a solid fill (spec D.9); with the layer on, the glass-on rule would win.
+const CONTRAST_QUERY = '(prefers-contrast: more)'
 const RM_QUERY = '(prefers-reduced-motion: reduce)'
 
 /** One `code=` line per code per mount (a mount = one Liquid Glass session). */
@@ -43,17 +45,21 @@ export function GlassLayer({
   createRenderer = createGlassRenderer,
   statusColors = readStatusColors
 }: GlassLayerProps): JSX.Element | null {
-  const [reducedTransparency, setReducedTransparency] = useState(() => matches(RT_QUERY))
+  const [reducedTransparency, setReducedTransparency] = useState(
+    () => matches(RT_QUERY) || matches(CONTRAST_QUERY)
+  )
   // useState, not useRef: reading ref.current during render is a react-hooks/refs error.
   const [log] = useState(makeLog)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia(RT_QUERY)
-    const on = (): void => setReducedTransparency(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
+    const queries = [window.matchMedia(RT_QUERY), window.matchMedia(CONTRAST_QUERY)]
+    const update = (): void => setReducedTransparency(matches(RT_QUERY) || matches(CONTRAST_QUERY))
+    for (const mq of queries) mq.addEventListener('change', update)
+    return () => {
+      for (const mq of queries) mq.removeEventListener('change', update)
+    }
   }, [])
 
   useEffect(() => {

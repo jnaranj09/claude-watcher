@@ -5,7 +5,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { TOKENS } from '../../shared/theme/tokens'
 import { xtermTheme, xtermLightTheme } from '../../shared/theme/xtermTheme'
-import { contrast, hexToRgb } from '../../renderer/src/test/contrast'
+import { contrast, hexToRgb, over } from '../../renderer/src/test/contrast'
 import { createThemeScanner } from './themeScanner'
 import { THEME_ASSETS_MAX_BYTES, ThemeManifestSchema } from '../../shared/schemas/theme'
 
@@ -20,15 +20,19 @@ function paperManifest(): { tokens: Record<string, string>; terminal: unknown } 
   }
 }
 
-// liquid-glass/theme.css as `{ selectors, body }` rules, comments stripped. Flat CSS only: the
-// theme has no @media or nested blocks.
+// liquid-glass/theme.css as `{ selectors, body }` rules, comments stripped. No nesting is parsed:
+// the inner rules of the theme's two @media blocks read as top-level rules, which the assertions
+// below accept (they check bodies by selector; the @media guard is a raw-text test).
 function liquidGlassRules(): { selectors: string[]; body: string }[] {
   const css = readFileSync(resolve(examples, 'liquid-glass/theme.css'), 'utf8').replace(
     /\/\*[\s\S]*?\*\//g,
     ''
   )
   return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, sel = '', body = '']) => ({
-    selectors: sel.split(',').map((s) => s.trim()),
+    // One line per selector: Prettier wraps a long one (and inside `:not(…)`).
+    selectors: sel
+      .split(',')
+      .map((s) => s.trim().replace(/\s+/g, ' ').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')),
     body
   }))
 }
@@ -565,11 +569,11 @@ describe('docs/themes/examples', () => {
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)
   })
 
-  it('liquid-glass: one 12px rhythm, concentric radii, the Settings inset group (spec 2026-10-07 B)', () => {
+  it('liquid-glass: one 16px rhythm, concentric radii, the Settings inset group (spec 2026-10-07 B; 16px: spec 2026-10-08 D.7)', () => {
     const manifest = JSON.parse(
       readFileSync(resolve(examples, 'liquid-glass/theme.json'), 'utf8')
     ) as { tokens: Record<string, string> }
-    expect(manifest.tokens['gutter']).toBe('12px')
+    expect(manifest.tokens['gutter']).toBe('16px')
     expect(manifest.tokens['rounded-lg']).toBe('20px')
     const rules = liquidGlassRules()
     const bodyOf = (sel: string): string =>
@@ -577,7 +581,7 @@ describe('docs/themes/examples', () => {
         .filter((r) => r.selectors.includes(sel))
         .map((r) => r.body)
         .join('\n')
-    // Header → filter bar is the filter bar's own 12px: the bubble has no bottom margin.
+    // Header → filter bar is the filter bar's own gap: the bubble has no bottom margin.
     expect(bodyOf("[data-testid='app-header']")).toMatch(
       /margin:\s*var\(--inset-compact-x\) var\(--inset-compact-x\) 0;/
     )
@@ -588,5 +592,99 @@ describe('docs/themes/examples', () => {
     expect(group).toMatch(/border:\s*1px solid var\(--border\);/)
     expect(group).toMatch(/border-radius:\s*var\(--rounded-md\);/)
     expect(group).toMatch(/padding:\s*4px 16px 12px;/)
+  })
+})
+
+describe('liquid-glass v2 (spec 2026-10-08)', () => {
+  it('liquid-glass describes the canvas glass and the 16px gap', () => {
+    const r = scanner.load('liquid-glass')
+    expect(r.ok && r.bundle.glass?.surfaces.card).toEqual({
+      refract: 8,
+      edge: 12,
+      blur: 8,
+      chroma: 0.15,
+      tint: '#0e0e10',
+      tintAmount: 0.36,
+      rim: 0.3,
+      exposure: 1.4,
+      lift: 0.04,
+      glow: 0.05
+    })
+    expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
+    expect(r.ok && r.bundle.css).toMatch(/--gutter:\s*16px/)
+    expect(r.ok && r.bundle.css).toMatch(/--idle:\s*#9a9aa0/)
+  })
+
+  // Spec D.1: text on lit glass keeps 4.5:1. Grounds from canvas-capture.md: the needs-you hero card
+  // (#3d3932), a calm card (#232326) and the brightest lit card measured over a photo (#3d3d3e).
+  it('liquid-glass text tokens read 4.5:1 on every lit card ground', () => {
+    const t = (
+      JSON.parse(readFileSync(resolve(examples, 'liquid-glass/theme.json'), 'utf8')) as {
+        tokens: Record<string, string>
+      }
+    ).tokens
+    const alpha = (v: string | undefined): number => {
+      const m = /^rgba\(235,\s*235,\s*245,\s*([\d.]+)\)$/.exec(v ?? '')
+      if (m === null || m[1] === undefined) throw new Error(`not an ink token: ${v}`)
+      return Number(m[1])
+    }
+    for (const ground of ['#3d3932', '#232326', '#3d3d3e']) {
+      for (const ink of ['text-secondary', 'text-muted']) {
+        const g = hexToRgb(ground)
+        expect(
+          contrast(over([235, 235, 245], alpha(t[ink]), g), g),
+          `${ink} on ${ground}`
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('liquid-glass clears the hooked surfaces only while the WebGL glass is on, above the old rules', () => {
+    const on = liquidGlassRules().filter((x) =>
+      x.selectors.some((sel) =>
+        sel.startsWith(':root[data-glass-on] [data-glass][data-glass][data-glass]')
+      )
+    )
+    const body = on.map((x) => x.body).join('\n')
+    expect(body).toMatch(/background:\s*transparent/)
+    expect(body).toMatch(/backdrop-filter:\s*none/)
+    expect(body).toMatch(/(^|[\s;])filter:\s*none/)
+    expect(body).toMatch(/content:\s*none/)
+    for (const sel of on.flatMap((x) => x.selectors)) {
+      expect(sel, sel).toContain(":not([role='dialog'][aria-modal='true'] *)")
+    }
+  })
+
+  it('liquid-glass column header: mark shown, separator hidden, no tick or divider, canvas sizes', () => {
+    const css = liquidGlassRules()
+    const find = (sel: string): string =>
+      css
+        .filter((x) => x.selectors.includes(sel))
+        .map((x) => x.body)
+        .join('\n')
+    expect(find('[data-column-header] [data-column-mark]')).toMatch(/display:\s*inline-block/)
+    expect(find('[data-column-header] [data-count-sep]')).toMatch(/display:\s*none/)
+    expect(find('[data-column-header]')).toMatch(/border-top-color:\s*transparent/)
+    expect(find('[data-column-header]')).toMatch(/border-bottom-color:\s*transparent/)
+    expect(find("[data-column-header] [data-testid='column-count']")).toMatch(
+      /font-size:\s*12px[\s\S]*font-weight:\s*500/
+    )
+    expect(find("[data-column-header][data-prominent='true'] [data-testid='column-name']")).toMatch(
+      /font-size:\s*15px[\s\S]*font-weight:\s*700/
+    )
+  })
+
+  it("liquid-glass drops the coloured card edge (beats the app's .root[data-status] rule)", () => {
+    const body = liquidGlassRules()
+      .filter((x) => x.selectors.includes("[data-glass='card'][data-glass][data-status]"))
+      .map((x) => x.body)
+      .join('\n')
+    expect(body).toMatch(/border-left-color:\s*transparent/)
+  })
+
+  it('liquid-glass has reduced-transparency and more-contrast rules', () => {
+    const raw = readFileSync(resolve(examples, 'liquid-glass/theme.css'), 'utf8')
+    expect(raw).toContain('@media (prefers-reduced-transparency: reduce)')
+    expect(raw).toContain('@media (prefers-contrast: more)')
   })
 })

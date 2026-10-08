@@ -19,13 +19,14 @@
     "border-strong": "rgba(255,255,255,0.28)",
     "border-card": "rgba(255,255,255,0.18)",
     "text-primary": "#ffffff",
-    "text-secondary": "#dfe3ec",
-    "text-muted": "#8a90a0",
-    "text-dim": "#5b6070",
+    "text-secondary": "rgba(235,235,245,0.8)",
+    "text-muted": "rgba(235,235,245,0.64)",
+    "text-dim": "rgba(235,235,245,0.4)",
+    "idle": "#9a9aa0",
     "rounded-sm": "8px",
     "rounded-md": "12px",
     "rounded-lg": "20px",
-    "gutter": "12px",
+    "gutter": "16px",
     "shadow-dialog": "0 30px 70px rgba(0,0,0,0.55)",
     "shadow-pop": "0 20px 48px rgba(0,0,0,0.5)",
     "workspace-slate-fill": "rgba(127, 132, 156, 0.14)",
@@ -66,5 +67,72 @@
     { "id": "graphite", "name": "Graphite", "file": "graphite.webp" },
     { "id": "aurora", "name": "Aurora gradient", "file": "aurora.webp" },
     { "id": "smoke", "name": "Warm smoke", "file": "smoke.webp" }
-  ]
+  ],
+  "glass": {
+    "renderer": "webgl",
+    "lightFollowsCursor": true,
+    "surfaces": {
+      "header": {
+        "refract": 14,
+        "edge": 16,
+        "blur": 12,
+        "chroma": 0.25,
+        "tint": "#0e0e10",
+        "tintAmount": 0.3,
+        "rim": 0.35,
+        "exposure": 1.6,
+        "lift": 0.05,
+        "glow": 0.08
+      },
+      "column": {
+        "refract": 18,
+        "edge": 24,
+        "blur": 16,
+        "chroma": 0.2,
+        "tint": "#0e0e10",
+        "tintAmount": 0.25,
+        "rim": 0.3,
+        "exposure": 1.5,
+        "lift": 0.04,
+        "glow": 0.06,
+        "tintNeedsYou": "#2a2414"
+      },
+      "card": {
+        "refract": 8,
+        "edge": 12,
+        "blur": 8,
+        "chroma": 0.15,
+        "tint": "#0e0e10",
+        "tintAmount": 0.36,
+        "rim": 0.3,
+        "exposure": 1.4,
+        "lift": 0.04,
+        "glow": 0.05
+      },
+      "control": {
+        "refract": 5,
+        "edge": 9,
+        "blur": 6,
+        "chroma": 0.2,
+        "tint": "#0e0e10",
+        "tintAmount": 0.22,
+        "rim": 0.32,
+        "exposure": 1.6,
+        "lift": 0.06,
+        "glow": 0.06
+      },
+      "field": {
+        "refract": 5,
+        "edge": 9,
+        "blur": 6,
+        "chroma": 0.2,
+        "tint": "#0e0e10",
+        "tintAmount": 0.4,
+        "rim": 0.32,
+        "exposure": 1.6,
+        "lift": 0.06,
+        "glow": 0.06
+      }
+    }
+  }
 }
