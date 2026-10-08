@@ -131,8 +131,9 @@ never takes caller prose; `/clear` ends an SSE stream with `session.rebound`.
 ## Custom themes (`src/main/themes/`)
 
 Theme = `theme.json` (`.strict()`) + CSS + assets, composed by main into one stylesheet; bundled
-Liquid Glass and Paper are read-only; a bad theme fails closed to Default. Full rules:
-`.claude/rules/themes.md`.
+Liquid Glass and Paper are read-only; a bad theme fails closed to Default. A theme's optional
+`glass` key turns on the WebGL board glass (`renderer/src/glass/`; CSS stays the fallback under
+`data-glass-on`). Full rules: `.claude/rules/themes.md`.
 
 ## node-pty + packaging
 

@@ -25,7 +25,20 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
 - **Fail closed → Default, keep the setting** (`settings.themeId`):
   `code=theme_load_failed id= reason=`, Settings shows the error. Logs: code + zod path only.
 - **Wallpapers:** only the chosen one inlined as `--theme-wallpaper`; all validated; pick per theme
-  in `settings.wallpaperByTheme`; unknown → first (`code=theme_wallpaper_not_found`).
+  in `settings.wallpaperByTheme`; unknown → first (`code=theme_wallpaper_not_found`). Bundled
+  wallpapers are LOSSLESS WebP (the dither survives; lossy banded, 2026-09-24); every listed file
+  counts toward the 5 MB cap. Photo licences: the theme folder's `WALLPAPERS-LICENSE.md`.
+- **WebGL glass (spec 2026-10-08):** optional `glass` key (`GlassSpecSchema`: renderer `webgl`,
+  `lightFollowsCursor`, five surface materials, ranges, every field required) → `ThemeBundle.glass`.
+  `renderer/src/glass/GlassLayer` draws one canvas behind the UI from the `data-glass` hooks; it
+  sets `data-glass-on` on `<html>` only after a good frame and removes it on any failure, context
+  loss or unmount. Theme CSS clears hooked surfaces ONLY under `:root[data-glass-on]`, so its CSS
+  glass is always the fallback (no WebGL2, reduced transparency, more contrast). Overlays (modals,
+  popovers, toasts) are never drawn by the layer. Logs: `[claude-watcher][glass] code=glass_*`.
+- **Public hooks (every theme):** `data-glass="header|column|card|control|field"` (values pinned to
+  `GLASS_SURFACES` by `glassHooks.guard`), `data-app-menu`, `data-column-header`,
+  `data-column-mark` (hidden by the app), `data-count-sep`. `control` = enabled primary/secondary
+  `Button` (not lit, busy or disabled), the workspace switcher and its elsewhere tab.
 - `nativeTheme.themeSource` + root `color-scheme` follow the theme's `colorScheme`
   (`themeLifecycle.ts`, `hooks/useApplyTheme.ts`).
 - **Every renderer colour is a token** (`styles/noHexLiterals.test.ts`); `TOKENS` in
