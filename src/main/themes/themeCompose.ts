@@ -212,7 +212,8 @@ export function composeTheme(
       colorScheme: manifest.colorScheme,
       css,
       terminal: manifest.terminal,
-      wallpaperId: appliedWallpaper
+      wallpaperId: appliedWallpaper,
+      glass: manifest.glass ?? null
     },
     ...(fallback ? { wallpaperFallback: true as const } : {})
   }

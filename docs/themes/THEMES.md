@@ -294,6 +294,41 @@ A theme may ship up to 8 predefined wallpapers. The operator picks one in Settin
   and their setting is kept.
 - Want a darker or blurrier image? Change the file. There is no darken or blur setting.
 
+### Glass
+
+An optional `glass` key asks the app to draw the board's glass with WebGL: the wallpaper bends,
+frosts and lights itself under each surface. The app owns the renderer; the theme owns the numbers.
+
+```json
+"glass": {
+  "renderer": "webgl",
+  "lightFollowsCursor": true,
+  "surfaces": {
+    "header":  { "refract": 14, "edge": 16, "blur": 12, "chroma": 0.25, "tint": "#0e0e10", "tintAmount": 0.30, "rim": 0.35, "exposure": 1.6, "lift": 0.05, "glow": 0.08 },
+    "column":  { "...": "same fields", "tintNeedsYou": "#2a2414" },
+    "card":    { "...": "same fields" },
+    "control": { "...": "same fields" },
+    "field":   { "...": "same fields" }
+  }
+}
+```
+
+- `renderer` is `"webgl"`, the only value. `lightFollowsCursor`: the surface under the pointer
+  is lit from the pointer's side (always off under reduced motion).
+- The five surfaces: `header` (the app header), `column` (each board column and the focused-view
+  bubble), `card` (a session card), `control` (the workspace switcher, the elsewhere tab and
+  enabled primary/secondary buttons), `field` (the board search field).
+- Every surface needs every field; there are no defaults. Ranges: `refract` 0–40, `edge` 1–60,
+  `blur` 0–40, `chroma` 0–1, `tintAmount` 0–1, `rim` 0–1, `exposure` 1–3, `lift` 0–0.3,
+  `glow` 0–0.3. Colours (`tint`, `tintNeedsYou`) are `#rrggbb`.
+- `tintNeedsYou` is allowed on `column` only: the tint of the needs-you column.
+- A bad value, a missing field or an unknown key fails the WHOLE theme closed, like any other
+  rule: Default is applied, your setting is kept, and the error shows in Settings.
+- The glass needs a wallpaper and WebGL2. Without WebGL2 (or under reduced transparency or more
+  contrast) nothing is drawn and your theme's CSS glass is what shows, so keep that CSS good.
+  While the WebGL glass is drawing, `<html>` carries `data-glass-on`; make the hooked surfaces
+  transparent only under that attribute.
+
 ## The CSS file
 
 Loaded AFTER the tokens block, so it wins over everything — `!important` is never needed. The

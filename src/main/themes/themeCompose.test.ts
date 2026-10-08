@@ -13,6 +13,7 @@ import {
   type ThemeReader
 } from './themeCompose'
 import type { ThemeManifest } from '../../shared/schemas/theme'
+import { GLASS_FIXTURE } from '../../__fixtures__/glassSpec'
 
 const manifest = (extra: Record<string, unknown> = {}): ThemeManifest =>
   ThemeManifestSchema.parse({ version: 1, name: 'T', ...extra })
@@ -156,7 +157,8 @@ describe('composeTheme', () => {
         colorScheme: 'dark',
         css: ':root {\n  --bg-base: #000;\n}\n',
         terminal: {},
-        wallpaperId: null
+        wallpaperId: null,
+        glass: null
       }
     })
   })
@@ -229,6 +231,20 @@ describe('composeTheme', () => {
       expect(r).toEqual({ ok: false, code: 'theme_css_url_invalid' })
     }
   )
+  it('carries the glass block into the bundle, null when absent', () => {
+    const withGlass = composeTheme(
+      'x',
+      ThemeManifestSchema.parse({ version: 1, name: 'X', glass: GLASS_FIXTURE }),
+      createMapReader({})
+    )
+    expect(withGlass.ok && withGlass.bundle.glass).toEqual(GLASS_FIXTURE)
+    const without = composeTheme(
+      'x',
+      ThemeManifestSchema.parse({ version: 1, name: 'X' }),
+      createMapReader({})
+    )
+    expect(without.ok && without.bundle.glass).toBeNull()
+  })
 })
 
 describe('composeTheme — wallpapers (spec 2026-09-24)', () => {
@@ -278,7 +294,15 @@ describe('composeTheme — wallpapers (spec 2026-09-24)', () => {
     const r = composeTheme('g', manifest(), createMapReader({}), 'aurora')
     expect(r).toEqual({
       ok: true,
-      bundle: { id: 'g', name: 'T', colorScheme: 'dark', css: '', terminal: {}, wallpaperId: null }
+      bundle: {
+        id: 'g',
+        name: 'T',
+        colorScheme: 'dark',
+        css: '',
+        terminal: {},
+        wallpaperId: null,
+        glass: null
+      }
     })
   })
   it('a listed-but-not-chosen file that is missing fails the theme', () => {

@@ -168,7 +168,8 @@ describe('wire shapes', () => {
       colorScheme: 'dark',
       css: '',
       terminal: {},
-      wallpaperId: null
+      wallpaperId: null,
+      glass: null
     })
   })
 
