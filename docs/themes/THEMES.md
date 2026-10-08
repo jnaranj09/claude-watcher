@@ -302,9 +302,8 @@ frosts and lights itself under each surface. The app owns the renderer; the them
 ```json
 "glass": {
   "renderer": "webgl",
-  "lightFollowsCursor": true,
   "surfaces": {
-    "header":  { "refract": 14, "edge": 16, "blur": 12, "chroma": 0.25, "tint": "#0e0e10", "tintAmount": 0.30, "rim": 0.35, "exposure": 1.6, "lift": 0.05, "glow": 0.08 },
+    "header":  { "refract": 14, "edge": 16, "blur": 12, "chroma": 0.25, "tint": "#0e0e10", "tintAmount": 0.30, "rim": 0.35, "exposure": 1.6, "lift": 0.05, "glow": 0.08, "lightFollowsCursor": false },
     "column":  { "...": "same fields", "tintNeedsYou": "#2a2414" },
     "card":    { "...": "same fields" },
     "control": { "...": "same fields" },
@@ -313,14 +312,17 @@ frosts and lights itself under each surface. The app owns the renderer; the them
 }
 ```
 
-- `renderer` is `"webgl"`, the only value. `lightFollowsCursor`: the surface under the pointer
-  is lit from the pointer's side (always off under reduced motion).
+- `renderer` is `"webgl"`, the only value.
+- `lightFollowsCursor` (per surface): `true` lights that surface from the pointer's side while the
+  pointer is over it; `false` keeps the fixed top-left light. Always fixed under reduced motion.
+  Liquid Glass keeps it off on the header.
 - The five surfaces: `header` (the app header), `column` (each board column and the focused-view
   bubble), `card` (a session card), `control` (the workspace switcher, the elsewhere tab and
   enabled primary/secondary buttons), `field` (the board search field).
 - Every surface needs every field; there are no defaults. Ranges: `refract` 0–40, `edge` 1–60,
   `blur` 0–40, `chroma` 0–1, `tintAmount` 0–1, `rim` 0–1, `exposure` 1–3, `lift` 0–0.3,
-  `glow` 0–0.3. Colours (`tint`, `tintNeedsYou`) are `#rrggbb`.
+  `glow` 0–0.3; `lightFollowsCursor` is `true` or `false`. Colours (`tint`, `tintNeedsYou`) are
+  `#rrggbb`.
 - `tintNeedsYou` is allowed on `column` only: the tint of the needs-you column.
 - A bad value, a missing field or an unknown key fails the WHOLE theme closed, like any other
   rule: Default is applied, your setting is kept, and the error shows in Settings.

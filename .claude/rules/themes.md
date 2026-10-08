@@ -29,7 +29,8 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   wallpapers are LOSSLESS WebP (the dither survives; lossy banded, 2026-09-24); every listed file
   counts toward the 5 MB cap. Photo licences: the theme folder's `WALLPAPERS-LICENSE.md`.
 - **WebGL glass (spec 2026-10-08):** optional `glass` key (`GlassSpecSchema`: renderer `webgl`,
-  `lightFollowsCursor`, five surface materials, ranges, every field required) → `ThemeBundle.glass`.
+  five surface materials with ranges and a per-surface `lightFollowsCursor`, every field required)
+  → `ThemeBundle.glass`.
   `renderer/src/glass/GlassLayer` draws one canvas behind the UI from the `data-glass` hooks; it
   sets `data-glass-on` on `<html>` only after a good frame and removes it on any failure, context
   loss or unmount. Theme CSS clears hooked surfaces ONLY under `:root[data-glass-on]`, so its CSS

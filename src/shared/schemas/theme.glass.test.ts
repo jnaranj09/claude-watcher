@@ -13,15 +13,15 @@ const material = {
   rim: 0.35,
   exposure: 1.6,
   lift: 0.05,
-  glow: 0.08
+  glow: 0.08,
+  lightFollowsCursor: true
 }
 const spec = {
   renderer: 'webgl',
-  lightFollowsCursor: true,
   surfaces: {
     // A copy each: structuredClone keeps shared references, so one shared object would make a
     // mutation of `card` show up first under `header`.
-    header: { ...material },
+    header: { ...material, lightFollowsCursor: false },
     column: { ...material, tintNeedsYou: '#2a2414' },
     card: { ...material },
     control: { ...material },
@@ -32,6 +32,17 @@ const spec = {
 describe('glass spec', () => {
   it('parses the canvas values', () => {
     expect(GlassSpecSchema.parse(spec)).toEqual(spec)
+  })
+
+  // Owner, 2026-10-08: the moving light is fine on columns, cards and controls but not on the
+  // header — so it is a per-surface choice, not one switch for the whole theme.
+  it('takes lightFollowsCursor per surface, required, and no longer at the top', () => {
+    const missing: Record<string, unknown> = { ...material }
+    Reflect.deleteProperty(missing, 'lightFollowsCursor')
+    const r = GlassSpecSchema.safeParse({ ...spec, surfaces: { ...spec.surfaces, card: missing } })
+    expect(r.success).toBe(false)
+    expect(r.error?.issues[0]?.path).toEqual(['surfaces', 'card', 'lightFollowsCursor'])
+    expect(GlassSpecSchema.safeParse({ ...spec, lightFollowsCursor: true }).success).toBe(false)
   })
 
   it('lists exactly five surfaces', () => {

@@ -2,25 +2,29 @@
 // the renderer's hex guard (styles/noHexLiterals.test.ts walks src/renderer/src).
 import type { GlassSpec } from '../shared/schemas/theme'
 
+// The light follows the pointer everywhere but the header (owner, 2026-10-08).
 const material = (
-  m: Omit<GlassSpec['surfaces']['card'], 'tint'>
-): GlassSpec['surfaces']['card'] => ({ ...m, tint: '#0e0e10' })
+  m: Omit<GlassSpec['surfaces']['card'], 'tint' | 'lightFollowsCursor'>,
+  lightFollowsCursor = true
+): GlassSpec['surfaces']['card'] => ({ ...m, tint: '#0e0e10', lightFollowsCursor })
 
 export const GLASS_FIXTURE: GlassSpec = {
   renderer: 'webgl',
-  lightFollowsCursor: true,
   surfaces: {
-    header: material({
-      refract: 14,
-      edge: 16,
-      blur: 12,
-      chroma: 0.25,
-      tintAmount: 0.3,
-      rim: 0.35,
-      exposure: 1.6,
-      lift: 0.05,
-      glow: 0.08
-    }),
+    header: material(
+      {
+        refract: 14,
+        edge: 16,
+        blur: 12,
+        chroma: 0.25,
+        tintAmount: 0.3,
+        rim: 0.35,
+        exposure: 1.6,
+        lift: 0.05,
+        glow: 0.08
+      },
+      false
+    ),
     column: {
       ...material({
         refract: 18,

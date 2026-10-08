@@ -4,7 +4,7 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderComponent } from '../test/renderComponent'
 import { GLASS_FIXTURE } from '../../../__fixtures__/glassSpec'
-import type { GlassColors, GlassRenderer } from './glassRenderer'
+import type { GlassColors, GlassFrame, GlassRenderer } from './glassRenderer'
 import { GlassLayer } from './GlassLayer'
 import { GLASS_ON_ATTR } from './glassDom'
 
@@ -50,13 +50,14 @@ function stubWallpaper(): void {
 
 type FakeRenderer = GlassRenderer & {
   setWallpaper: ReturnType<typeof vi.fn<(img: HTMLImageElement) => void>>
+  draw: ReturnType<typeof vi.fn<(frame: GlassFrame) => boolean>>
   dispose: ReturnType<typeof vi.fn<() => void>>
 }
 
 function fakeRenderer(drawResult: { ok: boolean }): FakeRenderer {
   return {
     setWallpaper: vi.fn<(img: HTMLImageElement) => void>(),
-    draw: vi.fn(() => drawResult.ok),
+    draw: vi.fn<(frame: GlassFrame) => boolean>(() => drawResult.ok),
     dispose: vi.fn<() => void>()
   }
 }
@@ -120,6 +121,51 @@ describe('GlassLayer', () => {
     )
     await vi.waitFor(() => expect(fake.draw).toHaveBeenCalled())
     expect(performance.getEntriesByName('glass-collect', 'measure')).toHaveLength(0)
+    unmount()
+  })
+
+  // Owner, 2026-10-08: the light follows the pointer per surface; Liquid Glass keeps it fixed on the
+  // header. The fixture's header says false, the column true.
+  it('moves the light only on surfaces whose material follows the cursor', async () => {
+    stubWallpaper()
+    const box = (left: number, top: number, width: number, height: number): DOMRect => ({
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
+      toJSON: () => ({})
+    })
+    const header = document.createElement('header')
+    header.setAttribute('data-glass', 'header')
+    header.getBoundingClientRect = () => box(0, 0, 800, 48)
+    const column = document.createElement('section')
+    column.setAttribute('data-glass', 'column')
+    column.getBoundingClientRect = () => box(0, 100, 300, 400)
+    document.body.append(header, column)
+    const fake = fakeRenderer({ ok: true })
+    const { unmount } = renderComponent(
+      <GlassLayer
+        spec={GLASS_FIXTURE}
+        wallpaperId="lake"
+        statusColors={statusColors}
+        createRenderer={() => fake}
+      />
+    )
+    await vi.waitFor(() => expect(fake.draw).toHaveBeenCalled())
+    const lastAngles = (): readonly number[] => fake.draw.mock.lastCall?.[0].angles ?? []
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 700, clientY: 10 }))
+    await vi.waitFor(() => expect(fake.draw.mock.calls.length).toBeGreaterThan(1))
+    expect(lastAngles()[0]).toBe(135) // header: fixed light
+    const calls = fake.draw.mock.calls.length
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 290, clientY: 110 }))
+    await vi.waitFor(() => expect(fake.draw.mock.calls.length).toBeGreaterThan(calls))
+    expect(lastAngles()[1]).not.toBe(135) // column: the light follows the pointer
+    header.remove()
+    column.remove()
     unmount()
   })
 

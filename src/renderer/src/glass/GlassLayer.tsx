@@ -138,7 +138,7 @@ export function GlassLayer({
       const reducedMotion = matches(RM_QUERY)
       const hovered = pointer === null ? null : surfaceAt(items, pointer)
       const angles = items.map((it, i) =>
-        i === hovered && spec.lightFollowsCursor
+        i === hovered && spec.surfaces[it.kind].lightFollowsCursor
           ? lightAngleFor(it.rect, pointer, reducedMotion)
           : DEFAULT_LIGHT_ANGLE
       )
@@ -158,7 +158,7 @@ export function GlassLayer({
     }
 
     const onPointer = (e: PointerEvent): void => {
-      if (!spec.lightFollowsCursor || matches(RM_QUERY)) return
+      if (matches(RM_QUERY)) return
       const prev = pointer === null ? null : surfaceAt(lastItems, pointer)
       pointer = { x: e.clientX, y: e.clientY }
       const next = surfaceAt(lastItems, pointer)

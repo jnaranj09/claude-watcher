@@ -803,9 +803,6 @@
           "type": "string",
           "const": "webgl"
         },
-        "lightFollowsCursor": {
-          "type": "boolean"
-        },
         "surfaces": {
           "type": "object",
           "properties": {
@@ -860,6 +857,9 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -872,7 +872,8 @@
                 "rim",
                 "exposure",
                 "lift",
-                "glow"
+                "glow",
+                "lightFollowsCursor"
               ],
               "additionalProperties": false
             },
@@ -928,6 +929,9 @@
                   "minimum": 0,
                   "maximum": 0.3
                 },
+                "lightFollowsCursor": {
+                  "type": "boolean"
+                },
                 "tintNeedsYou": {
                   "type": "string",
                   "pattern": "^#[0-9a-f]{6}$"
@@ -943,7 +947,8 @@
                 "rim",
                 "exposure",
                 "lift",
-                "glow"
+                "glow",
+                "lightFollowsCursor"
               ],
               "additionalProperties": false
             },
@@ -998,6 +1003,9 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1010,7 +1018,8 @@
                 "rim",
                 "exposure",
                 "lift",
-                "glow"
+                "glow",
+                "lightFollowsCursor"
               ],
               "additionalProperties": false
             },
@@ -1065,6 +1074,9 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1077,7 +1089,8 @@
                 "rim",
                 "exposure",
                 "lift",
-                "glow"
+                "glow",
+                "lightFollowsCursor"
               ],
               "additionalProperties": false
             },
@@ -1132,6 +1145,9 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1144,7 +1160,8 @@
                 "rim",
                 "exposure",
                 "lift",
-                "glow"
+                "glow",
+                "lightFollowsCursor"
               ],
               "additionalProperties": false
             }
@@ -1161,7 +1178,6 @@
       },
       "required": [
         "renderer",
-        "lightFollowsCursor",
         "surfaces"
       ],
       "additionalProperties": false

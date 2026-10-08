@@ -179,7 +179,10 @@ export const GlassMaterialSchema = z
     rim: glassRange(0, 1),
     exposure: glassRange(1, 3),
     lift: glassRange(0, 0.3),
-    glow: glassRange(0, 0.3)
+    glow: glassRange(0, 0.3),
+    /** The light follows the pointer over this surface (always fixed under reduced motion).
+     *  Per surface: Liquid Glass keeps the header's light fixed (owner, 2026-10-08). */
+    lightFollowsCursor: z.boolean()
   })
   .strict()
 export type GlassMaterial = z.infer<typeof GlassMaterialSchema>
@@ -187,7 +190,6 @@ export type GlassMaterial = z.infer<typeof GlassMaterialSchema>
 export const GlassSpecSchema = z
   .object({
     renderer: z.literal('webgl'),
-    lightFollowsCursor: z.boolean(),
     surfaces: z
       .object({
         header: GlassMaterialSchema,

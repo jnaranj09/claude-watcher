@@ -622,9 +622,12 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       rim: 0.3,
       exposure: 1.4,
       lift: 0.04,
-      glow: 0.05
+      glow: 0.05,
+      lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
+    // Owner, 2026-10-08: the moving light stays off the header; everywhere else it follows.
+    expect(r.ok && r.bundle.glass?.surfaces.header.lightFollowsCursor).toBe(false)
     expect(r.ok && r.bundle.css).toMatch(/--gutter:\s*16px/)
     expect(r.ok && r.bundle.css).toMatch(/--idle:\s*#9a9aa0/)
   })

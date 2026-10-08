@@ -70,7 +70,6 @@
   ],
   "glass": {
     "renderer": "webgl",
-    "lightFollowsCursor": true,
     "surfaces": {
       "header": {
         "refract": 14,
@@ -82,7 +81,8 @@
         "rim": 0.35,
         "exposure": 1.6,
         "lift": 0.05,
-        "glow": 0.08
+        "glow": 0.08,
+        "lightFollowsCursor": false
       },
       "column": {
         "refract": 18,
@@ -95,7 +95,8 @@
         "exposure": 1.5,
         "lift": 0.04,
         "glow": 0.06,
-        "tintNeedsYou": "#2a2414"
+        "tintNeedsYou": "#2a2414",
+        "lightFollowsCursor": true
       },
       "card": {
         "refract": 8,
@@ -107,7 +108,8 @@
         "rim": 0.3,
         "exposure": 1.4,
         "lift": 0.04,
-        "glow": 0.05
+        "glow": 0.05,
+        "lightFollowsCursor": true
       },
       "control": {
         "refract": 5,
@@ -119,7 +121,8 @@
         "rim": 0.32,
         "exposure": 1.6,
         "lift": 0.06,
-        "glow": 0.06
+        "glow": 0.06,
+        "lightFollowsCursor": true
       },
       "field": {
         "refract": 5,
@@ -131,7 +134,8 @@
         "rim": 0.32,
         "exposure": 1.6,
         "lift": 0.06,
-        "glow": 0.06
+        "glow": 0.06,
+        "lightFollowsCursor": true
       }
     }
   }
