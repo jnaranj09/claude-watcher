@@ -598,7 +598,9 @@ describe('docs/themes/examples', () => {
 describe('liquid-glass v2 (spec 2026-10-08)', () => {
   // Owner, 2026-10-08: the rail and the focused top bar paint a white film over the WebGL glass,
   // so they read whiter than the header; under glass-on the film is a lighter 3% (none at all
-  // made the rail, the tab and the area around the terminal one glass: no cut).
+  // made the rail, the tab and the area around the terminal one glass: no cut). Owner, 2026-10-09:
+  // the top band (the rail above the tab, and the bar) still read as a whiter box — the box's
+  // glass is brighter at the top — so it carries 1.5%.
   it('liquid-glass: the rail and the focused bar carry a lighter film while the WebGL glass is on', () => {
     const css = liquidGlassRules()
     const body = (sel: string): string =>
@@ -606,12 +608,14 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
         .filter((x) => x.selectors.includes(sel))
         .map((x) => x.body)
         .join('\n')
-    for (const sel of [
-      ":root[data-glass-on] [data-testid='attention-rail']::before",
-      ":root[data-glass-on] [data-testid='attention-rail']::after",
-      ':root[data-glass-on] [data-focused-bar]'
-    ]) {
-      expect(body(sel), sel).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/)
+    for (const [sel, alpha] of [
+      [":root[data-glass-on] [data-testid='attention-rail']::before", '0\\.015'],
+      [':root[data-glass-on] [data-focused-bar]', '0\\.015'],
+      [":root[data-glass-on] [data-testid='attention-rail']::after", '0\\.03']
+    ] as const) {
+      expect(body(sel), sel).toMatch(
+        new RegExp(`background:\\s*rgba\\(255,\\s*255,\\s*255,\\s*${alpha}\\)`)
+      )
     }
   })
   // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
@@ -678,9 +682,10 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       // 0.26, not the canvas 0.3: owner, 2026-10-08 ("a little less bright").
       rim: 0.26,
       exposure: 1.4,
-      // lift/glow a little lower than the canvas: owner, 2026-10-08 ("a tiny bit more transparent").
+      // lift/glow a little lower than the canvas: owner, 2026-10-08 ("a tiny bit more transparent");
+      // glow lower again, 2026-10-09 ("decrease the overall white inner glow").
       lift: 0.03,
-      glow: 0.04,
+      glow: 0.03,
       lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
