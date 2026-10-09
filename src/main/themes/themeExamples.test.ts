@@ -596,6 +596,19 @@ describe('docs/themes/examples', () => {
 })
 
 describe('liquid-glass v2 (spec 2026-10-08)', () => {
+  // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
+  // (background: transparent on every hooked control) wiped it. It keeps --ws-fill over the glass.
+  it('liquid-glass: the workspace switcher keeps its workspace tint while the WebGL glass is on', () => {
+    const tinted = liquidGlassRules().filter((x) =>
+      x.selectors.some(
+        (sel) =>
+          sel.startsWith(':root[data-glass-on] [data-glass][data-glass][data-glass]') &&
+          sel.includes("[data-testid='workspace-switcher']") &&
+          sel.includes(":not([role='dialog'][aria-modal='true'] *)")
+      )
+    )
+    expect(tinted.map((x) => x.body).join('\n')).toMatch(/background-color:\s*var\(--ws-fill/)
+  })
   // Owner, 2026-10-08: the overlay glass follows the pointer like the board. The app writes
   // --glass-light on the one surface under it; only that element's rim changes (at rest, today's).
   it('liquid-glass lights the overlay rims from --glass-light, only where it is set', () => {
@@ -647,8 +660,9 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       // 0.26, not the canvas 0.3: owner, 2026-10-08 ("a little less bright").
       rim: 0.26,
       exposure: 1.4,
-      lift: 0.04,
-      glow: 0.05,
+      // lift/glow a little lower than the canvas: owner, 2026-10-08 ("a tiny bit more transparent").
+      lift: 0.03,
+      glow: 0.04,
       lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')

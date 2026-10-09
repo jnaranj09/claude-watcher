@@ -80,8 +80,8 @@
         "tintAmount": 0.3,
         "rim": 0.3,
         "exposure": 1.6,
-        "lift": 0.05,
-        "glow": 0.08,
+        "lift": 0.04,
+        "glow": 0.065,
         "lightFollowsCursor": false
       },
       "column": {
@@ -93,8 +93,8 @@
         "tintAmount": 0.25,
         "rim": 0.26,
         "exposure": 1.5,
-        "lift": 0.04,
-        "glow": 0.06,
+        "lift": 0.03,
+        "glow": 0.05,
         "tintNeedsYou": "#2a2414",
         "lightFollowsCursor": false
       },
@@ -107,8 +107,8 @@
         "tintAmount": 0.36,
         "rim": 0.26,
         "exposure": 1.4,
-        "lift": 0.04,
-        "glow": 0.05,
+        "lift": 0.03,
+        "glow": 0.04,
         "lightFollowsCursor": true
       },
       "control": {
@@ -120,8 +120,8 @@
         "tintAmount": 0.22,
         "rim": 0.27,
         "exposure": 1.6,
-        "lift": 0.06,
-        "glow": 0.06,
+        "lift": 0.05,
+        "glow": 0.05,
         "lightFollowsCursor": true
       },
       "field": {
@@ -133,8 +133,8 @@
         "tintAmount": 0.4,
         "rim": 0.27,
         "exposure": 1.6,
-        "lift": 0.06,
-        "glow": 0.06,
+        "lift": 0.05,
+        "glow": 0.05,
         "lightFollowsCursor": true
       }
     }

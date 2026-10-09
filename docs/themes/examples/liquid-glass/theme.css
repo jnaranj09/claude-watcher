@@ -1059,3 +1059,21 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
     linear-gradient(var(--glass-light-toward), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
       bottom / 100% 50% no-repeat;
 }
+
+/* The workspace switcher keeps its WORKSPACE TINT while the WebGL glass is on (owner, 2026-10-08):
+   the glass-on clear above makes every hooked control transparent, which wiped the `--ws-fill` the
+   switcher wears in the CSS glass. The tint sits over the WebGL glass; hover adds the usual film.
+   Same selector as the clear plus the switcher's id, so it outranks it. */
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
+    [role='dialog'][aria-modal='true'] *
+  ):not([data-popover] *):not([data-toast] *) {
+  background-color: var(--ws-fill, transparent);
+}
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
+    [role='dialog'][aria-modal='true'] *
+  ):not([data-popover] *):not([data-toast] *):hover {
+  background-color: var(--ws-fill, transparent);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
