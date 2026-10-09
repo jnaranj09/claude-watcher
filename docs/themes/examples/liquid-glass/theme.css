@@ -1080,10 +1080,12 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
 
 /* The rail and the focused view's top bar (owner, 2026-10-08): both paint `--bg-surface` (white 6%)
    OVER the focused box's WebGL glass, so they read whiter than the header, which shows the glass
-   alone. Under glass-on they show the glass alone too (drive, Bridge: the top band 37 -> ~30, the
-   header 30). The rail stays its own panel through its wall line, its rows and the tab. */
+   alone. Under glass-on the film is 3%: still a panel, so the active tab reads as a cut into it
+   (with no film the rail, the tab and the area around the terminal were one glass and the wall
+   lines outlined empty boxes). Drive, Bridge: rail body 28.9 vs the header's 30.3; the top band
+   37 (was 44), where the box's glass is brighter. */
 :root[data-glass-on] [data-testid='attention-rail']::before,
 :root[data-glass-on] [data-testid='attention-rail']::after,
 :root[data-glass-on] [data-focused-bar] {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
 }

@@ -597,8 +597,9 @@ describe('docs/themes/examples', () => {
 
 describe('liquid-glass v2 (spec 2026-10-08)', () => {
   // Owner, 2026-10-08: the rail and the focused top bar paint a white film over the WebGL glass,
-  // so they read whiter than the header; under glass-on they show the glass alone, like the header.
-  it('liquid-glass: the rail and the focused bar drop their white film while the WebGL glass is on', () => {
+  // so they read whiter than the header; under glass-on the film is a lighter 3% (none at all
+  // made the rail, the tab and the area around the terminal one glass: no cut).
+  it('liquid-glass: the rail and the focused bar carry a lighter film while the WebGL glass is on', () => {
     const css = liquidGlassRules()
     const body = (sel: string): string =>
       css
@@ -610,7 +611,7 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       ":root[data-glass-on] [data-testid='attention-rail']::after",
       ':root[data-glass-on] [data-focused-bar]'
     ]) {
-      expect(body(sel), sel).toMatch(/background:\s*transparent/)
+      expect(body(sel), sel).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/)
     }
   })
   // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
