@@ -812,6 +812,19 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
         ).toBeGreaterThanOrEqual(4.5)
       }
     }
+    // The real glass (drive 2026-10-09, exposure +0.4, all six wallpapers): the brightest grounds
+    // behind card text, solved from the measured ratios — a lit card on Warm smoke (#515151) and a
+    // calm card on Lake (#414141), whose text also carries the card's 0.82 opacity.
+    for (const [ground, opacity] of [
+      ['#515151', 1],
+      ['#414141', 0.82]
+    ] as const) {
+      const g = hexToRgb(ground)
+      expect(
+        contrast(over([235, 235, 245], alpha(t['text-muted']) * opacity, g), g),
+        `text-muted on ${ground} at ${opacity}`
+      ).toBeGreaterThanOrEqual(4.5)
+    }
   })
 
   it('liquid-glass clears the hooked surfaces only while the WebGL glass is on, above the old rules', () => {

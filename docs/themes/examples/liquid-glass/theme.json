@@ -20,7 +20,7 @@
     "border-card": "rgba(255,255,255,0.18)",
     "text-primary": "#ffffff",
     "text-secondary": "rgba(235,235,245,0.8)",
-    "text-muted": "rgba(235,235,245,0.7)",
+    "text-muted": "rgba(235,235,245,0.78)",
     "text-dim": "rgba(235,235,245,0.4)",
     "idle": "#9a9aa0",
     "rounded-sm": "8px",
