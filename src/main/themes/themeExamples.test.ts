@@ -746,9 +746,10 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       // brightens what shows through the glass without the white fog lift/glow add.
       exposure: 1.8,
       // lift/glow a little lower than the canvas: owner, 2026-10-08 ("a tiny bit more transparent");
-      // glow lower again, 2026-10-09 ("decrease the overall white inner glow").
+      // glow lower again, 2026-10-09 ("decrease the overall white inner glow"), and again ("bring
+      // the white glow lower a little").
       lift: 0.03,
-      glow: 0.03,
+      glow: 0.02,
       lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
@@ -758,6 +759,12 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
           Object.entries(r.bundle.glass?.surfaces ?? {}).map(([k, v]) => [k, v.exposure])
         )
     ).toEqual({ header: 2, column: 1.9, card: 1.8, control: 2, field: 2 })
+    expect(
+      r.ok &&
+        Object.fromEntries(
+          Object.entries(r.bundle.glass?.surfaces ?? {}).map(([k, v]) => [k, v.glow])
+        )
+    ).toEqual({ header: 0.03, column: 0.014, card: 0.02, control: 0.025, field: 0.025 })
     // Owner, 2026-10-08: the big bodies (header, columns, the focused box) keep a fixed light;
     // the small surfaces follow the pointer.
     expect(r.ok && r.bundle.glass?.surfaces.header.lightFollowsCursor).toBe(false)
