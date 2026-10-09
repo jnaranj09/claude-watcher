@@ -169,6 +169,67 @@ describe('GlassLayer', () => {
     unmount()
   })
 
+  // Owner, 2026-10-08: overlay glass (popover rows, overlay buttons, toasts) follows the pointer
+  // too. The layer writes --glass-light on the one element under the pointer; the theme draws it.
+  it('moves --glass-light between popover rows and clears it when the pointer leaves', async () => {
+    stubWallpaper()
+    const pop = document.createElement('div')
+    pop.setAttribute('data-popover', '')
+    pop.innerHTML =
+      '<button data-popover-item id="a">A</button><button data-popover-item id="b">B</button>'
+    document.body.append(pop)
+    const a = document.getElementById('a')
+    const b = document.getElementById('b')
+    const fake = fakeRenderer({ ok: true })
+    const { unmount } = renderComponent(
+      <GlassLayer
+        spec={GLASS_FIXTURE}
+        wallpaperId="lake"
+        statusColors={statusColors}
+        createRenderer={() => fake}
+      />
+    )
+    await vi.waitFor(() => expect(fake.draw).toHaveBeenCalled())
+    a?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    expect(a?.style.getPropertyValue('--glass-light')).toMatch(/deg$/)
+    b?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    expect(a?.style.getPropertyValue('--glass-light')).toBe('')
+    expect(b?.style.getPropertyValue('--glass-light')).toMatch(/deg$/)
+    document.documentElement.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(b?.style.getPropertyValue('--glass-light')).toBe('')
+    pop.remove()
+    unmount()
+  })
+
+  it('writes no --glass-light under prefers-reduced-motion', async () => {
+    stubWallpaper()
+    window.matchMedia = vi.fn().mockImplementation((q: string) => ({
+      matches: q.includes('reduced-motion'),
+      media: q,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }))
+    const pop = document.createElement('div')
+    pop.setAttribute('data-popover', '')
+    pop.innerHTML = '<button data-popover-item id="a">A</button>'
+    document.body.append(pop)
+    const fake = fakeRenderer({ ok: true })
+    const { unmount } = renderComponent(
+      <GlassLayer
+        spec={GLASS_FIXTURE}
+        wallpaperId="lake"
+        statusColors={statusColors}
+        createRenderer={() => fake}
+      />
+    )
+    await vi.waitFor(() => expect(fake.draw).toHaveBeenCalled())
+    const a = document.getElementById('a')
+    a?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    expect(a?.style.getPropertyValue('--glass-light')).toBe('')
+    pop.remove()
+    unmount()
+  })
+
   it('removes data-glass-on on unmount (theme switched away)', async () => {
     stubWallpaper()
     const fake = fakeRenderer({ ok: true })

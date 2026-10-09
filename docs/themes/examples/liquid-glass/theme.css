@@ -1017,3 +1017,52 @@ section[data-column='idle']::after {
 :root[data-glass-on] [data-testid='attention-rail'] [data-testid='rail-row'][data-active] {
   background-color: rgba(0, 0, 0, 0.08);
 }
+
+/* THE MOVING LIGHT ON OVERLAY GLASS (owner, 2026-10-08): the board's light follows the pointer
+   (WebGL); overlays are CSS, so the app writes `--glass-light: <deg>` (GL angle, 135 = top-left)
+   on the ONE overlay surface under the pointer — a popover row, an overlay button or a toast — and
+   these rules move that element's rim with it: the corner glint goes to the pointer's side, and
+   the lines dim away from / toward the light as the resting rim does at 135deg. Only where the
+   property is set, so the resting look is unchanged. Declared on the lit element itself: a
+   variable defined on :root would freeze the angle there. */
+[style*='--glass-light'] {
+  --glass-light-x: clamp(0%, calc(50% + cos(var(--glass-light)) * 71%), 100%);
+  --glass-light-y: clamp(0%, calc(50% - sin(var(--glass-light)) * 71%), 100%);
+  --glass-light-toward: calc(90deg - var(--glass-light));
+  --glass-light-away: calc(270deg - var(--glass-light));
+}
+[data-popover-item][style*='--glass-light']:not(:disabled)::before,
+button[data-variant='primary'][style*='--glass-light']:not(:disabled)::before,
+button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::before {
+  background:
+    radial-gradient(
+      circle at var(--glass-light-x) var(--glass-light-y),
+      rgba(255, 255, 255, 0.2),
+      transparent 20px
+    ),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
+  mask:
+    linear-gradient(var(--glass-light-away), #000, rgba(0, 0, 0, 0.45)) intersect,
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+[data-popover-item][style*='--glass-light']:not(:disabled)::after,
+button[data-variant='primary'][style*='--glass-light']:not(:disabled)::after,
+button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after {
+  mask:
+    linear-gradient(var(--glass-light-toward), #000, rgba(0, 0, 0, 0.45)) intersect,
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+[data-toast][style*='--glass-light']::after {
+  background:
+    radial-gradient(
+      circle at var(--glass-light-x) var(--glass-light-y),
+      rgba(255, 255, 255, 0.2),
+      transparent 20px
+    ),
+    linear-gradient(var(--glass-light-away), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
+      top / 100% 50% no-repeat,
+    linear-gradient(var(--glass-light-toward), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
+      bottom / 100% 50% no-repeat;
+}

@@ -11,6 +11,7 @@ import { createGlassRenderer, type GlassColors, type GlassRenderer } from './gla
 import { buildDrawList, collectSurfaces, drawKey, type DrawItem } from './surfaces'
 import { DEFAULT_LIGHT_ANGLE, lightAngleFor, surfaceAt } from './lightAngle'
 import { readStatusColors, setOn, wallpaperUrl } from './glassDom'
+import { overlayLightTarget, setOverlayLight } from './overlayLight'
 import styles from './GlassLayer.module.css'
 
 const RT_QUERY = '(prefers-reduced-transparency: reduce)'
@@ -72,6 +73,7 @@ export function GlassLayer({
     let frame = 0
     let force = true
     let pointer: { x: number; y: number } | null = null
+    let lit: HTMLElement | null = null // the overlay surface carrying --glass-light
     let lastKey = ''
     let lastItems: DrawItem[] = []
     let pendingScissor: DrawItem['rect'] | null = null
@@ -157,8 +159,22 @@ export function GlassLayer({
       pendingScissor = null
     }
 
+    const lightOverlay = (target: EventTarget | null, p: { x: number; y: number } | null): void => {
+      const next = p === null ? null : overlayLightTarget(target instanceof Element ? target : null)
+      if (lit !== null && lit !== next) setOverlayLight(lit, null)
+      lit = next
+      if (next !== null && p !== null) {
+        const b = next.getBoundingClientRect()
+        setOverlayLight(
+          next,
+          lightAngleFor({ left: b.left, top: b.top, width: b.width, height: b.height }, p, false)
+        )
+      }
+    }
+
     const onPointer = (e: PointerEvent): void => {
       if (matches(RM_QUERY)) return
+      lightOverlay(e.target, { x: e.clientX, y: e.clientY })
       const prev = pointer === null ? null : surfaceAt(lastItems, pointer)
       pointer = { x: e.clientX, y: e.clientY }
       const next = surfaceAt(lastItems, pointer)
@@ -169,6 +185,7 @@ export function GlassLayer({
     }
     const onLeave = (): void => {
       pointer = null
+      lightOverlay(null, null)
       force = true
     }
     const onResize = (): void => {
@@ -198,6 +215,7 @@ export function GlassLayer({
     return () => {
       disposed = true
       cancelAnimationFrame(frame)
+      lightOverlay(null, null)
       window.removeEventListener('pointermove', onPointer)
       document.documentElement.removeEventListener('pointerleave', onLeave)
       window.removeEventListener('resize', onResize)

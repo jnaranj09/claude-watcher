@@ -596,6 +596,31 @@ describe('docs/themes/examples', () => {
 })
 
 describe('liquid-glass v2 (spec 2026-10-08)', () => {
+  // Owner, 2026-10-08: the overlay glass follows the pointer like the board. The app writes
+  // --glass-light on the one surface under it; only that element's rim changes (at rest, today's).
+  it('liquid-glass lights the overlay rims from --glass-light, only where it is set', () => {
+    const css = liquidGlassRules()
+    const lit = css.filter((x) =>
+      x.selectors.some((sel) => sel.includes("[style*='--glass-light']"))
+    )
+    const sels = lit.flatMap((x) => x.selectors)
+    for (const want of [
+      "[data-popover-item][style*='--glass-light']:not(:disabled)::before",
+      "button[data-variant='primary'][style*='--glass-light']:not(:disabled)::before",
+      "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::before",
+      "[data-popover-item][style*='--glass-light']:not(:disabled)::after",
+      "button[data-variant='primary'][style*='--glass-light']:not(:disabled)::after",
+      "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after",
+      "[data-toast][style*='--glass-light']::after"
+    ]) {
+      expect(sels, want).toContain(want)
+    }
+    const body = lit.map((x) => x.body).join('\n')
+    expect(body).toMatch(/cos\(var\(--glass-light\)\)/)
+    expect(body).toMatch(/sin\(var\(--glass-light\)\)/)
+    // Never on the board: under glass-on the WebGL layer draws those, and their rings are off.
+    expect(sels.every((sel) => !sel.includes('data-glass'))).toBe(true)
+  })
   // Drive 2026-10-08: the field hook is on the icon wrapper, which had no radius, so the WebGL rim
   // was square while the input still painted its own rounded box on top.
   it('liquid-glass: the search field glass takes the input radius and the input clears under it', () => {

@@ -330,6 +330,13 @@ frosts and lights itself under each surface. The app owns the renderer; the them
   contrast) nothing is drawn and your theme's CSS glass is what shows, so keep that CSS good.
   While the WebGL glass is drawing, `<html>` carries `data-glass-on`; make the hooked surfaces
   transparent only under that attribute.
+- Overlays (popovers, dialogs, toasts) are never drawn by WebGL. For them the app writes
+  `--glass-light: <deg>` (135 = lit from the top-left) on the ONE overlay surface under the pointer:
+  a popover row, an enabled primary/secondary button inside an overlay, or a toast. Use it to move
+  that element's rim with the pointer, e.g. `cos(var(--glass-light))`; select on
+  `[style*='--glass-light']` and declare angle-based variables on that element itself (a variable
+  defined on `:root` would freeze the angle there). It is never set under reduced motion, and only
+  while a theme with a `glass` key is applied.
 
 ## The CSS file
 

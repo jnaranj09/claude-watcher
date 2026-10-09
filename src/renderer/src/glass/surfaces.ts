@@ -84,7 +84,7 @@ function isStatus(v: string | null): v is GlassStatus {
 
 /** Overlays paint their own CSS glass (spec: overlays unchanged in spec 1). A glass button inside
  *  one (a dialog's Save, a toast's Resume, a popover row) is NOT drawn by the WebGL layer. */
-const OVERLAY = "[role='dialog'], [data-popover], [data-toast]"
+export const OVERLAY = "[role='dialog'], [data-popover], [data-toast]"
 
 /** Reads every `[data-glass]` element. Clip = the intersection of ancestors whose overflow is
  *  not `visible` (the board grid scrolls; a card scrolled under the filter bar must not draw).

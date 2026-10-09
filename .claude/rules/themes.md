@@ -35,7 +35,10 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   sets `data-glass-on` on `<html>` only after a good frame and removes it on any failure, context
   loss or unmount. Theme CSS clears hooked surfaces ONLY under `:root[data-glass-on]`, so its CSS
   glass is always the fallback (no WebGL2, reduced transparency, more contrast). Overlays (modals,
-  popovers, toasts) are never drawn by the layer. Logs: `[claude-watcher][glass] code=glass_*`.
+  popovers, toasts) are never drawn by the layer; for them the layer writes `--glass-light: <deg>`
+  on the one overlay surface under the pointer (`glass/overlayLight.ts`; row, overlay button or
+  toast; never under reduced motion) and the theme's CSS moves its rim. Logs:
+  `[claude-watcher][glass] code=glass_*`.
 - **Public hooks (every theme):** `data-glass="header|column|card|control|field"` (values pinned to
   `GLASS_SURFACES` by `glassHooks.guard`), `data-app-menu`, `data-column-header`,
   `data-column-mark` (hidden by the app), `data-count-sep`. `control` = enabled primary/secondary
