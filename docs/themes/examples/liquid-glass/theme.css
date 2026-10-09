@@ -612,6 +612,22 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
       transparent 85%
     );
 }
+/* While the WebGL glass is on, the controls it draws are lit from the TOP (its glow), and the ones
+   it cannot draw — popover rows, a dialog's or a toast's buttons — would keep the corner sheen,
+   lit at the bottom-right: two lights side by side (owner, 2026-10-09: "some things have the white
+   glow and others dont"). So under glass-on the sheen IS the WebGL light: a white glow strongest at
+   the top edge, gone by mid-height (the drive profile of `+ New session`). The board's controls
+   are cleared under glass-on, so this reaches only the overlay ones; the CSS fallback keeps the
+   corner sheen above. */
+:root[data-glass-on] {
+  --glass-control-sheen: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02) 15%,
+    rgba(255, 255, 255, 0.006) 30%,
+    transparent 45%
+  );
+}
 [data-testid='workspace-switcher'],
 button[data-variant='primary']:not(:disabled),
 button[data-variant='secondary']:not(:disabled):not([data-lit]),

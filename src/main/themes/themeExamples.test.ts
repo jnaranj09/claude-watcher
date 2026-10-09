@@ -619,6 +619,22 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
     )
     expect(layered).toEqual([])
   })
+  // Owner, 2026-10-09: "some things have the white glow and others dont" — the WebGL controls are
+  // lit from the TOP (the shader's glow), the overlay controls (popover rows, a dialog's or a
+  // toast's buttons, still CSS) carried a corner sheen lit at the bottom-right. Under glass-on the
+  // overlay sheen is the WebGL light instead: a top-down glow, no corner spots. The board's own
+  // controls are cleared under glass-on, so the variable reaches only the overlay ones.
+  it('liquid-glass lights the overlay controls like the WebGL ones while the glass is on', () => {
+    const css = liquidGlassRules()
+    const defs = css.filter((x) => /--glass-control-sheen\s*:/.test(x.body))
+    const on = defs.filter((x) => x.selectors.includes(':root[data-glass-on]'))
+    expect(on).toHaveLength(1)
+    const sheen = /--glass-control-sheen\s*:([^;]*);/.exec(on[0]?.body ?? '')?.[1] ?? ''
+    expect(sheen).toMatch(/^\s*linear-gradient\(\s*to bottom,\s*rgba\(255,\s*255,\s*255,/)
+    expect(sheen).not.toMatch(/radial-gradient/)
+    // The CSS fallback (glass off) keeps the corner sheen.
+    expect(defs.some((x) => x.selectors.includes(':root'))).toBe(true)
+  })
   // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
   // (background: transparent on every hooked control) wiped it. It keeps --ws-fill over the glass.
   it('liquid-glass: the workspace switcher keeps its workspace tint while the WebGL glass is on', () => {
