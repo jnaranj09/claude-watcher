@@ -119,6 +119,39 @@ async function back(page) {
   await page.locator('[data-testid="column-grid"]').waitFor({ state: 'visible' })
 }
 
+/** The rail's layer boundaries (spec 2026-10-09 rail surface hooks): mean luminance on each side,
+ *  4px strips in a text-free x range. top = rail header vs the focused bar (both TOP); below = the
+ *  slot's strip under the tab vs the rail under the slot (both RAIL); above = the slot's strip over
+ *  the tab vs the header row over it (TOP vs RAIL, the one boundary allowed to differ). */
+async function railSeams(page, png) {
+  const g = await page.evaluate(() => {
+    const r = (el) => (el ? el.getBoundingClientRect().toJSON() : null)
+    const rail = document.querySelector('[data-testid="attention-rail"]')
+    return {
+      rail: r(rail),
+      header: r(rail?.firstElementChild ?? null),
+      bar: r(document.querySelector('[data-focused-bar]')),
+      slot: r(document.querySelector('[data-testid="rail-pinned-slot"]')),
+      tab: r(document.querySelector('[data-testid="rail-row"][data-active]'))
+    }
+  })
+  if (!g.rail || !g.header || !g.bar) return null
+  // Expanded: right of the "Sessions" label, left of the header buttons. Collapsed: the middle.
+  const x = g.rail.width > 120 ? g.rail.left + 95 : g.rail.left + g.rail.width / 2 - 4
+  const w = g.rail.width > 120 ? 60 : 8
+  const midY = g.header.top + g.header.height / 2 - 2
+  // Collapsed, the header's middle is the expand button: measure the 8px left of it instead.
+  const topX = g.rail.width > 120 ? x : g.rail.left + 6
+  const out = {
+    top: frames('lum', png, topX, midY, w, 4, g.bar.left + g.bar.width * 0.5, midY, 60, 4)
+  }
+  if (g.slot && g.tab) {
+    out.below = frames('lum', png, x, g.tab.bottom + 3, w, 4, x, g.slot.bottom + 3, w, 4)
+    out.above = frames('lum', png, x, g.slot.top + 2, w, 4, x, g.header.bottom - 8, w, 4)
+  }
+  return out
+}
+
 const box = async (page, sel) =>
   (await page.locator(sel).count()) > 0 ? page.locator(sel).first().boundingBox() : null
 
@@ -184,7 +217,15 @@ async function shots([theme = 'liquid-glass', wallpaper, tag = wallpaper ?? them
       )
     }
     await focus(page, ids[0])
-    await shot(page, `${tag}-focused`)
+    if (lg) await glassOn(page)
+    report(`railSeams.${tag}`, await railSeams(page, await shot(page, `${tag}-focused`)))
+    // Review Focus 1: the collapsed rail keeps the header line where the TOP value stops.
+    await page.locator('[data-testid="rail-collapse"]').click()
+    await page.waitForTimeout(400)
+    report(
+      `railSeams.${tag}-collapsed`,
+      await railSeams(page, await shot(page, `${tag}-focused-collapsed`))
+    )
   })
 }
 
