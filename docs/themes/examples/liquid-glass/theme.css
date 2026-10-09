@@ -478,11 +478,17 @@ body {
    (below, with the buttons). The switcher takes its WORKSPACE tint instead when it has one
    (spec 2026-09-29): translucent, so the glass still shows. Hover lays the hover film like every
    button; it draws no outline (operator, 2026-10-05: an outline is for keyboard focus only). It was
-   black at 22% while the header was black at 20%; on the 3% header that read as a hole. */
+   black at 22% while the header was black at 20%; on the 3% header that read as a hole.
+   HOVER IS THE PILL'S: the elsewhere tab is the same control (a click on it is a click on the
+   switcher), so a pointer on the tab hovers the SWITCHER, through `:has(> tab:hover)` on the
+   anchor they share, and the tab never lights itself. Its own film ran on under the switcher's
+   right end and showed through the tint as a lighter band inside the pill (drive 2026-10-09,
+   WebGL on: no blur left to soften it). Every switcher hover rule below carries both selectors. */
 [data-testid='workspace-switcher'] {
   background-color: var(--ws-fill, var(--bg-surface-raised));
 }
-[data-testid='workspace-switcher']:hover {
+[data-testid='workspace-switcher']:hover,
+:has(> [data-testid='workspace-elsewhere-tab']:hover) > [data-testid='workspace-switcher'] {
   border-color: transparent;
 }
 [data-testid='workspace-elsewhere-tab'] {
@@ -614,6 +620,7 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]),
   filter: url(#cw-text-refraction);
 }
 [data-testid='workspace-switcher']:hover,
+:has(> [data-testid='workspace-elsewhere-tab']:hover) > [data-testid='workspace-switcher'],
 button[data-variant='primary']:hover:not(:disabled),
 button[data-variant='secondary']:hover:not(:disabled):not([data-lit]) {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
@@ -631,15 +638,13 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]) {
    switcher, and a plain bordered tab read as another material (operator, 2026-10-05). Its
    `::before` is the app's text strut, so ONE `::after` ring draws both lines. The tab is the
    pill's RIGHT end, where the switcher's top line has dimmed to 45% and its bottom line is at
-   full: the same two values here, so the edge runs on from the switcher. */
+   full: the same two values here, so the edge runs on from the switcher. No hover film of its
+   own: a pointer on the tab lights the switcher (above). */
 [data-testid='workspace-elsewhere-tab'] {
   border-color: transparent;
   box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
   background-image: var(--glass-control-sheen);
   filter: url(#cw-text-refraction);
-}
-[data-testid='workspace-elsewhere-tab']:hover {
-  background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
 }
 [data-testid='workspace-elsewhere-tab']::after {
   content: '';
@@ -863,11 +868,12 @@ section[data-column]::after,
   ):not([data-toast] *)::after {
   content: none;
 }
-/* Hover keeps its film (the transparent background above would drop today's hover feedback). */
+/* Hover keeps its film (the transparent background above would drop today's hover feedback).
+   Not on the elsewhere tab: its hover is the switcher's (below). */
 :root[data-glass-on]
   [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *):hover {
+  ):not([data-toast] *):not([data-testid='workspace-elsewhere-tab']):hover {
   background: var(--bg-hover);
 }
 :root[data-glass-on] [data-glass='header'][data-glass][data-glass] {
@@ -1065,7 +1071,9 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
 /* The workspace switcher keeps its WORKSPACE TINT while the WebGL glass is on (owner, 2026-10-08):
    the glass-on clear above makes every hooked control transparent, which wiped the `--ws-fill` the
    switcher wears in the CSS glass. The tint sits over the WebGL glass; hover adds the usual film.
-   Same selector as the clear plus the switcher's id, so it outranks it. */
+   Same selector as the clear plus the switcher's id, so it outranks it. The hover is the pill's:
+   a pointer on the elsewhere tab hovers the switcher too (the `:has()` selector, as in the CSS
+   glass above). */
 :root[data-glass-on]
   [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
     [role='dialog'][aria-modal='true'] *
@@ -1075,7 +1083,12 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
 :root[data-glass-on]
   [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
     [role='dialog'][aria-modal='true'] *
-  ):not([data-popover] *):not([data-toast] *):hover {
+  ):not([data-popover] *):not([data-toast] *):hover,
+:root[data-glass-on]
+  :has(> [data-testid='workspace-elsewhere-tab']:hover)
+  > [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
+    [role='dialog'][aria-modal='true'] *
+  ):not([data-popover] *):not([data-toast] *) {
   background-color: var(--ws-fill, transparent);
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }

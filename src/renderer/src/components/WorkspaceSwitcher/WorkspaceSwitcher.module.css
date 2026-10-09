@@ -40,8 +40,14 @@
   font-weight: var(--font-weight-body);
   cursor: pointer;
 }
-/* The tint IS the workspace's colour, so hover moves the BORDER, never the fill. */
-.switcher:hover {
+/* The tint IS the workspace's colour, so hover moves the BORDER, never the fill. The elsewhere tab
+   is the same control (a click on it is a click here), so a pointer on the tab hovers the BUTTON —
+   the tab never lights itself: its box runs on under the button's right end, and a film there
+   showed through a translucent button as a lighter band inside the pill (drive 2026-10-09).
+   `:where()` keeps this at the button's own weight, so a theme's `[data-testid]:hover` rule still
+   outranks it, as it does the plain hover. */
+.switcher:hover,
+:where(.anchor:has(> .tab:hover)) > .switcher {
   background: var(--ws-fill, var(--bg-surface));
   border-color: var(--text-secondary);
 }
@@ -150,9 +156,6 @@
   transform: translateX(-100%);
   opacity: 0;
   pointer-events: none;
-}
-.tab:hover {
-  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* An invisible text strut with the button's metrics. The pill aligns to ITS baseline, which is the
    button's baseline — so the tab's digit lands on the same pixel row as the button's, whatever the

@@ -664,6 +664,47 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       expect(sel, sel).toContain(":not([data-testid='workspace-elsewhere-tab'])")
     }
   })
+  // Drive 2026-10-09: hovering the tab lit the TAB alone — its 10% film painted across the 12px it
+  // tucks under the switcher, and with the switcher's blur gone under glass-on that edge showed
+  // through the tint as a lighter band inside the pill. A click on the tab is a click on the
+  // switcher, so a hover on it is a hover on the switcher: the switcher's hover rules (fallback
+  // edge and film, glass-on tint and film) also match through `:has(> tab:hover)`, and no rule
+  // lights the tab itself.
+  it('liquid-glass: hovering the elsewhere tab hovers the switcher, never the tab itself', () => {
+    const css = liquidGlassRules()
+    const GROUP = ":has(> [data-testid='workspace-elsewhere-tab']:hover) >"
+    const sels = css.flatMap((x) => x.selectors)
+    expect(
+      sels.filter((sel) => sel.endsWith("[data-testid='workspace-elsewhere-tab']:hover"))
+    ).toEqual([])
+    const switcherHover = css.filter((x) =>
+      x.selectors.some(
+        (sel) =>
+          sel.includes("[data-testid='workspace-switcher']") &&
+          sel.endsWith(':hover') &&
+          !sel.includes(':has(')
+      )
+    )
+    expect(switcherHover.length).toBeGreaterThanOrEqual(3)
+    for (const rule of switcherHover) {
+      expect(
+        rule.selectors.some(
+          (sel) => sel.includes(GROUP) && sel.includes("[data-testid='workspace-switcher']")
+        ),
+        rule.selectors.join(',\n')
+      ).toBe(true)
+    }
+    const controlHover = css.filter((x) =>
+      x.selectors.some(
+        (sel) =>
+          sel.startsWith(":root[data-glass-on] [data-glass='control']") && sel.endsWith(':hover')
+      )
+    )
+    expect(controlHover.length).toBeGreaterThan(0)
+    for (const sel of controlHover.flatMap((x) => x.selectors)) {
+      expect(sel, sel).toContain(":not([data-testid='workspace-elsewhere-tab'])")
+    }
+  })
   // Owner, 2026-10-08: the overlay glass follows the pointer like the board. The app writes
   // --glass-light on the one surface under it; only that element's rim changes (at rest, today's).
   it('liquid-glass lights the overlay rims from --glass-light, only where it is set', () => {
