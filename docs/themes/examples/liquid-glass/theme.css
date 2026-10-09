@@ -415,9 +415,9 @@ body {
   --glass-row-fill: rgba(255, 255, 255, 0.05);
 }
 :root[data-glass-on] {
-  --glass-row-fill: rgba(255, 255, 255, 0.15);
+  --glass-row-fill: rgba(255, 255, 255, 0.1);
   --glass-pop-filter: var(--glass-filter) brightness(2);
-  --glass-pop-glow: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent 35%);
+  --glass-pop-glow: linear-gradient(to bottom, rgba(255, 255, 255, 0.03), transparent 35%);
 }
 
 /* Every popover ROW is a bubble (operator, 2026-10-01): the workspace switcher's material at a
@@ -639,9 +639,9 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
 :root[data-glass-on] {
   --glass-control-sheen: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.05),
-    rgba(255, 255, 255, 0.02) 15%,
-    rgba(255, 255, 255, 0.006) 30%,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.012) 15%,
+    rgba(255, 255, 255, 0.004) 30%,
     transparent 45%
   );
 }
