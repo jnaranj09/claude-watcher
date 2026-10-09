@@ -664,7 +664,7 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       .filter((x) => x.selectors.includes(':root[data-glass-on]'))
       .map((x) => x.body)
       .join('\n')
-    expect(on).toMatch(/--glass-row-fill:\s*rgba\(255,\s*255,\s*255,\s*0\.1\)/)
+    expect(on).toMatch(/--glass-row-fill:\s*rgba\(255,\s*255,\s*255,\s*0\.065\)/)
     expect(on).toMatch(/--glass-pop-filter:\s*var\(--glass-filter\)\s*brightness\(2\)/)
     expect(on).toMatch(/--glass-pop-glow:\s*linear-gradient\(\s*to bottom/)
     // Every row fill reads the variable (rest, hover, state), never a fixed white.
@@ -816,9 +816,10 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       exposure: 1.8,
       // lift/glow a little lower than the canvas: owner, 2026-10-08 ("a tiny bit more transparent");
       // glow lower again, 2026-10-09 ("decrease the overall white inner glow"), and again ("bring
-      // the white glow lower a little"), and again ("its too white"): lift too, both add white.
-      lift: 0.02,
-      glow: 0.012,
+      // the white glow lower a little"), and again ("its too white"): lift too, both add white;
+      // and once more ("reduce the white one more time").
+      lift: 0.013,
+      glow: 0.008,
       lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
@@ -833,7 +834,7 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
         Object.fromEntries(
           Object.entries(r.bundle.glass?.surfaces ?? {}).map(([k, v]) => [k, v.glow])
         )
-    ).toEqual({ header: 0.018, column: 0.008, card: 0.012, control: 0.015, field: 0.015 })
+    ).toEqual({ header: 0.012, column: 0.005, card: 0.008, control: 0.01, field: 0.01 })
     // Owner, 2026-10-08: the big bodies (header, columns, the focused box) keep a fixed light;
     // the small surfaces follow the pointer.
     expect(r.ok && r.bundle.glass?.surfaces.header.lightFollowsCursor).toBe(false)
