@@ -528,8 +528,8 @@ describe('FocusedSession — the wall stops at the active tab', () => {
     const pinnedChrome = block(rail, /^\.pinnedSlot::before\s*\{([^}]*)/m)
     const active = block(rail, /^\.active\s*\{([^}]*)/m)
 
-    // The wall exists, on the tiling layers...
-    expect(railChrome).toMatch(/background:\s*var\(--bg-surface\)/)
+    // The wall exists, on the tiling layers (their surface is pinned by
+    // AttentionRail.surface.styles.test.ts)...
     expect(railChrome).toMatch(/border-right:\s*1px solid var\(--border\)/)
     // ...continued through the slot's own span by two wall stubs (the linear-gradient layers), one
     // above the shoulders and one below.

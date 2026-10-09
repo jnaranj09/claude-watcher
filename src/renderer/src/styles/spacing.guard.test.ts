@@ -52,7 +52,9 @@ const ALLOWED = new Set([
   // it swallowed, so the dot stays centred over the square.
   'components/attention/AttentionRail.module.css padding-right: calc(var(--rail-tab-inset) + 2px)',
   'components/attention/AttentionRail.module.css margin-right: calc(var(--rounded-md) - 1px)',
-  'components/attention/AttentionRail.module.css padding-right: calc(var(--rail-tab-inset) + 2px - var(--rounded-md))'
+  'components/attention/AttentionRail.module.css padding-right: calc(var(--rail-tab-inset) + 2px - var(--rounded-md))',
+  // Geometry: the rail's header layer clips its surface below the top bar row (rail surface hooks).
+  'components/attention/AttentionRail.module.css padding-top: var(--topbar-height)'
 ])
 
 function offenders(): string[] {

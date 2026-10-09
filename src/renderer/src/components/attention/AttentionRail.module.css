@@ -77,19 +77,33 @@
   left: 0;
   right: 0;
   z-index: -1;
-  background: var(--bg-surface);
   border-right: 1px solid var(--border);
   pointer-events: none;
 }
 
+/* The surface. Read through `--rail-surface` (the whole rail) and `--rail-surface-top` (the top bar
+ * row only — this header and the focused view's bar), never `--bg-surface` directly: the rail is
+ * four layers (these two, `.pinnedSlot::before`, FocusedSession's `.bar`), and a theme sets the
+ * surface once. Defaults live here as fallbacks, never as a declaration: a declaration on the rail
+ * would beat a theme's `:root` value. A guard test pins it (AttentionRail.surface.styles.test.ts).
+ * The top bar row: the background is clipped to the content box, which starts `--topbar-height`
+ * down (the padding), and an inset shadow that tall paints the row (inside the wall). The two never
+ * overlap, so translucent values do not add up, and the row stays the top bar row even when this
+ * layer is full height (no pinned slot). Not a gradient: Chromium dithers gradients (±1 level of
+ * noise, measured), and with neither hook set the rail must paint exactly a plain `--bg-surface`. */
 .rail::before {
   top: 0;
   bottom: anchor(--rail-pinned top, 0);
+  padding-top: var(--topbar-height);
+  background: var(--rail-surface, var(--bg-surface)) content-box;
+  box-shadow: inset 0 var(--topbar-height)
+    var(--rail-surface-top, var(--rail-surface, var(--bg-surface)));
 }
 
 .rail::after {
   top: anchor(--rail-pinned bottom, 100%);
   bottom: 0;
+  background: var(--rail-surface, var(--bg-surface));
 }
 
 .rail.collapsed {
@@ -231,7 +245,7 @@
  *        `--rounded-md`, centred on the corner FURTHEST from the tab — the same gradient the
  *        old flares used, minus the fills. Tangent to the wall at its outer end and to the
  *        tab's straight border at its inner end.
- *   5.   the SURFACE.
+ *   5.   the SURFACE (`--rail-surface`, see `.rail::before`).
  *
  * MASK (alpha; what is KEPT): everything, minus —
  *   a. the tab's body: from `--rounded-md + 1px` right of the tab's left edge to the far edge,
@@ -280,7 +294,7 @@
       )
       right 0 bottom calc(var(--space-3) - var(--rounded-md) + 1px - var(--rail-bounce)) /
       var(--rounded-md) calc(var(--rounded-md) + 1px) no-repeat,
-    var(--bg-surface);
+    var(--rail-surface, var(--bg-surface));
   mask-image:
     linear-gradient(black, black), linear-gradient(black, black), linear-gradient(black, black),
     radial-gradient(circle at 0 0, transparent var(--rounded-md), black var(--rounded-md)),

@@ -29,11 +29,11 @@
  *
  * This bar draws NO `border-left`. The rail's own `border-right` (AttentionRail.module.css
  * `.rail`) runs the FULL height, this strip included, so it already separates the rail header from
- * this bar — both are `--bg-surface` and would otherwise read as one strip. A border here would sit
- * immediately alongside that wall, not on top of it: the rail's line lands on the last pixel INSIDE
- * its 240px box and this one on the first pixel outside, so the seam paints 2px wide across the top
- * strip and 1px everywhere below — a line that visibly thickens exactly where the eye crosses into
- * the terminal. The bar carried this border during the window when the rail had no wall at all;
+ * this bar — both are `--rail-surface-top` (AttentionRail.module.css `.rail::before`) and would
+ * otherwise read as one strip. A border here would sit immediately alongside that wall, not on top
+ * of it: the rail's line lands on the last pixel INSIDE its 240px box and this one on the first
+ * pixel outside, so the seam paints 2px wide across the top strip and 1px everywhere below — a line
+ * that visibly thickens exactly where the eye crosses into the terminal. The bar carried this border during the window when the rail had no wall at all;
  * the wall's return is what made it a duplicate. */
 .bar {
   display: flex;
@@ -45,7 +45,7 @@
      style lives in this module. */
   padding: var(--inset-compact-y) var(--inset-item-x);
   border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
+  background: var(--rail-surface-top, var(--rail-surface, var(--bg-surface)));
   flex: 0 0 auto;
   height: var(--topbar-height);
 }
