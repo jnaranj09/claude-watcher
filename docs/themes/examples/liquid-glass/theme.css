@@ -1092,3 +1092,10 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
 :root[data-glass-on] [data-testid='attention-rail']::after {
   background: rgba(255, 255, 255, 0.03);
 }
+/* The pinned slot paints its own copy of the surface around the active tab (the notch layer): the
+   strip above the tab carries the top band's 1.5%, the strip below the body's 3%. The 50% split
+   sits behind the tab, which the notch cuts out (owner, 2026-10-09: the full 6% read as a whiter
+   band under the tab). */
+:root[data-glass-on] [data-testid='rail-pinned-slot']::before {
+  --bg-surface: linear-gradient(rgba(255, 255, 255, 0.015) 50%, rgba(255, 255, 255, 0.03) 50%);
+}

@@ -618,6 +618,20 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       )
     }
   })
+  // Owner, 2026-10-09: the pinned slot (the strips above and below the active tab) painted the
+  // full --bg-surface (6%) and read as a whiter band under the tab. Its surface is the top band's
+  // 1.5% above the tab and the rail body's 3% below; the split sits behind the tab.
+  it('liquid-glass: the pinned slot carries the rail films while the WebGL glass is on', () => {
+    const body = liquidGlassRules()
+      .filter((x) =>
+        x.selectors.includes(":root[data-glass-on] [data-testid='rail-pinned-slot']::before")
+      )
+      .map((x) => x.body)
+      .join('\n')
+    expect(body).toMatch(
+      /--bg-surface:\s*linear-gradient\(\s*rgba\(255,\s*255,\s*255,\s*0\.015\)\s*50%,\s*rgba\(255,\s*255,\s*255,\s*0\.03\)\s*50%\s*\)/
+    )
+  })
   // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
   // (background: transparent on every hooked control) wiped it. It keeps --ws-fill over the glass.
   it('liquid-glass: the workspace switcher keeps its workspace tint while the WebGL glass is on', () => {
