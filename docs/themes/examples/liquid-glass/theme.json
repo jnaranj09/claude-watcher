@@ -79,7 +79,7 @@
         "tint": "#0e0e10",
         "tintAmount": 0.3,
         "rim": 0.3,
-        "exposure": 1.6,
+        "exposure": 2.0,
         "lift": 0.04,
         "glow": 0.045,
         "lightFollowsCursor": false
@@ -92,7 +92,7 @@
         "tint": "#0e0e10",
         "tintAmount": 0.25,
         "rim": 0.26,
-        "exposure": 1.5,
+        "exposure": 1.9,
         "lift": 0.03,
         "glow": 0.02,
         "tintNeedsYou": "#2a2414",
@@ -106,7 +106,7 @@
         "tint": "#0e0e10",
         "tintAmount": 0.36,
         "rim": 0.26,
-        "exposure": 1.4,
+        "exposure": 1.8,
         "lift": 0.03,
         "glow": 0.03,
         "lightFollowsCursor": true
@@ -119,7 +119,7 @@
         "tint": "#0e0e10",
         "tintAmount": 0.22,
         "rim": 0.27,
-        "exposure": 1.6,
+        "exposure": 2.0,
         "lift": 0.05,
         "glow": 0.035,
         "lightFollowsCursor": true
@@ -132,7 +132,7 @@
         "tint": "#0e0e10",
         "tintAmount": 0.4,
         "rim": 0.27,
-        "exposure": 1.6,
+        "exposure": 2.0,
         "lift": 0.05,
         "glow": 0.035,
         "lightFollowsCursor": true

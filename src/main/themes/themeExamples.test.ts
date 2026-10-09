@@ -695,7 +695,9 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       tintAmount: 0.36,
       // 0.26, not the canvas 0.3: owner, 2026-10-08 ("a little less bright").
       rim: 0.26,
-      exposure: 1.4,
+      // +0.4 over the canvas (1.4): owner, 2026-10-09 ("add brightness to the app"). Exposure
+      // brightens what shows through the glass without the white fog lift/glow add.
+      exposure: 1.8,
       // lift/glow a little lower than the canvas: owner, 2026-10-08 ("a tiny bit more transparent");
       // glow lower again, 2026-10-09 ("decrease the overall white inner glow").
       lift: 0.03,
@@ -703,6 +705,12 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
+    expect(
+      r.ok &&
+        Object.fromEntries(
+          Object.entries(r.bundle.glass?.surfaces ?? {}).map(([k, v]) => [k, v.exposure])
+        )
+    ).toEqual({ header: 2, column: 1.9, card: 1.8, control: 2, field: 2 })
     // Owner, 2026-10-08: the big bodies (header, columns, the focused box) keep a fixed light;
     // the small surfaces follow the pointer.
     expect(r.ok && r.bundle.glass?.surfaces.header.lightFollowsCursor).toBe(false)
