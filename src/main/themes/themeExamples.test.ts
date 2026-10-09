@@ -645,6 +645,25 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
     )
     expect(tinted.map((x) => x.body).join('\n')).toMatch(/background-color:\s*var\(--ws-fill/)
   })
+  // Drive 2026-10-09: the glass-on clear sets `content: none` on every hooked surface's ::before,
+  // and the elsewhere tab's ::before is the APP's baseline strut — without it the tab's pill fell
+  // to the top of the tab (y=22 against the switcher's own pill at y=27). Only the ::after clear
+  // reaches the tab.
+  it('liquid-glass: the glass-on clear leaves the elsewhere tab its baseline strut (::before)', () => {
+    const clears = liquidGlassRules().filter(
+      (x) =>
+        /content:\s*none/.test(x.body) &&
+        x.selectors.some((sel) =>
+          sel.startsWith(':root[data-glass-on] [data-glass][data-glass][data-glass]')
+        )
+    )
+    expect(clears.length).toBeGreaterThan(0)
+    const befores = clears.flatMap((x) => x.selectors).filter((sel) => sel.endsWith('::before'))
+    expect(befores.length).toBeGreaterThan(0)
+    for (const sel of befores) {
+      expect(sel, sel).toContain(":not([data-testid='workspace-elsewhere-tab'])")
+    }
+  })
   // Owner, 2026-10-08: the overlay glass follows the pointer like the board. The app writes
   // --glass-light on the one surface under it; only that element's rim changes (at rest, today's).
   it('liquid-glass lights the overlay rims from --glass-light, only where it is set', () => {

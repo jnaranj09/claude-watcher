@@ -851,10 +851,12 @@ section[data-column]::after,
   -webkit-backdrop-filter: none;
   filter: none;
 }
+/* The elsewhere tab's `::before` is the APP's baseline strut, not a ring (its one ring is the
+   `::after`): clearing it dropped the tab's pill to the top of the tab (drive 2026-10-09). */
 :root[data-glass-on]
   [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *)::before,
+  ):not([data-toast] *):not([data-testid='workspace-elsewhere-tab'])::before,
 :root[data-glass-on]
   [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
