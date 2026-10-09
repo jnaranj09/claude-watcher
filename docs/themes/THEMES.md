@@ -362,8 +362,8 @@ What you can target:
   above, around and below the active tab, and the bar). Change their surface with two custom
   properties, never by styling the layers: `--rail-surface` (the whole rail; unset = `--bg-surface`)
   and `--rail-surface-top` (only the top bar row: the rail's header and the focused bar; unset =
-  `--rail-surface`). Both take a colour (no gradient or image). Set them on `:root` or any
-  ancestor. Liquid Glass sets both under `:root[data-glass-on]`.
+  `--rail-surface`). Both take a colour (no gradient or image). Set them on an ancestor of both the
+  rail and the bar, normally `:root`. Liquid Glass sets both under `:root[data-glass-on]`.
 - **Motion states.** A popover, dialog or toast that is closing keeps its box for 150 ms with
   `[data-leaving]`; a modal overlay carries `[data-motion="dialog"]`. `<html>` carries
   `[data-input="keyboard"]` or `[data-input="pointer"]` (the last input), and anything opened or

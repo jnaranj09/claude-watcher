@@ -51,7 +51,11 @@ describe('the rail surface hooks', () => {
     const before = rule(rail, '.rail::before')
     expect(before).toContain('padding-top:var(--topbar-height);')
     expect(before).toContain(`background:${RAIL}content-box;`)
-    expect(before).toContain(`box-shadow:inset0var(--topbar-height)${TOP};`)
+    // The wall is the first shadow, not the shared border-right: the content-box background and an
+    // inset shadow both stop at the padding edge, so a border would have no surface under it, and
+    // a translucent --border would step at the slot (review 2026-10-09).
+    expect(before).toContain('border-right:0;')
+    expect(before).toContain(`box-shadow:inset-1px0var(--border),inset0var(--topbar-height)${TOP};`)
     expect(rule(rail, '.rail::after')).toContain(`background:${RAIL}`)
     expect(rule(rail, '.pinnedSlot::before')).toMatch(new RegExp(`${escape(RAIL)};`))
     expect(rule(bar, '.bar')).toContain(`background:${TOP}`)

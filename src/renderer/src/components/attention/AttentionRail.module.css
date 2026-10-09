@@ -96,8 +96,13 @@
   bottom: anchor(--rail-pinned top, 0);
   padding-top: var(--topbar-height);
   background: var(--rail-surface, var(--bg-surface)) content-box;
-  box-shadow: inset 0 var(--topbar-height)
-    var(--rail-surface-top, var(--rail-surface, var(--bg-surface)));
+  /* The wall is the first shadow here, not the shared `border-right`: the content-box background
+   * and the inset shadow both stop at the padding edge, so a border would have no surface under
+   * it, and a translucent `--border` would step where the slot begins. Same pixel column. */
+  border-right: 0;
+  box-shadow:
+    inset -1px 0 var(--border),
+    inset 0 var(--topbar-height) var(--rail-surface-top, var(--rail-surface, var(--bg-surface)));
 }
 
 .rail::after {

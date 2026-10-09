@@ -145,6 +145,18 @@ async function railSeams(page, png) {
   const out = {
     top: frames('lum', png, topX, midY, w, 4, g.bar.left + g.bar.width * 0.5, midY, 60, 4)
   }
+  // The wall (the rail's last px column) against the surface 3px inside it: a = the step in the
+  // top bar row, b = the step below the slot. Equal when the surface runs under the wall on both
+  // layers (review 2026-10-09: a translucent --border stepped at the slot).
+  const wallX = Math.round(g.rail.right) - 1
+  const step = (y) => {
+    const v = frames('lum', png, wallX, y, 1, 4, wallX - 3, y, 1, 4)
+    return v.a - v.b
+  }
+  const slotBottom = g.slot ? g.slot.bottom : g.header.bottom
+  const wa = step(midY)
+  const wb = step(slotBottom + 20)
+  out.wall = { a: wa, b: wb, diff: Math.abs(wa - wb) }
   if (g.slot && g.tab) {
     out.below = frames('lum', png, x, g.tab.bottom + 3, w, 4, x, g.slot.bottom + 3, w, 4)
     out.above = frames('lum', png, x, g.slot.top + 2, w, 4, x, g.header.bottom - 8, w, 4)
