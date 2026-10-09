@@ -1093,24 +1093,13 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
-/* The rail and the focused view's top bar (owner, 2026-10-08): both paint `--bg-surface` (white 6%)
-   OVER the focused box's WebGL glass, so they read whiter than the header, which shows the glass
-   alone. Under glass-on the film is 3%: still a panel, so the active tab reads as a cut into it
-   (with no film the rail, the tab and the area around the terminal were one glass and the wall
-   lines outlined empty boxes). The top band — the rail above the tab, and the bar — carries 1.5%
-   (owner, 2026-10-09: it read as a whiter box): the box's glass is brighter at the top. Drive,
-   Bridge, with the 2026-10-09 glows: header 31.4, top band 34.3 (was 39.1), rail body 28.7. */
-:root[data-glass-on] [data-testid='attention-rail']::before,
-:root[data-glass-on] [data-focused-bar] {
-  background: rgba(255, 255, 255, 0.015);
-}
-:root[data-glass-on] [data-testid='attention-rail']::after {
-  background: rgba(255, 255, 255, 0.03);
-}
-/* The pinned slot paints its own copy of the surface around the active tab (the notch layer): the
-   strip above the tab carries the top band's 1.5%, the strip below the body's 3%. The 50% split
-   sits behind the tab, which the notch cuts out (owner, 2026-10-09: the full 6% read as a whiter
-   band under the tab). */
-:root[data-glass-on] [data-testid='rail-pinned-slot']::before {
-  --bg-surface: linear-gradient(rgba(255, 255, 255, 0.015) 50%, rgba(255, 255, 255, 0.03) 50%);
+/* The rail and the focused view's top bar (owner, 2026-10-08/09): they paint the app's rail surface
+   OVER the focused box's WebGL glass, so at the 6% `--bg-surface` they read whiter than the header,
+   which shows the glass alone. Under glass-on the rail is 3%: still a panel, so the active tab
+   reads as a cut into it (with no film the rail, the tab and the area around the terminal were one
+   glass and the wall lines outlined empty boxes). The top bar row is 1.5%: the box's glass is
+   brighter at the top. Set once through the app's surface hooks (THEMES.md "Surface hooks"). */
+:root[data-glass-on] {
+  --rail-surface: rgba(255, 255, 255, 0.03);
+  --rail-surface-top: rgba(255, 255, 255, 0.015);
 }

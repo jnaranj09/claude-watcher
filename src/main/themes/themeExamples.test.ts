@@ -596,41 +596,28 @@ describe('docs/themes/examples', () => {
 })
 
 describe('liquid-glass v2 (spec 2026-10-08)', () => {
-  // Owner, 2026-10-08: the rail and the focused top bar paint a white film over the WebGL glass,
-  // so they read whiter than the header; under glass-on the film is a lighter 3% (none at all
-  // made the rail, the tab and the area around the terminal one glass: no cut). Owner, 2026-10-09:
-  // the top band (the rail above the tab, and the bar) still read as a whiter box — the box's
-  // glass is brighter at the top — so it carries 1.5%.
-  it('liquid-glass: the rail and the focused bar carry a lighter film while the WebGL glass is on', () => {
+  // Owner, 2026-10-08/09: the rail and the focused top bar paint a white film over the WebGL glass;
+  // under glass-on it is 3%, and 1.5% on the top bar row, where the box's glass is brighter (none
+  // made the rail, the tab and the area around the terminal one glass: no cut). Set through the
+  // app's surface hooks, once (spec 2026-10-09 rail surface hooks), and only under glass-on: the
+  // CSS fallback keeps the 6% --bg-surface.
+  it('liquid-glass sets the rail surface hooks under glass-on only', () => {
     const css = liquidGlassRules()
-    const body = (sel: string): string =>
-      css
-        .filter((x) => x.selectors.includes(sel))
-        .map((x) => x.body)
-        .join('\n')
-    for (const [sel, alpha] of [
-      [":root[data-glass-on] [data-testid='attention-rail']::before", '0\\.015'],
-      [':root[data-glass-on] [data-focused-bar]', '0\\.015'],
-      [":root[data-glass-on] [data-testid='attention-rail']::after", '0\\.03']
-    ] as const) {
-      expect(body(sel), sel).toMatch(
-        new RegExp(`background:\\s*rgba\\(255,\\s*255,\\s*255,\\s*${alpha}\\)`)
+    const hooks = css.filter((x) => /--rail-surface/.test(x.body))
+    expect(hooks.flatMap((x) => x.selectors)).toEqual([':root[data-glass-on]'])
+    const body = hooks.map((x) => x.body).join('\n')
+    expect(body).toMatch(/--rail-surface:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/)
+    expect(body).toMatch(/--rail-surface-top:\s*rgba\(255,\s*255,\s*255,\s*0\.015\)/)
+    // No layer is styled one by one any more (and no test id is targeted for it).
+    const layered = css.filter((x) =>
+      x.selectors.some(
+        (sel) =>
+          /attention-rail'\]::(before|after)$/.test(sel) ||
+          sel.includes('rail-pinned-slot') ||
+          /\[data-focused-bar\]$/.test(sel)
       )
-    }
-  })
-  // Owner, 2026-10-09: the pinned slot (the strips above and below the active tab) painted the
-  // full --bg-surface (6%) and read as a whiter band under the tab. Its surface is the top band's
-  // 1.5% above the tab and the rail body's 3% below; the split sits behind the tab.
-  it('liquid-glass: the pinned slot carries the rail films while the WebGL glass is on', () => {
-    const body = liquidGlassRules()
-      .filter((x) =>
-        x.selectors.includes(":root[data-glass-on] [data-testid='rail-pinned-slot']::before")
-      )
-      .map((x) => x.body)
-      .join('\n')
-    expect(body).toMatch(
-      /--bg-surface:\s*linear-gradient\(\s*rgba\(255,\s*255,\s*255,\s*0\.015\)\s*50%,\s*rgba\(255,\s*255,\s*255,\s*0\.03\)\s*50%\s*\)/
     )
+    expect(layered).toEqual([])
   })
   // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
   // (background: transparent on every hooked control) wiped it. It keeps --ws-fill over the glass.

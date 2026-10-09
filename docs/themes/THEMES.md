@@ -358,6 +358,12 @@ What you can target:
 - **Settings groups.** `[data-settings-group]` wraps the fields of one Settings pane. The app draws
   nothing there; a theme may give it a fill, an edge and padding (Liquid Glass draws an inset glass
   group).
+- **Surface hooks.** The focused view's rail and its top bar are drawn by several layers (the rail
+  above, around and below the active tab, and the bar). Change their surface with two custom
+  properties, never by styling the layers: `--rail-surface` (the whole rail; unset = `--bg-surface`)
+  and `--rail-surface-top` (only the top bar row: the rail's header and the focused bar; unset =
+  `--rail-surface`). Both take a colour (no gradient or image). Set them on `:root` or any
+  ancestor. Liquid Glass sets both under `:root[data-glass-on]`.
 - **Motion states.** A popover, dialog or toast that is closing keeps its box for 150 ms with
   `[data-leaving]`; a modal overlay carries `[data-motion="dialog"]`. `<html>` carries
   `[data-input="keyboard"]` or `[data-input="pointer"]` (the last input), and anything opened or

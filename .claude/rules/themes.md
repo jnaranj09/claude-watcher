@@ -42,7 +42,8 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
 - **Public hooks (every theme):** `data-glass="header|column|card|control|field"` (values pinned to
   `GLASS_SURFACES` by `glassHooks.guard`), `data-app-menu`, `data-column-header`,
   `data-column-mark` (hidden by the app), `data-count-sep`, `data-focused-bar` (the focused view's
-  top bar). `control` = enabled primary/secondary
+  top bar). Custom properties `--rail-surface` / `--rail-surface-top` (the rail's surface and its
+  top bar row; the only way to change it — `AttentionRail.surface.styles.test`). `control` = enabled primary/secondary
   `Button` (not lit, busy or disabled), the workspace switcher and its elsewhere tab.
 - `nativeTheme.themeSource` + root `color-scheme` follow the theme's `colorScheme`
   (`themeLifecycle.ts`, `hooks/useApplyTheme.ts`).
