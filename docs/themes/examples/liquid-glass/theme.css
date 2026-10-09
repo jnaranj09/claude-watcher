@@ -1077,3 +1077,13 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
   background-color: var(--ws-fill, transparent);
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
+
+/* The rail and the focused view's top bar (owner, 2026-10-08): both paint `--bg-surface` (white 6%)
+   OVER the focused box's WebGL glass, so they read whiter than the header, which shows the glass
+   alone. Under glass-on they show the glass alone too (drive, Bridge: the top band 37 -> ~30, the
+   header 30). The rail stays its own panel through its wall line, its rows and the tab. */
+:root[data-glass-on] [data-testid='attention-rail']::before,
+:root[data-glass-on] [data-testid='attention-rail']::after,
+:root[data-glass-on] [data-focused-bar] {
+  background: transparent;
+}

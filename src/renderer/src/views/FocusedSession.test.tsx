@@ -152,6 +152,15 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(new Set(terms)).toEqual(new Set(['launch-a', 'launch-b']))
   })
 
+  // A theme hook (owner, 2026-10-08): Liquid Glass tunes the bar's white film under the WebGL glass.
+  it('the top bar carries the data-focused-bar hook, holding the Board button', () => {
+    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
+    const r = render()
+    const bar = r.container.querySelector('[data-focused-bar]')
+    expect(bar).not.toBeNull()
+    expect(bar?.querySelector('[data-testid="focused-back"]') ?? null).not.toBeNull()
+  })
+
   it('the "← Board" affordance calls onBack (Esc-to-Board equivalent)', () => {
     boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     const onBack = vi.fn()

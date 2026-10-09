@@ -229,7 +229,7 @@ export function FocusedSession({
         {...(onManageTags ? { onManageTags } : {})}
       />
       <div className={styles.main}>
-        <div className={styles.bar}>
+        <div className={styles.bar} data-focused-bar>
           <Button
             variant="secondary"
             size="sm"
