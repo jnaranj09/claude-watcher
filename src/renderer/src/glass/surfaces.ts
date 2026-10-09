@@ -9,10 +9,14 @@ export interface GlassRect {
   height: number
 }
 export type GlassStatus = 'working' | 'needs-you' | 'idle'
+/** Corner radii in CSS order: top-left, top-right, bottom-right, bottom-left (CSS px). */
+export type GlassRadii = readonly [number, number, number, number]
 export interface SurfaceInput {
   kind: GlassSurface
   rect: GlassRect
-  radius: number
+  radii: GlassRadii
+  /** Computed z-index (`auto` = 0): a lower one is drawn first within its level. */
+  z: number
   parent: number | null
   status: GlassStatus | null
   clip: GlassRect | null
@@ -21,7 +25,7 @@ export interface SurfaceInput {
 export interface DrawItem {
   kind: GlassSurface
   rect: GlassRect
-  radius: number
+  radii: GlassRadii
   level: 1 | 2
   status: GlassStatus | null
   clip: GlassRect | null
@@ -36,23 +40,27 @@ function intersects(a: GlassRect, b: GlassRect): boolean {
   )
 }
 
+/** Level 1 (on the wallpaper) before level 2 (on another glass); within a level, a lower z-index
+ *  first, so a surface tucked under its neighbour (the switcher's elsewhere tab) is drawn under it.
+ *  DOM order otherwise (the sort is stable). */
 export function buildDrawList(inputs: readonly SurfaceInput[]): DrawItem[] {
-  const level1: DrawItem[] = []
-  const level2: DrawItem[] = []
+  const level1: { z: number; item: DrawItem }[] = []
+  const level2: { z: number; item: DrawItem }[] = []
   for (const s of inputs) {
     if (s.hidden || s.rect.width < 2 || s.rect.height < 2) continue
     if (s.clip !== null && !intersects(s.rect, s.clip)) continue
     const item: DrawItem = {
       kind: s.kind,
       rect: s.rect,
-      radius: s.radius,
+      radii: s.radii,
       level: s.parent === null ? 1 : 2,
       status: s.status,
       clip: s.clip
     }
-    ;(item.level === 1 ? level1 : level2).push(item)
+    ;(item.level === 1 ? level1 : level2).push({ z: s.z, item })
   }
-  return [...level1, ...level2]
+  const byZ = (a: { z: number }, b: { z: number }): number => a.z - b.z
+  return [...level1.sort(byZ), ...level2.sort(byZ)].map((x) => x.item)
 }
 
 const q = (n: number): number => Math.round(n)
@@ -114,7 +122,8 @@ export function collectSurfaces(doc: Document): SurfaceInput[] {
     out.push({
       kind,
       rect: { left: b.left, top: b.top, width: b.width, height: b.height },
-      radius: Math.min(parseFloat(style.borderTopLeftRadius) || 0, b.width / 2, b.height / 2),
+      radii: radiiOf(style, b.width, b.height),
+      z: parseInt(style.zIndex, 10) || 0,
       parent: parentEl === null ? null : (index.get(parentEl) ?? null),
       status: isStatus(column) ? column : null,
       clip,
@@ -122,6 +131,19 @@ export function collectSurfaces(doc: Document): SurfaceInput[] {
     })
   }
   return out
+}
+
+/** Each corner from its longhand (a theme may round only some: the elsewhere tab is square on the
+ *  left), capped at half the box like CSS. */
+function radiiOf(style: CSSStyleDeclaration, width: number, height: number): GlassRadii {
+  const cap = Math.min(width / 2, height / 2)
+  const c = (v: string): number => Math.min(parseFloat(v) || 0, cap)
+  return [
+    c(style.borderTopLeftRadius),
+    c(style.borderTopRightRadius),
+    c(style.borderBottomRightRadius),
+    c(style.borderBottomLeftRadius)
+  ]
 }
 
 function intersect(a: GlassRect, b: GlassRect): GlassRect {

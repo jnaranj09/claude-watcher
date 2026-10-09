@@ -27,10 +27,15 @@ void main() {
 /** One glass surface. u_preblurred = 1: the backdrop is already frosted (level 1). */
 export const GLASS = `#version 300 es
 precision highp float;
-uniform sampler2D u_bd; uniform vec2 u_res; uniform vec4 u_box; uniform float u_r; uniform float u_dpr;
+uniform sampler2D u_bd; uniform vec2 u_res; uniform vec4 u_box; uniform vec4 u_r; uniform float u_dpr;
 uniform float u_refract, u_edge, u_blur, u_chroma, u_tintAmt, u_rim, u_exposure, u_lift, u_glow, u_lightAngle;
 uniform int u_preblurred; uniform vec3 u_tint; uniform vec4 u_status; out vec4 o;
-float sdBox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+// u_r: one radius per corner, device px — x top-right, y bottom-right, z top-left, w bottom-left
+// (gl_FragCoord's +y is UP, so p.y > 0 is the top half).
+float sdBox(vec2 p, vec2 b, vec4 r) {
+  r.xy = p.x > 0.0 ? r.xy : r.zw; float k = p.y > 0.0 ? r.x : r.y;
+  vec2 q = abs(p) - b + k; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - k;
+}
 float D(vec2 f) { return -sdBox(f - u_box.xy, u_box.zw, u_r); }
 vec3 frost(vec2 uv) {
   if (u_preblurred == 1) return texture(u_bd, uv).rgb;

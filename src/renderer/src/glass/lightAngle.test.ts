@@ -23,7 +23,7 @@ describe('surfaceAt', () => {
       {
         kind: 'column',
         rect: { left: 0, top: 0, width: 300, height: 600 },
-        radius: 24,
+        radii: [24, 24, 24, 24],
         level: 1,
         status: null,
         clip: null
@@ -31,7 +31,7 @@ describe('surfaceAt', () => {
       {
         kind: 'card',
         rect: { left: 10, top: 10, width: 200, height: 80 },
-        radius: 12,
+        radii: [12, 12, 12, 12],
         level: 2,
         status: null,
         clip: null

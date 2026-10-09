@@ -8,7 +8,8 @@ import {
 } from './surfaces'
 
 const base: Omit<SurfaceInput, 'kind' | 'rect' | 'parent'> = {
-  radius: 12,
+  radii: [12, 12, 12, 12],
+  z: 0,
   status: null,
   clip: null,
   hidden: false
@@ -32,6 +33,18 @@ describe('buildDrawList', () => {
       ['header', 1],
       ['card', 2]
     ])
+  })
+
+  // The workspace switcher's elsewhere tab (z-index 0) is tucked under the switcher (z-index 1) but
+  // comes AFTER it in the DOM: drawn in DOM order, its glass covered the switcher's end.
+  it('draws a lower z-index first within a level, DOM order otherwise', () => {
+    const list = buildDrawList([
+      { ...base, kind: 'header', rect: r(0, 0, 900, 48), parent: null },
+      { ...base, kind: 'control', rect: r(10, 8, 80, 32), parent: 0, z: 1 },
+      { ...base, kind: 'control', rect: r(80, 10, 40, 28), parent: 0, z: 0 },
+      { ...base, kind: 'control', rect: r(700, 8, 80, 32), parent: 0 }
+    ])
+    expect(list.map((i) => i.rect.left)).toEqual([0, 80, 700, 10])
   })
 
   it('skips hidden and sub-2px surfaces (the inactive view is visibility:hidden)', () => {
@@ -124,8 +137,30 @@ describe('collectSurfaces', () => {
     expect(out[0]?.parent).toBeNull()
     expect(out[1]?.parent).toBe(0)
     expect(out[1]?.clip).toEqual({ left: 0, top: 100, width: 900, height: 400 }) // only the grid clips (the section's overflow is visible)
-    expect(out[1]?.radius).toBe(12)
+    expect(out[1]?.radii).toEqual([12, 0, 0, 0])
     expect('opacity' in (out[1] ?? {})).toBe(false)
+  })
+
+  // The elsewhere tab is square on the left, round on the right: one corner's radius drew it square.
+  it('reads all four corner radii and the z-index', () => {
+    document.body.innerHTML = `
+      <button id="sw" data-glass="control" style="position: relative; z-index: 1"></button>
+      <span id="tab" data-glass="control" style="position: relative; z-index: 0; border-top-left-radius: 0px; border-top-right-radius: 12px; border-bottom-right-radius: 10px; border-bottom-left-radius: 0px"></span>`
+    const boxes: Record<string, DOMRect> = { sw: rect(10, 8, 80, 32), tab: rect(80, 10, 44, 28) }
+    for (const [id, b] of Object.entries(boxes)) {
+      const el = document.getElementById(id)
+      if (el) el.getBoundingClientRect = () => b
+    }
+    const out = collectSurfaces(document)
+    expect(out.map((s) => s.z)).toEqual([1, 0])
+    expect(out[1]?.radii).toEqual([0, 12, 10, 0])
+  })
+
+  it('caps each corner at half the box, like CSS', () => {
+    document.body.innerHTML = `<span id="pill" data-glass="control" style="border-top-left-radius: 999px; border-top-right-radius: 999px; border-bottom-right-radius: 999px; border-bottom-left-radius: 999px"></span>`
+    const pill = document.getElementById('pill')
+    if (pill) pill.getBoundingClientRect = () => rect(0, 0, 80, 30)
+    expect(collectSurfaces(document)[0]?.radii).toEqual([15, 15, 15, 15])
   })
 
   it('marks a surface inside the inactive (visibility: hidden) view as hidden', () => {

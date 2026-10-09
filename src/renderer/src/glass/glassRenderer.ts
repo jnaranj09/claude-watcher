@@ -267,7 +267,9 @@ export function createGlassRenderer(
       status === null ? 0 : 1
     )
     set4f(glass, 'u_box', x + w / 2, H - (y + h / 2), w / 2, h / 2)
-    set1f(glass, 'u_r', item.radius * f.dpr)
+    // CSS order (tl, tr, br, bl) → the shader's (tr, br, tl, bl); see sdBox.
+    const [tl, tr, br, bl] = item.radii
+    set4f(glass, 'u_r', tr * f.dpr, br * f.dpr, tl * f.dpr, bl * f.dpr)
     set4f(glass, 'u_rect', x - 2, y - 2, w + 4, h + 4)
     // The item's clip (its scroller) AND the frame's scissor (moving light) — both, never one
     // replacing the other, or a partial redraw composites twice over the last frame.
