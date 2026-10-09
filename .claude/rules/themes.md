@@ -39,6 +39,16 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   on the one overlay surface under the pointer (`glass/overlayLight.ts`; row, overlay button or
   toast; never under reduced motion) and the theme's CSS moves its rim. Logs:
   `[claude-watcher][glass] code=glass_*`.
+- **Liquid Glass "white glow" is ONE standard (owner, 2026-10-09).** When the owner says the
+  panels' / bubbles' white glow (or "the white", "too white"), they mean EVERY glass surface
+  together: the WebGL ones (header, columns, cards, controls, fields) AND the CSS overlays
+  (popovers and their rows, overlay buttons). A change moves all of these at once, by the same
+  ratio, never one surface alone:
+  `theme.json` `glass.surfaces.*.glow` (top light) and `*.lift` (white haze); `theme.css` under
+  `:root[data-glass-on]`: `--glass-pop-glow`, `--glass-row-fill`, `--glass-control-sheen`.
+  Then re-match on the drive: popover panel ≈ header, popover rows ≈ ☰ / New session. Then check
+  that text contrast stays ≥ 4.5:1 on all six wallpapers. Pins: `themeExamples.test.ts`.
+  `exposure` is NOT the glow (it brightens what shows through); leave it unless asked.
 - **Public hooks (every theme):** `data-glass="header|column|card|control|field"` (values pinned to
   `GLASS_SURFACES` by `glassHooks.guard`), `data-app-menu`, `data-column-header`,
   `data-column-mark` (hidden by the app), `data-count-sep`, `data-focused-bar` (the focused view's
