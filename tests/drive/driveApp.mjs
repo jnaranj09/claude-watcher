@@ -14,8 +14,8 @@
 //     await d.shot(page, 'needs-you', { region: 'header' })
 //   })
 import { _electron as electron } from '@playwright/test'
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import net from 'node:net'
@@ -26,6 +26,32 @@ export const ROOT = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/
 export const SHOT_DIR = path.join(ROOT, 'test-results/drive')
 const HOOK_HOST = '127.0.0.1'
 const HOOK_PORT = 29279 // DRIVE_PROFILE.hookPort in src/main/profile.ts
+
+// The drive profile's settings file (DRIVE_PROFILE.userDataDirName in src/main/profile.ts; the
+// electron-store blob of src/main/persistence/electronSettingsBlobStore.ts).
+const DRIVE_SETTINGS = path.join(
+  process.env.XDG_CONFIG_HOME || path.join(homedir(), '.config'),
+  'claude-watcher-drive',
+  'c9watch-settings.json'
+)
+
+/** Turn the drive app's desktop popups and sound off before it starts. Its sessions are real
+ *  claudes whose turns end, and every "your turn" otherwise reached the operator's desktop as an
+ *  "Electron" notification. A missing file gets the smallest valid v1 blob (the rest defaults);
+ *  an unreadable one is left alone (the app resets it and alerts stay on for that run). */
+function muteDriveAlerts() {
+  let blob = { settings: { version: 1, terminalFontSize: 14 } }
+  try {
+    blob = JSON.parse(readFileSync(DRIVE_SETTINGS, 'utf8'))
+  } catch (err) {
+    if (err?.code !== 'ENOENT') return
+  }
+  if (typeof blob?.settings !== 'object' || blob.settings === null) return
+  blob.settings.notificationsEnabled = false
+  blob.settings.soundEnabled = false
+  mkdirSync(path.dirname(DRIVE_SETTINGS), { recursive: true })
+  writeFileSync(DRIVE_SETTINGS, JSON.stringify(blob, null, '\t'))
+}
 
 // ── hook port + hook POSTs ──────────────────────────────────────────────────────────────────
 
@@ -142,6 +168,7 @@ export async function launchApp() {
       `${HOOK_HOST}:${HOOK_PORT} is taken — another drive run is still going (the drive profile's port)`
     )
   }
+  muteDriveAlerts()
   const pickDir = mkdtempSync(path.join(tmpdir(), 'cw-drive-'))
   // A hidden display: the drive window never takes the operator's focus (CW_HEADED=1 to watch).
   const display = await startHeadlessDisplay()
