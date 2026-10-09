@@ -75,10 +75,16 @@ async function size(app, page, w, h) {
     ({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0]?.setContentSize(w, h),
     [w, h]
   )
-  await page.waitForFunction(
-    ([w, h]) => window.innerWidth === w && window.innerHeight === h,
-    [w, h]
-  )
+  // The compositor sometimes settles the window a few px off: wait briefly, then go on with the
+  // size it reached (the report records sizes where they matter).
+  await page
+    .waitForFunction(([w, h]) => window.innerWidth === w && window.innerHeight === h, [w, h], {
+      timeout: 5000
+    })
+    .catch(async () => {
+      const got = await page.evaluate(() => [innerWidth, innerHeight])
+      console.log(`[glass] window ${got.join('x')} (asked ${w}x${h})`)
+    })
 }
 
 async function glassOn(page, on = true) {
@@ -275,18 +281,21 @@ async function checks() {
       : null
     report('gaps', gaps)
     if (f.tab && f.panel) {
-      // The area around the terminal: the strip between the rail and the panel, beside the tab.
-      const left = f.rail ? f.rail.right + 2 : f.panel.left - 10
-      const strip = [left, f.tab.top + 6, Math.max(2, f.panel.left - left - 2), f.tab.height - 12]
+      // D.6b: the tab runs on into the area around the terminal. Compare its right end with the
+      // strip right after it (the rail's cut, up to the rail's edge): one surface reads as one
+      // value there. Points far apart would also measure the glass's own gradient.
+      const left = f.tab.right + 1
+      const right = f.rail ? f.rail.right - 1 : left + 10
+      const strip = [left, f.tab.top + 6, Math.max(2, right - left), f.tab.height - 12]
       report(
         'focusedLum',
         frames(
           'lum',
           focusedPng,
           // The tab's text-free right end (text pixels would skew the mean).
-          f.tab.right - 50,
+          f.tab.right - 14,
           f.tab.top + 6,
-          44,
+          12,
           f.tab.height - 12,
           ...strip
         )

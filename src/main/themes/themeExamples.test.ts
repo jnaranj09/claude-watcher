@@ -644,15 +644,19 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       chroma: 0.15,
       tint: '#0e0e10',
       tintAmount: 0.36,
-      rim: 0.3,
+      // 0.26, not the canvas 0.3: owner, 2026-10-08 ("a little less bright").
+      rim: 0.26,
       exposure: 1.4,
       lift: 0.04,
       glow: 0.05,
       lightFollowsCursor: true
     })
     expect(r.ok && r.bundle.glass?.surfaces.column.tintNeedsYou).toBe('#2a2414')
-    // Owner, 2026-10-08: the moving light stays off the header; everywhere else it follows.
+    // Owner, 2026-10-08: the big bodies (header, columns, the focused box) keep a fixed light;
+    // the small surfaces follow the pointer.
     expect(r.ok && r.bundle.glass?.surfaces.header.lightFollowsCursor).toBe(false)
+    expect(r.ok && r.bundle.glass?.surfaces.column.lightFollowsCursor).toBe(false)
+    expect(r.ok && r.bundle.glass?.surfaces.card.lightFollowsCursor).toBe(true)
     expect(r.ok && r.bundle.css).toMatch(/--gutter:\s*16px/)
     expect(r.ok && r.bundle.css).toMatch(/--idle:\s*#9a9aa0/)
   })

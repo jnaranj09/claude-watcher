@@ -1011,13 +1011,6 @@ section[data-column='idle']::after {
   border-color: transparent;
 }
 
-/* The focused view's active tab (spec D.6b): it is a cut in the rail that merges with the area
-   around the terminal. Under the WebGL bubble the tab read ~4 levels brighter than that area
-   (drive 2026-10-08: 53.2 vs 48.8); a light dark film evens them. Layout unchanged. */
-:root[data-glass-on] [data-testid='attention-rail'] [data-testid='rail-row'][data-active] {
-  background-color: rgba(0, 0, 0, 0.08);
-}
-
 /* THE MOVING LIGHT ON OVERLAY GLASS (owner, 2026-10-08): the board's light follows the pointer
    (WebGL); overlays are CSS, so the app writes `--glass-light: <deg>` (GL angle, 135 = top-left)
    on the ONE overlay surface under the pointer — a popover row, an overlay button or a toast — and
