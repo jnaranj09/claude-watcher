@@ -186,7 +186,14 @@ describe('docs/themes/examples', () => {
     )
     const filters = rules.flatMap((r) => [...r.body.matchAll(/backdrop-filter:\s*([^;]+);/g)])
     expect(new Set(filters.map((m) => m[1]))).toEqual(
-      new Set(['var(--glass-filter)', 'var(--glass-filter-modal)', 'none', 'blur(12px)'])
+      new Set([
+        'var(--glass-filter)',
+        'var(--glass-filter-modal)',
+        'none',
+        'blur(12px)',
+        // A popover reads the glass-on exposure when set, else the one blur.
+        'var(--glass-pop-filter, var(--glass-filter))'
+      ])
     )
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
@@ -240,8 +247,11 @@ describe('docs/themes/examples', () => {
       (r) => POPOVERS.every((p) => r.selectors.includes(p)) && /backdrop-filter:/.test(r.body)
     )
     expect(glass).toHaveLength(1)
-    // The shared `--glass-filter` (declared on :root), itself a blur.
-    expect(glass[0]?.body).toMatch(/(^|[\s;])backdrop-filter:\s*var\(--glass-filter\);/)
+    // The shared `--glass-filter` (declared on :root), itself a blur — through the glass-on
+    // popover filter when it is set.
+    expect(glass[0]?.body).toMatch(
+      /(^|[\s;])backdrop-filter:\s*var\(--glass-pop-filter,\s*var\(--glass-filter\)\);/
+    )
     const root = liquidGlassRules()
       .filter((r) => r.selectors.includes(':root'))
       .map((r) => r.body)
@@ -264,7 +274,13 @@ describe('docs/themes/examples', () => {
     const rules = liquidGlassRules()
     const row = rules.filter((r) => r.selectors.includes('[data-popover-item]'))
     const body = row.map((r) => r.body).join('\n')
-    expect(body).toMatch(/background(-color)?:\s*var\(--ws-fill, rgba\(255, 255, 255, 0\.05\)\);/)
+    expect(body).toMatch(/background(-color)?:\s*var\(--ws-fill, var\(--glass-row-fill\)\);/)
+    expect(
+      rules
+        .filter((r) => r.selectors.includes(':root'))
+        .map((r) => r.body)
+        .join('\n')
+    ).toMatch(/--glass-row-fill:\s*rgba\(255, 255, 255, 0\.05\);/)
     expect(body).not.toMatch(/--glass-rim-row/)
     expect(body).not.toMatch(/backdrop-filter/)
     const edge = rules
@@ -299,7 +315,7 @@ describe('docs/themes/examples', () => {
           (r) =>
             r.selectors.includes(s) &&
             /border-color:\s*var\(--text-primary\);/.test(r.body) &&
-            /background-color:\s*var\(--ws-fill, rgba\(255, 255, 255, 0\.05\)\);/.test(r.body)
+            /background-color:\s*var\(--ws-fill, var\(--glass-row-fill\)\);/.test(r.body)
         ),
         s
       ).toBe(true)
@@ -336,7 +352,9 @@ describe('docs/themes/examples', () => {
     const layer = rules.filter((r) =>
       r.selectors.includes('[data-popover]:has([data-popover])::before')
     )
-    expect(layer.map((r) => r.body).join('\n')).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
+    expect(layer.map((r) => r.body).join('\n')).toMatch(
+      /backdrop-filter:\s*var\(--glass-pop-filter,\s*var\(--glass-filter\)\);/
+    )
   })
 
   // A popover is GLASS like the header: the token's white film + the sheen's dark bottom band read
@@ -634,6 +652,41 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
     expect(sheen).not.toMatch(/radial-gradient/)
     // The CSS fallback (glass off) keeps the corner sheen.
     expect(defs.some((x) => x.selectors.includes(':root'))).toBe(true)
+  })
+  // Owner, 2026-10-09: "the popover and its rows dont have the white glow the header or the
+  // hamburger have". Under glass-on the popover box exposes what is behind it (brightness 2, the
+  // header's exposure) and carries a top glow; its rows take a 15% white body like the WebGL
+  // controls. Through variables, so a hovered or selected row keeps the same body. Drive, Warm
+  // smoke: box 54 = header 54, row 85 against the controls' 89.
+  it('liquid-glass gives the popover and its rows the WebGL glass body while the glass is on', () => {
+    const css = liquidGlassRules()
+    const on = css
+      .filter((x) => x.selectors.includes(':root[data-glass-on]'))
+      .map((x) => x.body)
+      .join('\n')
+    expect(on).toMatch(/--glass-row-fill:\s*rgba\(255,\s*255,\s*255,\s*0\.15\)/)
+    expect(on).toMatch(/--glass-pop-filter:\s*var\(--glass-filter\)\s*brightness\(2\)/)
+    expect(on).toMatch(/--glass-pop-glow:\s*linear-gradient\(\s*to bottom/)
+    // Every row fill reads the variable (rest, hover, state), never a fixed white.
+    const rowFills = css
+      .filter((x) => x.selectors.some((sel) => sel.startsWith('[data-popover-item]')))
+      .map((x) => /background-color:\s*([^;]+);/.exec(x.body)?.[1])
+      .filter((v): v is string => v !== undefined && v.includes('--ws-fill'))
+    expect(rowFills.length).toBeGreaterThanOrEqual(3)
+    for (const v of rowFills) expect(v).toBe('var(--ws-fill, var(--glass-row-fill))')
+    // The box and the submenu holder's blur layer read the popover filter.
+    const filt = (sel: string): string =>
+      css
+        .filter((x) => x.selectors.includes(sel))
+        .map((x) => x.body)
+        .join('\n')
+    expect(filt('[data-popover]')).toMatch(
+      /backdrop-filter:\s*var\(--glass-pop-filter,\s*var\(--glass-filter\)\)/
+    )
+    expect(filt('[data-popover]:has([data-popover])::before')).toMatch(
+      /backdrop-filter:\s*var\(--glass-pop-filter,\s*var\(--glass-filter\)\)/
+    )
+    expect(filt('[data-popover]')).toMatch(/background-image:\s*var\(--glass-pop-glow,\s*none\)/)
   })
   // Owner, 2026-10-08: the header switcher kept its workspace tint on main; the glass-on clear
   // (background: transparent on every hooked control) wiped it. It keeps --ws-fill over the glass.

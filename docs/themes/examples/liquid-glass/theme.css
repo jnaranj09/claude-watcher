@@ -357,8 +357,8 @@ body {
    the header holds the workspace and ☰ menus, a dialog holds its dropdowns, the terminal frame
    holds the expander. */
 [data-popover] {
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+  -webkit-backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
   /* NO rim and NO border (operator, 2026-10-05): the rows carry the control edge, and a rim around
      them read as a box around boxes. Seen first on the ☰ menu with a submenu open, whose blur layer
      covers its own rim — the operator wanted that look on every popover. */
@@ -375,6 +375,7 @@ body {
    that hides it. */
 [data-popover] {
   background-color: var(--glass-fill);
+  background-image: var(--glass-pop-glow, none);
   border-color: transparent;
 }
 /* Its rows are FILLED bubbles, so they take the filled-row gap (operator, 2026-10-05: the rows sat
@@ -399,8 +400,24 @@ body {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+  -webkit-backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+}
+
+/* While the WebGL glass is on, the header and its controls are WebGL glass: the shader EXPOSES what
+   is behind them (exposure 2) and adds a white glow at the top. A popover is still CSS glass, and
+   next to them it read as a darker, flat box with darker rows (owner, 2026-10-09: "the popover and
+   its rows dont have the white glow the header or the hamburger have"). So under glass-on the box
+   brightens its backdrop the same way (brightness 2) and carries a top glow, and its rows take a
+   15% white body like the WebGL controls. Drive, Warm smoke: box 54 = header 54, row 85 against
+   the controls' 89. The CSS fallback keeps the old values (no variable set). */
+:root {
+  --glass-row-fill: rgba(255, 255, 255, 0.05);
+}
+:root[data-glass-on] {
+  --glass-row-fill: rgba(255, 255, 255, 0.15);
+  --glass-pop-filter: var(--glass-filter) brightness(2);
+  --glass-pop-glow: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent 35%);
 }
 
 /* Every popover ROW is a bubble (operator, 2026-10-01): the workspace switcher's material at a
@@ -412,12 +429,12 @@ body {
 [data-popover-item] {
   /* Medium weight: regular strokes thinned out on glass (2026-10-01). */
   font-weight: 500;
-  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  background-color: var(--ws-fill, var(--glass-row-fill));
 }
 [data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
     [aria-expanded='true']
   ):not([data-active]) {
-  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  background-color: var(--ws-fill, var(--glass-row-fill));
   border-color: transparent;
 }
 /* The current value, a tag that is on, an open submenu, the expander's highlight. Its border is
@@ -433,7 +450,7 @@ body {
 [data-popover-item][data-active]:hover {
   /* The app's own state rule (0,2,0) and its `.item:hover:not(:disabled)` (0,3,0) set a flat
      surface fill; keep the bubble's, hovered or not, with the state border. */
-  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  background-color: var(--ws-fill, var(--glass-row-fill));
   border-color: var(--text-primary);
 }
 /* A workspace NAME inside a row (`WorkspaceLabel`, in the scope dropdowns) was a tinted box inside
