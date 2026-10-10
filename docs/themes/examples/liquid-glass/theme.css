@@ -25,13 +25,15 @@
    did not like the purple); rose + cyan under the centre (a complementary pair reads as police
    lights, whatever the alpha). Colour kept DARK gives the blur something to show without tinting
    the panels — the old bright purple + cyan pair turned every panel blue. */
-/* The ground is the operator's WALLPAPER pick (spec 2026-09-24): theme.json lists three, the app
-   inlines the chosen one as `--theme-wallpaper`. Graphite (`ground.png`, the default) is the pool
-   mesh described above, rendered by `src/ground.py` — CSS gradients cannot draw it without rings
-   (Chromium rounds each channel at these alphas; the script dithers before rounding). Aurora and
-   Warm smoke are photos darkened by `src/wallpapers.py` (Aurora 67% and desaturated, smoke 80%). `cover` for all three: ground.png is
-   16:10, so a 16:9 window crops a sliver of an area that is already near-black. The small neutral
-   light over the app name stays CSS: it is px-sized and sits under the header glass. */
+/* The ground is the operator's WALLPAPER pick (spec 2026-09-24): theme.json lists six, the app
+   inlines the chosen one as `--theme-wallpaper`. Lake (the default, spec 2026-10-08), Bridge and
+   Subway are photos blurred and darkened by `src/wallpapers.py --photos` (the canvas recipe).
+   Graphite is the pool mesh described above, rendered by `src/ground.py` — CSS gradients cannot
+   draw it without rings (Chromium rounds each channel at these alphas; the script dithers before
+   rounding). Aurora and Warm smoke are photos darkened by `src/wallpapers.py`. All six are
+   lossless WebP (the dither survives; the 5 MB cap holds). `cover` for all: they are 16:10 or a
+   little taller, so a 16:9 window crops a sliver of an area that is already near-black. The small neutral light over
+   the app name stays CSS: it is px-sized and sits under the header glass. */
 body {
   background:
     radial-gradient(360px 150px at 8% 0%, rgba(225, 225, 228, 0.05), transparent 70%),
@@ -355,8 +357,8 @@ body {
    the header holds the workspace and ☰ menus, a dialog holds its dropdowns, the terminal frame
    holds the expander. */
 [data-popover] {
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+  -webkit-backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
   /* NO rim and NO border (operator, 2026-10-05): the rows carry the control edge, and a rim around
      them read as a box around boxes. Seen first on the ☰ menu with a submenu open, whose blur layer
      covers its own rim — the operator wanted that look on every popover. */
@@ -373,6 +375,7 @@ body {
    that hides it. */
 [data-popover] {
   background-color: var(--glass-fill);
+  background-image: var(--glass-pop-glow, none);
   border-color: transparent;
 }
 /* Its rows are FILLED bubbles, so they take the filled-row gap (operator, 2026-10-05: the rows sat
@@ -397,8 +400,24 @@ body {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+  -webkit-backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+}
+
+/* While the WebGL glass is on, the header and its controls are WebGL glass: the shader EXPOSES what
+   is behind them (exposure 2) and adds a white glow at the top. A popover is still CSS glass, and
+   next to them it read as a darker, flat box with darker rows (owner, 2026-10-09: "the popover and
+   its rows dont have the white glow the header or the hamburger have"). So under glass-on the box
+   brightens its backdrop the same way (brightness 2) and carries a top glow, and its rows take a
+   15% white body like the WebGL controls. Drive, Warm smoke: box 54 = header 54, row 85 against
+   the controls' 89. The CSS fallback keeps the old values (no variable set). */
+:root {
+  --glass-row-fill: rgba(255, 255, 255, 0.05);
+}
+:root[data-glass-on] {
+  --glass-row-fill: rgba(255, 255, 255, 0.065);
+  --glass-pop-filter: var(--glass-filter) brightness(2);
+  --glass-pop-glow: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), transparent 35%);
 }
 
 /* Every popover ROW is a bubble (operator, 2026-10-01): the workspace switcher's material at a
@@ -410,12 +429,12 @@ body {
 [data-popover-item] {
   /* Medium weight: regular strokes thinned out on glass (2026-10-01). */
   font-weight: 500;
-  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  background-color: var(--ws-fill, var(--glass-row-fill));
 }
 [data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
     [aria-expanded='true']
   ):not([data-active]) {
-  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  background-color: var(--ws-fill, var(--glass-row-fill));
   border-color: transparent;
 }
 /* The current value, a tag that is on, an open submenu, the expander's highlight. Its border is
@@ -431,7 +450,7 @@ body {
 [data-popover-item][data-active]:hover {
   /* The app's own state rule (0,2,0) and its `.item:hover:not(:disabled)` (0,3,0) set a flat
      surface fill; keep the bubble's, hovered or not, with the state border. */
-  background-color: var(--ws-fill, rgba(255, 255, 255, 0.05));
+  background-color: var(--ws-fill, var(--glass-row-fill));
   border-color: var(--text-primary);
 }
 /* A workspace NAME inside a row (`WorkspaceLabel`, in the scope dropdowns) was a tinted box inside
@@ -476,11 +495,17 @@ body {
    (below, with the buttons). The switcher takes its WORKSPACE tint instead when it has one
    (spec 2026-09-29): translucent, so the glass still shows. Hover lays the hover film like every
    button; it draws no outline (operator, 2026-10-05: an outline is for keyboard focus only). It was
-   black at 22% while the header was black at 20%; on the 3% header that read as a hole. */
+   black at 22% while the header was black at 20%; on the 3% header that read as a hole.
+   HOVER IS THE PILL'S: the elsewhere tab is the same control (a click on it is a click on the
+   switcher), so a pointer on the tab hovers the SWITCHER, through `:has(> tab:hover)` on the
+   anchor they share, and the tab never lights itself. Its own film ran on under the switcher's
+   right end and showed through the tint as a lighter band inside the pill (drive 2026-10-09,
+   WebGL on: no blur left to soften it). Every switcher hover rule below carries both selectors. */
 [data-testid='workspace-switcher'] {
   background-color: var(--ws-fill, var(--bg-surface-raised));
 }
-[data-testid='workspace-switcher']:hover {
+[data-testid='workspace-switcher']:hover,
+:has(> [data-testid='workspace-elsewhere-tab']:hover) > [data-testid='workspace-switcher'] {
   border-color: transparent;
 }
 [data-testid='workspace-elsewhere-tab'] {
@@ -604,6 +629,22 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
       transparent 85%
     );
 }
+/* While the WebGL glass is on, the controls it draws are lit from the TOP (its glow), and the ones
+   it cannot draw — popover rows, a dialog's or a toast's buttons — would keep the corner sheen,
+   lit at the bottom-right: two lights side by side (owner, 2026-10-09: "some things have the white
+   glow and others dont"). So under glass-on the sheen IS the WebGL light: a white glow strongest at
+   the top edge, gone by mid-height (the drive profile of `+ New session`). The board's controls
+   are cleared under glass-on, so this reaches only the overlay ones; the CSS fallback keeps the
+   corner sheen above. */
+:root[data-glass-on] {
+  --glass-control-sheen: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.008) 15%,
+    rgba(255, 255, 255, 0.003) 30%,
+    transparent 45%
+  );
+}
 [data-testid='workspace-switcher'],
 button[data-variant='primary']:not(:disabled),
 button[data-variant='secondary']:not(:disabled):not([data-lit]),
@@ -612,6 +653,7 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]),
   filter: url(#cw-text-refraction);
 }
 [data-testid='workspace-switcher']:hover,
+:has(> [data-testid='workspace-elsewhere-tab']:hover) > [data-testid='workspace-switcher'],
 button[data-variant='primary']:hover:not(:disabled),
 button[data-variant='secondary']:hover:not(:disabled):not([data-lit]) {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
@@ -629,15 +671,13 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]) {
    switcher, and a plain bordered tab read as another material (operator, 2026-10-05). Its
    `::before` is the app's text strut, so ONE `::after` ring draws both lines. The tab is the
    pill's RIGHT end, where the switcher's top line has dimmed to 45% and its bottom line is at
-   full: the same two values here, so the edge runs on from the switcher. */
+   full: the same two values here, so the edge runs on from the switcher. No hover film of its
+   own: a pointer on the tab lights the switcher (above). */
 [data-testid='workspace-elsewhere-tab'] {
   border-color: transparent;
   box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
   background-image: var(--glass-control-sheen);
   filter: url(#cw-text-refraction);
-}
-[data-testid='workspace-elsewhere-tab']:hover {
-  background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);
 }
 [data-testid='workspace-elsewhere-tab']::after {
   content: '';
@@ -831,4 +871,268 @@ section[data-column]::after,
   border: 1px solid var(--border);
   border-radius: var(--rounded-md);
   padding: 4px 16px 12px;
+}
+
+/* WebGL glass on (spec 2026-10-08 D.2). The layer behind the UI draws these surfaces, so they are
+   clear here: no double blur, no rings, no sheen, no text filter (the canvas buttons have none).
+   SPECIFICITY: the older rules above reach (0,3,2); [data-glass] is repeated to reach (0,5,x).
+   Overlay-hosted controls (a modal's Save, a toast's action, a popover row — the non-modal
+   `+ New session` dialog is a popover) keep today's glass. */
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *) {
+  background: transparent;
+  background-image: none;
+  border-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: none;
+}
+/* The elsewhere tab's `::before` is the APP's baseline strut, not a ring (its one ring is the
+   `::after`): clearing it dropped the tab's pill to the top of the tab (drive 2026-10-09). */
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *):not([data-testid='workspace-elsewhere-tab'])::before,
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *)::after {
+  content: none;
+}
+/* Hover keeps its film (the transparent background above would drop today's hover feedback).
+   Not on the elsewhere tab: its hover is the switcher's (below). */
+:root[data-glass-on]
+  [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *):not([data-testid='workspace-elsewhere-tab']):hover {
+  background: var(--bg-hover);
+}
+:root[data-glass-on] [data-glass='header'][data-glass][data-glass] {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+:root[data-glass-on] [data-glass='card'][data-glass][data-glass] {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+:root[data-glass-on]
+  [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
+    [data-popover] *
+  ):not([data-toast] *) {
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
+}
+:root[data-glass-on] [data-glass='column'][data-glass][data-glass],
+:root[data-glass-on] [data-glass='field'][data-glass][data-glass] {
+  box-shadow: none;
+}
+
+/* Column header (spec D.4): the status colour lives in the rim; a dot before the name; the
+   canvas sizes (count 12/500, the needs-you title 15/700). */
+[data-column-header] {
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+}
+[data-column-header] [data-column-mark] {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--gap-inline);
+  border-radius: 50%;
+  background: var(--accent-color);
+}
+[data-column-header] [data-count-sep] {
+  display: none;
+}
+[data-column-header] [data-testid='column-count'] {
+  font-size: 12px;
+  font-weight: 500;
+}
+[data-column-header][data-prominent='true'] [data-testid='column-name'] {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Cards (spec D.5): no coloured left edge; the width stays so nothing moves. The app colours it
+   with `.root[data-status=…]` (0,2,0); this is (0,3,0). */
+[data-glass='card'][data-glass][data-status] {
+  border-left-color: transparent;
+}
+
+/* Spacing (spec D.7): one 16px gap after the header in both views. */
+[data-testid='filter-bar'] {
+  margin-top: var(--gap-page);
+}
+[data-testid='focused-layer'] {
+  padding-top: var(--gap-page);
+}
+
+/* Round ☰ (spec D.8): a shape is each theme's choice. */
+[data-app-menu] {
+  border-radius: 50%;
+}
+
+/* Fallback status rim (spec 2026-10-08 D.3): without WebGL the column's ::after ring carries the
+   status colour at the top, fading to the neutral rim, as the WebGL rim does. Same specificity as
+   the ring rule above (0,1,2); later wins. Under glass-on these ::after are `content: none`. */
+section[data-column='working']::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--working) 90%, transparent) 0,
+    color-mix(in srgb, var(--working) 20%, transparent) 12%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+section[data-column='needs-you']::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--needs-you) 90%, transparent) 0,
+    color-mix(in srgb, var(--needs-you) 20%, transparent) 12%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+section[data-column='idle']::after {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--idle) 90%, transparent) 0,
+    color-mix(in srgb, var(--idle) 20%, transparent) 12%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+
+/* Concentric corners (spec D.6): the terminal panel sits 13px inside the 20px bubble (measured by
+   the drive, 2026-10-08), so its radius is 20 - 13 = 7px; the dead-terminal pane takes the panel's
+   inner radius (7 - 1px). */
+[data-terminal-panel] {
+  border-radius: 7px;
+}
+[data-testid='dead-terminal'],
+[data-testid='dead-terminal']::before {
+  border-radius: 6px;
+}
+
+/* Reduced transparency (spec D.9): near-solid, no blur. (0,4,x) beats the fallback glass rules. */
+@media (prefers-reduced-transparency: reduce) {
+  :root [data-glass][data-glass][data-glass] {
+    background: rgba(26, 26, 29, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  :root [data-glass][data-glass][data-glass]::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+/* More contrast (spec D.9): solid fill, a 40% border, text one step brighter. */
+@media (prefers-contrast: more) {
+  :root [data-glass][data-glass][data-glass] {
+    background: rgb(20, 20, 22);
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+  }
+  :root [data-glass='card'][data-glass][data-glass] [data-testid='project-path'] {
+    color: var(--text-primary);
+  }
+  :root [data-glass='card'][data-glass][data-glass] [data-testid='pid'] {
+    color: var(--text-secondary);
+  }
+}
+
+/* The search field (spec D, drive 2026-10-08): the glass hook sits on the icon wrapper, which has no
+   radius of its own, so the WebGL rim was square under the input's rounded box. The wrapper takes
+   the input's radius; under glass-on the input's own fill and border clear, like every hooked
+   surface (its focus ring stays). */
+[data-glass='field'] {
+  border-radius: var(--rounded-md);
+}
+:root[data-glass-on] [data-glass='field'][data-glass][data-glass] input {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* THE MOVING LIGHT ON OVERLAY GLASS (owner, 2026-10-08): the board's light follows the pointer
+   (WebGL); overlays are CSS, so the app writes `--glass-light: <deg>` (GL angle, 135 = top-left)
+   on the ONE overlay surface under the pointer — a popover row, an overlay button or a toast — and
+   these rules move that element's rim with it: the corner glint goes to the pointer's side, and
+   the lines dim away from / toward the light as the resting rim does at 135deg. Only where the
+   property is set, so the resting look is unchanged. Declared on the lit element itself: a
+   variable defined on :root would freeze the angle there. */
+[style*='--glass-light'] {
+  --glass-light-x: clamp(0%, calc(50% + cos(var(--glass-light)) * 71%), 100%);
+  --glass-light-y: clamp(0%, calc(50% - sin(var(--glass-light)) * 71%), 100%);
+  --glass-light-toward: calc(90deg - var(--glass-light));
+  --glass-light-away: calc(270deg - var(--glass-light));
+}
+[data-popover-item][style*='--glass-light']:not(:disabled)::before,
+button[data-variant='primary'][style*='--glass-light']:not(:disabled)::before,
+button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::before {
+  background:
+    radial-gradient(
+      circle at var(--glass-light-x) var(--glass-light-y),
+      rgba(255, 255, 255, 0.2),
+      transparent 20px
+    ),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
+  mask:
+    linear-gradient(var(--glass-light-away), #000, rgba(0, 0, 0, 0.45)) intersect,
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+[data-popover-item][style*='--glass-light']:not(:disabled)::after,
+button[data-variant='primary'][style*='--glass-light']:not(:disabled)::after,
+button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after {
+  mask:
+    linear-gradient(var(--glass-light-toward), #000, rgba(0, 0, 0, 0.45)) intersect,
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+[data-toast][style*='--glass-light']::after {
+  background:
+    radial-gradient(
+      circle at var(--glass-light-x) var(--glass-light-y),
+      rgba(255, 255, 255, 0.2),
+      transparent 20px
+    ),
+    linear-gradient(var(--glass-light-away), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
+      top / 100% 50% no-repeat,
+    linear-gradient(var(--glass-light-toward), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
+      bottom / 100% 50% no-repeat;
+}
+
+/* The workspace switcher keeps its WORKSPACE TINT while the WebGL glass is on (owner, 2026-10-08):
+   the glass-on clear above makes every hooked control transparent, which wiped the `--ws-fill` the
+   switcher wears in the CSS glass. The tint sits over the WebGL glass; hover adds the usual film.
+   Same selector as the clear plus the switcher's id, so it outranks it. The hover is the pill's:
+   a pointer on the elsewhere tab hovers the switcher too (the `:has()` selector, as in the CSS
+   glass above). */
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
+    [role='dialog'][aria-modal='true'] *
+  ):not([data-popover] *):not([data-toast] *) {
+  background-color: var(--ws-fill, transparent);
+}
+:root[data-glass-on]
+  [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
+    [role='dialog'][aria-modal='true'] *
+  ):not([data-popover] *):not([data-toast] *):hover,
+:root[data-glass-on]
+  :has(> [data-testid='workspace-elsewhere-tab']:hover)
+  > [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
+    [role='dialog'][aria-modal='true'] *
+  ):not([data-popover] *):not([data-toast] *) {
+  background-color: var(--ws-fill, transparent);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
+/* The rail and the focused view's top bar (owner, 2026-10-08/09): they paint the app's rail surface
+   OVER the focused box's WebGL glass, so at the 6% `--bg-surface` they read whiter than the header,
+   which shows the glass alone. Under glass-on the rail is 3%: still a panel, so the active tab
+   reads as a cut into it (with no film the rail, the tab and the area around the terminal were one
+   glass and the wall lines outlined empty boxes). The top bar row is 1.5%: the box's glass is
+   brighter at the top. Set once through the app's surface hooks (THEMES.md "Surface hooks"). */
+:root[data-glass-on] {
+  --rail-surface: rgba(255, 255, 255, 0.03);
+  --rail-surface-top: rgba(255, 255, 255, 0.015);
 }

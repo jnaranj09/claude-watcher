@@ -866,7 +866,7 @@ describe('EmbeddedTerminal — shell pane stylesheet invariants (terminal.md)', 
     expect(main).toMatch(/position:\s*relative/)
     expect(main).toMatch(/flex:\s*1/)
     expect(main).toMatch(/min-height:\s*0/)
-    expect(css).toMatch(/\.split\s*>\s*\.main\s*\{[^}]*min-height:\s*80px/)
+    expect(css).toMatch(/:where\(\.split\)\s*>\s*\.main\s*\{[^}]*min-height:\s*80px/)
     expect(/\.shellSlot\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/min-height:\s*80px/)
   })
   it("while split, the frame draws no chrome and claude's half is its own panel", () => {
@@ -874,7 +874,7 @@ describe('EmbeddedTerminal — shell pane stylesheet invariants (terminal.md)', 
     expect(split).toMatch(/padding:\s*0/)
     expect(split).toMatch(/border:\s*0/)
     expect(split).toMatch(/background:\s*transparent/)
-    const main = /\.split\s*>\s*\.main\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    const main = /:where\(\.split\)\s*>\s*\.main\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
     expect(main).toMatch(/border:\s*1px solid var\(--border-card\)/)
     expect(main).toMatch(/border-radius:\s*var\(--rounded-lg\)/)
     expect(main).toMatch(/background:\s*var\(--bg-terminal\)/)

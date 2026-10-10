@@ -7,6 +7,7 @@ import { renderComponent, type RenderResult } from './test/renderComponent'
 import App from './App'
 import { boardStore } from './stores/boardStore'
 import type { ThemeBundle } from '../../shared/schemas/theme'
+import { GLASS_FIXTURE } from '../../__fixtures__/glassSpec'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
 async function flush(): Promise<void> {
@@ -177,11 +178,45 @@ describe('custom themes — App wiring', () => {
         colorScheme: 'light',
         css: 'body{}',
         terminal: {},
-        wallpaperId: null
+        wallpaperId: null,
+        glass: null
       })
     )
     expect(document.getElementById('claude-watcher-theme')?.textContent).toBe('body{}')
     expect(document.documentElement.style.colorScheme).toBe('light')
+    r.unmount()
+  })
+
+  // The one line that mounts the WebGL glass (review 2026-10-08): a theme with a glass block mounts
+  // the layer's canvas; a theme without one removes it and never leaves data-glass-on behind.
+  it('mounts the glass layer only while the applied theme has a glass block', async () => {
+    const listeners: Array<(b: ThemeBundle) => void> = []
+    ;(window as unknown as { themes: unknown }).themes = {
+      list: () => Promise.resolve([]),
+      reload: () => Promise.resolve({ ok: true, id: 'default' }),
+      openFolder: () => Promise.resolve(),
+      onApplied: (cb: (b: ThemeBundle) => void) => {
+        listeners.push(cb)
+        return () => {}
+      }
+    }
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await renderApp()
+    const bundle = (glass: ThemeBundle['glass']): ThemeBundle => ({
+      id: 'liquid-glass',
+      name: 'Liquid Glass',
+      colorScheme: 'dark',
+      css: '',
+      terminal: {},
+      wallpaperId: 'lake',
+      glass
+    })
+    act(() => listeners[0]?.(bundle(GLASS_FIXTURE)))
+    expect(r.container.querySelector('canvas[aria-hidden="true"]')).not.toBeNull()
+    act(() => listeners[0]?.(bundle(null)))
+    expect(r.container.querySelector('canvas[aria-hidden="true"]')).toBeNull()
+    expect(document.documentElement.hasAttribute('data-glass-on')).toBe(false)
     r.unmount()
   })
 

@@ -158,6 +158,51 @@ const ThemeWallpapersSchema = z
     error: 'duplicate wallpaper id'
   })
 
+/** The surfaces the WebGL glass layer draws (spec 2026-10-08). `data-glass` values are pinned
+ *  to this list by `glassHooks.guard.test.ts`. */
+export const GLASS_SURFACES = ['header', 'column', 'card', 'control', 'field'] as const
+export type GlassSurface = (typeof GLASS_SURFACES)[number]
+
+const glassColor = z.string().regex(/^#[0-9a-f]{6}$/i)
+const glassRange = (min: number, max: number): z.ZodNumber => z.number().min(min).max(max)
+
+/** One surface's material — the `lens-lit.glsl` uniforms, named for authors. Every field is
+ *  required: schemas carry no defaults (technical-taste §6). */
+export const GlassMaterialSchema = z
+  .object({
+    refract: glassRange(0, 40),
+    edge: glassRange(1, 60),
+    blur: glassRange(0, 40),
+    chroma: glassRange(0, 1),
+    tint: glassColor,
+    tintAmount: glassRange(0, 1),
+    rim: glassRange(0, 1),
+    exposure: glassRange(1, 3),
+    lift: glassRange(0, 0.3),
+    glow: glassRange(0, 0.3),
+    /** The light follows the pointer over this surface (always fixed under reduced motion).
+     *  Per surface: Liquid Glass keeps the header's light fixed (owner, 2026-10-08). */
+    lightFollowsCursor: z.boolean()
+  })
+  .strict()
+export type GlassMaterial = z.infer<typeof GlassMaterialSchema>
+
+export const GlassSpecSchema = z
+  .object({
+    renderer: z.literal('webgl'),
+    surfaces: z
+      .object({
+        header: GlassMaterialSchema,
+        column: GlassMaterialSchema.extend({ tintNeedsYou: glassColor.optional() }).strict(),
+        card: GlassMaterialSchema,
+        control: GlassMaterialSchema,
+        field: GlassMaterialSchema
+      })
+      .strict()
+  })
+  .strict()
+export type GlassSpec = z.infer<typeof GlassSpecSchema>
+
 export const ThemeManifestSchema = z
   .object({
     /** For the author's editor; accepted and ignored. */
@@ -175,7 +220,9 @@ export const ThemeManifestSchema = z
       .optional(),
     /** Predefined wallpapers; the first is the default. The app inlines the chosen one as
      *  `--theme-wallpaper` (spec 2026-09-24). */
-    wallpapers: ThemeWallpapersSchema.optional()
+    wallpapers: ThemeWallpapersSchema.optional(),
+    /** WebGL board glass (spec 2026-10-08); absent → CSS only. */
+    glass: GlassSpecSchema.optional()
   })
   .strict()
 export type ThemeManifest = z.infer<typeof ThemeManifestSchema>
@@ -208,7 +255,9 @@ export const ThemeBundleSchema = z
     css: z.string(),
     terminal: ThemeTerminalSchema,
     /** The wallpaper actually applied; null for a theme without wallpapers and for Default. */
-    wallpaperId: ThemeIdSchema.nullable()
+    wallpaperId: ThemeIdSchema.nullable(),
+    /** The theme's WebGL glass; null for a theme without one and for Default. */
+    glass: GlassSpecSchema.nullable()
   })
   .strict()
 export type ThemeBundle = z.infer<typeof ThemeBundleSchema>
@@ -224,5 +273,6 @@ export const DEFAULT_THEME_BUNDLE: ThemeBundle = {
   colorScheme: 'dark',
   css: '',
   terminal: {},
-  wallpaperId: null
+  wallpaperId: null,
+  glass: null
 }

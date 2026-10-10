@@ -25,7 +25,36 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
 - **Fail closed → Default, keep the setting** (`settings.themeId`):
   `code=theme_load_failed id= reason=`, Settings shows the error. Logs: code + zod path only.
 - **Wallpapers:** only the chosen one inlined as `--theme-wallpaper`; all validated; pick per theme
-  in `settings.wallpaperByTheme`; unknown → first (`code=theme_wallpaper_not_found`).
+  in `settings.wallpaperByTheme`; unknown → first (`code=theme_wallpaper_not_found`). Bundled
+  wallpapers are LOSSLESS WebP (the dither survives; lossy banded, 2026-09-24); every listed file
+  counts toward the 5 MB cap. Photo licences: the theme folder's `WALLPAPERS-LICENSE.md`.
+- **WebGL glass (spec 2026-10-08):** optional `glass` key (`GlassSpecSchema`: renderer `webgl`,
+  five surface materials with ranges and a per-surface `lightFollowsCursor`, every field required)
+  → `ThemeBundle.glass`.
+  `renderer/src/glass/GlassLayer` draws one canvas behind the UI from the `data-glass` hooks; it
+  sets `data-glass-on` on `<html>` only after a good frame and removes it on any failure, context
+  loss or unmount. Theme CSS clears hooked surfaces ONLY under `:root[data-glass-on]`, so its CSS
+  glass is always the fallback (no WebGL2, reduced transparency, more contrast). Overlays (modals,
+  popovers, toasts) are never drawn by the layer; for them the layer writes `--glass-light: <deg>`
+  on the one overlay surface under the pointer (`glass/overlayLight.ts`; row, overlay button or
+  toast; never under reduced motion) and the theme's CSS moves its rim. Logs:
+  `[claude-watcher][glass] code=glass_*`.
+- **Liquid Glass "white glow" is ONE standard (owner, 2026-10-09).** When the owner says the
+  panels' / bubbles' white glow (or "the white", "too white"), they mean EVERY glass surface
+  together: the WebGL ones (header, columns, cards, controls, fields) AND the CSS overlays
+  (popovers and their rows, overlay buttons). A change moves all of these at once, by the same
+  ratio, never one surface alone:
+  `theme.json` `glass.surfaces.*.glow` (top light) and `*.lift` (white haze); `theme.css` under
+  `:root[data-glass-on]`: `--glass-pop-glow`, `--glass-row-fill`, `--glass-control-sheen`.
+  Then re-match on the drive: popover panel ≈ header, popover rows ≈ ☰ / New session. Then check
+  that text contrast stays ≥ 4.5:1 on all six wallpapers. Pins: `themeExamples.test.ts`.
+  `exposure` is NOT the glow (it brightens what shows through); leave it unless asked.
+- **Public hooks (every theme):** `data-glass="header|column|card|control|field"` (values pinned to
+  `GLASS_SURFACES` by `glassHooks.guard`), `data-app-menu`, `data-column-header`,
+  `data-column-mark` (hidden by the app), `data-count-sep`, `data-focused-bar` (the focused view's
+  top bar). Custom properties `--rail-surface` / `--rail-surface-top` (the rail's surface and its
+  top bar row; the only way to change it — `AttentionRail.surface.styles.test`). `control` = enabled primary/secondary
+  `Button` (not lit, busy or disabled), the workspace switcher and its elsewhere tab.
 - `nativeTheme.themeSource` + root `color-scheme` follow the theme's `colorScheme`
   (`themeLifecycle.ts`, `hooks/useApplyTheme.ts`).
 - **Every renderer colour is a token** (`styles/noHexLiterals.test.ts`); `TOKENS` in

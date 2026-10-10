@@ -277,8 +277,8 @@ A theme may ship up to 8 predefined wallpapers. The operator picks one in Settin
 
 ```json
 "wallpapers": [
-  { "id": "graphite", "name": "Graphite", "file": "ground.png" },
-  { "id": "aurora", "name": "Aurora gradient", "file": "aurora.jpg" }
+  { "id": "lake", "name": "Lake", "file": "lake.webp" },
+  { "id": "graphite", "name": "Graphite", "file": "graphite.webp" }
 ]
 ```
 
@@ -293,6 +293,50 @@ A theme may ship up to 8 predefined wallpapers. The operator picks one in Settin
 - If the operator's pick disappears from the list (you renamed it), the first wallpaper is used
   and their setting is kept.
 - Want a darker or blurrier image? Change the file. There is no darken or blur setting.
+
+### Glass
+
+An optional `glass` key asks the app to draw the board's glass with WebGL: the wallpaper bends,
+frosts and lights itself under each surface. The app owns the renderer; the theme owns the numbers.
+
+```json
+"glass": {
+  "renderer": "webgl",
+  "surfaces": {
+    "header":  { "refract": 14, "edge": 16, "blur": 12, "chroma": 0.25, "tint": "#0e0e10", "tintAmount": 0.30, "rim": 0.35, "exposure": 1.6, "lift": 0.05, "glow": 0.08, "lightFollowsCursor": false },
+    "column":  { "...": "same fields", "tintNeedsYou": "#2a2414" },
+    "card":    { "...": "same fields" },
+    "control": { "...": "same fields" },
+    "field":   { "...": "same fields" }
+  }
+}
+```
+
+- `renderer` is `"webgl"`, the only value.
+- `lightFollowsCursor` (per surface): `true` lights that surface from the pointer's side while the
+  pointer is over it; `false` keeps the fixed top-left light. Always fixed under reduced motion.
+  Liquid Glass keeps it off on the header.
+- The five surfaces: `header` (the app header), `column` (each board column and the focused-view
+  bubble), `card` (a session card), `control` (the workspace switcher, the elsewhere tab and
+  enabled primary/secondary buttons), `field` (the board search field).
+- Every surface needs every field; there are no defaults. Ranges: `refract` 0–40, `edge` 1–60,
+  `blur` 0–40, `chroma` 0–1, `tintAmount` 0–1, `rim` 0–1, `exposure` 1–3, `lift` 0–0.3,
+  `glow` 0–0.3; `lightFollowsCursor` is `true` or `false`. Colours (`tint`, `tintNeedsYou`) are
+  `#rrggbb`.
+- `tintNeedsYou` is allowed on `column` only: the tint of the needs-you column.
+- A bad value, a missing field or an unknown key fails the WHOLE theme closed, like any other
+  rule: Default is applied, your setting is kept, and the error shows in Settings.
+- The glass needs a wallpaper and WebGL2. Without WebGL2 (or under reduced transparency or more
+  contrast) nothing is drawn and your theme's CSS glass is what shows, so keep that CSS good.
+  While the WebGL glass is drawing, `<html>` carries `data-glass-on`; make the hooked surfaces
+  transparent only under that attribute.
+- Overlays (popovers, dialogs, toasts) are never drawn by WebGL. For them the app writes
+  `--glass-light: <deg>` (135 = lit from the top-left) on the ONE overlay surface under the pointer:
+  a popover row, an enabled primary/secondary button inside an overlay, or a toast. Use it to move
+  that element's rim with the pointer, e.g. `cos(var(--glass-light))`; select on
+  `[style*='--glass-light']` and declare angle-based variables on that element itself (a variable
+  defined on `:root` would freeze the angle there). It is never set under reduced motion, and only
+  while a theme with a `glass` key is applied.
 
 ## The CSS file
 
@@ -314,6 +358,12 @@ What you can target:
 - **Settings groups.** `[data-settings-group]` wraps the fields of one Settings pane. The app draws
   nothing there; a theme may give it a fill, an edge and padding (Liquid Glass draws an inset glass
   group).
+- **Surface hooks.** The focused view's rail and its top bar are drawn by several layers (the rail
+  above, around and below the active tab, and the bar). Change their surface with two custom
+  properties, never by styling the layers: `--rail-surface` (the whole rail; unset = `--bg-surface`)
+  and `--rail-surface-top` (only the top bar row: the rail's header and the focused bar; unset =
+  `--rail-surface`). Both take a colour (no gradient or image). Set them on an ancestor of both the
+  rail and the bar, normally `:root`. Liquid Glass sets both under `:root[data-glass-on]`.
 - **Motion states.** A popover, dialog or toast that is closing keeps its box for 150 ms with
   `[data-leaving]`; a modal overlay carries `[data-motion="dialog"]`. `<html>` carries
   `[data-input="keyboard"]` or `[data-input="pointer"]` (the last input), and anything opened or
@@ -422,8 +472,9 @@ path=<field>`. Never the values.
 - [`examples/builtin-dark`](examples/builtin-dark/) — the built-in look as a package: every token and
   terminal key at its default. Generated; copy it and change values.
 - [`examples/liquid-glass`](examples/liquid-glass/) — what the CSS file makes possible: translucent
-  panels, `backdrop-filter`, a transparent terminal, and three wallpapers (Graphite; Aurora
-  gradient by Mohammed Kareem on Unsplash; Warm smoke by SplitShire on Pexels).
+  panels, `backdrop-filter`, a transparent terminal, and six lossless WebP wallpapers (Lake, the
+  default; Bridge; Subway; Graphite; Aurora gradient; Warm smoke). Credits and licences:
+  [`WALLPAPERS-LICENSE.md`](examples/liquid-glass/WALLPAPERS-LICENSE.md).
 - [`examples/paper`](examples/paper/) — a light theme, tokens only.
 
 ## Editor support

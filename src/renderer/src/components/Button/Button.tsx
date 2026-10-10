@@ -101,6 +101,10 @@ export function Button({
   ) : (
     children
   )
+  // The WebGL glass draws enabled primary/secondary buttons (spec 2026-10-08 C). Lit and
+  // disabled keep their own look; ghost/danger are not glass.
+  const glass =
+    (variant === 'primary' || variant === 'secondary') && !lit && !busy && disabled !== true
   return (
     <>
       <button
@@ -116,6 +120,7 @@ export function Button({
         {...(busy ? { 'aria-busy': true } : {})}
         {...(armed ? { 'data-armed': true } : {})}
         {...(lit ? { 'data-lit': true } : {})}
+        {...(glass ? { 'data-glass': 'control' } : {})}
       >
         {label}
       </button>

@@ -223,6 +223,20 @@ function componentModules(): { name: string; css: string }[] {
   return out
 }
 
+describe('Button — glass hook (spec 2026-10-08 C)', () => {
+  it.each([
+    [{ variant: 'primary' }, 'control'],
+    [{ variant: 'secondary' }, 'control'],
+    [{ variant: 'secondary', disabled: true }, null],
+    [{ variant: 'secondary', lit: true }, null],
+    [{ variant: 'secondary', busy: true }, null],
+    [{ variant: 'ghost' }, null],
+    [{ variant: 'danger' }, null]
+  ] as const)('data-glass for %o is %s', (props, expected) => {
+    expect(button(render(props)).getAttribute('data-glass')).toBe(expected)
+  })
+})
+
 describe('Button owns every button style', () => {
   it('no other module declares a button class', () => {
     const offenders: string[] = []

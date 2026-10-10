@@ -386,6 +386,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       data-variant={variant}
       data-accent={accent}
       data-status={status}
+      data-glass="card"
       {...(sessionId !== undefined ? { 'data-session-id': sessionId } : {})}
       {...(selected ? { 'data-selected': true } : {})}
       {...(emphasized ? { 'data-emphasized': true } : {})}

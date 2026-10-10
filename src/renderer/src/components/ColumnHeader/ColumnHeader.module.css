@@ -67,3 +67,8 @@
   line-height: var(--line-height-meta);
   color: var(--text-muted);
 }
+
+/* A theme hook (spec 2026-10-08 C): Liquid Glass shows the status dot before the name. */
+.mark {
+  display: none;
+}

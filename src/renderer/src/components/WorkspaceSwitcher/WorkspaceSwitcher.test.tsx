@@ -103,6 +103,9 @@ function click(el: Element): void {
   fireEvent(el, new MouseEvent('click', { bubbles: true }))
 }
 
+// The switcher's hover rule: its own hover, or its anchor's elsewhere tab hovered (one control).
+const SWITCHER_HOVER = '.switcher:hover,\n:where(.anchor:has(> .tab:hover)) > .switcher'
+
 describe('WorkspaceSwitcher', () => {
   it('shows the active workspace name', () => {
     const r = renderSwitcher()
@@ -273,9 +276,27 @@ describe('WorkspaceSwitcher', () => {
     }
     expect(block('.switcher')).toContain('background: var(--ws-fill, var(--bg-surface-raised))')
     expect(block('.switcher')).toContain('border: 1px solid var(--ws-border, var(--border-strong))')
-    expect(block('.switcher:hover')).toContain('background: var(--ws-fill, var(--bg-surface))')
-    expect(block('.switcher:hover')).toContain('border-color: var(--text-secondary)')
+    expect(block(SWITCHER_HOVER)).toContain('background: var(--ws-fill, var(--bg-surface))')
+    expect(block(SWITCHER_HOVER)).toContain('border-color: var(--text-secondary)')
     expect(css).not.toContain('.tabDot')
+  })
+
+  // Drive 2026-10-09 (Liquid Glass, WebGL on): hovering the tab lit the TAB alone, and its film
+  // painted across the part tucked under the translucent switcher — a lighter band inside the
+  // pill. A click on the tab is a click on the switcher, so its hover is the switcher's hover: the
+  // group selector lights the switcher, and the tab has no hover of its own. `:where()` keeps the
+  // group rule at the switcher's own weight, so a theme's `[data-testid]:hover` still outranks it.
+  it('hovering the elsewhere tab hovers the switcher, and the tab never lights itself', () => {
+    const css = readFileSync(
+      join(
+        process.cwd(),
+        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
+      ),
+      'utf8'
+    )
+    expect(css).toContain(`${SWITCHER_HOVER} {`)
+    // No rule with the tab as its subject (the group selector names `.tab:hover` inside :has()).
+    expect(css).not.toMatch(/^\s*\.tab:hover\b/m)
   })
 
   it('renders no tab when only the active workspace has cards', () => {

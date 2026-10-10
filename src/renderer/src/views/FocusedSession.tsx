@@ -221,7 +221,7 @@ export function FocusedSession({
   }, [focusedTerminalId])
 
   return (
-    <div className={styles.focused} data-testid="focused-session">
+    <div className={styles.focused} data-testid="focused-session" data-glass="column">
       <AttentionRail
         onActivateSession={onActivateSession}
         {...(onRenameSession ? { onRenameSession } : {})}
@@ -229,7 +229,7 @@ export function FocusedSession({
         {...(onManageTags ? { onManageTags } : {})}
       />
       <div className={styles.main}>
-        <div className={styles.bar}>
+        <div className={styles.bar} data-focused-bar>
           <Button
             variant="secondary"
             size="sm"

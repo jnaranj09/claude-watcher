@@ -46,6 +46,8 @@ export interface TextInputProps {
   icon?: ReactNode
   /** Keys the caller handles itself (the board search clears on Escape). */
   onKeyDown?: ((e: KeyboardEvent<HTMLInputElement>) => void) | undefined
+  /** WebGL glass surface for the box (spec 2026-10-08 C). Only the board search uses it. */
+  glass?: 'field' | undefined
 }
 
 export function TextInput({
@@ -65,7 +67,8 @@ export function TextInput({
   variant = 'field',
   icon,
   onKeyDown,
-  onBlur
+  onBlur,
+  glass
 }: TextInputProps): JSX.Element {
   const className = [
     styles.input,
@@ -81,6 +84,7 @@ export function TextInput({
       className={className}
       id={id}
       data-testid={testId}
+      {...(glass !== undefined && icon === undefined ? { 'data-glass': glass } : {})}
       {...(menuItem === true ? { 'data-menu-item': true } : {})}
       aria-label={ariaLabel}
       aria-invalid={invalid === true ? true : undefined}
@@ -97,7 +101,7 @@ export function TextInput({
   )
   if (icon === undefined) return input
   return (
-    <span className={styles.iconField}>
+    <span className={styles.iconField} {...(glass !== undefined ? { 'data-glass': glass } : {})}>
       <span className={styles.icon} aria-hidden="true">
         {icon}
       </span>

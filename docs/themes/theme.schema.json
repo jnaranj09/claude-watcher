@@ -795,6 +795,392 @@
         ],
         "additionalProperties": false
       }
+    },
+    "glass": {
+      "type": "object",
+      "properties": {
+        "renderer": {
+          "type": "string",
+          "const": "webgl"
+        },
+        "surfaces": {
+          "type": "object",
+          "properties": {
+            "header": {
+              "type": "object",
+              "properties": {
+                "refract": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "edge": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 60
+                },
+                "blur": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "chroma": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "tintAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "rim": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "exposure": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 3
+                },
+                "lift": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "glow": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "refract",
+                "edge",
+                "blur",
+                "chroma",
+                "tint",
+                "tintAmount",
+                "rim",
+                "exposure",
+                "lift",
+                "glow",
+                "lightFollowsCursor"
+              ],
+              "additionalProperties": false
+            },
+            "column": {
+              "type": "object",
+              "properties": {
+                "refract": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "edge": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 60
+                },
+                "blur": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "chroma": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "tintAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "rim": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "exposure": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 3
+                },
+                "lift": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "glow": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
+                },
+                "tintNeedsYou": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                }
+              },
+              "required": [
+                "refract",
+                "edge",
+                "blur",
+                "chroma",
+                "tint",
+                "tintAmount",
+                "rim",
+                "exposure",
+                "lift",
+                "glow",
+                "lightFollowsCursor"
+              ],
+              "additionalProperties": false
+            },
+            "card": {
+              "type": "object",
+              "properties": {
+                "refract": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "edge": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 60
+                },
+                "blur": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "chroma": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "tintAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "rim": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "exposure": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 3
+                },
+                "lift": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "glow": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "refract",
+                "edge",
+                "blur",
+                "chroma",
+                "tint",
+                "tintAmount",
+                "rim",
+                "exposure",
+                "lift",
+                "glow",
+                "lightFollowsCursor"
+              ],
+              "additionalProperties": false
+            },
+            "control": {
+              "type": "object",
+              "properties": {
+                "refract": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "edge": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 60
+                },
+                "blur": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "chroma": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "tintAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "rim": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "exposure": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 3
+                },
+                "lift": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "glow": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "refract",
+                "edge",
+                "blur",
+                "chroma",
+                "tint",
+                "tintAmount",
+                "rim",
+                "exposure",
+                "lift",
+                "glow",
+                "lightFollowsCursor"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "type": "object",
+              "properties": {
+                "refract": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "edge": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 60
+                },
+                "blur": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 40
+                },
+                "chroma": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$"
+                },
+                "tintAmount": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "rim": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "exposure": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 3
+                },
+                "lift": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "glow": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.3
+                },
+                "lightFollowsCursor": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "refract",
+                "edge",
+                "blur",
+                "chroma",
+                "tint",
+                "tintAmount",
+                "rim",
+                "exposure",
+                "lift",
+                "glow",
+                "lightFollowsCursor"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "header",
+            "column",
+            "card",
+            "control",
+            "field"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "renderer",
+        "surfaces"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

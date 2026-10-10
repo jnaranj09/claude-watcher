@@ -157,6 +157,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
       <button
         type="button"
         ref={buttonRef}
+        data-glass="control"
         className={`${styles.switcher} ${workspaceTintClass(active?.color ?? 'slate')}`}
         data-testid="workspace-switcher"
         data-tone={active?.color ?? 'slate'}
@@ -188,6 +189,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         <span
           className={styles.tab}
           data-testid="workspace-elsewhere-tab"
+          data-glass="control"
           aria-hidden="true"
           // Tucked behind the button while the menu lists the same cards row by row.
           data-tucked={present ? '' : undefined}

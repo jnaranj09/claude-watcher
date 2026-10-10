@@ -1,0 +1,9 @@
+/* Behind every app layer, never takes a pointer (spec 2026-10-08 A.2). */
+.layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+}

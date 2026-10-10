@@ -54,7 +54,9 @@
    inside claude's bubble read as one terminal). The frame drops its chrome and `.main` takes it,
    the same border, radius, ground and breathing edge. `data-terminal-panel` moves with it, so a
    theme styles both panels and never the empty column around them. Each half keeps 80px so a
-   prompt can always be read; the ratio is inline. */
+   prompt can always be read; the ratio is inline.
+   `:where(.split)` keeps the half's rule at ONE class, like `.frame`: two classes outranked a
+   theme's `[data-terminal-panel]`, and claude's half lost the theme's radius (2026-10-09). */
 .split {
   padding: 0;
   background: transparent;
@@ -65,7 +67,7 @@
   overflow: visible;
 }
 
-.split > .main {
+:where(.split) > .main {
   min-height: 80px;
   padding: var(--inset-compact-x);
   background: var(--bg-terminal);

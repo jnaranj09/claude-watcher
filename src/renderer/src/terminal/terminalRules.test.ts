@@ -149,3 +149,14 @@ describe('terminal.md source invariants — component (AC-1/2/5; F3)', () => {
     expect(deps).toEqual(['terminalId', 'openNonce'])
   })
 })
+
+// Owner, 2026-10-09: with the shell open, claude's half came up with the bubble's 20px corners
+// under Liquid Glass while the shell kept the theme's 7px. THEMES.md tells a theme to style the
+// panel on `[data-terminal-panel]` (one attribute); the split rule `.split > .main` (two classes)
+// outranked it. The panel rule must weigh ONE class, like `.frame`, so the theme's later rule wins.
+describe('terminal panels — a theme styles both halves of the shell split', () => {
+  it("claude's half in the split weighs one class, so [data-terminal-panel] in a theme beats it", () => {
+    expect(css).toMatch(/:where\(\.split\)\s*>\s*\.main\s*\{/)
+    expect(css).not.toMatch(/(^|[^(])\.split\s*>\s*\.main/m)
+  })
+})

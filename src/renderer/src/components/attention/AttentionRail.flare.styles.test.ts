@@ -12,8 +12,8 @@
 //   - `.rail` paints neither `background` nor `border-right` — the wall lives on the tiling
 //     chrome layers instead (`.rail::before`/`.rail::after`/`.pinnedSlot::before`).
 //   - `.pinnedSlot::before`'s mask SUBTRACTS the hole from the rest (`mask-composite: subtract`
-//     is the FIRST composite value), and its background's LAST layer is `var(--bg-surface)` (the
-//     rail's own surface, painted once, not composited twice).
+//     is the FIRST composite value), and its background's LAST layer is the rail surface,
+//     `var(--rail-surface, var(--bg-surface))` (painted once, not composited twice).
 //   - The ring gradient's outside stop is `transparent` (never a fill) — the shape is a 1px ring
 //     with a hole on the far side, not a flare with paint beyond the arc.
 //   - `.row.active::after`, the hit strip that replaces the width the row's box gave up, carries
@@ -44,9 +44,9 @@ describe('AttentionRail — the rail paints no background/border of its own', ()
     expect(rail).not.toMatch(/^\s*border-right\s*:/m)
   })
 
-  it('.rail::before/.rail::after paint the surface + wall above/below the pinned slot', () => {
+  it('.rail::before/.rail::after paint the wall above/below the pinned slot', () => {
+    // Their surface is pinned by AttentionRail.surface.styles.test.ts.
     const chrome = block(/^\.rail::before,\s*\n\.rail::after\s*\{([^}]*)/m)
-    expect(chrome).toMatch(/background:\s*var\(--bg-surface\)/)
     expect(chrome).toMatch(/border-right:\s*1px solid var\(--border\)/)
   })
 })
@@ -84,7 +84,7 @@ describe('AttentionRail — the notch is a genuine hole (mask), not a paint-over
   it("the slot's own surface is the LAST background layer — painted once, never composited twice", () => {
     const chrome = block(/^\.pinnedSlot::before\s*\{([^}]*)/m)
     const backgroundBlock = /background:\s*([^;]*);/.exec(chrome)?.[1] ?? ''
-    expect(backgroundBlock.trim().endsWith('var(--bg-surface)')).toBe(true)
+    expect(backgroundBlock.trim().endsWith('var(--rail-surface, var(--bg-surface))')).toBe(true)
   })
 
   it("the ring gradients' outside stop is transparent — a ring with a hole beyond it, never a fill", () => {

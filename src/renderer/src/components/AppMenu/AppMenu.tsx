@@ -273,6 +273,7 @@ export function AppMenu({
       <Button
         variant="secondary"
         icon
+        data-app-menu
         buttonRef={buttonRef}
         testId="app-menu"
         aria-label="Menu"

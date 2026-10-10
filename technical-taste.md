@@ -477,6 +477,9 @@ yet. Prefer turning prose-only rules into sensors.
 - **The Liquid Glass look the owner settled on:** smoked, neutral (not blue) glass; panels are
   separate rounded "bubbles" that do not touch the window edge; popovers, menus and toasts get the
   same glass; the text behind a popover must not be readable; subtle, diffused background colour.
+  Since 2026-10-08: the board glass is WebGL (it bends, frosts and lights itself over a calm, dark
+  photo; the status colour lives in the column rim; neutral text); Lake is the default ground;
+  overlays keep the CSS glass, which is also the fallback.
 - **Terminal:** it reads as a real terminal. Its dark/light scheme is independent of the app
   theme. Light terminals get a contrast floor. Never change claude's own theme to fix readability.
 
@@ -634,6 +637,8 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | "Leave work uncommitted for review" (June)                                                          | Commit on the branch; merge locally when told                                                       | The owner's later workflow                                                        |
 | Card actions reserve their space at rest, never reflow                                              | Actions take no room at rest; on hover/focus the title gets shorter, its start never moves          | Owner, 2026-10-07: the empty reserved space read as a gap                         |
 | Settings `Saved` beside the pane heading                                                            | Compact `Saved` in the dialog's one message slot; no pane heading                                   | The heading repeated the rail row; one message slot per dialog                    |
+| CSS-only glass                                                                                      | WebGL board glass; CSS for overlays and as fallback                                                 | The canvas look; CSS cannot bend or self-light                                    |
+| Graphite default wallpaper                                                                          | Lake                                                                                                | Owner pick 2026-10-08                                                             |
 
 ## 13. Rejected — don't propose these again
 

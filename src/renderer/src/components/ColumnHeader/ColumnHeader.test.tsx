@@ -67,6 +67,21 @@ describe('ColumnHeader — always present, accent tick, prominent/flank (AC-5)',
   })
 })
 
+describe('ColumnHeader — theme hooks (spec 2026-10-08 C)', () => {
+  it('renders the theme hooks without changing what Default shows', () => {
+    const { container, unmount } = renderComponent(
+      <ColumnHeader name="Idle" count={3} accent="idle" />
+    )
+    cleanup = unmount
+    const root = container.querySelector('[data-column-header]')
+    expect(root).not.toBeNull()
+    expect(root?.querySelector('[data-column-mark]')?.getAttribute('aria-hidden')).toBe('true')
+    const count = container.querySelector('[data-testid="column-count"]')
+    expect(count?.querySelector('[data-count-sep]')?.textContent).toBe('·')
+    expect(count?.textContent?.replace(/\s+/g, ' ').trim()).toBe('· 3')
+  })
+})
+
 describe('ColumnHeader — one height in every column (spec 2026-10-07 A.1)', () => {
   const css = readFileSync(
     join(process.cwd(), 'src/renderer/src/components/ColumnHeader/ColumnHeader.module.css'),

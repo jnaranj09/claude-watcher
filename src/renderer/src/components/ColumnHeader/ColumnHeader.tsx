@@ -44,13 +44,19 @@ export function ColumnHeader({
       className={`${styles.root} ${presentationClass ?? ''} ${ACCENT_CLASS[accent]}`}
       data-accent={accent}
       data-prominent={prominent}
+      data-column-header
     >
       <div className={styles.line}>
+        {/* Liquid Glass shows this status dot (its rim carries the colour); hidden by the app. */}
+        <span className={styles.mark} data-column-mark aria-hidden="true" />
         <span className={styles.name} data-testid="column-name">
           {name}
         </span>
         <span className={styles.count} data-testid="column-count">
-          · {count}
+          <span data-count-sep aria-hidden="true">
+            ·
+          </span>{' '}
+          {count}
         </span>
       </div>
     </div>
