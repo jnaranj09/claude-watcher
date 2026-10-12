@@ -19,6 +19,7 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { MOTION_EXIT_MS } from '../../styles/motion'
 import { pointerInput } from '../../test/pointerInput'
 import type { Column } from '../../../../shared/ipc/contract'
+import { TOKENS } from '../../../../shared/theme/tokens'
 
 const rows = [
   { id: 'default', name: 'Default', color: 'slate' as const, defaultCwd: null },
@@ -327,6 +328,87 @@ describe('WorkspaceSwitcher', () => {
     const rule = css.slice(i, css.indexOf('}', i))
     expect(rule).toContain('transform: translateX(-100%)')
     expect(rule).toContain('opacity: 0')
+  })
+
+  // The tucked tab slides left by its OWN width. Under a short name ("Default") the tab with its
+  // three pills was wider than the button, so it showed left of the button while it tucked (owner,
+  // 2026-10-12). The button's min-width keeps the tucked tab's left edge strictly inside the
+  // button, in the app's tokens and in every bundled theme's. The tab width is read from the
+  // TAB's own rules, so a change to its padding, gap or pills that outgrows the button fails here.
+  // Each pill is sized for a two-digit count (up to 99): two of the widest digit (--switcher-digit,
+  // measured on the widest UI font) plus the pill's own side padding.
+  it('the button is always wider than the tucked tab with its three two-digit pills', () => {
+    const css = readFileSync(
+      join(
+        process.cwd(),
+        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
+      ),
+      'utf8'
+    ).replace(/\/\*[\s\S]*?\*\//g, '')
+    const decl = (sel: string, prop: string): string => {
+      const blocks = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) =>
+        (m[1] ?? '').split(',').some((s) => s.trim() === sel)
+      )
+      for (const b of blocks.reverse()) {
+        const m = new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+);`).exec(b[2] ?? '')
+        if (m?.[1] !== undefined) return m[1].trim()
+      }
+      throw new Error(`no ${prop} on ${sel}`)
+    }
+    // Split a shorthand on top-level spaces (not inside calc()).
+    const parts = (v: string): string[] => {
+      const out: string[] = []
+      let depth = 0
+      let cur = ''
+      for (const ch of v) {
+        if (ch === '(') depth++
+        if (ch === ')') depth--
+        if (ch === ' ' && depth === 0) {
+          if (cur !== '') out.push(cur)
+          cur = ''
+        } else cur += ch
+      }
+      if (cur !== '') out.push(cur)
+      return out
+    }
+    const themes = ['builtin-dark', 'liquid-glass', 'paper'].map((t) => {
+      const file = join(process.cwd(), `docs/themes/examples/${t}/theme.json`)
+      return { t, tokens: (JSON.parse(readFileSync(file, 'utf8')) as { tokens: object }).tokens }
+    })
+    for (const { t, tokens } of [{ t: 'app', tokens: {} }, ...themes]) {
+      const vars: Record<string, string> = { ...TOKENS, ...tokens }
+      const px = (v: string): number => {
+        let e = v
+        for (let i = 0; i < 20 && e.includes('var('); i++) {
+          e = e.replace(/var\(--([\w-]+)(?:,[^()]*)?\)/g, (_, n: string) => {
+            const token = vars[n]
+            return `(${token ?? decl('.anchor', `--${n}`)})`
+          })
+        }
+        e = e.replace(/calc/g, '').replace(/px/g, '')
+        if (!/^[\d\s.+\-*/()]+$/.test(e)) throw new Error(`cannot evaluate ${v} → ${e}`)
+        return Number(new Function(`return (${e})`)())
+      }
+      const pad = parts(decl('.tab', 'padding'))
+      const tabPadding = px(pad[1] ?? '') + px(pad[3] ?? pad[1] ?? '')
+      const tabBorder = 2 * px(parts(decl('.tab', 'border'))[0] ?? '')
+      const pillPadding = 2 * px(parts(decl('.badge', 'padding'))[1] ?? '')
+      const pill = Math.max(
+        px(decl('.badge', 'min-width')),
+        2 * px('var(--switcher-digit)') + pillPadding
+      )
+      const gap = px(decl('.tab', 'gap'))
+      const strut = px(decl('.tab::before', 'margin-inline-end'))
+      // The strut, then three pills: three gaps, the strut's negative margin eats the first.
+      const tab = tabPadding + tabBorder + 3 * pill + 3 * gap + strut
+      const overlap = -px(decl('.tab', 'margin-left'))
+      const button = px(decl('.switcher', 'min-width'))
+      // The tab's box starts `overlap` before the button's right edge; tucked, it moves left by
+      // `tab`. Its left edge then sits this far right of the button's left edge.
+      expect({ t, inside: button - overlap - tab > 0 }).toEqual({ t, inside: true })
+    }
+    // The name and the pills are ONE group, centred together in the wider box.
+    expect(decl('.switcher', 'justify-content')).toBe('center')
   })
 
   it('opens the dropdown from the tab too', () => {
