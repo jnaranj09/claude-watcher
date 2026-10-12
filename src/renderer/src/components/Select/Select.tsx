@@ -4,6 +4,9 @@
 // `:root { color-scheme: dark }` nor `nativeTheme.themeSource = 'dark'` changes that — both were
 // tried and the popup stayed light. A popup we render ourselves is the only one we can style.
 //
+// The list is PORTALED to document.body and placed by `useAnchoredPlacement`: drawn inside the
+// anchor, the Settings pane (a scroll region) cut it, and a list near the window bottom ran off it.
+//
 // The popover mechanics mirror WorkspaceSwitcher.tsx (mousedown-outside closes; Escape closes and
 // returns focus to the trigger, stopping propagation so it peels ONE layer and never closes the
 // dialog behind it — UX-DR14). Arrow-key roving focus is ADDED here, which the switcher does not
@@ -18,10 +21,12 @@ import {
   type KeyboardEvent,
   type ReactNode
 } from 'react'
+import { createPortal } from 'react-dom'
 import { Popover } from '../Popover/Popover'
 import { Presence } from '../Presence/Presence'
 import styles from './Select.module.css'
 import { leavingProps } from '../Presence/leaving'
+import { useAnchoredPlacement } from '../Popover/useAnchoredPlacement'
 
 export interface SelectOption<T extends string> {
   value: T
@@ -64,15 +69,20 @@ export function Select<T extends string>({
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const listWrapRef = useRef<HTMLDivElement | null>(null)
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const selectedIndex = options.findIndex((o) => o.value === value)
   const selected = selectedIndex === -1 ? null : options[selectedIndex]
+  const placement = useAnchoredPlacement(open, triggerRef, listWrapRef, align)
 
   useEffect(() => {
     if (!open) return
     const onMouseDown = (e: MouseEvent): void => {
-      if (anchorRef.current?.contains(e.target as Node) === true) return
+      // Both roots: the list is portaled OUT of the anchor.
+      const target = e.target as Node
+      if (anchorRef.current?.contains(target) === true) return
+      if (listWrapRef.current?.contains(target) === true) return
       setOpen(false)
     }
     document.addEventListener('mousedown', onMouseDown)
@@ -149,38 +159,43 @@ export function Select<T extends string>({
         </span>
       </button>
       <Presence value={open || null}>
-        {(_, leaving) => (
-          <div
-            className={align === 'end' ? `${styles.listWrap} ${styles.listEnd}` : styles.listWrap}
-            {...leavingProps(leaving)}
-          >
-            <Popover.Surface>
-              <Popover.List
-                role="listbox"
-                aria-label={ariaLabel}
-                testId={`${testId}-list`}
-                onKeyDown={handleListKeyDown}
-              >
-                {options.map((o, i) => (
-                  <Popover.Item
-                    key={o.value}
-                    buttonRef={(el) => {
-                      optionRefs.current[i] = el
-                    }}
-                    role="option"
-                    aria-selected={o.value === value}
-                    testId={`${testId}-option-${o.value}`}
-                    data-value={o.value}
-                    onClick={() => commit(o.value)}
-                  >
-                    {o.adornment}
-                    <span className={styles.label}>{o.display ?? o.label}</span>
-                  </Popover.Item>
-                ))}
-              </Popover.List>
-            </Popover.Surface>
-          </div>
-        )}
+        {(_, leaving) =>
+          createPortal(
+            <div
+              ref={listWrapRef}
+              className={styles.listWrap}
+              style={placement}
+              {...leavingProps(leaving)}
+            >
+              <Popover.Surface>
+                <Popover.List
+                  role="listbox"
+                  aria-label={ariaLabel}
+                  testId={`${testId}-list`}
+                  onKeyDown={handleListKeyDown}
+                >
+                  {options.map((o, i) => (
+                    <Popover.Item
+                      key={o.value}
+                      buttonRef={(el) => {
+                        optionRefs.current[i] = el
+                      }}
+                      role="option"
+                      aria-selected={o.value === value}
+                      testId={`${testId}-option-${o.value}`}
+                      data-value={o.value}
+                      onClick={() => commit(o.value)}
+                    >
+                      {o.adornment}
+                      <span className={styles.label}>{o.display ?? o.label}</span>
+                    </Popover.Item>
+                  ))}
+                </Popover.List>
+              </Popover.Surface>
+            </div>,
+            document.body
+          )
+        }
       </Presence>
     </div>
   )

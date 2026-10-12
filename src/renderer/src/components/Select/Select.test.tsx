@@ -38,8 +38,10 @@ function render(
   return r
 }
 
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
+/** Searches the whole document: the open list is portaled to document.body. `r` keeps the call
+ *  sites naming the render they mean. */
+function q<T extends Element>(_r: RenderResult, sel: string): T {
+  const el = document.querySelector<T>(sel)
   if (el === null) throw new Error(`missing ${sel}`)
   return el
 }
@@ -58,7 +60,7 @@ describe('Select', () => {
     const trigger = q<HTMLButtonElement>(r, '[data-testid="letter"]')
     expect(trigger.textContent).toContain('Beta')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(r.container.querySelector('[data-testid="letter-list"]')).toBeNull()
+    expect(document.querySelector('[data-testid="letter-list"]')).toBeNull()
   })
 
   it('picks an option, reports it, and closes', () => {
@@ -67,7 +69,7 @@ describe('Select', () => {
     click(q(r, '[data-testid="letter"]'))
     click(q(r, '[data-testid="letter-option-c"]'))
     expect(onChange).toHaveBeenCalledWith('c')
-    expect(r.container.querySelector('[data-testid="letter-list"]')).toBeNull()
+    expect(document.querySelector('[data-testid="letter-list"]')).toBeNull()
   })
 
   // The a11y contract a native <select> gave for free and this component has to earn: the popup
@@ -94,7 +96,7 @@ describe('Select', () => {
     cleanup = r.unmount
     click(q(r, '[data-testid="letter"]'))
     key(q(r, '[data-testid="letter-list"]'), 'Escape')
-    expect(r.container.querySelector('[data-testid="letter-list"]')).toBeNull()
+    expect(document.querySelector('[data-testid="letter-list"]')).toBeNull()
     expect(onDialogEscape).not.toHaveBeenCalled()
     // Focus goes back to the trigger — otherwise it lands on <body> and the next Tab restarts
     // from the top of the dialog.
@@ -107,7 +109,7 @@ describe('Select', () => {
     act(() => {
       document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     })
-    expect(r.container.querySelector('[data-testid="letter-list"]')).toBeNull()
+    expect(document.querySelector('[data-testid="letter-list"]')).toBeNull()
   })
 
   // Replacing a native <select> means replacing its keyboard too. Opening focuses the CURRENT
@@ -140,7 +142,7 @@ describe('Select', () => {
     )
     cleanup = r.unmount
     click(q(r, '[data-testid="letter"]'))
-    expect(r.container.querySelector('[data-testid="letter-list"]')).toBeNull()
+    expect(document.querySelector('[data-testid="letter-list"]')).toBeNull()
   })
 
   // A trigger at the right edge of a scroll region (the Settings rows): a left-aligned popup wider
@@ -158,19 +160,36 @@ describe('Select', () => {
     )
     cleanup = r.unmount
     click(q(r, '[data-testid="letter"]'))
-    // The placement classes sit on the wrapper around the Popover surface.
-    const wrapperOf = (el: Element): string => el.parentElement?.parentElement?.className ?? ''
-    const endClasses = wrapperOf(q(r, '[data-testid="letter-list"]'))
+    // The placement sits on the wrapper around the Popover surface, inline (useAnchoredPlacement).
+    const wrapperOf = (el: Element): HTMLElement => el.parentElement?.parentElement as HTMLElement
+    const end = wrapperOf(q(r, '[data-testid="letter-list"]')).style
+    expect(end.right).not.toBe('')
+    expect(end.left).toBe('')
     cleanup()
     const s = render()
     click(q(s, '[data-testid="letter"]'))
-    expect(endClasses).not.toBe(wrapperOf(q(s, '[data-testid="letter-list"]')))
-    // The class proxy returns a name for any key, so read the stylesheet for the rule itself.
-    const css = readFileSync(
-      join(process.cwd(), 'src/renderer/src/components/Select/Select.module.css'),
-      'utf8'
-    )
-    expect(css).toMatch(/\.listEnd\s*\{[^}]*left:\s*auto;[^}]*right:\s*0;/)
+    const start = wrapperOf(q(s, '[data-testid="letter-list"]')).style
+    expect(start.left).not.toBe('')
+    expect(start.right).toBe('')
+  })
+
+  // The bug: the list was drawn inside the trigger's box, so a scroll region (the Settings pane)
+  // or the window bottom cut it. It is portaled out, and opens UPWARD, capped to the room above,
+  // when the room below is too small.
+  it('portals the list out of its container and opens it upward near the window bottom', () => {
+    const r = render()
+    const trigger = q<HTMLButtonElement>(r, '[data-testid="letter"]')
+    const bottom = window.innerHeight - 10
+    trigger.getBoundingClientRect = () =>
+      ({ top: bottom - 30, bottom, left: 40, right: 140, width: 100, height: 30 }) as DOMRect
+    click(trigger)
+    const list = q(r, '[data-testid="letter-list"]')
+    expect(r.container.contains(list)).toBe(false)
+    const wrap = (list.parentElement?.parentElement as HTMLElement).style
+    expect(wrap.top).toBe('')
+    expect(wrap.bottom).toBe(`${window.innerHeight - (bottom - 30) + 4}px`)
+    expect(wrap.maxHeight).toBe(`${bottom - 30 - 4 - 16}px`)
+    expect(wrap.minWidth).toBe('100px')
   })
 
   // A workspace dropdown draws the name in its tint (WorkspaceLabel) instead of plain text. The
@@ -206,14 +225,17 @@ describe('Select', () => {
     expect(b.getAttribute('aria-selected')).toBe('true')
   })
 
-  it('places its wrapper under the trigger and caps the list height', () => {
+  it('keeps the wrapper fixed above dialogs, a flex box, and caps the list height', () => {
     const css = readFileSync(
       join(process.cwd(), 'src/renderer/src/components/Select/Select.module.css'),
       'utf8'
     )
+    // Fixed (placed from JS), over ManageDialog (60) and under toasts (70); a flex column so the
+    // inline maxHeight reaches the list.
     expect(css).toMatch(
-      /\.listWrap\s*\{[^}]*position:\s*absolute;[^}]*top:\s*calc\(100% \+ var\(--space-1\)\);[^}]*left:\s*0;[^}]*z-index:\s*10;[^}]*min-width:\s*100%;[^}]*--popover-max-height:\s*244px;/
+      /\.listWrap\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*65;[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*--popover-max-height:\s*244px;/
     )
+    expect(css).toMatch(/\.listWrap > \[data-popover\]\s*\{[^}]*min-height:\s*0;/)
   })
 })
 
@@ -230,7 +252,7 @@ describe('Select — the list fades out after a pointer pick (spec 2026-10-04 §
     act(() => {
       vi.advanceTimersByTime(MOTION_EXIT_MS)
     })
-    expect(r.container.querySelector('[data-popover]')).toBeNull()
+    expect(document.querySelector('[data-popover]')).toBeNull()
     vi.useRealTimers()
     clearInput()
   })

@@ -193,7 +193,7 @@ function clickPickFolder(r: RenderResult): void {
     (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
   )
   act(() =>
-    (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    (document.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
   )
 }
 
@@ -241,11 +241,11 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
       await Promise.resolve()
     })
     await flush()
-    expect(r.container.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
     expect(pickSpy).not.toHaveBeenCalled()
     // Its folder row is the same launch flow as the button's.
     act(() =>
-      (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+      (document.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
     )
     await flush()
     expect(pickSpy).toHaveBeenCalledTimes(1)
@@ -391,7 +391,7 @@ describe('App — session-naming: the create-time name prompt', () => {
     await flush()
 
     expect(pickSpy).toHaveBeenCalledTimes(1) // still 1 — the re-entry was refused
-    expect(r.container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     // The prompt payload is a create/rename union — narrow before reading the create-only `cwd`.
     const prompt = boardStore.getState().sessionNamePrompt
     expect(prompt?.mode).toBe('create')

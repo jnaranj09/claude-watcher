@@ -81,7 +81,7 @@ describe('NewSessionMenu', () => {
   it('renders folder row, search (focused), one row per template with name/path/flags, manage row', () => {
     const { r } = render()
     expect(document.activeElement).toBe(q(r, '[data-testid="menu-search"]'))
-    const rows = r.container.querySelectorAll('[data-testid="menu-template"]')
+    const rows = document.querySelectorAll('[data-testid="menu-template"]')
     expect(rows).toHaveLength(2)
     expect(rows[0]?.textContent).toContain('work api')
     expect(rows[0]?.textContent).toContain('/home/op/api')
@@ -91,7 +91,7 @@ describe('NewSessionMenu', () => {
   it('search filters rows; Enter in the search picks the first match', () => {
     const { r, onPickTemplate } = render()
     type(q(r, '[data-testid="menu-search"]'), 'blo')
-    expect(r.container.querySelectorAll('[data-testid="menu-template"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-testid="menu-template"]')).toHaveLength(1)
     key(q(r, '[data-testid="menu-search"]'), 'Enter')
     expect(onPickTemplate).toHaveBeenCalledWith(T2)
   })
@@ -150,10 +150,11 @@ describe('NewSessionMenu', () => {
       'utf8'
     )
     const menu = /(?:^|\n)\.menu \{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(menu).toContain('position: absolute;')
     expect(menu).toContain('--popover-max-height: 320px;')
-    const primary = /\.anchorPrimary \.menu \{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(primary).toContain('transform: translateX(-50%);')
-    expect(css.indexOf('.portalAnchor .menu')).toBeGreaterThan(css.indexOf('\n.menu {'))
+    // Portaled and placed from JS (useAnchoredPlacement): fixed, and a flex box so the inline
+    // maxHeight reaches the list.
+    const anchor = /\.portalAnchor \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(anchor).toContain('position: fixed;')
+    expect(anchor).toContain('display: flex;')
   })
 })

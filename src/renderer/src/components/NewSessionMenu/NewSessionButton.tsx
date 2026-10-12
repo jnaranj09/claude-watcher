@@ -2,18 +2,9 @@
 // LOCAL (transient, like the Settings gear); the outside-click listener lives here so a click on
 // the button itself toggles instead of close-then-reopen. THREE placements share this component:
 // the header (`variant="header"`, menu right-aligned), the empty board's centered primary
-// (`variant="primary"`, larger padding, menu centered under the button) and the dead-terminal
-// pane (`variant="dead"`, menu PORTALED — see the portal comment on the render below).
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type JSX,
-  type RefObject
-} from 'react'
+// (`variant="primary"`, menu centered under the button) and the dead-terminal pane
+// (`variant="dead"`, centered). The menu is PORTALED in all three — see the comment on the render.
+import { useCallback, useEffect, useRef, useState, type JSX, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '../Button/Button'
 import { useShallow } from 'zustand/react/shallow'
@@ -24,6 +15,7 @@ import { NewSessionMenu } from './NewSessionMenu'
 import { Presence } from '../Presence/Presence'
 import styles from './NewSessionMenu.module.css'
 import { leavingProps } from '../Presence/leaving'
+import { useAnchoredPlacement } from '../Popover/useAnchoredPlacement'
 
 export type NewSessionButtonVariant = 'header' | 'primary' | 'dead'
 
@@ -32,7 +24,7 @@ export interface NewSessionButtonProps {
   onPickTemplate: (template: Template) => void
   onManage: () => void
   /** Placement: `header` (default), the empty board's centered `primary`, or the dead
-   *  terminal pane's portaled `dead`. Placement ONLY — the menu and its three seams are
+   *  terminal pane's `dead`. Placement ONLY — the menu and its three seams are
    *  identical in all three. */
   variant?: NewSessionButtonVariant
   /** The button's `data-testid`; defaults to the header's `header-new-session`. */
@@ -44,10 +36,6 @@ export interface NewSessionButtonProps {
   openRef?: RefObject<(() => void) | null>
 }
 
-/** Gap between the button and the portaled popover, and the margin kept off the viewport edge. */
-const MENU_GAP = 4
-const VIEWPORT_MARGIN = 16
-
 export function NewSessionButton({
   onPickFolder,
   onPickTemplate,
@@ -58,7 +46,6 @@ export function NewSessionButton({
   openRef
 }: NewSessionButtonProps): JSX.Element {
   const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState<CSSProperties | null>(null)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const portalRef = useRef<HTMLDivElement | null>(null)
@@ -67,9 +54,12 @@ export function NewSessionButton({
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const templates = useTemplates(useShallow(makeSelectVisibleTemplates(activeWorkspaceId)))
 
-  // Modifier classes stack on the base (no `composes` — the repo's CSS modules don't use it).
-  const primary = variant === 'primary'
-  const portaled = variant === 'dead'
+  const placement = useAnchoredPlacement(
+    open,
+    buttonRef,
+    portalRef,
+    variant === 'header' ? 'end' : 'center'
+  )
 
   const close = useCallback((): void => setOpen(false), [])
   const closeAndRefocus = useCallback((): void => {
@@ -89,9 +79,8 @@ export function NewSessionButton({
     if (!open) return
     const onMouseDown = (e: MouseEvent): void => {
       const target = e.target as Node
-      // Containment must consider BOTH roots: the `dead` variant's menu is portaled OUT of the
-      // anchor, so an anchor-only check would read the first click inside the menu as "outside"
-      // and close it. `portalRef` is null for the inline variants, so their behavior is unchanged.
+      // Containment must consider BOTH roots: the menu is portaled OUT of the anchor, so an
+      // anchor-only check would read the first click inside the menu as "outside" and close it.
       if (anchorRef.current?.contains(target) === true) return
       if (portalRef.current?.contains(target) === true) return
       setOpen(false)
@@ -99,28 +88,6 @@ export function NewSessionButton({
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [open])
-
-  // Portaled placement: measure the button in the VIEWPORT before paint (useLayoutEffect, so the
-  // popover never paints at the wrong spot), and re-measure on resize. No flip logic is needed —
-  // the dead-pane button is vertically centred in a near-full-height frame, so the room below is
-  // always about half the viewport; we CLAMP the height and let `.list` scroll.
-  useLayoutEffect(() => {
-    if (!open || !portaled) return
-    const measure = (): void => {
-      const button = buttonRef.current
-      if (button === null) return
-      const rect = button.getBoundingClientRect()
-      setCoords({
-        top: rect.bottom + MENU_GAP,
-        left: rect.left + rect.width / 2,
-        transform: 'translateX(-50%)',
-        maxHeight: Math.max(0, window.innerHeight - rect.bottom - MENU_GAP - VIEWPORT_MARGIN)
-      })
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [open, portaled])
 
   const menu = (
     <NewSessionMenu
@@ -142,10 +109,7 @@ export function NewSessionButton({
   )
 
   return (
-    <div
-      ref={anchorRef}
-      className={primary ? `${styles.anchor} ${styles.anchorPrimary}` : styles.anchor}
-    >
+    <div ref={anchorRef} className={styles.anchor}>
       {/* `primary`: the ONE main action of the header, the empty board and the dead pane alike. */}
       <Button
         variant="primary"
@@ -158,25 +122,22 @@ export function NewSessionButton({
       >
         + New session
       </Button>
-      {/* The `dead` variant portals its menu to document.body: its host terminal frame is
-          `overflow: clip`, so an in-anchor popover would be cut at the frame edge with no
-          scrollbar to recover it (the TerminalContextMenu precedent). The inline variants are
-          unchanged — their frames do not clip. */}
+      {/* Portaled to document.body in every placement: in place, the dead pane's frame
+          (`overflow: clip`) cut it, and on the empty board it ran off the window bottom with no
+          scrollbar to recover it (the TerminalContextMenu precedent). */}
       <Presence value={open || null}>
         {(_, leaving) =>
-          portaled
-            ? createPortal(
-                <div
-                  ref={portalRef}
-                  className={styles.portalAnchor}
-                  style={coords ?? undefined}
-                  {...leavingProps(leaving)}
-                >
-                  {menu}
-                </div>,
-                document.body
-              )
-            : menu
+          createPortal(
+            <div
+              ref={portalRef}
+              className={styles.portalAnchor}
+              style={placement}
+              {...leavingProps(leaving)}
+            >
+              {menu}
+            </div>,
+            document.body
+          )
         }
       </Presence>
     </div>

@@ -334,7 +334,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
       (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
     )
     act(() =>
-      (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+      (document.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
     )
     await flush()
 

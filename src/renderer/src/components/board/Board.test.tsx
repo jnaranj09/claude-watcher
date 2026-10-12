@@ -276,12 +276,12 @@ describe('Board — empty states never collapse (AC-4)', () => {
       const onNewSession = vi.fn()
       const { container, unmount } = renderComponent(<Board onNewSession={onNewSession} />)
       cleanup = unmount
-      expect(container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
+      expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
       click(container, '[data-testid="new-session"]')
-      expect(container.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
-      click(container, '[data-testid="menu-pick-folder"]')
+      expect(document.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+      click(document.body, '[data-testid="menu-pick-folder"]')
       expect(onNewSession).toHaveBeenCalledTimes(1)
-      expect(container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
+      expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     })
 
     it('a template row fires onPickTemplate with the template; Manage… fires onManageTemplates', () => {
@@ -294,10 +294,10 @@ describe('Board — empty states never collapse (AC-4)', () => {
       )
       cleanup = unmount
       click(container, '[data-testid="new-session"]')
-      click(container, '[data-template-id="a"]')
+      click(document.body, '[data-template-id="a"]')
       expect(onPickTemplate).toHaveBeenCalledWith(T1)
       click(container, '[data-testid="new-session"]')
-      click(container, '[data-testid="menu-manage"]')
+      click(document.body, '[data-testid="menu-manage"]')
       expect(onManageTemplates).toHaveBeenCalledTimes(1)
     })
   })

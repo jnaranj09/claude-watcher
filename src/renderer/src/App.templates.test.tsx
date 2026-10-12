@@ -154,6 +154,12 @@ async function renderApp(): Promise<RenderResult> {
   return r
 }
 
+/** The `+ New session` menu is portaled to document.body. */
+function qDoc<T extends Element>(sel: string): T {
+  const el = document.querySelector<T>(sel)
+  if (el === null) throw new Error(`missing ${sel}`)
+  return el
+}
 function q<T extends Element>(r: RenderResult, sel: string): T {
   const el = r.container.querySelector<T>(sel)
   if (el === null) throw new Error(`missing ${sel}`)
@@ -166,13 +172,13 @@ describe('App — session templates', () => {
   it('loads templates on mount and the header menu lists them', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
-    expect(r.container.querySelectorAll('[data-testid="menu-template"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-testid="menu-template"]')).toHaveLength(1)
   })
 
   it('picking a template opens the name prompt with templateId + the template name, hint = cwd', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
-    click(q(r, '[data-template-id="tpl-a"]'))
+    click(qDoc('[data-template-id="tpl-a"]'))
     const prompt = boardStore.getState().sessionNamePrompt
     expect(prompt).toEqual({
       mode: 'create',
@@ -187,7 +193,7 @@ describe('App — session templates', () => {
   it('submitting the prompt launches FROM THE TEMPLATE (launch() untouched) and opens the terminal', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
-    click(q(r, '[data-template-id="tpl-a"]'))
+    click(qDoc('[data-template-id="tpl-a"]'))
     click(q(r, '[data-testid="session-name-confirm"]'))
     await flush()
     expect(launchFromTemplate).toHaveBeenCalledWith('tpl-a', 'work api')
@@ -198,7 +204,7 @@ describe('App — session templates', () => {
   it('"Pick a folder…" still runs the folder flow', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
-    click(q(r, '[data-testid="menu-pick-folder"]'))
+    click(qDoc('[data-testid="menu-pick-folder"]'))
     await flush()
     expect(pickDirectory).toHaveBeenCalledTimes(1)
     expect(boardStore.getState().sessionNamePrompt?.mode).toBe('create')
@@ -207,7 +213,7 @@ describe('App — session templates', () => {
   it('"Manage templates…" opens the dialog; Ctrl+N is refused while it is open; ✕ closes it', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
-    click(q(r, '[data-testid="menu-manage"]'))
+    click(qDoc('[data-testid="menu-manage"]'))
     expect(q(r, '[data-testid="sessions-overlay"]')).toBeTruthy()
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
@@ -222,7 +228,7 @@ describe('App — session templates', () => {
   it('the dialog takes focus on mount; Escape from the page body closes it', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
-    click(q(r, '[data-testid="menu-manage"]'))
+    click(qDoc('[data-testid="menu-manage"]'))
     // An aria-modal dialog must take focus on mount (a11y) — the list search input does.
     expect(document.activeElement).toBe(q(r, '[data-testid="template-search"]'))
     // Blur it so the keydown reaches window from the page BODY, not from inside the dialog
@@ -258,7 +264,7 @@ describe('App — session templates', () => {
     act(() => exitCbs.forEach((cb) => cb({ terminalId: 'launch-dead', exitCode: 0 })))
     click(q(r, '[data-testid="dead-new-session"]'))
 
-    const menu = document.body.querySelector('[data-testid="new-session-menu"]')
+    const menu = document.querySelector('[data-testid="new-session-menu"]')
     expect(menu, 'the dead pane must open the templates popover').not.toBeNull()
 
     click(document.body.querySelector('[data-template-id="tpl-a"]') as Element)

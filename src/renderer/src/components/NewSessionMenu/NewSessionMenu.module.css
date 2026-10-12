@@ -3,22 +3,11 @@
   position: relative;
   display: inline-flex;
 }
-/* The empty board's centered primary (was Board.module.css .newSessionButton): its menu is
-   centered under the button. The top margin the empty-board copy expects sits on the board's
-   button row (Board.module.css .emptyBoardActions), so `Past sessions…` beside it lines up. */
-.anchorPrimary .menu {
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-}
-
 /* The button itself is `components/Button` (`primary`); only the anchor and the menu live here. */
 
 .menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  right: 0;
-  z-index: 50;
+  display: flex;
+  min-height: 0;
   min-width: 320px;
   max-width: 420px;
   --popover-max-height: 320px;
@@ -48,24 +37,17 @@
   color: var(--text-secondary);
 }
 
-/* The dead-terminal pane's placement (variant="dead"). The terminal frame is `overflow: clip`
-   (EmbeddedTerminal.module.css) and `.dead` opens its own stacking context at z-index 12, so an
-   absolutely-positioned popover inside it is CUT at the frame edge with no scrollbar to recover
-   it. Same constraint TerminalContextMenu solves the same way: portal to document.body and
-   position from the button's viewport rect. The wrapper owns the coords (inline, from JS); the
-   menu just fills it.
+/* The menu's placement, every variant. Portaled to document.body and placed by
+   `useAnchoredPlacement` (inline top/bottom, left/right, maxHeight): in place, the dead pane's
+   frame (`overflow: clip`) cut it, and on the empty board it ran off the window bottom.
    `display: flex` is load-bearing: a percentage max-height against an auto-height parent
    resolves to `none`, but a FLEX ITEM is bounded by its container's content box — so the
-   wrapper's inline maxHeight is what makes the Popover list scroll instead of the menu overflowing. */
+   wrapper's inline maxHeight is what makes the Popover list scroll instead of the menu
+   overflowing. The list keeps its own 320px cap. */
 .portalAnchor {
   position: fixed;
   z-index: 50;
   display: flex;
-}
-.portalAnchor .menu {
-  position: static;
-  display: flex;
-  min-height: 0;
 }
 .portalAnchor [data-popover] {
   flex: 1;
@@ -75,5 +57,4 @@
 .portalAnchor [data-popover-list] {
   flex: 1;
   min-height: 0;
-  --popover-max-height: none;
 }

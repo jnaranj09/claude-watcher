@@ -166,7 +166,7 @@ function clickPickFolder(r: RenderResult): void {
     (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
   )
   act(() =>
-    (r.container.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
+    (document.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
   )
 }
 
