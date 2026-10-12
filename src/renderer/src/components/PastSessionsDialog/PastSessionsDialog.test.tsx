@@ -103,13 +103,13 @@ function type(el: HTMLInputElement, value: string): void {
 }
 
 describe('PastSessionsDialog', () => {
-  it('loads on open, opens on ALL sessions, lists newest first, no Global / orphan entry', async () => {
+  it('loads on open, opens on the active workspace, no Global / orphan entry', async () => {
     const { r } = render()
     await flush()
     expect(list).toHaveBeenCalledTimes(1)
     expect(q(r, '[data-testid="sessions-panel"]')).not.toBeNull()
-    // Sessions are never global: the dropdown opens on every workspace (owner 2026-10-03).
-    expect(rows(r)).toEqual(['deploy', 'billing api'])
+    // The dropdown opens on the active workspace (owner 2026-10-12); sessions are never global.
+    expect(rows(r)).toEqual(['billing api'])
     expect(optionValues(r.container, 'past-session-scope-filter')).toEqual([
       'all',
       'ws:default',
