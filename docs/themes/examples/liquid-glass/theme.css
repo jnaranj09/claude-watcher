@@ -877,11 +877,12 @@ section[data-column]::after,
    clear here: no double blur, no rings, no sheen, no text filter (the canvas buttons have none).
    SPECIFICITY: the older rules above reach (0,3,2); [data-glass] is repeated to reach (0,5,x).
    Overlay-hosted controls (a modal's Save, a toast's action, a popover row — the non-modal
-   `+ New session` dialog is a popover) keep today's glass. */
+   `+ New session` dialog is a popover — and the dead-terminal pane's buttons, whose frosted fill
+   covers the canvas) keep today's glass. */
 :root[data-glass-on]
   [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *) {
+  ):not([data-toast] *):not([data-testid='dead-terminal'] *) {
   background: transparent;
   background-image: none;
   border-color: transparent;
@@ -894,11 +895,13 @@ section[data-column]::after,
 :root[data-glass-on]
   [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *):not([data-testid='workspace-elsewhere-tab'])::before,
+  ):not([data-toast] *):not([data-testid='dead-terminal'] *):not(
+    [data-testid='workspace-elsewhere-tab']
+  )::before,
 :root[data-glass-on]
   [data-glass][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *)::after {
+  ):not([data-toast] *):not([data-testid='dead-terminal'] *)::after {
   content: none;
 }
 /* Hover keeps its film (the transparent background above would drop today's hover feedback).
@@ -906,7 +909,9 @@ section[data-column]::after,
 :root[data-glass-on]
   [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *):not([data-testid='workspace-elsewhere-tab']):hover {
+  ):not([data-toast] *):not([data-testid='dead-terminal'] *):not(
+    [data-testid='workspace-elsewhere-tab']
+  ):hover {
   background: var(--bg-hover);
 }
 :root[data-glass-on] [data-glass='header'][data-glass][data-glass] {
@@ -918,7 +923,7 @@ section[data-column]::after,
 :root[data-glass-on]
   [data-glass='control'][data-glass][data-glass]:not([role='dialog'][aria-modal='true'] *):not(
     [data-popover] *
-  ):not([data-toast] *) {
+  ):not([data-toast] *):not([data-testid='dead-terminal'] *) {
   box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.25);
 }
 :root[data-glass-on] [data-glass='column'][data-glass][data-glass],
@@ -1110,18 +1115,18 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
 :root[data-glass-on]
   [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
     [role='dialog'][aria-modal='true'] *
-  ):not([data-popover] *):not([data-toast] *) {
+  ):not([data-popover] *):not([data-toast] *):not([data-testid='dead-terminal'] *) {
   background-color: var(--ws-fill, transparent);
 }
 :root[data-glass-on]
   [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
     [role='dialog'][aria-modal='true'] *
-  ):not([data-popover] *):not([data-toast] *):hover,
+  ):not([data-popover] *):not([data-toast] *):not([data-testid='dead-terminal'] *):hover,
 :root[data-glass-on]
   :has(> [data-testid='workspace-elsewhere-tab']:hover)
   > [data-glass][data-glass][data-glass][data-testid='workspace-switcher']:not(
     [role='dialog'][aria-modal='true'] *
-  ):not([data-popover] *):not([data-toast] *) {
+  ):not([data-popover] *):not([data-toast] *):not([data-testid='dead-terminal'] *) {
   background-color: var(--ws-fill, transparent);
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }

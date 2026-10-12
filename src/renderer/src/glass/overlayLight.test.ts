@@ -32,6 +32,13 @@ describe('overlayLightTarget', () => {
     expect(overlayLightTarget($('msg'))).toBe($('toast'))
   })
 
+  it('takes a button on the dead-terminal pane: the pane covers the WebGL layer', () => {
+    const $ = dom(
+      `<div data-testid="dead-terminal"><button data-variant="secondary" id="resume">Resume conversation</button></div>`
+    )
+    expect(overlayLightTarget($('resume'))).toBe($('resume'))
+  })
+
   it('leaves board controls to the WebGL layer, and skips ghost, danger and disabled buttons', () => {
     const $ = dom(`
       <header><button data-variant="secondary" id="board">+ New session</button></header>
