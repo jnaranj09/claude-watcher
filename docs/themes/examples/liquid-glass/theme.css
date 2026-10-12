@@ -556,8 +556,9 @@ button[data-variant='primary'] {
    lines at the top of a 32px control, which read as a blurry border. The lit lines are rings ON
    the border (`inset: -1px`), blurred 0.3px: at 1x a hard 1px curve shows pixel steps, a soft one
    does not. The dark line is a soft offset shadow, not a hard ring, for the same reason; it keeps
-   the "this is a button" outline (operator, 2026-10-05). Every popover ROW takes the same edge, at
-   `:where()` weight so a row's state and hover borders still win. A ROUND secondary
+   the "this is a button" outline (operator, 2026-10-05). Every popover ROW takes the same box (no
+   border, the dark shadow), at `:where()` weight so a row's state and hover borders still win; its
+   rim is the WebGL one, below. A ROUND secondary
    (`data-shape='round'`) is the ☰'s clear glass as a circle — the rings follow its radius. Comes
    after the switcher's and the buttons' own rules: same specificity, later wins. */
 [data-testid='workspace-switcher'],
@@ -576,11 +577,9 @@ button[data-variant='secondary']:not(:disabled):not([data-lit]),
 [data-testid='workspace-switcher']::before,
 button[data-variant='primary']:not(:disabled)::before,
 button[data-variant='secondary']:not(:disabled):not([data-lit])::before,
-[data-popover-item]:where(:not(:disabled))::before,
 [data-testid='workspace-switcher']::after,
 button[data-variant='primary']:not(:disabled)::after,
-button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
-[data-popover-item]:where(:not(:disabled))::after {
+button[data-variant='secondary']:not(:disabled):not([data-lit])::after {
   content: '';
   position: absolute;
   inset: -1px;
@@ -591,8 +590,7 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
 }
 [data-testid='workspace-switcher']::before,
 button[data-variant='primary']:not(:disabled)::before,
-button[data-variant='secondary']:not(:disabled):not([data-lit])::before,
-[data-popover-item]:where(:not(:disabled))::before {
+button[data-variant='secondary']:not(:disabled):not([data-lit])::before {
   background:
     radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.2), transparent 20px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
@@ -603,13 +601,48 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::before,
 }
 [data-testid='workspace-switcher']::after,
 button[data-variant='primary']:not(:disabled)::after,
-button[data-variant='secondary']:not(:disabled):not([data-lit])::after,
-[data-popover-item]:where(:not(:disabled))::after {
+button[data-variant='secondary']:not(:disabled):not([data-lit])::after {
   background: linear-gradient(to top, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%);
   mask:
     linear-gradient(to left, #000, rgba(0, 0, 0, 0.45)) intersect,
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
+}
+/* A popover ROW's RIM is the WebGL control's (owner, 2026-10-12: "make it look exactly as the
+   webgl"). The layer cannot draw an overlay, so these rules redo its shader at a row's size, fitted
+   on the drive against `+ New session` (edge pixel over the fill, left / top / right / bottom:
+   +49 / +60 / +18 / +19; then a glow, +11 at the left edge, kept to ~6px: the owner found the
+   fitted ~8px a tiny bit long). The shader lights
+   each side by how much it faces the light (`lit`: 1 facing it, 0.35 of the opposite face), so:
+   `::after` is a 1px border ON the row's border, one alpha per side from its `lit`; `::before` is
+   the glow, one blurred inset pushed toward the light. The button ring above (lines fading out on
+   the sides) left a row's left edge dark where the WebGL one is a full line. `--glass-light` (the
+   pointer's angle, set on the hovered row) moves both; at rest the light is top-left (135deg). */
+[data-popover-item]:not(:disabled) {
+  --row-light: var(--glass-light, 135deg);
+  --row-lit-t: calc(max(sin(var(--row-light)), 0) + 0.35 * max(-1 * sin(var(--row-light)), 0));
+  --row-lit-r: calc(max(cos(var(--row-light)), 0) + 0.35 * max(-1 * cos(var(--row-light)), 0));
+  --row-lit-b: calc(max(-1 * sin(var(--row-light)), 0) + 0.35 * max(sin(var(--row-light)), 0));
+  --row-lit-l: calc(max(-1 * cos(var(--row-light)), 0) + 0.35 * max(cos(var(--row-light)), 0));
+}
+[data-popover-item]:not(:disabled)::before,
+[data-popover-item]:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+}
+[data-popover-item]:not(:disabled)::before {
+  box-shadow: inset calc(-5.66px * cos(var(--row-light))) calc(5.66px * sin(var(--row-light)))
+    7px -3px rgba(255, 255, 255, 0.12);
+}
+[data-popover-item]:not(:disabled)::after {
+  border: 1px solid;
+  border-color: rgb(255 255 255 / calc(0.02 + 0.38 * var(--row-lit-t)))
+    rgb(255 255 255 / calc(0.03 + 0.24 * var(--row-lit-r)))
+    rgb(255 255 255 / calc(0.02 + 0.33 * var(--row-lit-b)))
+    rgb(255 255 255 / calc(0.03 + 0.24 * var(--row-lit-l)));
 }
 /* THE SHEEN and THE TEXT'S LIGHT (operator, 2026-10-05, from a glass button reference). The sheen:
    a soft light filling in from the top-left corner and a weaker one at the bottom-right, eased out
@@ -1078,7 +1111,6 @@ section[data-column='idle']::after {
   --glass-light-toward: calc(90deg - var(--glass-light));
   --glass-light-away: calc(270deg - var(--glass-light));
 }
-[data-popover-item][style*='--glass-light']:not(:disabled)::before,
 button[data-variant='primary'][style*='--glass-light']:not(:disabled)::before,
 button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::before {
   background:
@@ -1093,7 +1125,6 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
 }
-[data-popover-item][style*='--glass-light']:not(:disabled)::after,
 button[data-variant='primary'][style*='--glass-light']:not(:disabled)::after,
 button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after {
   mask:

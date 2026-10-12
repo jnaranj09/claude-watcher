@@ -770,10 +770,8 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
     )
     const sels = lit.flatMap((x) => x.selectors)
     for (const want of [
-      "[data-popover-item][style*='--glass-light']:not(:disabled)::before",
       "button[data-variant='primary'][style*='--glass-light']:not(:disabled)::before",
       "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::before",
-      "[data-popover-item][style*='--glass-light']:not(:disabled)::after",
       "button[data-variant='primary'][style*='--glass-light']:not(:disabled)::after",
       "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after",
       "[data-toast][style*='--glass-light']::after"
@@ -785,6 +783,24 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
     expect(body).toMatch(/sin\(var\(--glass-light\)\)/)
     // Never on the board: under glass-on the WebGL layer draws those, and their rings are off.
     expect(sels.every((sel) => !sel.includes('data-glass'))).toBe(true)
+  })
+  // Owner, 2026-10-12: a popover row's rim is the WebGL control's, redone in CSS. Its light is
+  // --glass-light where the app sets it, else the resting top-left (135deg); rim and glow follow it.
+  it('liquid-glass: a popover row lights its WebGL-style rim and glow from --glass-light', () => {
+    const css = liquidGlassRules()
+    const find = (sel: string): string =>
+      css
+        .filter((x) => x.selectors.includes(sel))
+        .map((x) => x.body)
+        .join('\n')
+    expect(find('[data-popover-item]:not(:disabled)')).toMatch(
+      /--row-light:\s*var\(--glass-light,\s*135deg\)/
+    )
+    expect(find('[data-popover-item]:not(:disabled)::before')).toMatch(
+      /box-shadow:\s*inset calc\(-5\.66px \* cos\(var\(--row-light\)\)\)/
+    )
+    const rim = find('[data-popover-item]:not(:disabled)::after')
+    for (const side of ['t', 'r', 'b', 'l']) expect(rim).toContain(`var(--row-lit-${side})`)
   })
   // Drive 2026-10-08: the field hook is on the icon wrapper, which had no radius, so the WebGL rim
   // was square while the input still painted its own rounded box on top.
