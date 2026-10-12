@@ -220,8 +220,10 @@
   transition: none;
 }
 
+/* Its text's width, not the rest of the row: the row centres name + pills as one group (Popover's
+   tinted row). It still shrinks and ellipsizes when long. */
 .rowName {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

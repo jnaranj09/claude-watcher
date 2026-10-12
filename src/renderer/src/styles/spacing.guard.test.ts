@@ -20,7 +20,12 @@ const SPACING =
   /^\s*((?:row-|column-)?gap|padding(?:-[a-z-]+)?|margin(?:-[a-z-]+)?|scroll-padding(?:-[a-z-]+)?)\s*:\s*([^;]+);/gm
 
 // Vars that are geometry, not rhythm: a calc() may combine them with a role.
-const GEOMETRY_VARS = new Set(['--rounded-md', '--rail-tab-inset', '--rail-tools-width'])
+const GEOMETRY_VARS = new Set([
+  '--rounded-md',
+  '--rail-tab-inset',
+  '--rail-tools-width',
+  '--row-actions-width'
+])
 
 // Optical nudges and geometry sizes, each with its reason. Key: `<file> <prop>: <value>`.
 const ALLOWED = new Set([

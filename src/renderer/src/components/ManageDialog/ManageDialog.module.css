@@ -145,6 +145,8 @@
   mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent);
 }
 .row {
+  /* The row actions slot's width (geometry, below). */
+  --row-actions-width: 56px;
   display: flex;
   align-items: center;
   border: 1px solid transparent;
@@ -196,13 +198,20 @@
 .row[data-tone] .rowSelect:hover {
   background: transparent;
 }
+/* A workspace row is a bubble: its text is centred in the WHOLE row, like the switcher (owner,
+   2026-10-12). The actions slot takes the right end, so the select button starts that much further
+   in and the centre lands on the row's, not the button's. */
+.row[data-tone] .rowSelect {
+  justify-content: center;
+  padding-left: calc(var(--inset-item-x) + var(--row-actions-width));
+}
 /* Fixed width + `visibility` (not `display`): the slot always takes its space, so a row never
    changes width when its actions appear, and nothing moves when one of them arms. Hidden controls
    are not focusable, but the row's own select button is — focusing it reveals the slot
    (focus-within), and the next Tab reaches the actions. */
 .rowActions {
   flex: none;
-  width: 56px;
+  width: var(--row-actions-width);
   display: flex;
   align-items: center;
   justify-content: flex-end;

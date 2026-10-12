@@ -467,6 +467,13 @@ body {
    label (which carries `--ws-fill`) stretched over the row, under the row's text. */
 [data-popover-item]:has([data-tone]:not([data-popover-item])) {
   isolation: isolate;
+  /* The row IS the workspace bubble here, so its name is centred like the switcher's (owner,
+     2026-10-12). */
+  justify-content: center;
+}
+/* The Select's label wrapper fills the row; at its text's width the row can centre it. */
+[data-popover-item]:has([data-tone]:not([data-popover-item])) > * {
+  flex: 0 1 auto;
 }
 [data-popover-item] [data-tone] {
   padding: 0;

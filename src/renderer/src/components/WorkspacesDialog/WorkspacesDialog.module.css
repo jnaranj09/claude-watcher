@@ -7,7 +7,10 @@
   font-weight: var(--font-weight-label);
 }
 .rowFolder {
-  flex: 1;
+  /* Its text's width, not the rest of the row: name + folder centre as one group (the row is a
+     centred workspace bubble, ManageDialog). It still shrinks and ellipsizes when long. */
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
