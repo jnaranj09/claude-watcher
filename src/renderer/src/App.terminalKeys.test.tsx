@@ -205,10 +205,10 @@ describe('focused-view keys — outside the terminal the app chords work', () =>
   })
 
   it('Ctrl+N on the page opens the + New session popover (W-13)', async () => {
-    const r = await renderFocused()
+    await renderFocused()
     press(document.body, { key: 'n', ctrlKey: true })
     await flush()
-    expect(r.container.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
     expect(window.launch.pickDirectory).not.toHaveBeenCalled()
   })
 

@@ -26,11 +26,11 @@ describe('ScopeFilter workspace names', () => {
     )
     cleanup = r.unmount
     act(() => (r.container.querySelector('[data-testid="scope"]') as HTMLElement).click())
-    const tones = [...r.container.querySelectorAll('[data-testid="scope-list"] [data-tone]')].map(
+    const tones = [...document.querySelectorAll('[data-testid="scope-list"] [data-tone]')].map(
       (e) => e.getAttribute('data-tone')
     )
     expect(tones).toEqual(['global', 'blue', 'orphan'])
-    expect(r.container.querySelector('[data-testid="scope-list"] [aria-hidden="true"]')).toBeNull()
+    expect(document.querySelector('[data-testid="scope-list"] [aria-hidden="true"]')).toBeNull()
   })
 
   it('the closed trigger shows the workspace NAME as plain text, no tint box (spec 2026-10-03 G)', () => {

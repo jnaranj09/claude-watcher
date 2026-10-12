@@ -59,22 +59,20 @@
   line-height: 1;
 }
 
-/* The popup's wrapper: placement only (Popover draws the box). `min-width: 100%` so it never
-   renders narrower than the trigger it drops from; the list scrolls past 244px (260 minus the
-   surface padding) instead of running off the dialog. */
+/* The popup's wrapper: placement only (Popover draws the box). Portaled to document.body and
+   placed by `useAnchoredPlacement` (inline top/bottom, left/right, maxHeight, minWidth = the
+   trigger's width). Above ManageDialog (60), below toasts (70). A flex column so the inline
+   maxHeight reaches the list through the Surface; the list's own cap is 244px (260 minus the
+   surface padding). */
 .listWrap {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  left: 0;
-  z-index: 10;
-  min-width: 100%;
+  position: fixed;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
   --popover-max-height: 244px;
 }
-/* `align="end"`: a trigger at the right edge of a scroll region (the Settings rows). Left-aligned,
-   a list wider than a short value ("Graphite") ran past the pane and was clipped. */
-.listEnd {
-  left: auto;
-  right: 0;
+.listWrap > [data-popover] {
+  min-height: 0;
 }
 /* Option text size lives on Select's own span, scoped to the rows so the trigger's variant sizes
    (.field / .inline) are untouched. */

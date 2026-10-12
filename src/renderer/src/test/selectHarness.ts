@@ -4,6 +4,9 @@
 //
 // Lives beside renderComponent.ts because four test files need the same two moves, and a copy in
 // each is how they drift.
+//
+// The trigger is found under `root`; the OPEN list under `document`, because Select portals it to
+// document.body (useAnchoredPlacement).
 import { act } from 'react'
 
 function el(root: ParentNode, selector: string): HTMLElement {
@@ -15,7 +18,7 @@ function el(root: ParentNode, selector: string): HTMLElement {
 /** Open the dropdown `testId` and pick `value`. */
 export function chooseOption(root: ParentNode, testId: string, value: string): void {
   act(() => el(root, `[data-testid="${testId}"]`).click())
-  act(() => el(root, `[data-testid="${testId}-option-${value}"]`).click())
+  act(() => el(document, `[data-testid="${testId}-option-${value}"]`).click())
 }
 
 /** The dropdown's current value — the trigger mirrors it on `data-value`. */
@@ -27,7 +30,7 @@ export function selectedValue(root: ParentNode, testId: string): string {
 export function optionLabel(root: ParentNode, testId: string, value: string): string {
   const trigger = el(root, `[data-testid="${testId}"]`)
   act(() => trigger.click())
-  const text = el(root, `[data-testid="${testId}-option-${value}"]`).textContent ?? ''
+  const text = el(document, `[data-testid="${testId}-option-${value}"]`).textContent ?? ''
   act(() => trigger.click())
   return text
 }
@@ -37,7 +40,7 @@ export function optionLabel(root: ParentNode, testId: string, value: string): st
 export function optionValues(root: ParentNode, testId: string): string[] {
   const trigger = el(root, `[data-testid="${testId}"]`)
   act(() => trigger.click())
-  const values = [...root.querySelectorAll(`[data-testid^="${testId}-option-"]`)].map(
+  const values = [...document.querySelectorAll(`[data-testid^="${testId}-option-"]`)].map(
     (o) => o.getAttribute('data-value') ?? ''
   )
   act(() => trigger.click())

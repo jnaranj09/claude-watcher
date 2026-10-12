@@ -80,6 +80,14 @@
   margin-bottom: calc(var(--gap-group) - var(--gap-row));
 }
 
+/* Only the list gives up height when the box is capped (a portaled popover near the window edge,
+   useAnchoredPlacement): every other part of the box, and every row, keeps its own height. Left
+   to flex-shrink, the rows squashed into each other instead of the list scrolling. */
+.surface > :not([data-popover-list]),
+.list > * {
+  flex-shrink: 0;
+}
+
 /* The rows. The only scrolling part; its cap comes from the caller's wrapper. */
 .list {
   display: flex;
