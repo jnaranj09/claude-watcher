@@ -387,11 +387,17 @@ body {
 /* A menu that HOLDS a submenu (the ☰ menu and its `Tags ▸` list) is a container, not a leaf: if it
    blurred from itself, the submenu's blur could read only what the menu painted, and the page
    behind the submenu showed through sharp. So it blurs from a `::before` layer instead, like the
-   CONTAINERS above. The `[data-popover]` box is the Surface, `position: relative` (its wrapper is the absolute one), so the layer needs no positioning of its own. */
+   CONTAINERS above. The `[data-popover]` box is the Surface, `position: relative` (its wrapper is the absolute one), so the layer needs no positioning of its own.
+   The layer carries the FILL too: left on the box, the tint painted under the layer, so the layer
+   blurred it and `brightness(2)` doubled it — the menu brightened the moment a submenu opened
+   (owner, 2026-10-12; drive: menu edge 43.7 → 48.1). On the layer it paints over its own blur,
+   the order a leaf has. */
 [data-popover]:has([data-popover]) {
   isolation: isolate;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  background-color: transparent;
+  background-image: none;
 }
 [data-popover]:has([data-popover])::before {
   content: '';
@@ -402,6 +408,8 @@ body {
   pointer-events: none;
   backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
   -webkit-backdrop-filter: var(--glass-pop-filter, var(--glass-filter));
+  background-color: var(--glass-fill);
+  background-image: var(--glass-pop-glow, none);
 }
 
 /* While the WebGL glass is on, the header and its controls are WebGL glass: the shader EXPOSES what
