@@ -120,7 +120,8 @@ describe('collectSurfaces', () => {
           <div id="card" data-glass="card" style="opacity: 0.82; border-top-left-radius: 12px"></div>
         </section>
       </div>
-      <div role="dialog"><button id="save" data-glass="control"></button></div>`
+      <div role="dialog"><button id="save" data-glass="control"></button></div>
+      <div data-testid="dead-terminal"><button id="resume" data-glass="control"></button></div>`
     const boxes: Record<string, DOMRect> = {
       grid: rect(0, 100, 900, 400),
       col: rect(8, 100, 300, 600),
@@ -132,7 +133,7 @@ describe('collectSurfaces', () => {
       if (el) el.getBoundingClientRect = () => b
     }
     const out = collectSurfaces(document)
-    expect(out.map((s) => s.kind)).toEqual(['column', 'card']) // the dialog's Save is skipped
+    expect(out.map((s) => s.kind)).toEqual(['column', 'card']) // the dialog's Save and the dead pane's Resume are skipped
     expect(out[0]?.status).toBe('needs-you')
     expect(out[0]?.parent).toBeNull()
     expect(out[1]?.parent).toBe(0)

@@ -91,8 +91,11 @@ function isStatus(v: string | null): v is GlassStatus {
 }
 
 /** Overlays paint their own CSS glass (spec: overlays unchanged in spec 1). A glass button inside
- *  one (a dialog's Save, a toast's Resume, a popover row) is NOT drawn by the WebGL layer. */
-export const OVERLAY = "[role='dialog'], [data-popover], [data-toast]"
+ *  one (a dialog's Save, a toast's Resume, a popover row) is NOT drawn by the WebGL layer. The
+ *  dead-terminal pane is one too: its frosted fill covers the canvas, so a button drawn there by
+ *  the layer had no glow (owner, 2026-10-12). */
+export const OVERLAY =
+  "[role='dialog'], [data-popover], [data-toast], [data-testid='dead-terminal']"
 
 /** Reads every `[data-glass]` element. Clip = the intersection of ancestors whose overflow is
  *  not `visible` (the board grid scrolls; a card scrolled under the filter bar must not draw).
