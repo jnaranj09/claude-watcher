@@ -20,6 +20,17 @@
    level in the box. `--switcher-line` is that height, and the tab's strut uses the same one. */
 .anchor {
   --switcher-line: calc(32px - 2 * var(--space-1) - 2px);
+  /* A count pill's least width; the widest digit of its 10px font (DejaVu Sans, the widest
+     measured: 6.96px; Noto Sans 5.73px); a pill holding two digits (any count up to 99); and the
+     elsewhere tab with all three pills (grey, blue, yellow) at two digits: its padding, the strut
+     and three gaps, three pills, its two 1px borders. */
+  --switcher-pill: 14px;
+  --switcher-digit: 7px;
+  --switcher-pill-max: calc(2 * var(--switcher-digit) + 2 * var(--inset-pill-tight));
+  --switcher-tab-max: calc(
+    var(--inset-item-x) + 2 * var(--inset-compact-x) + 3 * var(--switcher-pill-max) + 2 *
+      var(--gap-inline-tight) + 2px
+  );
 }
 .switcher {
   position: relative;
@@ -29,6 +40,12 @@
   line-height: var(--switcher-line);
   display: inline-flex;
   align-items: center;
+  /* Never narrower than the tucked tab: it slides left by its OWN width, and under a short name
+     ("Default") it showed left of the button while it tucked (owner, 2026-10-12). Its box starts
+     --inset-item-x under the button's right end, and --rounded-md keeps it clear of the button's
+     left corner. A short name and its pills are centred as ONE group in the wider box. */
+  min-width: calc(var(--switcher-tab-max) + var(--inset-item-x) + var(--rounded-md));
+  justify-content: center;
   gap: var(--gap-inline);
   padding: var(--inset-compact-y) var(--inset-item-x);
   border: 1px solid var(--ws-border, var(--border-strong));
@@ -85,7 +102,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 14px;
+  min-width: var(--switcher-pill);
   height: 14px;
   padding: 0 var(--inset-pill-tight);
   border-radius: var(--rounded-full);
