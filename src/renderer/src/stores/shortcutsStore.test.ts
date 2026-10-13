@@ -4,6 +4,7 @@ import {
   loadShortcuts,
   saveShortcut,
   removeShortcut,
+  setShortcutFavorite,
   selectShortcuts,
   selectShortcutsLoaded,
   makeSelectVisibleShortcuts
@@ -25,7 +26,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function fakeBridge(over: Partial<Record<'list' | 'save' | 'remove', unknown>> = {}): void {
+function fakeBridge(
+  over: Partial<Record<'list' | 'save' | 'remove' | 'setFavorite', unknown>> = {}
+): void {
   ;(window as unknown as { shortcuts: unknown }).shortcuts = {
     list: vi.fn(() => Promise.resolve([A])),
     save: vi.fn(() => Promise.resolve({ saved: A, shortcuts: [A] })),
@@ -94,5 +97,26 @@ describe('shortcutsStore', () => {
     fakeBridge({ remove: vi.fn(() => Promise.reject(new Error('boom'))) })
     await expect(removeShortcut('sc-1')).rejects.toThrow('boom')
     expect(warn).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_remove_failed')
+  })
+})
+
+describe('shortcutsStore — favorites', () => {
+  it('setShortcutFavorite replaces the projection with main answer', async () => {
+    const setFavorite = vi.fn(() => Promise.resolve([{ ...A, favorite: true }]))
+    fakeBridge({ setFavorite })
+    shortcutsStore.setState({ shortcuts: [A], loaded: true })
+    await setShortcutFavorite('sc-1', true)
+    expect(setFavorite).toHaveBeenCalledWith('sc-1', true)
+    expect(shortcutsStore.getState().shortcuts[0]?.favorite).toBe(true)
+  })
+  it('setShortcutFavorite logs a code, rethrows and keeps the projection', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fakeBridge({ setFavorite: vi.fn(() => Promise.reject(new Error('store_write_failed'))) })
+    shortcutsStore.setState({ shortcuts: [A], loaded: true })
+    await expect(setShortcutFavorite('sc-1', true)).rejects.toThrow('store_write_failed')
+    expect(shortcutsStore.getState().shortcuts[0]?.favorite).toBe(false)
+    expect(warn).toHaveBeenCalledWith(
+      '[claude-watcher][shortcuts] code=shortcuts_set_favorite_failed'
+    )
   })
 })

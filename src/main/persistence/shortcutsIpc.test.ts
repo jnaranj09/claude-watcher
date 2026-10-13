@@ -43,3 +43,22 @@ describe('shortcuts IPC handlers — parse-and-throw on untrusted args', () => {
     expect(() => h.remove({ id: '' })).toThrow()
   })
 })
+
+describe('shortcuts IPC — setFavorite (untrusted arg, one .strict() boundary)', () => {
+  it('setFavorite parses its arg and returns the list', () => {
+    const h = handlers()
+    const { saved } = h.save(A)
+    expect(h.setFavorite({ id: saved.id, favorite: true })[0]?.favorite).toBe(true)
+  })
+  it.each([
+    ['a non-object', 'nope'],
+    ['a missing favorite', { id: 'sc-1' }],
+    ['a string favorite', { id: 'sc-1', favorite: 'yes' }],
+    ['an extra key', { id: 'sc-1', favorite: true, name: 'x' }]
+  ])('setFavorite throws on %s', (_label, raw) => {
+    const h = handlers()
+    h.save(A)
+    expect(() => h.setFavorite(raw)).toThrow()
+    expect(h.list()[0]?.favorite).toBe(false)
+  })
+})

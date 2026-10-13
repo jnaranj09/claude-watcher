@@ -189,6 +189,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.templatesList, () => handlers.list())
     ipc.handle(CH.templatesSave, (_evt, raw: unknown) => handlers.save(raw))
     ipc.handle(CH.templatesDelete, (_evt, raw: unknown) => handlers.remove(raw))
+    ipc.handle(CH.templatesSetFavorite, (_evt, raw: unknown) => handlers.setFavorite(raw))
   }
 
   // Past sessions — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
@@ -265,6 +266,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.shortcutsList, () => handlers.list())
     ipc.handle(CH.shortcutsSave, (_evt, raw: unknown) => handlers.save(raw))
     ipc.handle(CH.shortcutsDelete, (_evt, raw: unknown) => handlers.remove(raw))
+    ipc.handle(CH.shortcutsSetFavorite, (_evt, raw: unknown) => handlers.setFavorite(raw))
   }
 
   // Story 3.5 (SM-2) — register the telemetry-acknowledge IPC ONCE (mirrors registerSettingsIpc:

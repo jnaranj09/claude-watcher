@@ -37,11 +37,11 @@ declare global {
     shell: ShellApi
     // Story 3.2 (FR-11) — the in-app launch bridge (native picker + raw claude launch invokes).
     launch: LaunchApi
-    // Session templates — the templates CRUD bridge (list/save/remove via CH.templates*).
+    // Session templates — the templates CRUD bridge (list/save/remove/setFavorite via CH.templates*).
     templates: TemplatesApi
     // Past sessions — the history bridge (list/forget/open via CH.pastSessions*).
     pastSessions: PastSessionsApi
-    // Phrase shortcuts — the shortcuts CRUD bridge (list/save/remove via CH.shortcuts*).
+    // Phrase shortcuts — the shortcuts CRUD bridge (list/save/remove/setFavorite via CH.shortcuts*).
     shortcuts: ShortcutsApi
     // Workspaces — the workspaces CRUD bridge (list/save/remove/setActive via CH.workspaces*).
     workspaces: WorkspacesApi

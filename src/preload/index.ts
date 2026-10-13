@@ -30,11 +30,13 @@ import type {
   Template,
   TemplateSaveRequest,
   TemplateDeleteRequest,
+  TemplateSetFavoriteRequest,
   TemplatesSaveResult,
   SessionLaunchFromTemplateRequest,
   Shortcut,
   ShortcutSaveRequest,
   ShortcutDeleteRequest,
+  ShortcutSetFavoriteRequest,
   ShortcutsSaveResult,
   WorkspaceSaveRequest,
   WorkspaceDeleteRequest,
@@ -383,6 +385,10 @@ const templatesApi = {
   remove(id: string): Promise<Template[]> {
     const req: TemplateDeleteRequest = { id }
     return ipcRenderer.invoke(CH.templatesDelete, req)
+  },
+  setFavorite(id: string, favorite: boolean): Promise<Template[]> {
+    const req: TemplateSetFavoriteRequest = { id, favorite }
+    return ipcRenderer.invoke(CH.templatesSetFavorite, req)
   }
 }
 export type TemplatesApi = typeof templatesApi
@@ -432,6 +438,10 @@ const shortcutsApi = {
   remove(id: string): Promise<Shortcut[]> {
     const req: ShortcutDeleteRequest = { id }
     return ipcRenderer.invoke(CH.shortcutsDelete, req)
+  },
+  setFavorite(id: string, favorite: boolean): Promise<Shortcut[]> {
+    const req: ShortcutSetFavoriteRequest = { id, favorite }
+    return ipcRenderer.invoke(CH.shortcutsSetFavorite, req)
   }
 }
 export type ShortcutsApi = typeof shortcutsApi
@@ -658,11 +668,11 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('terminal', terminalApi)
     contextBridge.exposeInMainWorld('shell', shellApi)
     contextBridge.exposeInMainWorld('launch', launchApi)
-    // Session templates — the templates CRUD bridge (templates:list/save/delete).
+    // Session templates — the templates CRUD bridge (templates:list/save/delete/set-favorite).
     contextBridge.exposeInMainWorld('templates', templatesApi)
     // Past sessions — the history bridge (list/forget/open via CH.pastSessions*).
     contextBridge.exposeInMainWorld('pastSessions', pastSessionsApi)
-    // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete). The phrase
+    // Phrase shortcuts — the shortcuts CRUD bridge (shortcuts:list/save/delete/set-favorite). The phrase
     // itself never crosses here: a matched chord posts it on the terminal's existing port.
     contextBridge.exposeInMainWorld('shortcuts', shortcutsApi)
     // Workspaces — the workspaces CRUD bridge (workspaces:list/save/delete/set-active).

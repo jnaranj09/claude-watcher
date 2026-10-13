@@ -156,6 +156,7 @@ declare global {
       list(): Promise<Template[]>
       save(req: TemplateSaveRequest): Promise<TemplatesSaveResult>
       remove(id: string): Promise<Template[]>
+      setFavorite(id: string, favorite: boolean): Promise<Template[]>
     }
     // Past sessions — mirrors src/preload/index.ts `pastSessionsApi`.
     pastSessions: {
@@ -173,6 +174,7 @@ declare global {
       list(): Promise<Shortcut[]>
       save(req: ShortcutSaveRequest): Promise<ShortcutsSaveResult>
       remove(id: string): Promise<Shortcut[]>
+      setFavorite(id: string, favorite: boolean): Promise<Shortcut[]>
     }
     // Workspaces — mirrors src/preload/index.ts `workspacesApi`. `remove`, not `delete`
     // (reserved word), so the store and the bridge share one verb — same as templatesApi.

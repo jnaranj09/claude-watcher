@@ -4,6 +4,7 @@
 import {
   TemplateDeleteSchema,
   TemplateSaveSchema,
+  TemplateSetFavoriteSchema,
   type Template
 } from '../../shared/schemas/template'
 import type { TemplatesSaveResult } from '../../shared/ipc/contract'
@@ -13,12 +14,17 @@ export interface TemplatesIpcHandlers {
   list(): Template[]
   save(raw: unknown): TemplatesSaveResult
   remove(raw: unknown): Template[]
+  setFavorite(raw: unknown): Template[]
 }
 
 export function createTemplatesIpcHandlers(store: TemplatesStore): TemplatesIpcHandlers {
   return {
     list: () => store.list(),
     save: (raw) => store.save(TemplateSaveSchema.parse(raw)),
-    remove: (raw) => store.remove(TemplateDeleteSchema.parse(raw).id)
+    remove: (raw) => store.remove(TemplateDeleteSchema.parse(raw).id),
+    setFavorite: (raw) => {
+      const req = TemplateSetFavoriteSchema.parse(raw)
+      return store.setFavorite(req.id, req.favorite)
+    }
   }
 }

@@ -110,16 +110,20 @@ export const CH = {
   // renderer never carries them itself. `templates:list/save/delete` are the CRUD invokes for
   // the store; main owns the persisted file, the renderer holds a projection
   // (templatesStore.ts). See TemplatesSaveResult / SessionLaunchFromTemplateRequest below.
+  // `templates:set-favorite` stars a row; the form's save never touches it.
   sessionLaunchFromTemplate: 'session:launch-from-template',
   templatesList: 'templates:list',
   templatesSave: 'templates:save',
   templatesDelete: 'templates:delete',
+  templatesSetFavorite: 'templates:set-favorite',
   // Phrase shortcuts — the shortcuts CRUD channels. There is deliberately NO channel for
   // DELIVERING a phrase: it rides the existing terminal MessagePort `{type:'input'}` frame,
   // the same one every keystroke and the Ctrl+V takeover already use.
+  // `shortcuts:set-favorite` stars a row; the form's save never touches it.
   shortcutsList: 'shortcuts:list',
   shortcutsSave: 'shortcuts:save',
   shortcutsDelete: 'shortcuts:delete',
+  shortcutsSetFavorite: 'shortcuts:set-favorite',
   // Workspaces — the workspaces CRUD invokes plus the persisted active-workspace pointer.
   // `workspaces:set-active` is its own channel rather than a field on save: switching the view
   // is not editing a row, and it is the ONE call the switcher makes on every click.
@@ -602,6 +606,7 @@ export type {
   Template,
   TemplateSaveRequest,
   TemplateDeleteRequest,
+  TemplateSetFavoriteRequest,
   PermissionMode
 } from '../schemas/template'
 /** `templates:save` result — the saved row (so the dialog can select it) + the full sorted list. */
@@ -641,7 +646,12 @@ export type WorkspacesSaveResult = { saved: Workspace } & WorkspacesListResult
 // Phrase shortcuts — main-owned; the renderer holds a projection (shortcutsStore.ts). The phrase
 // itself never travels on an IPC channel: the expander box's Enter posts it on the terminal's
 // EXISTING MessagePort `{type:'input'}` frame, so these three channels are CRUD only.
-export type { Shortcut, ShortcutSaveRequest, ShortcutDeleteRequest } from '../schemas/shortcut'
+export type {
+  Shortcut,
+  ShortcutSaveRequest,
+  ShortcutDeleteRequest,
+  ShortcutSetFavoriteRequest
+} from '../schemas/shortcut'
 /** `shortcuts:save` result — the saved row PLUS the full sorted list, so the dialog can select
  *  the row it just created without guessing, and the renderer replaces its projection wholesale. */
 export type ShortcutsSaveResult = { saved: Shortcut; shortcuts: Shortcut[] }

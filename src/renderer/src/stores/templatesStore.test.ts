@@ -7,7 +7,8 @@ import {
   makeSelectVisibleTemplates,
   loadTemplates,
   saveTemplate,
-  removeTemplate
+  removeTemplate,
+  setTemplateFavorite
 } from './templatesStore'
 import type { Template } from '../../../shared/ipc/contract'
 
@@ -40,12 +41,14 @@ interface Bridge {
   list: ReturnType<typeof vi.fn>
   save: ReturnType<typeof vi.fn>
   remove: ReturnType<typeof vi.fn>
+  setFavorite: ReturnType<typeof vi.fn>
 }
 function stubBridge(overrides: Partial<Bridge> = {}): Bridge {
   const bridge: Bridge = {
     list: vi.fn(() => Promise.resolve([T1, T2])),
     save: vi.fn(() => Promise.resolve({ saved: T1, templates: [T1] })),
     remove: vi.fn(() => Promise.resolve([T2])),
+    setFavorite: vi.fn(() => Promise.resolve([{ ...T1, favorite: true }, T2])),
     ...overrides
   }
   ;(window as unknown as { templates: Bridge }).templates = bridge
@@ -150,5 +153,21 @@ describe('templatesStore — bridge helpers', () => {
     expect(selectTemplates(templatesStore.getState())).toEqual([T2])
     stubBridge({ remove: vi.fn(() => Promise.reject(new Error('template_in_use'))) })
     await expect(removeTemplate('b')).rejects.toThrow('template_in_use')
+  })
+})
+
+describe('templatesStore — favorites', () => {
+  it('setTemplateFavorite replaces the projection with main answer', async () => {
+    const bridge = stubBridge()
+    templatesStore.getState().hydrate([T1, T2])
+    await setTemplateFavorite('a', true)
+    expect(bridge.setFavorite).toHaveBeenCalledWith('a', true)
+    expect(templatesStore.getState().templates[0]?.favorite).toBe(true)
+  })
+  it('setTemplateFavorite rethrows and keeps the projection', async () => {
+    stubBridge({ setFavorite: vi.fn(() => Promise.reject(new Error('store_write_failed'))) })
+    templatesStore.getState().hydrate([T1, T2])
+    await expect(setTemplateFavorite('a', true)).rejects.toThrow('store_write_failed')
+    expect(templatesStore.getState().templates[0]?.favorite).toBe(false)
   })
 })

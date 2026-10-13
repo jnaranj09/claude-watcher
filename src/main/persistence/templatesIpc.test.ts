@@ -50,3 +50,25 @@ describe('templates IPC handler logic — parse-and-throw on the arg (untrusted 
     expect(() => h.remove('id-1')).toThrow()
   })
 })
+
+describe('templates IPC — setFavorite (untrusted arg, one .strict() boundary)', () => {
+  const handlers = (): ReturnType<typeof createTemplatesIpcHandlers> =>
+    createTemplatesIpcHandlers(createTemplatesStore({ newId: () => 'id-1' }))
+
+  it('setFavorite parses its arg and returns the list', () => {
+    const h = handlers()
+    const { saved } = h.save(ROW)
+    expect(h.setFavorite({ id: saved.id, favorite: true })[0]?.favorite).toBe(true)
+  })
+  it.each([
+    ['a non-object', 'nope'],
+    ['a missing favorite', { id: 'id-1' }],
+    ['a string favorite', { id: 'id-1', favorite: 'yes' }],
+    ['an extra key', { id: 'id-1', favorite: true, name: 'x' }]
+  ])('setFavorite throws on %s', (_label, raw) => {
+    const h = handlers()
+    h.save(ROW)
+    expect(() => h.setFavorite(raw)).toThrow()
+    expect(h.list()[0]?.favorite).toBe(false)
+  })
+})

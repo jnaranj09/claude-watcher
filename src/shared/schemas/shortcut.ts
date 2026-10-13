@@ -116,6 +116,12 @@ export type ShortcutSaveRequest = z.infer<typeof ShortcutSaveSchema>
 export const ShortcutDeleteSchema = z.object({ id: ShortcutIdSchema })
 export type ShortcutDeleteRequest = z.infer<typeof ShortcutDeleteSchema>
 
+/** `shortcuts:set-favorite` arg — the ONE way `favorite` changes. */
+export const ShortcutSetFavoriteSchema = z
+  .object({ id: ShortcutIdSchema, favorite: z.boolean() })
+  .strict()
+export type ShortcutSetFavoriteRequest = z.infer<typeof ShortcutSetFavoriteSchema>
+
 /**
  * 3: `keys` (a 1..3 `Ctrl+Alt+<A-Z>` chord sequence) became `alias`. Unlike the 1 → 2 bump,
  * v2 files DO exist on operator machines, so `parseShortcutsFile` migrates them instead of

@@ -176,6 +176,12 @@ export type TemplateSaveRequest = z.infer<typeof TemplateSaveSchema>
 export const TemplateDeleteSchema = z.object({ id: TemplateIdSchema })
 export type TemplateDeleteRequest = z.infer<typeof TemplateDeleteSchema>
 
+/** `templates:set-favorite` arg — the ONE way `favorite` changes. */
+export const TemplateSetFavoriteSchema = z
+  .object({ id: TemplateIdSchema, favorite: z.boolean() })
+  .strict()
+export type TemplateSetFavoriteRequest = z.infer<typeof TemplateSetFavoriteSchema>
+
 export const TEMPLATES_FILE_VERSION = 1 as const
 export const TemplatesFileSchema = z.object({
   version: z.literal(TEMPLATES_FILE_VERSION),

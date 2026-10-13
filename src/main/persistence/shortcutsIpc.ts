@@ -4,6 +4,7 @@
 import {
   ShortcutDeleteSchema,
   ShortcutSaveSchema,
+  ShortcutSetFavoriteSchema,
   type Shortcut
 } from '../../shared/schemas/shortcut'
 import type { ShortcutsSaveResult } from '../../shared/ipc/contract'
@@ -13,12 +14,17 @@ export interface ShortcutsIpcHandlers {
   list(): Shortcut[]
   save(raw: unknown): ShortcutsSaveResult
   remove(raw: unknown): Shortcut[]
+  setFavorite(raw: unknown): Shortcut[]
 }
 
 export function createShortcutsIpcHandlers(store: ShortcutsStore): ShortcutsIpcHandlers {
   return {
     list: () => store.list(),
     save: (raw) => store.save(ShortcutSaveSchema.parse(raw)),
-    remove: (raw) => store.remove(ShortcutDeleteSchema.parse(raw).id)
+    remove: (raw) => store.remove(ShortcutDeleteSchema.parse(raw).id),
+    setFavorite: (raw) => {
+      const req = ShortcutSetFavoriteSchema.parse(raw)
+      return store.setFavorite(req.id, req.favorite)
+    }
   }
 }
