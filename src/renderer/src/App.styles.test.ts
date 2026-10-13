@@ -68,6 +68,22 @@ describe('App.module.css .header outranks the board (custom-themes task 15)', ()
   })
 })
 
+// The + New session menu is portaled to <body>, so the header no longer contains it: below the
+// header's z-index it painted UNDER the header where the two overlap (its top edge).
+describe('NewSessionMenu .portalAnchor sits over the header, under the modals', () => {
+  const app = readFileSync(join(process.cwd(), 'src/renderer/src/App.module.css'), 'utf8')
+  const menu = readFileSync(
+    join(process.cwd(), 'src/renderer/src/components/NewSessionMenu/NewSessionMenu.module.css'),
+    'utf8'
+  )
+
+  it('is strictly above the header and strictly below the modal layer', () => {
+    const menuZ = readZIndex(menu, '.portalAnchor')
+    expect(menuZ).toBeGreaterThan(readZIndex(app, '.header'))
+    expect(menuZ).toBeLessThan(MODAL_Z_INDEX)
+  })
+})
+
 describe('ruleBody()/readZIndex() read THAT rule only (non-vacuity)', () => {
   it('does not answer with a longer class sharing the prefix', () => {
     const css = '.header {\n  z-index: 10;\n}\n.headerLead {\n  z-index: 99;\n}\n'

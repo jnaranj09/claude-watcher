@@ -43,10 +43,13 @@
    `display: flex` is load-bearing: a percentage max-height against an auto-height parent
    resolves to `none`, but a FLEX ITEM is bounded by its container's content box — so the
    wrapper's inline maxHeight is what makes the Popover list scroll instead of the menu
-   overflowing. The list keeps its own 320px cap. */
+   overflowing. The list keeps its own 320px cap.
+   z-index 56: ABOVE the header (55, App.module.css) and below the modals (60). Portaled out of
+   the header, the menu at 50 sat UNDER it, so the header painted over the menu's top edge — in
+   Liquid Glass a see-through strip with a sharp line where the header ends (owner, 2026-10-13). */
 .portalAnchor {
   position: fixed;
-  z-index: 50;
+  z-index: 56;
   display: flex;
 }
 .portalAnchor [data-popover] {
