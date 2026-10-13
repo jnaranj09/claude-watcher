@@ -599,10 +599,13 @@ describe('docs/themes/examples', () => {
         .filter((r) => r.selectors.includes(sel))
         .map((r) => r.body)
         .join('\n')
-    // Header → filter bar is the filter bar's own gap: the bubble has no bottom margin.
+    // Header → filter bar is the filter bar's own gap: the bubble has no bottom margin. Its top
+    // margin (12) matches the focused view's gap under it; the board's search row keeps 16.
     expect(bodyOf("[data-testid='app-header']")).toMatch(
-      /margin:\s*var\(--inset-compact-x\) var\(--inset-compact-x\) 0;/
+      /margin:\s*var\(--gap-group\) var\(--inset-compact-x\) 0;/
     )
+    expect(bodyOf("[data-testid='filter-bar']")).toMatch(/margin-top:\s*var\(--gap-page\);/)
+    expect(bodyOf("[data-testid='focused-layer']")).toMatch(/padding-top:\s*var\(--gap-group\);/)
     // Column 24 = card 12 + the column's 12 padding (inner = outer − padding).
     expect(bodyOf('section[data-column]')).toMatch(/border-radius:\s*24px;/)
     const group = bodyOf('[data-settings-group]')

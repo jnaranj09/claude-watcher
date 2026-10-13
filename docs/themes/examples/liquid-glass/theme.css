@@ -172,13 +172,14 @@ body {
    (header, then `.main` at flex:1), so a margin here simply insets the header and `.main` takes
    what is left — no grid rows to fight. `border` replaces `.header`'s `border-bottom`, because a
    bottom-only rule on a rounded, detached box reads as a stray underline.
-   ONE inset on every side, `--inset-compact-x` (8px): a 16px side margin under an 8px top one read as a wider
-   left edge than top edge. The board's own side padding drops to the same 8px (below), so the
-   bubble's left and right edges still line up with the columns under it.
-   No BOTTOM margin (spec 2026-10-07 B.1): the filter bar's own `--gap-group` (12) is the whole
-   gap, so header → filter → columns → column gap are all 12. */
+   Sides `--inset-compact-x` (8px); the board's own side padding drops to the same 8px (below), so
+   the bubble's left and right edges still line up with the columns under it.
+   TOP `--gap-group` (12px): the same gap the focused view has under the header, so the bubble
+   sits evenly between the window edge and the terminal box. The board's search row keeps 16px
+   under the header (below): its controls need more air.
+   No BOTTOM margin: that gap belongs to what comes next. */
 [data-testid='app-header'] {
-  margin: var(--inset-compact-x) var(--inset-compact-x) 0;
+  margin: var(--gap-group) var(--inset-compact-x) 0;
   border: 1px solid var(--border);
   border-radius: var(--rounded-lg);
 }
@@ -1011,12 +1012,13 @@ section[data-column]::after,
   border-left-color: transparent;
 }
 
-/* Spacing (spec D.7): one 16px gap after the header in both views. */
+/* Spacing after the header: 16px over the board's search row (its controls need the air), 12px
+   over the focused view's body (the same 12px as above the header). */
 [data-testid='filter-bar'] {
   margin-top: var(--gap-page);
 }
 [data-testid='focused-layer'] {
-  padding-top: var(--gap-page);
+  padding-top: var(--gap-group);
 }
 
 /* Round ☰ (spec D.8): a shape is each theme's choice. */
