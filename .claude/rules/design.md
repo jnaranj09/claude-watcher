@@ -283,6 +283,12 @@ which relation two neighbours ARE. Items of one kind close, different regions cl
    clearly outside. Every `ManageDialog.Rows` fades its bottom 32px while more rows are below
    (`useOverflowEnd`); none at rest. `scroll-padding-bottom: 32px` parks a row reached by keyboard
    above the fade.
+9. **Bare controls get more air than containers** (owner, 2026-10-12). A container's own edge
+   already separates it, and its content, so space plus that edge reads as a double break: two
+   containers side by side keep the smaller gap. Controls with no container around them (a search
+   field, a row of buttons) are boxes themselves, and only space separates them from the next
+   container, so they get the larger gap. Liquid Glass: window edge → header 12, header → focused
+   body 12 (container → container), header → board search row 16 (container → bare controls).
 
 ## Board filter bar (`components/FilterBar/FilterBar.tsx`)
 
@@ -459,6 +465,86 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   it swallows clicks during the exit (guard). Payload a fading dialog shows (busy label, error)
   rides IN the Presence value. A surface that holds a submenu never fades its own opacity (it
   cuts Liquid Glass's `::before` blur — measured).
+
+## UX canon (owner, 2026-10-12)
+
+Our rules, taken from the community's accepted UX practice (Gestalt, Nielsen's heuristics, Laws
+of UX, WCAG, Refactoring UI, design systems). The sections above are the detail; this is the WHY a
+new screen is checked against. `Gap:` = the app does not meet the rule yet; fix it when you touch
+that area, never cite it as precedent.
+
+**Grouping and spacing**
+
+1. **Proximity groups.** Close = one group, apart = different roles (Regions and breathing).
+2. **A shared edge or fill groups**, and beats distance (Regions rule 7).
+3. **Outside ≥ inside.** The space around a group is at least the space inside it; ours is ≥ 2×
+   (Regions rule 2).
+4. **One spacing scale.** Every gap is a role token on the 4/8 scale, never a raw length (Spacing
+   roles).
+5. **Spacing climbs with level:** rows < groups < sections < page.
+6. **Separate with space or fill first; a border last.** A border is thin and quiet.
+7. **No double separation.** No divider inside a box whose edge already separates; no line where
+   space already separates. Bare controls get more air than containers (Regions rule 9).
+8. **Crowded? Add space, not a line.**
+9. **Measure what the eye sees**, ink to ink, not box to box; icons beside text need less gap.
+10. **Start with too much space, then take it away.** Too much is easier to see than too little.
+11. **Window-edge margin and gap between panes are separate choices**, each picked on purpose.
+12. **Spacing and hierarchy come first in a spec**, before colours and effects.
+
+**Feedback and status**
+
+13. **Always show what is going on** (Nielsen 1): every action ends in a visible result (Feedback).
+14. **Fast or busy.** Answer within ~400 ms (Doherty); slower work shows `busy` at once. Gap: no
+    response-time budget is measured.
+15. **Errors in plain words with a way out** (Nielsen 9): copy mapped from a code, a refused change
+    rolls back and says so.
+
+**Errors and destructive actions**
+
+16. **Prevent errors over explaining them** (Nielsen 5): make the wrong state impossible; a button
+    never runs twice.
+17. **Reversible = instant, irreversible = confirm.** Archive has no confirm; Delete is red, confirms,
+    keeps nothing. A confirm on everything teaches people to click through it. Gap: no `Undo` on the
+    Archive toast.
+18. **Always a way out** (Nielsen 3): Esc / Cancel / Back from every state; a background event
+    never takes the view.
+
+**Choices and memory**
+
+19. **Show, don't make people remember** (Nielsen 6). Gap: shortcut aliases are recall; the
+    expander should list what matches.
+20. **Fewer choices, faster decisions** (Hick): no new key bindings, one ☰ menu.
+21. **Core first, advanced on demand** (progressive disclosure): e.g. filter chips behind `Filter`.
+22. **Work like what people know; same thing, same word** (Jakob, Nielsen 4): `copy/terms.ts`,
+    "Reuse before you draw", one ManageDialog shell.
+
+**Targets and input**
+
+23. **Big, close targets** (Fitts): clickable size ≥ 24×24 px (WCAG 2.5.8), 36 px for rows. Gap:
+    not guarded; the smallest `xs` buttons were never measured.
+24. **Everything works from the keyboard and focus is always visible** (WCAG 2.1.1, 2.4.7):
+    `:focus-visible` on every control; focus lands in the terminal on a switch.
+
+**Visual accessibility**
+
+25. **Text ≥ 4.5:1** (WCAG 1.4.3), tested, on every theme and wallpaper.
+26. **Icons, edges and state marks ≥ 3:1** (WCAG 1.4.11), in every state (hover, focus, active).
+    Gap: glass bubble borders are not checked.
+27. **Colour never alone** (WCAG 1.4.1): a meaning also has words, an icon or a shape. Check status
+    dots when you touch them.
+
+**Motion**
+
+28. **Motion explains a change or a place; never decoration.** Only needs-you pulses loop.
+29. **Short:** 150–300 ms for UI (ours: 150 ms overlays); keyboard-opened = instant.
+30. **Reduced motion removes the movement, keeps the information** (`prefers-reduced-motion`).
+
+**Content**
+
+31. **Every element competes; keep only what earns its place** (Nielsen 8). Gold stays the loudest.
+32. **An empty state says why and what next**; never a dead end. Gap: the three empty sentences
+    have no action.
+33. **Help sits where it is needed** (Nielsen 10): a hint next to the control, not a manual.
 
 ## Testing CSS
 
