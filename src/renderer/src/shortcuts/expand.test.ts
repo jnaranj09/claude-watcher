@@ -1,6 +1,7 @@
 // Shortcut expander — the pure half. No React, no DOM.
 import { describe, it, expect } from 'vitest'
 import type { Shortcut } from '../../../shared/schemas/shortcut'
+import { favoritesFirst } from '../lib/favoritesFirst'
 import {
   parseInput,
   matchAliases,
@@ -206,5 +207,22 @@ describe('usageFor', () => {
 describe('PLACEHOLDER_HELP', () => {
   it('names every placeholder token once', () => {
     expect(PLACEHOLDER_HELP.map((h) => h.token)).toEqual(['$1 $2 … $9', '$*', '$$'])
+  })
+})
+
+describe('matchAliases — favorites first (the caller orders, the bands stay)', () => {
+  const star = (alias: string, favorite: boolean): Shortcut => ({ ...sc(alias, 'x'), favorite })
+
+  it('a starred prefix match never rises above an exact alias match', () => {
+    const rows = favoritesFirst([star('ap', false), star('apx', true)])
+    expect(matchAliases('ap', rows).map((s) => s.alias)).toEqual(['ap', 'apx'])
+  })
+  it('inside one band a favorite leads', () => {
+    const rows = favoritesFirst([star('apa', false), star('apz', true)])
+    expect(matchAliases('ap', rows).map((s) => s.alias)).toEqual(['apz', 'apa'])
+  })
+  it('an empty query lists favorites first', () => {
+    const rows = favoritesFirst([star('aa', false), star('zz', true)])
+    expect(matchAliases('', rows).map((s) => s.alias)).toEqual(['zz', 'aa'])
   })
 })

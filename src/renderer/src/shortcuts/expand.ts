@@ -70,7 +70,8 @@ export function parseInput(raw: string): ParsedInput {
 
 /**
  * The rows the box lists for a query: exact alias, then alias prefix, then name prefix. Stable
- * within each band, so main's alias order carries through. An empty query lists everything.
+ * within each band, so the caller's order (favorites first, then alias order) carries through.
+ * An empty query lists everything.
  */
 export function matchAliases(query: string, shortcuts: readonly Shortcut[]): Shortcut[] {
   const q = query.trim().toLowerCase()
