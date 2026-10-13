@@ -9,8 +9,9 @@ item right away: validate it with a systematic approach (bmad / superpowers), th
 same way.
 
 **Designing, speccing, planning or choosing without the owner?** Read `technical-taste.md` first:
-how the owner decides, default answers, reversed decisions not to revive, and when to stop instead
-of guess. Unattended runs decide by it and tag their own picks `[AGENT]` in the spec.
+how the owner decides, default answers, reversed decisions not to revive, when to stop. A spec
+names the sections it applied on its `Taste:` line (hook-checked). Unattended runs decide by it
+and tag their own picks `[AGENT]` in the spec.
 
 ## Never commit (`.gitignore`) — this repo is PUBLIC
 

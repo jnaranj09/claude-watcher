@@ -18,6 +18,11 @@ Fowler, Hickey, Carmack, Metz, Willison, Hashimoto, Ronacher and others), the AI
   **sensor** (the check that goes red when the rule is broken), or says "prose only".
 - Where the owner's taste and the evidence pull apart, §5c says so honestly.
 
+**This file is never finished (owner, 2026-10-13).** It records what the project knew when each
+line was written, and it gets older every day. When a rule here conflicts with a better
+engineering practice the project has learned since, or with what the code and its tests show
+today, do not follow the old line blindly: say so, and update the rule (a reversal goes in §12).
+
 ## 0. How to use this file
 
 **Precedence (highest first):**
@@ -45,7 +50,9 @@ If a rule file and the code disagree, the newer one wins. Check with `git log`. 
    prose does not.
 6. **Write the choice down.** In the spec, tag it `[AGENT]` (the owner's picks are `[OPERATOR]`)
    and list it under "Assumed (correct me in review)". An `[AGENT]` decision is the first thing the
-   owner will challenge, so give a one-line reason.
+   owner will challenge, so give a one-line reason. Name the sections of this file you applied on
+   the spec's `Taste:` line, before its first `## ` heading (`.claude/hooks/spec-taste-line.mjs`
+   blocks a spec without it).
 
 **Stop and leave a "Decision needed" note (do not guess) only when the choice is one of these:**
 
