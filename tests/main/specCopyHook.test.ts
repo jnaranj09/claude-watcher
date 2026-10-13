@@ -43,6 +43,16 @@ describe('spec Copy-table hook', () => {
     expect(r.status).toBe(2)
   })
 
+  it('a ## Copy section with rows but no header row is blocked', () => {
+    const rows = '## Copy\n\n| `>_ Shell` | `>_ Shell` (views/FocusedSession.tsx:255) |\n'
+    expect(write(SPEC, `# Thing\n\n${rows}`).status).toBe(2)
+  })
+
+  it('a ## Copy table with a header but no rows is blocked', () => {
+    const head = '## Copy\n\n| New text | Same thing in the app today |\n| --- | --- |\n'
+    expect(write(SPEC, `# Thing\n\n${head}`).status).toBe(2)
+  })
+
   it('"No new text." in the section is enough for a spec with no operator-facing words', () => {
     expect(write(SPEC, '# Thing\n\n## Copy\n\nNo new text.\n').status).toBe(0)
   })

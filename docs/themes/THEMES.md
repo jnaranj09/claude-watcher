@@ -372,7 +372,7 @@ What you can target:
   with `backdrop-filter` (or a `::before` that does): Chromium then cuts that blur off.
 - **Not test ids.** `data-testid` attributes exist for the app's tests and change with them, so
   a theme never selects one. Use the public `data-*` hooks in this list. The bundled themes still
-  select a few test ids; they move to named hooks in a later change.
+  select test ids; they move to named hooks in a later change.
 - **Terminal panels.** `[data-terminal-panel]` is every box drawn as a terminal: the terminal's
   frame, or — while a card's shell is open — claude's half and the shell, each its own panel, with
   the resize divider in the gap between them. Style the terminal's border, radius, shadow and glass
