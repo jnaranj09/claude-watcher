@@ -372,7 +372,8 @@ Spec `2026-09-29-action-feedback-design.md`. Visible result for every action; no
    1.5 s.
 3. Board-level or off-screen result → toast.
 
-Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error.message`.
+Copy mapped from a CODE (`includes` — Electron wraps rejections), never `error.message`. This holds
+until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCode(err)`.
 
 - **Callout (`components/Callout`, spec `2026-10-01-feedback-callout-design.md`) is the ONE in-page
   message.** Tinted box (`--success-fill`/`--danger-fill`), 1px tinted border, 3px `--success`/
@@ -560,5 +561,6 @@ its text.
 - Don't assert a workspace name via container `textContent` — the scope dropdown contains every
   name. Query a `data-testid` or assert structure.
 - Don't build a new dialog shell. `ManageDialog.Frame` is z-60, single-modal (add the open flag to
-  `isDialogOpen()` in App.tsx), Escape-closable. Delete confirm and Quit guard are modals too (R9):
+  `isDialogOpen()` in `lib/modals.ts`; `maintainability.md` rule 1 replaces the flags with one
+  `modal` union), Escape-closable. Delete confirm and Quit guard are modals too (R9):
   nothing opens over them, the page behind is `inert`, Quit guard closes an open Delete confirm.

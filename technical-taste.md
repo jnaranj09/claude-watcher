@@ -358,13 +358,14 @@ yet. Prefer turning prose-only rules into sensors.
     Error-masking code is where AI-written code is weakest. _Consensus_, with weak (vendor) evidence
     (GitClear +47% error-masking constructs, CodeRabbit). Sensor: `tests/main/catchBlocks.guard.test.ts`
     — 19 comment-only catches in 8 listed files, each with its reason; the list only shrinks; a
-    comment under 3 words fails. It sees `try`/`catch` only, not a promise `.catch(() => {})`.
+    comment under 3 words fails. It sees `try`/`catch` only, not a promise `.catch(() => {})`. The
+    full rule is `.claude/rules/maintainability.md` rule 6.
 18. **Interface and "why" comments stay next to the code. Never delete a commented constraint or
     incident note without saying so in the commit.** Each agent session starts with no memory, so
     an unwritten "why" is rediscovered or broken. Models are known to change or remove comments
     they don't understand as a side effect. _Consensus_ (Ousterhout won this point against Martin;
     Karpathy). Sensor: prose only. Keep comments short. A comment that a test also pins cannot
-    drift silently.
+    drift silently. A comment the change made false: `maintainability.md` rule 5.
 
 ### Instructions for agents
 
@@ -622,6 +623,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Background shell at turn end → "your turn"                                                          | Back to Working (2.3.1)                                                                             | The owner lived with it and reverted it                                           |
 | WebGL off (GPU faults)                                                                              | WebGL on, with context-loss recovery                                                                | Hardware fixed; the smoke test requires it                                        |
 | Workspace dot                                                                                       | Light tint of the whole control                                                                     | A dot reads as status                                                             |
+| Themes select `data-testid` attributes                                                              | Themes select public `data-*` hooks only (2026-10-13)                                               | Test ids change with tests; a theme needs a stable hook                           |
 | Each dialog with its own layout; Settings one long column; Shortcuts as a table                     | One `ManageDialog` list \| form, categories for Settings                                            | One standard                                                                      |
 | Blank New form when the dialog opens                                                                | Placeholder sentence                                                                                | "is this a record or a create?"                                                   |
 | Bare red or neutral text feedback, no success colour                                                | `Callout` box, green `--success`                                                                    | "no box? no colors?"                                                              |
@@ -694,7 +696,7 @@ day (spec `2026-10-01-engineering-gaps-design.md`). What is left:
 ## 15. Keep this file current
 
 When a decision changes something here, change this file in the same commit. Replace the rule,
-then add one row to §12. Later wins.
+then add one row to §12. Later wins. Every other living doc follows `maintainability.md` rule 5.
 
 ## 16. Button standard: variant, shape and active state (2026-10-04)
 

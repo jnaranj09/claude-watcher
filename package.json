@@ -33,6 +33,7 @@
     "build:dir": "electron-vite build && electron-builder --dir",
     "smoke": "node tests/smoke/run-packaged-smoke.mjs",
     "smoke:packaged": "npm run build:dir && npm run smoke",
+    "find-name": "node tests/tools/findName.mjs",
     "gen:theme-docs": "THEME_DOCS_WRITE=1 vitest run --project unit src/shared/theme/themeDocs.test.ts",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",

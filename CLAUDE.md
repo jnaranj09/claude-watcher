@@ -82,6 +82,7 @@ selectors → components. Renderer never invents/mutates session truth.
    guard test). Every action ends in visible feedback; async buttons use `useAsyncAction`/`busy`.
    **Same thing, same word:** reuse the app's existing word for a thing (`copy/terms.ts`, spec
    `## Copy` table; technical-taste §4).
+7. **Maintainability** (`rules/maintainability.md`): nothing stale survives; `npm run find-name`.
 
 **Debugging?** Read `rules/troubleshooting.md` first (Step-0 questions before theorizing).
 

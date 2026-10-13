@@ -370,9 +370,9 @@ What you can target:
   closed from the keyboard does not animate. If you add your own motion, gate it the same way and
   under `prefers-reduced-motion`. Do not put `opacity` below 1 on an element whose child blurs
   with `backdrop-filter` (or a `::before` that does): Chromium then cuts that blur off.
-- **Test ids.** `[data-testid="app-header"]`, `[data-testid="settings-panel"]`,
-  `[data-testid="embedded-terminal"]` and the other `data-testid` attributes in the app. They are
-  pinned by the app's tests, so they are stable.
+- **Not test ids.** `data-testid` attributes exist for the app's tests and change with them, so
+  a theme never selects one. Use the public `data-*` hooks in this list. The bundled themes still
+  select a few test ids; they move to named hooks in a later change.
 - **Terminal panels.** `[data-terminal-panel]` is every box drawn as a terminal: the terminal's
   frame, or — while a card's shell is open — claude's half and the shell, each its own panel, with
   the resize divider in the gap between them. Style the terminal's border, radius, shadow and glass
@@ -408,10 +408,10 @@ to reason about: the scan above is what actually decides whether your theme load
 
 `backdrop-filter`, `filter`, `transform`, `perspective`, `contain` and `will-change` each create a
 new stacking context on the element they're applied to — not just a visual effect. Put one of
-these on a CONTAINER (`[data-testid="app-header"]`, `body`, a wrapping element) and every popover
+these on a CONTAINER (the app header, `body`, a wrapping element) and every popover
 that lives inside it — a menu, a dropdown, a tooltip — gets trapped at that container's paint
 position, no matter how high its own `z-index` is. `liquid-glass`'s header blur
-(`[data-testid="app-header"] { backdrop-filter: blur(12px) }`) is exactly this: the app's own CSS
+(`backdrop-filter: blur(12px)` on the app header) is exactly this: the app's own CSS
 already accounts for it, so the example still works, but a theme that puts one of these six
 properties on a container the app does NOT already harden could bury a popup under the board
 again.
