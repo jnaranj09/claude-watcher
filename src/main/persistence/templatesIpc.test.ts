@@ -19,13 +19,13 @@ describe('templates IPC handler logic — parse-and-throw on the arg (untrusted 
     const h = createTemplatesIpcHandlers(store)
     expect(h.list()).toEqual([])
     h.save(ROW)
-    expect(h.list()).toEqual([{ id: 'id-1', ...ROW }])
+    expect(h.list()).toEqual([{ id: 'id-1', ...ROW, favorite: false }])
   })
   it('save returns { saved, templates } and trims the name at the boundary', () => {
     const h = createTemplatesIpcHandlers(createTemplatesStore({ newId: () => 'id-1' }))
     expect(h.save({ ...ROW, name: '  blog ' })).toEqual({
-      saved: { id: 'id-1', ...ROW },
-      templates: [{ id: 'id-1', ...ROW }]
+      saved: { id: 'id-1', ...ROW, favorite: false },
+      templates: [{ id: 'id-1', ...ROW, favorite: false }]
     })
   })
   it('save with a MALFORMED arg throws and does NOT mutate', () => {

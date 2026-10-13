@@ -32,7 +32,8 @@ const base = {
   permissionMode: null,
   effort: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 const GLOBAL: Template = { ...base, id: 'g', name: 'global-one', workspaceId: null }
 const OWN: Template = { ...base, id: 'own', name: 'ops-one', workspaceId: 'w1' }
@@ -40,7 +41,8 @@ const OTHER: Template = {
   ...base,
   id: 'other',
   name: 'default-one',
-  workspaceId: DEFAULT_WORKSPACE_ID
+  workspaceId: DEFAULT_WORKSPACE_ID,
+  favorite: false
 }
 const ORPHAN: Template = { ...base, id: 'orphan', name: 'stranded-one', workspaceId: 'gone' }
 

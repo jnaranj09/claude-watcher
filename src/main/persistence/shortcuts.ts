@@ -46,6 +46,9 @@ export interface ShortcutsStore {
   save(input: ShortcutSaveRequest): ShortcutsSaveResult
   /** Unknown id is a no-op (idempotent). */
   remove(id: string): Shortcut[]
+  /** Favorites — star or unstar one row. Throws SHORTCUT_ERROR.notFound; a refused write is
+   *  undone and throws STORE_WRITE_FAILED (commit). Trusts its typed input (shortcutsIpc.ts). */
+  setFavorite(id: string, favorite: boolean): Shortcut[]
   /** Workspaces — delete every shortcut scoped to `workspaceId`. Returns how many were removed.
    *  Called ONLY by the workspaces store's cascade, after a delete was allowed. Global rows
    *  (`workspaceId === null`) are never touched. */
@@ -110,14 +113,16 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     if (input.id !== undefined && !byId.has(input.id)) throw new Error(SHORTCUT_ERROR.notFound)
     const id = input.id ?? newId()
     if (isAliasTaken(input.alias, id)) throw new Error(SHORTCUT_ERROR.aliasTaken)
+    const previous = byId.get(id)
     const saved: Shortcut = {
       id,
       name: input.name,
       alias: input.alias,
       text: input.text,
-      workspaceId: input.workspaceId
+      workspaceId: input.workspaceId,
+      // Not in the save arg: a form Save keeps the star; only setFavorite changes it.
+      favorite: previous?.favorite ?? false
     }
-    const previous = byId.get(id)
     byId.set(id, saved)
     commit(() => (previous === undefined ? byId.delete(id) : byId.set(id, previous)))
     return { saved, shortcuts: list() }
@@ -126,6 +131,14 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
   function remove(id: string): Shortcut[] {
     const previous = byId.get(id)
     if (previous !== undefined && byId.delete(id)) commit(() => byId.set(id, previous))
+    return list()
+  }
+
+  function setFavorite(id: string, favorite: boolean): Shortcut[] {
+    const previous = byId.get(id)
+    if (previous === undefined) throw new Error(SHORTCUT_ERROR.notFound)
+    byId.set(id, { ...previous, favorite })
+    commit(() => byId.set(id, previous))
     return list()
   }
 
@@ -150,7 +163,7 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
     return false
   }
 
-  return { list, get, save, remove, removeByWorkspace }
+  return { list, get, save, setFavorite, remove, removeByWorkspace }
 }
 
 /** Sorted by alias — the column the operator scans in the box and the table. */

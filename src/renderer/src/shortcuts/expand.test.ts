@@ -14,7 +14,7 @@ import {
 } from './expand'
 
 function sc(alias: string, text: string, name = alias): Shortcut {
-  return { id: `id-${alias}`, name, alias, text, workspaceId: null }
+  return { id: `id-${alias}`, name, alias, text, workspaceId: null, favorite: false }
 }
 
 const HT = sc('ht', 'work on help desk ticket $1', 'help desk')

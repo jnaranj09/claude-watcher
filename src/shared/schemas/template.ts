@@ -151,7 +151,11 @@ const TemplateObjectSchema = z.object({
   // Programmatic API — additive with `.default()` for the SAME backward-compat reason as `effort`
   // and `workspaceId`: an older file has neither key and must still load. Never bump the version.
   initialPrompt: InitialPromptSchema.nullable().default(null),
-  params: z.array(TemplateParamSchema).max(TEMPLATE_PARAMS_MAX).default([])
+  params: z.array(TemplateParamSchema).max(TEMPLATE_PARAMS_MAX).default([]),
+  // Favorites — additive with `.default(false)` for the SAME backward-compat reason as `effort`:
+  // an older file has no key and must still load. Never bump the version. Not in the save arg:
+  // only `templates:set-favorite` changes it, so a form Save can never reset a star.
+  favorite: z.boolean().default(false)
 })
 
 /** The prompt/params agreement is a whole-object rule, so it is applied to the row schema AND to
@@ -163,7 +167,7 @@ export const TemplateSchema = TemplateObjectSchema.refine(promptAndParamsAgree, 
 export type Template = z.infer<typeof TemplateSchema>
 
 /** `templates:save` arg — no id ⇒ create; id ⇒ update. */
-export const TemplateSaveSchema = TemplateObjectSchema.omit({ id: true })
+export const TemplateSaveSchema = TemplateObjectSchema.omit({ id: true, favorite: true })
   .extend({ id: TemplateIdSchema.optional() })
   .refine(promptAndParamsAgree, { error: 'params_mismatch', path: ['params'] })
 export type TemplateSaveRequest = z.infer<typeof TemplateSaveSchema>

@@ -13,7 +13,8 @@ const SC = {
   name: 'approve',
   alias: 'oa',
   text: 'I explicitly approve',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 
 // NOTE: the chordFromEvent / chordProblem tables that used to live here moved to

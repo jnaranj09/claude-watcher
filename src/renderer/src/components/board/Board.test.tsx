@@ -264,7 +264,8 @@ describe('Board — empty states never collapse (AC-4)', () => {
       effort: null,
       workspaceId: null,
       initialPrompt: null,
-      params: []
+      params: [],
+      favorite: false
     }
     const click = (container: Element, sel: string): void => {
       act(() => container.querySelector<HTMLButtonElement>(sel)?.click())

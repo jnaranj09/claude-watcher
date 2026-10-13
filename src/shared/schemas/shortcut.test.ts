@@ -17,7 +17,8 @@ const VALID = {
   name: 'help desk',
   alias: 'ht',
   text: 'work on help desk ticket $1',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 
 describe('ShortcutSchema — fail-closed (our shape, no passthrough)', () => {
@@ -128,9 +129,9 @@ describe('placeholders in text', () => {
 describe('ShortcutSaveSchema / ShortcutDeleteSchema', () => {
   it('save without id ⇒ create; with id ⇒ update', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id: _id, ...create } = VALID
+    const { id: _id, favorite: _favorite, ...create } = VALID
     expect(ShortcutSaveSchema.parse(create)).toEqual(create)
-    expect(ShortcutSaveSchema.parse(VALID)).toEqual(VALID)
+    expect(ShortcutSaveSchema.parse({ ...create, id: 'sc-1' })).toEqual({ ...create, id: 'sc-1' })
   })
 
   it('delete needs a non-empty id', () => {
@@ -178,7 +179,8 @@ describe('parseShortcutsFile — v3, or a migrated v2, or a throw', () => {
           name: 'approve',
           alias: 'oa',
           text: 'I explicitly approve',
-          workspaceId: 'w1'
+          workspaceId: 'w1',
+          favorite: false
         }
       ]
     })
@@ -217,5 +219,32 @@ describe('aliasFromChords', () => {
   it('joins the lowercased letters', () => {
     expect(aliasFromChords(['Ctrl+Alt+O', 'Ctrl+Alt+A'])).toBe('oa')
     expect(aliasFromChords(['Ctrl+Alt+Z'])).toBe('z')
+  })
+})
+
+describe('favorite', () => {
+  it('an old v3 row without favorite loads as false', () => {
+    const file = parseShortcutsFile({
+      version: 3,
+      shortcuts: [{ id: 's1', name: 'a', alias: 'ap', text: 'x', workspaceId: null }]
+    })
+    expect(file.shortcuts[0]?.favorite).toBe(false)
+  })
+  it('a v2 file migrates with favorite false', () => {
+    const file = parseShortcutsFile({
+      version: 2,
+      shortcuts: [{ id: 's1', name: 'a', keys: ['Ctrl+Alt+A'], text: 'x' }]
+    })
+    expect(file.shortcuts[0]?.favorite).toBe(false)
+  })
+  it('the save schema does not carry favorite', () => {
+    const parsed = ShortcutSaveSchema.parse({
+      name: 'a',
+      alias: 'ap',
+      text: 'x',
+      workspaceId: null,
+      favorite: true
+    })
+    expect('favorite' in parsed).toBe(false)
   })
 })

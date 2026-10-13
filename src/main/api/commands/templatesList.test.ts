@@ -20,7 +20,8 @@ const tpl = (id: string, workspaceId: string | null): Template => ({
   effort: null,
   workspaceId,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 })
 const GLOBAL = tpl('g', null)
 const IN_TWO = tpl('two', 'ws2')
@@ -70,10 +71,14 @@ describe('GET /v1/templates', () => {
       permissionMode: 'plan',
       effort: 'high',
       initialPrompt: 'Work on $1',
-      params: [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 10 }]
+      params: [{ label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 10 }],
+      favorite: true
     }
     const reply = await get('/v1/templates?scope=ws2', [full])
-    expect(JSON.parse(reply.text)).toEqual([full])
+    // Favorites are app-only: the API never sends the star.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { favorite: _favorite, ...wire } = full
+    expect(JSON.parse(reply.text)).toEqual([wire])
   })
 
   it('an unknown workspace scope is 404 workspace_not_found, not an empty list', async () => {

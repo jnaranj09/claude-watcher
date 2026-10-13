@@ -24,7 +24,8 @@ const A = {
   name: 'approve',
   alias: 'ap',
   text: 'I explicitly approve',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 
 let saveMock: ReturnType<typeof vi.fn>
@@ -233,7 +234,16 @@ describe('ShortcutsDialog', () => {
     act(() => workspacesStore.setState({ activeId: 'w1', workspaces: [], loaded: true }))
     act(() =>
       shortcutsStore.setState({
-        shortcuts: [{ id: 'orphan', name: 'Orphan', alias: 'oz', text: 'z', workspaceId: 'gone' }],
+        shortcuts: [
+          {
+            id: 'orphan',
+            name: 'Orphan',
+            alias: 'oz',
+            text: 'z',
+            workspaceId: 'gone',
+            favorite: false
+          }
+        ],
         loaded: true
       })
     )

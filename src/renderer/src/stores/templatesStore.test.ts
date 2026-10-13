@@ -20,7 +20,8 @@ const T1: Template = {
   effort: null,
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 const T2: Template = {
   id: 'b',
@@ -31,7 +32,8 @@ const T2: Template = {
   effort: null,
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 
 interface Bridge {

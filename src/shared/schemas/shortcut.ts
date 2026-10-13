@@ -99,12 +99,15 @@ export const ShortcutSchema = z.object({
   text: ShortcutTextSchema,
   // Workspaces — the item-level scope. null ⇒ GLOBAL, `.default(null)` protects a row written
   // before scoping from failing closed.
-  workspaceId: WorkspaceIdSchema.nullable().default(null)
+  workspaceId: WorkspaceIdSchema.nullable().default(null),
+  // Favorites — `.default(false)` protects a row written before stars from failing closed. Not
+  // in the save arg: only `shortcuts:set-favorite` changes it, so a form Save keeps the star.
+  favorite: z.boolean().default(false)
 })
 export type Shortcut = z.infer<typeof ShortcutSchema>
 
 /** `shortcuts:save` arg — no id ⇒ create; id ⇒ update. */
-export const ShortcutSaveSchema = ShortcutSchema.omit({ id: true }).extend({
+export const ShortcutSaveSchema = ShortcutSchema.omit({ id: true, favorite: true }).extend({
   id: ShortcutIdSchema.optional()
 })
 export type ShortcutSaveRequest = z.infer<typeof ShortcutSaveSchema>
@@ -173,6 +176,7 @@ export function parseShortcutsFile(raw: unknown): ShortcutsFile {
     shortcuts: v2.data.shortcuts.map(({ keys, text, ...rest }) => ({
       ...rest,
       alias: aliasFromChords(keys),
+      favorite: false,
       // v2 had no placeholder semantics — every "$" in a v2 phrase was literal. Doubling it
       // ($ -> $$) preserves that exact meaning under v3's placeholder rules (a lone $5 would
       // otherwise become a missing-arg placeholder the shortcut can no longer run).

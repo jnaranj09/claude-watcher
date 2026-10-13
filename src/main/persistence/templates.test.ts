@@ -96,7 +96,14 @@ describe('createTemplatesStore — load', () => {
     }
     const { store, fake, log } = make({ version: 1, templates: [preChange] })
     expect(store.list()).toEqual([
-      { ...preChange, effort: null, workspaceId: null, initialPrompt: null, params: [] }
+      {
+        ...preChange,
+        effort: null,
+        workspaceId: null,
+        initialPrompt: null,
+        params: [],
+        favorite: false
+      }
     ])
     expect(fake.backups()).toBe(0)
     expect(log).not.toHaveBeenCalled()
@@ -107,7 +114,7 @@ describe('createTemplatesStore — save / get / remove', () => {
   it('create mints an id, returns the saved row + the sorted list, persists', () => {
     const { store, fake } = make()
     const out = store.save(ROW)
-    expect(out.saved).toEqual({ id: 'id-1', ...ROW })
+    expect(out.saved).toEqual({ id: 'id-1', ...ROW, favorite: false })
     expect(out.templates).toEqual([out.saved])
     expect(store.get('id-1')).toEqual(out.saved)
     expect(fake.current()).toEqual({ version: 1, templates: [out.saved] })
@@ -116,7 +123,13 @@ describe('createTemplatesStore — save / get / remove', () => {
     const { store } = make()
     store.save(ROW)
     const out = store.save({ id: 'id-1', ...ROW, name: 'renamed', model: null })
-    expect(out.saved).toEqual({ id: 'id-1', ...ROW, name: 'renamed', model: null })
+    expect(out.saved).toEqual({
+      id: 'id-1',
+      ...ROW,
+      name: 'renamed',
+      model: null,
+      favorite: false
+    })
     expect(store.list()).toHaveLength(1)
   })
   it('update with an unknown id throws template_not_found and changes nothing', () => {
@@ -238,5 +251,36 @@ describe('createTemplatesStore — a scope change never hides a template from a 
   it('allows narrowing into the workspace of the rule that uses it', () => {
     const { store } = usedBy([{ ruleWorkspaceId: 'w1' }], null)
     expect(store.save({ id: 'id-1', ...ROW, workspaceId: 'w1' }).saved.workspaceId).toBe('w1')
+  })
+})
+
+describe('createTemplatesStore — favorites', () => {
+  it('setFavorite stars and unstars a row and persists it', () => {
+    const { store, fake } = make()
+    const { saved } = store.save(ROW)
+    expect(store.setFavorite(saved.id, true)[0]?.favorite).toBe(true)
+    expect(fake.writes.at(-1)?.templates[0]?.favorite).toBe(true)
+    expect(store.setFavorite(saved.id, false)[0]?.favorite).toBe(false)
+  })
+  it('setFavorite on an unknown id throws template_not_found', () => {
+    const { store } = make()
+    expect(() => store.setFavorite('nope', true)).toThrow(TEMPLATE_ERROR.notFound)
+  })
+  it('save keeps favorite', () => {
+    const { store } = make()
+    const { saved } = store.save(ROW)
+    store.setFavorite(saved.id, true)
+    const again = store.save({ ...ROW, id: saved.id, name: 'renamed' })
+    expect(again.saved.favorite).toBe(true)
+  })
+  it('a new row is not a favorite', () => {
+    const { store } = make()
+    expect(store.save(ROW).saved.favorite).toBe(false)
+  })
+  it('a refused write undoes the star and throws store_write_failed', () => {
+    const seed = { version: 1, templates: [{ id: 't1', ...ROW, favorite: false }] }
+    const { store } = make(seed, { writeThrows: true })
+    expect(() => store.setFavorite('t1', true)).toThrow(STORE_WRITE_FAILED)
+    expect(store.get('t1')?.favorite).toBe(false)
   })
 })

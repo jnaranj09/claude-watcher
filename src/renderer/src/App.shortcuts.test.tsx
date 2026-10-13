@@ -17,7 +17,8 @@ const SC: Shortcut = {
   name: 'approve',
   alias: 'ap',
   text: 'I explicitly approve',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */

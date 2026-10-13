@@ -28,21 +28,24 @@ const GLOBAL: Shortcut = {
   name: 'global-one',
   alias: 'ga',
   text: 'g',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 const OWN: Shortcut = {
   id: 'own',
   name: 'ops-one',
   alias: 'ow',
   text: 'o',
-  workspaceId: 'w1'
+  workspaceId: 'w1',
+  favorite: false
 }
 const ORPHAN: Shortcut = {
   id: 'orphan',
   name: 'stranded-one',
   alias: 'or',
   text: 's',
-  workspaceId: 'gone'
+  workspaceId: 'gone',
+  favorite: false
 }
 
 let cleanup: (() => void) | undefined

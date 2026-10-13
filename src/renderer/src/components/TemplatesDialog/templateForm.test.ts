@@ -24,7 +24,8 @@ const T: Template = {
   effort: 'high',
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 
 describe('draft ⇄ template', () => {
@@ -327,7 +328,8 @@ describe('templateForm — initial prompt and params', () => {
       effort: null,
       workspaceId: null,
       initialPrompt: 'Do $1',
-      params: [{ label: 'T', pattern: 'x', maxLength: 10 }]
+      params: [{ label: 'T', pattern: 'x', maxLength: 10 }],
+      favorite: false
     })
     expect(d.initialPrompt).toBe('Do $1')
     expect(d.params).toEqual([{ label: 'T', pattern: 'x', maxLength: '10' }])
@@ -339,7 +341,8 @@ describe('templateForm — initial prompt and params', () => {
     const withPrompt: Template = {
       ...T,
       initialPrompt: 'Do $1',
-      params: [{ label: 'T', pattern: 'x', maxLength: 10 }]
+      params: [{ label: 'T', pattern: 'x', maxLength: 10 }],
+      favorite: false
     }
     expect(isDraftDirty(toDraft(T), T)).toBe(false)
     expect(isDraftDirty({ ...toDraft(T), initialPrompt: 'Do it' }, T)).toBe(true)
@@ -357,7 +360,8 @@ describe('templateForm — initial prompt and params', () => {
     const template: Template = {
       ...T,
       initialPrompt: 'Do $1',
-      params: [{ label: 'T', pattern: 'x', maxLength: 10 }]
+      params: [{ label: 'T', pattern: 'x', maxLength: 10 }],
+      favorite: false
     }
     const row = toDraft(template).params[0]
     if (row === undefined) throw new Error('expected one param row')

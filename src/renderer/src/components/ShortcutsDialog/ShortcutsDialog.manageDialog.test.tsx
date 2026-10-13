@@ -23,14 +23,16 @@ const A = {
   name: 'approve',
   alias: 'ap',
   text: 'I explicitly approve',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 const B = {
   id: 'sc-2',
   name: 'deny',
   alias: 'dn',
   text: 'I explicitly deny',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 
 let cleanup: (() => void) | undefined

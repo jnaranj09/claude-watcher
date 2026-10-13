@@ -21,7 +21,8 @@ const VALID = {
   effort: 'high',
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 
 describe('TemplateSchema — fail-closed (our shape, no passthrough)', () => {
@@ -75,9 +76,9 @@ describe('TemplateSchema — fail-closed (our shape, no passthrough)', () => {
 describe('TemplateSaveSchema / TemplateDeleteSchema / TemplatesFileSchema', () => {
   it('save: id is optional (create) or a non-empty string (update)', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id: _id, ...noId } = VALID
+    const { id: _id, favorite: _favorite, ...noId } = VALID
     expect(TemplateSaveSchema.parse(noId)).toEqual(noId)
-    expect(TemplateSaveSchema.parse(VALID)).toEqual(VALID)
+    expect(TemplateSaveSchema.parse({ ...noId, id: 'tpl-1' })).toEqual({ ...noId, id: 'tpl-1' })
     expect(TemplateSaveSchema.safeParse({ ...VALID, id: '' }).success).toBe(false)
   })
 
@@ -306,5 +307,25 @@ describe('compileParamPattern', () => {
   it('returns null for an unbalanced pattern that would escape the anchors', () => {
     expect(compileParamPattern('a)|(.*')).toBeNull()
     expect(compileParamPattern(')(')).toBeNull()
+  })
+})
+
+describe('favorite', () => {
+  it('an old row without favorite loads as false', () => {
+    const file = TemplatesFileSchema.parse({
+      version: 1,
+      templates: [{ id: 't1', name: 'a', cwd: '/x', model: null, permissionMode: null }]
+    })
+    expect(file.templates[0]?.favorite).toBe(false)
+  })
+  it('the save schema does not carry favorite', () => {
+    const parsed = TemplateSaveSchema.parse({
+      name: 'a',
+      cwd: '/x',
+      model: null,
+      permissionMode: null,
+      favorite: true
+    })
+    expect('favorite' in parsed).toBe(false)
   })
 })

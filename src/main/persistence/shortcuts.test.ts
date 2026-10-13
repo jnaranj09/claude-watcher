@@ -36,9 +36,9 @@ describe('createShortcutsStore', () => {
   it('create mints an id and returns the saved row plus the list', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     const result = store.save(A)
-    expect(result.saved).toEqual({ id: 'sc-1', ...A })
-    expect(result.shortcuts).toEqual([{ id: 'sc-1', ...A }])
-    expect(store.get('sc-1')).toEqual({ id: 'sc-1', ...A })
+    expect(result.saved).toEqual({ id: 'sc-1', ...A, favorite: false })
+    expect(result.shortcuts).toEqual([{ id: 'sc-1', ...A, favorite: false }])
+    expect(store.get('sc-1')).toEqual({ id: 'sc-1', ...A, favorite: false })
   })
 
   it('update keeps the id', () => {
@@ -91,7 +91,7 @@ describe('createShortcutsStore', () => {
   it('hydrates from a healthy file', () => {
     const file = { version: 3, shortcuts: [{ id: 'sc-9', ...A }] }
     const store = createShortcutsStore({ blobStore: fakeBlobStore(file), newId: idSeq() })
-    expect(store.get('sc-9')).toEqual({ id: 'sc-9', ...A })
+    expect(store.get('sc-9')).toEqual({ id: 'sc-9', ...A, favorite: false })
   })
 
   it('loads a v2 file through the migration and persists it as v3', () => {
@@ -109,7 +109,14 @@ describe('createShortcutsStore', () => {
     })
     const store = createShortcutsStore({ blobStore: blob, newId: idSeq() })
     expect(store.list()).toEqual([
-      { id: 'old-1', name: 'approve', alias: 'oa', text: 'I explicitly approve', workspaceId: null }
+      {
+        id: 'old-1',
+        name: 'approve',
+        alias: 'oa',
+        text: 'I explicitly approve',
+        workspaceId: null,
+        favorite: false
+      }
     ])
     expect(blob.written[0]?.version).toBe(3)
     expect(blob.backups).toBe(0)
@@ -172,5 +179,42 @@ describe('createShortcutsStore', () => {
       expect(line).not.toContain('SECRETNAME')
       expect(line).not.toContain('SECRETTEXT')
     }
+  })
+})
+
+describe('createShortcutsStore — favorites', () => {
+  it('setFavorite stars and unstars a row and persists it', () => {
+    const blob = fakeBlobStore()
+    const store = createShortcutsStore({ blobStore: blob, newId: idSeq() })
+    const { saved } = store.save(A)
+    expect(store.setFavorite(saved.id, true)[0]?.favorite).toBe(true)
+    expect(blob.written.at(-1)?.shortcuts[0]?.favorite).toBe(true)
+    expect(store.setFavorite(saved.id, false)[0]?.favorite).toBe(false)
+  })
+  it('setFavorite on an unknown id throws shortcut_not_found', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    expect(() => store.setFavorite('nope', true)).toThrow(SHORTCUT_ERROR.notFound)
+  })
+  it('save keeps favorite', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    const { saved } = store.save(A)
+    store.setFavorite(saved.id, true)
+    expect(store.save({ ...A, id: saved.id, text: 'changed' }).saved.favorite).toBe(true)
+  })
+  it('a new row is not a favorite', () => {
+    const store = createShortcutsStore({ newId: idSeq() })
+    expect(store.save(A).saved.favorite).toBe(false)
+  })
+  it('a refused write undoes the star and throws store_write_failed', () => {
+    const blob: ShortcutsBlobStore = {
+      read: () => ({ version: 3, shortcuts: [{ id: 'sc-1', ...A, favorite: false }] }),
+      write: () => {
+        throw new Error('disk full')
+      },
+      backup: () => {}
+    }
+    const store = createShortcutsStore({ blobStore: blob, log: vi.fn(), newId: idSeq() })
+    expect(() => store.setFavorite('sc-1', true)).toThrow(STORE_WRITE_FAILED)
+    expect(store.get('sc-1')?.favorite).toBe(false)
   })
 })

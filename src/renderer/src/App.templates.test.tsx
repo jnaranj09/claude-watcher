@@ -26,7 +26,8 @@ const T1: Template = {
   effort: null,
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */

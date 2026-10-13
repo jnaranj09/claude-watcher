@@ -90,7 +90,8 @@ const APPROVE = {
   name: 'approve',
   alias: 'ap',
   text: 'I explicitly approve $1',
-  workspaceId: null
+  workspaceId: null,
+  favorite: false
 }
 
 beforeEach(() => {

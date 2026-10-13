@@ -27,7 +27,8 @@ const TPL: Template = {
   effort: 'high',
   workspaceId: 'w1',
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 
 let cleanup: (() => void) | undefined

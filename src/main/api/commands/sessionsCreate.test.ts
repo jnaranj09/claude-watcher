@@ -29,7 +29,8 @@ const T: Template = {
   params: [
     { label: 'Ticket', pattern: '[A-Z]+-\\d+', maxLength: 10 },
     { label: 'Customer', pattern: '[a-z]+', maxLength: 5 }
-  ]
+  ],
+  favorite: false
 }
 const WS: Workspace = { id: 'ws2', name: 'Two', color: 'blue', defaultCwd: null }
 
@@ -61,7 +62,8 @@ describe('validateArgs', () => {
       params: [
         { label: 'A', pattern: '.+', maxLength: 50 },
         { label: 'B', pattern: '.+', maxLength: 50 }
-      ]
+      ],
+      favorite: false
     }
     expect(validateArgs(free, ['ok', 'a\u001bb'])).toEqual({ ok: false, path: 'args.1' })
     expect(validateArgs(free, ['a\u0007b', 'ok'])).toEqual({ ok: false, path: 'args.0' })
@@ -72,7 +74,8 @@ describe('validateArgs', () => {
     const broken: Template = {
       ...T,
       initialPrompt: 'Do $1',
-      params: [{ label: 'Bad', pattern: 'a)|(.*', maxLength: 10 }]
+      params: [{ label: 'Bad', pattern: 'a)|(.*', maxLength: 10 }],
+      favorite: false
     }
     expect(validateArgs(broken, ['anything'])).toEqual({ ok: false, path: 'args.0' })
   })
@@ -138,7 +141,8 @@ describe('POST /v1/sessions', () => {
     const ctrl: Template = {
       ...T,
       initialPrompt: 'Do $1',
-      params: [{ label: 'Any', pattern: '.+', maxLength: 10 }]
+      params: [{ label: 'Any', pattern: '.+', maxLength: 10 }],
+      favorite: false
     }
     const seam = makeFakeSeam()
     const { ctx } = makeFakeContext({ seam, templates: [ctrl] })
@@ -159,7 +163,8 @@ describe('POST /v1/sessions', () => {
     const first: Template = {
       ...T,
       initialPrompt: '$1',
-      params: [{ label: 'Anything', pattern: '.+', maxLength: 200 }]
+      params: [{ label: 'Anything', pattern: '.+', maxLength: 200 }],
+      favorite: false
     }
     const seam = makeFakeSeam()
     const { ctx } = makeFakeContext({ seam, templates: [first] })
@@ -326,7 +331,8 @@ describe('POST /v1/sessions', () => {
     const multi: Template = {
       ...T,
       initialPrompt: 'Work on $1.\nThen stop.',
-      params: [T.params[0]!]
+      params: [T.params[0]!],
+      favorite: false
     }
     const seam = makeFakeSeam()
     const { ctx } = makeFakeContext({ seam, templates: [multi] })
@@ -343,7 +349,8 @@ describe('POST /v1/sessions', () => {
     const long: Template = {
       ...T,
       initialPrompt: `${'x'.repeat(1990)} $1`,
-      params: [{ label: 'Ticket', pattern: '[a-z]+', maxLength: 200 }]
+      params: [{ label: 'Ticket', pattern: '[a-z]+', maxLength: 200 }],
+      favorite: false
     }
     const seam = makeFakeSeam()
     const { ctx } = makeFakeContext({ seam, templates: [long] })
@@ -383,7 +390,8 @@ describe('POST /v1/sessions through the real listener', () => {
     ...T,
     id: 'nightly',
     initialPrompt: 'Run the nightly check',
-    params: []
+    params: [],
+    favorite: false
   }
 
   const start = async (

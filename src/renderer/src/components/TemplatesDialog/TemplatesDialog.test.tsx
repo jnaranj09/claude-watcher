@@ -19,7 +19,8 @@ const T1: Template = {
   effort: 'high',
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 
 let cleanup: (() => void) | undefined
@@ -280,7 +281,8 @@ describe('TemplatesDialog', () => {
             effort: null,
             workspaceId: 'gone',
             initialPrompt: null,
-            params: []
+            params: [],
+            favorite: false
           }
         ],
         loaded: true

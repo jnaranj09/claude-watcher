@@ -59,6 +59,9 @@ export interface TemplatesStore {
   save(input: TemplateSaveRequest): TemplatesSaveResult
   /** Unknown id is a no-op (idempotent). Throws TEMPLATE_ERROR.inUse while a rule uses it. */
   remove(id: string): Template[]
+  /** Favorites — star or unstar one row. Throws TEMPLATE_ERROR.notFound; a refused write is
+   *  undone and throws STORE_WRITE_FAILED (commit). Trusts its typed input (templatesIpc.ts). */
+  setFavorite(id: string, favorite: boolean): Template[]
   /** Workspaces — delete every template scoped to `workspaceId`. Returns how many were removed.
    *  Called ONLY by the workspaces store's cascade, after a delete was allowed. Global rows
    *  (`workspaceId === null`) are never touched. */
@@ -127,6 +130,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     if (ruleRefs(id).some((ref) => !inRuleScope(ref.ruleWorkspaceId, input.workspaceId))) {
       throw new Error(TEMPLATE_ERROR.inUse)
     }
+    const previous = byId.get(id)
     const saved: Template = {
       id,
       name: input.name,
@@ -136,9 +140,10 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
       effort: input.effort,
       workspaceId: input.workspaceId,
       initialPrompt: input.initialPrompt,
-      params: input.params
+      params: input.params,
+      // Not in the save arg: a form Save keeps the star; only setFavorite changes it.
+      favorite: previous?.favorite ?? false
     }
-    const previous = byId.get(id)
     byId.set(id, saved)
     commit(() => (previous === undefined ? byId.delete(id) : byId.set(id, previous)))
     return { saved, templates: list() }
@@ -151,6 +156,14 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     const previous = byId.get(id)
     byId.delete(id)
     commit(() => previous !== undefined && byId.set(id, previous))
+    return list()
+  }
+
+  function setFavorite(id: string, favorite: boolean): Template[] {
+    const previous = byId.get(id)
+    if (previous === undefined) throw new Error(TEMPLATE_ERROR.notFound)
+    byId.set(id, { ...previous, favorite })
+    commit(() => byId.set(id, previous))
     return list()
   }
 
@@ -174,7 +187,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
     return false
   }
 
-  return { list, get, save, remove, removeByWorkspace }
+  return { list, get, save, setFavorite, remove, removeByWorkspace }
 }
 
 function nameKey(name: string): string {

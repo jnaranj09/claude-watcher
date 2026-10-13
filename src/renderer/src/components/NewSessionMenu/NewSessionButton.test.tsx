@@ -16,7 +16,8 @@ const T1: Template = {
   effort: null,
   workspaceId: null,
   initialPrompt: null,
-  params: []
+  params: [],
+  favorite: false
 }
 let cleanup: (() => void) | undefined
 afterEach(() => {
