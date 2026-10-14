@@ -111,6 +111,15 @@ describe('Checkbox', () => {
     ).toMatch(/border-color: var\(--text-secondary\);/)
   })
 
+  // On draws the tick, mixed the dash; never both (a checked box can also be indeterminate).
+  it('draws the tick only when on and not mixed, the dash only when mixed', () => {
+    expect(
+      body(
+        '.square:checked:not(:indeterminate) + .mark .tick,\n.square:indeterminate + .mark .dash'
+      )
+    ).toMatch(/display: inline;/)
+  })
+
   // Owner, 2026-10-14: a checkbox is a square in every theme. A theme's `--rounded-sm` can be a
   // pill (Liquid Glass, Paper), and a round checkbox reads as a radio button.
   it('keeps square corners whatever the theme sets --rounded-sm to', () => {
