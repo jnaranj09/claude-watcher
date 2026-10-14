@@ -88,7 +88,9 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 ## Dialog rules
 
 - **Row actions only inside `ManageDialog.RowActions`** (fixed-width, revealed on hover/focus), and
-  never one the form owns (Delete, rename). The row itself selects.
+  never one the form owns (Delete, rename). The row itself selects. One exception: the favorite
+  star, `ManageDialog.RowFavorite` (before the select button, always visible — its state is
+  information).
 - **Destructive actions in the footer, left of primary**: one `flex-end` row `[Delete] [Save]`.
 - **Arm in place:** `Delete` → `Confirm delete`, `variant="danger"` → `armed`. Blur disarms; Escape
   disarms and STOPS (doesn't close the dialog). Never a second Cancel/Confirm pair.
@@ -443,7 +445,8 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   (`data-shape="round"`): a standalone icon control (dialog ✕, rail « / tag toggle, toast ✕) is a
   ROUND `secondary` — the ☰'s look as a circle in every theme; `ghost` stays for icons inside a
   card or row. `lit` = toggle ON
-  (`data-lit` present only when on — test `hasAttribute`). **No `className`** — layout goes on a
+  (`data-lit` present only when on — test `hasAttribute`). The favorite star (`FavoriteToggle`) is
+  `ghost xs icon` with `aria-pressed`; its filled star IS the on look, never `lit`. **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.
   Workspace switcher is NOT a Button (compound pill, matches `md` height); its menu lists only the
   OTHER workspaces (none → just `Manage workspaces…`). Dashed pills and menu rows are Popover rows.

@@ -110,9 +110,9 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
   `CH.attentionActivate` → `lib/openFromNotification.ts` (switch workspace, then `activateCard`;
   modal open → select only, re-checked after the switch). A session event never raises the window.
   Notifier holds shown popups (cap 50, R21).
-- `Template.workspaceId` / `Shortcut.workspaceId`: `.nullable().default(null)` (null = global).
-  `TEMPLATES_FILE_VERSION = 1`, `SHORTCUTS_FILE_VERSION = 3` (v2→v3 migration in
-  `parseShortcutsFile`). **Bumping a version without a migration wipes the store.**
+- `Template`/`Shortcut`: `workspaceId` `.nullable().default(null)` (null = global); `favorite`
+  `.default(false)`, set only by `CH.*SetFavorite`. `TEMPLATES_FILE_VERSION = 1`,
+  `SHORTCUTS_FILE_VERSION = 3` (v2→v3: `parseShortcutsFile`). **Unmigrated bump wipes the store.**
 - `PastSession.workspaceId` required; cascade deletes records. Record naming a missing workspace is
   hidden but KEPT (`code=past_sessions_hidden_unknown_workspace`, UX-03).
   `PAST_SESSIONS_FILE_VERSION` stays 1; new fields additive.

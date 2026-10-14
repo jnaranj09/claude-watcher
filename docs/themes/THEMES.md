@@ -355,6 +355,9 @@ What you can target:
   `[data-popover-divider]`, and `[data-popover-note]` (a muted line inside a popover: an empty list or a note). Row states are ARIA: `[aria-selected="true"]`,
   `[aria-checked="true"]`, `[aria-expanded="true"]`, plus `[data-active]`. Style popovers here,
   not by role: a new list in the app picks your look up with no change to your theme.
+- **Favorite star.** `[data-favorite="on"]` / `[data-favorite="off"]` is the star toggle on a
+  template or shortcut row (Manage dialogs and the `+ New session` popover). It is a `ghost`
+  button; its filled shape is the on look, so it never carries `[data-lit]`.
 - **Settings groups.** `[data-settings-group]` wraps the fields of one Settings pane. The app draws
   nothing there; a theme may give it a fill, an edge and padding (Liquid Glass draws an inset glass
   group).
