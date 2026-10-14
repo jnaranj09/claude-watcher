@@ -441,7 +441,9 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   `TextInput.test.tsx` fails on any other `.input`/`.search`/`.textField` class. An on/off setting is
   `components/Switch` (guard in `Settings.test.tsx`); a checkbox that SELECTS things is
   `components/Checkbox` (lit square, 4px corners in every theme, its text `--gap-field` after the
-  box; guard `Checkbox.guard.test.ts`). Radios and ranges stay bare.
+  box), and a radio is `components/Radio` (lit circle in every theme; what it names sits
+  `--gap-field` beside it in the caller's `<label>`). Guard for both:
+  `components/choiceInputs.guard.test.ts`. Ranges stay bare.
 - **`<button className=…>` → `components/Button/Button.tsx`.** Variants: `primary` (ONE main
   action: RAISED `--bg-surface-raised` fill + strong border + 600 weight, never an accent colour —
   a blue primary was rejected 2026-09-23), `secondary` (outlined), `danger`, `ghost` (borderless icons). Sizes

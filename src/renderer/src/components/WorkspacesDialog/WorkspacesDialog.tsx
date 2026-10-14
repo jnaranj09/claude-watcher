@@ -38,6 +38,7 @@ import {
 } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
+import { Radio } from '../Radio/Radio'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './WorkspacesDialog.module.css'
 
@@ -157,12 +158,11 @@ function WorkspaceForm({
       <div className={styles.colorRow} role="radiogroup" aria-label="Color">
         {WORKSPACE_COLORS.map((c) => (
           <label key={c} className={styles.colorOption} title={c}>
-            <input
-              type="radio"
+            <Radio
               name="workspace-color"
               value={c}
-              aria-label={c}
-              data-testid={`workspace-color-${c}`}
+              ariaLabel={c}
+              testId={`workspace-color-${c}`}
               checked={color === c}
               onChange={() => {
                 setColor(c)
