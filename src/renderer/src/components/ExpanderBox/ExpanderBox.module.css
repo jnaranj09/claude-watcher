@@ -13,11 +13,17 @@
 
 .cells {
   display: grid;
-  grid-template-columns: minmax(48px, auto) minmax(0, 1fr) minmax(0, 2fr);
+  /* 14px: the favorite star's column (StarIcon geometry). Empty on a plain row, so aliases line up. */
+  grid-template-columns: 14px minmax(48px, auto) minmax(0, 1fr) minmax(0, 2fr);
   gap: var(--gap-group);
   align-items: baseline;
   flex: 1;
   min-width: 0;
+}
+.mark {
+  display: flex;
+  align-self: center;
+  color: var(--text-secondary);
 }
 
 .alias {

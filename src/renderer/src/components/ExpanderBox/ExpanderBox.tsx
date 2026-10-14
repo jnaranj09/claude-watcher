@@ -19,6 +19,9 @@ import {
 import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
 import { Callout } from '../Callout/Callout'
+import { favoritesFirst } from '../../lib/favoritesFirst'
+import { StarIcon } from '../FavoriteToggle/StarIcon'
+import { FAVORITE_TERMS } from '../../copy/terms'
 import styles from './ExpanderBox.module.css'
 
 export interface ExpanderBoxProps {
@@ -52,7 +55,8 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
 
   // The list filters on the FIRST word only; the rest of the input is the values.
   const { alias } = parseInput(query)
-  const matches = matchAliases(alias, shortcuts).slice(0, EXPANDER_MAX_ROWS)
+  // Favorites lead inside each match band (matchAliases is stable), never above an exact alias.
+  const matches = matchAliases(alias, favoritesFirst(shortcuts)).slice(0, EXPANDER_MAX_ROWS)
   const index = matches.length === 0 ? 0 : Math.min(highlight, matches.length - 1)
   const highlighted = matches[index] ?? null
 
@@ -144,6 +148,15 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
                 }}
               >
                 <span className={styles.cells}>
+                  {/* A marker, not a button: a button inside an `option` breaks the listbox. */}
+                  <span className={styles.mark}>
+                    {s.favorite && (
+                      <>
+                        <StarIcon filled />
+                        <span className="sr-only">{FAVORITE_TERMS.label}</span>
+                      </>
+                    )}
+                  </span>
                   <span className={styles.alias}>{s.alias}</span>
                   <span className={styles.name} title={s.name}>
                     {s.name}
