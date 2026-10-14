@@ -17,9 +17,9 @@ export interface NewSessionMenuProps {
   onPickTemplate: (template: Template) => void
   onManage: () => void
   onClose: () => void
-  /** Favorites — the row's star. Never launches and never closes the popover. */
+  /** Favorites — the row's pin. Never launches and never closes the popover. */
   onToggleFavorite: (template: Template) => void
-  /** A star save in flight: every star is disabled until it lands. */
+  /** A pin save in flight: every pin is disabled until it lands. */
   favoriteBusy: boolean
 }
 
@@ -48,7 +48,7 @@ export function NewSessionMenu({
 
   function moveFocus(from: Element, delta: 1 | -1): void {
     const items = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])
-    // A star is not a menu item: it stands on its own row, so the arrows start from that row.
+    // A pin is not a menu item: it stands on its own row, so the arrows start from that row.
     const start = from.closest('[data-favorite-row]')?.querySelector(ITEM) ?? from
     const index = items.indexOf(start as HTMLElement)
     const next = items[index + delta]
@@ -119,9 +119,9 @@ export function NewSessionMenu({
             </Popover.Note>
           ) : (
             filtered.map((t) => (
-              // The star and the row are SIBLINGS (never a button in a button); CSS lays the star
+              // The pin and the row are SIBLINGS (never a button in a button); CSS lays the pin
               // over the row's top-right corner. Arrow keys move over `[data-menu-item]` rows only;
-              // the star is reached with Tab, right after its row.
+              // the pin is reached with Tab, right after its row.
               <div
                 key={t.id}
                 className={styles.templateRow}
@@ -141,7 +141,7 @@ export function NewSessionMenu({
                     <span className={styles.rowMeta}>{describeTemplateFlags(t)}</span>
                   </span>
                 </Popover.Item>
-                <span className={styles.star}>
+                <span className={styles.pin}>
                   <FavoriteToggle
                     name={t.name}
                     favorite={t.favorite}

@@ -68,9 +68,9 @@ export function NewSessionButton({
     variant === 'header' ? 'end' : 'center'
   )
 
-  // Favorites — a refused star is an error toast (the popover has no message slot); the star
-  // keeps main's state. The popover stays open: the star is not a pick.
-  const starring = useAsyncAction(async (t: Template): Promise<void> => {
+  // Favorites — a refused pin is an error toast (the popover has no message slot); the pin
+  // keeps main's state. The popover stays open: the pin is not a pick.
+  const pinning = useAsyncAction(async (t: Template): Promise<void> => {
     try {
       await setTemplateFavorite(t.id, !t.favorite)
     } catch (err) {
@@ -122,8 +122,8 @@ export function NewSessionButton({
         onManage()
       }}
       onClose={closeAndRefocus}
-      onToggleFavorite={(t) => void starring.run(t)}
-      favoriteBusy={starring.busy}
+      onToggleFavorite={(t) => void pinning.run(t)}
+      favoriteBusy={pinning.busy}
     />
   )
 

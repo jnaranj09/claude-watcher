@@ -59,7 +59,7 @@ export interface TemplatesStore {
   save(input: TemplateSaveRequest): TemplatesSaveResult
   /** Unknown id is a no-op (idempotent). Throws TEMPLATE_ERROR.inUse while a rule uses it. */
   remove(id: string): Template[]
-  /** Favorites — star or unstar one row. Throws TEMPLATE_ERROR.notFound; a refused write is
+  /** Favorites — pin or unpin one row. Throws TEMPLATE_ERROR.notFound; a refused write is
    *  undone and throws STORE_WRITE_FAILED (commit). Trusts its typed input (templatesIpc.ts). */
   setFavorite(id: string, favorite: boolean): Template[]
   /** Workspaces — delete every template scoped to `workspaceId`. Returns how many were removed.
@@ -141,7 +141,7 @@ export function createTemplatesStore(options: TemplatesStoreOptions = {}): Templ
       workspaceId: input.workspaceId,
       initialPrompt: input.initialPrompt,
       params: input.params,
-      // Not in the save arg: a form Save keeps the star; only setFavorite changes it.
+      // Not in the save arg: a form Save keeps the pin; only setFavorite changes it.
       favorite: previous?.favorite ?? false
     }
     byId.set(id, saved)

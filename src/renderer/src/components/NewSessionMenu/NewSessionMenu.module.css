@@ -13,28 +13,28 @@
   --popover-max-height: 320px;
 }
 
-/* A template row: the Popover row, then the star (FavoriteToggle) laid over the row's top-right
-   corner, on the name line. Siblings, never a button in a button; the star inside the row's box
-   costs no width (owner, 2026-10-13: a left gutter outside the highlight looked odd). An off star
-   shows only while its row is hovered or holds focus; an on star always. Hidden by opacity, so it
+/* A template row: the Popover row, then the pin (FavoriteToggle) laid over the row's top-right
+   corner, on the name line. Siblings, never a button in a button; the pin inside the row's box
+   costs no width (owner, 2026-10-13: a left gutter outside the highlight looked odd). An off pin
+   shows only while its row is hovered or holds focus; an on pin always. Hidden by opacity, so it
    stays focusable: Tab reaches it, and focus can return to it after the list re-sorts
    (FavoriteToggle). */
 .templateRow {
   position: relative;
   min-width: 0;
 }
-.star {
+.pin {
   position: absolute;
   top: var(--inset-item-y);
   right: var(--inset-item-x);
 }
-.templateRow[data-favorite-row='off']:not(:hover):not(:focus-within) .star {
+.templateRow[data-favorite-row='off']:not(:hover):not(:focus-within) .pin {
   opacity: 0;
 }
-/* The pointer on the star is still on the row: keep the row's hover (Popover `.item:hover`).
+/* The pointer on the pin is still on the row: keep the row's hover (Popover `.item:hover`).
    Themes that restyle the row hover add `[data-favorite-row]:has([data-favorite]:hover) >
    [data-popover-item]` to their hover rule. */
-.templateRow:has(.star:hover) [data-popover-item]:not(:disabled) {
+.templateRow:has(.pin:hover) [data-popover-item]:not(:disabled) {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
@@ -44,7 +44,7 @@
   gap: var(--gap-stack);
   min-width: 0;
 }
-/* The name stops short of the star: the xs icon button (20px) plus the gap beside it. */
+/* The name stops short of the pin: the xs icon button (20px) plus the gap beside it. */
 .rowName {
   max-width: calc(100% - 20px - var(--gap-inline-tight));
   overflow: hidden;

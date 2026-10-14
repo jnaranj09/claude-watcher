@@ -100,8 +100,8 @@ export const ShortcutSchema = z.object({
   // Workspaces — the item-level scope. null ⇒ GLOBAL, `.default(null)` protects a row written
   // before scoping from failing closed.
   workspaceId: WorkspaceIdSchema.nullable().default(null),
-  // Favorites — `.default(false)` protects a row written before stars from failing closed. Not
-  // in the save arg: only `shortcuts:set-favorite` changes it, so a form Save keeps the star.
+  // Favorites — `.default(false)` protects a row written before pins from failing closed. Not
+  // in the save arg: only `shortcuts:set-favorite` changes it, so a form Save keeps the pin.
   favorite: z.boolean().default(false)
 })
 export type Shortcut = z.infer<typeof ShortcutSchema>

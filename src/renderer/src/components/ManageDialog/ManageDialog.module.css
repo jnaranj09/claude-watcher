@@ -229,7 +229,7 @@
   flex: none;
   margin: 0 0 0 var(--inset-item-x);
 }
-/* A row's favorite star (`RowFavorite`): before the select button, ALWAYS visible (its state is
+/* A row's favorite pin (`RowFavorite`): before the select button, ALWAYS visible (its state is
    information, unlike RowActions), with the row's own left inset like RowCheck. */
 .rowFavorite {
   flex: none;

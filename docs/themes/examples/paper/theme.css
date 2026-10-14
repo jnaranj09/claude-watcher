@@ -62,6 +62,11 @@ button[data-testid='workspace-switcher']:hover,
   --text-muted: #d8d8dd;
   --border-strong: #4a4b4f;
 }
+/* A popover row's pin sits ON that pill but outside the row button, so it does not inherit the
+   pill's white ink: give it the same. */
+[data-favorite-row]:hover [data-favorite] {
+  color: #ffffff;
+}
 
 /* An ON toggle: the near-black of the base theme (`--text-primary`), darker than the hover pill.
    Two attributes + the element outrank Button's own `.button[data-lit]` (and its :hover). */

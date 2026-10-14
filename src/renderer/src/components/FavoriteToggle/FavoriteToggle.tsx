@@ -1,10 +1,10 @@
-// Favorites — the ONE star toggle (Manage rows and the + New session popover). A ghost icon
+// Favorites — the ONE pin toggle (Manage rows and the + New session popover). A ghost icon
 // button (§16: ghost is for icons inside a row), `aria-pressed` for the state, `data-favorite`
-// as the public theme hook. Never `lit`: the filled star is the on look (owner, 2026-10-13).
+// as the public theme hook. Never `lit`: the filled pin is the on look (owner, 2026-10-13).
 import { useLayoutEffect, useRef, type JSX } from 'react'
 import { Button } from '../Button/Button'
 import { FAVORITE_TERMS } from '../../copy/terms'
-import { StarIcon } from './StarIcon'
+import { PinIcon } from './PinIcon'
 
 export interface FavoriteToggleProps {
   /** The row's name — the accessible name is `Favorite <name>` (the `Rename <name>` pattern). */
@@ -23,9 +23,9 @@ export function FavoriteToggle({
   testId
 }: FavoriteToggleProps): JSX.Element {
   const buttonRef = useRef<HTMLButtonElement | null>(null)
-  // Focus follows the star. Main's answer re-sorts the list, and Chromium drops focus from a row
+  // Focus follows the pin. Main's answer re-sorts the list, and Chromium drops focus from a row
   // React MOVES; on <body>, Escape and the arrow keys no longer reach the popover or dialog. So a
-  // star pressed while focused takes focus back once the answer lands (`busy` ends) — only when
+  // pin pressed while focused takes focus back once the answer lands (`busy` ends) — only when
   // focus was LOST (on <body>), never from a field the operator moved to meanwhile.
   const refocus = useRef(false)
   useLayoutEffect(() => {
@@ -51,7 +51,7 @@ export function FavoriteToggle({
         onToggle()
       }}
     >
-      <StarIcon filled={favorite} />
+      <PinIcon filled={favorite} />
     </Button>
   )
 }

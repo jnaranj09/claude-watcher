@@ -13,7 +13,7 @@
 
 .cells {
   display: grid;
-  /* 14px: the favorite star's column (StarIcon geometry). Empty on a plain row, so aliases line up. */
+  /* 14px: the favorite pin's column (PinIcon geometry). Empty on a plain row, so aliases line up. */
   grid-template-columns: 14px minmax(48px, auto) minmax(0, 1fr) minmax(0, 2fr);
   gap: var(--gap-group);
   align-items: baseline;

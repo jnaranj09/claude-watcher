@@ -110,7 +110,7 @@ export const CH = {
   // renderer never carries them itself. `templates:list/save/delete` are the CRUD invokes for
   // the store; main owns the persisted file, the renderer holds a projection
   // (templatesStore.ts). See TemplatesSaveResult / SessionLaunchFromTemplateRequest below.
-  // `templates:set-favorite` stars a row; the form's save never touches it.
+  // `templates:set-favorite` pins a row; the form's save never touches it.
   sessionLaunchFromTemplate: 'session:launch-from-template',
   templatesList: 'templates:list',
   templatesSave: 'templates:save',
@@ -119,7 +119,7 @@ export const CH = {
   // Phrase shortcuts — the shortcuts CRUD channels. There is deliberately NO channel for
   // DELIVERING a phrase: it rides the existing terminal MessagePort `{type:'input'}` frame,
   // the same one every keystroke and the Ctrl+V takeover already use.
-  // `shortcuts:set-favorite` stars a row; the form's save never touches it.
+  // `shortcuts:set-favorite` pins a row; the form's save never touches it.
   shortcutsList: 'shortcuts:list',
   shortcutsSave: 'shortcuts:save',
   shortcutsDelete: 'shortcuts:delete',
@@ -645,7 +645,7 @@ export type WorkspacesSaveResult = { saved: Workspace } & WorkspacesListResult
 
 // Phrase shortcuts — main-owned; the renderer holds a projection (shortcutsStore.ts). The phrase
 // itself never travels on an IPC channel: the expander box's Enter posts it on the terminal's
-// EXISTING MessagePort `{type:'input'}` frame, so these channels are CRUD plus the star only.
+// EXISTING MessagePort `{type:'input'}` frame, so these channels are CRUD plus the pin only.
 export type {
   Shortcut,
   ShortcutSaveRequest,

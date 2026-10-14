@@ -20,7 +20,7 @@ import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
 import { Callout } from '../Callout/Callout'
 import { favoritesFirst } from '../../lib/favoritesFirst'
-import { StarIcon } from '../FavoriteToggle/StarIcon'
+import { PinIcon } from '../FavoriteToggle/PinIcon'
 import { FAVORITE_TERMS } from '../../copy/terms'
 import styles from './ExpanderBox.module.css'
 
@@ -152,8 +152,8 @@ export function ExpanderBox({ shortcuts, onExpand, onClose }: ExpanderBoxProps):
                   <span className={styles.mark}>
                     {s.favorite && (
                       <>
-                        <StarIcon filled />
-                        <span className="sr-only">{FAVORITE_TERMS.label}</span>
+                        <PinIcon filled />
+                        <span className="sr-only">{FAVORITE_TERMS.marker}</span>
                       </>
                     )}
                   </span>

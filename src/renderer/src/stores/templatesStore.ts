@@ -76,7 +76,7 @@ export async function removeTemplate(id: string): Promise<void> {
 }
 
 /** Favorites — rethrows: the caller maps the code (`favoriteErrorCopy`) to its own surface. The
- *  projection only changes from main's answer, so a refusal leaves the star as it was. */
+ *  projection only changes from main's answer, so a refusal leaves the pin as it was. */
 export async function setTemplateFavorite(id: string, favorite: boolean): Promise<void> {
   templatesStore.getState().hydrate(await window.templates.setFavorite(id, favorite))
 }

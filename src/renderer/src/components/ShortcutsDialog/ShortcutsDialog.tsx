@@ -63,14 +63,14 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   const selected = shortcuts.find((s) => s.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
   const includeGlobal = useSettings(selectIncludeGlobal)
-  // Favorites first BEFORE the scope helpers: both keep input order, so the stars lead inside
+  // Favorites first BEFORE the scope helpers: both keep input order, so the pins lead inside
   // each group (own workspace, then global).
   const listed = workspaceRowsFirst(
     filterByScope(favoritesFirst(shortcuts), scope, known, includeGlobal),
     scope
   )
-  // A refused star lands in the dialog's message slot; the star keeps main's state.
-  const starring = useAsyncAction(async (s: Shortcut): Promise<void> => {
+  // A refused pin lands in the dialog's message slot; the pin keeps main's state.
+  const pinning = useAsyncAction(async (s: Shortcut): Promise<void> => {
     dialog.actions.setError(null)
     try {
       await setShortcutFavorite(s.id, !s.favorite)
@@ -140,8 +140,8 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
                     <FavoriteToggle
                       name={s.name}
                       favorite={s.favorite}
-                      busy={starring.busy}
-                      onToggle={() => void starring.run(s)}
+                      busy={pinning.busy}
+                      onToggle={() => void pinning.run(s)}
                       testId={`shortcut-favorite-${s.id}`}
                     />
                   </ManageDialog.RowFavorite>

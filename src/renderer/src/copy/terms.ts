@@ -12,8 +12,11 @@ export const SHELL_TERMS = {
   openFailedSession: 'Could not open a shell for this session.'
 } as const
 
-/** A starred template or shortcut: sorts first in every list (spec 2026-10-13-favorites). */
+/** A pinned template or shortcut: sorts first in every list (spec 2026-10-13-favorites). */
 export const FAVORITE_TERMS = {
-  label: 'Favorite',
-  updateFailed: 'Could not update favorite.'
+  /** The toggle's name (`Pin <name>`, `aria-pressed` says whether it is on). */
+  label: 'Pin',
+  /** The expander's mark on a pinned row, for assistive tech. */
+  marker: 'Pinned',
+  updateFailed: 'Could not update pin.'
 } as const

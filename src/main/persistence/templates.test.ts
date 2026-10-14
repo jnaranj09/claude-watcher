@@ -255,7 +255,7 @@ describe('createTemplatesStore — a scope change never hides a template from a 
 })
 
 describe('createTemplatesStore — favorites', () => {
-  it('setFavorite stars and unstars a row and persists it', () => {
+  it('setFavorite pins and unpins a row and persists it', () => {
     const { store, fake } = make()
     const { saved } = store.save(ROW)
     expect(store.setFavorite(saved.id, true)[0]?.favorite).toBe(true)
@@ -277,7 +277,7 @@ describe('createTemplatesStore — favorites', () => {
     const { store } = make()
     expect(store.save(ROW).saved.favorite).toBe(false)
   })
-  it('a refused write undoes the star and throws store_write_failed', () => {
+  it('a refused write undoes the pin and throws store_write_failed', () => {
     const seed = { version: 1, templates: [{ id: 't1', ...ROW, favorite: false }] }
     const { store } = make(seed, { writeThrows: true })
     expect(() => store.setFavorite('t1', true)).toThrow(STORE_WRITE_FAILED)

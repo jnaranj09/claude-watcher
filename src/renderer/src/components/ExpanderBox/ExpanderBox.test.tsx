@@ -280,26 +280,26 @@ describe('ExpanderBox', () => {
 })
 
 describe('ExpanderBox — favorites', () => {
-  const star = (alias: string): Shortcut => ({ ...sc(alias, 'x'), favorite: true })
+  const pin = (alias: string): Shortcut => ({ ...sc(alias, 'x'), favorite: true })
 
   it('lists favorites first on an empty query', () => {
-    render([sc('aa', 'x'), star('zz')])
+    render([sc('aa', 'x'), pin('zz')])
     expect(optionAliases()).toEqual(['zz', 'aa'])
   })
   it('a favorite never rises above an exact alias match', () => {
-    render([sc('ap', 'x'), star('apx')])
+    render([sc('ap', 'x'), pin('apx')])
     type('ap')
     expect(optionAliases()).toEqual(['ap', 'apx'])
   })
-  it('marks a favorite row for assistive tech, with a hidden star', () => {
-    render([star('zz')])
+  it('marks a favorite row for assistive tech, with a hidden pin', () => {
+    render([pin('zz')])
     const row = byTestId('expander-option-zz')
-    expect(row?.querySelector('.sr-only')?.textContent).toBe('Favorite')
+    expect(row?.querySelector('.sr-only')?.textContent).toBe('Pinned')
     expect(row?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
   })
   it('a plain row has no mark', () => {
     render([sc('aa', 'x')])
-    expect(byTestId('expander-option-aa')?.textContent).not.toContain('Favorite')
+    expect(byTestId('expander-option-aa')?.textContent).not.toContain('Pinned')
     expect(byTestId('expander-option-aa')?.querySelector('svg')).toBeNull()
   })
 })

@@ -648,7 +648,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Settings `Saved` beside the pane heading                                                            | Compact `Saved` in the dialog's one message slot; no pane heading                                   | The heading repeated the rail row; one message slot per dialog                    |
 | CSS-only glass                                                                                      | WebGL board glass; CSS for overlays and as fallback                                                 | The canvas look; CSS cannot bend or self-light                                    |
 | Graphite default wallpaper                                                                          | Lake                                                                                                | Owner pick 2026-10-08                                                             |
-| Every on state is lit                                                                               | The favorite star's filled shape is its on look, no `lit`                                           | Owner 2026-10-13: quiet in every row                                              |
+| Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                           | Owner 2026-10-13: quiet in every row                                              |
 
 ## 13. Rejected — don't propose these again
 
@@ -711,7 +711,7 @@ then add one row to §12. Later wins. Every other living doc follows `maintainab
   look as a circle. `ghost` stays only for icons inside a card or a row.
 - **One active-state look for every button.** Any button with an on/active state uses `lit`
   (Filter, the rail's tag toggle, a rail peek). No button invents its own "on" look. Exception
-  (owner, 2026-10-13): a mark whose shape already shows its state (the favorite star: outline /
+  (owner, 2026-10-13): a mark whose shape already shows its state (the favorite pin: outline /
   filled) does not also get `lit`.
 - **A new button joins a standard; it never gets a one-off style.** Before styling a button,
   find the variant, shape or state it belongs to. If none fits, ask the owner.

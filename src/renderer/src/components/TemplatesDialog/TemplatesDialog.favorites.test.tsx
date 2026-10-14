@@ -1,5 +1,5 @@
-// Favorites in the Templates Manage dialog (spec 2026-10-13-favorites): a star on every row,
-// starred rows first inside each group, a refused star in the dialog's message slot.
+// Favorites in the Templates Manage dialog (spec 2026-10-13-favorites): a pin on every row,
+// pinned rows first inside each group, a refused pin in the dialog's message slot.
 // Harness mirrors TemplatesDialog.scope.test.tsx (renderComponent, no Testing Library).
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
@@ -22,7 +22,7 @@ const base = {
   initialPrompt: null,
   params: []
 }
-// Main's A-Z order. Own: a, b (starred). Global: c (starred), d.
+// Main's A-Z order. Own: a, b (pinned). Global: c (pinned), d.
 const ROWS: Template[] = [
   { ...base, id: 'a', name: 'a', workspaceId: 'w1', favorite: false },
   { ...base, id: 'b', name: 'b', workspaceId: 'w1', favorite: true },
@@ -96,26 +96,26 @@ async function press(el: Element): Promise<void> {
 }
 
 describe('TemplatesDialog — favorites', () => {
-  it('starred rows come first inside each group', () => {
+  it('pinned rows come first inside each group', () => {
     expect(ids(render())).toEqual(['b', 'a', 'c', 'd'])
   })
-  it('every row shows its star, pressed or not', () => {
+  it('every row shows its pin, pressed or not', () => {
     const r = render()
     expect(q(r, '[data-testid="template-favorite-a"]').getAttribute('aria-pressed')).toBe('false')
     expect(q(r, '[data-testid="template-favorite-b"]').getAttribute('aria-pressed')).toBe('true')
   })
-  it('the star toggles through the bridge and the row moves up', async () => {
+  it('the pin toggles through the bridge and the row moves up', async () => {
     const r = render()
     await press(q(r, '[data-testid="template-favorite-a"]'))
     expect(setFavorite).toHaveBeenCalledWith('a', true)
     expect(ids(r)).toEqual(['a', 'b', 'c', 'd'])
   })
-  it('clicking the star does not open the row', async () => {
+  it('clicking the pin does not open the row', async () => {
     const r = render()
     await press(q(r, '[data-testid="template-favorite-a"]'))
     expect(r.container.querySelector('[data-testid="template-placeholder"]')).not.toBeNull()
   })
-  it('a refused star shows the store copy in the message slot and keeps the star', async () => {
+  it('a refused pin shows the store copy in the message slot and keeps the pin', async () => {
     setFavorite.mockImplementation(() =>
       Promise.reject(new Error("Error invoking remote method 'x': Error: store_write_failed"))
     )

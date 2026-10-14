@@ -13,7 +13,7 @@ import type { Shortcut, Workspace } from '../../../../shared/ipc/contract'
 
 const W1: Workspace = { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }
 
-// Main's alias order. Own: a, b (starred). Global: c (starred), d.
+// Main's alias order. Own: a, b (pinned). Global: c (pinned), d.
 const row = (id: string, workspaceId: string | null, favorite: boolean): Shortcut => ({
   id,
   name: id,
@@ -93,26 +93,26 @@ async function press(el: Element): Promise<void> {
 }
 
 describe('ShortcutsDialog — favorites', () => {
-  it('starred rows come first inside each group', () => {
+  it('pinned rows come first inside each group', () => {
     expect(ids(render())).toEqual(['b', 'a', 'c', 'd'])
   })
-  it('every row shows its star, pressed or not', () => {
+  it('every row shows its pin, pressed or not', () => {
     const r = render()
     expect(q(r, '[data-testid="shortcut-favorite-a"]').getAttribute('aria-pressed')).toBe('false')
     expect(q(r, '[data-testid="shortcut-favorite-b"]').getAttribute('aria-pressed')).toBe('true')
   })
-  it('the star toggles through the bridge and the row moves up', async () => {
+  it('the pin toggles through the bridge and the row moves up', async () => {
     const r = render()
     await press(q(r, '[data-testid="shortcut-favorite-a"]'))
     expect(setFavorite).toHaveBeenCalledWith('a', true)
     expect(ids(r)).toEqual(['a', 'b', 'c', 'd'])
   })
-  it('clicking the star does not open the row', async () => {
+  it('clicking the pin does not open the row', async () => {
     const r = render()
     await press(q(r, '[data-testid="shortcut-favorite-a"]'))
     expect(r.container.querySelector('[data-testid="shortcut-placeholder"]')).not.toBeNull()
   })
-  it('a refused star shows the store copy in the message slot and keeps the star', async () => {
+  it('a refused pin shows the store copy in the message slot and keeps the pin', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     setFavorite.mockImplementation(() =>
       Promise.reject(new Error("Error invoking remote method 'x': Error: store_write_failed"))

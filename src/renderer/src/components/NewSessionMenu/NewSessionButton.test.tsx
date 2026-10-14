@@ -246,7 +246,7 @@ describe('NewSessionButton — favorites', () => {
     })
   }
 
-  it('a star click saves through the bridge and keeps the popover open', async () => {
+  it('a pin click saves through the bridge and keeps the popover open', async () => {
     const setFavorite = vi.fn(() => Promise.resolve([{ ...T1, favorite: true }]))
     stub(setFavorite)
     const { r, onPickTemplate } = render()
@@ -259,7 +259,7 @@ describe('NewSessionButton — favorites', () => {
       document.querySelector('[data-testid="menu-favorite-a"]')?.getAttribute('aria-pressed')
     ).toBe('true')
   })
-  it('a refused star raises an error toast and keeps the popover open', async () => {
+  it('a refused pin raises an error toast and keeps the popover open', async () => {
     stub(
       vi.fn(() =>
         Promise.reject(new Error("Error invoking remote method 'x': Error: store_write_failed"))

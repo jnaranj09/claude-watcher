@@ -183,7 +183,7 @@ describe('createShortcutsStore', () => {
 })
 
 describe('createShortcutsStore — favorites', () => {
-  it('setFavorite stars and unstars a row and persists it', () => {
+  it('setFavorite pins and unpins a row and persists it', () => {
     const blob = fakeBlobStore()
     const store = createShortcutsStore({ blobStore: blob, newId: idSeq() })
     const { saved } = store.save(A)
@@ -205,7 +205,7 @@ describe('createShortcutsStore — favorites', () => {
     const store = createShortcutsStore({ newId: idSeq() })
     expect(store.save(A).saved.favorite).toBe(false)
   })
-  it('a refused write undoes the star and throws store_write_failed', () => {
+  it('a refused write undoes the pin and throws store_write_failed', () => {
     const blob: ShortcutsBlobStore = {
       read: () => ({ version: 3, shortcuts: [{ id: 'sc-1', ...A, favorite: false }] }),
       write: () => {

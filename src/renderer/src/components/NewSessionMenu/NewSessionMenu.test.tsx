@@ -167,34 +167,34 @@ describe('NewSessionMenu', () => {
 })
 
 describe('NewSessionMenu — favorites', () => {
-  const STARRED: Template = { ...T2, favorite: true }
+  const PINNED: Template = { ...T2, favorite: true }
   const ids = (r: RenderResult): (string | null)[] =>
     [...r.container.querySelectorAll('[data-testid="menu-template"]')].map((b) =>
       b.getAttribute('data-template-id')
     )
 
   it('lists favorites first', () => {
-    const { r } = render([T1, STARRED])
+    const { r } = render([T1, PINNED])
     expect(ids(r)).toEqual(['b', 'a'])
   })
   it('empty search + Enter launches the top favorite', () => {
-    const { r, onPickTemplate } = render([T1, STARRED])
+    const { r, onPickTemplate } = render([T1, PINNED])
     key(q(r, '[data-testid="menu-search"]'), 'Enter')
-    expect(onPickTemplate).toHaveBeenCalledWith(STARRED)
+    expect(onPickTemplate).toHaveBeenCalledWith(PINNED)
   })
-  it('the star toggles without launching or closing', () => {
+  it('the pin toggles without launching or closing', () => {
     const { r, onPickTemplate, onClose, onToggleFavorite } = render([T1])
     act(() => q<HTMLButtonElement>(r, '[data-testid="menu-favorite-a"]').click())
     expect(onToggleFavorite).toHaveBeenCalledWith(T1)
     expect(onPickTemplate).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
-  it('the star is never inside the row button', () => {
+  it('the pin is never inside the row button', () => {
     const { r } = render([T1])
     const row = q(r, '[data-template-id="a"]')
     expect(row.contains(q(r, '[data-testid="menu-favorite-a"]'))).toBe(false)
   })
-  it('arrow keys skip the star buttons', () => {
+  it('arrow keys skip the pin buttons', () => {
     const { r } = render([T1, T2])
     const [first, second] = [
       ...r.container.querySelectorAll<HTMLElement>('[data-testid="menu-template"]')
@@ -203,17 +203,17 @@ describe('NewSessionMenu — favorites', () => {
     key(first as Element, 'ArrowDown')
     expect(document.activeElement).toBe(second)
   })
-  // Hidden by OPACITY, never `visibility`/`display`: a hidden star cannot take focus, so Tab
+  // Hidden by OPACITY, never `visibility`/`display`: a hidden pin cannot take focus, so Tab
   // could not reach it and the focus restore after a re-sort (FavoriteToggle) would fail.
-  it('an off star hides until its row is hovered or focused; an on star always shows', () => {
+  it('an off pin hides until its row is hovered or focused; an on pin always shows', () => {
     const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
     const hide =
-      /\.templateRow\[data-favorite-row='off'\]:not\(:hover\):not\(:focus-within\) \.star \{([^}]*)\}/.exec(
+      /\.templateRow\[data-favorite-row='off'\]:not\(:hover\):not\(:focus-within\) \.pin \{([^}]*)\}/.exec(
         css
       )?.[1] ?? ''
     expect(hide).toMatch(/opacity: 0;/)
     expect(hide).not.toMatch(/visibility|display/)
-    const { r } = render([T1, STARRED])
+    const { r } = render([T1, PINNED])
     expect(q(r, '[data-template-id="a"]').parentElement?.getAttribute('data-favorite-row')).toBe(
       'off'
     )
@@ -223,26 +223,26 @@ describe('NewSessionMenu — favorites', () => {
   })
 })
 
-describe('NewSessionMenu — the star sits inside the row, on the right', () => {
+describe('NewSessionMenu — the pin sits inside the row, on the right', () => {
   // Owner, 2026-10-13: a left gutter outside the row's highlight wasted width on every row.
-  it('the star comes after the row button (Tab goes row, then its star)', () => {
+  it('the pin comes after the row button (Tab goes row, then its pin)', () => {
     const { r } = render([T1])
     const row = q(r, '[data-template-id="a"]')
     expect(row.nextElementSibling?.contains(q(r, '[data-testid="menu-favorite-a"]'))).toBe(true)
   })
-  it('the star is placed over the row, top-right; the name leaves it room', () => {
+  it('the pin is placed over the row, top-right; the name leaves it room', () => {
     const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
     const rule = (sel: string): string =>
       new RegExp(`(?:^|\\n)${sel.replace(/[.*()[\]:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ??
       ''
     expect(rule('.templateRow')).toContain('position: relative;')
-    expect(rule('.star')).toContain('position: absolute;')
-    expect(rule('.star')).toMatch(/right: var\(--inset-item-x\);/)
+    expect(rule('.pin')).toContain('position: absolute;')
+    expect(rule('.pin')).toMatch(/right: var\(--inset-item-x\);/)
     expect(rule('.rowName')).toMatch(/max-width: calc\(100% - /)
   })
-  it('hovering the star keeps the row lit, in the app and every bundled theme', () => {
+  it('hovering the pin keeps the row lit, in the app and every bundled theme', () => {
     const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
-    expect(css).toContain('.templateRow:has(.star:hover) [data-popover-item]:not(:disabled)')
+    expect(css).toContain('.templateRow:has(.pin:hover) [data-popover-item]:not(:disabled)')
     for (const theme of ['liquid-glass', 'paper']) {
       // Prettier may wrap the selector: compare with whitespace removed.
       const themeCss = readFileSync(`docs/themes/examples/${theme}/theme.css`, 'utf8').replace(
@@ -256,20 +256,30 @@ describe('NewSessionMenu — the star sits inside the row, on the right', () => 
   })
 })
 
-describe('NewSessionMenu — arrow keys from a star', () => {
-  // A star stands on its own row: ArrowDown goes to the NEXT row, ArrowUp to the one above.
-  it('ArrowDown from a star moves to the next row, not the top of the menu', () => {
+describe('NewSessionMenu — the pin on a hovered Paper row', () => {
+  // Paper's row hover is a near-black pill with white ink; the pin sits on it but outside the row
+  // button, so it would keep its dark grey ink and vanish.
+  it('Paper turns the pin white on a hovered row', () => {
+    const css = readFileSync('docs/themes/examples/paper/theme.css', 'utf8')
+    const body = /\[data-favorite-row\]:hover \[data-favorite\] \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(body).toMatch(/color: #ffffff;/)
+  })
+})
+
+describe('NewSessionMenu — arrow keys from a pin', () => {
+  // A pin stands on its own row: ArrowDown goes to the NEXT row, ArrowUp to the one above.
+  it('ArrowDown from a pin moves to the next row, not the top of the menu', () => {
     const { r } = render([T1, T2])
-    const star = q<HTMLButtonElement>(r, '[data-testid="menu-favorite-a"]')
-    act(() => star.focus())
-    key(star, 'ArrowDown')
+    const pin = q<HTMLButtonElement>(r, '[data-testid="menu-favorite-a"]')
+    act(() => pin.focus())
+    key(pin, 'ArrowDown')
     expect(document.activeElement).toBe(q(r, '[data-template-id="b"]'))
   })
-  it('ArrowUp from a star moves to the row above', () => {
+  it('ArrowUp from a pin moves to the row above', () => {
     const { r } = render([T1, T2])
-    const star = q<HTMLButtonElement>(r, '[data-testid="menu-favorite-b"]')
-    act(() => star.focus())
-    key(star, 'ArrowUp')
+    const pin = q<HTMLButtonElement>(r, '[data-testid="menu-favorite-b"]')
+    act(() => pin.focus())
+    key(pin, 'ArrowUp')
     expect(document.activeElement).toBe(q(r, '[data-template-id="a"]'))
   })
 })

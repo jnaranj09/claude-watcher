@@ -1,4 +1,4 @@
-// Favorites — the ONE star toggle. jsdom `unit` project, `renderComponent` harness.
+// Favorites — the ONE pin toggle. jsdom `unit` project, `renderComponent` harness.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -25,14 +25,15 @@ function render(props: Partial<FavoriteToggleProps> = {}): {
   const r = renderComponent(<FavoriteToggle {...BASE} {...props} />)
   cleanup = r.unmount
   const b = r.container.querySelector<HTMLButtonElement>('[data-testid="fav"]')
-  if (b === null) throw new Error('missing star')
+  if (b === null) throw new Error('missing pin')
   return { r, b }
 }
 
 describe('FavoriteToggle', () => {
   it('names the row and reports its state', () => {
     const { b } = render()
-    expect(b.getAttribute('aria-label')).toBe('Favorite deploy')
+    expect(b.getAttribute('aria-label')).toBe('Pin deploy')
+    expect(b.getAttribute('title')).toBe('Pin')
     expect(b.getAttribute('aria-pressed')).toBe('false')
     expect(b.getAttribute('data-favorite')).toBe('off')
     expect(b.hasAttribute('data-lit')).toBe(false)
@@ -44,6 +45,11 @@ describe('FavoriteToggle', () => {
     expect(b.getAttribute('data-favorite')).toBe('on')
     expect(b.hasAttribute('data-lit')).toBe(false)
     expect(b.querySelector('svg path')?.getAttribute('fill')).toBe('currentColor')
+  })
+  // Owner, 2026-10-13: the tilted flat pin (option D), the shape apps use for "pinned".
+  it('draws the tilted pin', () => {
+    const { b } = render()
+    expect(b.querySelector('svg g')?.getAttribute('transform')).toBe('rotate(45 12 12)')
   })
   it('click calls onToggle once', () => {
     const onToggle = vi.fn()
@@ -57,9 +63,9 @@ describe('FavoriteToggle', () => {
   })
 })
 
-// Chromium drops focus from a node React MOVES (a row whose star changed sorts elsewhere), and
+// Chromium drops focus from a node React MOVES (a row whose pin changed sorts elsewhere), and
 // jsdom does not, so the test blurs by hand where the move happens. Without the restore, Escape
-// and the arrow keys stop reaching the popover after a star click.
+// and the arrow keys stop reaching the popover after a pin click.
 function move(el: HTMLElement): void {
   const parent = el.parentNode
   if (parent === null) throw new Error('detached')
@@ -70,7 +76,7 @@ function move(el: HTMLElement): void {
 }
 
 describe('FavoriteToggle — focus survives the row moving', () => {
-  it('a star pressed with focus gets it back when main answers', () => {
+  it('a pin pressed with focus gets it back when main answers', () => {
     const { r, b } = render({ favorite: true })
     act(() => b.focus())
     expect(document.activeElement).toBe(b)
@@ -81,7 +87,7 @@ describe('FavoriteToggle — focus survives the row moving', () => {
     act(() => r.root.render(<FavoriteToggle {...BASE} favorite={false} busy={false} />))
     expect(document.activeElement).toBe(b)
   })
-  it('a star that did not hold focus never takes it', () => {
+  it('a pin that did not hold focus never takes it', () => {
     const { r, b } = render({ favorite: true })
     act(() => b.click())
     move(b)

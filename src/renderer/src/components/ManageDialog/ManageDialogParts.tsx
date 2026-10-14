@@ -615,8 +615,8 @@ export function ManageDialogRowActions({ children }: { children: ReactNode }): J
 }
 
 /**
- * A row's favorite star (spec 2026-10-13-favorites). A DIRECT child of `Row`, which lifts it out
- * of the select button and draws it BEFORE the button, ALWAYS visible: the star is information
+ * A row's favorite pin (spec 2026-10-13-favorites). A DIRECT child of `Row`, which lifts it out
+ * of the select button and draws it BEFORE the button, ALWAYS visible: the pin is information
  * (which rows sort first), so it never hides like `RowActions` (design.md exception).
  */
 export function ManageDialogRowFavorite({ children }: { children: ReactNode }): JSX.Element {

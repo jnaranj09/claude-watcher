@@ -75,7 +75,7 @@ describe('GET /v1/templates', () => {
       favorite: true
     }
     const reply = await get('/v1/templates?scope=ws2', [full])
-    // Favorites are app-only: the API never sends the star.
+    // Favorites are app-only: the API never sends the pin.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { favorite: _favorite, ...wire } = full
     expect(JSON.parse(reply.text)).toEqual([wire])

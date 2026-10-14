@@ -47,15 +47,15 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
   }, [])
   const known = knownWorkspaceIds(workspaces)
   const includeGlobal = useSettings(selectIncludeGlobal)
-  // Favorites first BEFORE the scope helpers: both keep input order, so the stars lead inside
+  // Favorites first BEFORE the scope helpers: both keep input order, so the pins lead inside
   // each group (own workspace, then global).
   const scoped = workspaceRowsFirst(
     filterByScope(favoritesFirst(templates), scope, known, includeGlobal),
     scope
   )
   const { actions } = useManageDialogContext()
-  // A refused star lands in the dialog's message slot; the star keeps main's state.
-  const starring = useAsyncAction(async (t: Template): Promise<void> => {
+  // A refused pin lands in the dialog's message slot; the pin keeps main's state.
+  const pinning = useAsyncAction(async (t: Template): Promise<void> => {
     actions.setError(null)
     try {
       await setTemplateFavorite(t.id, !t.favorite)
@@ -100,8 +100,8 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
               <FavoriteToggle
                 name={t.name}
                 favorite={t.favorite}
-                busy={starring.busy}
-                onToggle={() => void starring.run(t)}
+                busy={pinning.busy}
+                onToggle={() => void pinning.run(t)}
                 testId={`template-favorite-${t.id}`}
               />
             </ManageDialog.RowFavorite>

@@ -46,7 +46,7 @@ export interface ShortcutsStore {
   save(input: ShortcutSaveRequest): ShortcutsSaveResult
   /** Unknown id is a no-op (idempotent). */
   remove(id: string): Shortcut[]
-  /** Favorites — star or unstar one row. Throws SHORTCUT_ERROR.notFound; a refused write is
+  /** Favorites — pin or unpin one row. Throws SHORTCUT_ERROR.notFound; a refused write is
    *  undone and throws STORE_WRITE_FAILED (commit). Trusts its typed input (shortcutsIpc.ts). */
   setFavorite(id: string, favorite: boolean): Shortcut[]
   /** Workspaces — delete every shortcut scoped to `workspaceId`. Returns how many were removed.
@@ -120,7 +120,7 @@ export function createShortcutsStore(options: ShortcutsStoreOptions = {}): Short
       alias: input.alias,
       text: input.text,
       workspaceId: input.workspaceId,
-      // Not in the save arg: a form Save keeps the star; only setFavorite changes it.
+      // Not in the save arg: a form Save keeps the pin; only setFavorite changes it.
       favorite: previous?.favorite ?? false
     }
     byId.set(id, saved)

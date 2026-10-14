@@ -355,10 +355,10 @@ What you can target:
   `[data-popover-divider]`, and `[data-popover-note]` (a muted line inside a popover: an empty list or a note). Row states are ARIA: `[aria-selected="true"]`,
   `[aria-checked="true"]`, `[aria-expanded="true"]`, plus `[data-active]`. Style popovers here,
   not by role: a new list in the app picks your look up with no change to your theme.
-- **Favorite star.** `[data-favorite="on"]` / `[data-favorite="off"]` is the star toggle on a
+- **Favorite pin.** `[data-favorite="on"]` / `[data-favorite="off"]` is the pin toggle on a
   template or shortcut row (Manage dialogs and the `+ New session` popover). It is a `ghost`
   button; its filled shape is the on look, so it never carries `[data-lit]`. In the popover the
-  star sits over its row's top-right corner, inside `[data-favorite-row]`; the pointer on the star
+  pin sits over its row's top-right corner, inside `[data-favorite-row]`; the pointer on the pin
   is still on the row, so a theme that restyles the row hover also lists
   `[data-favorite-row]:has([data-favorite]:hover) > [data-popover-item]` in that rule.
 - **Settings groups.** `[data-settings-group]` wraps the fields of one Settings pane. The app draws

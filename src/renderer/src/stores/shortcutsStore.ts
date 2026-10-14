@@ -82,7 +82,7 @@ export async function removeShortcut(id: string): Promise<void> {
 }
 
 /** Favorites — logs a code and rethrows: the caller maps it (`favoriteErrorCopy`) to its own
- *  surface. The projection only changes from main's answer, so a refusal leaves the star. */
+ *  surface. The projection only changes from main's answer, so a refusal leaves the pin. */
 export async function setShortcutFavorite(id: string, favorite: boolean): Promise<void> {
   try {
     shortcutsStore.getState().hydrate(await window.shortcuts.setFavorite(id, favorite))

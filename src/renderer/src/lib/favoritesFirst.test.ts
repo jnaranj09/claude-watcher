@@ -4,7 +4,7 @@ import { favoritesFirst } from './favoritesFirst'
 const r = (id: string, favorite: boolean): { id: string; favorite: boolean } => ({ id, favorite })
 
 describe('favoritesFirst', () => {
-  it('puts starred rows first and keeps each part in input order', () => {
+  it('puts pinned rows first and keeps each part in input order', () => {
     const out = favoritesFirst([r('a', false), r('b', true), r('c', false), r('d', true)])
     expect(out.map((x) => x.id)).toEqual(['b', 'd', 'a', 'c'])
   })

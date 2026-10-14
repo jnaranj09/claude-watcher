@@ -44,7 +44,7 @@ function Harness(props: { onMoveUp: () => void }): JSX.Element {
               </ManageDialog.Row>
               <ManageDialog.Row id="b" testId="rule-row-b" selectTestId="rule-select-b">
                 <ManageDialog.RowFavorite>
-                  <button type="button" data-testid="star-b">
+                  <button type="button" data-testid="pin-b">
                     *
                   </button>
                 </ManageDialog.RowFavorite>
@@ -235,14 +235,14 @@ describe('ManageDialog.RowFavorite', () => {
   it('renders before the select button, outside it', () => {
     const { r } = render()
     const row = q<HTMLElement>(r, '[data-testid="rule-row-b"]')
-    const star = q<HTMLElement>(r, '[data-testid="star-b"]')
+    const pin = q<HTMLElement>(r, '[data-testid="pin-b"]')
     const select = q<HTMLElement>(r, '[data-testid="rule-select-b"]')
-    expect(select.contains(star)).toBe(false)
-    expect(row.firstElementChild?.contains(star)).toBe(true)
+    expect(select.contains(pin)).toBe(false)
+    expect(row.firstElementChild?.contains(pin)).toBe(true)
   })
-  it('pressing the star does not select the row', () => {
+  it('pressing the pin does not select the row', () => {
     const { r } = render()
-    click(q(r, '[data-testid="star-b"]'))
+    click(q(r, '[data-testid="pin-b"]'))
     expect(q(r, '[data-testid="probe-selected"]').textContent).toBe('none')
   })
   it('its slot is never hidden by CSS', () => {

@@ -154,7 +154,7 @@ const TemplateObjectSchema = z.object({
   params: z.array(TemplateParamSchema).max(TEMPLATE_PARAMS_MAX).default([]),
   // Favorites — additive with `.default(false)` for the SAME backward-compat reason as `effort`:
   // an older file has no key and must still load. Never bump the version. Not in the save arg:
-  // only `templates:set-favorite` changes it, so a form Save can never reset a star.
+  // only `templates:set-favorite` changes it, so a form Save can never reset a pin.
   favorite: z.boolean().default(false)
 })
 

@@ -1,4 +1,4 @@
-// Favorites — the copy for a refused star, mapped from the CODE (Electron wraps the message, so
+// Favorites — the copy for a refused pin, mapped from the CODE (Electron wraps the message, so
 // `includes`), never from `error.message` (design.md Feedback).
 import { STORE_WRITE_FAILED } from '../../../shared/schemas/storageHealth'
 import { STORE_WRITE_FAILED_COPY } from './storageHealthCopy'
