@@ -36,13 +36,14 @@ button[data-variant] {
   border-radius: var(--rounded-lg);
 }
 button[data-variant='secondary'],
-button[data-variant='danger']:not([data-armed]),
+button[data-variant='danger']:not([data-armed]):not(:focus-visible),
 [aria-haspopup='listbox'] {
   background-color: var(--bg-surface);
   border-color: transparent;
   box-shadow: var(--paper-ring);
 }
-button[data-variant='danger']:not([data-armed]) {
+/* Keyboard focus keeps the app's red fill (the same look as hover), so focus never hides. */
+button[data-variant='danger']:not([data-armed]):not(:focus-visible) {
   color: var(--danger);
 }
 button[data-variant='primary'] {
@@ -84,6 +85,19 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   font-family: var(--font-mono);
   font-size: 10px;
 }
+/* One size for every count square (the switcher's, the tab's, a menu row's, a column header's).
+   The session count text in the toolbar carries `data-count` too, so it is left out. */
+[data-count='total']:not([data-session-count]),
+[data-count='working'],
+[data-count='needs-you'] {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  font-weight: 600;
+  line-height: 1;
+}
 [data-count='needs-you'] {
   color: var(--text-primary);
 }
@@ -96,6 +110,7 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   box-shadow: none;
 }
 [data-app-title] {
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.2px;
@@ -115,7 +130,14 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 }
 
 /* ── Board: one white panel (radius 8, panel shadow), columns split by a line, no gap.
-   The 20 px from the window edges is the `gutter` token. ── */
+   The panel stands 20 px (the `gutter` token) in from the window as a margin: the grid's own
+   padding would be painted white inside it. The second selector outranks the app's padding-top
+   under the filter bar. ── */
+[data-column-grid],
+[data-column-grid][data-hero-column]:not(:empty) {
+  margin: var(--gap-group) var(--gap-page) var(--gap-page);
+  padding: 0;
+}
 [data-column-grid] {
   gap: 0;
   background: var(--bg-surface);
@@ -125,16 +147,23 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 }
 /* Scoped to the grid: the rail's group sections carry `data-column` too. */
 [data-column-grid] > [data-column] {
+  gap: 0;
+  padding: 0;
   background: var(--bg-surface);
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+/* An empty column's hint takes the body's padding. */
+[data-column-grid] > [data-column] > p {
+  padding: 20px;
 }
 [data-column-grid] > [data-column] + [data-column] {
   border-left: 1px solid var(--border);
 }
 [data-column-header] {
   background: var(--paper-head);
+  border-top: 0;
   border-bottom: 1px solid var(--border);
   padding: 12px 16px;
 }
@@ -164,7 +193,7 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-column-header][data-accent='idle'] [data-column-mark] {
   background: var(--idle);
 }
-[data-column-label] {
+[data-column-header] [data-column-label] {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -177,11 +206,6 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   display: none;
 }
 [data-column-header] [data-count] {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
   background: var(--paper-count);
   color: var(--text-secondary);
 }
@@ -204,6 +228,7 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   border-bottom-color: transparent;
   border-left-width: 3px;
   box-shadow: none;
+  opacity: 1;
 }
 [data-glass='card'][data-status='needs-you'] {
   background: var(--bg-surface);
@@ -212,6 +237,9 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-card-title] {
   font-size: 14px;
   font-weight: 700;
+}
+[data-glass='card'] [data-card-title] {
+  color: var(--text-primary);
 }
 [data-glass='card'][data-status='idle'] [data-card-title] {
   color: var(--text-secondary);
@@ -279,6 +307,11 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-focused-hint] {
   font-size: 12px;
 }
+/* The terminal frames (the focused bar's next sibling holds them): 12 px under the bar, 20 px
+   from the other edges. */
+[data-focused-bar] + * > * {
+  inset: 12px 20px 20px;
+}
 [data-terminal-panel] {
   border-radius: var(--rounded-lg);
   border-color: transparent;
@@ -297,7 +330,7 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-popover-item] {
   min-height: 32px;
   border-radius: var(--rounded-md);
-  padding: 0 10px;
+  padding: 6px 10px;
   gap: 10px;
   font-size: 13px;
   font-weight: 500;
@@ -343,19 +376,22 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   font-size: 13px;
   font-weight: 600;
 }
+/* Path and flags stay regular on the selected row too (only the name is semi-bold). */
 [data-template-path] {
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 400;
   color: var(--text-secondary);
 }
 [data-template-flags] {
   font-size: 11px;
+  font-weight: 400;
 }
 [data-menu-manage] {
   color: var(--text-secondary);
 }
 [data-popover] input[data-menu-item] {
-  min-height: 32px;
+  height: 32px;
   border-radius: var(--rounded-md);
 }
 
@@ -363,6 +399,8 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-manage-panel] {
   border-radius: 14px;
   border-color: transparent;
+  padding: 0;
+  gap: 0;
 }
 [data-manage-head] {
   padding: 20px 20px 16px 24px;
@@ -372,15 +410,23 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   font-weight: 700;
   letter-spacing: -0.2px;
 }
-[data-manage-close] {
+button[data-manage-close][data-variant] {
   width: 30px;
   height: 30px;
 }
 [data-manage-body] {
   border-top: 1px solid var(--border-card);
+  gap: 0;
 }
-/* The category rail: a soft head fill, a line on its right. */
-[data-manage-list] {
+/* The dialog's message slot is its bottom band, under a line (Settings' `Saved` sits in it). */
+[data-manage-panel] > [role='status'] {
+  border-top: 1px solid var(--border-card);
+  padding: 14px 24px;
+}
+/* The category rail and the page column: a soft head fill, a line on the right. The panel has no
+   padding of its own, so each column carries its own. */
+[data-manage-list],
+[data-manage-pages] {
   background: var(--paper-head);
   border-right: 1px solid var(--border-card);
   padding: 12px 10px;
@@ -403,23 +449,37 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-manage-pane] {
   padding: 8px 28px;
 }
+[data-manage-body] > form {
+  padding: 16px 28px 0;
+}
+/* One line under each setting row (the app's line on top of the next row is cleared). */
 [data-settings-group] > div {
   min-height: 56px;
+  border-top: 0;
   border-bottom: 1px solid var(--border-card);
 }
-[data-settings-group] label {
+[data-settings-group] > div > :first-child {
   font-size: 14px;
   font-weight: 500;
 }
 [data-settings-group] p {
   font-size: 12px;
 }
+/* The action row sits inside the form column, so the form's padding is its side padding. */
 [data-manage-footer] {
   border-top: 1px solid var(--border-card);
-  padding: 14px 24px;
+  padding: 14px 0;
 }
+/* No tone bar: the disc carries the tone, the edge is the tone's border token. */
 [data-callout] {
   border-radius: var(--rounded-md);
+  border-left-width: 1px;
+}
+[data-callout][data-callout-tone='success'] {
+  border-left-color: var(--success-border);
+}
+[data-callout][data-callout-tone='danger'] {
+  border-left-color: var(--danger-border);
 }
 [data-callout][data-callout-size='compact'] {
   font-size: 12px;
