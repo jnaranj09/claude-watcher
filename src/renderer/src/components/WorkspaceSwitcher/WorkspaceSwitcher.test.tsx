@@ -113,6 +113,35 @@ describe('WorkspaceSwitcher', () => {
     expect(q(r, '[data-testid="workspace-switcher"]').textContent).toContain('Default')
   })
 
+  // Pen node Db8xU (spec 2026-10-14): lucide `layers` before the name, the same for every
+  // workspace. Decorative: the aria-label (name and counts) is unchanged.
+  it('draws the layers icon before the name, hidden from readers', () => {
+    const r = renderSwitcher()
+    const button = q(r, '[data-testid="workspace-switcher"]')
+    const icon = button.firstElementChild
+    expect(icon?.tagName.toLowerCase()).toBe('svg')
+    expect(icon?.getAttribute('aria-hidden')).toBe('true')
+    expect(icon?.querySelector('path')?.getAttribute('d')?.startsWith('M12.83 2.18')).toBe(true)
+    expect(icon?.nextElementSibling?.textContent).toBe('Default')
+    expect(button.getAttribute('aria-label')).toBe('Default, 0 sessions')
+  })
+
+  it('draws no icon in a menu row or on the elsewhere tab', () => {
+    seedCard('w1', 'd', 'idle')
+    const r = renderSwitcher()
+    expect(q(r, '[data-testid="workspace-elsewhere-tab"]').querySelector('svg')).toBeNull()
+    click(q(r, '[data-testid="workspace-switcher"]'))
+    expect(q(r, '[data-testid="workspace-row-w1"]').querySelector('svg')).toBeNull()
+  })
+
+  // The name and pills share a baseline; an svg on it sits high. A long name must never squeeze it.
+  it('centres the icon on the cross axis and never shrinks it', () => {
+    const css = readFileSync(join(__dirname, 'WorkspaceSwitcher.module.css'), 'utf8')
+    const body = /\.switcher > svg\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(body).toMatch(/flex:\s*none;/)
+    expect(body).toMatch(/align-self:\s*center;/)
+  })
+
   // One pill per column: grey = idle, blue = working, yellow = needs you — so "4 sessions,
   // 1 working, 1 needs you" reads `2 (1) (1)`, never `4 (1)`.
   it('shows the active workspace idle, working and needs-you counts, inside the button', () => {

@@ -1,6 +1,7 @@
-// Workspaces — the header switcher. Shows the active workspace with one pill per column: grey for
-// its idle cards, blue for the working ones and yellow for the ones that need you, INSIDE the
-// button; a pill at 0 is not drawn. Cards in OTHER workspaces go on a tab that slides out from
+// Workspaces — the header switcher. Shows the active workspace (a lucide `layers` icon, the same
+// for every workspace, then its name) with one pill per column: grey for its idle cards, blue for
+// the working ones and yellow for the ones that need you, INSIDE the button; a pill at 0 is not
+// drawn. Cards in OTHER workspaces go on a tab that slides out from
 // BEHIND the button: a neutral tab — no colour, a workspace's colour there was read as a status
 // (spec 2026-09-29) — carrying the same grey / blue / yellow pills as the button, summed over the
 // other workspaces (an empty tab told the operator nothing — operator, 2026-09-30). A pill inside
@@ -34,6 +35,7 @@ import {
   workspacesStore
 } from '../../stores/workspacesStore'
 import { usePresentValue } from '../../hooks/usePresence'
+import { LucideIcon } from '../Icon/LucideIcon'
 import { Popover } from '../Popover/Popover'
 import { LeavingContext, leavingProps } from '../Presence/leaving'
 import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
@@ -166,6 +168,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         aria-label={label}
         onClick={() => setOpen((v) => !v)}
       >
+        <LucideIcon name="layers" />
         <span className={styles.name}>{activeName}</span>
         {activeGrey !== null && (
           <span className={styles.count} data-testid="workspace-card-count">

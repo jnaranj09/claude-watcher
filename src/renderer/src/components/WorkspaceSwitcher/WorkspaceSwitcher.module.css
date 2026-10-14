@@ -12,7 +12,7 @@
   z-index: 50;
 }
 
-/* The workspace PILL — a compound control (name + counts, the elsewhere tab tucked under it),
+/* The workspace PILL — a compound control (icon, name + counts, the elsewhere tab tucked under it),
    not a button style, so it is not `components/Button`; the liquid-glass theme targets it by its
    test id. It is the header's height, and the pill's own line fills that box: the name, the count
    and the badge are baseline-aligned (below), and a baseline group sits at the TOP of a flex line,
@@ -75,6 +75,14 @@
 
 .name {
   white-space: nowrap;
+}
+
+/* The layers icon (spec 2026-10-14). Centred on the cross axis, NOT on the name's baseline (an svg
+   on a baseline sits on it, high in the line), and never squeezed by a long name. The switcher's
+   `gap` spaces it, and it is part of the group the switcher centres. */
+.switcher > svg {
+  flex: none;
+  align-self: center;
 }
 
 /* The name, the grey total and the pill's digit share ONE baseline. Centering them left the grey
