@@ -284,3 +284,75 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   border-color: transparent;
   box-shadow: var(--paper-ring);
 }
+
+/* ── Popovers and menus: white, radius 12, the pop shadow, 6 px padding, 2 px between rows. ── */
+[data-popover] {
+  border-radius: 12px;
+  border-color: transparent;
+  padding: 6px;
+}
+[data-popover-list] {
+  gap: 2px;
+}
+[data-popover-item] {
+  min-height: 32px;
+  border-radius: var(--rounded-md);
+  padding: 0 10px;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+[data-popover-icon] {
+  color: var(--text-secondary);
+}
+[data-popover-icon] svg {
+  width: 15px;
+  height: 15px;
+}
+[data-popover-end] {
+  color: var(--text-muted);
+}
+/* The open submenu row: sunk fill, label semi-bold, no edge (the app draws a border on it). */
+[data-popover-item][aria-expanded='true'] {
+  background-color: var(--bg-row-rest);
+  border-color: transparent;
+  font-weight: 600;
+}
+/* The keyboard-selected and checked rows look the same. A workspace-tinted row keeps its tint. */
+[data-popover-item][data-active]:not([data-tone]),
+[data-popover-item][aria-selected='true']:not([data-tone]),
+[data-popover-item][aria-checked='true']:not([data-tone]) {
+  background-color: var(--bg-row-rest);
+  border-color: transparent;
+  font-weight: 600;
+}
+[data-popover-divider] {
+  background: var(--border-card);
+  margin: 4px 0;
+}
+[data-menu-pick-folder] {
+  min-height: 34px;
+}
+[data-template-id] {
+  padding: 8px 10px;
+  gap: 3px;
+}
+[data-template-name] {
+  font-size: 13px;
+  font-weight: 600;
+}
+[data-template-path] {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+[data-template-flags] {
+  font-size: 11px;
+}
+[data-menu-manage] {
+  color: var(--text-secondary);
+}
+[data-popover] input[data-menu-item] {
+  min-height: 32px;
+  border-radius: var(--rounded-md);
+}

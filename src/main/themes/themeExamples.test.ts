@@ -703,6 +703,17 @@ describe('docs/themes/examples', () => {
       if (r.selectors.some((s) => s.includes('data-rail-row')))
         expect(r.body).not.toMatch(/inset 3px 0 0/)
   })
+  it('paper: menus are radius 12 with sunk active rows and no border', () => {
+    const box = bodyOf('paper', '[data-popover]')
+    expect(box).toMatch(/border-radius:\s*12px/)
+    expect(box).toMatch(/border-color:\s*transparent/)
+    expect(bodyOf('paper', "[data-popover-item][aria-expanded='true']")).toMatch(
+      /background-color:\s*var\(--bg-row-rest\)/
+    )
+    expect(bodyOf('paper', "[data-popover-item][aria-expanded='true']")).toMatch(
+      /border-color:\s*transparent/
+    )
+  })
   it("paper's terminal IS the built-in light palette (Follow theme = Light)", () => {
     expect(paperManifest().terminal).toEqual(xtermLightTheme)
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)
