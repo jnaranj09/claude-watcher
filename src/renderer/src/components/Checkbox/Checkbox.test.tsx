@@ -121,7 +121,7 @@ describe('Checkbox', () => {
   })
 
   // Owner, 2026-10-14: a checkbox is a square in every theme. A theme's `--rounded-sm` can be a
-  // pill (Liquid Glass, Paper), and a round checkbox reads as a radio button.
+  // pill (Liquid Glass), and a round checkbox reads as a radio button.
   it('keeps square corners whatever the theme sets --rounded-sm to', () => {
     expect(body('.square')).toMatch(/border-radius: 4px;/)
   })

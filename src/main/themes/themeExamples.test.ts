@@ -714,6 +714,14 @@ describe('docs/themes/examples', () => {
       /border-color:\s*transparent/
     )
   })
+  it('paper: dialogs are radius 14; the selected category is white with the ring', () => {
+    expect(bodyOf('paper', '[data-manage-panel]')).toMatch(/border-radius:\s*14px/)
+    expect(bodyOf('paper', "[data-manage-list] [data-selected='true']")).toMatch(
+      /box-shadow:\s*var\(--paper-ring\)/
+    )
+    // Owner 2026-10-14: Manage rows keep the app's height; Paper sets none.
+    expect(bodyOf('paper', '[data-manage-list] [data-manage-row-select]')).not.toMatch(/height/)
+  })
   it("paper's terminal IS the built-in light palette (Follow theme = Light)", () => {
     expect(paperManifest().terminal).toEqual(xtermLightTheme)
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)

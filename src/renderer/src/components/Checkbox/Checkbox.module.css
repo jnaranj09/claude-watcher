@@ -18,7 +18,7 @@
   height: 14px;
   margin: 0;
   border: 1px solid var(--border-strong);
-  /* Not `--rounded-sm`: a theme may make that a pill (Liquid Glass, Paper), and a round checkbox
+  /* Not `--rounded-sm`: a theme may make that a pill (Liquid Glass), and a round checkbox
      reads as a radio button (owner, 2026-10-14). */
   border-radius: 4px;
   background-color: var(--bg-surface-raised);

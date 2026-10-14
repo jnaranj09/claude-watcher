@@ -200,7 +200,7 @@ Tags dialog rail uses `TagPathLabel` instead.
   (`--bg-base` / `--bg-surface` / `--bg-surface-raised`): where it equals the panel, the hover
   vanishes. A tinted control (workspace) moves its BORDER instead; danger fills red. Exception:
   a rail row previews the active tab (`--bg-base`), allow-listed in the guard.
-- Themes may restyle hover (Paper: near-black pill, white ink).
+- Themes may restyle hover (Liquid Glass does; Paper keeps the app hover fill).
 
 ## Spacing roles (`styles/spacing.guard.test.ts`)
 

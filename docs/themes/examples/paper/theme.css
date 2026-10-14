@@ -356,3 +356,77 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   min-height: 32px;
   border-radius: var(--rounded-md);
 }
+
+/* ── Dialogs (every Manage dialog through ManageDialog): white, radius 14, the dialog shadow. ── */
+[data-manage-panel] {
+  border-radius: 14px;
+  border-color: transparent;
+}
+[data-manage-head] {
+  padding: 20px 20px 16px 24px;
+}
+[data-manage-title] {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+[data-manage-close] {
+  width: 30px;
+  height: 30px;
+}
+[data-manage-body] {
+  border-top: 1px solid var(--border-card);
+}
+/* The category rail: a soft head fill, a line on its right. */
+[data-manage-list] {
+  background: var(--paper-head);
+  border-right: 1px solid var(--border-card);
+  padding: 12px 10px;
+}
+[data-manage-list] [data-manage-row-select] {
+  border-radius: var(--rounded-md);
+}
+/* The one selected look (a category, a page): white with the ring, the app's edge cleared. */
+[data-manage-list] [data-selected='true'],
+[data-manage-pages] [data-selected='true'] {
+  background: var(--bg-surface);
+  border-color: transparent;
+  border-radius: var(--rounded-md);
+  box-shadow: var(--paper-ring);
+}
+[data-manage-list] [data-selected='true'] [data-manage-row-select],
+[data-manage-pages] [data-selected='true'] button {
+  font-weight: 600;
+}
+[data-manage-pane] {
+  padding: 8px 28px;
+}
+[data-settings-group] > div {
+  min-height: 56px;
+  border-bottom: 1px solid var(--border-card);
+}
+[data-settings-group] label {
+  font-size: 14px;
+  font-weight: 500;
+}
+[data-settings-group] p {
+  font-size: 12px;
+}
+[data-manage-footer] {
+  border-top: 1px solid var(--border-card);
+  padding: 14px 24px;
+}
+[data-callout] {
+  border-radius: var(--rounded-md);
+}
+[data-callout][data-callout-size='compact'] {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Switch: the canvas grey track with a white knob when off; ink when on (the app's lit look).
+   The off track keeps the app's edge: the grey alone is 1.4:1 on white. ── */
+[role='switch']:not(:checked) {
+  background-color: var(--paper-switch-off);
+  background-image: radial-gradient(circle at 9px 50%, var(--bg-surface) 7px, transparent 7.5px);
+}

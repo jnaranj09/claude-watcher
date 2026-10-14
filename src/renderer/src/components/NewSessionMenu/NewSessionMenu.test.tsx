@@ -253,18 +253,16 @@ describe('NewSessionMenu — the pin sits inside the row, on the right', () => {
     const name = q(r, '[data-template-id="a"]').querySelector('span span')
     expect(name?.getAttribute('title')).toBe('work api')
   })
-  it('hovering the pin keeps the row lit, in the app and every bundled theme', () => {
+  it('hovering the pin keeps the row lit, in the app and in every theme that draws a row hover', () => {
     expect(rule('.templateRow:has(.pin:hover) [data-popover-item]:not(:disabled)')).toContain(
       'background-image: linear-gradient(var(--bg-hover), var(--bg-hover));'
     )
     // Every theme rule that draws the row hover also lists the pin-hover arm. Prettier may wrap a
     // selector, so whitespace is removed. Liquid Glass draws the hover in TWO rules (fill, sheen).
+    // Paper draws none: it keeps the app's own hover fill.
     const HOVER = '[data-popover-item]:hover:not(:disabled)'
     const ARM = '[data-favorite-row]:has([data-favorite]:hover)>[data-popover-item]'
-    for (const [theme, rules] of [
-      ['liquid-glass', 2],
-      ['paper', 1]
-    ] as const) {
+    for (const [theme, rules] of [['liquid-glass', 2]] as const) {
       const themeCss = readFileSync(`docs/themes/examples/${theme}/theme.css`, 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/\s+/g, '')
@@ -277,16 +275,6 @@ describe('NewSessionMenu — the pin sits inside the row, on the right', () => {
       expect(hoverRules, theme).toHaveLength(rules)
       for (const sel of hoverRules) expect(sel, theme).toContain(ARM)
     }
-  })
-})
-
-describe('NewSessionMenu — the pin on a hovered Paper row', () => {
-  // Paper's row hover is a near-black pill with white ink; the pin sits on it but outside the row
-  // button, so it would keep its dark grey ink and vanish.
-  it('Paper turns the pin white on a hovered row', () => {
-    const css = readFileSync('docs/themes/examples/paper/theme.css', 'utf8')
-    const body = /\[data-favorite-row\]:hover \[data-favorite\] \{([^}]*)\}/.exec(css)?.[1] ?? ''
-    expect(body).toMatch(/color: #ffffff;/)
   })
 })
 
