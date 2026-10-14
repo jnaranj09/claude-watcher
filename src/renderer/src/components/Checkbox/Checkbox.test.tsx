@@ -101,6 +101,16 @@ describe('Checkbox', () => {
     )
   })
 
+  // Hovering the text of a lit box must not draw a grey edge round its --text-primary fill.
+  it('the hover edge is for an unlit box only', () => {
+    expect(css).not.toMatch(/\n\.labeled:hover \.square[ ,{]/)
+    expect(
+      body(
+        '.square:not(:checked):not(:indeterminate):hover,\n.labeled:hover .square:not(:checked):not(:indeterminate)'
+      )
+    ).toMatch(/border-color: var\(--text-secondary\);/)
+  })
+
   // Owner, 2026-10-14: a checkbox is a square in every theme. A theme's `--rounded-sm` can be a
   // pill (Liquid Glass, Paper), and a round checkbox reads as a radio button.
   it('keeps square corners whatever the theme sets --rounded-sm to', () => {

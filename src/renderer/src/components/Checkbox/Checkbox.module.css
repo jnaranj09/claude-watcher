@@ -24,8 +24,9 @@
   background-color: var(--bg-surface-raised);
   cursor: pointer;
 }
-.square:hover,
-.labeled:hover .square {
+/* Unlit only: on a lit box the grey edge would ring the --text-primary fill. */
+.square:not(:checked):not(:indeterminate):hover,
+.labeled:hover .square:not(:checked):not(:indeterminate) {
   border-color: var(--text-secondary);
 }
 .square:checked,
