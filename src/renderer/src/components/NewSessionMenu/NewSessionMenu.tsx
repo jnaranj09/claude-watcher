@@ -48,7 +48,9 @@ export function NewSessionMenu({
 
   function moveFocus(from: Element, delta: 1 | -1): void {
     const items = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(ITEM) ?? [])
-    const index = items.indexOf(from as HTMLElement)
+    // A star is not a menu item: it stands on its own row, so the arrows start from that row.
+    const start = from.closest('[data-favorite-row]')?.querySelector(ITEM) ?? from
+    const index = items.indexOf(start as HTMLElement)
     const next = items[index + delta]
     if (next !== undefined) next.focus()
   }

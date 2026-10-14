@@ -25,12 +25,14 @@ export function FavoriteToggle({
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   // Focus follows the star. Main's answer re-sorts the list, and Chromium drops focus from a row
   // React MOVES; on <body>, Escape and the arrow keys no longer reach the popover or dialog. So a
-  // star pressed while focused takes focus back once the answer lands (`busy` ends).
+  // star pressed while focused takes focus back once the answer lands (`busy` ends) — only when
+  // focus was LOST (on <body>), never from a field the operator moved to meanwhile.
   const refocus = useRef(false)
   useLayoutEffect(() => {
     if (busy || !refocus.current) return
     refocus.current = false
-    if (document.activeElement !== buttonRef.current) buttonRef.current?.focus()
+    const active = document.activeElement
+    if (active === null || active === document.body) buttonRef.current?.focus()
   }, [busy, favorite])
   return (
     <Button

@@ -89,3 +89,18 @@ describe('FavoriteToggle — focus survives the row moving', () => {
     expect(document.activeElement).not.toBe(b)
   })
 })
+
+describe('FavoriteToggle — never steals focus', () => {
+  it('focus the operator moved elsewhere during the save stays there', () => {
+    const other = document.createElement('input')
+    document.body.appendChild(other)
+    const { r, b } = render({ favorite: true })
+    act(() => b.focus())
+    act(() => b.click())
+    act(() => r.root.render(<FavoriteToggle {...BASE} favorite busy />))
+    act(() => other.focus()) // the operator clicks the Name field before main answers
+    act(() => r.root.render(<FavoriteToggle {...BASE} favorite={false} busy={false} />))
+    expect(document.activeElement).toBe(other)
+    other.remove()
+  })
+})

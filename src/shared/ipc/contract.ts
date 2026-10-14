@@ -645,7 +645,7 @@ export type WorkspacesSaveResult = { saved: Workspace } & WorkspacesListResult
 
 // Phrase shortcuts — main-owned; the renderer holds a projection (shortcutsStore.ts). The phrase
 // itself never travels on an IPC channel: the expander box's Enter posts it on the terminal's
-// EXISTING MessagePort `{type:'input'}` frame, so these three channels are CRUD only.
+// EXISTING MessagePort `{type:'input'}` frame, so these channels are CRUD plus the star only.
 export type {
   Shortcut,
   ShortcutSaveRequest,

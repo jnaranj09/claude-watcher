@@ -222,3 +222,21 @@ describe('NewSessionMenu — favorites', () => {
     )
   })
 })
+
+describe('NewSessionMenu — arrow keys from a star', () => {
+  // A star stands on its own row: ArrowDown goes to the NEXT row, ArrowUp to the one above.
+  it('ArrowDown from a star moves to the next row, not the top of the menu', () => {
+    const { r } = render([T1, T2])
+    const star = q<HTMLButtonElement>(r, '[data-testid="menu-favorite-a"]')
+    act(() => star.focus())
+    key(star, 'ArrowDown')
+    expect(document.activeElement).toBe(q(r, '[data-template-id="b"]'))
+  })
+  it('ArrowUp from a star moves to the row above', () => {
+    const { r } = render([T1, T2])
+    const star = q<HTMLButtonElement>(r, '[data-testid="menu-favorite-b"]')
+    act(() => star.focus())
+    key(star, 'ArrowUp')
+    expect(document.activeElement).toBe(q(r, '[data-template-id="a"]'))
+  })
+})
