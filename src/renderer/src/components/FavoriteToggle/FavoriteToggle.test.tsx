@@ -56,3 +56,36 @@ describe('FavoriteToggle', () => {
     expect(b.disabled).toBe(true)
   })
 })
+
+// Chromium drops focus from a node React MOVES (a row whose star changed sorts elsewhere), and
+// jsdom does not, so the test blurs by hand where the move happens. Without the restore, Escape
+// and the arrow keys stop reaching the popover after a star click.
+function move(el: HTMLElement): void {
+  const parent = el.parentNode
+  if (parent === null) throw new Error('detached')
+  act(() => {
+    parent.removeChild(el)
+    parent.appendChild(el)
+  })
+}
+
+describe('FavoriteToggle — focus survives the row moving', () => {
+  it('a star pressed with focus gets it back when main answers', () => {
+    const { r, b } = render({ favorite: true })
+    act(() => b.focus())
+    expect(document.activeElement).toBe(b)
+    act(() => b.click())
+    act(() => r.root.render(<FavoriteToggle {...BASE} favorite busy />))
+    move(b) // the row moves: Chromium leaves focus on <body>
+    expect(document.activeElement).not.toBe(b)
+    act(() => r.root.render(<FavoriteToggle {...BASE} favorite={false} busy={false} />))
+    expect(document.activeElement).toBe(b)
+  })
+  it('a star that did not hold focus never takes it', () => {
+    const { r, b } = render({ favorite: true })
+    act(() => b.click())
+    move(b)
+    act(() => r.root.render(<FavoriteToggle {...BASE} favorite={false} busy={false} />))
+    expect(document.activeElement).not.toBe(b)
+  })
+})

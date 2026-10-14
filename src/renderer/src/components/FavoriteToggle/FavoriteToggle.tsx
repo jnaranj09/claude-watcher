@@ -1,7 +1,7 @@
 // Favorites — the ONE star toggle (Manage rows and the + New session popover). A ghost icon
 // button (§16: ghost is for icons inside a row), `aria-pressed` for the state, `data-favorite`
 // as the public theme hook. Never `lit`: the filled star is the on look (owner, 2026-10-13).
-import type { JSX } from 'react'
+import { useLayoutEffect, useRef, type JSX } from 'react'
 import { Button } from '../Button/Button'
 import { FAVORITE_TERMS } from '../../copy/terms'
 import { StarIcon } from './StarIcon'
@@ -22,8 +22,19 @@ export function FavoriteToggle({
   onToggle,
   testId
 }: FavoriteToggleProps): JSX.Element {
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  // Focus follows the star. Main's answer re-sorts the list, and Chromium drops focus from a row
+  // React MOVES; on <body>, Escape and the arrow keys no longer reach the popover or dialog. So a
+  // star pressed while focused takes focus back once the answer lands (`busy` ends).
+  const refocus = useRef(false)
+  useLayoutEffect(() => {
+    if (busy || !refocus.current) return
+    refocus.current = false
+    if (document.activeElement !== buttonRef.current) buttonRef.current?.focus()
+  }, [busy, favorite])
   return (
     <Button
+      buttonRef={buttonRef}
       variant="ghost"
       size="xs"
       icon
@@ -33,7 +44,10 @@ export function FavoriteToggle({
       aria-pressed={favorite}
       data-favorite={favorite ? 'on' : 'off'}
       busy={busy}
-      onClick={onToggle}
+      onClick={() => {
+        refocus.current = document.activeElement === buttonRef.current
+        onToggle()
+      }}
     >
       <StarIcon filled={favorite} />
     </Button>

@@ -203,11 +203,16 @@ describe('NewSessionMenu — favorites', () => {
     key(first as Element, 'ArrowDown')
     expect(document.activeElement).toBe(second)
   })
+  // Hidden by OPACITY, never `visibility`/`display`: a hidden star cannot take focus, so Tab
+  // could not reach it and the focus restore after a re-sort (FavoriteToggle) would fail.
   it('an off star hides until its row is hovered or focused; an on star always shows', () => {
     const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
-    expect(css).toMatch(
-      /\.templateRow\[data-favorite-row='off'\]:not\(:hover\):not\(:focus-within\) \.star \{\s*visibility: hidden;/
-    )
+    const hide =
+      /\.templateRow\[data-favorite-row='off'\]:not\(:hover\):not\(:focus-within\) \.star \{([^}]*)\}/.exec(
+        css
+      )?.[1] ?? ''
+    expect(hide).toMatch(/opacity: 0;/)
+    expect(hide).not.toMatch(/visibility|display/)
     const { r } = render([T1, STARRED])
     expect(q(r, '[data-template-id="a"]').parentElement?.getAttribute('data-favorite-row')).toBe(
       'off'

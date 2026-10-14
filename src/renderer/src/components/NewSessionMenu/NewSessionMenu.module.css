@@ -14,7 +14,9 @@
 }
 
 /* A template row: the star (FavoriteToggle) then the Popover row. Siblings, never a button in a
-   button. An off star shows only while its row is hovered or holds focus; an on star always. */
+   button. An off star shows only while its row is hovered or holds focus; an on star always.
+   Hidden by opacity, so it stays focusable: Tab reaches it, and focus can return to it after the
+   list re-sorts (FavoriteToggle). */
 .templateRow {
   display: flex;
   align-items: center;
@@ -25,7 +27,7 @@
   flex: none;
 }
 .templateRow[data-favorite-row='off']:not(:hover):not(:focus-within) .star {
-  visibility: hidden;
+  opacity: 0;
 }
 
 .rowText {
