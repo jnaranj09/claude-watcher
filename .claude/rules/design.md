@@ -389,14 +389,15 @@ until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCo
 - Success shows `SUCCESS_MS` (2.5 s); an error stays until the next action. Success copy names the
   THING (`Rule deleted.`, `Session forgotten.`), never a typed value. Green = `--success`; themes
   override it (Paper: dark green — `#a6e3a1` on white fails 3:1).
-- Toast glyph: success ✓ `--success`, error `!` `--danger`, info neutral.
+- Toast glyph: an error's `!` in `--danger` only; success and info draw none.
 
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
   action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`. Anatomy:
-  glyph, title, optional `detail`, optional action (`Button secondary sm`), ✕ (`Button secondary xs
-icon="round"`, `aria-label="Dismiss"`). Success/info `role="status"`, error `role="alert"`, in `<section
-aria-label="Notifications">`. Themes: `[data-toast]`, `[data-toast-kind]`.
+  error glyph, title, optional `detail`, optional action (`Button primary sm` with its icon,
+  `ToastAction.icon`), ✕ (`Button secondary xs icon="round"`, `aria-label="Dismiss"`).
+  Success/info `role="status"`, error `role="alert"`, in `<section aria-label="Notifications">`.
+  Themes: `[data-toast]`, `[data-toast-kind]`.
 - Toast action not rendered while a modal is open (`modalOpenIn`).
 - Toast closes when `run` is called; store contains throws silently, so a failing `run` pushes its
   own error toast.

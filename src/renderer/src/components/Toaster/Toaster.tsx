@@ -5,25 +5,34 @@
 //
 // A toast's action is NOT rendered while a modal is open (design.md: a control the operator must not
 // use is not rendered — the notification-click precedent, UX-DR14). ✕ and the timer are unaffected.
-// Hover or focus inside a toast pauses its timer. Themes target `[data-toast]` and
-// `[data-toast-kind]`, never a test id.
+// Hover or focus inside a toast pauses its timer. Only an error draws a kind glyph (`!`); the action
+// is the toast's one primary Button, with its icon (spec 2026-10-14). Themes target `[data-toast]`
+// and `[data-toast-kind]`, never a test id.
 import { useRef, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
 import { Button } from '../Button/Button'
+import { LucideIcon, type LucideIconName } from '../Icon/LucideIcon'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import {
   selectToasts,
   toastStore,
   type Toast,
-  type ToastKind,
+  type ToastActionIcon,
   type ToastState
 } from '../../stores/toastStore'
 import { useBoard } from '../../stores/boardStore'
 import { modalOpenIn } from '../../lib/modals'
 import styles from './Toaster.module.css'
 
-const GLYPH: Readonly<Record<ToastKind, string>> = { success: '✓', error: '!', info: 'i' }
+// Only an error draws a kind glyph (spec 2026-10-14): success and info read from their words, as in
+// the pen. The action carries its own icon instead.
+const ERROR_GLYPH = '!'
+
+const ACTION_ICON: Readonly<Record<ToastActionIcon, LucideIconName>> = {
+  resume: 'rotate-ccw',
+  open: 'arrow-up-right'
+}
 
 export interface ToasterProps {
   /** Tests pass their own store (an injected clock); the app uses the singleton. */
@@ -86,9 +95,11 @@ function ToastCard({
         settle()
       }}
     >
-      <span className={styles.glyph} data-kind={toast.kind} aria-hidden="true">
-        {GLYPH[toast.kind]}
-      </span>
+      {toast.kind === 'error' && (
+        <span className={styles.glyph} data-kind="error" aria-hidden="true">
+          {ERROR_GLYPH}
+        </span>
+      )}
       <div className={styles.text}>
         <p className={styles.title}>
           <span className={styles.titleText} title={toast.title}>
@@ -106,11 +117,12 @@ function ToastCard({
       </div>
       {toast.action !== undefined && !modalOpen && (
         <Button
-          variant="secondary"
+          variant="primary"
           size="sm"
           testId="toast-action"
           onClick={() => runAction(toast.id)}
         >
+          <LucideIcon name={ACTION_ICON[toast.action.icon]} />
           {toast.action.label}
         </Button>
       )}

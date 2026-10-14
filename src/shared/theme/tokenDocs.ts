@@ -31,7 +31,7 @@ export const TOKEN_DOCS: Record<TokenName, string> = {
   done: 'Defined for completeness; no component uses it',
   idle: 'The idle status colour',
   danger: 'Delete and quit: border at rest, fill when hovered or armed',
-  success: 'Success callout bar and icon disc; the toast success glyph',
+  success: 'Success callout bar and icon disc',
   'text-on-success': 'The check mark on the success disc',
   'success-fill': 'Success callout fill',
   'success-border': 'Success callout border',

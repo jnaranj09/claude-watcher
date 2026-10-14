@@ -855,7 +855,7 @@ section[data-column]::after,
 /* A TOAST had no rule at all: it kept the token's `--bg-surface-raised` (white 10%) and read as a
    flat grey slab over the glass (operator, 2026-10-01). It takes the popover's material — the
    faint white fill, the faint border, the directional rim — but it is a CONTAINER, not a leaf:
-   its action (`Resume`, `Open`) is a secondary Button, and every enabled secondary button blurs
+   its action (`Resume`, `Open`) is a primary Button, and every enabled primary button blurs
    from itself. So the toast blurs from a `::before` layer, like the ☰ menu that holds a submenu,
    or the action's blur would read only what the toast painted. `position: relative` anchors the
    layer (the toast is not positioned); `isolation` keeps its `z-index: -1` inside the toast. */
