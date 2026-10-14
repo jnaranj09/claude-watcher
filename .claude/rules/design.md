@@ -244,12 +244,13 @@ which relation two neighbours ARE. Items of one kind close, different regions cl
    plus an optional footnote). Form: blocks (label + control + hint) · footer.
 2. **Two different regions never sit closer than `--gap-group` (12px)**; rows of one list keep
    `--gap-row` / `--gap-row-filled`. Check: the space AROUND a group is at least twice the largest
-   space INSIDE it (rows 4 → regions 12; field block 6 → blocks 20).
+   space INSIDE it (rows 4 → regions 12; field block 6 → blocks 20). One exception (owner,
+   2026-10-14): a dialog's title → description is 20, as wide as header → body.
 3. **One role per boundary:**
 
 | From → to                            | Role                                                 |
 | ------------------------------------ | ---------------------------------------------------- |
-| title → its description              | `--gap-field` (6)                                    |
+| title → its description              | `--gap-section` (20), every dialog (Quit/Stop too)   |
 | header → body                        | `--gap-section` (20)                                 |
 | rail top tool → list                 | `--gap-group` (12)                                   |
 | list → bottom slot                   | `--gap-group` (12), slot pinned `margin-top: auto`   |

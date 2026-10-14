@@ -352,8 +352,9 @@ describe('ManageDialog region spacing', () => {
     expect(body).toMatch(/color:\s*var\(--text-secondary\)/)
   })
 
-  it('title → description is --gap-field', () => {
-    expect(ruleBody(css, '.headerText')).toMatch(/gap:\s*var\(--gap-field\)/)
+  // The same 20px the Quit and Stop confirms keep between their title and body (owner, 2026-10-14).
+  it('title → description is --gap-section', () => {
+    expect(ruleBody(css, '.headerText')).toMatch(/gap:\s*var\(--gap-section\)/)
   })
 
   it('a different region under the list sits behind a divider, --gap-section each side (spec 2026-10-03 I)', () => {

@@ -53,10 +53,12 @@
 .header[data-subtitled='true'] {
   align-items: flex-start;
 }
+/* Title → description is 20px, the same as the Quit and Stop confirms' title → body: one value for
+   that boundary in every dialog. */
 .headerText {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-field);
+  gap: var(--gap-section);
   min-width: 0;
 }
 /* Title + the scope dropdown on one line. `min-width: 0` lets the dropdown shrink instead of

@@ -457,6 +457,10 @@ button[data-manage-close][data-variant] {
   min-height: 56px;
   border-top: 0;
   border-bottom: 1px solid var(--border-card);
+  /* The theme-actions row has its own lines here, so its buttons centre between them like every
+     row's control. The app gives it bottom padding only (no line above it in Default). */
+  align-items: center;
+  padding-block: var(--inset-card);
 }
 [data-settings-group] > div > :first-child {
   font-size: 14px;
