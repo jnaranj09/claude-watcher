@@ -1,7 +1,7 @@
 // The ONE on/off control for settings (spec 2026-10-07 A.6). A native checkbox with
 // `appearance: none`: the browser keeps Space, `<label htmlFor>` and the change event; this file
 // owns only the look — a glass track, lit when on (the `lit` Button's fill), never the native
-// blue. Checkboxes that SELECT things (row checks, Select all, Include global) stay checkboxes.
+// blue. Checkboxes that SELECT things (row checks, Select all, Include global) are `Checkbox`.
 import type { JSX } from 'react'
 import styles from './Switch.module.css'
 

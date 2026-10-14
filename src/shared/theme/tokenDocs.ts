@@ -139,7 +139,7 @@ export const TOKEN_DOCS: Record<TokenName, string> = {
   'gap-inline-tight': 'Icon beside text; small tool clusters',
   'gap-inline': 'Controls side by side; button rows',
   'gap-group': 'Between groups in a menu, rail or pane',
-  'gap-field': 'A label to its control',
+  'gap-field': 'A label to the control it names, above it or beside it',
   'gap-section': 'One form field block to the next; section to section',
   'gap-actions': 'The last field to a dialog button row',
   'gap-page': 'Page edge; header, filter bar and board; column gaps',

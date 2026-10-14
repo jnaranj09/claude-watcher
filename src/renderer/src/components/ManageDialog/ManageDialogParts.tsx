@@ -26,6 +26,7 @@ import {
 } from './manageDialogState'
 import { useOverflowEnd } from './useOverflowEnd'
 import styles from './ManageDialog.module.css'
+import { Checkbox } from '../Checkbox/Checkbox'
 import { Button, type ButtonSize } from '../Button/Button'
 import { Callout } from '../Callout/Callout'
 import { workspaceTintClass, type WorkspaceTone } from '../WorkspaceTint/workspaceTint'
@@ -643,14 +644,9 @@ export function ManageDialogRowCheck({
   testId
 }: ManageDialogRowCheckProps): JSX.Element {
   return (
-    <input
-      type="checkbox"
-      className={styles.rowCheck}
-      data-testid={testId}
-      aria-label={label}
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-    />
+    <span className={styles.rowCheck}>
+      <Checkbox testId={testId} ariaLabel={label} checked={checked} onChange={onChange} />
+    </span>
   )
 }
 

@@ -216,7 +216,7 @@ sections clearly apart. Every `gap`/`padding`/`margin` in a component stylesheet
 | `--gap-inline-tight`                   | 4px       | icon + text, small tool clusters                |
 | `--gap-inline`                         | 8px       | controls side by side, button rows              |
 | `--gap-group`                          | 12px      | groups in a menu, rail, pane; cards in a column |
-| `--gap-field`                          | 6px       | label → its control                             |
+| `--gap-field`                          | 6px       | label → its control, above or beside it         |
 | `--gap-section`                        | 20px      | field block → next; section → section           |
 | `--gap-actions`                        | 24px      | last field → the dialog's buttons               |
 | `--gap-page`                           | 16px      | page edge, header ↔ filter bar ↔ board, columns |
@@ -254,10 +254,13 @@ which relation two neighbours ARE. Items of one kind close, different regions cl
 | rail top tool → list                 | `--gap-group` (12)                                   |
 | list → bottom slot                   | `--gap-group` (12), slot pinned `margin-top: auto`   |
 | bottom slot's action → its footnote  | `--gap-field` (6)                                    |
-| label → control, control → its hint  | `--gap-field` (6)                                    |
+| label → control, control → its hint  | `--gap-field` (6), label above or beside             |
 | hint / state note → the next control | `--gap-inline` (8)                                   |
 | block → block                        | `--gap-section` (20)                                 |
 | last block → footer buttons          | `--gap-actions` (24) as the footer's own padding-top |
+
+A label beside its control (a checkbox's text, a swatch beside its radio) is the same boundary as
+one above it. The exception is a Settings row: its label and control sit at the row's two edges.
 
 4. **Same kind, same size.** Settings rows share one `min-height` (a 36px field Select/TextInput
    - insets), so a switch row matches a dropdown row. Every rail search is
@@ -436,8 +439,9 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   string. `inputRef` for focus-on-open only. `invalid` sets `aria-invalid` (never the only signal).
   Placeholder `--text-secondary`. Same box as Select's `field` — change one, change both.
   `TextInput.test.tsx` fails on any other `.input`/`.search`/`.textField` class. An on/off setting is
-  `components/Switch` (guard in `Settings.test.tsx`); checkboxes that SELECT things, radios and
-  ranges stay bare.
+  `components/Switch` (guard in `Settings.test.tsx`); a checkbox that SELECTS things is
+  `components/Checkbox` (lit square, 4px corners in every theme, its text `--gap-field` after the
+  box; guard `Checkbox.guard.test.ts`). Radios and ranges stay bare.
 - **`<button className=…>` → `components/Button/Button.tsx`.** Variants: `primary` (ONE main
   action: RAISED `--bg-surface-raised` fill + strong border + 600 weight, never an accent colour —
   a blue primary was rejected 2026-09-23), `secondary` (outlined), `danger`, `ghost` (borderless icons). Sizes

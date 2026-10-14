@@ -13,6 +13,7 @@ import { openFromNotification } from '../../lib/openFromNotification'
 import { selectSessionsById, useBoard, type BoardSession } from '../../stores/boardStore'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
+import { Checkbox } from '../Checkbox/Checkbox'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import type { PastScope } from '../PastSessionsDialog/pastSessionsView'
@@ -45,7 +46,6 @@ export function ActiveSessionsPage({
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set())
   const searchRef = useRef<HTMLInputElement | null>(null)
-  const allRef = useRef<HTMLInputElement | null>(null)
   // False once this page unmounts (a page switch, or the dialog closed): a late Archive / Delete
   // answer must never write into the shell of the page open now (final review 1).
   const aliveRef = useRef(true)
@@ -70,10 +70,6 @@ export function ActiveSessionsPage({
   useEffect(() => {
     searchRef.current?.focus()
   }, [])
-  // `indeterminate` is a DOM property with no attribute: set it imperatively.
-  useEffect(() => {
-    if (allRef.current !== null) allRef.current.indeterminate = someChecked
-  }, [someChecked])
 
   function changeScope(next: ScopeFilterValue): void {
     if (next === 'global' || next === 'orphans') return // never offered here
@@ -167,16 +163,15 @@ export function ActiveSessionsPage({
             onChange={setQuery}
           />
           {listed.length > 0 && (
-            <label className={styles.selectAll}>
-              <input
-                ref={allRef}
-                type="checkbox"
-                data-testid="active-select-all"
+            <span className={styles.selectAll}>
+              <Checkbox
+                testId="active-select-all"
+                label="Select all"
                 checked={allChecked}
+                indeterminate={someChecked}
                 onChange={toggleAll}
               />
-              Select all
-            </label>
+            </span>
           )}
           <ManageDialog.Rows>
             {listed.map((s) => (
