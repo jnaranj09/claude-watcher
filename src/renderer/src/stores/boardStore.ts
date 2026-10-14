@@ -136,6 +136,9 @@ export interface LaunchedTerminal {
    *  (`CH.sessionSetWorkspace` moves the SESSION, not this entry). Never filter on it directly —
    *  go through `terminalWorkspaceId(state, entry)`, which prefers the bound session's value. */
   workspaceId: string
+  /** When the focused view last showed it (`withFocus`). Unset until then: an API create
+   *  registers a terminal nobody has looked at. `focusWorkspace` returns to the newest of these. */
+  focusedAt?: number
 }
 
 /**
@@ -391,8 +394,9 @@ export interface BoardState {
   /**
    * Workspaces — reconcile the focused view with a newly-active workspace.
    *
-   * Re-points the PIN (`focusedTerminalId`) at that workspace's most recently launched terminal,
-   * or drops to the board when it has none. It does NOT change `viewMode` otherwise: the view is
+   * Re-points the PIN (`focusedTerminalId`) at that workspace's most recently FOCUSED terminal
+   * (`LaunchedTerminal.focusedAt`), else its most recently launched one, or drops to the board
+   * when it has none. It does NOT change `viewMode` otherwise: the view is
    * the operator's, so a switch made from the board comes back to the board.
    *
    * It NEVER unmounts a terminal: every kept-alive frame stays in `launchedTerminals` and simply
@@ -543,6 +547,27 @@ function terminalWorkspaceId(state: BoardState, entry: LaunchedTerminal): string
     if (session !== undefined) return session.workspaceId
   }
   return entry.workspaceId
+}
+
+/**
+ * Show `terminalId` in the focused view, and stamp `focusedAt` on its registry entry so a
+ * workspace switch-back returns to it (`focusWorkspace`). Every path into the focused view goes
+ * through here. A terminal outside the registry (a plain #terminals shell) is shown, not stamped.
+ */
+function withFocus(
+  state: BoardState,
+  terminalId: string,
+  at: number
+): Pick<BoardState, 'viewMode' | 'focusedTerminalId' | 'launchedTerminals'> {
+  const entry = state.launchedTerminals[terminalId]
+  return {
+    viewMode: 'focused',
+    focusedTerminalId: terminalId,
+    launchedTerminals:
+      entry === undefined
+        ? state.launchedTerminals
+        : { ...state.launchedTerminals, [terminalId]: { ...entry, focusedAt: at } }
+  }
 }
 
 /**
@@ -717,7 +742,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // The terminal renders + is typeable immediately; the session `id` (selectedId) reconciles
       // later. Single-window in-app VIEW-STATE only — no routing, no window raise.
       get().registerLaunchedTerminal(terminalId, label, workspaceId)
-      set({ viewMode: 'focused', focusedTerminalId: terminalId })
+      set(withFocus(get(), terminalId, now()))
     },
 
     openShellPane: (parentTerminalId, shellTerminalId) => {
@@ -765,7 +790,10 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       const state = get()
       const next = Object.values(state.launchedTerminals)
         .filter((t) => terminalWorkspaceId(state, t) === activeId)
-        .sort((a, b) => b.launchedAt - a.launchedAt)[0]
+        .sort(
+          (a, b) =>
+            (b.focusedAt ?? -Infinity) - (a.focusedAt ?? -Infinity) || b.launchedAt - a.launchedAt
+        )[0]
       if (next === undefined) {
         set({ viewMode: 'board', focusedTerminalId: null })
         return
@@ -776,8 +804,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // and a card click own it); this action only keeps `focusedTerminalId` inside the active
       // workspace, which selectRailActiveSessionId and EmbeddedTerminal's shortcut scope both
       // assume. The board fallback above is the one exception: with no terminal to show there
-      // is no focused view to stay in.
-      set({ focusedTerminalId: next.terminalId })
+      // is no focused view to stay in. From the focused view, the terminal it lands on is now
+      // shown, so it counts as focused; from the board it is only the pin.
+      set(
+        state.viewMode === 'focused'
+          ? withFocus(state, next.terminalId, now())
+          : { focusedTerminalId: next.terminalId }
+      )
     },
 
     activateCard: (id) => {
@@ -803,9 +836,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
         // No binding yet (the correlation push has not landed) ⇒ STAY on the board. There is no
         // terminal of this card's own to show, and entering Focused would put a DIFFERENT
         // session's terminal on screen under this card's name — the same defect, one card later.
-        ...(terminalId !== undefined
-          ? { viewMode: 'focused' as const, focusedTerminalId: terminalId }
-          : {})
+        ...(terminalId !== undefined ? withFocus(state, terminalId, now()) : {})
       })
     },
 
@@ -838,7 +869,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       // caller pairs it with acknowledge(sessionId) — this action knows only the terminalId).
       const state = get()
       if (state.focusedTerminalId === terminalId && state.viewMode === 'focused') return
-      set({ viewMode: 'focused', focusedTerminalId: terminalId })
+      set(withFocus(state, terminalId, now()))
     },
 
     showQuitGuard: (payload) => {

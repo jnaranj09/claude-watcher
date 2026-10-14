@@ -798,7 +798,9 @@ describe('boardStore — registerLaunchedTerminal (an API launch must not steal 
       terminalId: 'ui-t',
       label: 'projectA',
       launchedAt: FIXED_NOW,
-      workspaceId: 'default'
+      workspaceId: 'default',
+      // Opening it shows it: the operator's own launch counts as focused (focusWorkspace).
+      focusedAt: FIXED_NOW
     })
     // (The focus half is covered by the Story-3.2/5.6 cases above — not duplicated here.)
   })
@@ -1102,10 +1104,10 @@ describe('workspace filtering', () => {
     expect(store.getState().launchedTerminals['t1']?.workspaceId).toBe('w1')
   })
 
-  it('focusWorkspace moves focus to the newest terminal of the new workspace', () => {
-    // A mutable clock — w1 gets TWO terminals with DIFFERENT launchedAt values, so "newest wins"
-    // is actually distinguishable from "the only one wins" (a constant now() would stamp both
-    // t1 and t3 with the same launchedAt, making the assertion ambiguous).
+  it('focusWorkspace moves focus to the last opened terminal of the new workspace', () => {
+    // A mutable clock — w1 gets TWO terminals opened at DIFFERENT times, so "last wins" is
+    // actually distinguishable from "the only one wins" (a constant now() would stamp both t1 and
+    // t3 the same, making the assertion ambiguous).
     let clock = 1
     const store = createBoardStore({ now: () => clock })
     store.getState().openLaunchedTerminal('t1', 'a', 'w1')
@@ -1115,6 +1117,78 @@ describe('workspace filtering', () => {
     store.getState().focusWorkspace('w1')
     expect(store.getState().focusedTerminalId).toBe('t3')
     expect(store.getState().viewMode).toBe('focused')
+  })
+
+  // IdeasBoard bug: switch-back landed on the newest LAUNCH, not where the operator was working.
+  it('focusWorkspace returns to the last FOCUSED terminal, not a newer API launch', () => {
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1') // the operator works here
+    clock = 2
+    store.getState().registerLaunchedTerminal('t2', 'b', 'w1') // an API create: never focused
+    clock = 3
+    store.getState().focusWorkspace('w2')
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBe('t1')
+  })
+
+  it('focusWorkspace returns to an older terminal the operator switched back to', () => {
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    clock = 2
+    store.getState().openLaunchedTerminal('t2', 'b', 'w1')
+    clock = 3
+    store.getState().switchTerminal('t1') // a rail click back to the older one
+    clock = 4
+    store.getState().focusWorkspace('w2')
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBe('t1')
+  })
+
+  it('a card click counts as focusing its terminal', () => {
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().openLaunchedTerminal('t1', 'a', 'w1')
+    store.getState().addCorrelation('s1', 't1')
+    store.getState().applyWatchEvent(updated('s1', 'w1'))
+    clock = 2
+    store.getState().openLaunchedTerminal('t2', 'b', 'w1')
+    clock = 3
+    store.getState().activateCard('s1')
+    clock = 4
+    store.getState().focusWorkspace('w2')
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBe('t1')
+  })
+
+  it('from the focused view, the terminal a workspace switch lands on counts as focused', () => {
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().registerLaunchedTerminal('t1', 'a', 'w1')
+    store.getState().openLaunchedTerminal('t9', 'z', 'w2') // the operator is in w2's terminal
+    clock = 2
+    store.getState().focusWorkspace('w1') // lands on t1 and SHOWS it
+    clock = 3
+    store.getState().registerLaunchedTerminal('t2', 'b', 'w1') // newer, never shown
+    store.getState().focusWorkspace('w2')
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBe('t1')
+  })
+
+  it('a switch made from the board is not a focus: never-focused terminals fall back to the newest launch', () => {
+    let clock = 1
+    const store = createBoardStore({ now: () => clock })
+    store.getState().registerLaunchedTerminal('t1', 'a', 'w1')
+    clock = 2
+    store.getState().registerLaunchedTerminal('t2', 'b', 'w1')
+    clock = 3
+    store.getState().focusWorkspace('w1') // re-points at t2; if that counted, t2 would win below
+    clock = 4
+    store.getState().registerLaunchedTerminal('t3', 'c', 'w1') // newest, never focused
+    store.getState().focusWorkspace('w2')
+    store.getState().focusWorkspace('w1')
+    expect(store.getState().focusedTerminalId).toBe('t3')
   })
 
   it('focusWorkspace leaves you on the BOARD when the board is where you were', () => {
