@@ -149,7 +149,8 @@
   border-color: var(--ws-border);
 }
 /* A workspace row centres its name and pills as ONE group, like the switcher button (owner,
-   2026-10-12: "a workspace bubble text is centred anywhere it appears"). */
+   2026-10-12). The Manage rail's workspace rows are the exception: left-aligned, two lines (owner,
+   2026-10-14). */
 .item[data-tone] {
   justify-content: center;
 }

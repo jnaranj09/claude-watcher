@@ -39,6 +39,7 @@ import {
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
 import { Radio } from '../Radio/Radio'
+import { Callout } from '../Callout/Callout'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './WorkspacesDialog.module.css'
 
@@ -201,14 +202,18 @@ function WorkspaceForm({
         )}
       </div>
 
-      {/* The cascade warning — the one thing this Delete says that Templates' does not, because
+      {/* The cascade warning, a danger Callout (owner, 2026-10-14: a muted line under the folder
+          was easy to miss before an irreversible delete) — the one thing this Delete says that Templates' does not, because
           deleting a workspace also deletes everything scoped to it: templates, shortcuts, tags,
           rules and past sessions (main's `cascade()`; UX-09 — rules and past sessions were left
           out and went silently). */}
       {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && state.armed && (
-        <ManageDialog.Hint testId="workspace-delete-confirm-text">
-          {`Delete ${workspace.name}? Its templates, shortcuts, tags, rules and past sessions are deleted too. This cannot be undone.`}
-        </ManageDialog.Hint>
+        <Callout
+          tone="danger"
+          testId="workspace-delete-confirm-text"
+          title={`Delete ${workspace.name}?`}
+          detail="Its templates, shortcuts, tags, rules and past sessions are deleted too. This cannot be undone."
+        />
       )}
 
       <ManageDialog.Footer>
@@ -293,8 +298,10 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
                   selectTestId={`workspace-select-${w.id}`}
                   tint={w.color}
                 >
-                  <span className={styles.rowName}>{w.name}</span>
-                  <span className={styles.rowFolder}>{w.defaultCwd ?? 'None'}</span>
+                  <span className={styles.rowText}>
+                    <span className={styles.rowName}>{w.name}</span>
+                    <span className={styles.rowFolder}>{w.defaultCwd ?? 'None'}</span>
+                  </span>
                 </ManageDialog.Row>
               ))}
               {workspaces.length === 0 && loadFailed && (

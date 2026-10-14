@@ -501,7 +501,7 @@ export function ManageDialogPages<P extends string>({
 }
 
 export interface ManageDialogListProps {
-  /** `wide` (260px) fits a second line of detail in each row (Workspaces' default folder). */
+  /** `wide` (300px) fits two-line rows (Workspaces' default folder, Shortcuts' alias + scope). */
   size?: 'standard' | 'wide'
   children: ReactNode
 }

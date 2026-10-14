@@ -33,6 +33,15 @@ const compoundWith = (selector: string, pseudo: string): string | undefined =>
 const classesOf = (compound: string): string[] =>
   [...compound.matchAll(/\.([A-Za-z0-9_-]+)/g)].map((m) => m[1]!)
 
+// A clickable class whose hover its PARENT paints, so a control drawn beside it inside that parent
+// sits in the same highlight. Key: `<file> .<class>` → the parent class, which must have its own
+// `:hover` rule in the same sheet (or the entry hides a missing hover).
+const HOVERED_BY_PARENT = new Map([
+  // The Manage rail row hovers as a whole, so the favorite pin and the row checkbox, drawn before
+  // the select button, are inside the highlight (owner, 2026-10-14).
+  ['components/ManageDialog/ManageDialog.module.css .rowSelect', 'row']
+])
+
 function clickableWithoutHover(): string[] {
   const out: string[] = []
   for (const file of sheets) {
@@ -54,7 +63,11 @@ function clickableWithoutHover(): string[] {
         }
       }
     }
-    for (const c of clickable) if (!hovered.has(c)) out.push(`${relative(rendererDir, file)} .${c}`)
+    for (const c of clickable) {
+      const key = `${relative(rendererDir, file)} .${c}`
+      const parent = HOVERED_BY_PARENT.get(key)
+      if (!hovered.has(c) && (parent === undefined || !hovered.has(parent))) out.push(key)
+    }
   }
   return out
 }

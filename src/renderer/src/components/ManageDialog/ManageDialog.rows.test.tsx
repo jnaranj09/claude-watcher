@@ -176,7 +176,18 @@ describe('ManageDialog.Row tint (spec 2026-09-29)', () => {
     expect(css).toMatch(
       /\.row\[data-tone\]\[data-selected='true'\]\s*\{[^}]*border-color:\s*var\(--text-primary\)/
     )
-    expect(css).toMatch(/\.row\[data-tone\] \.rowSelect:hover\s*\{[^}]*background:\s*transparent/)
+    // The fill hover is for untinted rows only — on a tinted row it would cover the tint.
+    expect(css).toMatch(/\.row:not\(\[data-tone\]\):hover\s*\{[^}]*background-image/)
+  })
+
+  // The pin and the checkbox sit before the select button, so a hover on the button alone left
+  // them outside the highlighted box (owner, 2026-10-14).
+  it('hovers the whole row, never the select button alone', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/ManageDialog/ManageDialog.module.css'),
+      'utf8'
+    )
+    expect(css).not.toMatch(/\.rowSelect:hover/)
   })
 })
 

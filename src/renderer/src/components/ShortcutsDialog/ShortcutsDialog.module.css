@@ -10,16 +10,31 @@
   color: var(--text-secondary);
   font-size: var(--font-size-meta);
 }
-/* A rail row: the name, then the alias muted after it. Both truncate (operator-typed). */
+/* A rail row is two lines: the name on top with the whole width, then the alias muted with its
+   scope marker under it (owner, 2026-10-14: one line cut every name to a few letters). */
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
 .rowName {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.rowMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
 .rowAlias {
-  margin-left: auto;
-  padding-left: var(--inset-compact-x);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: var(--font-size-meta);

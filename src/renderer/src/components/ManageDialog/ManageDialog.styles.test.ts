@@ -142,8 +142,8 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.panel')).toMatch(/max-height:\s*calc\(100vh/)
   })
 
-  it('a rail row is 36px, 13 / 500 — the same row as a menu row', () => {
-    expect(ruleBody(css, '.rowSelect')).toMatch(/min-height: 36px;/)
+  it('a rail row is 44px, 13 / 500 — taller than a menu row, room for a second line', () => {
+    expect(ruleBody(css, '.rowSelect')).toMatch(/min-height: 44px;/)
     expect(ruleBody(css, '.rowSelect')).toMatch(/font-size: var\(--font-size-body\);/)
     expect(ruleBody(css, '.rowSelect')).toMatch(/font-weight: 500;/)
   })
@@ -169,7 +169,7 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
 
   it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
     expect(ruleBody(css, '.rows')).toMatch(/overflow-y:\s*auto/)
-    expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*360px/)
+    expect(ruleBody(css, '.rows')).toMatch(/max-height:\s*480px/)
     expect(ruleBody(css, '.listBottom')).toMatch(/margin-top:\s*auto/)
   })
 

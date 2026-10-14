@@ -2,14 +2,23 @@
    and the default-folder line. The shell, list rail, form, footer and every button are
    ManageDialog.module.css (.claude/rules/design.md). A workspace's colour is its
    tint (WorkspaceTint) — the rows and the swatches below read it. */
+/* Two lines from the row's left inset: the name, then the default folder under it (owner,
+   2026-10-14: centred text left odd empty space on the left). Both ellipsize when long. */
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
 .rowName {
-  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: var(--font-weight-label);
 }
 .rowFolder {
-  /* Its text's width, not the rest of the row: name + folder centre as one group (the row is a
-     centred workspace bubble, ManageDialog). It still shrinks and ellipsizes when long. */
-  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -649,6 +649,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | CSS-only glass                                                                                      | WebGL board glass; CSS for overlays and as fallback                                                 | The canvas look; CSS cannot bend or self-light                                    |
 | Graphite default wallpaper                                                                          | Lake                                                                                                | Owner pick 2026-10-08                                                             |
 | Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                            | Owner 2026-10-13: quiet in every row                                              |
+| Workspace bubble text centred everywhere; Manage rail rows 36px, one line, hover on the label only  | Manage rail rows 44px, two lines where there is detail, left-aligned; hover is the whole row        | Owner 2026-10-14: names were cut, centring left odd space, the pin sat outside    |
 
 ## 13. Rejected — don't propose these again
 

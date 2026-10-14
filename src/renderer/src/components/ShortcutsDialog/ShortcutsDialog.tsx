@@ -145,11 +145,15 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
                       testId={`shortcut-favorite-${s.id}`}
                     />
                   </ManageDialog.RowFavorite>
-                  <span className={styles.rowName}>{s.name}</span>
-                  <span className={styles.rowAlias} data-testid={`shortcut-alias-${s.id}`}>
-                    {s.alias}
+                  <span className={styles.rowText}>
+                    <span className={styles.rowName}>{s.name}</span>
+                    <span className={styles.rowMeta}>
+                      <span className={styles.rowAlias} data-testid={`shortcut-alias-${s.id}`}>
+                        {s.alias}
+                      </span>
+                      <ScopeMarker workspaceId={s.workspaceId} workspaces={workspaces} />
+                    </span>
                   </span>
-                  <ScopeMarker workspaceId={s.workspaceId} workspaces={workspaces} />
                 </ManageDialog.Row>
               ))}
               {shortcuts.length === 0 &&

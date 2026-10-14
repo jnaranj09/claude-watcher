@@ -25,7 +25,9 @@
   border-radius: var(--rounded-lg);
   padding: var(--inset-panel);
   min-width: 640px;
-  max-width: 760px;
+  /* Room for two-line rail rows and a form beside them (owner, 2026-10-14: "that page can be
+     wider and taller"). The window still caps it (`max-height` below, `width: 100%`). */
+  max-width: 900px;
   width: 100%;
   max-height: calc(100vh - 2 * var(--space-6));
   color: var(--text-primary);
@@ -37,7 +39,7 @@
 /* Rules: its form carries trigger, condition and action rows side by side. */
 .panelWide {
   min-width: 760px;
-  max-width: 940px;
+  max-width: 1040px;
   gap: var(--gap-section);
 }
 
@@ -95,7 +97,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--gap-section);
-  min-height: 320px;
+  min-height: 440px;
 }
 /* A paged dialog (spec 2026-10-03 C): `pages | rail | form`. The third track exists only beside a
    rail — Import is `pages | form` and keeps the two tracks above. */
@@ -125,7 +127,7 @@
   padding-right: var(--gap-page);
 }
 .listWide {
-  width: 260px;
+  width: 300px;
 }
 .rows {
   display: flex;
@@ -133,7 +135,7 @@
   gap: var(--gap-row);
   flex: 1;
   overflow-y: auto;
-  max-height: 360px;
+  max-height: 480px;
   /* A row reached by keyboard parks above the end fade, not inside it (same 32px). */
   scroll-padding-bottom: 32px;
 }
@@ -152,6 +154,11 @@
   border: 1px solid transparent;
   border-radius: var(--rounded-md);
 }
+/* The hover is the WHOLE row, so a pin or checkbox drawn before the select button sits inside the
+   highlighted box with the label (owner, 2026-10-14). A tinted row hovers on its border instead. */
+.row:not([data-tone]):hover {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
 .row[data-selected='true'] {
   background: var(--bg-surface);
   border-color: var(--border-strong);
@@ -162,7 +169,7 @@
   display: flex;
   align-items: center;
   gap: var(--gap-inline);
-  min-height: 36px;
+  min-height: 44px;
   text-align: left;
   padding: var(--inset-item-y) var(--inset-item-x);
   border: none;
@@ -174,12 +181,8 @@
   font-weight: 500;
   cursor: pointer;
 }
-.rowSelect:hover {
-  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
-}
 /* A workspace row (`tint`): the row is its workspace's colour (WorkspaceTint). The fill IS the
-   colour, so hover and selected move to the BORDER, and the select button's own hover fill is off
-   (it would cover the tint). */
+   colour, so hover and selected move to the BORDER. */
 /* Tinted rows are filled boxes: 2px between them reads as one block, so they get a real gap. */
 .rows:has(> .row[data-tone]) {
   gap: var(--gap-row-filled);
@@ -194,16 +197,6 @@
 .row[data-tone][data-selected='true'] {
   background: var(--ws-fill, var(--bg-surface));
   border-color: var(--text-primary);
-}
-.row[data-tone] .rowSelect:hover {
-  background: transparent;
-}
-/* A workspace row is a bubble: its text is centred in the WHOLE row, like the switcher (owner,
-   2026-10-12). The actions slot takes the right end, so the select button starts that much further
-   in and the centre lands on the row's, not the button's. */
-.row[data-tone] .rowSelect {
-  justify-content: center;
-  padding-left: calc(var(--inset-item-x) + var(--row-actions-width));
 }
 /* Fixed width + `visibility` (not `display`): the slot always takes its space, so a row never
    changes width when its actions appear, and nothing moves when one of them arms. Hidden controls

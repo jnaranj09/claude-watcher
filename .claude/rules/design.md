@@ -74,8 +74,8 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - **One selected look.** Every list where ONE entry is the current one — rail rows, Settings
   categories, the page column — draws it the same way: the row markup (`.row` + `.rowSelect`) and
   `.row[data-selected='true']` (`--bg-surface` fill, `--border-strong` edge). Never a second
-  "selected" style (a bar, a tint, bold text) for another list. Hover is the shared `.rowSelect`
-  hover.
+  "selected" style (a bar, a tint, bold text) for another list. Hover is the shared `.row` hover
+  (the whole row, pin and checkbox included).
 - **Page column** (spec 2026-10-03 C): a dialog with SIBLING pages (Sessions: Active · Past ·
   Templates · Import; Tags: Tags · Rules) puts them in `ManageDialog.Pages` at the far left —
   `pages | rail | form`, or `pages | form` with no list. Text rows, a `nav` with
@@ -264,8 +264,9 @@ one above it. The exception is a Settings row: its label and control sit at the 
 
 4. **Same kind, same size.** Settings rows share one `min-height` (a 36px field Select/TextInput
    - insets), so a switch row matches a dropdown row. Every rail search is
-     `<TextInput variant="inline">`. Every menu, list and Manage rail row is 36px, 13 / 500
-     (`Popover` `.item`, `.rowSelect`); compact and quiet popover rows keep their own size. Open-rail
+     `<TextInput variant="inline">`. Every menu and list row is 36px, 13 / 500
+     (`Popover` `.item`); a Manage rail row is 44px, 13 / 500 (`.rowSelect`), room for a second
+     line (Shortcuts, Workspaces) — its hover is the whole row, pin and checkbox included; compact and quiet popover rows keep their own size. Open-rail
      rows 36, active row 40; collapsed rail 40 / 44 squares.
 5. **A scroll region never ends flush on a fixed region.** The rail list stops `--gap-group` above
    the bottom slot. The sticky footer's space is its PADDING (stays while the form scrolls under
