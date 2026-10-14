@@ -30,90 +30,86 @@
     0 0 1px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-/* ── The header is a white bar with a clear edge, so its white never runs into the board's. ── */
-[data-testid='app-header'] {
-  background: var(--bg-surface);
-  border-bottom-color: var(--border-strong);
-  box-shadow: 0 1px 3px rgba(28, 28, 30, 0.08);
-}
-
-/* ── Pills: every Button, the search box and the filter chips. ─────────────────────────────── */
+/* ── Controls: every Button is radius 8. Secondary-look controls are white with the ring and no
+   border; the primary is ink with white ink. ── */
 button[data-variant] {
-  border-radius: var(--rounded-full);
+  border-radius: var(--rounded-lg);
 }
-[data-testid='board-search'],
-[data-testid='filter-pill-tag'],
-[data-testid='filter-add'],
-[data-testid='workspace-switcher'] {
-  border-radius: var(--rounded-full);
+button[data-variant='secondary'],
+button[data-variant='danger']:not([data-armed]),
+[aria-haspopup='listbox'] {
+  background-color: var(--bg-surface);
+  border-color: transparent;
+  box-shadow: var(--paper-ring);
 }
-
-/* The one main action of a surface: a near-black pill with white ink (the reference's dark card).
-   14.2:1. Status colours keep their own meaning — `--working` stays blue on cards and dots. */
+button[data-variant='danger']:not([data-armed]) {
+  color: var(--danger);
+}
 button[data-variant='primary'] {
-  background: #2a2b2a;
-  border-color: #2a2b2a;
-  color: #ffffff;
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--text-on-lit);
+  font-weight: 600;
 }
-button[data-variant='primary']:hover:not(:disabled),
-button[data-variant='primary']:focus-visible {
-  background: #3a3b3a;
-  border-color: #3a3b3a;
+button[data-variant='primary']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 86%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--text-primary) 86%, var(--bg-surface));
 }
-
-/* Hover: every button, pill and list row turns into the near-black pill with white ink, like the
-   primary. The `background` shorthand also drops the app's `--bg-hover` layer. Danger keeps its
-   red hover; a workspace-tinted row keeps its tint (its hover moves the border). Cards and the
-   Select box keep the app's hover layer. */
-button[data-variant='secondary']:hover:not(:disabled),
-button[data-variant='ghost']:hover:not(:disabled),
-button[data-variant='ghost'][aria-expanded='true'],
-button[data-testid='filter-add']:hover,
-button[data-testid='filter-pill-tag-edit']:hover,
-button[data-testid='filter-pill-tag-remove']:hover,
-button[data-testid='rail-tags-add']:hover,
-button[data-testid='workspace-switcher']:hover,
-[data-testid='attention-rail'] button[data-testid='rail-row']:hover,
-[data-testid='attention-rail'] button[data-testid='starting-rail-row']:not([data-active]):hover,
-:not([data-tone]) > [data-manage-row-select]:hover,
-[data-popover-item]:not([data-tone]):hover:not(:disabled),
-[data-favorite-row]:has([data-favorite]:hover) > [data-popover-item] {
-  background: #2a2b2a;
-  border-color: #2a2b2a;
-  color: #ffffff;
-  /* Inner parts (a menu row's icon, a count) colour themselves with these; on the dark pill they
-     must be light too, and a count pill's `--border-strong` fill goes dark under its white digit.
-     Tag chips use their own tokens and keep their look. */
-  --text-primary: #ffffff;
-  --text-secondary: #ffffff;
-  --text-muted: #d8d8dd;
-  --border-strong: #4a4b4f;
-}
-/* A popover row's pin sits ON that pill but outside the row button, so it does not inherit the
-   pill's white ink: give it the same. */
-[data-favorite-row]:hover [data-favorite] {
-  color: #ffffff;
-}
-
-/* An ON toggle: the near-black of the base theme (`--text-primary`), darker than the hover pill.
-   Two attributes + the element outrank Button's own `.button[data-lit]` (and its :hover). */
+/* A lit toggle keeps the app's look (ink fill, white ink). The white secondary above outranks the
+   app's `.button[data-lit]`, so it is restated here, hover included, without the ring. */
 button[data-variant][data-lit],
 button[data-variant][data-lit]:hover:not(:disabled) {
-  background: #1c1c1e;
-  border-color: #1c1c1e;
-  color: #ffffff;
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--text-on-lit);
+  box-shadow: none;
+}
+[aria-haspopup='listbox'] {
+  border-radius: var(--rounded-lg);
+  min-height: 30px;
 }
 
-/* ── Panels float on the ground: a soft shadow draws the edge instead of a hard rule. ───────── */
-[data-column] {
-  box-shadow: 0 1px 2px rgba(28, 28, 30, 0.05);
+/* The workspace switcher and its elsewhere tab: radius 10 and the ring, over their own tint. */
+[data-workspace-switcher],
+[data-workspace-tab] {
+  border-radius: 10px;
+  border-color: transparent;
+  box-shadow: var(--paper-ring);
 }
-/* Cards drop the hard rule on three sides; the left one is the status spine and keeps its colour. */
-[data-session-id][data-status] {
-  border-top-color: transparent;
-  border-right-color: transparent;
-  border-bottom-color: transparent;
+
+/* ── Counts: one rounded square everywhere, mono 10 px. Gold carries a dark digit (white on
+   #b8860b is 3.2:1). The column headers give the plain count its grey fill (board section). ── */
+[data-count] {
+  border-radius: var(--rounded-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
-[data-terminal-panel] {
+[data-count='needs-you'] {
+  color: var(--text-primary);
+}
+
+/* ── Header: white, 56 px, one line at the bottom, no shadow. ── */
+[data-glass='header'] {
+  background: var(--bg-surface);
+  min-height: 56px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+[data-app-title] {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+/* ── Toolbar: the search box is the one field with a border. ── */
+[data-glass='field'] {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: var(--rounded-lg);
+  box-shadow: none;
+}
+[data-session-count] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
 }

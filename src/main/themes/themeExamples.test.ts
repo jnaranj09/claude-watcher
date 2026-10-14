@@ -647,8 +647,36 @@ describe('docs/themes/examples', () => {
     ].reduce((sum, f) => sum + statSync(resolve(dir, f)).size, 0)
     expect(total).toBeLessThanOrEqual(THEME_ASSETS_MAX_BYTES)
   })
-  // Fails until the old Paper rules (which select test ids) are rewritten.
-  it.todo('paper selects no test id')
+  it('paper selects no test id and no CSS-module class', () => {
+    const css = readFileSync(resolve(examples, 'paper/theme.css'), 'utf8')
+    expect(css).not.toContain('data-testid')
+    expect(css).not.toMatch(/\[class[*^$]?=/)
+  })
+  it('paper: one control look — no pills, no black hover, a ring instead of a border', () => {
+    const css = readFileSync(resolve(examples, 'paper/theme.css'), 'utf8')
+    expect(css).not.toContain('--rounded-full')
+    expect(css).not.toMatch(/#2a2b2a/i)
+    const secondary = bodyOf('paper', "button[data-variant='secondary']")
+    expect(secondary).toMatch(/box-shadow:\s*var\(--paper-ring\)/)
+    expect(secondary).toMatch(/border-color:\s*transparent/)
+    expect(bodyOf('paper', "button[data-variant='primary']")).toMatch(
+      /background:\s*var\(--text-primary\)/
+    )
+  })
+  it('paper: a lit toggle keeps the app look over the white secondary', () => {
+    const lit = bodyOf('paper', 'button[data-variant][data-lit]')
+    expect(lit).toMatch(/background:\s*var\(--text-primary\)/)
+    expect(lit).toMatch(/color:\s*var\(--text-on-lit\)/)
+    expect(lit).toMatch(/box-shadow:\s*none/)
+  })
+  it('paper: the workspace switcher keeps its tint (no background of its own)', () => {
+    expect(bodyOf('paper', '[data-workspace-switcher]')).not.toMatch(/background/)
+  })
+  it('paper: every count is a radius-4 mono square with a dark digit on gold', () => {
+    expect(bodyOf('paper', '[data-count]')).toMatch(/border-radius:\s*var\(--rounded-sm\)/)
+    expect(bodyOf('paper', '[data-count]')).toMatch(/font-family:\s*var\(--font-mono\)/)
+    expect(bodyOf('paper', "[data-count='needs-you']")).toMatch(/color:\s*var\(--text-primary\)/)
+  })
   it("paper's terminal IS the built-in light palette (Follow theme = Light)", () => {
     expect(paperManifest().terminal).toEqual(xtermLightTheme)
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)
