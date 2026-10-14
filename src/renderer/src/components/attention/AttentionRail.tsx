@@ -269,6 +269,7 @@ function RailRow(props: {
     <div
       className={className}
       data-testid="rail-row"
+      data-rail-row=""
       data-session-id={id}
       data-status={status}
       {...(emphasized ? { 'data-emphasized': true } : {})}
@@ -299,6 +300,7 @@ function RailRow(props: {
       type="button"
       className={className}
       data-testid="rail-row"
+      data-rail-row=""
       data-session-id={id}
       data-status={status}
       {...(emphasized ? { 'data-emphasized': true } : {})}
@@ -484,7 +486,13 @@ function RenameButton(props: { name: string; onClick: () => void }): JSX.Element
  */
 function RailDivider(props: { label: string }): JSX.Element {
   return (
-    <div className={styles.divider} data-testid="rail-divider" data-label={props.label} aria-hidden>
+    <div
+      className={styles.divider}
+      data-testid="rail-divider"
+      data-rail-heading=""
+      data-label={props.label}
+      aria-hidden
+    >
       <span className={styles.dividerLabel}>{props.label}</span>
     </div>
   )
@@ -572,6 +580,7 @@ function StartingRailRow(props: { terminal: LaunchedTerminal; collapsed: boolean
       type="button"
       className={`${styles.startingRow} ${active ? styles.active : ''}`}
       data-testid="starting-rail-row"
+      data-rail-row=""
       data-terminal-id={terminalId}
       {...(active ? { 'data-active': true } : {})}
       aria-label={rowLabel}
@@ -707,11 +716,16 @@ export function AttentionRail({
     <nav
       className={`${styles.rail} ${collapsed ? styles.collapsed : ''}`}
       data-testid="attention-rail"
+      data-rail=""
       data-collapsed={collapsed}
       aria-label="Sessions"
     >
-      <div className={styles.header}>
-        {!collapsed && <span className={styles.title}>Sessions</span>}
+      <div className={styles.header} data-rail-head="">
+        {!collapsed && (
+          <span className={styles.title} data-rail-title="">
+            Sessions
+          </span>
+        )}
         <span className={styles.headerTools}>
           {!collapsed && hasTags && (
             <Button

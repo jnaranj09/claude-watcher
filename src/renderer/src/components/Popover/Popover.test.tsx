@@ -259,3 +259,17 @@ describe('Popover rows — one size and text style (spec 2026-10-07 A.5)', () =>
     expect(own).toMatch(/font-weight: var\(--font-weight-label\);/)
   })
 })
+
+describe('Popover parts — public theme hooks', () => {
+  it('exposes a row icon and end slot to themes', () => {
+    const r = render(
+      <Popover.Item testId="row">
+        <Popover.ItemIcon>i</Popover.ItemIcon>
+        name
+        <Popover.ItemEnd>e</Popover.ItemEnd>
+      </Popover.Item>
+    )
+    expect(r.container.querySelector('[data-popover-item] [data-popover-icon]')).not.toBeNull()
+    expect(r.container.querySelector('[data-popover-item] [data-popover-end]')).not.toBeNull()
+  })
+})

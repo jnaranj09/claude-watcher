@@ -114,10 +114,12 @@ export function ManageDialogHeader({
   // linter treat every `meta.*` read as a ref read).
   const { title, testIdPrefix, closeRef } = meta
   return (
-    <div className={styles.header} data-subtitled={subtitle !== undefined}>
+    <div className={styles.header} data-subtitled={subtitle !== undefined} data-manage-head="">
       <div className={styles.headerText}>
         <div className={styles.titleRow}>
-          <h2 className={styles.title}>{title}</h2>
+          <h2 className={styles.title} data-manage-title="">
+            {title}
+          </h2>
           {children}
         </div>
         {subtitle !== undefined && <p className={styles.subtitle}>{subtitle}</p>}
@@ -129,6 +131,7 @@ export function ManageDialogHeader({
           size="sm"
           icon="round"
           buttonRef={closeRef}
+          data-manage-close=""
           testId={`${testIdPrefix}-close`}
           aria-label={`Close ${title.toLowerCase()}`}
           onClick={() => actions.close()}
@@ -187,7 +190,7 @@ export function ManageDialogPane({
 }): JSX.Element {
   const handleKeyDown = useDisarmOnEscape()
   return (
-    <div className={styles.pane} data-testid={testId} onKeyDown={handleKeyDown}>
+    <div className={styles.pane} data-testid={testId} data-manage-pane="" onKeyDown={handleKeyDown}>
       {children}
     </div>
   )
@@ -455,7 +458,11 @@ export function ManageDialogGhostButton({
 /** The `rail | form` grid — `pages | rail | form` when a <Pages> column leads it, `pages | form`
  *  without a rail (Import). The rail sets its own width (List `size`), the form takes the rest. */
 export function ManageDialogColumns({ children }: { children: ReactNode }): JSX.Element {
-  return <div className={styles.columns}>{children}</div>
+  return (
+    <div className={styles.columns} data-manage-body="">
+      {children}
+    </div>
+  )
 }
 
 export interface ManageDialogPagesProps<P extends string> {
@@ -512,7 +519,11 @@ export function ManageDialogList({
   size = 'standard',
   children
 }: ManageDialogListProps): JSX.Element {
-  return <div className={cx(styles.list, size === 'wide' && styles.listWide)}>{children}</div>
+  return (
+    <div className={cx(styles.list, size === 'wide' && styles.listWide)} data-manage-list="">
+      {children}
+    </div>
+  )
 }
 
 /** The scrolling row list. Rows are its DIRECT children — the list is flat in every scope, never

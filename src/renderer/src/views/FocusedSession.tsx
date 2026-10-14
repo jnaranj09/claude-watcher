@@ -248,7 +248,7 @@ export function FocusedSession({
           <span className={styles.crumbSep} aria-hidden>
             /
           </span>
-          <span className={styles.title} data-testid="focused-title">
+          <span className={styles.title} data-testid="focused-title" data-focused-title="">
             {focusedSession && (
               <StatusDot status={DOT_STATUS_FOR_COLUMN[focusedSession.column]} labelHidden />
             )}
@@ -259,7 +259,7 @@ export function FocusedSession({
           </span>
           {/* R1 — only a key that works where focus is. Inside the terminal Esc is claude's. */}
           {!focusInTerminal && (
-            <span className={styles.hint} data-testid="focused-hint">
+            <span className={styles.hint} data-testid="focused-hint" data-focused-hint="">
               Esc to return
             </span>
           )}

@@ -377,8 +377,44 @@ What you can target:
   under `prefers-reduced-motion`. Do not put `opacity` below 1 on an element whose child blurs
   with `backdrop-filter` (or a `::before` that does): Chromium then cuts that blur off.
 - **Not test ids.** `data-testid` attributes exist for the app's tests and change with them, so
-  a theme never selects one. Use the public `data-*` hooks in this list. The bundled themes still
-  select test ids; they move to named hooks in a later change.
+  a theme never selects one. Use the public `data-*` hooks in this list. Liquid Glass still selects
+  test ids; it moves to named hooks in a later change.
+- **Board and focused-view hooks.** All are bare attributes except where a value is shown.
+  - `[data-glass="header|column|card|field|control"]` — the glass surfaces: the app header, a
+    column, a session card, the search field, and a control (an enabled button, the workspace
+    switcher and its tab).
+  - `[data-column="working|needs-you|idle"]` — a board column; `[data-column-grid]` — the group
+    holding the three; `[data-column-body]` — the stack of cards inside one column.
+  - `[data-column-header][data-accent]` — a column's header, `data-accent` its status;
+    `[data-column-label]` — its name; `[data-column-mark]` — its status dot (hidden by the app);
+    `[data-count-sep]` — the `·` before its count.
+  - `[data-count="total|working|needs-you"]` — every count badge: the workspace switcher, its
+    tab and menu rows, the column headers, the Filter count.
+  - `[data-session-count]` — the Filter bar's count of sessions shown.
+  - `[data-app-title]` — the `Claude Watcher` brand in the header.
+  - `[data-workspace-switcher]` — the switcher button; `[data-workspace-tab]` — the elsewhere tab
+    beside it (present whenever other workspaces hold cards, unlike `[data-tucked]`).
+  - `[data-card-title]`, `[data-card-path]`, `[data-pending-tool]`, `[data-card-meta]` — a session
+    card's name, folder path, pending tool name and pid / tasks line.
+  - `[data-session-id][data-status]` — a session's card and rail row, with its status;
+    `[data-selected]` — the selected card.
+  - Rail: `[data-rail]` is the `<nav>`, `[data-collapsed]` its collapsed state, `[data-rail-head]`
+    its top row, `[data-rail-title]` the `Sessions` title, `[data-rail-heading]` a group divider
+    (Needs you, Working, ...), `[data-rail-row]` every session row (also the starting row; the
+    open one adds `[data-active]`).
+  - Focused view: `[data-focused-bar]` is the top bar, `[data-focused-title]` the session title,
+    `[data-focused-hint]` the `Esc to return` hint.
+- **Menu hooks.** `[data-popover-icon]` and `[data-popover-end]` are a popover row's icon and
+  trailing slot. In the `+ New session` popover: `[data-menu-pick-folder]` is the folder row,
+  `[data-menu-manage]` the `Manage templates…` row, and a template row holds `[data-template-name]`,
+  `[data-template-path]` and `[data-template-flags]`.
+- **Dialog hooks.** `[data-manage-panel]` is the dialog box, `[data-manage-head]` its header,
+  `[data-manage-title]` the title, `[data-manage-close]` the ✕, `[data-manage-body]` the rail and
+  form columns, `[data-manage-list]` the left rail, `[data-manage-pane]` a right column with no
+  form (Settings), `[data-manage-footer]` the action row, `[data-manage-row-select]` a rail row's
+  select button. `[data-callout]` is a message with `[data-callout-tone]` and
+  `[data-callout-size]`. Controls use ARIA: a switch is `[role="switch"]`, the Select box is
+  `[aria-haspopup="listbox"]`.
 - **Terminal panels.** `[data-terminal-panel]` is every box drawn as a terminal: the terminal's
   frame, or — while a card's shell is open — claude's half and the shell, each its own panel, with
   the resize divider in the gap between them. Style the terminal's border, radius, shadow and glass

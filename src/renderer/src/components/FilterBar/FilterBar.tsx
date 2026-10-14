@@ -232,7 +232,12 @@ export function FilterBar({
             )}
           </Button>
         )}
-        <span className={styles.count} data-testid="filter-count">
+        <span
+          className={styles.count}
+          data-testid="filter-count"
+          data-count="total"
+          data-session-count=""
+        >
           {countText(total, workspaceTotal, filterOn || searching)}
         </span>
       </div>

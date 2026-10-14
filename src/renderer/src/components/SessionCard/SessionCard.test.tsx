@@ -938,3 +938,16 @@ describe('the ⟳ name-sync mark (D-11)', () => {
     expect(off.container.querySelector('[data-testid="name-sync-pending"]')).toBeNull()
   })
 })
+
+describe('SessionCard — public theme hooks', () => {
+  it('exposes title, path, pending tool and meta line to themes', () => {
+    const { container, unmount } = renderComponent(
+      <SessionCard {...baseProps({ pendingToolName: 'Bash' })} />
+    )
+    cleanup = unmount
+    expect(container.querySelector('[data-card-title]')?.textContent).toBe('deploy-prod')
+    expect(container.querySelector('[data-card-path]')?.textContent).toBe('~/work/acme/api')
+    expect(container.querySelector('[data-pending-tool]')?.textContent).toBe('Bash')
+    expect(container.querySelector('[data-card-meta]')).not.toBeNull()
+  })
+})

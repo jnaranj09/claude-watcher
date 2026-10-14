@@ -265,8 +265,8 @@ Landed walks today:
 **2 — drift tests**
 
 - **(a) Themes.** Owner decision: a theme targets public `data-*` hooks and roles only, never
-  `data-testid` (technical-taste §8). Test ids are retired as a theme hook. The bundled themes
-  still select test ids and move to named hooks in its migration step. When a theme needs a hook that does
+  `data-testid` (technical-taste §8). Test ids are retired as a theme hook. Liquid Glass
+  still selects test ids and moves to named hooks in its migration step. When a theme needs a hook that does
   not exist, add a `data-*` attribute to the component. Planned: a test reads every bundled
   theme (`docs/themes/examples/*/theme.css`) and fails when it names `data-testid`, or selects a
   `[data-*]` name that no non-test renderer file sets. A file sets `data-x` when, comments

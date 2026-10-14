@@ -907,3 +907,16 @@ describe('Board — the Tags… menu offers only global + the card’s own works
     expect(container.querySelector('[data-testid="card-tag-picker-row-t-other"]')).toBeNull()
   })
 })
+
+describe('Board — public theme hooks', () => {
+  it('marks the column group and each column body for themes', () => {
+    const st = boardStore.getState()
+    st.applyWatchEvent(updated(1, 'w', 'working', 100))
+    st.applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+    st.applyWatchEvent(updated(1, 'i', 'idle', 300, { status: 'WaitingForInput' }))
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    expect(container.querySelectorAll('[data-column-grid]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-column] [data-column-body]')).toHaveLength(3)
+  })
+})

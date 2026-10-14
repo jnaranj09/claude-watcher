@@ -235,3 +235,10 @@ describe('custom themes — App wiring', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('App header — public theme hooks', () => {
+  it('marks the brand title for themes', async () => {
+    const r = await renderApp()
+    expect(q(r, '[data-app-title]').textContent).toBe('Claude Watcher')
+  })
+})

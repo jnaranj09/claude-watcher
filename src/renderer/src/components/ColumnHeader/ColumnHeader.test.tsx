@@ -101,3 +101,22 @@ describe('ColumnHeader — one height in every column (spec 2026-10-07 A.1)', ()
     expect(body('.flank .name')).not.toMatch(/line-height/)
   })
 })
+
+describe('ColumnHeader — public theme hooks', () => {
+  it('exposes the label and the count to themes', () => {
+    const { container, unmount } = renderComponent(
+      <ColumnHeader name="Needs you" count={2} accent="needs-you" prominent />
+    )
+    cleanup = unmount
+    expect(container.querySelector('[data-column-label]')?.textContent).toBe('Needs you')
+    expect(container.querySelector('[data-count="needs-you"]')?.textContent).toContain('2')
+  })
+
+  it('counts a non-needs-you column as a total', () => {
+    const { container, unmount } = renderComponent(
+      <ColumnHeader name="Working" count={4} accent="working" />
+    )
+    cleanup = unmount
+    expect(container.querySelector('[data-count="total"]')?.textContent).toContain('4')
+  })
+})

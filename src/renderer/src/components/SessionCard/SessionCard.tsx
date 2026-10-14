@@ -397,7 +397,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       onKeyDown={handleKeyDown}
     >
       <div className={styles.header}>
-        <span className={styles.sessionName} data-testid="session-name">
+        <span className={styles.sessionName} data-testid="session-name" data-card-title="">
           {sessionName}
         </span>
         {nameSyncPending === true && <NameSyncMark />}
@@ -635,17 +635,17 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
         <StatusDot status={status} labelHidden />
       </div>
 
-      <span className={styles.projectPath} data-testid="project-path">
+      <span className={styles.projectPath} data-testid="project-path" data-card-path="">
         {projectPath}
       </span>
 
       {pendingToolName !== undefined && (
-        <span className={styles.pendingToolName} data-testid="pending-tool">
+        <span className={styles.pendingToolName} data-testid="pending-tool" data-pending-tool="">
           {pendingToolName}
         </span>
       )}
 
-      <div className={styles.footer} data-testid="footer">
+      <div className={styles.footer} data-testid="footer" data-card-meta="">
         <span className={styles.pid} data-testid="pid">
           {pid}
         </span>

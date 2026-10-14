@@ -667,7 +667,9 @@ function App(): React.JSX.Element {
       >
         {/* The switcher sits beside the brand, apart from the actions: it says WHERE you are. */}
         <div className={styles.headerLead}>
-          <span className={styles.brand}>Claude Watcher</span>
+          <span className={styles.brand} data-app-title="">
+            Claude Watcher
+          </span>
           <span className={styles.headerDivider} aria-hidden="true" />
           <WorkspaceSwitcher onManage={handleManageWorkspaces} />
         </div>

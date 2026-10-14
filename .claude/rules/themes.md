@@ -55,6 +55,12 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   top bar), `data-favorite="on|off"` (the favorite pin toggle), `data-favorite-row` (a popover row holding a pin; its row hover also covers `:has([data-favorite]:hover)`). Custom properties `--rail-surface` / `--rail-surface-top` (the rail's surface and its
   top bar row; the only way to change it — `AttentionRail.surface.styles.test`). `control` = enabled primary/secondary
   `Button` (not lit, busy or disabled), the workspace switcher and its elsewhere tab.
+  Paper-v2 hooks: `data-app-title`, `data-workspace-switcher`, `data-workspace-tab`,
+  `data-count="total|working|needs-you"`, `data-session-count`, `data-column-grid`,
+  `data-column-body`, `data-column-label`, `data-card-title|path|meta`, `data-pending-tool`,
+  `data-rail`, `data-rail-head|title|heading|row`, `data-focused-title|hint`,
+  `data-popover-icon|end`, `data-menu-pick-folder|manage`, `data-template-name|path|flags`,
+  `data-manage-head|title|close|body|list|pane` (all documented in THEMES.md).
 - `nativeTheme.themeSource` + root `color-scheme` follow the theme's `colorScheme`
   (`themeLifecycle.ts`, `hooks/useApplyTheme.ts`).
 - **Every renderer colour is a token** (`styles/noHexLiterals.test.ts`); `TOKENS` in

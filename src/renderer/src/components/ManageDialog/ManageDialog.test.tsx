@@ -597,3 +597,35 @@ describe('ManageDialog.Delete — two on one surface (spec 2026-10-03 D)', () =>
     expect(q(r, '[data-testid="form-delete"]').textContent).toBe('Delete')
   })
 })
+
+describe('ManageDialog — public theme hooks', () => {
+  function Parts(): JSX.Element {
+    const dialog = useManageDialog({ title: 'Things', testIdPrefix: 'things', onClose: () => {} })
+    return (
+      <ManageDialog.Provider {...dialog}>
+        <ManageDialog.Frame>
+          <ManageDialog.Header />
+          <ManageDialog.Columns>
+            <ManageDialog.List>x</ManageDialog.List>
+            <ManageDialog.Pane>y</ManageDialog.Pane>
+          </ManageDialog.Columns>
+        </ManageDialog.Frame>
+      </ManageDialog.Provider>
+    )
+  }
+
+  it('exposes the dialog parts to themes', () => {
+    const r = renderComponent(<Parts />)
+    cleanup = r.unmount
+    for (const hook of [
+      'data-manage-head',
+      'data-manage-title',
+      'data-manage-close',
+      'data-manage-body',
+      'data-manage-list',
+      'data-manage-pane'
+    ]) {
+      expect(r.container.querySelector(`[${hook}]`), hook).not.toBeNull()
+    }
+  })
+})

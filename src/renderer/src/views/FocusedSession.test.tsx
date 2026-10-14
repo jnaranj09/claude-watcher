@@ -908,3 +908,17 @@ describe('FocusedSession — the >_ Shell button (card shell pane)', () => {
     expect(selectShellPane(boardStore.getState(), 'launch-a')).toBeNull()
   })
 })
+
+describe('FocusedSession — public theme hooks', () => {
+  it('exposes the title and the hint to themes', () => {
+    boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
+    const r = render()
+    // The hint draws only while focus is OUTSIDE the terminal (R1) — put it on ← Board.
+    act(() => {
+      r.container.querySelector<HTMLButtonElement>('[data-testid="focused-back"]')?.focus()
+    })
+    const bar = r.container.querySelector('[data-focused-bar]')
+    expect(bar?.querySelector('[data-focused-title]')).not.toBeNull()
+    expect(bar?.querySelector('[data-focused-hint]')?.textContent).toBe('Esc to return')
+  })
+})

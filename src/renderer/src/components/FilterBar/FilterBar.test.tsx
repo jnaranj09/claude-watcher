@@ -358,3 +358,11 @@ describe('FilterBar — the search box', () => {
     expect(outer).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('FilterBar — public theme hooks', () => {
+  it('marks the session count for themes', () => {
+    const r = render()
+    const count = r.container.querySelector('[data-session-count]')
+    expect(count?.getAttribute('data-count')).toBe('total')
+  })
+})

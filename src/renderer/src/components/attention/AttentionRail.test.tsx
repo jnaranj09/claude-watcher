@@ -1373,3 +1373,24 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     expect(css).not.toMatch(/\.peekPanel|\.peekEdit|data-peek-edit/)
   })
 })
+
+describe('AttentionRail — public theme hooks', () => {
+  it('exposes the rail, its head, headings and rows to themes', () => {
+    act(() => {
+      boardStore.getState().applyWatchEvent(updated(1, 'open', 'idle', 500))
+      boardStore.getState().applyWatchEvent(updated(1, 'busy', 'working', 200))
+      boardStore.getState().addCorrelation('open', 'tid-open')
+      boardStore.getState().switchTerminal('tid-open')
+      boardStore.getState().openLaunchedTerminal('tid-fresh', 'fresh', 'default')
+    })
+    const r = render()
+    const c = r.container
+    expect(c.querySelector('nav[data-rail]')).not.toBeNull()
+    expect(c.querySelector('[data-rail-head] [data-rail-title]')?.textContent).toBe('Sessions')
+    expect(c.querySelectorAll('[data-rail-heading]').length).toBeGreaterThan(0)
+    expect(c.querySelector('[data-rail-row][data-active]')).not.toBeNull()
+    expect(c.querySelector('[data-rail-row]:not([data-active])')).not.toBeNull()
+    // The starting row carries the hook too.
+    expect(c.querySelector('[data-testid="starting-rail-row"][data-rail-row]')).not.toBeNull()
+  })
+})

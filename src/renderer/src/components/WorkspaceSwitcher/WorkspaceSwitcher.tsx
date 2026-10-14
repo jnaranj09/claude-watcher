@@ -160,6 +160,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         type="button"
         ref={buttonRef}
         data-glass="control"
+        data-workspace-switcher=""
         className={`${styles.switcher} ${workspaceTintClass(active?.color ?? 'slate')}`}
         data-testid="workspace-switcher"
         data-tone={active?.color ?? 'slate'}
@@ -171,17 +172,21 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         <LucideIcon name="layers" />
         <span className={styles.name}>{activeName}</span>
         {activeGrey !== null && (
-          <span className={styles.count} data-testid="workspace-card-count">
+          <span className={styles.count} data-testid="workspace-card-count" data-count="total">
             {activeGrey}
           </span>
         )}
         {activeWorking > 0 && (
-          <span className={styles.working} data-testid="workspace-working-count">
+          <span
+            className={styles.working}
+            data-testid="workspace-working-count"
+            data-count="working"
+          >
             {activeWorking}
           </span>
         )}
         {here > 0 && (
-          <span className={styles.badge} data-testid="workspace-here-badge">
+          <span className={styles.badge} data-testid="workspace-here-badge" data-count="needs-you">
             {here}
           </span>
         )}
@@ -192,6 +197,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         <span
           className={styles.tab}
           data-testid="workspace-elsewhere-tab"
+          data-workspace-tab=""
           data-glass="control"
           aria-hidden="true"
           // Tucked behind the button while the menu lists the same cards row by row.
@@ -200,17 +206,29 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
         >
           {/* Grey, blue, yellow — the button's order, summed over every OTHER workspace. */}
           {elsewhereGrey !== null && (
-            <span className={styles.count} data-testid="workspace-elsewhere-count">
+            <span
+              className={styles.count}
+              data-testid="workspace-elsewhere-count"
+              data-count="total"
+            >
               {elsewhereGrey}
             </span>
           )}
           {elsewhereWorking > 0 && (
-            <span className={styles.working} data-testid="workspace-elsewhere-working">
+            <span
+              className={styles.working}
+              data-testid="workspace-elsewhere-working"
+              data-count="working"
+            >
               {elsewhereWorking}
             </span>
           )}
           {elsewhere > 0 && (
-            <span className={styles.badge} data-testid="workspace-elsewhere-badge">
+            <span
+              className={styles.badge}
+              data-testid="workspace-elsewhere-badge"
+              data-count="needs-you"
+            >
               {elsewhere}
             </span>
           )}
@@ -248,6 +266,7 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                         <span
                           className={styles.rowCount}
                           data-testid={`workspace-row-count-${w.id}`}
+                          data-count="total"
                         >
                           {grey}
                         </span>
@@ -256,12 +275,17 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                         <span
                           className={styles.working}
                           data-testid={`workspace-row-working-${w.id}`}
+                          data-count="working"
                         >
                           {working}
                         </span>
                       )}
                       {needsYou > 0 && (
-                        <span className={styles.badge} data-testid={`workspace-row-needs-${w.id}`}>
+                        <span
+                          className={styles.badge}
+                          data-testid={`workspace-row-needs-${w.id}`}
+                          data-count="needs-you"
+                        >
                           {needsYou}
                         </span>
                       )}

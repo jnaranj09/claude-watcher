@@ -307,3 +307,14 @@ describe('NewSessionMenu — arrow keys from a pin', () => {
     expect(document.activeElement).toBe(q(r, '[data-template-id="a"]'))
   })
 })
+
+describe('NewSessionMenu — public theme hooks', () => {
+  it('exposes the template parts and the end rows to themes', () => {
+    const { r } = render([T1])
+    expect(q(r, '[data-menu-pick-folder]')).toBeTruthy()
+    expect(q(r, '[data-menu-manage]').textContent).toContain('Manage templates…')
+    expect(q(r, '[data-template-id] [data-template-name]').textContent).toBe('work api')
+    expect(q(r, '[data-template-id] [data-template-path]').textContent).toBe('/home/op/api')
+    expect(q(r, '[data-template-id] [data-template-flags]').textContent).toContain('opus')
+  })
+})

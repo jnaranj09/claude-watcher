@@ -82,7 +82,12 @@ export function NewSessionMenu({
         testId="new-session-menu"
         onKeyDown={handleKeyDown}
       >
-        <Popover.Item data-menu-item testId="menu-pick-folder" onClick={onPickFolder}>
+        <Popover.Item
+          data-menu-item
+          data-menu-pick-folder=""
+          testId="menu-pick-folder"
+          onClick={onPickFolder}
+        >
           <Popover.ItemIcon>
             {/* Inline SVG folder (same convention as the SessionCard pencil): no icon dependency,
                 `currentColor` follows the text ramp. The label is the accessible name. */}
@@ -134,11 +139,15 @@ export function NewSessionMenu({
                   onClick={() => onPickTemplate(t)}
                 >
                   <span className={styles.rowText}>
-                    <span className={styles.rowName} title={t.name}>
+                    <span className={styles.rowName} title={t.name} data-template-name="">
                       {t.name}
                     </span>
-                    <span className={styles.rowPath}>{t.cwd}</span>
-                    <span className={styles.rowMeta}>{describeTemplateFlags(t)}</span>
+                    <span className={styles.rowPath} data-template-path="">
+                      {t.cwd}
+                    </span>
+                    <span className={styles.rowMeta} data-template-flags="">
+                      {describeTemplateFlags(t)}
+                    </span>
                   </span>
                 </Popover.Item>
                 <span className={styles.pin}>
@@ -155,7 +164,7 @@ export function NewSessionMenu({
           )}
         </Popover.List>
         <Popover.Divider />
-        <Popover.Item data-menu-item testId="menu-manage" onClick={onManage}>
+        <Popover.Item data-menu-item data-menu-manage="" testId="menu-manage" onClick={onManage}>
           Manage templates…
         </Popover.Item>
       </Popover.Surface>

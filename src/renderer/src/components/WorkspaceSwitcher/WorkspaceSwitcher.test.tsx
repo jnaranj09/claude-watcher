@@ -739,3 +739,27 @@ describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
     expect(css).toMatch(/:root\[data-input='keyboard'\] \.tab\s*\{\s*transition:\s*none;/)
   })
 })
+
+describe('WorkspaceSwitcher — public theme hooks', () => {
+  it('marks the switcher, its tab and every count for themes', () => {
+    seedCard('default', 'a', 'needs-you')
+    seedCard('default', 'a2', 'working')
+    seedCard('default', 'a3', 'idle')
+    seedCard('w1', 'b', 'needs-you')
+    seedCard('w1', 'c', 'working')
+    seedCard('w1', 'd', 'idle')
+    const r = renderSwitcher()
+    const button = q(r, 'button[data-workspace-switcher]')
+    const tab = q(r, '[data-workspace-tab]')
+    for (const count of ['total', 'working', 'needs-you']) {
+      expect(button.querySelector(`[data-count="${count}"]`), `button ${count}`).not.toBeNull()
+      expect(tab.querySelector(`[data-count="${count}"]`), `tab ${count}`).not.toBeNull()
+    }
+    // The menu rows carry the same three.
+    click(button)
+    const row = q(r, '[data-testid="workspace-row-w1"]')
+    for (const count of ['total', 'working', 'needs-you']) {
+      expect(row.querySelector(`[data-count="${count}"]`), `row ${count}`).not.toBeNull()
+    }
+  })
+})

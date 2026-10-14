@@ -291,7 +291,12 @@ export function Board({
         // (needs-you) · right flank (idle), FIXED. `data-hero-column` still reflects the hero
         // column VALUE (distinct from the per-column boolean `data-hero` flag) for
         // tests/styling.
-        <div className={styles.grid} data-testid="column-grid" data-hero-column={HERO_COLUMN}>
+        <div
+          className={styles.grid}
+          data-testid="column-grid"
+          data-column-grid=""
+          data-hero-column={HERO_COLUMN}
+        >
           {SLOT_ORDER.map((column) => (
             <Column
               key={column}

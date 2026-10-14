@@ -267,7 +267,7 @@ export function Column({
           </p>
         )
       ) : (
-        <div className={styles.cardStack}>
+        <div className={styles.cardStack} data-column-body="">
           {sessions.map((session: BoardSession) => (
             <EmphasizedSessionCard
               key={session.id}

@@ -117,14 +117,18 @@ export function PopoverQuietItem(props: PopoverItemProps): JSX.Element {
 
 export function PopoverItemIcon({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <span className={styles.icon} aria-hidden="true">
+    <span className={styles.icon} aria-hidden="true" data-popover-icon="">
       {children}
     </span>
   )
 }
 
 export function PopoverItemEnd({ children }: { children: ReactNode }): JSX.Element {
-  return <span className={styles.end}>{children}</span>
+  return (
+    <span className={styles.end} data-popover-end="">
+      {children}
+    </span>
+  )
 }
 
 export function PopoverDivider(): JSX.Element {
