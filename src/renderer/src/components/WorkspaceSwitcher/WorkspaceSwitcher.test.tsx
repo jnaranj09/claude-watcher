@@ -113,7 +113,7 @@ describe('WorkspaceSwitcher', () => {
     expect(q(r, '[data-testid="workspace-switcher"]').textContent).toContain('Default')
   })
 
-  // Pen node Db8xU (spec 2026-10-14): lucide `layers` before the name, the same for every
+  // Spec 2026-10-14: lucide `layers` before the name, the same for every
   // workspace. Decorative: the aria-label (name and counts) is unchanged.
   it('draws the layers icon before the name, hidden from readers', () => {
     const r = renderSwitcher()

@@ -55,7 +55,7 @@ describe('Toaster', () => {
     expect(cards().every((c) => c.hasAttribute('data-toast'))).toBe(true)
   })
 
-  // Spec 2026-10-14 (pen node a5DXJY): success and info draw no kind glyph; an error keeps `!`.
+  // Spec 2026-10-14: success and info draw no kind glyph; an error keeps `!`.
   // Every toast keeps its ✕.
   it('only an error toast draws a glyph; every toast keeps ✕', () => {
     const { store } = setup()

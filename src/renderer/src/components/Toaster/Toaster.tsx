@@ -25,8 +25,8 @@ import { useBoard } from '../../stores/boardStore'
 import { modalOpenIn } from '../../lib/modals'
 import styles from './Toaster.module.css'
 
-// Only an error draws a kind glyph (spec 2026-10-14): success and info read from their words, as in
-// the pen. The action carries its own icon instead.
+// Only an error draws a kind glyph (spec 2026-10-14): success and info read from their words. The
+// action carries its own icon instead.
 const ERROR_GLYPH = '!'
 
 const ACTION_ICON: Readonly<Record<ToastActionIcon, LucideIconName>> = {
