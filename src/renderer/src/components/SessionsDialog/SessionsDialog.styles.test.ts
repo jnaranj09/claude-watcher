@@ -21,7 +21,9 @@ describe('Sessions dialog sheet', () => {
     expect(rule('.bulkCount')).toMatch(/white-space:\s*nowrap/)
   })
 
-  it('Select all`s box drops the browser margin, so it lines up with the row boxes', () => {
-    expect(rule('.selectAll input')).toMatch(/margin:\s*0/)
+  // The box has no margin (Checkbox owns that), so the row's inset plus its 1px border lines it
+  // up with the row boxes.
+  it('Select all`s box lines up with the row boxes', () => {
+    expect(rule('.selectAll')).toMatch(/padding-left:\s*calc\(var\(--inset-item-x\) \+ 1px\)/)
   })
 })

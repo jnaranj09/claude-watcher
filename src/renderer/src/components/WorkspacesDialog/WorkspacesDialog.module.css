@@ -24,9 +24,12 @@
   align-items: center;
   gap: var(--gap-inline);
 }
+/* The swatch names its radio (design.md, label → its control): the gap is the role, not the
+   browser's margin (Radio has none). */
 .colorOption {
   display: inline-flex;
   align-items: center;
+  gap: var(--gap-field);
   cursor: pointer;
 }
 /* A colour choice is a small SQUARE of the tint it gives the workspace — never a dot (a circle

@@ -1,7 +1,7 @@
 ---
 title: 'Ideas board'
 description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
-last_modified: 2026-10-13
+last_modified: 2026-10-14
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
@@ -23,13 +23,9 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **Action feedback polish (focus, motion, keyboard, disabled reasons)**: Left out of the action-feedback spec on purpose (`docs/superpowers/specs/2026-09-29-action-feedback-design.md`, Scope → Out). Focus return when a dialog closes; initial focus in Shortcuts and Settings; keyboard access to the terminal context menu; the StartingBanner popup's Escape and outside-click; disabled buttons that give no reason (name prompt, Tags, Workspaces); Rules' broken-marker reason visible only in a `title`. Toasts are Tab-reachable from inside a dialog (there is no focus trap — inert is the trap); the focus work inherits that knowingly. `pending_review` `medium_effort`
 - **macOS port (unsigned first)**: Add a `mac` job (`macos-latest`, dmg, x64 + arm64) to `.github/workflows/release.yml` beside `linux`. Mostly POSIX already (`$SHELL -l -c`, `kill(pid,0)`); the `/proc` correlation is already gated to Linux in `launchSession.ts`. Replace the scaffold `mac.extendInfo` camera/mic/Documents strings. Decide the tray/notification behaviour without KDE, and how to smoke without a display. Signing + notarization later (Apple account). Testing: a macOS VM at best. `pending_review` `medium_effort`
 - **Windows port — native claude, unsigned first**: Run the native Windows `claude.exe` through ConPTY (not WSL). Needs a platform layer for the spawn (`$SHELL -l -c` has no Windows twin), the version probe, the process-alive checks (`kill(pid,0)`, `~/.claude/sessions/<pid>.json`), paths, and an `nsis` job in `release.yml`. SmartScreen warning until a code-signing cert. Testing: the operator's Windows machine. `pending_review` `large_effort`
-- **Selecting checkboxes in the glass look**: The checkboxes that SELECT things (Manage row checks, Active sessions Select all, Include global) still paint the native blue. Settings' on/off fields became a Switch (spec 2026-10-07); these need their own lit look, not a switch. `pending_review` `low_effort`
 
 ---
 
 ## Bugs
 
 ---
-
-- **Workspace switch-back should return to the last FOCUSED terminal, not the last LAUNCHED one**: `focusWorkspace` (boardStore) re-points the pin at the workspace's most recently launched terminal. Reachable today by rail-clicking back to an older terminal after a second launch, and now more likely: an API create registers a terminal without focusing it, so leaving the workspace and coming back lands the operator in the API terminal they never opened instead of the one they were typing in. Track the last focused terminal per workspace and prefer it; fall back to most-recently-launched only when none. `pending_review` `low_effort`
-- **The app header can be squeezed below `--topbar-height`**: `.app` (`App.module.css`) is a `flex-direction: column` container at `height: 100vh`, and `.header` sets neither `flex-shrink: 0` nor a `min-height` — so under content pressure it shrinks. The rail's own header pins `height: var(--topbar-height)` (`AttentionRail.module.css`), and the comment there says this header and the focused view's Board bar are deliberately the same height, so a squeezed app header breaks that alignment. Found while reworking the rail's wall (2026-09-20); pre-existing and unrelated to themes. Likely a one-line `flex-shrink: 0`, but check what actually applies the pressure before pinning a height. `pending_review` `low_effort`

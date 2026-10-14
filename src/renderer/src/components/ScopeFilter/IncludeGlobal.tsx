@@ -6,6 +6,7 @@
 // `(no workspace)`, where it would do nothing.
 import type { JSX } from 'react'
 import { persistSettingsPatch, selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
+import { Checkbox } from '../Checkbox/Checkbox'
 import { useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { scopeWorkspaceId, type ScopeFilterValue } from './scope'
 import styles from './IncludeGlobal.module.css'
@@ -23,20 +24,19 @@ export function IncludeGlobal({
   const includeGlobal = useSettings(selectIncludeGlobal)
   if (scopeWorkspaceId(scope) === null) return null
   return (
-    <label className={styles.includeGlobal}>
-      <input
-        type="checkbox"
-        data-testid={testId}
+    <span className={styles.includeGlobal}>
+      <Checkbox
+        testId={testId}
+        label="Include global"
         checked={includeGlobal}
-        onChange={(e) => {
+        onChange={(next) => {
           // The list changes under the open row: close it, like a scope change (design.md).
           actions.select(null)
-          void persistSettingsPatch({ includeGlobal: e.target.checked }).catch(() =>
+          void persistSettingsPatch({ includeGlobal: next }).catch(() =>
             actions.setError(INCLUDE_GLOBAL_SAVE_FAILED)
           )
         }}
       />
-      Include global
-    </label>
+    </span>
   )
 }

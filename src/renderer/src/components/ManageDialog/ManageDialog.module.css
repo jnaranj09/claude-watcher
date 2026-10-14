@@ -227,6 +227,8 @@
    so the label keeps the same left edge as an unchecked row's would after the box. */
 .rowCheck {
   flex: none;
+  /* Flex, so the inline-flex Checkbox adds no line-box strut to the row's height. */
+  display: flex;
   margin: 0 0 0 var(--inset-item-x);
 }
 /* A row's favorite pin (`RowFavorite`): before the select button, ALWAYS visible (its state is

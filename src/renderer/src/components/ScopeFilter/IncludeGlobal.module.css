@@ -1,8 +1,7 @@
-/* Beside the scope dropdown in the dialog header: the box, then its word. */
+/* Beside the scope dropdown in the dialog header: the box, then its word (the Checkbox owns the
+   gap between them). */
 .includeGlobal {
   display: inline-flex;
-  align-items: center;
-  gap: var(--gap-inline-tight);
   flex: none;
   font-size: var(--font-size-body);
   color: var(--text-secondary);

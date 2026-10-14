@@ -215,10 +215,17 @@ describe('ManageDialog.RowCheck (spec 2026-10-03 D)', () => {
     expect(check?.type).toBe('checkbox')
     expect(check?.getAttribute('aria-label')).toBe('Select a')
     expect(check?.closest('button')).toBeNull()
-    expect(check?.nextElementSibling).toBe(select)
+    // The box's wrapper is the select button's previous sibling.
+    expect(select?.previousElementSibling?.contains(check ?? null)).toBe(true)
     // Drawn ONCE, outside the button: never a second copy inside it (final review 4e).
     expect(r.container.querySelectorAll('[data-testid="check-a"]')).toHaveLength(1)
     expect(select?.querySelector('input')).toBeNull()
+  })
+
+  // A flex box, so the inline-flex Checkbox inside adds no line-box strut to the row's height.
+  it('its slot is a flex box, never an inline line box', () => {
+    const css = readFileSync(join(__dirname, 'ManageDialog.module.css'), 'utf8')
+    expect(/\.rowCheck\s*\{[^}]*\}/.exec(css)?.[0] ?? '').toMatch(/display: flex;/)
   })
 
   it('checking it reports the new value and does NOT select the row', () => {

@@ -2,18 +2,12 @@
    rows, slots, buttons) or Past's read-only rows. Text on the raised panel is --text-secondary. */
 
 /* `Select all` above the rows: its box lines up with the rows' boxes (the row's left inset plus
-   its 1px border — a border is not spacing). */
+   its 1px border — a border is not spacing). The box-to-text gap is the Checkbox's own. */
 .selectAll {
   display: flex;
-  align-items: center;
-  gap: var(--gap-inline);
   padding-left: calc(var(--inset-item-x) + 1px);
   font-size: var(--font-size-body);
   color: var(--text-secondary);
-}
-/* A native checkbox carries a browser margin; the row boxes have none (RowCheck). */
-.selectAll input {
-  margin: 0;
 }
 
 /* `3 selected` on its own line, `[Archive] [Delete]` under it. One line does not fit the rail

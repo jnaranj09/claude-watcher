@@ -1,0 +1,61 @@
+/* The selecting checkbox. Off: the raised fill and the control edge, like an off Switch. On or
+   mixed: LIT, the `lit` Button's --text-primary fill with a --text-on-lit mark. */
+.labeled {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-field);
+  cursor: pointer;
+}
+.box {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.square {
+  appearance: none;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  /* Not `--rounded-sm`: a theme may make that a pill (Liquid Glass, Paper), and a round checkbox
+     reads as a radio button (owner, 2026-10-14). */
+  border-radius: 4px;
+  background-color: var(--bg-surface-raised);
+  cursor: pointer;
+}
+/* Unlit only: on a lit box the grey edge would ring the --text-primary fill. */
+.square:not(:checked):not(:indeterminate):hover,
+.labeled:hover .square:not(:checked):not(:indeterminate) {
+  border-color: var(--text-secondary);
+}
+.square:checked,
+.square:indeterminate {
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+.square:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.mark {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--text-on-lit);
+}
+.tick,
+.dash {
+  display: none;
+}
+.square:checked:not(:indeterminate) + .mark .tick,
+.square:indeterminate + .mark .dash {
+  display: inline;
+}

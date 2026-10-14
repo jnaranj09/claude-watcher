@@ -1,0 +1,27 @@
+/* The radio button. Off: the raised fill and the control edge, like an off Checkbox. Picked: LIT,
+   the --text-primary fill drawn as a ring round a --text-on-lit centre (an <input> draws no
+   ::before, so the inset shadow is the ring). Round in every theme: round is what says "radio". */
+.dot {
+  appearance: none;
+  box-sizing: border-box;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background-color: var(--bg-surface-raised);
+  cursor: pointer;
+}
+.dot:hover {
+  border-color: var(--text-secondary);
+}
+.dot:checked {
+  background-color: var(--text-on-lit);
+  border-color: var(--text-primary);
+  box-shadow: inset 0 0 0 3px var(--text-primary);
+}
+.dot:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}

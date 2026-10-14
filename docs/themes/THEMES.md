@@ -208,7 +208,7 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `gap-inline-tight` | Icon beside text; small tool clusters | `var(--space-1)` |
 | `gap-inline` | Controls side by side; button rows | `var(--space-2)` |
 | `gap-group` | Between groups in a menu, rail or pane | `var(--space-3)` |
-| `gap-field` | A label to its control | `6px` |
+| `gap-field` | A label to the control it names, above it or beside it | `6px` |
 | `gap-section` | One form field block to the next; section to section | `var(--space-5)` |
 | `gap-actions` | The last field to a dialog button row | `var(--space-6)` |
 | `gap-page` | Page edge; header, filter bar and board; column gaps | `var(--gutter)` |
