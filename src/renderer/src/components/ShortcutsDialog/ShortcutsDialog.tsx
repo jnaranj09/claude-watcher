@@ -9,6 +9,7 @@ import type { Shortcut } from '../../../../shared/ipc/contract'
 import {
   selectShortcuts,
   selectShortcutsLoadFailed,
+  setShortcutFavorite,
   useShortcuts
 } from '../../stores/shortcutsStore'
 import {
@@ -18,6 +19,10 @@ import {
 } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { ShortcutForm } from './ShortcutForm'
+import { FavoriteToggle } from '../FavoriteToggle/FavoriteToggle'
+import { favoritesFirst } from '../../lib/favoritesFirst'
+import { favoriteErrorCopy } from '../../lib/favoriteCopy'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { ChordKeys } from './ChordKeys'
 import { selectExpanderKey, selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
 import { expanderChord } from '../../../../shared/schemas/settings'
@@ -58,7 +63,21 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
   const selected = shortcuts.find((s) => s.id === dialog.state.selectedId) ?? null
   const formOpen = dialog.state.creating || selected !== null
   const includeGlobal = useSettings(selectIncludeGlobal)
-  const listed = workspaceRowsFirst(filterByScope(shortcuts, scope, known, includeGlobal), scope)
+  // Favorites first BEFORE the scope helpers: both keep input order, so the stars lead inside
+  // each group (own workspace, then global).
+  const listed = workspaceRowsFirst(
+    filterByScope(favoritesFirst(shortcuts), scope, known, includeGlobal),
+    scope
+  )
+  // A refused star lands in the dialog's message slot; the star keeps main's state.
+  const starring = useAsyncAction(async (s: Shortcut): Promise<void> => {
+    dialog.actions.setError(null)
+    try {
+      await setShortcutFavorite(s.id, !s.favorite)
+    } catch (err) {
+      dialog.actions.setError(favoriteErrorCopy(err))
+    }
+  })
 
   function changeScope(next: ScopeFilterValue): void {
     setScope(next)
@@ -117,6 +136,15 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
                   testId={`shortcut-row-${s.id}`}
                   selectTestId={`shortcut-select-${s.id}`}
                 >
+                  <ManageDialog.RowFavorite>
+                    <FavoriteToggle
+                      name={s.name}
+                      favorite={s.favorite}
+                      busy={starring.busy}
+                      onToggle={() => void starring.run(s)}
+                      testId={`shortcut-favorite-${s.id}`}
+                    />
+                  </ManageDialog.RowFavorite>
                   <span className={styles.rowName}>{s.name}</span>
                   <span className={styles.rowAlias} data-testid={`shortcut-alias-${s.id}`}>
                     {s.alias}

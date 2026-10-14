@@ -12,9 +12,17 @@ import {
   workspaceRowsFirst,
   type ScopeFilterValue
 } from '../ScopeFilter/scope'
-import { ManageDialog } from '../ManageDialog/ManageDialog'
+import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
+import { FavoriteToggle } from '../FavoriteToggle/FavoriteToggle'
+import { favoritesFirst } from '../../lib/favoritesFirst'
+import { favoriteErrorCopy } from '../../lib/favoriteCopy'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { TextInput } from '../TextInput/TextInput'
-import { selectTemplatesLoadFailed, useTemplates } from '../../stores/templatesStore'
+import {
+  selectTemplatesLoadFailed,
+  setTemplateFavorite,
+  useTemplates
+} from '../../stores/templatesStore'
 import styles from './TemplatesDialog.module.css'
 
 export interface TemplateListProps {
@@ -39,7 +47,22 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
   }, [])
   const known = knownWorkspaceIds(workspaces)
   const includeGlobal = useSettings(selectIncludeGlobal)
-  const scoped = workspaceRowsFirst(filterByScope(templates, scope, known, includeGlobal), scope)
+  // Favorites first BEFORE the scope helpers: both keep input order, so the stars lead inside
+  // each group (own workspace, then global).
+  const scoped = workspaceRowsFirst(
+    filterByScope(favoritesFirst(templates), scope, known, includeGlobal),
+    scope
+  )
+  const { actions } = useManageDialogContext()
+  // A refused star lands in the dialog's message slot; the star keeps main's state.
+  const starring = useAsyncAction(async (t: Template): Promise<void> => {
+    actions.setError(null)
+    try {
+      await setTemplateFavorite(t.id, !t.favorite)
+    } catch (err) {
+      actions.setError(favoriteErrorCopy(err))
+    }
+  })
   const filtered = filterTemplates(scoped, query)
 
   // Three different nothings, three different answers: no templates at all, none in the scope you
@@ -73,6 +96,15 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
             testId="template-row"
             dataAttributes={{ 'data-template-id': t.id }}
           >
+            <ManageDialog.RowFavorite>
+              <FavoriteToggle
+                name={t.name}
+                favorite={t.favorite}
+                busy={starring.busy}
+                onToggle={() => void starring.run(t)}
+                testId={`template-favorite-${t.id}`}
+              />
+            </ManageDialog.RowFavorite>
             <span className={styles.rowName}>{t.name}</span>
             <ScopeMarker workspaceId={t.workspaceId} workspaces={workspaces} />
           </ManageDialog.Row>
