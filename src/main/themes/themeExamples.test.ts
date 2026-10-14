@@ -20,11 +20,11 @@ function paperManifest(): { tokens: Record<string, string>; terminal: unknown } 
   }
 }
 
-// liquid-glass/theme.css as `{ selectors, body }` rules, comments stripped. No nesting is parsed:
-// the inner rules of the theme's two @media blocks read as top-level rules, which the assertions
-// below accept (they check bodies by selector; the @media guard is a raw-text test).
-function liquidGlassRules(): { selectors: string[]; body: string }[] {
-  const css = readFileSync(resolve(examples, 'liquid-glass/theme.css'), 'utf8').replace(
+// <id>/theme.css as `{ selectors, body }` rules, comments stripped. No nesting is parsed:
+// the inner rules of an @media / @font-face block read as top-level rules, which the assertions
+// below accept (they check bodies by selector; @media guards are raw-text tests).
+function themeRules(id: 'liquid-glass' | 'paper'): { selectors: string[]; body: string }[] {
+  const css = readFileSync(resolve(examples, `${id}/theme.css`), 'utf8').replace(
     /\/\*[\s\S]*?\*\//g,
     ''
   )
@@ -35,6 +35,14 @@ function liquidGlassRules(): { selectors: string[]; body: string }[] {
       .map((s) => s.trim().replace(/\s+/g, ' ').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')')),
     body
   }))
+}
+const liquidGlassRules = (): ReturnType<typeof themeRules> => themeRules('liquid-glass')
+/** Every body whose selector list holds `selector`, joined. */
+function bodyOf(id: 'liquid-glass' | 'paper', selector: string): string {
+  return themeRules(id)
+    .filter((r) => r.selectors.includes(selector))
+    .map((r) => r.body)
+    .join('\n')
 }
 
 // Every popover box liquid-glass styles — Popover stamps `data-popover` on menus, lists, the
