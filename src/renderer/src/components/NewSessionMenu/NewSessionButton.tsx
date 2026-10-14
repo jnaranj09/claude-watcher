@@ -9,7 +9,14 @@ import { createPortal } from 'react-dom'
 import { Button } from '../Button/Button'
 import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
-import { makeSelectVisibleTemplates, useTemplates } from '../../stores/templatesStore'
+import {
+  makeSelectVisibleTemplates,
+  setTemplateFavorite,
+  useTemplates
+} from '../../stores/templatesStore'
+import { toast } from '../../stores/toastStore'
+import { favoriteErrorCopy } from '../../lib/favoriteCopy'
+import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { NewSessionMenu } from './NewSessionMenu'
 import { Presence } from '../Presence/Presence'
@@ -61,6 +68,16 @@ export function NewSessionButton({
     variant === 'header' ? 'end' : 'center'
   )
 
+  // Favorites — a refused star is an error toast (the popover has no message slot); the star
+  // keeps main's state. The popover stays open: the star is not a pick.
+  const starring = useAsyncAction(async (t: Template): Promise<void> => {
+    try {
+      await setTemplateFavorite(t.id, !t.favorite)
+    } catch (err) {
+      toast.error(favoriteErrorCopy(err))
+    }
+  })
+
   const close = useCallback((): void => setOpen(false), [])
   const closeAndRefocus = useCallback((): void => {
     setOpen(false)
@@ -105,6 +122,8 @@ export function NewSessionButton({
         onManage()
       }}
       onClose={closeAndRefocus}
+      onToggleFavorite={(t) => void starring.run(t)}
+      favoriteBusy={starring.busy}
     />
   )
 

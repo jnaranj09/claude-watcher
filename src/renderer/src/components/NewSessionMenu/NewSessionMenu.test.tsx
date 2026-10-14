@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -42,14 +43,18 @@ function render(templates: Template[] = [T1, T2]): {
   onPickTemplate: ReturnType<typeof vi.fn>
   onManage: ReturnType<typeof vi.fn>
   onClose: ReturnType<typeof vi.fn>
+  onToggleFavorite: ReturnType<typeof vi.fn>
 } {
   const props = {
     onPickFolder: vi.fn(),
     onPickTemplate: vi.fn(),
     onManage: vi.fn(),
-    onClose: vi.fn()
+    onClose: vi.fn(),
+    onToggleFavorite: vi.fn()
   }
-  const r = renderComponent(<NewSessionMenu templates={templates} {...props} />)
+  const r = renderComponent(
+    <NewSessionMenu templates={templates} favoriteBusy={false} {...props} />
+  )
   cleanup = r.unmount
   return { r, ...props }
 }
@@ -158,5 +163,57 @@ describe('NewSessionMenu', () => {
     const anchor = /\.portalAnchor \{([^}]*)\}/.exec(css)?.[1] ?? ''
     expect(anchor).toContain('position: fixed;')
     expect(anchor).toContain('display: flex;')
+  })
+})
+
+describe('NewSessionMenu — favorites', () => {
+  const STARRED: Template = { ...T2, favorite: true }
+  const ids = (r: RenderResult): (string | null)[] =>
+    [...r.container.querySelectorAll('[data-testid="menu-template"]')].map((b) =>
+      b.getAttribute('data-template-id')
+    )
+
+  it('lists favorites first', () => {
+    const { r } = render([T1, STARRED])
+    expect(ids(r)).toEqual(['b', 'a'])
+  })
+  it('empty search + Enter launches the top favorite', () => {
+    const { r, onPickTemplate } = render([T1, STARRED])
+    key(q(r, '[data-testid="menu-search"]'), 'Enter')
+    expect(onPickTemplate).toHaveBeenCalledWith(STARRED)
+  })
+  it('the star toggles without launching or closing', () => {
+    const { r, onPickTemplate, onClose, onToggleFavorite } = render([T1])
+    act(() => q<HTMLButtonElement>(r, '[data-testid="menu-favorite-a"]').click())
+    expect(onToggleFavorite).toHaveBeenCalledWith(T1)
+    expect(onPickTemplate).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+  it('the star is never inside the row button', () => {
+    const { r } = render([T1])
+    const row = q(r, '[data-template-id="a"]')
+    expect(row.contains(q(r, '[data-testid="menu-favorite-a"]'))).toBe(false)
+  })
+  it('arrow keys skip the star buttons', () => {
+    const { r } = render([T1, T2])
+    const [first, second] = [
+      ...r.container.querySelectorAll<HTMLElement>('[data-testid="menu-template"]')
+    ]
+    act(() => first?.focus())
+    key(first as Element, 'ArrowDown')
+    expect(document.activeElement).toBe(second)
+  })
+  it('an off star hides until its row is hovered or focused; an on star always shows', () => {
+    const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
+    expect(css).toMatch(
+      /\.templateRow\[data-favorite-row='off'\]:not\(:hover\):not\(:focus-within\) \.star \{\s*visibility: hidden;/
+    )
+    const { r } = render([T1, STARRED])
+    expect(q(r, '[data-template-id="a"]').parentElement?.getAttribute('data-favorite-row')).toBe(
+      'off'
+    )
+    expect(q(r, '[data-template-id="b"]').parentElement?.getAttribute('data-favorite-row')).toBe(
+      'on'
+    )
   })
 })

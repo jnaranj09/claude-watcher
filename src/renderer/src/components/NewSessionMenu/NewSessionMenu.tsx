@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type JSX } from 'react
 import type { Template } from '../../../../shared/ipc/contract'
 import { describeTemplateFlags } from '../TemplatesDialog/templateForm'
 import { filterTemplates } from './filterTemplates'
+import { favoritesFirst } from '../../lib/favoritesFirst'
+import { FavoriteToggle } from '../FavoriteToggle/FavoriteToggle'
 import { Popover } from '../Popover/Popover'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './NewSessionMenu.module.css'
@@ -15,6 +17,10 @@ export interface NewSessionMenuProps {
   onPickTemplate: (template: Template) => void
   onManage: () => void
   onClose: () => void
+  /** Favorites — the row's star. Never launches and never closes the popover. */
+  onToggleFavorite: (template: Template) => void
+  /** A star save in flight: every star is disabled until it lands. */
+  favoriteBusy: boolean
 }
 
 const ITEM = '[data-menu-item]'
@@ -24,12 +30,15 @@ export function NewSessionMenu({
   onPickFolder,
   onPickTemplate,
   onManage,
-  onClose
+  onClose,
+  onToggleFavorite,
+  favoriteBusy
 }: NewSessionMenuProps): JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const searchRef = useRef<HTMLInputElement | null>(null)
   const [query, setQuery] = useState('')
-  const filtered = filterTemplates(templates, query)
+  // Favorites first, so an empty search + Enter launches the top favorite.
+  const filtered = filterTemplates(favoritesFirst(templates), query)
   // Overlay motion: while it fades out, clicks pass through its box (not just the Surface).
   const leaving = useLeaving()
 
@@ -108,19 +117,35 @@ export function NewSessionMenu({
             </Popover.Note>
           ) : (
             filtered.map((t) => (
-              <Popover.Item
+              // The star and the row are SIBLINGS (never a button in a button). Arrow keys move
+              // over `[data-menu-item]` rows only; the star is reached with Tab.
+              <div
                 key={t.id}
-                data-menu-item
-                data-template-id={t.id}
-                testId="menu-template"
-                onClick={() => onPickTemplate(t)}
+                className={styles.templateRow}
+                data-favorite-row={t.favorite ? 'on' : 'off'}
               >
-                <span className={styles.rowText}>
-                  <span className={styles.rowName}>{t.name}</span>
-                  <span className={styles.rowPath}>{t.cwd}</span>
-                  <span className={styles.rowMeta}>{describeTemplateFlags(t)}</span>
+                <span className={styles.star}>
+                  <FavoriteToggle
+                    name={t.name}
+                    favorite={t.favorite}
+                    busy={favoriteBusy}
+                    onToggle={() => onToggleFavorite(t)}
+                    testId={`menu-favorite-${t.id}`}
+                  />
                 </span>
-              </Popover.Item>
+                <Popover.Item
+                  data-menu-item
+                  data-template-id={t.id}
+                  testId="menu-template"
+                  onClick={() => onPickTemplate(t)}
+                >
+                  <span className={styles.rowText}>
+                    <span className={styles.rowName}>{t.name}</span>
+                    <span className={styles.rowPath}>{t.cwd}</span>
+                    <span className={styles.rowMeta}>{describeTemplateFlags(t)}</span>
+                  </span>
+                </Popover.Item>
+              </div>
             ))
           )}
         </Popover.List>

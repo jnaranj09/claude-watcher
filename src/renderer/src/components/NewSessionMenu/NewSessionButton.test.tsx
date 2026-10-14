@@ -6,6 +6,8 @@ import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Template } from '../../../../shared/ipc/contract'
+import { toastStore } from '../../stores/toastStore'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 const T1: Template = {
   id: 'a',
@@ -220,5 +222,56 @@ describe('NewSessionButton — dead variant (portaled placement)', () => {
     )
     expect(r.container.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     expect(document.querySelector('[data-testid="new-session-menu"]')).not.toBeNull()
+  })
+})
+
+describe('NewSessionButton — favorites', () => {
+  afterEach(() => {
+    act(() => toastStore.setState({ toasts: [] }))
+    vi.restoreAllMocks()
+  })
+  function stub(setFavorite: ReturnType<typeof vi.fn>): void {
+    ;(window as unknown as { templates: unknown }).templates = {
+      list: vi.fn(() => Promise.resolve([])),
+      save: vi.fn(),
+      remove: vi.fn(() => Promise.resolve([])),
+      setFavorite
+    }
+  }
+  async function pressStar(): Promise<void> {
+    await act(async () => {
+      ;(document.querySelector('[data-testid="menu-favorite-a"]') as HTMLButtonElement).click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  it('a star click saves through the bridge and keeps the popover open', async () => {
+    const setFavorite = vi.fn(() => Promise.resolve([{ ...T1, favorite: true }]))
+    stub(setFavorite)
+    const { r, onPickTemplate } = render()
+    act(() => button(r).click())
+    await pressStar()
+    expect(setFavorite).toHaveBeenCalledWith('a', true)
+    expect(onPickTemplate).not.toHaveBeenCalled()
+    expect(menu()).not.toBeNull()
+    expect(
+      document.querySelector('[data-testid="menu-favorite-a"]')?.getAttribute('aria-pressed')
+    ).toBe('true')
+  })
+  it('a refused star raises an error toast and keeps the popover open', async () => {
+    stub(
+      vi.fn(() =>
+        Promise.reject(new Error("Error invoking remote method 'x': Error: store_write_failed"))
+      )
+    )
+    const { r } = render()
+    act(() => button(r).click())
+    await pressStar()
+    expect(toastStore.getState().toasts.at(-1)).toMatchObject({
+      kind: 'error',
+      title: STORE_WRITE_FAILED_COPY
+    })
+    expect(menu()).not.toBeNull()
   })
 })

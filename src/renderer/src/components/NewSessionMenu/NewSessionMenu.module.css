@@ -13,6 +13,21 @@
   --popover-max-height: 320px;
 }
 
+/* A template row: the star (FavoriteToggle) then the Popover row. Siblings, never a button in a
+   button. An off star shows only while its row is hovered or holds focus; an on star always. */
+.templateRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline-tight);
+  min-width: 0;
+}
+.star {
+  flex: none;
+}
+.templateRow[data-favorite-row='off']:not(:hover):not(:focus-within) .star {
+  visibility: hidden;
+}
+
 .rowText {
   display: flex;
   flex-direction: column;
