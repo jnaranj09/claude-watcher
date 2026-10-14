@@ -225,33 +225,57 @@ describe('NewSessionMenu — favorites', () => {
 
 describe('NewSessionMenu — the pin sits inside the row, on the right', () => {
   // Owner, 2026-10-13: a left gutter outside the row's highlight wasted width on every row.
+  const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
+  const rule = (sel: string): string =>
+    new RegExp(`(?:^|\\n)${sel.replace(/[.*()[\]:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
   it('the pin comes after the row button (Tab goes row, then its pin)', () => {
     const { r } = render([T1])
     const row = q(r, '[data-template-id="a"]')
     expect(row.nextElementSibling?.contains(q(r, '[data-testid="menu-favorite-a"]'))).toBe(true)
   })
   it('the pin is placed over the row, top-right; the name leaves it room', () => {
-    const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
-    const rule = (sel: string): string =>
-      new RegExp(`(?:^|\\n)${sel.replace(/[.*()[\]:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ??
-      ''
     expect(rule('.templateRow')).toContain('position: relative;')
     expect(rule('.pin')).toContain('position: absolute;')
+    expect(rule('.pin')).toMatch(/top: var\(--inset-item-y\);/)
     expect(rule('.pin')).toMatch(/right: var\(--inset-item-x\);/)
     expect(rule('.rowName')).toMatch(/max-width: calc\(100% - /)
   })
+  // The name's `100%` must be the ROW's width: a shrink-to-fit text column made it the name's own
+  // width, so a name that fit was still cut by the pin's room.
+  it('the text column fills the row, so the name truncates only when it does not fit', () => {
+    expect(rule('.rowText')).toMatch(/flex: 1;/)
+  })
+  it('a long name truncates and keeps its full text as a title', () => {
+    expect(rule('.rowName')).toMatch(/text-overflow: ellipsis;/)
+    expect(rule('.rowName')).toMatch(/white-space: nowrap;/)
+    expect(rule('.rowName')).toMatch(/overflow: hidden;/)
+    const { r } = render([T1])
+    const name = q(r, '[data-template-id="a"]').querySelector('span span')
+    expect(name?.getAttribute('title')).toBe('work api')
+  })
   it('hovering the pin keeps the row lit, in the app and every bundled theme', () => {
-    const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
-    expect(css).toContain('.templateRow:has(.pin:hover) [data-popover-item]:not(:disabled)')
-    for (const theme of ['liquid-glass', 'paper']) {
-      // Prettier may wrap the selector: compare with whitespace removed.
-      const themeCss = readFileSync(`docs/themes/examples/${theme}/theme.css`, 'utf8').replace(
-        /\s+/g,
-        ''
-      )
-      expect(themeCss).toContain(
-        '[data-favorite-row]:has([data-favorite]:hover)>[data-popover-item]'
-      )
+    expect(rule('.templateRow:has(.pin:hover) [data-popover-item]:not(:disabled)')).toContain(
+      'background-image: linear-gradient(var(--bg-hover), var(--bg-hover));'
+    )
+    // Every theme rule that draws the row hover also lists the pin-hover arm. Prettier may wrap a
+    // selector, so whitespace is removed. Liquid Glass draws the hover in TWO rules (fill, sheen).
+    const HOVER = '[data-popover-item]:hover:not(:disabled)'
+    const ARM = '[data-favorite-row]:has([data-favorite]:hover)>[data-popover-item]'
+    for (const [theme, rules] of [
+      ['liquid-glass', 2],
+      ['paper', 1]
+    ] as const) {
+      const themeCss = readFileSync(`docs/themes/examples/${theme}/theme.css`, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\s+/g, '')
+      const hoverRules = themeCss
+        .split('}')
+        .map((block) => block.split('{')[0] ?? '')
+        .filter(
+          (sel) => sel.includes(HOVER) || sel.includes('[data-popover-item]:not([data-tone]):hover')
+        )
+      expect(hoverRules, theme).toHaveLength(rules)
+      for (const sel of hoverRules) expect(sel, theme).toContain(ARM)
     }
   })
 })

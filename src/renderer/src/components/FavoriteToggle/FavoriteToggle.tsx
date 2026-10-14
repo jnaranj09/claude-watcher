@@ -7,7 +7,8 @@ import { FAVORITE_TERMS } from '../../copy/terms'
 import { PinIcon } from './PinIcon'
 
 export interface FavoriteToggleProps {
-  /** The row's name — the accessible name is `Favorite <name>` (the `Rename <name>` pattern). */
+  /** The row's name — the accessible name is `FAVORITE_TERMS.label` + name (the `Rename <name>`
+   *  pattern); `aria-pressed` carries the state. */
   name: string
   favorite: boolean
   busy: boolean
@@ -42,7 +43,7 @@ export function FavoriteToggle({
       icon
       testId={testId}
       aria-label={`${FAVORITE_TERMS.label} ${name}`}
-      title={FAVORITE_TERMS.label}
+      title={favorite ? FAVORITE_TERMS.unpin : FAVORITE_TERMS.label}
       aria-pressed={favorite}
       data-favorite={favorite ? 'on' : 'off'}
       busy={busy}

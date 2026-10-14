@@ -38,13 +38,16 @@
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
+/* `flex: 1` makes the column as wide as the row, so `.rowName`'s `100%` is the row's width. */
 .rowText {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--gap-stack);
   min-width: 0;
 }
-/* The name stops short of the pin: the xs icon button (20px) plus the gap beside it. */
+/* The name stops short of the pin: the xs icon button (20px, owned by `Button.module.css` `.xs`)
+   plus the gap beside it. */
 .rowName {
   max-width: calc(100% - 20px - var(--gap-inline-tight));
   overflow: hidden;

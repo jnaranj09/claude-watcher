@@ -648,7 +648,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Settings `Saved` beside the pane heading                                                            | Compact `Saved` in the dialog's one message slot; no pane heading                                   | The heading repeated the rail row; one message slot per dialog                    |
 | CSS-only glass                                                                                      | WebGL board glass; CSS for overlays and as fallback                                                 | The canvas look; CSS cannot bend or self-light                                    |
 | Graphite default wallpaper                                                                          | Lake                                                                                                | Owner pick 2026-10-08                                                             |
-| Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                           | Owner 2026-10-13: quiet in every row                                              |
+| Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                            | Owner 2026-10-13: quiet in every row                                              |
 
 ## 13. Rejected — don't propose these again
 

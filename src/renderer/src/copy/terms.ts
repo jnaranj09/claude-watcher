@@ -16,6 +16,8 @@ export const SHELL_TERMS = {
 export const FAVORITE_TERMS = {
   /** The toggle's name (`Pin <name>`, `aria-pressed` says whether it is on). */
   label: 'Pin',
+  /** The tooltip on a pinned row's toggle: what a click does there. */
+  unpin: 'Unpin',
   /** The expander's mark on a pinned row, for assistive tech. */
   marker: 'Pinned',
   updateFailed: 'Could not update pin.'

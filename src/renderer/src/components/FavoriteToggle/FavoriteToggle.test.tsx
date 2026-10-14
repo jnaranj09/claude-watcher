@@ -43,6 +43,9 @@ describe('FavoriteToggle', () => {
     const { b } = render({ favorite: true })
     expect(b.getAttribute('aria-pressed')).toBe('true')
     expect(b.getAttribute('data-favorite')).toBe('on')
+    // The tooltip says what a click does; the accessible name stays `Pin <name>` + aria-pressed.
+    expect(b.getAttribute('title')).toBe('Unpin')
+    expect(b.getAttribute('aria-label')).toBe('Pin deploy')
     expect(b.hasAttribute('data-lit')).toBe(false)
     expect(b.querySelector('svg path')?.getAttribute('fill')).toBe('currentColor')
   })
