@@ -11,3 +11,9 @@ export const SHELL_TERMS = {
   resize: 'Resize shell pane',
   openFailedSession: 'Could not open a shell for this session.'
 } as const
+
+/** A starred template or shortcut: sorts first in every list (spec 2026-10-13-favorites). */
+export const FAVORITE_TERMS = {
+  label: 'Favorite',
+  updateFailed: 'Could not update favorite.'
+} as const

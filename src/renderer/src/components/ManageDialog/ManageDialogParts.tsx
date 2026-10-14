@@ -535,9 +535,10 @@ export interface ManageDialogRowProps {
   selectTestId?: string
   /** Extra attributes for the select button (`data-template-id`). */
   dataAttributes?: Readonly<Record<`data-${string}`, string>>
-  /** The row's label, plus at most one <ManageDialog.RowCheck> (drawn before the select button)
-   *  and one <ManageDialog.RowActions> — DIRECT children of this row, not wrapped in a Fragment or
-   *  a wrapper component (see `ManageDialogRowActions`). */
+  /** The row's label, plus at most one <ManageDialog.RowCheck> and one
+   *  <ManageDialog.RowFavorite> (both drawn before the select button, in that order) and one
+   *  <ManageDialog.RowActions> — DIRECT children of this row, not wrapped in a Fragment or a
+   *  wrapper component (see `ManageDialogRowActions`). */
   children: ReactNode
   /** A workspace row (the Workspaces dialog): the row is tinted with that colour, and its hover /
    *  selected states move to the border (spec 2026-09-29). */
@@ -566,7 +567,10 @@ export function ManageDialogRow({
   const parts = Children.toArray(children)
   const rowActions = parts.filter(isRowActions)
   const rowChecks = parts.filter((p) => isValidElement(p) && p.type === ManageDialogRowCheck)
-  const label = parts.filter((part) => !isRowActions(part) && !rowChecks.includes(part))
+  const rowFavorites = parts.filter((p) => isValidElement(p) && p.type === ManageDialogRowFavorite)
+  const label = parts.filter(
+    (part) => !isRowActions(part) && !rowChecks.includes(part) && !rowFavorites.includes(part)
+  )
   return (
     <div
       className={cx(styles.row, tint !== undefined && workspaceTintClass(tint))}
@@ -575,6 +579,7 @@ export function ManageDialogRow({
       data-tone={tint}
     >
       {rowChecks}
+      {rowFavorites}
       <button
         type="button"
         className={styles.rowSelect}
@@ -607,6 +612,15 @@ export function ManageDialogRow({
  */
 export function ManageDialogRowActions({ children }: { children: ReactNode }): JSX.Element {
   return <>{children}</>
+}
+
+/**
+ * A row's favorite star (spec 2026-10-13-favorites). A DIRECT child of `Row`, which lifts it out
+ * of the select button and draws it BEFORE the button, ALWAYS visible: the star is information
+ * (which rows sort first), so it never hides like `RowActions` (design.md exception).
+ */
+export function ManageDialogRowFavorite({ children }: { children: ReactNode }): JSX.Element {
+  return <span className={styles.rowFavorite}>{children}</span>
 }
 
 export interface ManageDialogRowCheckProps {

@@ -43,6 +43,11 @@ function Harness(props: { onMoveUp: () => void }): JSX.Element {
                 </ManageDialog.RowActions>
               </ManageDialog.Row>
               <ManageDialog.Row id="b" testId="rule-row-b" selectTestId="rule-select-b">
+                <ManageDialog.RowFavorite>
+                  <button type="button" data-testid="star-b">
+                    *
+                  </button>
+                </ManageDialog.RowFavorite>
                 Second rule
               </ManageDialog.Row>
             </ManageDialog.Rows>
@@ -223,5 +228,27 @@ describe('ManageDialog.RowCheck (spec 2026-10-03 D)', () => {
     act(() => r.container.querySelector<HTMLInputElement>('[data-testid="check-a"]')?.click())
     expect(onCheck).toHaveBeenCalledWith(true)
     expect(r.container.querySelector('[data-testid="probe-selected"]')?.textContent).toBe('none')
+  })
+})
+
+describe('ManageDialog.RowFavorite', () => {
+  it('renders before the select button, outside it', () => {
+    const { r } = render()
+    const row = q<HTMLElement>(r, '[data-testid="rule-row-b"]')
+    const star = q<HTMLElement>(r, '[data-testid="star-b"]')
+    const select = q<HTMLElement>(r, '[data-testid="rule-select-b"]')
+    expect(select.contains(star)).toBe(false)
+    expect(row.firstElementChild?.contains(star)).toBe(true)
+  })
+  it('pressing the star does not select the row', () => {
+    const { r } = render()
+    click(q(r, '[data-testid="star-b"]'))
+    expect(q(r, '[data-testid="probe-selected"]').textContent).toBe('none')
+  })
+  it('its slot is never hidden by CSS', () => {
+    const css = readFileSync(join(__dirname, 'ManageDialog.module.css'), 'utf8')
+    const rule = /\.rowFavorite\s*\{[^}]*\}/.exec(css)?.[0] ?? ''
+    expect(rule).not.toBe('')
+    expect(rule).not.toMatch(/visibility|display:\s*none|opacity/)
   })
 })

@@ -26,6 +26,7 @@ import {
   ManageDialogRow,
   ManageDialogRowActions,
   ManageDialogRowCheck,
+  ManageDialogRowFavorite,
   ManageDialogRows,
   ManageDialogSave
 } from './ManageDialogParts'
@@ -44,6 +45,7 @@ export const ManageDialog = {
   Row: ManageDialogRow,
   RowActions: ManageDialogRowActions,
   RowCheck: ManageDialogRowCheck,
+  RowFavorite: ManageDialogRowFavorite,
   New: ManageDialogNew,
   Form: ManageDialogForm,
   Pane: ManageDialogPane,

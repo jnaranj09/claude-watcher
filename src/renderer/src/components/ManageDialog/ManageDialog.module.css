@@ -229,6 +229,14 @@
   flex: none;
   margin: 0 0 0 var(--inset-item-x);
 }
+/* A row's favorite star (`RowFavorite`): before the select button, ALWAYS visible (its state is
+   information, unlike RowActions), with the row's own left inset like RowCheck. */
+.rowFavorite {
+  flex: none;
+  display: flex;
+  align-items: center;
+  margin: 0 0 0 var(--inset-item-x);
+}
 /* The rail's bottom slot (`ListBottom`): `+ New`, or an action row plus its footnote. Pinned to
    the BOTTOM of the rail, not directly under the last row: `.rows` stops at its max-height, so
    without this the slot floats mid-column whenever the form is the taller side. Its own items sit
