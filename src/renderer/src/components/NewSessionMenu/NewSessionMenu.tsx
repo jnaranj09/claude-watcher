@@ -119,13 +119,28 @@ export function NewSessionMenu({
             </Popover.Note>
           ) : (
             filtered.map((t) => (
-              // The star and the row are SIBLINGS (never a button in a button). Arrow keys move
-              // over `[data-menu-item]` rows only; the star is reached with Tab.
+              // The star and the row are SIBLINGS (never a button in a button); CSS lays the star
+              // over the row's top-right corner. Arrow keys move over `[data-menu-item]` rows only;
+              // the star is reached with Tab, right after its row.
               <div
                 key={t.id}
                 className={styles.templateRow}
                 data-favorite-row={t.favorite ? 'on' : 'off'}
               >
+                <Popover.Item
+                  data-menu-item
+                  data-template-id={t.id}
+                  testId="menu-template"
+                  onClick={() => onPickTemplate(t)}
+                >
+                  <span className={styles.rowText}>
+                    <span className={styles.rowName} title={t.name}>
+                      {t.name}
+                    </span>
+                    <span className={styles.rowPath}>{t.cwd}</span>
+                    <span className={styles.rowMeta}>{describeTemplateFlags(t)}</span>
+                  </span>
+                </Popover.Item>
                 <span className={styles.star}>
                   <FavoriteToggle
                     name={t.name}
@@ -135,18 +150,6 @@ export function NewSessionMenu({
                     testId={`menu-favorite-${t.id}`}
                   />
                 </span>
-                <Popover.Item
-                  data-menu-item
-                  data-template-id={t.id}
-                  testId="menu-template"
-                  onClick={() => onPickTemplate(t)}
-                >
-                  <span className={styles.rowText}>
-                    <span className={styles.rowName}>{t.name}</span>
-                    <span className={styles.rowPath}>{t.cwd}</span>
-                    <span className={styles.rowMeta}>{describeTemplateFlags(t)}</span>
-                  </span>
-                </Popover.Item>
               </div>
             ))
           )}

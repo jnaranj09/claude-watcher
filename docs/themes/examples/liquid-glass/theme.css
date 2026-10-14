@@ -442,6 +442,10 @@ body {
 }
 [data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
     [aria-expanded='true']
+  ):not([data-active]),
+[data-favorite-row]:has([data-favorite]:hover)
+  > [data-popover-item]:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
+    [aria-expanded='true']
   ):not([data-active]) {
   background-color: var(--ws-fill, var(--glass-row-fill));
   border-color: transparent;
@@ -709,6 +713,10 @@ button[data-variant='secondary']:hover:not(:disabled):not([data-lit]) {
 }
 /* A row's hover in its own rule: like the row hover above, it never lands on a state row. */
 [data-popover-item]:hover:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
+    [aria-expanded='true']
+  ):not([data-active]),
+[data-favorite-row]:has([data-favorite]:hover)
+  > [data-popover-item]:not(:disabled):not([aria-selected='true']):not([aria-checked='true']):not(
     [aria-expanded='true']
   ):not([data-active]) {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover)), var(--glass-control-sheen);

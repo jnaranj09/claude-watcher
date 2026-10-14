@@ -223,6 +223,39 @@ describe('NewSessionMenu — favorites', () => {
   })
 })
 
+describe('NewSessionMenu — the star sits inside the row, on the right', () => {
+  // Owner, 2026-10-13: a left gutter outside the row's highlight wasted width on every row.
+  it('the star comes after the row button (Tab goes row, then its star)', () => {
+    const { r } = render([T1])
+    const row = q(r, '[data-template-id="a"]')
+    expect(row.nextElementSibling?.contains(q(r, '[data-testid="menu-favorite-a"]'))).toBe(true)
+  })
+  it('the star is placed over the row, top-right; the name leaves it room', () => {
+    const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
+    const rule = (sel: string): string =>
+      new RegExp(`(?:^|\\n)${sel.replace(/[.*()[\]:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ??
+      ''
+    expect(rule('.templateRow')).toContain('position: relative;')
+    expect(rule('.star')).toContain('position: absolute;')
+    expect(rule('.star')).toMatch(/right: var\(--inset-item-x\);/)
+    expect(rule('.rowName')).toMatch(/max-width: calc\(100% - /)
+  })
+  it('hovering the star keeps the row lit, in the app and every bundled theme', () => {
+    const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
+    expect(css).toContain('.templateRow:has(.star:hover) [data-popover-item]:not(:disabled)')
+    for (const theme of ['liquid-glass', 'paper']) {
+      // Prettier may wrap the selector: compare with whitespace removed.
+      const themeCss = readFileSync(`docs/themes/examples/${theme}/theme.css`, 'utf8').replace(
+        /\s+/g,
+        ''
+      )
+      expect(themeCss).toContain(
+        '[data-favorite-row]:has([data-favorite]:hover)>[data-popover-item]'
+      )
+    }
+  })
+})
+
 describe('NewSessionMenu — arrow keys from a star', () => {
   // A star stands on its own row: ArrowDown goes to the NEXT row, ArrowUp to the one above.
   it('ArrowDown from a star moves to the next row, not the top of the menu', () => {

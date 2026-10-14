@@ -49,7 +49,8 @@ button[data-testid='workspace-switcher']:hover,
 [data-testid='attention-rail'] button[data-testid='rail-row']:hover,
 [data-testid='attention-rail'] button[data-testid='starting-rail-row']:not([data-active]):hover,
 :not([data-tone]) > [data-manage-row-select]:hover,
-[data-popover-item]:not([data-tone]):hover:not(:disabled) {
+[data-popover-item]:not([data-tone]):hover:not(:disabled),
+[data-favorite-row]:has([data-favorite]:hover) > [data-popover-item] {
   background: #2a2b2a;
   border-color: #2a2b2a;
   color: #ffffff;

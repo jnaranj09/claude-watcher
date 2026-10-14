@@ -357,7 +357,10 @@ What you can target:
   not by role: a new list in the app picks your look up with no change to your theme.
 - **Favorite star.** `[data-favorite="on"]` / `[data-favorite="off"]` is the star toggle on a
   template or shortcut row (Manage dialogs and the `+ New session` popover). It is a `ghost`
-  button; its filled shape is the on look, so it never carries `[data-lit]`.
+  button; its filled shape is the on look, so it never carries `[data-lit]`. In the popover the
+  star sits over its row's top-right corner, inside `[data-favorite-row]`; the pointer on the star
+  is still on the row, so a theme that restyles the row hover also lists
+  `[data-favorite-row]:has([data-favorite]:hover) > [data-popover-item]` in that rule.
 - **Settings groups.** `[data-settings-group]` wraps the fields of one Settings pane. The app draws
   nothing there; a theme may give it a fill, an edge and padding (Liquid Glass draws an inset glass
   group).
