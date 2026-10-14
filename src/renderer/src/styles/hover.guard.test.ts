@@ -1,7 +1,7 @@
 // Every clickable control shows a hover, in every theme. Two failures this replaced: controls with
 // `cursor: pointer` and no `:hover` rule at all (the Select box, the card), and hovers painted with
 // a SURFACE token (`--bg-surface`, …) that vanished wherever that surface was the panel's own
-// colour (Paper's white-on-white). A hover paints the `--bg-hover` layer, or moves the border / ink.
+// colour (the old Paper's white-on-white). A hover paints the `--bg-hover` layer, or moves the border / ink.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, it, expect } from 'vitest'

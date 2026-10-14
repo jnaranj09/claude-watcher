@@ -393,11 +393,12 @@ What you can target:
   - `[data-session-count]` — the Filter bar's count of sessions shown.
   - `[data-app-title]` — the `Claude Watcher` brand in the header.
   - `[data-workspace-switcher]` — the switcher button; `[data-workspace-tab]` — the elsewhere tab
-    beside it (present whenever other workspaces hold cards, unlike `[data-tucked]`).
+    beside it (rendered whenever other workspaces hold at least one session card, unlike `[data-tucked]`).
   - `[data-card-title]`, `[data-card-path]`, `[data-pending-tool]`, `[data-card-meta]` — a session
     card's name, folder path, pending tool name and pid / tasks line.
   - `[data-session-id][data-status]` — a session's card and rail row, with its status;
-    `[data-selected]` — the selected card.
+    `[data-selected]` — the selected card (set only while selected) and, in Manage dialogs, a
+    rail page row or a list row (set always, `"true"` or `"false"`).
   - Rail: `[data-rail]` is the `<nav>`, `[data-collapsed]` its collapsed state, `[data-rail-head]`
     its top row, `[data-rail-title]` the `Sessions` title, `[data-rail-heading]` a group divider
     (Needs you, Working, ...), `[data-rail-row]` every session row (also the starting row; the
@@ -496,7 +497,8 @@ the stacking-context trap above, which still applies to any blur you layer on to
 ## Light themes
 
 `"colorScheme": "light"` plus a light token set. The app's own widgets follow it. See
-[`examples/paper`](examples/paper/theme.json): tokens only, no CSS.
+[`examples/paper`](examples/paper/theme.json): tokens plus a small CSS file (ring shadows,
+4/6/8 corners, one joined board panel, Familjen Grotesk and Martian Mono).
 
 ## Recovering from a broken theme
 
@@ -517,7 +519,8 @@ path=<field>`. Never the values.
   panels, `backdrop-filter`, a transparent terminal, and six lossless WebP wallpapers (Lake, the
   default; Bridge; Subway; Graphite; Aurora gradient; Warm smoke). Credits and licences:
   [`WALLPAPERS-LICENSE.md`](examples/liquid-glass/WALLPAPERS-LICENSE.md).
-- [`examples/paper`](examples/paper/) — a light theme, tokens only.
+- [`examples/paper`](examples/paper/) — a light theme: ring shadows instead of borders, 4/6/8 corners, one joined board panel,
+  Familjen Grotesk + Martian Mono (bundled fonts).
 
 ## Editor support
 

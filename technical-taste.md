@@ -170,7 +170,7 @@ them:
   - Crisp corners (4/6/8) and tonal depth.
   - Shadows only on floating layers.
   - System font for the chrome, mono for machine data.
-  - Themes may break these rules (Paper uses pills, Liquid Glass uses blur). The theme author owns
+  - Themes may break these rules (Paper uses ring shadows and its own fonts, Liquid Glass uses blur). The theme author owns
     the taste.
 - **Toggles:** an active toggle is "lit": white or `--text-primary` fill, with a dark icon or text
   on it. A filter toggle stays lit while its row is open or while a filter is on.
