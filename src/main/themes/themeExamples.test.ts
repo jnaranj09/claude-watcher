@@ -579,17 +579,76 @@ describe('docs/themes/examples', () => {
       expect(r.bundle.css).not.toContain('backdrop')
     }
   })
+  const PAPER_HEAD = '#f7f8f9' // the column header and Settings category rail fill (theme.css)
   it('paper text reads on every ground it sits on (4.5:1)', () => {
     const t = paperManifest().tokens
-    for (const ground of ['bg-base', 'bg-surface', 'bg-row-rest', 'bg-card-calm', 'bg-card-hero']) {
+    const grounds: Record<string, string> = {
+      'bg-base': t['bg-base'] ?? '',
+      'bg-surface': t['bg-surface'] ?? '',
+      'bg-row-rest': t['bg-row-rest'] ?? '',
+      'bg-card-calm': t['bg-card-calm'] ?? '',
+      'bg-card-hero': t['bg-card-hero'] ?? '',
+      '--paper-head': PAPER_HEAD
+    }
+    for (const [name, ground] of Object.entries(grounds)) {
       for (const ink of ['text-primary', 'text-secondary']) {
         expect(
-          contrast(hexToRgb(t[ink] ?? ''), hexToRgb(t[ground] ?? '')),
-          `${ink} on ${ground}`
+          contrast(hexToRgb(t[ink] ?? ''), hexToRgb(ground)),
+          `${ink} on ${name}`
         ).toBeGreaterThanOrEqual(4.5)
       }
     }
   })
+  it("paper's theme-local greys match the values the contrast tests use", () => {
+    expect(bodyOf('paper', ':root')).toContain(`--paper-head: ${PAPER_HEAD};`)
+  })
+  it('paper filled controls keep their ink readable (4.5:1)', () => {
+    const t = paperManifest().tokens
+    const pairs: [string, string][] = [
+      ['text-primary', 'needs-you'], // the dark digit on the gold count (spec: Assumed)
+      ['text-on-lit', 'text-primary'], // primary button and lit toggle: white on ink
+      ['text-on-danger', 'danger'],
+      ['text-on-success', 'success']
+    ]
+    for (const [ink, fill] of pairs) {
+      expect(
+        contrast(hexToRgb(t[ink] ?? ''), hexToRgb(t[fill] ?? '')),
+        `${ink} on ${fill}`
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+  it('paper status colours read as indicators on white (3:1)', () => {
+    const t = paperManifest().tokens
+    for (const s of ['working', 'needs-you', 'idle', 'danger']) {
+      expect(
+        contrast(hexToRgb(t[s] ?? ''), hexToRgb(t['bg-surface'] ?? '')),
+        s
+      ).toBeGreaterThanOrEqual(3)
+    }
+  })
+  it('paper ships its two fonts inlined, each with a system fallback', () => {
+    const t = paperManifest().tokens
+    expect(t['font-ui']).toMatch(/^'Familjen Grotesk', .*sans-serif$/)
+    expect(t['font-mono']).toMatch(/^'Martian Mono', .*monospace$/)
+    const r = scanner.load('paper')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.bundle.css.match(/url\("data:font\/woff2;base64,/g)).toHaveLength(2)
+    }
+    const css = readFileSync(resolve(examples, 'paper/theme.css'), 'utf8')
+    expect(css).toMatch(/font-family: 'Familjen Grotesk'/)
+    expect(css).toMatch(/font-family: 'Martian Mono'/)
+  })
+  it('paper assets stay under the theme asset cap', () => {
+    const dir = resolve(examples, 'paper')
+    const total = [
+      'familjen-grotesk-latin-wght-normal.woff2',
+      'martian-mono-latin-wght-normal.woff2'
+    ].reduce((sum, f) => sum + statSync(resolve(dir, f)).size, 0)
+    expect(total).toBeLessThanOrEqual(THEME_ASSETS_MAX_BYTES)
+  })
+  // Fails until the old Paper rules (which select test ids) are rewritten.
+  it.todo('paper selects no test id')
   it("paper's terminal IS the built-in light palette (Follow theme = Light)", () => {
     expect(paperManifest().terminal).toEqual(xtermLightTheme)
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)

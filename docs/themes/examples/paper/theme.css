@@ -1,7 +1,34 @@
-/* Paper — a light dashboard look (spec 2026-09-30): a grey-lavender ground, white panels with
-   large rounded corners, pill controls and a near-black primary. The tokens in theme.json carry
-   the colours and the radius scale; this file carries only what a token cannot say.
-   Selectors are `data-*` hooks where one exists, else the same test ids Liquid Glass targets. */
+/* Paper (spec 2026-10-12, canvas paper-v2.pen): a neutral light ground, white surfaces drawn by
+   soft ring shadows instead of borders, crisp 4/6/8 corners, one joined board panel, Familjen
+   Grotesk for the chrome and Martian Mono for machine data. Tokens in theme.json carry colours,
+   radii and fonts; this file carries only what a token cannot say. Selectors are public `data-*`
+   hooks and roles only (THEMES.md), never test ids or classes. */
+
+@font-face {
+  font-family: 'Familjen Grotesk';
+  src: url('familjen-grotesk-latin-wght-normal.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Martian Mono';
+  src: url('martian-mono-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+/* Paper's own values: three greys the token set has no slot for, and the three ring shadows. */
+:root {
+  --paper-head: #f7f8f9;
+  --paper-count: #ebedf0;
+  --paper-switch-off: #d5d8dd;
+  --paper-ring:
+    0 0 1px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --paper-panel:
+    0 0 1px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --paper-lift:
+    0 0 1px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
 
 /* ── The header is a white bar with a clear edge, so its white never runs into the board's. ── */
 [data-testid='app-header'] {

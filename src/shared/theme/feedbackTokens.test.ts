@@ -1,6 +1,6 @@
 // Feedback callout tokens (spec 2026-10-01-feedback-callout-design.md). The fills mix the tone over
-// the theme's raised surface; text, the icon disc and its glyph must stay readable on them, in the
-// defaults and in Paper (a light theme).
+// the theme's raised surface (a theme may pin a plain hex instead); text, the icon disc and its
+// glyph must stay readable on them, in the defaults and in Paper (a light theme).
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
@@ -21,6 +21,7 @@ function contrast(a: string, b: string): number {
 }
 const MIX = /^color-mix\(in srgb, (#[0-9a-f]{6}) (\d+)%, var\(--bg-surface-raised\)\)$/
 function resolve(value: string, surface: string): string {
+  if (/^#[0-9a-f]{6}$/.test(value)) return value // a theme may pin the fill outright (Paper v2)
   const m = MIX.exec(value)
   if (m === null) throw new Error(`not a surface mix: ${value}`)
   const [hue, pct] = [m[1] ?? '', Number(m[2]) / 100]
