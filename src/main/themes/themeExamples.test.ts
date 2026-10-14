@@ -677,6 +677,32 @@ describe('docs/themes/examples', () => {
     expect(bodyOf('paper', '[data-count]')).toMatch(/font-family:\s*var\(--font-mono\)/)
     expect(bodyOf('paper', "[data-count='needs-you']")).toMatch(/color:\s*var\(--text-primary\)/)
   })
+  it('paper: the three columns sit in one white panel split by lines', () => {
+    expect(bodyOf('paper', '[data-column-grid]')).toMatch(/box-shadow:\s*var\(--paper-panel\)/)
+    expect(bodyOf('paper', '[data-column-grid]')).toMatch(/gap:\s*0/)
+    expect(bodyOf('paper', "[data-column-header][data-accent='needs-you']")).toMatch(
+      /inset 0 3px 0 var\(--needs-you\)/
+    )
+  })
+  it('paper: only needs-you cards lift; the rest sit sunk', () => {
+    expect(bodyOf('paper', "[data-glass='card'][data-status='needs-you']")).toMatch(
+      /box-shadow:\s*var\(--paper-lift\)/
+    )
+    expect(bodyOf('paper', "[data-glass='card']")).toMatch(/box-shadow:\s*none/)
+  })
+  it('paper: rail headings drop their rules only when the rail is open (Review Focus 1)', () => {
+    const hide = themeRules('paper').filter((r) => /display:\s*none/.test(r.body))
+    const selectors = hide
+      .flatMap((r) => r.selectors)
+      .filter((s) => s.includes('data-rail-heading'))
+    expect(selectors.length).toBeGreaterThan(0)
+    for (const s of selectors) expect(s).toContain("[data-collapsed='false']")
+  })
+  it('paper: the rail rows keep the app status edge (no second edge drawn over it)', () => {
+    for (const r of themeRules('paper'))
+      if (r.selectors.some((s) => s.includes('data-rail-row')))
+        expect(r.body).not.toMatch(/inset 3px 0 0/)
+  })
   it("paper's terminal IS the built-in light palette (Follow theme = Light)", () => {
     expect(paperManifest().terminal).toEqual(xtermLightTheme)
     expect(paperManifest().tokens['bg-terminal']).toBe(xtermLightTheme.background)

@@ -113,3 +113,174 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* ── Board: one white panel (radius 8, panel shadow), columns split by a line, no gap.
+   The 20 px from the window edges is the `gutter` token. ── */
+[data-column-grid] {
+  gap: 0;
+  background: var(--bg-surface);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--paper-panel);
+  overflow: hidden;
+}
+/* Scoped to the grid: the rail's group sections carry `data-column` too. */
+[data-column-grid] > [data-column] {
+  background: var(--bg-surface);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+[data-column-grid] > [data-column] + [data-column] {
+  border-left: 1px solid var(--border);
+}
+[data-column-header] {
+  background: var(--paper-head);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+}
+/* The status line on top of each column: 2 px, 3 px for needs-you. */
+[data-column-header][data-accent='working'] {
+  box-shadow: inset 0 2px 0 var(--working);
+}
+[data-column-header][data-accent='needs-you'] {
+  box-shadow: inset 0 3px 0 var(--needs-you);
+}
+[data-column-header][data-accent='idle'] {
+  box-shadow: inset 0 2px 0 var(--idle);
+}
+/* The status dot the app hides; Paper shows it, 8 px. */
+[data-column-header] [data-column-mark] {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+[data-column-header][data-accent='working'] [data-column-mark] {
+  background: var(--working);
+}
+[data-column-header][data-accent='needs-you'] [data-column-mark] {
+  background: var(--needs-you);
+}
+[data-column-header][data-accent='idle'] [data-column-mark] {
+  background: var(--idle);
+}
+[data-column-label] {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+[data-column-header][data-accent='needs-you'] [data-column-label] {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+[data-column-header] [data-count-sep] {
+  display: none;
+}
+[data-column-header] [data-count] {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--paper-count);
+  color: var(--text-secondary);
+}
+[data-column-header] [data-count='needs-you'] {
+  background: var(--needs-you);
+  color: var(--text-primary);
+}
+[data-column-body] {
+  padding: 20px;
+}
+
+/* ── Cards: radius 8, a 3 px status edge on the left only. Working and idle sit sunk with no
+   shadow; needs-you is white and lifted by its shadow, never by a colour. ── */
+[data-glass='card'] {
+  border-radius: var(--rounded-lg);
+  padding: 14px 16px;
+  gap: 8px;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-width: 3px;
+  box-shadow: none;
+}
+[data-glass='card'][data-status='needs-you'] {
+  background: var(--bg-surface);
+  box-shadow: var(--paper-lift);
+}
+[data-card-title] {
+  font-size: 14px;
+  font-weight: 700;
+}
+[data-glass='card'][data-status='idle'] [data-card-title] {
+  color: var(--text-secondary);
+}
+[data-card-path],
+[data-card-meta] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+[data-card-path] {
+  color: var(--text-secondary);
+}
+[data-glass='card'] [data-tag-id] {
+  border-radius: var(--rounded-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+[data-pending-tool] {
+  background: var(--bg-card-calm);
+  border-radius: var(--rounded-sm);
+  padding: 6px 8px;
+}
+
+/* ── Rail: plain headings and 36 px sunk rows. The 3 px status edge and the active row's notch
+   are the app's own (`.row` border-left), so Paper draws neither. ── */
+[data-rail-head] [data-rail-title] {
+  font-size: 12px;
+  font-weight: 600;
+}
+[data-rail-head] button[data-variant] {
+  width: 28px;
+  height: 28px;
+}
+[data-rail][data-collapsed='false'] [data-rail-heading]::before,
+[data-rail][data-collapsed='false'] [data-rail-heading]::after {
+  display: none;
+}
+[data-rail][data-collapsed='false'] [data-rail-heading] {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 20px;
+}
+[data-rail-row] {
+  min-height: 36px;
+}
+/* A needs-you row: gold mixed lightly over the sunk fill. The open row and the pointer keep the
+   app's own fills (the ground, and the hover preview of it). */
+[data-rail-row][data-status='needs-you']:not([data-active]):not(:hover) {
+  background: color-mix(in srgb, var(--needs-you) 10%, var(--bg-row-rest));
+}
+
+/* ── Focused bar (52 px is the `topbar-height` token) and the terminal panel. ── */
+[data-focused-bar] {
+  padding: 0 20px;
+  gap: 10px;
+}
+[data-focused-bar] button[data-variant] {
+  min-height: 30px;
+}
+[data-focused-title] {
+  font-size: 15px;
+  font-weight: 700;
+}
+[data-focused-hint] {
+  font-size: 12px;
+}
+[data-terminal-panel] {
+  border-radius: var(--rounded-lg);
+  border-color: transparent;
+  box-shadow: var(--paper-ring);
+}
