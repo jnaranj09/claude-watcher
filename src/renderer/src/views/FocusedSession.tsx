@@ -304,7 +304,7 @@ export function FocusedSession({
             Delete
           </Button>
         </div>
-        <div className={styles.terminalWrap}>
+        <div className={styles.terminalWrap} data-focused-frames="">
           {keptAlive.map((terminalId) => {
             const isFocused = terminalId === focusedTerminalId
             const pane = shellPanes[terminalId]

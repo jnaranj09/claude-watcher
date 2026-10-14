@@ -407,7 +407,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
           </ManageDialog.List>
           <ManageDialog.Pane testId={`settings-pane-${category}`}>
             {/* The pane's fields sit in ONE group: a theme hook (Liquid Glass draws an inset glass
-                group on it; Default and Paper draw nothing). The rail row names the page, so the
+                group on it; Paper draws a line under each row; Default draws nothing). The rail row names the page, so the
                 pane repeats no title (spec 2026-10-07). */}
             <div data-settings-group="">
               {category === 'notifications' && (

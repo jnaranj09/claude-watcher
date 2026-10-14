@@ -910,7 +910,7 @@ describe('FocusedSession — the >_ Shell button (card shell pane)', () => {
 })
 
 describe('FocusedSession — public theme hooks', () => {
-  it('exposes the title and the hint to themes', () => {
+  it('exposes the title, the hint and the frames to themes', () => {
     boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     const r = render()
     // The hint draws only while focus is OUTSIDE the terminal (R1) — put it on ← Board.
@@ -920,5 +920,6 @@ describe('FocusedSession — public theme hooks', () => {
     const bar = r.container.querySelector('[data-focused-bar]')
     expect(bar?.querySelector('[data-focused-title]')).not.toBeNull()
     expect(bar?.querySelector('[data-focused-hint]')?.textContent).toBe('Esc to return')
+    expect(r.container.querySelector('[data-focused-frames] > *')).not.toBeNull()
   })
 })

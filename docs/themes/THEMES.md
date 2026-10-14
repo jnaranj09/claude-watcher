@@ -404,7 +404,8 @@ What you can target:
     (Needs you, Working, ...), `[data-rail-row]` every session row (also the starting row; the
     open one adds `[data-active]`).
   - Focused view: `[data-focused-bar]` is the top bar, `[data-focused-title]` the session title,
-    `[data-focused-hint]` the `Esc to return` hint.
+    `[data-focused-hint]` the `Esc to return` hint, `[data-focused-frames]` the container whose
+    children are the terminal frames.
 - **Menu hooks.** `[data-popover-icon]` and `[data-popover-end]` are a popover row's icon and
   trailing slot. In the `+ New session` popover: `[data-menu-pick-folder]` is the folder row,
   `[data-menu-manage]` the `Manage templates…` row, and a template row holds `[data-template-name]`,
@@ -498,7 +499,8 @@ the stacking-context trap above, which still applies to any blur you layer on to
 
 `"colorScheme": "light"` plus a light token set. The app's own widgets follow it. See
 [`examples/paper`](examples/paper/theme.json): tokens plus a small CSS file (ring shadows,
-4/6/8 corners, one joined board panel, Familjen Grotesk and Martian Mono).
+4/6/8 corners on controls, 10-14 px on floating layers, one joined board panel, Familjen Grotesk
+and Martian Mono).
 
 ## Recovering from a broken theme
 
@@ -519,8 +521,9 @@ path=<field>`. Never the values.
   panels, `backdrop-filter`, a transparent terminal, and six lossless WebP wallpapers (Lake, the
   default; Bridge; Subway; Graphite; Aurora gradient; Warm smoke). Credits and licences:
   [`WALLPAPERS-LICENSE.md`](examples/liquid-glass/WALLPAPERS-LICENSE.md).
-- [`examples/paper`](examples/paper/) — a light theme: ring shadows instead of borders, 4/6/8 corners, one joined board panel,
-  Familjen Grotesk + Martian Mono (bundled fonts).
+- [`examples/paper`](examples/paper/) — a light theme: ring shadows instead of borders, 4/6/8 corners on
+  controls and 10-14 px on floating layers, one joined board panel, Familjen Grotesk + Martian Mono
+  (bundled fonts).
 
 ## Editor support
 

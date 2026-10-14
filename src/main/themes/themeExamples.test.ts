@@ -652,6 +652,13 @@ describe('docs/themes/examples', () => {
     expect(css).not.toContain('data-testid')
     expect(css).not.toMatch(/\[class[*^$]?=/)
   })
+  it("paper: a card rule never uses the `background:` shorthand (it resets the card's hover image)", () => {
+    const offenders = themeRules('paper')
+      .filter((r) => r.selectors.some((s) => s.includes("[data-glass='card']")))
+      .filter((r) => /(^|[;\s])background\s*:/.test(r.body))
+      .map((r) => r.selectors.join(', '))
+    expect(offenders).toEqual([])
+  })
   it('paper: one control look — no pills, no black hover, a ring instead of a border', () => {
     const css = readFileSync(resolve(examples, 'paper/theme.css'), 'utf8')
     expect(css).not.toContain('--rounded-full')

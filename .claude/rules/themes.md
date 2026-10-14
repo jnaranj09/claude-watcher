@@ -58,7 +58,7 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   Paper-v2 hooks: `data-app-title`, `data-workspace-switcher`, `data-workspace-tab`,
   `data-count="total|working|needs-you"`, `data-session-count`, `data-column-grid`,
   `data-column-body`, `data-column-label`, `data-card-title|path|meta`, `data-pending-tool`,
-  `data-rail`, `data-rail-head|title|heading|row`, `data-focused-title|hint`,
+  `data-rail`, `data-rail-head|title|heading|row`, `data-focused-title|hint|frames`,
   `data-popover-icon|end`, `data-menu-pick-folder|manage`, `data-template-name|path|flags`,
   `data-manage-head|title|close|body|list|pane` (all documented in THEMES.md).
 - `nativeTheme.themeSource` + root `color-scheme` follow the theme's `colorScheme`

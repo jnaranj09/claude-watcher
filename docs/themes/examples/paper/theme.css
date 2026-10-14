@@ -1,8 +1,9 @@
 /* Paper (spec 2026-10-12, canvas paper-v2.pen): a neutral light ground, white surfaces drawn by
-   soft ring shadows instead of borders, crisp 4/6/8 corners, one joined board panel, Familjen
-   Grotesk for the chrome and Martian Mono for machine data. Tokens in theme.json carry colours,
-   radii and fonts; this file carries only what a token cannot say. Selectors are public `data-*`
-   hooks and roles only (THEMES.md), never test ids or classes. */
+   soft ring shadows instead of borders, crisp 4/6/8 corners on controls and 10-14 px on floating
+   layers, one joined board panel, Familjen Grotesk for the chrome and Martian Mono for machine
+   data. Tokens in theme.json carry colours, radii and fonts; this file carries only what a token
+   cannot say. Selectors are public `data-*` hooks and roles only (THEMES.md), never test ids or
+   classes. */
 
 @font-face {
   font-family: 'Familjen Grotesk';
@@ -231,7 +232,7 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   opacity: 1;
 }
 [data-glass='card'][data-status='needs-you'] {
-  background: var(--bg-surface);
+  background-color: var(--bg-surface);
   box-shadow: var(--paper-lift);
 }
 [data-card-title] {
@@ -307,9 +308,8 @@ button[data-variant][data-lit]:hover:not(:disabled) {
 [data-focused-hint] {
   font-size: 12px;
 }
-/* The terminal frames (the focused bar's next sibling holds them): 12 px under the bar, 20 px
-   from the other edges. */
-[data-focused-bar] + * > * {
+/* The terminal frames: 12 px under the bar, 20 px from the other edges. */
+[data-focused-frames] > * {
   inset: 12px 20px 20px;
 }
 [data-terminal-panel] {
