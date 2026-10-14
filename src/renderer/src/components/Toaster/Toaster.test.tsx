@@ -55,6 +55,24 @@ describe('Toaster', () => {
     expect(cards().every((c) => c.hasAttribute('data-toast'))).toBe(true)
   })
 
+  // Spec 2026-10-14: success and info draw no kind glyph; an error keeps `!`.
+  // Every toast keeps its ✕.
+  it('only an error toast draws a glyph; every toast keeps ✕', () => {
+    const { store } = setup()
+    act(() => {
+      store.getState().push({ kind: 'success', title: 'ok' })
+      store.getState().push({ kind: 'info', title: 'fyi' })
+      store.getState().push({ kind: 'error', title: 'no' })
+    })
+    const glyphs = cards().map((c) => c.querySelector(':scope > [data-kind]')?.textContent ?? null)
+    expect(glyphs).toEqual([null, null, '!'])
+    expect(cards().map((c) => c.querySelector('[data-testid="toast-dismiss"]') !== null)).toEqual([
+      true,
+      true,
+      true
+    ])
+  })
+
   it('✕ dismisses: the toast fades (data-leaving) and is gone after the exit', () => {
     const { store, clock } = setup()
     act(() => void store.getState().push({ kind: 'error', title: 'no' }))
@@ -71,12 +89,18 @@ describe('Toaster', () => {
     const run = vi.fn()
     act(
       () =>
-        void store
-          .getState()
-          .push({ kind: 'success', title: 'Archived "api"', action: { label: 'Resume', run } })
+        void store.getState().push({
+          kind: 'success',
+          title: 'Archived "api"',
+          action: { label: 'Resume', icon: 'resume', run }
+        })
     )
     const action = r?.container.querySelector<HTMLButtonElement>('[data-testid="toast-action"]')
     expect(action?.textContent).toBe('Resume')
+    expect(action?.dataset['variant']).toBe('primary')
+    const icon = action?.querySelector('svg')
+    expect(icon?.getAttribute('aria-hidden')).toBe('true')
+    expect(icon?.querySelector('path')?.getAttribute('d')?.startsWith('M3 12a9 9')).toBe(true)
     act(() => action?.click())
     expect(run).toHaveBeenCalledTimes(1)
     expect(cards()[0]?.hasAttribute('data-leaving')).toBe(true)
@@ -86,15 +110,19 @@ describe('Toaster', () => {
     const { store } = setup()
     act(
       () =>
-        void store
-          .getState()
-          .push({ kind: 'success', title: 'x', action: { label: 'Open', run: () => {} } })
+        void store.getState().push({
+          kind: 'success',
+          title: 'x',
+          action: { label: 'Open', icon: 'open', run: () => {} }
+        })
     )
     act(() => boardStore.setState({ settingsDialogOpen: true }))
     expect(r?.container.querySelector('[data-testid="toast-action"]')).toBeNull()
     expect(r?.container.querySelector('[data-testid="toast-dismiss"]')).not.toBeNull()
     act(() => boardStore.setState({ settingsDialogOpen: false }))
-    expect(r?.container.querySelector('[data-testid="toast-action"]')).not.toBeNull()
+    const back = r?.container.querySelector('[data-testid="toast-action"]')
+    expect(back).not.toBeNull()
+    expect(back?.querySelector('path')?.getAttribute('d')).toBe('M7 7h10v10')
   })
 
   it('a detail line carries its full text as a title', () => {
@@ -158,12 +186,21 @@ describe('Toaster', () => {
   })
 })
 
-// Spec 2026-10-01 — a success toast's ✓ is green like the success callout (it was neutral ink).
+// Spec 2026-10-14 — only an error draws a glyph (`!` in --danger); a success or info glyph rule
+// coming back would colour nothing today and hide the next one that draws it.
 describe('Toaster stylesheet', () => {
-  it('colours the success glyph --success and the error glyph --danger', () => {
-    const css = readFileSync(join(__dirname, 'Toaster.module.css'), 'utf8')
-    expect(css).toMatch(/\.glyph\[data-kind='success'\]\s*\{[^}]*color:\s*var\(--success\)/)
+  const css = readFileSync(join(__dirname, 'Toaster.module.css'), 'utf8')
+  it('colours the error glyph --danger', () => {
     expect(css).toMatch(/\.glyph\[data-kind='error'\]\s*\{[^}]*color:\s*var\(--danger\)/)
+  })
+  // The error rule sets the glyph's only colour; a base colour on `.glyph` would be dead.
+  it('gives the base glyph rule no colour of its own', () => {
+    const base = /\n\.glyph\s*\{([^}]*)\}/.exec(css)?.[1]
+    expect(base).toBeDefined()
+    expect(base).not.toMatch(/(^|[^-])color:/)
+  })
+  it('has no success or info glyph rule', () => {
+    expect(css).not.toMatch(/data-kind=['"]?(success|info)/)
   })
 })
 

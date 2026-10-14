@@ -137,7 +137,9 @@ export async function archiveTerminal(terminalId: string): Promise<void> {
   }
   toast.success(
     `Archived "${name}"`,
-    sessionId === null ? {} : { action: { label: 'Resume', run: () => resumeArchived(sessionId) } }
+    sessionId === null
+      ? {}
+      : { action: { label: 'Resume', icon: 'resume', run: () => resumeArchived(sessionId) } }
   )
 }
 

@@ -383,7 +383,7 @@ describe('docs/themes/examples', () => {
   })
   // Toasts had no rule at all and kept the token's flat fill (operator, 2026-10-01: "the toasts
   // don't have blur"). They take the popover's fill, border and rim, but a toast HOLDS a blurring
-  // control (its action is a secondary Button), so it is a container: it blurs from `::before`,
+  // control (its action is a primary Button), so it is a container: it blurs from `::before`,
   // never from itself, or the action's blur would read only the toast's paint.
   it('liquid-glass draws every toast as popover glass, blurring from ::before', () => {
     const rules = liquidGlassRules()

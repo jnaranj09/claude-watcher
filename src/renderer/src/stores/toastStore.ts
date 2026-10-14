@@ -18,8 +18,13 @@ import { MOTION_EXIT_MS } from '../styles/motion'
 
 export type ToastKind = 'success' | 'error' | 'info'
 
+/** The action's icon, as data (no JSX in view-state); the Toaster maps it to the drawn icon.
+ *  Required, so an action cannot ship without one. */
+export type ToastActionIcon = 'resume' | 'open'
+
 export interface ToastAction {
   label: string
+  icon: ToastActionIcon
   run: () => void | Promise<void>
 }
 

@@ -92,6 +92,7 @@ describe('sessionExit', () => {
     await run
     expect(boardStore.getState().launchedTerminals['term-1']).toBeUndefined()
     expect(toasts()).toEqual([['success', 'Archived "api"', 'Resume']])
+    expect(toastStore.getState().toasts[0]?.action?.icon).toBe('resume')
   })
 
   it('a refused archive keeps the terminal and says so; the log carries a code only', async () => {

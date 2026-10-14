@@ -102,7 +102,7 @@ export async function submitLaunch(
     }
     boardStore.getState().registerLaunchedTerminal(terminalId, name, workspaceId)
     toast.success(`Started "${name}"`, {
-      action: { label: 'Open', run: () => openStarted(terminalId, name, workspaceId) }
+      action: { label: 'Open', icon: 'open', run: () => openStarted(terminalId, name, workspaceId) }
     })
   } catch (err) {
     timers.clearTimer(guard)

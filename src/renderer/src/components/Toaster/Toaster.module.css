@@ -1,7 +1,7 @@
 /* Action feedback (spec 2026-09-29 §1.2) — the toast stack. Bottom-right with a --space-4 gutter;
    z-index 70: above ManageDialog / QuitGuard / StopConfirm / the name prompt (60), below the
-   terminal context menu (1000). Tokens only. The glyph takes its tone's colour: a success's ✓ is
-   --success (like the success Callout, spec 2026-10-01), a failure's `!` is --danger. */
+   terminal context menu (1000). Tokens only. Only an error draws a glyph: its `!` is --danger
+   (success and info draw none, spec 2026-10-14). */
 .region {
   position: fixed;
   right: var(--space-4);
@@ -60,11 +60,6 @@
   width: 16px;
   text-align: center;
   font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.glyph[data-kind='success'] {
-  color: var(--success);
 }
 
 .glyph[data-kind='error'] {

@@ -44,7 +44,9 @@ describe('toastStore', () => {
     expect(TOAST_EXIT_MS).toBe(150)
     store.getState().push({ kind: 'success', title: 'a' })
     store.getState().push({ kind: 'info', title: 'b' })
-    store.getState().push({ kind: 'success', title: 'c', action: { label: 'Go', run: () => {} } })
+    store
+      .getState()
+      .push({ kind: 'success', title: 'c', action: { label: 'Go', icon: 'open', run: () => {} } })
     clock.advance(TOAST_MS - 1)
     expect(store.getState().toasts.every((t) => !t.leaving)).toBe(true)
     clock.advance(1)
@@ -110,7 +112,7 @@ describe('toastStore', () => {
     )
     const id = store
       .getState()
-      .push({ kind: 'success', title: 'x', action: { label: 'Resume', run } })
+      .push({ kind: 'success', title: 'x', action: { label: 'Resume', icon: 'resume', run } })
     store.getState().runAction(id)
     expect(run).toHaveBeenCalledTimes(1)
     expect(store.getState().toasts[0]?.leaving).toBe(true)
@@ -126,6 +128,7 @@ describe('toastStore', () => {
       title: 'a',
       action: {
         label: 'Go',
+        icon: 'open',
         run: () => {
           throw new Error('boom')
         }
@@ -134,7 +137,7 @@ describe('toastStore', () => {
     const b = store.getState().push({
       kind: 'info',
       title: 'b',
-      action: { label: 'Go', run: () => Promise.reject(new Error('boom')) }
+      action: { label: 'Go', icon: 'open', run: () => Promise.reject(new Error('boom')) }
     })
     expect(() => store.getState().runAction(a)).not.toThrow()
     store.getState().runAction(b)
@@ -158,7 +161,7 @@ describe('toastStore', () => {
 
   it('toast.success / error / info push onto the app singleton', () => {
     vi.useFakeTimers()
-    toast.success('Archived "api"', { action: { label: 'Resume', run: () => {} } })
+    toast.success('Archived "api"', { action: { label: 'Resume', icon: 'resume', run: () => {} } })
     toast.error('Could not update tags.')
     toast.info('Still starting "api"…', { detail: 'one line' })
     expect(toastStore.getState().toasts.map((t) => [t.kind, t.title])).toEqual([

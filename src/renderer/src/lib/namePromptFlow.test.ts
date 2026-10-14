@@ -152,6 +152,7 @@ describe('submitLaunch', () => {
     expect(boardStore.getState().focusedTerminalId).toBeNull()
     const started = toastStore.getState().toasts.find((t) => t.title === 'Started "api"')
     expect(started?.action?.label).toBe('Open')
+    expect(started?.action?.icon).toBe('open')
     if (started === undefined) throw new Error('no Started toast')
     toastStore.getState().runAction(started.id)
     await settle()
