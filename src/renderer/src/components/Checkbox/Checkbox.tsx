@@ -53,7 +53,7 @@ export function Checkbox({
   return (
     <label className={styles.labeled}>
       {box}
-      <span data-checkbox-text>{label}</span>
+      <span>{label}</span>
     </label>
   )
 }

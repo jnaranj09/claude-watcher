@@ -222,6 +222,12 @@ describe('ManageDialog.RowCheck (spec 2026-10-03 D)', () => {
     expect(select?.querySelector('input')).toBeNull()
   })
 
+  // A flex box, so the inline-flex Checkbox inside adds no line-box strut to the row's height.
+  it('its slot is a flex box, never an inline line box', () => {
+    const css = readFileSync(join(__dirname, 'ManageDialog.module.css'), 'utf8')
+    expect(/\.rowCheck\s*\{[^}]*\}/.exec(css)?.[0] ?? '').toMatch(/display: flex;/)
+  })
+
   it('checking it reports the new value and does NOT select the row', () => {
     const onCheck = vi.fn()
     const r = renderComponent(<CheckHarness onCheck={onCheck} />)

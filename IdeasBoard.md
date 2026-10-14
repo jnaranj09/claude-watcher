@@ -29,4 +29,3 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ## Bugs
 
 ---
-

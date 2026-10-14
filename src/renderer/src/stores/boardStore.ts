@@ -790,10 +790,12 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       const state = get()
       const next = Object.values(state.launchedTerminals)
         .filter((t) => terminalWorkspaceId(state, t) === activeId)
-        .sort(
-          (a, b) =>
-            (b.focusedAt ?? -Infinity) - (a.focusedAt ?? -Infinity) || b.launchedAt - a.launchedAt
-        )[0]
+        .sort((a, b) => {
+          // Never focused sorts last; a tie (both never focused) falls back to the newest launch.
+          const fa = a.focusedAt ?? 0
+          const fb = b.focusedAt ?? 0
+          return fb !== fa ? fb - fa : b.launchedAt - a.launchedAt
+        })[0]
       if (next === undefined) {
         set({ viewMode: 'board', focusedTerminalId: null })
         return

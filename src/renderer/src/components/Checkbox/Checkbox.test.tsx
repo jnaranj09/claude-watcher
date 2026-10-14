@@ -68,7 +68,7 @@ describe('Checkbox', () => {
     const r = render(<Harness onChange={onChange} />)
     const label = input(r).closest('label')
     expect(label?.textContent).toBe('Select all')
-    act(() => label?.querySelector<HTMLElement>('[data-checkbox-text]')?.click())
+    act(() => label?.querySelector<HTMLElement>(':scope > span:last-child')?.click())
     expect(onChange).toHaveBeenLastCalledWith(true)
   })
 
