@@ -1,7 +1,25 @@
-// Lucide icons (ISC licence), inline like PinIcon and the ☰ menu icons: no icon dependency. One
-// component for every lucide icon the app draws, so the 14px stroke box is written once. Drawn on
-// lucide's 24 grid, so the 2.25 stroke at 14px matches the menu icons' 1.5 stroke on a 16 grid.
-// `currentColor` follows the text ramp. Decorative: the host control names itself.
+// Lucide icons, inline like PinIcon and the ☰ menu icons: no icon dependency. One component for
+// every lucide icon the app draws, so the 14px stroke box is written once. Drawn on lucide's 24
+// grid, so the 2.25 stroke at 14px matches the menu icons' 1.5 stroke on a 16 grid. `currentColor`
+// follows the text ramp. Decorative: the host control names itself.
+//
+// The paths are copied from Lucide (https://lucide.dev), so its notices travel with them:
+//
+// ISC License. Copyright (c) 2026 Lucide Icons and Contributors. Permission to use, copy, modify,
+// and/or distribute this software for any purpose with or without fee is hereby granted, provided
+// that the above copyright notice and this permission notice appear in all copies. THE SOFTWARE IS
+// PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING
+// ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+//
+// `arrow-up-right` derives from Feather (Lucide's licence lists it): The MIT License (MIT).
+// Copyright (c) 2013-present Cole Bemis. Permission is hereby granted, free of charge, to any
+// person obtaining a copy of this software and associated documentation files (the "Software"), to
+// deal in the Software without restriction, including without limitation the rights to use, copy,
+// modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the following conditions: The
+// above copyright notice and this permission notice shall be included in all copies or substantial
+// portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
 import type { JSX } from 'react'
 
 export type LucideIconName = 'layers' | 'rotate-ccw' | 'arrow-up-right'

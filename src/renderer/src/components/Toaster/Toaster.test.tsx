@@ -193,6 +193,12 @@ describe('Toaster stylesheet', () => {
   it('colours the error glyph --danger', () => {
     expect(css).toMatch(/\.glyph\[data-kind='error'\]\s*\{[^}]*color:\s*var\(--danger\)/)
   })
+  // The error rule sets the glyph's only colour; a base colour on `.glyph` would be dead.
+  it('gives the base glyph rule no colour of its own', () => {
+    const base = /\n\.glyph\s*\{([^}]*)\}/.exec(css)?.[1]
+    expect(base).toBeDefined()
+    expect(base).not.toMatch(/(^|[^-])color:/)
+  })
   it('has no success or info glyph rule', () => {
     expect(css).not.toMatch(/data-kind=['"]?(success|info)/)
   })

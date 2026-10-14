@@ -60,7 +60,6 @@
   width: 16px;
   text-align: center;
   font-weight: 600;
-  color: var(--text-secondary);
 }
 
 .glyph[data-kind='error'] {
