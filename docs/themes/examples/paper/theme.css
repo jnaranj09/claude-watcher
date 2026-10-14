@@ -309,8 +309,9 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   width: 15px;
   height: 15px;
 }
+/* Holds text too (a workspace row's counts), so secondary, never muted (3.3:1). */
 [data-popover-end] {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 /* The open submenu row: sunk fill, label semi-bold, no edge (the app draws a border on it). */
 [data-popover-item][aria-expanded='true'] {
@@ -318,10 +319,11 @@ button[data-variant][data-lit]:hover:not(:disabled) {
   border-color: transparent;
   font-weight: 600;
 }
-/* The keyboard-selected and checked rows look the same. A workspace-tinted row keeps its tint. */
+/* The keyboard-selected, keyboard-focused and checked rows look the same. A workspace-tinted row keeps its tint. */
 [data-popover-item][data-active]:not([data-tone]),
 [data-popover-item][aria-selected='true']:not([data-tone]),
-[data-popover-item][aria-checked='true']:not([data-tone]) {
+[data-popover-item][aria-checked='true']:not([data-tone]),
+:root[data-input='keyboard'] [data-popover-item]:not([data-tone]):focus-visible {
   background-color: var(--bg-row-rest);
   border-color: transparent;
   font-weight: 600;

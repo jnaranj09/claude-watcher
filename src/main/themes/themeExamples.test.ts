@@ -669,6 +669,16 @@ describe('docs/themes/examples', () => {
     expect(lit).toMatch(/color:\s*var\(--text-on-lit\)/)
     expect(lit).toMatch(/box-shadow:\s*none/)
   })
+  it('paper never sets text to --text-muted, and keyboard focus gets the sunk fill', () => {
+    for (const r of themeRules('paper'))
+      expect(r.body).not.toMatch(/(^|[;\s])color:\s*var\(--text-muted\)/)
+    expect(
+      bodyOf(
+        'paper',
+        ":root[data-input='keyboard'] [data-popover-item]:not([data-tone]):focus-visible"
+      )
+    ).toMatch(/background-color:\s*var\(--bg-row-rest\)/)
+  })
   it('paper: the workspace switcher keeps its tint (no background of its own)', () => {
     expect(bodyOf('paper', '[data-workspace-switcher]')).not.toMatch(/background/)
   })
