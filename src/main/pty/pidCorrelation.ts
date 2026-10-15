@@ -105,8 +105,8 @@ function parsePpid(statusBlob: string): number | undefined {
 // ── REAL `/proc` READER SEAM (Linux-only; pidCorrelation.test.ts reads it) ────
 //
 // The production `ReadStatus` impl. `claudeSessionFile.ts` takes it, and
-// pidCorrelation.test.ts drives it against the real kernel. Linux-only (`/proc` is Linux); callers gate on
-// `process.platform === 'linux'`. node:fs is a core module, statically imported at
+// pidCorrelation.test.ts drives it against the real kernel. Linux-only (`/proc` is Linux); callers
+// gate on `process.platform === 'linux'`. node:fs is a core module, statically imported at
 // the top — safe in the main process and the node test env.
 
 /** Real `/proc/<pid>/status` reader (the production `ReadStatus` seam). Throws if

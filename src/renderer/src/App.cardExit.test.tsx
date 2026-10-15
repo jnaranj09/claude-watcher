@@ -53,8 +53,8 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
     expect(r.container.querySelector('[data-testid="card-archive"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="card-delete"]')).toBeNull()
 
-    // The terminal-session binding arrives (CH.launchCorrelated in production; addCorrelation is its
-    // store-side effect).
+    // The terminal-session binding arrives (CH.launchCorrelated in production; addCorrelation is
+    // its store-side effect).
     act(() => boardStore.getState().addCorrelation('sess-1', 'term-1'))
     await flush(3)
 

@@ -4,8 +4,8 @@
 //   - 3.1 proves the terminal by spawning a SHELL (and the operator can run `htop` in it) —
 //     the FR-10 packaged acceptance (spawn → type → resize → htop).
 //   - the native-picker `claude` LAUNCH (FR-11) is Story 3.2.
-//   - the board-card ↔ terminal PAIRING (via the terminalId/session id binding) + the focused-session navigation
-//     (BoardProps.onActivateCard) is Story 3.2 / 3.4.
+//   - the board-card ↔ terminal PAIRING (via the terminalId/session id binding) + the
+//     focused-session navigation (BoardProps.onActivateCard) is Story 3.2 / 3.4.
 //   - the launched-set / app-launched-vs-external filter is Story 3.3.
 // So this host just opens one (or a few) embedded terminals directly. It is reachable via the
 // URL hash (`#terminals` → 1; `#terminals=N` → N, for the NFR-5 many-terminals manual check)

@@ -72,8 +72,8 @@ function resolveSessionName(terminalId: string): string {
 
 /** Name-sync (D-11) — the focused terminal's own BoardSession, so the bar can draw its name +
  *  the ⟳ mark. Reverse-looks-up the session bound to the focused terminal; null before the
- *  binding arrives (no card yet) or with no terminal focused — the title falls back to an empty string, never a
- *  crash. */
+ *  binding arrives (no card yet) or with no terminal focused — the title falls back to an empty
+ *  string, never a crash. */
 /** The title's dot IS the session's column, as on the rail and the board (compiler-checked). */
 const DOT_STATUS_FOR_COLUMN: Record<Column, DotStatus> = {
   working: 'working',

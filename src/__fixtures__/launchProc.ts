@@ -1,4 +1,5 @@
-// Fixture for the launchSession.*.test.ts files: the production-shaped spawn factory. Never shipped.
+// Fixture for the launchSession.*.test.ts files: the production-shaped spawn factory. Never
+// shipped.
 
 // Story 6.2 — the production-shaped spawn FACTORY fixture: mirrors index.ts `rawClaudeSpawn`
 // (the `$SHELL -l -c` wrapper composing `claude --session-id '<uuid>'`, single-quoted).
