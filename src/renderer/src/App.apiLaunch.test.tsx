@@ -11,8 +11,7 @@
 //
 // The renderer INVENTS NOTHING here: the label and the workspace are main's (session truth).
 //
-// DO NOT MODIFY App.launch.test.tsx (the frozen B-1 guardrail, AR-12) — this file is a SIBLING
-// that mirrors its `window.*` stub block.
+// A SIBLING of App.launch.test.tsx (the B-1 guardrail) that mirrors its `window.*` stub block.
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'

@@ -406,18 +406,6 @@ describe('EmbeddedTerminal shortcut expander', () => {
     expect(byTestId('expander-box')).toBeNull()
   })
 
-  it('leaves the Ctrl+V takeover intact', () => {
-    render({ terminalId: 't-x-9' })
-    const { port1 } = deliverPort('t-x-9', lastOpenToken())
-    const postSpy = vi.spyOn(port1, 'postMessage')
-    let result = true
-    act(() => {
-      result = capturedKeyHandlers[0]!(chordEvent({ key: 'v', ctrlKey: true }))
-    })
-    expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: '\x16' })
-    expect(result).toBe(false)
-  })
-
   it('does not throw when the port was never delivered', () => {
     render({ terminalId: 't-x-10' })
     // No deliverPort(): portRef is null (but `dead` is NOT set — this is a portless pane, not

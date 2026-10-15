@@ -241,8 +241,8 @@ function App(): React.JSX.Element {
   // it leaves both `selectStartingTerminals` and `selectKeptAliveTerminalIds`. Mirrors the
   // `window.launch.onCorrelated` effect above (subscribe-returns-unsubscribe, StrictMode-safe).
   // `window.terminal.onExit` exists in preload (preload/index.ts:182-186) + typed in index.d.ts.
-  // `App.launch.test.tsx` stubs `window.terminal.onExit: vi.fn(() => () => {})` (:91) so the new
-  // subscription mounts cleanly there WITHOUT touching the frozen file.
+  // `App.launch.test.tsx` fakes `window.terminal.onExit` with a subscriber set and drives an exit
+  // through it to prove the registry entry leaves.
   useEffect(() => {
     if (smoke !== false) return
     const off = window.terminal.onExit(({ terminalId }) =>
@@ -256,7 +256,7 @@ function App(): React.JSX.Element {
   // The renderer opens the guard modal by setting boardStore.quitGuard (RENDERER VIEW-STATE).
   // Mirrors the `window.launch.onCorrelated` effect above (subscribe-returns-unsubscribe).
   // Guard: `window.quit` is present in real Electron but absent in tests that pre-date Story 4.2
-  // (App.launch.test.tsx stubs only the bridges it touches; it must not be modified — AR-12).
+  // (App.launch.test.tsx stubs only the bridges it touches).
   useEffect(() => {
     if (smoke !== false) return
     if (!window.quit) return

@@ -6,14 +6,23 @@
 //     (window.launch.launch) in the picked cwd → drops into the Focused-session by terminalId;
 //   - CANCEL (picker returns null) is a NO-OP (no launch call, no view change);
 //   - Ctrl+N triggers the same flow; Esc returns Focused → Board (UX-DR21);
-//   - the EmbeddedTerminal is rendered in the focused view (reused as-is) — keyed by terminalId.
+//   - the EmbeddedTerminal is rendered in the focused view (reused as-is) — keyed by terminalId;
+//   - Story 5.6 launch registry (AC-1, AC-2, AC-5): a launch enters `launchedTerminals` (label =
+//     cwd basename) and stays kept-alive after another launch takes focus; a PTY exit
+//     (window.terminal.onExit) removes it;
+//   - a workspace switch keeps a hidden workspace's terminal mounted (Task 9a).
 // The byte/PTY path is packaged-smoke-only; here the terminal is the Story-3.1 component with the
 // window.terminal fakes (it just wires open()).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
 import App from './App'
-import { boardStore } from './stores/boardStore'
+import {
+  boardStore,
+  selectKeptAliveTerminalIds,
+  selectStartingTerminals
+} from './stores/boardStore'
+import { workspacesStore } from './stores/workspacesStore'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from '../../shared/schemas/launch'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle before asserting. */
@@ -64,7 +73,16 @@ let pickSpy: ReturnType<typeof vi.fn>
 let launchSpy: ReturnType<typeof vi.fn>
 let terminalStopSpy: ReturnType<typeof vi.fn>
 
+// Both App AND EmbeddedTerminal subscribe to window.terminal.onExit, so the fake keeps a SET of
+// subscribers (a single slot would let the last subscriber win, and StrictMode cleanups could
+// null it out). simulateExit broadcasts to every active subscriber.
+const onExitSubscribers = new Set<(info: { terminalId: string; exitCode: number }) => void>()
+function simulateExit(info: { terminalId: string; exitCode: number }): void {
+  for (const cb of onExitSubscribers) cb(info)
+}
+
 beforeEach(() => {
+  onExitSubscribers.clear()
   // Reset the singleton store view-state between cases (App uses the app singleton boardStore).
   boardStore.setState({
     viewMode: 'board',
@@ -81,6 +99,9 @@ beforeEach(() => {
     // Session-naming — no create-time prompt open at the start of a case.
     sessionNamePrompt: null
   })
+  // Workspaces (Task 9a fix, review round 1, Finding 3) — reset the active workspace so a test
+  // that switches it does not bleed into a later test in this file.
+  workspacesStore.setState({ activeId: 'default' })
 
   // xterm assumes a real browser: shim matchMedia + ResizeObserver (jsdom omits both) so the
   // EmbeddedTerminal mounts in the focused view.
@@ -149,7 +170,12 @@ beforeEach(() => {
     open: vi.fn(() => () => {}),
     resize: vi.fn(() => Promise.resolve()),
     stop: terminalStopSpy,
-    onExit: vi.fn(() => () => {})
+    onExit: vi.fn((cb: (info: { terminalId: string; exitCode: number }) => void) => {
+      onExitSubscribers.add(cb)
+      return () => {
+        onExitSubscribers.delete(cb)
+      }
+    })
   }
   ;(window as unknown as { launch: unknown }).launch = {
     pickDirectory: pickSpy,
@@ -195,6 +221,13 @@ function clickPickFolder(r: RenderResult): void {
   act(() =>
     (document.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
   )
+}
+
+/** A full launch: header button → "Pick a folder…" → picker → accept the prefilled name. */
+async function launchViaPicker(r: RenderResult): Promise<void> {
+  clickPickFolder(r)
+  await flush()
+  await submitNamePrompt(r)
 }
 
 describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
@@ -525,6 +558,129 @@ describe('App — Story 3.4 B-1: Board↔Focused switch is kept-alive (PTY survi
 
     // THE ASSERTION: the PTY was NEVER stopped across focused → board → focused. A view switch is
     // not a session stop — the kept-alive terminal must survive (terminal.md / AC-3).
+    expect(terminalStopSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('App — Story 5.6 silent-kill prevention (AC-2)', () => {
+  it('launch A then launch B keeps A in selectKeptAliveTerminalIds via the registry (non-vacuous)', async () => {
+    // This is the AC-2 regression test: before Story 5.6, launching B would cause A to leave
+    // selectKeptAliveTerminalIds (only focusedTerminalId kept it alive), unmounting A's
+    // EmbeddedTerminal and killing the PTY. After Story 5.6, A is kept alive via launchedTerminals.
+    //
+    // FAULT-INJECTION EVIDENCE: removing the launchedTerminals union from selectKeptAliveTerminalIds
+    // causes this test to FAIL (A would not be in kept-alive after B takes focus).
+    const r = await renderApp()
+
+    // Launch A.
+    launchResult.current = { terminalId: 'launch-A', workspaceId: 'default' }
+    await launchViaPicker(r)
+    expect(boardStore.getState().focusedTerminalId).toBe('launch-A')
+    expect(selectKeptAliveTerminalIds(boardStore.getState())).toContain('launch-A')
+
+    // Go back to board so we can launch B.
+    act(() => {
+      boardStore.getState().showBoard()
+    })
+
+    // Launch B.
+    launchResult.current = { terminalId: 'launch-B', workspaceId: 'default' }
+    await launchViaPicker(r)
+    expect(boardStore.getState().focusedTerminalId).toBe('launch-B')
+
+    // A must still be in kept-alive via the registry (even though focusedTerminalId is now B).
+    const alive = selectKeptAliveTerminalIds(boardStore.getState())
+    expect(alive).toContain('launch-A') // THE REGRESSION GUARD
+    expect(alive).toContain('launch-B')
+    // Both are in the launchedTerminals registry.
+    expect(boardStore.getState().launchedTerminals['launch-A']).toBeDefined()
+    expect(boardStore.getState().launchedTerminals['launch-B']).toBeDefined()
+  })
+})
+
+describe('App — Story 5.6 onExit clears the registry (AC-5)', () => {
+  it('window.terminal.onExit fires → forgetLaunchedTerminal removes the entry', async () => {
+    const r = await renderApp()
+    await launchViaPicker(r)
+    expect(boardStore.getState().launchedTerminals['launch-term-xyz']).toBeDefined()
+    // At least one subscriber (App's forgetLaunchedTerminal handler) must be registered.
+    expect(onExitSubscribers.size).toBeGreaterThan(0)
+
+    // Simulate PTY exit for the launch — broadcasts to ALL subscribers (App + EmbeddedTerminal).
+    act(() => {
+      simulateExit({ terminalId: 'launch-term-xyz', exitCode: 0 })
+    })
+
+    // The registry entry must be gone (forgetLaunchedTerminal was called by App's subscriber).
+    expect(boardStore.getState().launchedTerminals['launch-term-xyz']).toBeUndefined()
+  })
+
+  it('onExit for an unknown terminalId is a no-op (idempotent — AC-5)', async () => {
+    await renderApp()
+    expect(onExitSubscribers.size).toBeGreaterThan(0)
+    const before = boardStore.getState().launchedTerminals
+
+    act(() => {
+      simulateExit({ terminalId: 'ghost-id', exitCode: 0 })
+    })
+
+    // Registry unchanged (no throw, same reference = same content).
+    expect(boardStore.getState().launchedTerminals).toBe(before)
+  })
+})
+
+describe('App — Story 5.6 selectStartingTerminals reflects launched-but-uncorrelated terminals', () => {
+  it('after a launch, selectStartingTerminals has the launched terminal (before correlation)', async () => {
+    const r = await renderApp()
+    await launchViaPicker(r)
+    // No correlation yet → terminal should be "starting". Workspaces (Task 9a): the launch fixture
+    // stamps 'default' (see launchResult above), so query that same workspace.
+    const starting = selectStartingTerminals(boardStore.getState(), 'default')
+    expect(starting).toHaveLength(1)
+    expect(starting[0]?.terminalId).toBe('launch-term-xyz')
+    expect(starting[0]?.label).toBe('project') // basename of '/home/op/project'
+  })
+})
+
+// Task 9a fix (review round 1, Finding 3 — highest risk) — a workspace switch must be a PURE
+// show/hide. `selectKeptAliveTerminalIds` proves the SELECTOR body is unfiltered (boardStore.test.ts),
+// but that cannot catch the catastrophic version of the mistake: someone wrapping the
+// `keptAlive.map(...)` in FocusedSession.tsx (or the `App.tsx` mount-gate that keeps FocusedSession
+// alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT the
+// EmbeddedTerminal, which runs its cleanup (term.dispose() + window.terminal.stop(terminalId)) and
+// KILLS the live PTY — losing the operator's session. This mirrors the B-1 regression guard above,
+// just for a WORKSPACE switch instead of a Board↔Focused toggle.
+describe("App — Task 9a fix: a workspace switch keeps a HIDDEN workspace's terminal mounted (PTY survives)", () => {
+  it('a terminal launched in workspace w1 stays in the DOM (and its PTY is never stopped) after switching the active workspace to w2', async () => {
+    const r = await renderApp()
+
+    // Launch directly via the store action (the same production action App wires to the picker
+    // flow) — simpler than driving the picker UI, and exercises the real App→FocusedSession→
+    // EmbeddedTerminal mount pipeline reactively.
+    act(() => {
+      boardStore.getState().openLaunchedTerminal('t-w1', 'projA', 'w1')
+    })
+    await flush()
+    expect(r.container.querySelector('[data-terminal-id="t-w1"]')).not.toBeNull()
+
+    expect(terminalStopSpy).not.toHaveBeenCalled() // baseline: launching must not have stopped anything
+
+    // Switch the ACTIVE workspace to w2, which has no terminal of its own — `focusWorkspace` falls
+    // back to the board view (mirrors how Task 9b's switcher will wire setActiveWorkspace +
+    // focusWorkspace; see boardStore.test.ts's "workspace filtering" describe block).
+    act(() => {
+      workspacesStore.setState({ activeId: 'w2' })
+      boardStore.getState().focusWorkspace('w2')
+    })
+    await flush()
+    expect(boardStore.getState().viewMode).toBe('board') // w2 has nothing to focus → falls back
+
+    // THE ASSERTION: w1's terminal is STILL in the DOM (hidden is fine and expected —
+    // visibility:hidden on the whole frame per terminal.md — but PRESENT, not unmounted) and its
+    // PTY was NEVER stopped. Non-vacuous: a workspace filter wrapped around `keptAlive.map(...)`
+    // would unmount it, both these assertions would flip, and this test would fail exactly here.
+    const termAfter = r.container.querySelector('[data-terminal-id="t-w1"]')
+    expect(termAfter).not.toBeNull()
     expect(terminalStopSpy).not.toHaveBeenCalled()
   })
 })

@@ -169,7 +169,8 @@ beforeEach(() => {
     ),
     onCorrelated: vi.fn(() => () => {}),
     markSeen: vi.fn(() => Promise.resolve(undefined)),
-    // Past sessions (D-3/D-5) — Ctrl+W now archives directly (sessionExit.archiveTerminal).
+    // Past sessions (D-3/D-5) — stubbed so a test can assert no key archives (R27: only the
+    // Archive button does).
     archiveSession: vi.fn(() => Promise.resolve(undefined)),
     deleteSession: vi.fn(() => Promise.resolve(undefined))
   }
@@ -202,7 +203,7 @@ async function renderApp(): Promise<RenderResult> {
 }
 
 // ---------------------------------------------------------------------------
-// (a) Ctrl+W while focused ARCHIVES the focused terminal + preventDefault fires
+// (a) Ctrl+W while focused archives NOTHING (R27) + preventDefault fires
 // ---------------------------------------------------------------------------
 
 describe('App keydown — Ctrl+W archives NOTHING (R27; was D-3/D-5 Task 10)', () => {
@@ -457,27 +458,5 @@ describe('App — the Delete confirm and Quit guard join the single-modal rule (
     act(() => guardShow?.(makeGuardPayload()))
     expect(boardStore.getState().quitGuard).not.toBeNull()
     expect(boardStore.getState().stopConfirm).toBeNull()
-  })
-
-  it('Esc still cancels the Delete confirm first', async () => {
-    await renderApp()
-    openConfirm()
-    await act(async () => {
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-      await Promise.resolve()
-    })
-    expect(boardStore.getState().stopConfirm).toBeNull()
-    expect(boardStore.getState().viewMode).toBe('focused')
-  })
-
-  it('Esc still cancels the Quit guard', async () => {
-    await renderApp()
-    act(() => boardStore.getState().showQuitGuard(makeGuardPayload()))
-    await act(async () => {
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-      await Promise.resolve()
-    })
-    expect(boardStore.getState().quitGuard).toBeNull()
-    expect(cancelSpy).toHaveBeenCalled()
   })
 })

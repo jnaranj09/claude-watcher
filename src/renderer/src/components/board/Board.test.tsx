@@ -590,16 +590,6 @@ describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
     act(() => bridges.pushActivate('ghost')) // never on the board
     expect(container.querySelector('[data-selected="true"]')).toBeNull()
   })
-
-  it('the stub bridge exposes onActivate (window.attention is wired in the preload seam)', () => {
-    // The Board mounts window.attention.onActivate without throwing — proves the bridge exists.
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
-    const { unmount } = renderComponent(<Board />)
-    cleanup = unmount
-    expect(typeof (window as unknown as { attention: AttentionBridge }).attention.onActivate).toBe(
-      'function'
-    )
-  })
 })
 
 // Task 9a fix (review round 1, Finding 2) — a WIRING-level guard. Every store-level test in

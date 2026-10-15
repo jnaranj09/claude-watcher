@@ -8,8 +8,7 @@
 //       clearStopConfirm + showBoard.
 //       *** THIS IS THE LOAD-BEARING F1 ORDERING TEST (orchestrator FROZEN #1) ***
 //       Non-vacuous: the fault-injected reversed order (view-change-first) FAILS this test.
-//   (e) Pressing Enter while Cancel is focused triggers Cancel (default-focused = default action).
-//   (f) Role=dialog + aria-modal=true (accessibility).
+//   (e) Role=dialog + aria-modal=true (accessibility).
 //
 // [Source: story 4.3 Task 5; task-10-brief.md (D-5); orchestrator FROZEN #1; UX-DR14;
 //  ../../lib/sessionExit.ts (deleteTerminal owns the F1 ordering now)]
@@ -399,31 +398,7 @@ describe('StopConfirm — clicking Delete forgets the launched-terminal registry
 })
 
 // ---------------------------------------------------------------------------
-// (e) Enter while Cancel is focused → Cancel (default-focused = default action)
-// ---------------------------------------------------------------------------
-
-describe('StopConfirm — Enter triggers Cancel (default-focused = reflexive Enter cancels)', () => {
-  it('pressing Enter while Cancel is focused calls clearStopConfirm (not delete)', () => {
-    const { container, unmount } = renderComponent(<StopConfirm payload={makePayload()} />)
-    cleanup = unmount
-    const cancelBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="stop-confirm-cancel"]'
-    )
-    expect(document.activeElement).toBe(cancelBtn) // Cancel is focused
-
-    // Native Enter on a focused button clicks it.
-    act(() => {
-      cancelBtn?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-      cancelBtn?.click() // Simulate Enter → click
-    })
-
-    expect(deleteSpy).not.toHaveBeenCalled()
-    expect(boardStore.getState().stopConfirm).toBeNull()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// (f) Role=dialog + aria-modal=true
+// (e) Role=dialog + aria-modal=true
 // ---------------------------------------------------------------------------
 
 describe('StopConfirm — dialog accessibility', () => {

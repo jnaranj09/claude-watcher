@@ -6,8 +6,7 @@
 //   (c) `Quit anyway` carries `danger` styling (data-testid="quit-guard-confirm").
 //   (d) Clicking Cancel calls `window.quit.cancel` + clears the guard.
 //   (e) Clicking Quit anyway calls `window.quit.confirm`.
-//   (f) Pressing Enter on Cancel (default-focused) triggers Cancel.
-//   (g) Pressing Esc triggers Cancel (UX-DR14: Esc closes topmost layer).
+// Esc → Cancel is App.tsx's global keydown, tested in App.keydown.test.tsx.
 //
 // Uses the renderComponent harness (no RTL — bare react-dom + act).
 // Mirrors Settings.test.tsx's stub pattern.
@@ -259,37 +258,6 @@ describe('QuitGuard — clicking Quit anyway', () => {
     expect(cs).toHaveBeenCalledTimes(1)
   })
 })
-
-// ---------------------------------------------------------------------------
-// (f) Enter while Cancel is focused → Cancel (default-focused = default action)
-// ---------------------------------------------------------------------------
-
-describe('QuitGuard — Enter triggers Cancel (default-focused = reflexive Enter cancels)', () => {
-  it('pressing Enter while Cancel is focused calls window.quit.cancel', () => {
-    const { cancelSpy: cs } = stubQuit()
-    const { container, unmount } = renderComponent(<QuitGuard payload={makePayload()} />)
-    cleanup = unmount
-    const cancelBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="quit-guard-cancel"]'
-    )
-    expect(document.activeElement).toBe(cancelBtn) // Cancel is focused
-
-    // Native Enter on a focused button clicks it.
-    act(() => {
-      cancelBtn?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-      cancelBtn?.click() // Simulate Enter → click
-    })
-
-    expect(cs).toHaveBeenCalled()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// (g) Esc → Cancel (tested via App.tsx keydown — documented as manual gate)
-// Note: the QuitGuard component itself does not handle Esc; it is handled by App.tsx's
-// global keydown (which cancels the guard when it is open). This test documents the
-// mechanism tested in the App-level keydown test (Task 6.4).
-// ---------------------------------------------------------------------------
 
 describe('QuitGuard — dialog accessibility', () => {
   it('has role="dialog" and aria-modal="true"', () => {

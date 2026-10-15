@@ -11,8 +11,6 @@
 //   (c) Esc WITH the guard closed calls showBoard (the existing Focused→Board behavior)
 //       and does NOT call window.quit.cancel.
 //
-// Does NOT modify App.launch.test.tsx (the B-1 guardrail must stay unchanged — AR-12).
-//
 // Mirrors App.launch.test.tsx patterns (window bridge stubs, renderComponent, flush).
 //
 // [Source: story 4.2 Task 6.4; UX-DR14; UX-DR21; src/renderer/src/App.tsx:167-198

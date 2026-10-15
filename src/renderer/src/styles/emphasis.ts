@@ -16,8 +16,6 @@
 // Epic 3; the live attention wiring is Epic 2). [Dev Notes; UX-DR27/UX-DR29]
 import emphasisStyles from './emphasis.module.css'
 
-export { emphasisStyles }
-
 /**
  * The class name for the subtle Needs-you pulse (the keyframe + reduced-motion
  * fallback live in `emphasis.module.css`). Apply to a gold-anchored element that

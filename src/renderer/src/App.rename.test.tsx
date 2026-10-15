@@ -5,10 +5,7 @@
 // renderer does NOT write the new name into the store — session truth is main's, so the retitled
 // card only appears when main echoes a `session.updated` delta back.
 //
-// DO NOT MODIFY: App.launch.test.tsx (the frozen B-1 guardrail). This file is a SIBLING, mirroring
-// its beforeEach/seams. (The one edit made there was a compile fix forced by turning
-// `SessionNamePromptPayload` into a create|rename union — narrowing before reading `.cwd`. No
-// behaviour assertion in that file changed.)
+// A SIBLING of App.launch.test.tsx (the B-1 guardrail), mirroring its beforeEach/seams.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'

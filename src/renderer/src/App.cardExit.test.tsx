@@ -9,8 +9,8 @@
 //             no bridge call yet (the confirm's own Delete button does that — StopConfirm.test.tsx).
 //
 // Mirrors App.rename.test.tsx's pattern (full App render, seed a session.updated delta, find the
-// card by testid, click, assert on the bridge + the store) — DO NOT MODIFY App.rename.test.tsx or
-// App.launch.test.tsx (frozen B-1 guardrails); this is a sibling.
+// card by testid, click, assert on the bridge + the store) — a sibling of App.rename.test.tsx
+// and App.launch.test.tsx (the B-1 guardrail).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
