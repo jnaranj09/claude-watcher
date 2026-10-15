@@ -4,7 +4,7 @@
 //   - `shared-node` node  — `src/shared/**`, `tests/unit/**`, `src/__fixtures__/**`: no DOM, and jsdom
 //                   setup costs ~0.35 s per file.
 //   - `main-unit`   node  — main-process logic with DI seams; no Electron.
-// Threads, not forks: no unit test loads node-pty or calls chdir/exit (measured 2026-10-14: −15% wall).
+// Threads, not forks: no unit test loads node-pty or calls chdir/exit (measured 2026-10-14: with threads, 22.4-23.0 s became 20.6-20.8 s).
 // `isolate` stays on: off, 9 renderer tests fail on state shared between files.
 // `restoreMocks`: every vi.spyOn is restored after each test, so a spy cannot leak.
 // `allowOnly: false` in EACH project (a root-level one does not reach inline projects): a `.only`

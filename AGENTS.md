@@ -27,8 +27,8 @@ implementation should also follow a systematic approach.
 | E2E (Playwright-Electron)              | `npm run test:e2e`                                               |
 | Packaged node-pty smoke gate           | `npm run smoke` (after `build:dir`, or `npm run smoke:packaged`) |
 
-**Running a single test** — Vitest has two projects (see `vitest.config.ts`): `unit`
-(jsdom) and `main-unit` (node). Target one file or test:
+**Running a single test** — Vitest has three projects (see `vitest.config.ts`): `unit`
+(jsdom), `shared-node` and `main-unit` (node). Target one file or test:
 
 ```bash
 npx vitest run src/main/c9watch/reducer.test.ts          # one file
