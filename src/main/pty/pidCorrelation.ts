@@ -10,8 +10,8 @@
 //
 // ── DESIGN: DI SEAMS ─────────────────────────────────────────────────────────
 // Every impure read (`/proc`) is an INJECTED reader so the logic is unit-testable on synthetic
-// fixtures with no live processes, and the ONE real `/proc` read lives in a single integration
-// test.
+// fixtures with no live processes, and the real `/proc` read is covered by a Linux-only describe
+// in pidCorrelation.test.ts.
 //
 // ── FAIL-CLOSED + NEVER-LOG-PARSED-VALUE (Critical Guardrails #3, #4) ─────────
 // Every `/proc` miss (missing field, vanished pid, denied read) returns an "unresolved" result,
@@ -104,8 +104,8 @@ function parsePpid(statusBlob: string): number | undefined {
 
 // ── REAL `/proc` READER SEAM (Linux-only; pidCorrelation.test.ts reads it) ────
 //
-// The production `ReadStatus` impl. `claudeSessionFile.ts` takes it, and the ONE `/proc`
-// integration test drives it against the real kernel. Linux-only (`/proc` is Linux); callers gate on
+// The production `ReadStatus` impl. `claudeSessionFile.ts` takes it, and
+// pidCorrelation.test.ts drives it against the real kernel. Linux-only (`/proc` is Linux); callers gate on
 // `process.platform === 'linux'`. node:fs is a core module, statically imported at
 // the top — safe in the main process and the node test env.
 
