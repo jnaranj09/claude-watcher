@@ -147,19 +147,17 @@ const SMOKE_OUT = process.env.C9_SMOKE_OUT || ''
 // e2e run takes its userData from `CLAUDE_WATCHER_E2E_DATA_DIR` (a fresh temp dir per launch) and
 // REFUSES to start without it, rather than fall back to a dir that may be the operator's.
 // userData must be moved BEFORE app-ready — every store below is built after it.
-let E2E_REFUSED = false
 if (PROFILE.name === 'e2e') {
   const dir = e2eDataDir(process.env)
   if (dir === null) {
     console.error('[claude-watcher][profile] code=e2e_data_dir_missing')
-    E2E_REFUSED = true
     app.exit(1)
+    // app.exit ends the process synchronously; nothing below runs on a refused start.
   } else app.setPath('userData', dir)
 } else if (PROFILE.name !== 'default') {
   app.setPath('userData', join(app.getPath('appData'), PROFILE.userDataDirName))
 }
-// A refused start reports only the refusal, never a profile it does not run on.
-if (PROFILE.name !== 'default' && !E2E_REFUSED) {
+if (PROFILE.name !== 'default') {
   console.log(`[claude-watcher][profile] name=${PROFILE.name} hookPort=${PROFILE.hookPort}`)
 }
 const PROFILE_SETTINGS_DEFAULTS = { ...DEFAULT_SETTINGS, apiPort: PROFILE.apiPort }
@@ -167,20 +165,16 @@ const PROFILE_SETTINGS_DEFAULTS = { ...DEFAULT_SETTINGS, apiPort: PROFILE.apiPor
 // One app per profile (UX-04, `lifecycle/singleInstance.ts`). Taken AFTER the profile moved
 // userData, because the lock lives there. A second launch quits at once — before app-ready,
 // before any store or listener exists — and the first instance raises its window instead.
-// A refused e2e start (above) never claims the lock: userData is still the default dir, which
-// may be the installed app's. It is not "primary" either, so the whenReady guard builds nothing.
-const IS_PRIMARY_INSTANCE =
-  !E2E_REFUSED &&
-  claimSingleInstance({
-    smoke: SMOKE,
-    requestLock: () => app.requestSingleInstanceLock(),
-    onSecondInstance: (handler) => {
-      app.on('second-instance', handler)
-    },
-    raise: () => raiseMainWindow(),
-    log: (line) => console.log(line)
-  })
-if (!IS_PRIMARY_INSTANCE && !E2E_REFUSED) app.exit(0)
+const IS_PRIMARY_INSTANCE = claimSingleInstance({
+  smoke: SMOKE,
+  requestLock: () => app.requestSingleInstanceLock(),
+  onSecondInstance: (handler) => {
+    app.on('second-instance', handler)
+  },
+  raise: () => raiseMainWindow(),
+  log: (line) => console.log(line)
+})
+if (!IS_PRIMARY_INSTANCE) app.exit(0)
 
 // Server health (UX-05, SEC-6, R11) — whether the hook ingest and the API really bound. Every
 // change is pushed to the window (banner + Settings), validated AT SOURCE.

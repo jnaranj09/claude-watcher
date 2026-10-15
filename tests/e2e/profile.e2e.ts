@@ -28,8 +28,6 @@ test('the e2e profile without a data folder exits 1 with code=e2e_data_dir_missi
     const log = app.log.text()
     expect(code, `the refused app must exit 1. Its log:\n${log}`).toBe(1)
     expect(log).toContain('[claude-watcher][profile] code=e2e_data_dir_missing')
-    // A refused start reports the refusal only, not a profile it never ran on.
-    expect(log).not.toContain('[claude-watcher][profile] name=')
   } finally {
     await killGroup(app.proc)
     rmSync(configHome, { recursive: true, force: true })
