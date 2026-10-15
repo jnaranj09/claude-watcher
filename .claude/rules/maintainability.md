@@ -98,10 +98,11 @@ the migrated code.
 by environment: `src/shared/**`, `src/__fixtures__/**` and `tests/unit/**` run under node (the
 `shared-node` project), `src/main/**` and `tests/main/**` under node (the `main-unit` project), and
 the rest of `src/**` under jsdom (the `unit` project). A planned guard test goes under `tests/main/`
-or `tests/unit/` (node, named `*.test.ts`: a `*.test.tsx` there would run under jsdom), or under
-`src/renderer/**` (jsdom) when it needs the DOM, never beside a harness in `tests/drive/`,
-`tests/e2e/` or `tests/tools/`, where it would never
-run. A guard that walks files also fails when its walk finds no files.
+or `tests/unit/` (node, named `*.test.ts`), or under `src/renderer/**` (jsdom) when it needs the
+DOM. A `*.test.tsx` under `tests/unit/` would run under jsdom; under `tests/main/` it matches no
+project and never runs. Never put one beside a harness in `tests/drive/`, `tests/e2e/` or
+`tests/tools/`, where it would never run either. A guard that walks files also fails when its walk
+finds no files.
 
 **Non-test files.** Landed walks each read their own set, and keep it until a change rewrites
 them. `catchBlocks.guard.test.ts` uses `sourceFiles()` in `tests/main/sourceScan.ts`: all of
@@ -214,20 +215,20 @@ Landed walks today:
   title that names a rung is reworded. The only allow-list entries are the parser fixtures in
   `App.styles.test.ts` (the `const css = '…'` lines that feed its `z-index:\s*(-?\d+)` reader),
   listed by line content with that reason; the rest of the file is walked.
-- **Ports.** Landed: `DEFAULT_API_PORT` (`src/shared/schemas/settings.ts`) owns the settings
-  default for the API port. Planned: `API_DEFAULT_PORT` in `src/main/api/apiContract.ts` (what
+- **Ports.** Landed: `DEFAULT_API_PORT` (`src/shared/schemas/settings.ts`) owns the settings default
+  for the API port. Planned: `API_DEFAULT_PORT` in `src/main/api/apiContract.ts` (what
   `apiServer.ts` listens on when no port is passed) is deleted and `apiServer.ts` uses
-  `DEFAULT_API_PORT`. `DEFAULT_PROFILE.apiPort` in `src/main/profile.ts` becomes that constant
-  too (each is a raw number today). The profiles in `profile.ts` (`DEFAULT_PROFILE`,
-  `DEV_PROFILE`, `DRIVE_PROFILE`, `E2E_PROFILE`) own the hook ports and the dev, drive and e2e API ports. A raw-port
-  walk (comments stripped) reads non-test files under `src/` and the harnesses that talk to a
-  running app (`tests/e2e`, `tests/drive`, `tests/smoke`), and fails on any port a profile in
-  `profile.ts` sets, outside `profile.ts` and `settings.ts`. Landed: the e2e imports
-  `E2E_PROFILE` from `profile.ts` (not `PROFILE`, which resolves from the importing process's
-  env), which is safe because `profile.ts` imports no electron (its header says so), and that
-  stays true once it imports `settings.ts`. `driveApp.mjs`
-  cannot import TypeScript, so it keeps its `HOOK_PORT` on the allow-list, and a test under `tests/main/` pins it to
-  `DRIVE_PROFILE.hookPort`. A unit test that feeds a port as data is exempt.
+  `DEFAULT_API_PORT`. `DEFAULT_PROFILE.apiPort` in `src/main/profile.ts` becomes that constant too
+  (each is a raw number today). The profiles in `profile.ts` (`DEFAULT_PROFILE`, `DEV_PROFILE`,
+  `DRIVE_PROFILE`, `E2E_PROFILE`) own the hook ports and the dev, drive and e2e API ports. A
+  raw-port walk (comments stripped) reads non-test files under `src/` and the harnesses that talk to
+  a running app (`tests/e2e`, `tests/drive`, `tests/smoke`), and fails on any port a profile in
+  `profile.ts` sets, outside `profile.ts` and `settings.ts`. Landed: the e2e imports `E2E_PROFILE`
+  from `profile.ts` (not `PROFILE`, which resolves from the importing process's env), which is safe
+  because `profile.ts` imports no electron (its header says so), and that stays true once it imports
+  `settings.ts`. `driveApp.mjs` cannot import TypeScript, so it keeps its `HOOK_PORT` on the
+  allow-list, and a test under `tests/main/` pins it to `DRIVE_PROFILE.hookPort`. A unit test that
+  feeds a port as data is exempt.
 - **Modals.** Planned: `BoardState` holds one union, `modal: Modal | null`, and an exhaustive
   switch is its guard. The name prompt's busy flag and error ride in its `modal` payload
   (`design.md`: the payload a fading dialog shows rides in the Presence value). A test fails when

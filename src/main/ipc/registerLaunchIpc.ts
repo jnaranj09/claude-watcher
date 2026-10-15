@@ -201,11 +201,12 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   //     resolvable.
   //   - `exec claude` REPLACES the shell with claude (same defeat: claude becomes the leader).
   //   - The LOGIN SHELL (`-l`) resolves PATH/rc reliably (KDE app env can have a minimal PATH), and
-  //     running `claude` (no exec) keeps it a CHILD — EXACTLY the shape the validated walk expects,
-  //     keeping the layer thin (one shell, then claude). AR-7 "raw / minimal shell layering" is
-  //     honored: a single login shell whose only job is to launch claude.
-  // The env is the sanitized buildPtyEnv() (drops undefined keys + strips the smoke vars). [Source:
-  // F3; AR-7; oq-6-pid-correlation-finding.md §E3 (claude → bash child ancestry, walk validated)]
+  //     running `claude` (no exec) keeps it a CHILD — EXACTLY the shape the validated walk
+  //     expected, keeping the layer thin (one shell, then claude). AR-7 "raw / minimal shell
+  //     layering" is honored: a single login shell whose only job is to launch claude.
+  // The env is the sanitized buildPtyEnv() (drops undefined keys + strips the smoke and e2e vars).
+  // [Source: F3; AR-7; oq-6-pid-correlation-finding.md §E3 (claude → bash child ancestry, walk
+  // validated)]
   //
   // STORY 6.2 UPDATE: now a FACTORY over the freshly-minted session id. The launch service calls
   // it once per ACTUAL pty spawn so the composed command pins claude to the app-minted identity:
@@ -363,8 +364,9 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
       const r = LaunchCorrelatedSchema.safeParse(binding)
       if (!r.success) {
         const issue = r.error.issues[0]
+        const issuePath = issue?.path.join('.') ?? ''
         console.error(
-          `[c9watch][launch] dropped launch:correlated path=${issue?.path.join('.') ?? ''} code=${issue?.code ?? ''}`
+          `[c9watch][launch] dropped launch:correlated path=${issuePath} code=${issue?.code ?? ''}`
         )
         return
       }

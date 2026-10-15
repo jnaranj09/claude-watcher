@@ -8,9 +8,8 @@
 //
 // Electron's lock lives in `userData`, so it is PER PROFILE: the dev, drive and e2e profiles move
 // userData first and never collide with the installed app (tests/e2e/singleInstance.e2e.ts proves
-// the real lock). The smoke run is the exception — it
-// runs on the DEFAULT profile beside a running installed app, and must still run, so it never
-// takes the lock.
+// the real lock). The smoke run is the exception — it runs on the DEFAULT profile beside a running
+// installed app, and must still run, so it never takes the lock.
 
 export interface SingleInstanceDeps {
   smoke: boolean

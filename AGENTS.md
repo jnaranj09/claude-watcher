@@ -33,7 +33,7 @@ implementation should also follow a systematic approach.
 ```bash
 npx vitest run src/main/c9watch/reducer.test.ts          # one file
 npx vitest run --project main-unit -t "desync"           # one test by name (main-side)
-npx vitest run --project shared-node src/shared/schemas         # one project / dir
+npx vitest run --project shared-node src/shared/schemas  # one project / dir
 ```
 
 **Gate buckets.** Most changes gate on `typecheck / lint / test / build`. Only changes

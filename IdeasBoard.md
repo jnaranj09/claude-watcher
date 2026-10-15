@@ -27,7 +27,7 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **e2e in CI (`xvfb-run`)**: Run the claude-free e2e specs in CI under `xvfb-run`, with a stub `claude` on PATH for the specs that launch a session. Decide which specs need the stub and which stay local-only. `pending_review` `medium_effort`
 - **e2e: API create makes a card, view not taken**: An e2e spec that creates a session through the programmatic API, asserts the card appears, and asserts the operator's current view was not taken. `pending_review` `low_effort`
 - **e2e: `/clear` rebind with real claude (local only)**: An e2e spec that runs `/clear` in a real `claude` session and asserts the card rebinds (`session.rebound`). Local only: it needs a real claude and a login. `pending_review` `medium_effort`
-- **Decide: delete the `correlateAgainst` launch path**: The launch path and its ~12 tests are dead code per the test review (dead-tests.md). Decide whether to delete both. `pending_review` `low_effort`
+- **Decide: delete the `correlateAgainst` launch path**: The launch path and its ~12 tests are dead code per the test review (dead-tests.md). Only that path calls `correlate` and `resolveTgid` (`src/main/pty/pidCorrelation.ts`), so their tests in `src/main/pty/pidCorrelation.test.ts` go with it: the `resolveTgid` and `correlate` describes, the load-bearing two-pids test, and the real-/proc `resolveTgid` integration test (`isAncestorOf` stays, `claudeSessionFile.ts` uses it). Decide whether to delete them all. `pending_review` `low_effort`
 
 ---
 
