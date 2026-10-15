@@ -177,7 +177,9 @@ Tags dialog rail uses `TagPathLabel` instead.
   never `Edit`. Real button laid over a hidden copy via CSS anchor positioning (`anchor-scope` per
   `.rowWrap`, `position-visibility: always`).
 - Open peek toggle is LIT (`--text-primary` fill, `--text-on-lit`, `TagIndicator mono`), `title`
-  `Hide tags`. `Show all tags` toggle lit the same way.
+  `Hide tags`. `Show all tags` toggle lit the same way. It is remembered PER WORKSPACE
+  (`settings.showAllTagsByWorkspace`); the rail's collapse is remembered once for all
+  (`settings.railCollapsed`). A refused save rolls back and toasts (the rail has no message slot).
 - Tag names truncate sideways only (`overflow-x: clip`, `text-box: trim-both ex alphabetic`) —
   `overflow:hidden` + `line-height:1` cut descenders.
 - `TagPicker` trigger: `aria-expanded` + `aria-controls`, never `aria-haspopup` (popup is a

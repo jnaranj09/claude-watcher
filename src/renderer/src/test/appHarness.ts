@@ -18,6 +18,7 @@
 import { createElement } from 'react'
 import { vi } from 'vitest'
 import App from '../App'
+import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 import { boardStore } from '../stores/boardStore'
 import { flush, renderTracked, type RenderResult } from './renderComponent'
 import { stubXtermBrowserApis } from './terminalHarness'
@@ -46,14 +47,9 @@ type OptionalBridgeName = (typeof OPTIONAL_BRIDGES)[number]
 
 type AppBridgeOverrides = Partial<Record<CoreBridgeName | OptionalBridgeName, Bridge>>
 
-/** What main's settings store holds for these suites (the fields App reads at mount). */
-const SETTINGS = {
-  version: 1,
-  soundEnabled: true,
-  terminalFontSize: 14,
-  reminderCount: 3,
-  reminderFirstDelayMinutes: 2
-}
+/** What main's settings store holds for these suites: a whole `Settings`, as main always answers
+ *  (its schema fills every default), so a component reading any field gets a real value. */
+const SETTINGS = DEFAULT_SETTINGS
 
 function coreBridges(): Record<CoreBridgeName, Bridge> {
   return {

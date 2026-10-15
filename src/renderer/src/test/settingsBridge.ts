@@ -30,7 +30,10 @@ export function mergedSettings(patch: SettingsPatch): Settings {
     shellPaneRatio: patch.shellPaneRatio ?? DEFAULT_SETTINGS.shellPaneRatio,
     terminalScheme: patch.terminalScheme ?? DEFAULT_SETTINGS.terminalScheme,
     terminalMenuTrigger: patch.terminalMenuTrigger ?? DEFAULT_SETTINGS.terminalMenuTrigger,
-    includeGlobal: patch.includeGlobal ?? DEFAULT_SETTINGS.includeGlobal
+    includeGlobal: patch.includeGlobal ?? DEFAULT_SETTINGS.includeGlobal,
+    railCollapsed: patch.railCollapsed ?? DEFAULT_SETTINGS.railCollapsed,
+    showAllTagsByWorkspace: patch.showAllTagsByWorkspace ?? DEFAULT_SETTINGS.showAllTagsByWorkspace,
+    windowSize: patch.windowSize !== undefined ? patch.windowSize : DEFAULT_SETTINGS.windowSize
   }
 }
 

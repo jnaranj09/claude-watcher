@@ -458,8 +458,10 @@ yet. Prefer turning prose-only rules into sensors.
   downgrade does not wipe a file.
 - **Corrupt file:** back it up, start fresh, and say so (`StorageNotice`).
 - **Persist view state only when it must survive a restart** (for example, the active workspace).
-  Filters and search are not persisted. Exception: `Include global` (settings blob, one value for
-  every config list) — the owner asked for it to be remembered and shared.
+  Filters and search are not persisted. Exceptions the owner asked for (settings blob): `Include
+global` (one value for every config list), the rail's collapse (`railCollapsed`), its "Show all
+  tags" per workspace (`showAllTagsByWorkspace`), and the main window's size (`windowSize`, written
+  by main; off for the drive and e2e profiles, which need a fixed start size).
 - **Enum-lock only the values we generate** (flags, colours, delays). Never enum-lock claude's
   outputs (`status`, hook names).
 - **Free text or select:** use a select over a closed set when a bad value would silently do

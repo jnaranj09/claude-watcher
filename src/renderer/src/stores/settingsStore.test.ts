@@ -18,6 +18,8 @@ import {
   selectShellPaneRatio,
   selectTerminalScheme,
   selectIncludeGlobal,
+  selectRailCollapsed,
+  selectShowAllTagsByWorkspace,
   selectTerminalMenuTrigger
 } from './settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
@@ -48,7 +50,10 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
       shellPaneRatio: 0.3,
       terminalScheme: 'light',
       terminalMenuTrigger: 'ctrl-right-click',
-      includeGlobal: true
+      includeGlobal: true,
+      railCollapsed: false,
+      showAllTagsByWorkspace: {},
+      windowSize: null
     })
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
@@ -81,6 +86,18 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     expect(selectIncludeGlobal(store.getState())).toBe(false)
     store.getState().hydrate({ ...DEFAULT_SETTINGS, includeGlobal: true })
     expect(selectIncludeGlobal(store.getState())).toBe(true)
+  })
+
+  it('railCollapsed and showAllTagsByWorkspace: hydrate and applyPatch carry them', () => {
+    const store = createSettingsStore()
+    expect(selectRailCollapsed(store.getState())).toBe(false)
+    expect(selectShowAllTagsByWorkspace(store.getState())).toEqual({})
+    store.getState().applyPatch({ railCollapsed: true, showAllTagsByWorkspace: { default: true } })
+    expect(selectRailCollapsed(store.getState())).toBe(true)
+    expect(selectShowAllTagsByWorkspace(store.getState())).toEqual({ default: true })
+    store.getState().hydrate(DEFAULT_SETTINGS)
+    expect(selectRailCollapsed(store.getState())).toBe(false)
+    expect(selectShowAllTagsByWorkspace(store.getState())).toEqual({})
   })
 
   it('an empty patch is a no-op', () => {

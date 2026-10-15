@@ -28,6 +28,9 @@ export interface Profile {
   readonly apiPort: number
   /** Appended to the window title, so the two windows are told apart in the taskbar. */
   readonly titleSuffix: string
+  /** Restore the main window's last size at launch (`settings.windowSize`). Off for the scripted
+   *  profiles: their screenshots and checks need the same start size on every run. */
+  readonly rememberWindowSize: boolean
 }
 
 export const DEFAULT_PROFILE: Profile = {
@@ -35,7 +38,8 @@ export const DEFAULT_PROFILE: Profile = {
   userDataDirName: 'claude-watcher',
   hookPort: 9279,
   apiPort: 9281,
-  titleSuffix: ''
+  titleSuffix: '',
+  rememberWindowSize: true
 }
 
 // 1xxxx mirrors of the default ports: easy to recognise, and clear of 9280 (the operator's
@@ -45,7 +49,8 @@ export const DEV_PROFILE: Profile = {
   userDataDirName: 'claude-watcher-dev',
   hookPort: 19279,
   apiPort: 19281,
-  titleSuffix: ' (dev)'
+  titleSuffix: ' (dev)',
+  rememberWindowSize: true
 }
 
 // The scripted runs of the BUILT app (`tests/drive/driveApp.mjs`) get their own profile too, so a
@@ -58,7 +63,8 @@ export const DRIVE_PROFILE: Profile = {
   userDataDirName: 'claude-watcher-drive',
   hookPort: 29279,
   apiPort: 29281,
-  titleSuffix: ' (drive)'
+  titleSuffix: ' (drive)',
+  rememberWindowSize: false
 }
 
 // The e2e runs of the BUILT app (`tests/e2e`) get their own profile: before it they ran on the
@@ -70,7 +76,8 @@ export const E2E_PROFILE: Profile = {
   userDataDirName: 'claude-watcher-e2e',
   hookPort: 39279,
   apiPort: 39281,
-  titleSuffix: ' (e2e)'
+  titleSuffix: ' (e2e)',
+  rememberWindowSize: false
 }
 
 export const E2E_DATA_DIR_ENV = 'CLAUDE_WATCHER_E2E_DATA_DIR'

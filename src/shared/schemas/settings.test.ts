@@ -15,6 +15,9 @@ import {
   SettingsPatchSchema,
   DEFAULT_TERMINAL_SCHEME,
   WALLPAPER_BY_THEME_MAX,
+  SHOW_ALL_TAGS_MAX,
+  WINDOW_SIZE_MIN,
+  WINDOW_SIZE_MAX,
   parseSettings,
   DEFAULT_SETTINGS,
   SETTINGS_VERSION,
@@ -50,7 +53,10 @@ describe('SettingsSchema — versioned, our-shape, fail-closed (AC-4/5/6)', () =
       shellPaneRatio: 0.3,
       terminalScheme: 'theme',
       terminalMenuTrigger: 'right-click',
-      includeGlobal: true
+      includeGlobal: true,
+      railCollapsed: false,
+      showAllTagsByWorkspace: {},
+      windowSize: null
     }
     const parsed = parseSettings(valid)
     expect(parsed).toEqual(valid)
@@ -473,5 +479,52 @@ describe('includeGlobal — additive on v1 (spec 2026-10-03 H)', () => {
     expect(SettingsPatchSchema.parse({ soundEnabled: true })).toEqual({ soundEnabled: true })
     expect(SettingsPatchSchema.safeParse({ includeGlobal: 'yes' }).success).toBe(false)
     expect(SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, includeGlobal: 1 }).success).toBe(false)
+  })
+})
+
+describe('rail and window choices — additive on v1 (owner 2026-10-15)', () => {
+  it('a v1 file written before them still parses, with the defaults', () => {
+    const {
+      railCollapsed: _a,
+      showAllTagsByWorkspace: _b,
+      windowSize: _c,
+      ...without
+    } = { ...DEFAULT_SETTINGS, soundEnabled: false }
+    void [_a, _b, _c]
+    const parsed = SettingsSchema.parse(without)
+    expect(parsed.railCollapsed).toBe(false)
+    expect(parsed.showAllTagsByWorkspace).toEqual({})
+    expect(parsed.windowSize).toBeNull()
+    expect(parsed.soundEnabled).toBe(false)
+  })
+
+  it('a patch carries each one with NO default', () => {
+    expect(SettingsPatchSchema.parse({ railCollapsed: true })).toEqual({ railCollapsed: true })
+    expect(SettingsPatchSchema.parse({ showAllTagsByWorkspace: { default: true } })).toEqual({
+      showAllTagsByWorkspace: { default: true }
+    })
+    expect(
+      SettingsPatchSchema.parse({ windowSize: { width: 1200, height: 800, maximized: false } })
+    ).toEqual({ windowSize: { width: 1200, height: 800, maximized: false } })
+  })
+
+  it('show-all-tags stores only `true`, and is bounded', () => {
+    const p = SettingsPatchSchema.safeParse
+    expect(p({ showAllTagsByWorkspace: { default: false } }).success).toBe(false)
+    const tooMany = Object.fromEntries(
+      Array.from({ length: SHOW_ALL_TAGS_MAX + 1 }, (_, i) => [`ws-${i}`, true])
+    )
+    expect(p({ showAllTagsByWorkspace: tooMany }).success).toBe(false)
+  })
+
+  it('a window size outside the band fails closed', () => {
+    const p = SettingsPatchSchema.safeParse
+    expect(
+      p({ windowSize: { width: WINDOW_SIZE_MIN - 1, height: 800, maximized: false } }).success
+    ).toBe(false)
+    expect(
+      p({ windowSize: { width: 1200, height: WINDOW_SIZE_MAX + 1, maximized: false } }).success
+    ).toBe(false)
+    expect(p({ windowSize: { width: 1200.5, height: 800, maximized: false } }).success).toBe(false)
   })
 })

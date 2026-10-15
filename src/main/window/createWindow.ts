@@ -9,6 +9,7 @@ import type { QuitGuardState } from '../lifecycle/quitGuard'
 import type { RendererSource } from '../ipc/trustedIpc'
 import { PROFILE } from '../profile'
 import type { WatchFeed } from './watchFeed'
+import { initialWindowSize, trackWindowSize } from './windowSize'
 
 /** What the main window reads from the app. Paths and the renderer source are resolved by
  *  index.ts; state it assigns after app-ready is read through GETTERS. */
@@ -49,10 +50,14 @@ export function makeCreateWindow(deps: CreateWindowDeps): () => void {
   } = deps
 
   return function createWindow(): void {
+    // The window opens at the operator's last size (window/windowSize.ts), except in SMOKE and the
+    // scripted profiles, which need the same start size on every run.
+    const rememberSize = !SMOKE && PROFILE.rememberWindowSize
+    const savedSize = rememberSize ? (getSettingsStore()?.get().windowSize ?? null) : null
+
     // Create the browser window.
     const mainWindow = new BrowserWindow({
-      width: 1000,
-      height: 700,
+      ...initialWindowSize(savedSize),
       show: false,
       autoHideMenuBar: true,
       ...(process.platform === 'linux' ? { icon } : {}),
@@ -75,19 +80,34 @@ export function makeCreateWindow(deps: CreateWindowDeps): () => void {
       })
     }
 
-    mainWindow.on('ready-to-show', () => {
+    // A window that was maximized when its size was saved opens maximized again.
+    const reveal = (): void => {
+      if (savedSize?.maximized === true && !mainWindow.isMaximized()) mainWindow.maximize()
       mainWindow.show()
-    })
+    }
+
+    mainWindow.on('ready-to-show', reveal)
+
+    if (rememberSize) {
+      trackWindowSize(mainWindow, (windowSize) => {
+        try {
+          getSettingsStore()?.set({ windowSize })
+        } catch {
+          // The store refused the value (it re-validates); the next resize tries again.
+          console.warn('[claude-watcher][window] code=window_size_save_failed')
+        }
+      })
+    }
 
     // Fallback show (2026-08-03). `ready-to-show` fires off the renderer's FIRST PAINTED FRAME.
     // With hardware acceleration disabled (2026-08-03 to 2026-09-22; see the "GPU ON" block in
     // src/main/index.ts) it never fired at all on this KWin/Wayland host, so
     // `show()` was never called and the app ran headless: process alive, window never mapped, no
     // error anywhere. `did-finish-load` fires off the DOM/load lifecycle instead, so it is
-    // independent of whether a frame ever reached the compositor. `show()` is idempotent, and
+    // independent of whether a frame ever reached the compositor. `reveal()` is idempotent, and
     // whichever event lands first wins — the normal path is unchanged.
     mainWindow.webContents.once('did-finish-load', () => {
-      if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show()
+      if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) reveal()
     })
 
     // Programmatic API — the FIRST apply of the persisted setting: here, not on app-ready.

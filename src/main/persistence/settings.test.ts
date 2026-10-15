@@ -115,7 +115,10 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       shellPaneRatio: 0.3,
       terminalScheme: 'dark',
       terminalMenuTrigger: 'shift-right-click',
-      includeGlobal: true
+      includeGlobal: true,
+      railCollapsed: false,
+      showAllTagsByWorkspace: {},
+      windowSize: null
     }
     const fake = makeFakeBlobStore(persisted)
     const log = vi.fn()
@@ -151,7 +154,10 @@ describe('createSettingsStore — first install + round-trip (AC-5)', () => {
       shellPaneRatio: 0.3,
       terminalScheme: 'theme',
       terminalMenuTrigger: 'right-click',
-      includeGlobal: true
+      includeGlobal: true,
+      railCollapsed: false,
+      showAllTagsByWorkspace: {},
+      windowSize: null
     })
   })
 })

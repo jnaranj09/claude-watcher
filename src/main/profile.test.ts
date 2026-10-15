@@ -53,7 +53,8 @@ describe('e2e profile', () => {
       userDataDirName: 'claude-watcher-e2e',
       hookPort: 39279,
       apiPort: 39281,
-      titleSuffix: ' (e2e)'
+      titleSuffix: ' (e2e)',
+      rememberWindowSize: false
     })
   })
 
@@ -62,5 +63,14 @@ describe('e2e profile', () => {
     expect(e2eDataDir({ CLAUDE_WATCHER_E2E_DATA_DIR: 'rel/dir' })).toBeNull()
     expect(e2eDataDir({ CLAUDE_WATCHER_E2E_DATA_DIR: '' })).toBeNull()
     expect(e2eDataDir({})).toBeNull()
+  })
+})
+
+describe('rememberWindowSize', () => {
+  it('is on for the operator profiles and off for the scripted ones', () => {
+    expect(DEFAULT_PROFILE.rememberWindowSize).toBe(true)
+    expect(DEV_PROFILE.rememberWindowSize).toBe(true)
+    expect(DRIVE_PROFILE.rememberWindowSize).toBe(false)
+    expect(E2E_PROFILE.rememberWindowSize).toBe(false)
   })
 })

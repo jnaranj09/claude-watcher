@@ -18,6 +18,7 @@
 
 import { z } from 'zod'
 import { ThemeIdSchema, DEFAULT_THEME_ID } from './theme'
+import { WorkspaceIdSchema } from './workspace'
 
 /** The current persisted-settings schema version. Bumping this is how a future
  *  migration is introduced (the store reads `version` and migrates older blobs).
@@ -121,6 +122,29 @@ export const WallpaperByThemeSchema = z
     error: 'too many wallpaper picks'
   })
 
+/** Rail "Show all tags" (owner, 2026-10-15): remembered PER WORKSPACE. Workspace id → `true`;
+ *  a missing key is off, so only the workspaces where it is on are stored. The renderer drops the
+ *  ids of deleted workspaces on its next write; the bound stops a hand-edited file growing. */
+export const SHOW_ALL_TAGS_MAX = 256
+export const ShowAllTagsByWorkspaceSchema = z
+  .record(WorkspaceIdSchema, z.literal(true))
+  .refine((m) => Object.keys(m).length <= SHOW_ALL_TAGS_MAX, {
+    error: 'too many show-all-tags workspaces'
+  })
+
+/** The main window's last size, restored at the next launch (owner, 2026-10-15). Size only: the
+ *  window manager places the window. `width`/`height` are the NORMAL (unmaximized) bounds, so
+ *  un-maximizing after a restore goes back to the size the operator picked. */
+export const WINDOW_SIZE_MIN = 200
+export const WINDOW_SIZE_MAX = 16384
+const WindowSideSchema = z.number().int().min(WINDOW_SIZE_MIN).max(WINDOW_SIZE_MAX)
+export const WindowSizeSchema = z.object({
+  width: WindowSideSchema,
+  height: WindowSideSchema,
+  maximized: z.boolean()
+})
+export type WindowSize = z.infer<typeof WindowSizeSchema>
+
 export const SettingsSchema = z.object({
   version: z.literal(SETTINGS_VERSION),
   soundEnabled: z.boolean(),
@@ -156,7 +180,15 @@ export const SettingsSchema = z.object({
   // Include global (spec 2026-10-03 H): in a workspace view of Templates / Shortcuts / Tags /
   // Rules, also list the global rows. ONE remembered choice shared by every list that offers it.
   // Additive on v1, same `.default()` reasoning as above; on by default — "what applies to me here".
-  includeGlobal: z.boolean().default(true)
+  includeGlobal: z.boolean().default(true),
+  // Sessions rail collapsed to icons (owner, 2026-10-15). One value for every workspace: it is
+  // layout, like `shellPaneRatio`. Additive on v1, same `.default()` reasoning as above.
+  railCollapsed: z.boolean().default(false),
+  // Rail "Show all tags", per workspace. Additive on v1, same `.default()` reasoning as above.
+  showAllTagsByWorkspace: ShowAllTagsByWorkspaceSchema.default({}),
+  // Main window size. Written by MAIN only (window/windowSize.ts); null = never saved, so the
+  // window opens at its built-in size. Additive on v1, same `.default()` reasoning as above.
+  windowSize: WindowSizeSchema.nullable().default(null)
 })
 
 /** The settings type — INFERRED from the schema (one source of truth). */
@@ -188,7 +220,10 @@ export const SettingsPatchSchema = z
     shellPaneRatio: ShellPaneRatioSchema,
     terminalScheme: TerminalSchemeSchema,
     terminalMenuTrigger: TerminalMenuTriggerSchema,
-    includeGlobal: z.boolean()
+    includeGlobal: z.boolean(),
+    railCollapsed: z.boolean(),
+    showAllTagsByWorkspace: ShowAllTagsByWorkspaceSchema,
+    windowSize: WindowSizeSchema.nullable()
   })
   .partial()
 
@@ -213,7 +248,10 @@ export const DEFAULT_SETTINGS: Settings = {
   shellPaneRatio: DEFAULT_SHELL_PANE_RATIO,
   terminalScheme: DEFAULT_TERMINAL_SCHEME,
   terminalMenuTrigger: DEFAULT_TERMINAL_MENU_TRIGGER,
-  includeGlobal: true
+  includeGlobal: true,
+  railCollapsed: false,
+  showAllTagsByWorkspace: {},
+  windowSize: null
 }
 
 /**

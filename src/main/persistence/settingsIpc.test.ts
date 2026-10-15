@@ -51,7 +51,10 @@ describe('settings IPC handler logic — get/set round-trip + parse-and-throw (A
       shellPaneRatio: 0.3,
       terminalScheme: 'theme',
       terminalMenuTrigger: 'right-click',
-      includeGlobal: true
+      includeGlobal: true,
+      railCollapsed: false,
+      showAllTagsByWorkspace: {},
+      windowSize: null
     })
     expect(get()).toEqual(result)
   })

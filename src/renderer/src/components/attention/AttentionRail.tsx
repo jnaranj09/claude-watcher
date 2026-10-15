@@ -78,6 +78,15 @@ import {
   selectActiveWorkspaceId
 } from '../../stores/workspacesStore'
 import { tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
+import {
+  persistSettingsPatch,
+  selectRailCollapsed,
+  selectShowAllTagsByWorkspace,
+  settingsStore,
+  useSettings
+} from '../../stores/settingsStore'
+import { toast } from '../../stores/toastStore'
+import { nextShowAllTags } from './showAllTags'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { TagIndicator } from '../TagIndicator/TagIndicator'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
@@ -90,6 +99,27 @@ import { statusLabel } from '../StatusDot/statusLabel'
 import { CollapseChevronIcon } from './CollapseChevronIcon'
 import styles from './AttentionRail.module.css'
 import { Presence } from '../Presence/Presence'
+
+/** Saves the rail's collapse choice. The rail has no message slot, so a refused write (already
+ *  rolled back by `persistSettingsPatch`) is a toast. */
+function toggleCollapsed(next: boolean): void {
+  persistSettingsPatch({ railCollapsed: next }).catch(() => {
+    console.warn('[claude-watcher][rail] code=rail_collapsed_save_failed')
+    toast.error('Could not save the sessions rail choice.')
+  })
+}
+
+/** Saves "Show all tags" for one workspace (see `nextShowAllTags`). */
+function toggleShowAllTags(workspaceId: string, on: boolean): void {
+  const known = new Set(workspacesStore.getState().workspaces.map((w) => w.id))
+  const current = settingsStore.getState().showAllTagsByWorkspace
+  persistSettingsPatch({
+    showAllTagsByWorkspace: nextShowAllTags(current, workspaceId, on, known)
+  }).catch(() => {
+    console.warn('[claude-watcher][rail] code=show_all_tags_save_failed')
+    toast.error('Could not save the Show all tags choice.')
+  })
+}
 
 /** The status dot state IS the session's column (the three live columns are the three dot states).
  *  Keyed on `Column` (from the contract) so a fourth column would FAIL TO COMPILE here (no silent
@@ -169,8 +199,9 @@ function tagSuffix(tags: readonly Tag[]): string {
  *  untagged row gets the same toggle, hover-revealed, when tagging is wired and its workspace has
  *  tags — so a session can still be tagged from the rail — and, while no tag exists yet, one that
  *  opens the Tags dialog instead. `showAllTags` (the header toggle) instead
- *  gives every tagged row a one-line chip row, without opening its peek. Peek + `showAllTags`' own
- *  per-row `editing` state are renderer view-state (T-28) — local `useState`, never persisted. */
+ *  gives every tagged row a one-line chip row, without opening its peek; it is remembered per
+ *  workspace (`settings.showAllTagsByWorkspace`). The peek and the per-row `editing` state are
+ *  renderer view-state (T-28) — local `useState`, never persisted. */
 function RailRow(props: {
   id: string
   collapsed: boolean
@@ -629,8 +660,6 @@ export function AttentionRail({
   onSetSessionTags,
   onManageTags
 }: AttentionRailProps): JSX.Element {
-  // T-28 — "Show all tags" is renderer view-state, local like `collapsed`, and starts off.
-  const [showAllTags, setShowAllTags] = useState(false)
   // A toggle for tags that do not exist would do nothing — render it only once there are some.
   const hasTags = useTags((s) => s.tags.length > 0)
   // The PINNED session — the one whose terminal is on screen. A primitive `string | null`, so no
@@ -647,9 +676,13 @@ export function AttentionRail({
   const startingTerminals = useBoard(
     useShallow((s: BoardState) => selectStartingTerminals(s, activeWorkspaceId))
   )
-  // Collapse is RENDERER VIEW-STATE; local to the rail (do NOT round-trip to main). UX-DR9:
-  // collapsible to 56px icons, NEVER hidden.
-  const [collapsed, setCollapsed] = useState(false)
+  // Collapse is a remembered choice (`settings.railCollapsed`, owner 2026-10-15): one value for
+  // every workspace, it survives a restart. UX-DR9: collapsible to 56px icons, NEVER hidden.
+  const collapsed = useSettings(selectRailCollapsed)
+  // "Show all tags" is remembered PER WORKSPACE (`settings.showAllTagsByWorkspace`, owner
+  // 2026-10-15); off until the operator turns it on in that workspace.
+  const showAllTagsByWorkspace = useSettings(selectShowAllTagsByWorkspace)
+  const showAllTags = showAllTagsByWorkspace[activeWorkspaceId] === true
 
   // The aria-live announcement for a session NEWLY entering needs-you (AC-5). Computed from a
   // narrow selector so an UNRELATED row change does not re-announce: we track the set of currently
@@ -737,7 +770,7 @@ export function AttentionRail({
               aria-pressed={showAllTags}
               aria-label="Show all tags"
               title={showAllTags ? 'Hide tags' : 'Show all tags'}
-              onClick={() => setShowAllTags((v) => !v)}
+              onClick={() => toggleShowAllTags(activeWorkspaceId, !showAllTags)}
             >
               <TagGlyphIcon size={13} />
             </Button>
@@ -749,7 +782,7 @@ export function AttentionRail({
             testId="rail-collapse"
             aria-label={collapsed ? 'Expand sessions rail' : 'Collapse sessions rail'}
             aria-expanded={!collapsed}
-            onClick={() => setCollapsed((c) => !c)}
+            onClick={() => toggleCollapsed(!collapsed)}
           >
             <CollapseChevronIcon pointing={collapsed ? 'right' : 'left'} />
           </Button>

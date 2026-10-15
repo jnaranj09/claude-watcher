@@ -7,11 +7,14 @@
 import { boardStore } from '../stores/boardStore'
 import { tagsStore } from '../stores/tagsStore'
 import { workspacesStore } from '../stores/workspacesStore'
+import { settingsStore } from '../stores/settingsStore'
+import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
+import { stubSettings } from './settingsBridge'
 import { AttentionRail } from '../components/attention/AttentionRail'
 import { renderTracked, type RenderResult } from './renderComponent'
 
-/** Back to an empty board, the default workspace and an empty tag catalog, so no case bleeds into
- *  the next. */
+/** Back to an empty board, the default workspace, an empty tag catalog and default settings (with
+ *  a stubbed `window.settings` that saves), so no case bleeds into the next. */
 export function resetRailStores(): void {
   boardStore.setState({
     sessionsById: {},
@@ -26,6 +29,8 @@ export function resetRailStores(): void {
   })
   workspacesStore.setState({ activeId: 'default' })
   tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+  settingsStore.getState().hydrate(DEFAULT_SETTINGS)
+  stubSettings()
 }
 
 /** Mount the rail. Pair with `unmountRendered()` in afterEach. */
