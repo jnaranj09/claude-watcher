@@ -47,7 +47,7 @@ Moved from CLAUDE.md on 2026-10-01 (context budget, technical-taste §5b-19); un
   `theme.json` `glass.surfaces.*.glow` (top light) and `*.lift` (white haze); `theme.css` under
   `:root[data-glass-on]`: `--glass-pop-glow`, `--glass-row-fill`, `--glass-control-sheen`.
   Then re-match on the drive: popover panel ≈ header, popover rows ≈ ☰ / New session. Then check
-  that text contrast stays ≥ 4.5:1 on all six wallpapers. Pins: `themeExamples.test.ts`.
+  that text contrast stays ≥ 4.5:1 on all six wallpapers. Pins: `themeExamples*.test.ts`.
   `exposure` is NOT the glow (it brightens what shows through); leave it unless asked.
 - **Public hooks (every theme):** `data-glass="header|column|card|control|field"` (values pinned to
   `GLASS_SURFACES` by `glassHooks.guard`), `data-app-menu`, `data-column-header`,

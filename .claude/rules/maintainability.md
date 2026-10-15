@@ -544,5 +544,5 @@ unlayered. Then the `[data-glass][data-glass][data-glass]` and `:where()` specif
 the bundled themes are deleted, and a guard bans them. The spike asks: once app CSS is layered,
 any theme rule beats `.button[data-lit]`, `:hover` and `[data-selected]`, so does every theme have
 to restate every state? Commit `11a29a2` is a live case. The pins of the triple chain in
-`src/main/themes/themeExamples.test.ts` change with it. The spike also checks whether a Vite
+`src/main/themes/themeExamples*.test.ts` change with it. The spike also checks whether a Vite
 `transform` or an inline `css.postcss.plugins` works without a PostCSS config file.
