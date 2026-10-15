@@ -1,7 +1,7 @@
 ---
 title: 'Ideas board'
 description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
-last_modified: 2026-10-14
+last_modified: 2026-10-15
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
@@ -25,14 +25,10 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **Keep the board across an app restart**: The app can be closed with sessions open; when it reopens, each previous card is back in its workspace, in the column it was last in. Today a quit archives every bound session into Past sessions (reason `archive`, `archiveBoundSessions`), and the operator reopens them one by one with Resume (`claude --resume <id>`). Decide whether cards come back as live terminals (auto-resume on start) or as parked cards that resume on open; what column a card shows before its first hook arrives (a resumed claude has not told us its status yet); and how this fits the Past sessions records and the "every exit has a reason" rule. `pending_review` `high_effort`
 - **Windows port — native claude, unsigned first**: Run the native Windows `claude.exe` through ConPTY (not WSL). Needs a platform layer for the spawn (`$SHELL -l -c` has no Windows twin), the version probe, the process-alive checks (`kill(pid,0)`, `~/.claude/sessions/<pid>.json`), paths, and an `nsis` job in `release.yml`. SmartScreen warning until a code-signing cert. Testing: the operator's Windows machine. `pending_review` `large_effort`
 - **e2e in CI (`xvfb-run`)**: Run the claude-free e2e specs in CI under `xvfb-run`, with a stub `claude` on PATH for the specs that launch a session. Decide which specs need the stub and which stay local-only. `pending_review` `medium_effort`
-- **e2e: API create makes a card, view not taken**: An e2e spec that creates a session through the programmatic API, asserts the card appears, and asserts the operator's current view was not taken. `pending_review` `low_effort`
 - **e2e: `/clear` rebind with real claude (local only)**: An e2e spec that runs `/clear` in a real `claude` session and asserts the card rebinds (`session.rebound`). Local only: it needs a real claude and a login. `pending_review` `medium_effort`
-- **Decide: delete the `correlateAgainst` launch path**: The launch path and its ~12 tests are dead code per the test review (dead-tests.md). Only that path calls `correlate` and `resolveTgid` (`src/main/pty/pidCorrelation.ts`), so their tests in `src/main/pty/pidCorrelation.test.ts` go with it: the `resolveTgid` and `correlate` describes, the load-bearing two-pids test, and the real-/proc `resolveTgid` integration test (`isAncestorOf` stays, `claudeSessionFile.ts` uses it). Decide whether to delete them all. `pending_review` `low_effort`
 
 ---
 
 ## Bugs
-
-- **Keys typed before a terminal pairs its MessagePort are dropped**: `EmbeddedTerminal`'s `onData` returns while `portRef.current` is null, so an operator who types the instant a terminal mounts loses keys. `terminal.e2e.ts` retries typing to work around it. `pending_review` `low_effort`
 
 ---

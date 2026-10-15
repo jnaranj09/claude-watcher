@@ -5,7 +5,8 @@
 // hook and API ports, and a fresh temp data folder per launch (`CLAUDE_WATCHER_E2E_DATA_DIR`), so
 // it runs beside the installed app and never reads or writes the operator's data. The folder
 // starts with alerts muted (a launched claude's turn end would otherwise pop a desktop
-// notification), and is removed after the test.
+// notification), and is removed after the test. A spec can add settings keys (`extraSettings`)
+// and seed more userData files (`seedFiles`) with `test.use`.
 //
 // Teardown runs on pass AND fail, in this order: on failure keep the trace (`trace.zip` in the
 // test's output dir) and attach main's log and a screenshot to the test; then reap the launched
@@ -168,17 +169,25 @@ export async function confirmSessionName(page: Page): Promise<void> {
 }
 
 export const test = base.extend<{
+  extraSettings: Record<string, unknown>
+  seedFiles: Record<string, unknown>
   appEnv: AppEnv
   app: ElectronApplication
   page: Page
   mainLog: MainLog
   launchSession: (page: Page) => Promise<void>
 }>({
-  // eslint-disable-next-line no-empty-pattern -- Playwright requires the destructured fixtures arg
-  appEnv: async ({}, provide) => {
+  // Settings keys a spec adds to the muted settings blob (e.g. `apiEnabled`). Set with test.use.
+  extraSettings: [{}, { option: true }],
+  // Extra userData files a spec seeds before launch: file name → JSON value. Set with test.use.
+  seedFiles: [{}, { option: true }],
+  appEnv: async ({ extraSettings, seedFiles }, provide) => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'cw-e2e-data-'))
     const pickDir = mkdtempSync(path.join(tmpdir(), 'cw-e2e-pick-'))
-    writeFileSync(path.join(dataDir, SETTINGS_FILE), JSON.stringify(MUTED_SETTINGS, null, '\t'))
+    const settings = { settings: { ...MUTED_SETTINGS.settings, ...extraSettings } }
+    writeFileSync(path.join(dataDir, SETTINGS_FILE), JSON.stringify(settings, null, '\t'))
+    for (const [name, value] of Object.entries(seedFiles))
+      writeFileSync(path.join(dataDir, name), JSON.stringify(value, null, '\t'))
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       CLAUDE_WATCHER_PROFILE: 'e2e',
