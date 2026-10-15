@@ -4,9 +4,8 @@ claude-watcher: KDE-first Electron app that watches local `claude` sessions and 
 terminals for them. v1 (Epics 0–5) done; Epic 6 replaced the external `c9watch` CLI with a native
 session engine (several dir/channel names keep the historical `c9watch` prefix).
 
-`IdeasBoard.md` tracks new work. Remove an item when it is done or discarded. Never implement an
-item right away: validate it with a systematic approach (bmad / superpowers), then implement the
-same way.
+`IdeasBoard.md` tracks new work. Remove an item when done or discarded. Never implement an item
+right away: validate it with a systematic approach (bmad / superpowers), then implement the same way.
 
 **Designing, speccing, planning or choosing without the owner?** Read `technical-taste.md` first:
 how the owner decides, default answers, reversed decisions not to revive, when to stop. A spec
@@ -83,6 +82,7 @@ selectors → components. Renderer never invents/mutates session truth.
    **Same thing, same word:** reuse the app's existing word for a thing (`copy/terms.ts`, spec
    `## Copy` table; technical-taste §4).
 7. **Maintainability** (`rules/maintainability.md`): nothing stale survives; `npm run find-name`.
+8. **Tests** (`rules/testing.md`): lint + `eslint-suppressions.json` budget that only shrinks.
 
 **Debugging?** Read `rules/troubleshooting.md` first (Step-0 questions before theorizing).
 

@@ -290,8 +290,9 @@ yet. Prefer turning prose-only rules into sensors.
    disabling it. A conditional runtime skip is allowed only for a platform the test cannot run
    on (`describe.skip` off Linux); a busy port or a missing resource fails the run. _Consensus_
    (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per project, pinned by
-   `tests/main/vitestConfig.guard.test.ts`) and Playwright (`forbidOnly: true`). Deleting or
-   loosening a test is still prose only.
+   `tests/main/vitestConfig.guard.test.ts`) and Playwright (`forbidOnly: true`). A skip is a
+   lint error (`vitest/no-disabled-tests`, `playwright/no-skipped-test`); `skipIf`/`runIf` stay
+   allowed for a platform. Deleting or loosening a test is still prose only.
 4. **Review in a fresh context, aimed at correctness and the spec.** Don't chase every finding
    into extra layers: a reviewer told to find gaps always finds some. Code review mostly transfers
    understanding and catches fewer bugs than people think, so it does not replace tests. _Evidence_
@@ -397,7 +398,10 @@ yet. Prefer turning prose-only rules into sensors.
     - Use Playwright's waiting, web-first assertions.
 
     The unit / integration / e2e ratio is _taste_; there is no evidence for any pyramid. _Consensus_
-    (Testing Library, Playwright docs). Sensor: prose only. There are 0 snapshot tests today.
+    (Testing Library, Playwright docs). Sensors: the test lint rules (`@vitest/eslint-plugin`, `eslint-plugin-testing-library`,
+    `eslint-plugin-jest-dom`, `eslint-plugin-playwright`, all errors, old hits in the shrink-only
+    `eslint-suppressions.json`) and `tests/main/testHygiene.guard.test.ts`;
+    `.claude/rules/testing.md`.
 
 22. **Electron hardening, from the official checklist.**
     - Validate each IPC sender's frame or URL.
@@ -653,6 +657,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                            | Owner 2026-10-13: quiet in every row                                              |
 | Workspace bubble text centred everywhere; Manage rail rows 36px, one line, hover on the label only  | Manage rail rows 44px, two lines where there is detail, left-aligned; hover is the whole row        | Owner 2026-10-14: names were cut, centring left odd space, the pin sat outside    |
 | e2e skips when its port is busy (not tampering)                                                     | e2e has its own profile and fails when its port is busy                                             | The skip hid a test that could not pass for two weeks (owner, 2026-10-14)         |
+| Renderer tests on an in-house `createRoot` harness, no Testing Library (Story 1.3)                  | React Testing Library; `renderComponent` wraps its `render`                                         | User-facing queries need it; owner, 2026-10-15                                    |
 
 ## 13. Rejected — don't propose these again
 
@@ -695,7 +700,7 @@ day (spec `2026-10-01-engineering-gaps-design.md`). What is left:
 | ------------------------------------------------------------------------------------------------------------------------------ | ---------- |
 | `grantFileProtocolExtraPrivileges` fuse still on: the packaged renderer loads from `file://`; turning it off needs a test pass | §5b-22     |
 | 47 `as` casts and 19 comment-only catches remain (budgeted; they only fall)                                                    | §5b-9, 17  |
-| Deleting or loosening a test to get green is still prose only (`.only` is caught)                                              | §5b-3      |
+| Deleting or loosening a test to get green is still prose only (`.only` and skips are caught)                                   | §5b-3      |
 | `src/main/index.ts` is still the largest main file (1,176 lines); go lower in a later pass                                     | §5b-12, 13 |
 | jscpd ignores test files: 0.88% with tests included (2026-10-14)                                                               | §5b-14     |
 
