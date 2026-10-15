@@ -54,24 +54,16 @@ test('embedded terminal MessagePort round-trip — a typed command reaches the s
   await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
 
   // 3. THE ROUND TRIP: type a command that writes a file, and wait for the file. That proves
-  //    renderer → MessagePort → PTY → shell without reading the WebGL canvas. Keystrokes typed
-  //    before the terminal pairs its port are dropped (EmbeddedTerminal's onData has no port
-  //    yet), and the DOM shows no "paired" state, so the attempt repeats until the file holds
-  //    exactly the token: a line cut short by the pairing can create the file (the redirect
-  //    runs) but never with that content. Ctrl+U clears a cut line before the next attempt.
+  //    renderer → MessagePort → PTY → shell without reading the WebGL canvas. Typed once: keys
+  //    typed before the terminal pairs its port are queued and sent when it pairs.
   const terminal = page.locator('[data-testid="embedded-terminal"]')
   const probe = join(appEnv.pickDir, 'probe')
   await terminal.click()
-  await expect(async () => {
-    await page.keyboard.press('Control+U')
-    await page.keyboard.type(`echo ${PROBE_TOKEN} > ${probe}`)
-    await page.keyboard.press('Enter')
-    await expect
-      .poll(() => (existsSync(probe) ? readFileSync(probe, 'utf8') : null), { timeout: 2000 })
-      .toBe(`${PROBE_TOKEN}\n`)
-  }, 'the typed command must reach the shell through the terminal port').toPass({
-    timeout: 10_000
-  })
+  await page.keyboard.type(`echo ${PROBE_TOKEN} > ${probe}`)
+  await page.keyboard.press('Enter')
+  await expect
+    .poll(() => (existsSync(probe) ? readFileSync(probe, 'utf8') : null), { timeout: 10_000 })
+    .toBe(`${PROBE_TOKEN}\n`)
 
   // 4. Capture a screenshot as an artifact.
   await page.screenshot({ path: testInfo.outputPath('terminal-e2e.png') })

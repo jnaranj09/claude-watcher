@@ -383,13 +383,21 @@ export function EmbeddedTerminal({
       console.warn('[c9watch][term] WebGL addon failed, using canvas/dom fallback', e)
     }
 
-    // Keystrokes → the PTY over the port (NOT window.pty). One message per onData chunk.
-    const dataDisposable = term.onData((data) => {
+    // Keystrokes → the PTY over the port (NOT window.pty). One message per chunk. Keys typed
+    // before the port pairs wait in `pendingInput` and go out, in order, the moment it pairs
+    // (the operator can click into a new pane and type before main hands the port over). The
+    // queue lives in this effect run, so a re-open or a remount starts with an empty one.
+    const pendingInput: string[] = []
+    const sendInput = (data: string): void => {
       const port = portRef.current
-      if (!port) return
+      if (port === null) {
+        pendingInput.push(data)
+        return
+      }
       const msg: TerminalPortRendererMessage = { type: 'input', data }
       port.postMessage(msg)
-    })
+    }
+    const dataDisposable = term.onData(sendInput)
 
     // Story 5.1 fix — receive the real MessagePort via the main-world-port pattern.
     // `contextBridge` CANNOT marshal a live port as a callback arg (stripped of methods).
@@ -431,6 +439,8 @@ export function EmbeddedTerminal({
         }
       }
       port.start()
+      // Send what was typed before the port paired, in typed order.
+      for (const data of pendingInput.splice(0)) sendInput(data)
       // First fit AFTER the port is wired so the initial resize reaches a live pty.
       doFit()
       // Only a terminal the operator is looking at takes focus: a kept-alive or API-created one
@@ -460,8 +470,8 @@ export function EmbeddedTerminal({
     // and sends the clipboard TEXT to the PTY — so `claude`'s own `Ctrl+V` image-paste
     // never fires (the `0x16` byte never reaches claude's stdin).
     //
-    // Fix: attachCustomKeyEventHandler captures Ctrl+V keydown and manually posts `\x16`
-    // over the existing port input frame, then returns `false` (xterm does nothing further).
+    // Fix: attachCustomKeyEventHandler captures Ctrl+V keydown and manually sends `\x16`
+    // through sendInput (the onData path), then returns `false` (xterm does nothing further).
     // A capture-phase `paste` listener on the container also calls stopImmediatePropagation()
     // so xterm's paste handler (on the descendant textarea) never fires — ensuring exactly
     // ONE `\x16` per keypress, never a text paste (Konsole parity). [spec §Ctrl+V takeover]
@@ -474,13 +484,9 @@ export function EmbeddedTerminal({
         !event.metaKey &&
         event.key.toLowerCase() === 'v'
       ) {
-        // Forward the raw control byte to the PTY over the EXISTING port input frame.
-        // No new byte-transport path — the same {type:'input'} message the onData handler uses.
-        const port = portRef.current
-        if (port) {
-          const msg: TerminalPortRendererMessage = { type: 'input', data: '\x16' }
-          port.postMessage(msg)
-        }
+        // Forward the raw control byte through the same sendInput the onData handler uses
+        // (queued until the port pairs).
+        sendInput('\x16')
         return false // suppress xterm: no key-sequence write, no built-in paste
       }
 
