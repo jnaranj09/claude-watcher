@@ -130,8 +130,9 @@ describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
   // already drop on the missing `pid` and prove nothing about this field.
   it('DROPS an updated delta whose session has no workspaceId, logging path+code only', () => {
     const log = vi.fn()
+    const delta = reducerUpdated('s1', { projectPath: '/secret/path' })
     const enriched = enrichDelta(
-      reducerUpdated('s1', { projectPath: '/secret/path' }),
+      delta,
       { columnOf: () => 'working', enteredColumnAt: () => 10 },
       new Map([
         [
@@ -149,6 +150,8 @@ describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
     )
     expect(enriched).toBeNull()
     expect(log).toHaveBeenCalled()
+    // The input really carried the path, so the absence below is not vacuous.
+    expect(delta.event).toMatchObject({ projectPath: '/secret/path' })
     const logged = JSON.stringify(log.mock.calls)
     expect(logged).not.toContain('/secret/path')
   })
@@ -201,16 +204,14 @@ describe('enrichDelta — fail-closed when the tracker has no column (Tasks 7.3/
     // An id the tracker never saw → columnOf/enteredColumnAt are undefined → fail closed.
     const SECRET_NAME = 'super-secret-session-name'
     const SECRET_PATH = '/home/u/.secrets/private-repo'
-    const out = enrichDelta(
-      reducerUpdated('ghost-id-never-tracked', {
-        epoch: reducer.epoch(),
-        sessionName: SECRET_NAME,
-        projectPath: SECRET_PATH
-      }),
-      tracker,
-      reducer.snapshotMap(),
-      log
-    )
+    const delta = reducerUpdated('ghost-id-never-tracked', {
+      epoch: reducer.epoch(),
+      sessionName: SECRET_NAME,
+      projectPath: SECRET_PATH
+    })
+    // The input really carried both values, so the absence asserted below is not vacuous.
+    expect(delta.event).toMatchObject({ sessionName: SECRET_NAME, projectPath: SECRET_PATH })
+    const out = enrichDelta(delta, tracker, reducer.snapshotMap(), log)
     // Half-formed delta is NEVER shipped.
     expect(out).toBeNull()
     // Logged exactly once, by path + code only.
