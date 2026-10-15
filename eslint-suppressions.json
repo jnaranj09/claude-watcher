@@ -1,0 +1,992 @@
+{
+  "src/__fixtures__/fakeHookFeed.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 2
+    }
+  },
+  "src/main/c9watch/enrichDelta.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 4
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/main/c9watch/launchSynthesis.integration.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 3
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 4
+    }
+  },
+  "src/main/c9watch/reducer.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 2
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 2
+    }
+  },
+  "src/main/hooks/hookToColumn.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 8
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 3
+    }
+  },
+  "src/main/lifecycle/computeLiveLaunchedSessions.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 2
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/main/pty/claudeSessionFile.test.ts": {
+    "vitest/no-standalone-expect": {
+      "count": 1
+    }
+  },
+  "src/main/pty/claudeVersion.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/main/pty/launchRemoval.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 2
+    }
+  },
+  "src/main/pty/launchSession.api.test.ts": {
+    "vitest/valid-expect": {
+      "count": 1
+    }
+  },
+  "src/main/pty/pidCorrelation.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 3
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/main/pty/runningElsewhere.test.ts": {
+    "vitest/no-standalone-expect": {
+      "count": 1
+    }
+  },
+  "src/main/rules/deltaPipeline.test.ts": {
+    "vitest/no-commented-out-tests": {
+      "count": 1
+    }
+  },
+  "src/main/themes/themeCompose.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 1
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 2
+    }
+  },
+  "src/main/themes/themeExamples.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 16
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 4
+    }
+  },
+  "src/main/themes/themeScanner.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 6
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/App.apiLaunch.test.tsx": {
+    "testing-library/no-container": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/App.cardExit.test.tsx": {
+    "testing-library/no-container": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/App.feedback.test.tsx": {
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/App.header.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-style": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 2
+    },
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/App.launch.test.tsx": {
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 22
+    }
+  },
+  "src/renderer/src/App.menu.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 2
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/App.rename.test.tsx": {
+    "testing-library/no-container": {
+      "count": 15
+    }
+  },
+  "src/renderer/src/App.shortcuts.test.tsx": {
+    "testing-library/no-container": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/App.stop.keydown.test.tsx": {
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/App.tags.test.tsx": {
+    "testing-library/no-container": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/App.templates.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/App.terminalKeys.test.tsx": {
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/AppMenu/AppMenu.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 8
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Button/Button.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 10
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 4
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Callout/Callout.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/Checkbox/Checkbox.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/ColumnHeader/ColumnHeader.test.tsx": {
+    "testing-library/no-container": {
+      "count": 12
+    }
+  },
+  "src/renderer/src/components/ExpanderBox/ExpanderBox.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/FavoriteToggle/FavoriteToggle.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 5
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 10
+    },
+    "testing-library/no-container": {
+      "count": 1
+    },
+    "testing-library/no-node-access": {
+      "count": 10
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/components/FilterBar/FilterBar.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 1
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/Icon/LucideIcon.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 9
+    }
+  },
+  "src/renderer/src/components/ManageDialog/ManageDialog.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 6
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/ManageDialog/ManageDialog.rows.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 7
+    },
+    "testing-library/no-container": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/components/ManageDialog/ManageDialog.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 17
+    },
+    "jest-dom/prefer-to-have-class": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 17
+    },
+    "testing-library/no-container": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/components/NewSessionMenu/NewSessionButton.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 9
+    }
+  },
+  "src/renderer/src/components/NewSessionMenu/NewSessionMenu.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 7
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 4
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 7
+    },
+    "testing-library/no-container": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/PastSessionsDialog/PastSessionsDialog.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 3
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Popover/Popover.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 17
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 4
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Presence/Presence.test.tsx": {
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/QuitGuard/QuitGuard.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/QuitGuard/QuitGuard.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 13
+    }
+  },
+  "src/renderer/src/components/Radio/Radio.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/RulesDialog/RulesDialog.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/RulesDialog/RulesDialog.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 5
+    },
+    "testing-library/no-container": {
+      "count": 11
+    }
+  },
+  "src/renderer/src/components/ScopeFilter/IncludeGlobal.test.tsx": {
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/ScopeFilter/ScopeFilter.test.tsx": {
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/ScopeFilter/ScopeMarker.test.tsx": {
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Select/Select.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 6
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 8
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/SessionCard/SessionCard.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 86
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/SessionNameDialog/SessionNameDialog.busy.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/SessionNameDialog/SessionNameDialog.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 12
+    }
+  },
+  "src/renderer/src/components/SessionsDialog/ActiveSessionsPage.test.tsx": {
+    "testing-library/no-container": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/SessionsDialog/ImportSessionPage.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 3
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/components/SessionsDialog/SessionsDialog.test.tsx": {
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Settings/Settings.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 8
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 17
+    },
+    "testing-library/no-container": {
+      "count": 8
+    }
+  },
+  "src/renderer/src/components/Settings/Settings.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 10
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 23
+    },
+    "testing-library/no-container": {
+      "count": 31
+    }
+  },
+  "src/renderer/src/components/Settings/Settings.theme.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 16
+    },
+    "testing-library/no-container": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.favorites.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.scope.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 2
+    },
+    "testing-library/no-container": {
+      "count": 10
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/ShortcutsDialog.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 2
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/ShortcutsDialog/shortcutForm.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 4
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/components/SplitDivider/SplitDivider.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 8
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/StatusDot/StatusDot.test.tsx": {
+    "testing-library/no-container": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/components/StopConfirm/StopConfirm.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/StopConfirm/StopConfirm.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 17
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/Switch/Switch.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/TagChip/TagChip.test.tsx": {
+    "testing-library/no-container": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/components/TagChip/TagPathLabel.test.tsx": {
+    "testing-library/no-container": {
+      "count": 5
+    }
+  },
+  "src/renderer/src/components/TagIndicator/TagIndicator.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 12
+    }
+  },
+  "src/renderer/src/components/TagMenu/TagMenu.test.tsx": {
+    "testing-library/no-container": {
+      "count": 6
+    }
+  },
+  "src/renderer/src/components/TagPicker/TagPicker.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 5
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TagsDialog/TagsDialog.pages.test.tsx": {
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/TagsDialog/TagsDialog.test.tsx": {
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 9
+    },
+    "testing-library/no-container": {
+      "count": 11
+    }
+  },
+  "src/renderer/src/components/TemplatesDialog/TemplatesDialog.favorites.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/TemplatesDialog/TemplatesDialog.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TemplatesDialog/TemplatesDialog.scope.test.tsx": {
+    "testing-library/no-container": {
+      "count": 11
+    }
+  },
+  "src/renderer/src/components/TemplatesDialog/TemplatesDialog.test.tsx": {
+    "jest-dom/prefer-to-have-class": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 14
+    },
+    "testing-library/no-container": {
+      "count": 19
+    }
+  },
+  "src/renderer/src/components/TemplatesDialog/templateForm.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TextArea/TextArea.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/TextInput/TextInput.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 6
+    }
+  },
+  "src/renderer/src/components/Toaster/Toaster.test.tsx": {
+    "vitest/no-conditional-in-test": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/components/WorkspaceLabel/WorkspaceLabel.test.tsx": {
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 13
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 18
+    },
+    "testing-library/no-container": {
+      "count": 24
+    }
+  },
+  "src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.feedback.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 10
+    },
+    "testing-library/no-container": {
+      "count": 9
+    }
+  },
+  "src/renderer/src/components/attention/AttentionRail.rows.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "testing-library/no-container": {
+      "count": 14
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/board/Board.test.tsx": {
+    "testing-library/no-container": {
+      "count": 84
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/components/board/StartingBanner.test.tsx": {
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 22
+    }
+  },
+  "src/renderer/src/glass/GlassLayer.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 7
+    },
+    "testing-library/no-container": {
+      "count": 3
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/glass/surfaces.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/hooks/useApplyTheme.test.tsx": {
+    "jest-dom/prefer-to-have-style": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/hooks/useFlash.test.tsx": {
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 7
+    }
+  },
+  "src/renderer/src/hooks/usePresence.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 8
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/lib/namePromptFlow.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/lib/sessionExit.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/lib/startupLoads.dialogs.test.tsx": {
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 6
+    }
+  },
+  "src/renderer/src/styles/emphasis.test.tsx": {
+    "testing-library/no-container": {
+      "count": 2
+    }
+  },
+  "src/renderer/src/terminal/EmbeddedTerminal.clipboard.test.tsx": {
+    "testing-library/no-container": {
+      "count": 10
+    }
+  },
+  "src/renderer/src/terminal/EmbeddedTerminal.scheme.test.tsx": {
+    "vitest/no-conditional-in-test": {
+      "count": 4
+    }
+  },
+  "src/renderer/src/terminal/EmbeddedTerminal.shortcuts.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 1
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/terminal/EmbeddedTerminal.test.tsx": {
+    "jest-dom/prefer-focus": {
+      "count": 2
+    },
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 7
+    },
+    "jest-dom/prefer-to-have-style": {
+      "count": 3
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 47
+    },
+    "testing-library/no-unnecessary-act": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/terminal/EmbeddedTerminal.webgl.test.tsx": {
+    "testing-library/no-container": {
+      "count": 1
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 3
+    }
+  },
+  "src/renderer/src/terminal/TerminalHost.test.tsx": {
+    "testing-library/no-unnecessary-act": {
+      "count": 1
+    }
+  },
+  "src/renderer/src/views/FocusedSession.test.tsx": {
+    "jest-dom/prefer-to-have-attribute": {
+      "count": 1
+    },
+    "jest-dom/prefer-to-have-text-content": {
+      "count": 1
+    },
+    "testing-library/no-container": {
+      "count": 43
+    }
+  },
+  "src/shared/schemas/claudeSessionFile.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/shared/schemas/clipboard.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 1
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/shared/schemas/hookEvent.test.ts": {
+    "vitest/no-conditional-in-test": {
+      "count": 15
+    }
+  },
+  "src/shared/schemas/launch.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 21
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 14
+    }
+  },
+  "src/shared/schemas/settings.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 1
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/shared/schemas/telemetry.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 2
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/shared/schemas/theme.test.ts": {
+    "vitest/no-conditional-expect": {
+      "count": 2
+    },
+    "vitest/no-conditional-in-test": {
+      "count": 1
+    }
+  },
+  "src/shared/theme/themeDocs.test.ts": {
+    "vitest/expect-expect": {
+      "count": 3
+    }
+  },
+  "tests/e2e/launch.e2e.ts": {
+    "playwright/no-conditional-in-test": {
+      "count": 3
+    },
+    "playwright/no-wait-for-selector": {
+      "count": 1
+    }
+  },
+  "tests/e2e/native-engine.e2e.ts": {
+    "playwright/no-force-option": {
+      "count": 2
+    },
+    "playwright/no-wait-for-selector": {
+      "count": 3
+    },
+    "playwright/prefer-web-first-assertions": {
+      "count": 4
+    }
+  },
+  "tests/e2e/quit.e2e.ts": {
+    "playwright/no-wait-for-selector": {
+      "count": 1
+    }
+  },
+  "tests/e2e/terminal.e2e.ts": {
+    "playwright/no-conditional-in-test": {
+      "count": 1
+    },
+    "playwright/no-wait-for-selector": {
+      "count": 1
+    }
+  }
+}

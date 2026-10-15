@@ -11,3 +11,7 @@ tsconfig.*.json
 # against Prettier), so the generator is the only writer of these two paths.
 docs/themes/theme.schema.json
 docs/themes/THEMES.md
+
+# ESLint bulk suppressions — written by `eslint --suppress-all` / `--prune-suppressions` in its own
+# shape; reformatting it would churn the file on every re-key.
+eslint-suppressions.json

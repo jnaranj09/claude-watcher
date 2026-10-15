@@ -4,12 +4,27 @@ import eslintConfigPrettier from '@electron-toolkit/eslint-config-prettier'
 import eslintPluginReact from 'eslint-plugin-react'
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
+import vitestPlugin from '@vitest/eslint-plugin'
+import playwrightPlugin from 'eslint-plugin-playwright'
+import testingLibraryPlugin from 'eslint-plugin-testing-library'
+import jestDomPlugin from 'eslint-plugin-jest-dom'
 // Story 0.2 — authored local rule banning string-literal IPC channels.
 import localIpc from './eslint-rules/no-literal-channels.js'
 // Story 0.3 (Task 6) — type-checked lint rules need the typescript-eslint parser
 // + parserOptions.project, else `no-floating-promises` silently no-ops.
 import tsParser from '@typescript-eslint/parser'
 import tsPlugin from '@typescript-eslint/eslint-plugin'
+
+// Test rules are all `error`: bulk suppressions record errors only, and `npm run lint` does not
+// fail on warnings. `.claude/rules/testing.md` says what each rule protects.
+const asErrors = (rules) =>
+  Object.fromEntries(
+    Object.entries(rules).map(([id, v]) => {
+      const level = Array.isArray(v) ? v[0] : v
+      if (level === 'off' || level === 0) return [id, v]
+      return [id, Array.isArray(v) ? ['error', ...v.slice(1)] : 'error']
+    })
+  )
 
 export default defineConfig(
   {
@@ -107,6 +122,55 @@ export default defineConfig(
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off'
+    }
+  },
+  {
+    // technical-taste §5b-3 / §5b-21 / §13 as lint: every Vitest test file.
+    files: ['**/*.test.ts', '**/*.test.tsx'],
+    plugins: { vitest: vitestPlugin },
+    rules: asErrors({
+      ...vitestPlugin.configs.recommended.rules,
+      'vitest/no-conditional-in-test': 'error',
+      'vitest/prefer-hooks-on-top': 'error',
+      // Vitest's `expect(value, message)` takes a message.
+      'vitest/valid-expect': ['error', { maxArgs: 2 }],
+      // A guard may assert through a named helper.
+      'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'expect*', 'assert*'] }],
+      'vitest/no-restricted-matchers': [
+        'error',
+        {
+          toMatchSnapshot: 'No snapshot tests (technical-taste §13): assert the value.',
+          toMatchInlineSnapshot: 'No snapshot tests (technical-taste §13): assert the value.',
+          toThrowErrorMatchingSnapshot: 'No snapshot tests (technical-taste §13).',
+          toThrowErrorMatchingInlineSnapshot: 'No snapshot tests (technical-taste §13).'
+        }
+      ]
+    })
+  },
+  {
+    // Renderer (jsdom) tests: user-facing queries and jest-dom matchers (§5b-21).
+    files: ['src/renderer/**/*.test.ts', 'src/renderer/**/*.test.tsx'],
+    plugins: { 'testing-library': testingLibraryPlugin, 'jest-dom': jestDomPlugin },
+    settings: {
+      // The house wrappers render too, so their callers get the same checks.
+      'testing-library/custom-renders': ['renderComponent', 'renderTracked', 'renderApp']
+    },
+    rules: asErrors({
+      ...testingLibraryPlugin.configs['flat/react'].rules,
+      ...jestDomPlugin.configs['flat/recommended'].rules,
+      // Style only (the house names a render result `r`); it guards no behaviour.
+      'testing-library/render-result-naming-convention': 'off'
+    })
+  },
+  {
+    // Playwright e2e: web-first waits, no sleeps, no force, no skips.
+    files: ['tests/e2e/**/*.ts'],
+    ...playwrightPlugin.configs['flat/recommended'],
+    rules: {
+      ...asErrors(playwrightPlugin.configs['flat/recommended'].rules),
+      // The preset turns this off for Playwright's `({}, use)` fixtures; keep it on so each empty
+      // pattern still carries its own disable comment (`tests/e2e/fixtures.ts`).
+      'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: false }]
     }
   },
   eslintConfigPrettier
