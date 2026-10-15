@@ -49,7 +49,7 @@ only".
 - Never skip, delete or loosen a test to get green (§5b-3). Lint: `vitest/no-disabled-tests`,
   `playwright/no-skipped-test`, `.only` fails the run. The one allowed skip is a platform the test
   cannot run on: `it.skipIf(...)` / `describe.runIf(...)`. Deleting or loosening: prose only.
-- Repetition in a test body is fine. A shared test helper never serves one file
+- Repetition in a test body is fine. A shared test helper never serves one caller
   (maintainability rule 4). Prose only.
 
 ## Which layer
