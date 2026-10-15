@@ -22,6 +22,7 @@ import {
   NEEDS_ATTENTION_ID as WEBAPP_ID, // NeedsAttention → needs-you (pendingToolName 'Agent')
   IDLE_ID as REPORTS_ID // WaitingForInput → idle (no pendingToolName)
 } from '../../__fixtures__/fakeSessions'
+import { reducerUpdated } from '../../__fixtures__/watchEvents'
 
 const FIXED_NOW = 1_750_000_000_000
 
@@ -46,16 +47,7 @@ describe('enrichDelta — session.updated is enriched + validated at source (AC-
   it('carries column + enteredColumnAt + pid (+ pendingToolName) from the tracker/map', () => {
     const { reducer, tracker } = seedWired()
     // A bare session.updated for the dashboard (Working → working). Enrich it.
-    const bare = {
-      epoch: reducer.epoch(),
-      event: {
-        type: 'session.updated' as const,
-        id: DASHBOARD_ID,
-        sessionName: 'dashboard',
-        projectPath: '/home/u/projects/dashboard',
-        status: 'Working'
-      }
-    }
+    const bare = reducerUpdated(DASHBOARD_ID, { epoch: reducer.epoch() })
     const out = enrichDelta(bare, tracker, reducer.snapshotMap())
     expect(out).not.toBeNull()
     expect(out?.event.type).toBe('session.updated')
@@ -71,16 +63,7 @@ describe('enrichDelta — session.updated is enriched + validated at source (AC-
     const { reducer, tracker } = seedWired()
     // webapp (NeedsAttention) has pendingToolName 'Agent' in the fake list.
     const withTool = enrichDelta(
-      {
-        epoch: reducer.epoch(),
-        event: {
-          type: 'session.updated',
-          id: WEBAPP_ID,
-          sessionName: 'webapp',
-          projectPath: '/home/u/projects/c9watch-webapp',
-          status: 'NeedsAttention'
-        }
-      },
+      reducerUpdated(WEBAPP_ID, { epoch: reducer.epoch(), status: 'NeedsAttention' }),
       tracker,
       reducer.snapshotMap()
     )
@@ -91,16 +74,7 @@ describe('enrichDelta — session.updated is enriched + validated at source (AC-
 
     // reports (WaitingForInput) has NO pendingToolName.
     const noTool = enrichDelta(
-      {
-        epoch: reducer.epoch(),
-        event: {
-          type: 'session.updated',
-          id: REPORTS_ID,
-          sessionName: 'reports',
-          projectPath: '/home/u/projects/reports',
-          status: 'WaitingForInput'
-        }
-      },
+      reducerUpdated(REPORTS_ID, { epoch: reducer.epoch(), status: 'WaitingForInput' }),
       tracker,
       reducer.snapshotMap()
     )
@@ -129,16 +103,7 @@ describe('enrichDelta — session.updated is enriched + validated at source (AC-
 describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
   it('carries workspaceId from the session map onto the enriched delta', () => {
     const enriched = enrichDelta(
-      {
-        epoch: 0,
-        event: {
-          type: 'session.updated',
-          id: 's1',
-          sessionName: 'n',
-          projectPath: '/p',
-          status: 'Working'
-        }
-      },
+      reducerUpdated('s1'),
       { columnOf: () => 'working', enteredColumnAt: () => 10 },
       new Map([
         [
@@ -166,16 +131,7 @@ describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
   it('DROPS an updated delta whose session has no workspaceId, logging path+code only', () => {
     const log = vi.fn()
     const enriched = enrichDelta(
-      {
-        epoch: 0,
-        event: {
-          type: 'session.updated',
-          id: 's1',
-          sessionName: 'n',
-          projectPath: '/secret/path',
-          status: 'Working'
-        }
-      },
+      reducerUpdated('s1', { projectPath: '/secret/path' }),
       { columnOf: () => 'working', enteredColumnAt: () => 10 },
       new Map([
         [
@@ -199,16 +155,7 @@ describe('enrichDelta — workspaceId rides the pid path (Task 4)', () => {
 })
 
 describe('enrichDelta — tags ride the enriched delta (spec §3)', () => {
-  const bare = {
-    epoch: 0,
-    event: {
-      type: 'session.updated' as const,
-      id: 's1',
-      sessionName: 'n',
-      projectPath: '/p',
-      status: 'Working'
-    }
-  }
+  const bare = reducerUpdated('s1')
   const tracker = { columnOf: () => 'working' as const, enteredColumnAt: () => 10 }
   const session: Session = {
     id: 's1',
@@ -255,16 +202,11 @@ describe('enrichDelta — fail-closed when the tracker has no column (Tasks 7.3/
     const SECRET_NAME = 'super-secret-session-name'
     const SECRET_PATH = '/home/u/.secrets/private-repo'
     const out = enrichDelta(
-      {
+      reducerUpdated('ghost-id-never-tracked', {
         epoch: reducer.epoch(),
-        event: {
-          type: 'session.updated',
-          id: 'ghost-id-never-tracked',
-          sessionName: SECRET_NAME,
-          projectPath: SECRET_PATH,
-          status: 'Working'
-        }
-      },
+        sessionName: SECRET_NAME,
+        projectPath: SECRET_PATH
+      }),
       tracker,
       reducer.snapshotMap(),
       log

@@ -15,7 +15,6 @@ import { renderComponent } from '../../test/renderComponent'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type {
-  Column,
   WatchEventsPayload,
   AttentionActivatePayload,
   Template,
@@ -23,6 +22,7 @@ import type {
 } from '../../../../shared/ipc/contract'
 import { templatesStore } from '../../stores/templatesStore'
 import { tagsStore } from '../../stores/tagsStore'
+import { watchUpdated } from '../../../../__fixtures__/watchEvents'
 
 /** The shape the Board needs off `window.watch` (mirrors the preload WatchApi). */
 interface WatchBridge {
@@ -100,39 +100,6 @@ function stubBridges(): {
   }
 }
 
-function updated(
-  epoch: number,
-  id: string,
-  column: Column,
-  enteredColumnAt: number,
-  over: Partial<{
-    sessionName: string
-    projectPath: string
-    status: string
-    pid: number
-    pendingToolName: string
-    workspaceId: string
-    tagIds: string[]
-  }> = {}
-): WatchEventsPayload {
-  return {
-    epoch,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: over.sessionName ?? `s-${id}`,
-      projectPath: over.projectPath ?? `/p/${id}`,
-      status: over.status ?? 'Working',
-      column,
-      enteredColumnAt,
-      pid: over.pid ?? 1000,
-      workspaceId: over.workspaceId ?? 'default',
-      tagIds: over.tagIds ?? [],
-      ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
-    }
-  }
-}
-
 beforeEach(() => {
   resetStore()
   stubBridges()
@@ -156,7 +123,7 @@ describe('Board — cold-load skeleton (AC-5)', () => {
     cleanup = unmount
     expect(container.querySelector('[data-testid="skeleton-board"]')).not.toBeNull()
     // First delta (epoch ≥ 1) flips coldLoaded → the grid replaces the skeleton.
-    applyDelta(updated(1, 'a', 'working', 100))
+    applyDelta(watchUpdated(1, 'a', 'working', 100))
     expect(container.querySelector('[data-testid="skeleton-board"]')).toBeNull()
     expect(container.querySelector('[data-testid="column-grid"]')).not.toBeNull()
   })
@@ -305,7 +272,7 @@ describe('Board — empty states never collapse (AC-4)', () => {
 
   it('empty needs-you column renders the CALM hint "Nothing waiting. All quiet."', () => {
     // One working session → board is live; needs-you + idle are empty (keep headers + hints).
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     const needsYou = container.querySelector('[data-column="needs-you"]')
@@ -318,7 +285,7 @@ describe('Board — empty states never collapse (AC-4)', () => {
   })
 
   it('empty idle column hint is "Nothing waiting." (no Done column; FROZEN-1)', () => {
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     const idle = container.querySelector('[data-column="idle"]')
@@ -330,16 +297,20 @@ describe('Board — live three columns, one card per session, verbatim fields (A
   it('renders every session as exactly one card, none duplicated, native fields verbatim', () => {
     const st = boardStore.getState()
     st.applyWatchEvent(
-      updated(1, 'w', 'working', 100, { sessionName: 'web', projectPath: '/repo/web', pid: 4242 })
+      watchUpdated(1, 'w', 'working', 100, {
+        sessionName: 'web',
+        projectPath: '/repo/web',
+        pid: 4242
+      })
     )
     st.applyWatchEvent(
-      updated(1, 'n', 'needs-you', 200, {
+      watchUpdated(1, 'n', 'needs-you', 200, {
         status: 'NeedsAttention',
         pendingToolName: 'Bash',
         pid: 7
       })
     )
-    st.applyWatchEvent(updated(1, 'i', 'idle', 300, { status: 'WaitingForInput', pid: 9 }))
+    st.applyWatchEvent(watchUpdated(1, 'i', 'idle', 300, { status: 'WaitingForInput', pid: 9 }))
 
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
@@ -361,7 +332,7 @@ describe('Board — live three columns, one card per session, verbatim fields (A
   })
 
   it('an aria-live region is present at board level (AC-9)', () => {
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     const live = container.querySelector('[data-testid="live-announcer"]')
@@ -374,7 +345,7 @@ describe('Board — the PINNED center hero (Needs-you always holds the center sl
   it('ONLY Working sessions → Needs-you STILL holds the center (empty), Working is a flank', () => {
     // The retired Story-1.5 cascade promoted Working to the center whenever nothing needed
     // you. Now the center never moves: an empty gold column is the calm state.
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
 
@@ -401,8 +372,8 @@ describe('Board — the PINNED center hero (Needs-you always holds the center sl
 
   it('a Needs-you session appears → the center is unchanged and now carries the gold hero card', () => {
     const st = boardStore.getState()
-    st.applyWatchEvent(updated(1, 'w', 'working', 100))
-    st.applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+    st.applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
+    st.applyWatchEvent(watchUpdated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
     // No debounce to wait out any more — the center was already Needs-you.
 
     const { container, unmount } = renderComponent(<Board />)
@@ -430,7 +401,7 @@ describe('Board — the PINNED center hero (Needs-you always holds the center sl
     // Needs-you center holds (empty).
     boardStore
       .getState()
-      .applyWatchEvent(updated(1, 'i', 'idle', 300, { status: 'WaitingForInput' }))
+      .applyWatchEvent(watchUpdated(1, 'i', 'idle', 300, { status: 'WaitingForInput' }))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
 
@@ -451,14 +422,15 @@ describe('Board — the PINNED center hero (Needs-you always holds the center sl
     // Drive the board through each of those populations and assert the center never moves.
     // (This is the non-vacuous half of the pin: it renders real state, not the constant.)
     const populations: ReadonlyArray<{ label: string; apply: () => void }> = [
-      { label: 'working only', apply: () => applyDelta(updated(1, 'w', 'working', 100)) },
+      { label: 'working only', apply: () => applyDelta(watchUpdated(1, 'w', 'working', 100)) },
       {
         label: '+ idle',
-        apply: () => applyDelta(updated(2, 'i', 'idle', 300, { status: 'WaitingForInput' }))
+        apply: () => applyDelta(watchUpdated(2, 'i', 'idle', 300, { status: 'WaitingForInput' }))
       },
       {
         label: '+ needs-you',
-        apply: () => applyDelta(updated(3, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+        apply: () =>
+          applyDelta(watchUpdated(3, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
       },
       {
         label: 'needs-you emptied again',
@@ -490,7 +462,7 @@ describe('Board — the PINNED center hero (Needs-you always holds the center sl
   })
 
   it('all three columns ALWAYS render (with their 1.4 empty-state) regardless of the hero', () => {
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     // Every column section is present (none dropped), each keyed by data-column.
@@ -505,7 +477,7 @@ describe('Board — the PINNED center hero (Needs-you always holds the center sl
   })
 
   it('NO-PIN (AC-7): the board exposes no hero-select / drag affordance', () => {
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     // No draggable element, no hero-pin control of any kind.
@@ -551,8 +523,8 @@ describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
   it('an attention:activate push for a PRESENT id flows window.attention.onActivate → store → selected card', () => {
     const bridges = stubBridges() // re-stub to capture this test's onActivate callback
     const st = boardStore.getState()
-    st.applyWatchEvent(updated(1, 'w', 'working', 100, { sessionName: 'web' }))
-    st.applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+    st.applyWatchEvent(watchUpdated(1, 'w', 'working', 100, { sessionName: 'web' }))
+    st.applyWatchEvent(watchUpdated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
 
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
@@ -573,7 +545,7 @@ describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
   it('an attention:activate push OPENS the session in its terminal, not just a selection (R29)', () => {
     const bridges = stubBridges()
     const st = boardStore.getState()
-    st.applyWatchEvent(updated(1, 'w', 'working', 100, { sessionName: 'web' }))
+    st.applyWatchEvent(watchUpdated(1, 'w', 'working', 100, { sessionName: 'web' }))
     st.addCorrelation('w', 't-w')
     const { unmount } = renderComponent(<Board />)
     cleanup = unmount
@@ -584,7 +556,7 @@ describe('Board — FR-9 in-app jump-to-card (Story 2.2: AC-5, AC-8)', () => {
 
   it('an attention:activate push for an ABSENT id is a NO-OP (no card selected; no raise)', () => {
     const bridges = stubBridges()
-    boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     act(() => bridges.pushActivate('ghost')) // never on the board
@@ -603,10 +575,10 @@ describe('Board — Task 9a fix: reads the ACTIVE workspace, not a hardcoded one
     workspacesStore.setState({ activeId: 'w2' })
     const st = boardStore.getState()
     st.applyWatchEvent(
-      updated(1, 'in-w1', 'working', 100, { sessionName: 'w1-card', workspaceId: 'w1' })
+      watchUpdated(1, 'in-w1', 'working', 100, { sessionName: 'w1-card', workspaceId: 'w1' })
     )
     st.applyWatchEvent(
-      updated(1, 'in-w2', 'working', 200, { sessionName: 'w2-card', workspaceId: 'w2' })
+      watchUpdated(1, 'in-w2', 'working', 200, { sessionName: 'w2-card', workspaceId: 'w2' })
     )
 
     const { container, unmount } = renderComponent(<Board />)
@@ -638,8 +610,8 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   it('shows only the cards carrying the filtered tag', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
-    applyDelta(updated(1, 'plain', 'working', 101))
+    applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(watchUpdated(1, 'plain', 'working', 101))
     expect(cardIds(container).sort()).toEqual(['plain', 'tagged'])
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     expect(cardIds(container)).toEqual(['tagged'])
@@ -650,7 +622,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     cleanup = unmount
     act(() => boardStore.getState().setReconnecting(false))
     expect(container.querySelector('[data-testid="filter-bar"]')).toBeNull()
-    applyDelta(updated(1, 'plain', 'working', 100))
+    applyDelta(watchUpdated(1, 'plain', 'working', 100))
     const bar = container.querySelector('[data-testid="filter-bar"]')
     const grid = container.querySelector('[data-testid="column-grid"]')
     if (bar === null || grid === null) throw new Error('missing filter bar or column grid')
@@ -660,7 +632,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   it('the filtered-empty board has no Past sessions… button', () => {
     const { container, unmount } = renderComponent(<Board onOpenPastSessions={vi.fn()} />)
     cleanup = unmount
-    applyDelta(updated(1, 'plain', 'working', 100))
+    applyDelta(watchUpdated(1, 'plain', 'working', 100))
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     expect(container.querySelector('[data-testid="empty-board-filtered"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="empty-board-past-sessions"]')).toBeNull()
@@ -669,7 +641,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   it('names the tag when the filter hides every card — and keeps the bar to remove it', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'plain', 'working', 100))
+    applyDelta(watchUpdated(1, 'plain', 'working', 100))
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     const empty = container.querySelector('[data-testid="empty-board-filtered"]')
     expect(empty?.textContent).toContain('No sessions tagged prod.')
@@ -699,9 +671,12 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   it('a column emptied ONLY by the filter names the tag — not the calm "All quiet." hint', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
     applyDelta(
-      updated(1, 'untagged-needs-you', 'needs-you', 100, { status: 'NeedsAttention', tagIds: [] })
+      watchUpdated(1, 'untagged-needs-you', 'needs-you', 100, {
+        status: 'NeedsAttention',
+        tagIds: []
+      })
     )
     act(() => tagsStore.getState().setActiveTag('t-prod'))
 
@@ -727,8 +702,8 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   it('the aria-live summary notes how many the tag filter hid', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
-    applyDelta(updated(1, 'plain', 'working', 101))
+    applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(watchUpdated(1, 'plain', 'working', 101))
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     const live = container.querySelector('[data-testid="live-announcer"]')
     expect(live?.textContent).toBe('0 need you, 1 working, 0 idle, 1 hidden by the tag filter')
@@ -737,8 +712,8 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   it('with no filter, the summary text is unchanged (no trailing clause)', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
-    applyDelta(updated(1, 'plain', 'working', 101))
+    applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(watchUpdated(1, 'plain', 'working', 101))
     const live = container.querySelector('[data-testid="live-announcer"]')
     expect(live?.textContent).toBe('0 need you, 2 working, 0 idle')
   })
@@ -748,7 +723,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     act(() => tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true, activeTagId: null }))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'tagged', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
+    applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
     const row = container.querySelector('[data-session-id="tagged"] [data-testid="card-tags"]')
     expect(
       [...(row?.querySelectorAll('[data-testid="tag-chip"]') ?? [])].map((c) => c.textContent)
@@ -776,8 +751,8 @@ describe('Board — the search box', () => {
   it('shows only the cards whose name matches', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
-    applyDelta(updated(1, 'b', 'working', 101, { sessionName: 'Review' }))
+    applyDelta(watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(watchUpdated(1, 'b', 'working', 101, { sessionName: 'Review' }))
     search('deploy')
     expect(cardIds(container)).toEqual(['a'])
   })
@@ -785,9 +760,9 @@ describe('Board — the search box', () => {
   it('a column emptied ONLY by the search names the search — not the calm hint', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
     applyDelta(
-      updated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
+      watchUpdated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
     )
     search('  deploy ')
     const needsYouCol = container.querySelector('[data-column="needs-you"]')
@@ -800,9 +775,11 @@ describe('Board — the search box', () => {
   it('a column emptied by the search AND the tag names both', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] }))
     applyDelta(
-      updated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
+      watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] })
+    )
+    applyDelta(
+      watchUpdated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
     )
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     search('deploy')
@@ -815,7 +792,7 @@ describe('Board — the search box', () => {
   it('a search that hides every card names the search, and keeps the bar to clear it', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
     search('zzz')
     const empty = container.querySelector('[data-testid="empty-board-filtered"]')
     expect(empty?.textContent).toContain('No sessions match “zzz”.')
@@ -828,7 +805,7 @@ describe('Board — the search box', () => {
   it('search and tag hiding every card: the empty board names both', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Review', tagIds: ['t-prod'] }))
+    applyDelta(watchUpdated(1, 'a', 'working', 100, { sessionName: 'Review', tagIds: ['t-prod'] }))
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     search('zzz')
     const empty = container.querySelector('[data-testid="empty-board-filtered"]')
@@ -841,8 +818,8 @@ describe('Board — the search box', () => {
   it('the aria-live summary says how many the search hid', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
-    applyDelta(updated(1, 'b', 'working', 101, { sessionName: 'Review' }))
+    applyDelta(watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API' }))
+    applyDelta(watchUpdated(1, 'b', 'working', 101, { sessionName: 'Review' }))
     search('deploy')
     const live = container.querySelector('[data-testid="live-announcer"]')
     expect(live?.textContent).toBe('0 need you, 1 working, 0 idle, 1 hidden by the search')
@@ -851,8 +828,10 @@ describe('Board — the search box', () => {
   it('with both on, the aria-live summary names both', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
-    applyDelta(updated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] }))
-    applyDelta(updated(1, 'b', 'working', 101, { sessionName: 'Review' }))
+    applyDelta(
+      watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] })
+    )
+    applyDelta(watchUpdated(1, 'b', 'working', 101, { sessionName: 'Review' }))
     act(() => tagsStore.getState().setActiveTag('t-prod'))
     search('deploy')
     const live = container.querySelector('[data-testid="live-announcer"]')
@@ -881,9 +860,9 @@ describe('Board — the Tags… menu offers only global + the card’s own works
   it('never offers a tag scoped to ANOTHER workspace; offers global + the card’s own', () => {
     const { container, unmount } = renderComponent(<Board onSetCardTags={vi.fn()} />)
     cleanup = unmount
-    // The default (unnamed override) workspaceId from `updated()` IS 'default' — the same
+    // The default (unnamed override) workspaceId from `watchUpdated()` IS 'default' — the same
     // workspace the fresh workspacesStore is active on (resetStore), so this card is "here".
-    applyDelta(updated(1, 'card', 'working', 100))
+    applyDelta(watchUpdated(1, 'card', 'working', 100))
     act(() =>
       container
         .querySelector<HTMLButtonElement>(
@@ -901,9 +880,9 @@ describe('Board — the Tags… menu offers only global + the card’s own works
 describe('Board — public theme hooks', () => {
   it('marks the column group and each column body for themes', () => {
     const st = boardStore.getState()
-    st.applyWatchEvent(updated(1, 'w', 'working', 100))
-    st.applyWatchEvent(updated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
-    st.applyWatchEvent(updated(1, 'i', 'idle', 300, { status: 'WaitingForInput' }))
+    st.applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
+    st.applyWatchEvent(watchUpdated(1, 'n', 'needs-you', 200, { status: 'NeedsAttention' }))
+    st.applyWatchEvent(watchUpdated(1, 'i', 'idle', 300, { status: 'WaitingForInput' }))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     expect(container.querySelectorAll('[data-column-grid]')).toHaveLength(1)

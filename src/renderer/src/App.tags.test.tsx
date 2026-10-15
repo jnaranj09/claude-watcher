@@ -7,28 +7,10 @@ import { unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { tagsStore } from './stores/tagsStore'
-import type { QuitGuardPayload, Tag, WatchEventsPayload } from '../../shared/ipc/contract'
+import type { QuitGuardPayload, Tag } from '../../shared/ipc/contract'
+import { watchUpdated } from '../../__fixtures__/watchEvents'
 
 const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
-
-/** An untagged card in the Default workspace (the one a fresh workspacesStore is active on). */
-function untaggedCard(id: string): WatchEventsPayload {
-  return {
-    epoch: 0,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: 'card',
-      projectPath: '/home/op/project',
-      status: 'Working',
-      column: 'working',
-      enteredColumnAt: 100,
-      pid: 4242,
-      workspaceId: 'default',
-      tagIds: []
-    }
-  }
-}
 
 let guardShow: ((payload: QuitGuardPayload) => void) | undefined
 
@@ -76,7 +58,7 @@ function openManageTags(r: RenderResult): void {
 describe('App — tags', () => {
   it('loads the tags on mount; the board filter bar lists them', async () => {
     const r = await renderApp()
-    act(() => boardStore.getState().applyWatchEvent(untaggedCard('s1')))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 100)))
     click(q(r, '[data-testid="filter-toggle"]'))
     click(q(r, '[data-testid="filter-add"]'))
     expect(r.container.querySelector('[data-testid="filter-tag-row-t-deploy"]')).not.toBeNull()
@@ -84,7 +66,7 @@ describe('App — tags', () => {
 
   it('the header filters nothing: the filter bar lives in the board', async () => {
     const r = await renderApp()
-    act(() => boardStore.getState().applyWatchEvent(untaggedCard('s1')))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 100)))
     const header = q(r, '[data-testid="app-header"]')
     expect(header.querySelector('[data-testid="filter-bar"]')).toBeNull()
     expect(q(r, '[data-testid="board-layer"] [data-testid="filter-bar"]')).toBeTruthy()
@@ -123,7 +105,7 @@ describe('App — tags', () => {
       Promise.resolve([])
     )
     const r = await renderApp()
-    act(() => boardStore.getState().applyWatchEvent(untaggedCard('s1')))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 100)))
     click(q(r, '[data-session-id="s1"] [data-testid="card-tags-button"]'))
     expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()
   })

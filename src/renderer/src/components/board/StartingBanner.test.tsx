@@ -20,7 +20,7 @@ import { act } from 'react'
 import { renderComponent } from '../../test/renderComponent'
 import { StartingBanner } from './StartingBanner'
 import { boardStore } from '../../stores/boardStore'
-import type { WatchEventsPayload } from '../../../../shared/ipc/contract'
+import { watchUpdated } from '../../../../__fixtures__/watchEvents'
 
 function resetStore(): void {
   boardStore.setState({
@@ -45,25 +45,6 @@ afterEach(() => {
   cleanup = undefined
   vi.restoreAllMocks()
 })
-
-/** A quick delta builder for sessionsById (mirrors boardStore.test.ts). */
-function updated(epoch: number, id: string): WatchEventsPayload {
-  return {
-    epoch,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: `s-${id}`,
-      projectPath: `/p/${id}`,
-      status: 'Working',
-      column: 'working',
-      enteredColumnAt: 100,
-      pid: 1000,
-      workspaceId: 'default',
-      tagIds: []
-    }
-  }
-}
 
 describe('StartingBanner — renders nothing when there are no starting terminals', () => {
   it('renders null / empty when registry is empty', () => {
@@ -241,7 +222,7 @@ describe('StartingBanner — supersede: leaves strip when card correlates (AC-4)
 
     // Card + correlation land.
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'sess-1'))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'sess-1', 'working', 100))
       boardStore.getState().addCorrelation('sess-1', 't-1')
     })
 

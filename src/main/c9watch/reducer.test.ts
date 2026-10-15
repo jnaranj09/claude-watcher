@@ -13,7 +13,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { createReducer, type SessionDelta } from './reducer'
 import { launchedSession } from '../../__fixtures__/fakeSessions'
 import { createAttentionTracker } from './attention'
-import type { Session } from '../../shared/schemas/session'
 
 const FIXED_NOW = 1_750_000_000_000
 
@@ -76,16 +75,7 @@ describe('reducer — upsertLaunched (Story 6.2: spawn-time launch synthesis)', 
 
   it('a re-upsert under a new id keeps the workspaceId (the /clear rebind)', () => {
     const reducer = createReducer({ now: () => 1 })
-    const stored = {
-      id: 'old',
-      status: 'Working',
-      projectPath: '/p',
-      pid: 3,
-      sessionName: 'n',
-      workspaceId: 'w5',
-      tagIds: [],
-      templateId: null
-    }
+    const stored = launchedSession('old', { status: 'Working', workspaceId: 'w5' })
     reducer.upsertLaunched(stored)
     reducer.upsertLaunched({ ...stored, id: 'new' })
     expect(reducer.snapshotMap().get('new')?.workspaceId).toBe('w5')
@@ -399,16 +389,7 @@ describe('reducer — renameSession (session-naming A2)', () => {
 })
 
 describe('setWorkspace', () => {
-  const stored = {
-    id: 's1',
-    status: 'Working',
-    projectPath: '/p',
-    pid: 3,
-    sessionName: 'n',
-    workspaceId: 'w1',
-    tagIds: [],
-    templateId: null
-  }
+  const stored = launchedSession('s1', { status: 'Working', workspaceId: 'w1' })
 
   it('emits one session.updated with the new workspace', () => {
     const reducer = createReducer({ now: () => 1 })
@@ -572,16 +553,7 @@ describe('reducer — determinism + map hygiene', () => {
 })
 
 describe('nameSyncPending — a rename waiting for claude', () => {
-  const base: Session = {
-    id: 's1',
-    status: 'Working',
-    projectPath: '/w',
-    pid: 1,
-    sessionName: 'old',
-    workspaceId: 'default',
-    tagIds: [],
-    templateId: null
-  }
+  const base = launchedSession('s1', { status: 'Working', sessionName: 'old' })
 
   it('renameSession(id, name, true) marks the session pending and ships one delta', () => {
     const r = createReducer()

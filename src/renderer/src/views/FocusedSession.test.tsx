@@ -15,36 +15,9 @@ import { stubXtermBrowserApis } from '../test/terminalHarness'
 import { FocusedSession } from './FocusedSession'
 import { boardStore, selectShellPane } from '../stores/boardStore'
 import { deferred } from '../test/deferred'
-import type { Column, SessionUpdatedEvent, WatchEventsPayload } from '../../../shared/ipc/contract'
+import { watchUpdated } from '../../../__fixtures__/watchEvents'
 
 let cleanup: (() => void) | undefined
-
-/** A validated session.updated delta to seed the store (the rail's source). `extra` spreads onto
- *  the event, so a test can seed fields (e.g. `nameSyncPending`) beyond this helper's defaults. */
-function updated(
-  epoch: number,
-  id: string,
-  column: Column,
-  enteredColumnAt: number,
-  extra: Partial<SessionUpdatedEvent> = {}
-): WatchEventsPayload {
-  return {
-    epoch,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: `s-${id}`,
-      projectPath: `/p/${id}`,
-      status: column === 'needs-you' ? 'NeedsAttention' : 'Working',
-      column,
-      enteredColumnAt,
-      pid: 1000,
-      workspaceId: 'default',
-      tagIds: [],
-      ...extra
-    }
-  }
-}
 
 beforeEach(() => {
   boardStore.setState({
@@ -123,7 +96,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
 
   it('keeps ALL app-launched terminals ALIVE (correlated ∪ focused) — switching never recreates', () => {
     // One correlated session + the currently-focused (just-launched, not-yet-correlated) terminal.
-    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     boardStore.getState().addCorrelation('a', 'launch-a')
     boardStore.getState().openLaunchedTerminal('launch-b', 'b', 'default')
     const r = render()
@@ -164,8 +137,8 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
 
   it('a rail-row click SWITCHES the visible terminal + ACKNOWLEDGES (no input sent — AC-3)', () => {
     // Seed two correlated sessions; focus the first.
-    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
-    boardStore.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
     boardStore.getState().addCorrelation('a', 'launch-a')
     boardStore.getState().addCorrelation('b', 'launch-b')
     boardStore.getState().switchTerminal('launch-a')
@@ -258,7 +231,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     act(() => {
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'working', 10, { nameSyncPending: true }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'working', 10, { nameSyncPending: true }))
       boardStore.setState({
         terminalIdBySessionId: { a: 'term-a' },
         focusedTerminalId: 'term-a',
@@ -277,7 +250,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
   // session's status dot — not a stray label at the right edge beside Archive/Delete.
   it('draws the name as a breadcrumb title after ← Board, with the status dot, before the hint', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 10))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 10))
       boardStore.setState({
         terminalIdBySessionId: { a: 'term-a' },
         focusedTerminalId: 'term-a',
@@ -306,7 +279,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
   })
 
   it('a rail row whose binding has NOT landed is alert-only: acknowledges but does NOT switch', () => {
-    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     boardStore.getState().openLaunchedTerminal('launch-other', 'other', 'default') // focused = some other terminal
     // session 'a' has NO terminalIdBySessionId binding yet.
     const r = render()
@@ -374,7 +347,7 @@ describe('FocusedSession — Past sessions Archive + Delete header buttons (D-3,
 
   it('clicking Delete opens the confirm with { terminalId, sessionId, sessionName } and calls nothing on the bridge', () => {
     // Correlated: sessionId + sessionName come off the bound session.
-    boardStore.getState().applyWatchEvent(updated(1, 'sess-corr', 'working', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'sess-corr', 'working', 100))
     boardStore.getState().addCorrelation('sess-corr', 'launch-corr-term')
     boardStore.getState().switchTerminal('launch-corr-term')
     const r = render()
@@ -693,8 +666,8 @@ describe('FocusedSession — terminal focus and the bar hint (R1, R10, R27)', ()
   }
 
   function seedTwo(): void {
-    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
-    boardStore.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
     boardStore.getState().addCorrelation('a', 'launch-a')
     boardStore.getState().addCorrelation('b', 'launch-b')
     boardStore.getState().switchTerminal('launch-a')
@@ -852,8 +825,8 @@ describe('FocusedSession — the >_ Shell button (card shell pane)', () => {
 
   it('a pane belongs to ITS terminal: switching to another card shows no pane there', async () => {
     stubShell(() => Promise.resolve({ terminalId: 'launch-a:shell' }))
-    boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
-    boardStore.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
     boardStore.getState().addCorrelation('a', 'launch-a')
     boardStore.getState().addCorrelation('b', 'launch-b')
     boardStore.getState().switchTerminal('launch-a')

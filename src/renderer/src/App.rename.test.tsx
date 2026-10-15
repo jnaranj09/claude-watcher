@@ -12,7 +12,7 @@ import { unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { pointerInput } from './test/pointerInput'
-import type { WatchEventsPayload } from '../../shared/ipc/contract'
+import { watchUpdated } from '../../__fixtures__/watchEvents'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
 async function flush(): Promise<void> {
@@ -21,25 +21,6 @@ async function flush(): Promise<void> {
     await Promise.resolve()
     await Promise.resolve()
   })
-}
-
-/** A main→renderer `session.updated` delta, already enriched (column + enteredColumnAt + pid). */
-function updated(id: string, sessionName: string): WatchEventsPayload {
-  return {
-    epoch: 0,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName,
-      projectPath: '/home/op/project',
-      status: 'Working',
-      column: 'working',
-      enteredColumnAt: 100,
-      pid: 4242,
-      workspaceId: 'default',
-      tagIds: []
-    }
-  }
 }
 
 let renameSpy: ReturnType<typeof vi.fn>
@@ -66,7 +47,11 @@ async function renderWithCard(
   name = 'project'
 ): Promise<{ r: RenderResult; pencil: HTMLButtonElement }> {
   const r = await renderApp()
-  act(() => boardStore.getState().applyWatchEvent(updated(id, name)))
+  act(() =>
+    boardStore
+      .getState()
+      .applyWatchEvent(watchUpdated(0, id, 'working', 100, { sessionName: name }))
+  )
   await flush()
   const pencil = r.container.querySelector<HTMLButtonElement>('[data-testid="card-rename"]')
   expect(pencil).not.toBeNull()
@@ -148,7 +133,11 @@ describe('App — rename an existing session (session-naming A2)', () => {
     expect(boardStore.getState().sessionsById['sess-1']?.sessionName).toBe('project')
 
     // ...and when main DOES echo it, the card updates through the normal delta path.
-    act(() => boardStore.getState().applyWatchEvent(updated('sess-1', 'deploy-prod')))
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
+    )
     await flush()
     expect(boardStore.getState().sessionsById['sess-1']?.sessionName).toBe('deploy-prod')
     expect(r.container.querySelector('[data-testid="session-name"]')?.textContent).toBe(
@@ -252,8 +241,12 @@ describe('App — rename an existing session (session-naming A2)', () => {
   it('refuses to re-enter while a prompt is already open (no payload swap under the dialog)', async () => {
     const r = await renderApp()
     act(() => {
-      boardStore.getState().applyWatchEvent(updated('sess-1', 'first'))
-      boardStore.getState().applyWatchEvent(updated('sess-2', 'second'))
+      boardStore
+        .getState()
+        .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'first' }))
+      boardStore
+        .getState()
+        .applyWatchEvent(watchUpdated(0, 'sess-2', 'working', 100, { sessionName: 'second' }))
     })
     await flush()
 

@@ -16,7 +16,7 @@ import { act } from 'react'
 import { unmountRendered } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
-import type { WatchEventsPayload } from '../../shared/ipc/contract'
+import { watchUpdated } from '../../__fixtures__/watchEvents'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
 async function flush(): Promise<void> {
@@ -25,25 +25,6 @@ async function flush(): Promise<void> {
     await Promise.resolve()
     await Promise.resolve()
   })
-}
-
-/** A main→renderer `session.updated` delta, already enriched (column + enteredColumnAt + pid). */
-function updated(id: string, sessionName: string): WatchEventsPayload {
-  return {
-    epoch: 0,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName,
-      projectPath: '/home/op/project',
-      status: 'Working',
-      column: 'working',
-      enteredColumnAt: 100,
-      pid: 4242,
-      workspaceId: 'default',
-      tagIds: []
-    }
-  }
 }
 
 let archiveSpy: ReturnType<typeof vi.fn>
@@ -65,7 +46,11 @@ afterEach(() => {
 describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Board → Column → SessionCard)', () => {
   it('renders NEITHER control before correlation, BOTH once terminalIdBySessionId binds the card', async () => {
     const r = await renderApp()
-    act(() => boardStore.getState().applyWatchEvent(updated('sess-1', 'deploy-prod')))
+    act(() =>
+      boardStore
+        .getState()
+        .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
+    )
     await flush()
 
     // The card exists (the board shows it) but its terminal binding has not landed yet — a card
@@ -89,7 +74,9 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
   it('clicking card-archive calls window.launch.archiveSession(terminalId) — NO confirm opens', async () => {
     const r = await renderApp()
     act(() => {
-      boardStore.getState().applyWatchEvent(updated('sess-1', 'deploy-prod'))
+      boardStore
+        .getState()
+        .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
       boardStore.getState().addCorrelation('sess-1', 'term-1')
     })
     await flush()
@@ -110,7 +97,9 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
   it('clicking card-delete opens the confirm with { terminalId, sessionId, sessionName } — calls nothing on the bridge', async () => {
     const r = await renderApp()
     act(() => {
-      boardStore.getState().applyWatchEvent(updated('sess-1', 'deploy-prod'))
+      boardStore
+        .getState()
+        .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
       boardStore.getState().addCorrelation('sess-1', 'term-1')
     })
     await flush()

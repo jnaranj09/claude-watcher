@@ -38,6 +38,7 @@ import {
   type BoardState
 } from './boardStore'
 import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
+import { watchUpdated } from '../../../__fixtures__/watchEvents'
 
 const FIXED_NOW = 1_750_000_000_000
 
@@ -45,40 +46,6 @@ const FIXED_NOW = 1_750_000_000_000
 function makeClock(start = FIXED_NOW): { now: () => number; advance: (ms: number) => void } {
   let t = start
   return { now: () => t, advance: (ms) => (t += ms) }
-}
-
-/** Build a validated `session.updated` delta (the enriched wire shape). Defaults to the
- *  'default' workspace; Task 9a's two-workspace tests override it via `over.workspaceId`. */
-function updated(
-  epoch: number,
-  id: string,
-  column: Column,
-  enteredColumnAt: number,
-  over: Partial<{
-    sessionName: string
-    projectPath: string
-    status: string
-    pid: number
-    pendingToolName: string
-    workspaceId: string
-  }> = {}
-): WatchEventsPayload {
-  return {
-    epoch,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: over.sessionName ?? `s-${id}`,
-      projectPath: over.projectPath ?? `/p/${id}`,
-      status: over.status ?? 'Working',
-      column,
-      enteredColumnAt,
-      pid: over.pid ?? 1000,
-      workspaceId: over.workspaceId ?? 'default',
-      tagIds: [],
-      ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
-    }
-  }
 }
 
 function removed(epoch: number, id: string): WatchEventsPayload {
@@ -92,7 +59,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
   it('upserts a session.updated into the projection map keyed by id, building from the delta', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(
-      updated(1, 'a', 'working', 100, {
+      watchUpdated(1, 'a', 'working', 100, {
         sessionName: 'web',
         projectPath: '/x',
         pid: 42,
@@ -118,15 +85,17 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
   it('coldLoaded flips true on the FIRST delta (epoch ≥ 1)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     expect(selectColdLoaded(store.getState())).toBe(false)
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     expect(selectColdLoaded(store.getState())).toBe(true)
   })
 
   it('discards a STALE-epoch delta (idempotent epoch apply — AC-6)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(5, 'a', 'working', 100, { status: 'Working' }))
+    store.getState().applyWatchEvent(watchUpdated(5, 'a', 'working', 100, { status: 'Working' }))
     // A delta from an OLDER epoch must be ignored (stale across a reconnect).
-    store.getState().applyWatchEvent(updated(3, 'a', 'idle', 999, { status: 'WaitingForInput' }))
+    store
+      .getState()
+      .applyWatchEvent(watchUpdated(3, 'a', 'idle', 999, { status: 'WaitingForInput' }))
     const s = store.getState().sessionsById['a']
     expect(s?.column).toBe('working') // unchanged — the stale delta was dropped
     expect(s?.status).toBe('Working')
@@ -135,16 +104,16 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
 
   it('applies a SAME-epoch delta (live watch lines share the current epoch — not stale)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(4, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(4, 'a', 'working', 100))
     store
       .getState()
-      .applyWatchEvent(updated(4, 'a', 'needs-you', 200, { status: 'NeedsAttention' }))
+      .applyWatchEvent(watchUpdated(4, 'a', 'needs-you', 200, { status: 'NeedsAttention' }))
     expect(store.getState().sessionsById['a']?.column).toBe('needs-you')
   })
 
   it('session.removed makes the card VANISH (no Done column — AC-2)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     expect(selectTotalCount(store.getState(), 'default', NO_FILTER)).toBe(1)
     store.getState().applyWatchEvent(removed(2, 'a'))
     expect(store.getState().sessionsById['a']).toBeUndefined()
@@ -153,7 +122,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
 
   it('attention.raised is IGNORED by the board projection (Epic 2/3 consume it)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     store.getState().applyWatchEvent({
       epoch: 2,
       event: {
@@ -177,7 +146,9 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
     // transform would, e.g., coerce a field). Also assert the store SOURCE imports no
     // `zod` and no session schema (no re-validation of the parse-once boundary).
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'idle', 12345, { status: 'WaitingForInput' }))
+    store
+      .getState()
+      .applyWatchEvent(watchUpdated(1, 'a', 'idle', 12345, { status: 'WaitingForInput' }))
     expect(store.getState().sessionsById['a']?.enteredColumnAt).toBe(12345) // not coerced
     const src = readFileSync(
       resolve(process.cwd(), 'src/renderer/src/stores/boardStore.ts'),
@@ -228,15 +199,15 @@ describe('boardStore selectors — column grouping + per-column sort (AC-3)', ()
     const store = createBoardStore({ now: () => FIXED_NOW })
     const st = store.getState()
     // working: entered at 100, 300, 200 → DESC = [300, 200, 100]
-    st.applyWatchEvent(updated(1, 'w1', 'working', 100))
-    st.applyWatchEvent(updated(1, 'w2', 'working', 300))
-    st.applyWatchEvent(updated(1, 'w3', 'working', 200))
+    st.applyWatchEvent(watchUpdated(1, 'w1', 'working', 100))
+    st.applyWatchEvent(watchUpdated(1, 'w2', 'working', 300))
+    st.applyWatchEvent(watchUpdated(1, 'w3', 'working', 200))
     // needs-you: entered at 500, 400 → ASC (longest-waiting first) = [400, 500]
-    st.applyWatchEvent(updated(1, 'n1', 'needs-you', 500, { status: 'NeedsAttention' }))
-    st.applyWatchEvent(updated(1, 'n2', 'needs-you', 400, { status: 'NeedsPermission' }))
+    st.applyWatchEvent(watchUpdated(1, 'n1', 'needs-you', 500, { status: 'NeedsAttention' }))
+    st.applyWatchEvent(watchUpdated(1, 'n2', 'needs-you', 400, { status: 'NeedsPermission' }))
     // idle: entered at 700, 600 → ASC = [600, 700]
-    st.applyWatchEvent(updated(1, 'i1', 'idle', 700, { status: 'WaitingForInput' }))
-    st.applyWatchEvent(updated(1, 'i2', 'idle', 600, { status: 'WaitingForInput' }))
+    st.applyWatchEvent(watchUpdated(1, 'i1', 'idle', 700, { status: 'WaitingForInput' }))
+    st.applyWatchEvent(watchUpdated(1, 'i2', 'idle', 600, { status: 'WaitingForInput' }))
     return store
   }
 
@@ -312,7 +283,7 @@ describe('boardStore — the engine-started cold-load contract (Story 5.3 / 6.4:
   it('the status push does NOT perturb the session projection (deltas own the map)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     const st = (): BoardState => store.getState()
-    st().applyWatchEvent(updated(1, 'a', 'working', 100, { status: 'Working' }))
+    st().applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { status: 'Working' }))
     st().setReconnecting(false)
     expect(st().sessionsById['a']?.column).toBe('working')
     expect(st().epoch).toBe(1)
@@ -356,14 +327,14 @@ describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () 
 
   it('setSelected(presentId) SETS the selection (non-vacuous: a present card does select)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     store.getState().setSelected('a')
     expect(selectSelectedId(store.getState())).toBe('a')
   })
 
   it('setSelected(absentId) is a NO-OP (the card is not on the board)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     // 'ghost' was never on the board → selecting it does nothing.
     store.getState().setSelected('ghost')
     expect(selectSelectedId(store.getState())).toBeNull()
@@ -374,7 +345,7 @@ describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () 
 
   it('setSelected(null) clears the selection', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     store.getState().setSelected('a')
     expect(selectSelectedId(store.getState())).toBe('a')
     store.getState().setSelected(null)
@@ -383,8 +354,8 @@ describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () 
 
   it('removing the SELECTED session clears selectedId (the highlighted card vanished)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
-    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'working', 200))
     store.getState().setSelected('a')
     expect(selectSelectedId(store.getState())).toBe('a')
     // Removing a DIFFERENT session leaves the selection intact.
@@ -437,7 +408,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
 
   it('activateCard(presentId) SELECTS (ONE selection) but stays on the board when no terminal is focused', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     store.getState().activateCard('a')
     // ONE selection: activateCard sets the SAME selectedId the Story-2.2 setSelected uses.
     expect(selectSelectedId(store.getState())).toBe('a')
@@ -448,7 +419,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
 
   it('activateCard(presentId) DOES enter Focused when a terminal is already focused (no ghost state)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     // A terminal is already focused (e.g. a prior launch) AND it is THIS card's terminal
     // → activating the card enters Focused.
     store.getState().addCorrelation('a', 'launch-term-1')
@@ -466,8 +437,8 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
   // focused, so it re-showed whatever was last focused.
   it("activateCard SWITCHES the visible terminal to THAT card's terminal (wrong-terminal regression)", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
-    store.getState().applyWatchEvent(updated(2, 'b', 'working', 200))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(2, 'b', 'working', 200))
     store.getState().addCorrelation('a', 'term-a')
     store.getState().addCorrelation('b', 'term-b')
     // The operator is looking at A's terminal, then goes back to the board.
@@ -485,8 +456,8 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
 
   it("activateCard on a card with NO binding stays on the board (never shows another session's terminal)", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
-    store.getState().applyWatchEvent(updated(2, 'b', 'working', 200))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(2, 'b', 'working', 200))
     store.getState().addCorrelation('a', 'term-a')
     store.getState().openLaunchedTerminal('term-a', 'a', 'default')
     store.getState().showBoard()
@@ -504,7 +475,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
 
   it('activateCard(absentId) is a NO-OP (no view change, no selection)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     store.getState().activateCard('ghost')
     expect(selectViewMode(store.getState())).toBe('board')
     expect(selectSelectedId(store.getState())).toBeNull()
@@ -512,7 +483,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
 
   it('showBoard returns to the board (Esc-to-Board) and leaves the selection highlighted', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     // Enter Focused via a launch (the path that actually focuses a terminal in 3.2), then select.
     store.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     store.getState().setSelected('a')
@@ -545,7 +516,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
   it('a needs-you session is emphasized; acknowledging it clears the emphasis (UX-DR28)', () => {
     const clock = makeClock()
     const store = createBoardStore({ now: clock.now })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     // Before acknowledge: emphasized (needs-you + not acknowledged).
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('needs-you')
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
@@ -560,8 +531,8 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
 
   it('a NON-needs-you session is never emphasized regardless of ack', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'w', 'working', 100))
-    store.getState().applyWatchEvent(updated(1, 'i', 'idle', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'i', 'idle', 100))
     expect(selectRailEmphasis(store.getState(), 'w')).toBe('calm')
     expect(selectRailEmphasis(store.getState(), 'i')).toBe('calm')
   })
@@ -574,23 +545,23 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
 
   it('emphasis RETURNS on a needs-you RE-ENTRY (clearing on column-leave makes re-entry a new event)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().acknowledge('a')
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
 
     // c9watch reports the session LEFT needs-you (handled) → ack entry cleared.
-    store.getState().applyWatchEvent(updated(2, 'a', 'working', 200))
+    store.getState().applyWatchEvent(watchUpdated(2, 'a', 'working', 200))
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm') // not needs-you now
 
     // c9watch reports it RE-ENTERS needs-you → a NEW attention event → re-emphasized.
-    store.getState().applyWatchEvent(updated(3, 'a', 'needs-you', 300))
+    store.getState().applyWatchEvent(watchUpdated(3, 'a', 'needs-you', 300))
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('needs-you')
   })
 
   it('the ack entry is CLEARED when the session is REMOVED (badge can’t outlive the handled session)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().acknowledge('a')
     expect(store.getState().acknowledgedById['a']).toBeDefined()
 
@@ -601,12 +572,12 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
 
   it('a still-needs-you update does NOT clear the ack (only a column-LEAVE does)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().acknowledge('a')
     // Another needs-you update (e.g. a status field change while still waiting) keeps it acknowledged.
     store
       .getState()
-      .applyWatchEvent(updated(2, 'a', 'needs-you', 100, { status: 'NeedsPermission' }))
+      .applyWatchEvent(watchUpdated(2, 'a', 'needs-you', 100, { status: 'NeedsPermission' }))
     expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
   })
@@ -620,7 +591,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
 
   it('activateCard ALSO acknowledges the opened session (the open/select path, UX-DR28)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().activateCard('a')
     expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
@@ -640,7 +611,7 @@ describe('boardStore — Story 3.4 terminalIdBySessionId + switchTerminal (AC-3,
 
   it('the binding is CLEARED when the session is removed', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().addCorrelation('a', 'launch-1')
     store.getState().applyWatchEvent(removed(2, 'a'))
     expect(selectTerminalIdForSession(store.getState(), 'a')).toBeUndefined()
@@ -659,7 +630,7 @@ describe('boardStore — Story 3.4 terminalIdBySessionId + switchTerminal (AC-3,
 
   it('switchTerminal does NOT acknowledge by itself (the caller pairs it with acknowledge)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().addCorrelation('a', 'launch-1')
     store.getState().switchTerminal('launch-1')
     // The switch alone does not clear emphasis — the rail click calls acknowledge(sessionId) too.
@@ -864,7 +835,7 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
 
   it('selectKeptAliveTerminalIds returns STABLE, SORTED, de-duplicated ids', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'sess-a', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'sess-a', 'working', 100))
     store.getState().addCorrelation('sess-a', 'terminal-b')
     store.getState().openLaunchedTerminal('terminal-a', 'projectA', 'default')
     // Now: terminalIdBySessionId = { 'sess-a': 'terminal-b' }, launchedTerminals = { 'terminal-a': ... },
@@ -901,7 +872,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     // No card yet → should appear in starting.
     expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(1)
     // Add a card + correlation binding → should leave the strip.
-    store.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'sess-1', 'working', 100))
     store.getState().addCorrelation('sess-1', 't-1')
     // Both the card exists AND the binding exists → NOT starting.
     expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(0)
@@ -923,7 +894,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     // terminal should reappear in the strip (card gone + binding cleared → predicate true).
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().openLaunchedTerminal('t-1', 'project', 'default')
-    store.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'sess-1', 'working', 100))
     store.getState().addCorrelation('sess-1', 't-1')
     // Correlated + card present → NOT starting.
     expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(0)
@@ -955,9 +926,9 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
   /** A store with three sessions, one per column, and 'open' bound to the focused terminal. */
   function withFocus(): ReturnType<typeof createBoardStore> {
     const store = createBoardStore({ now: makeClock().now })
-    store.getState().applyWatchEvent(updated(1, 'open', 'idle', 500))
-    store.getState().applyWatchEvent(updated(1, 'wants-you', 'needs-you', 100))
-    store.getState().applyWatchEvent(updated(1, 'busy', 'working', 200))
+    store.getState().applyWatchEvent(watchUpdated(1, 'open', 'idle', 500))
+    store.getState().applyWatchEvent(watchUpdated(1, 'wants-you', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'busy', 'working', 200))
     store.getState().addCorrelation('open', 'tid-open')
     store.getState().switchTerminal('tid-open')
     return store
@@ -969,7 +940,7 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
 
   it('selectRailActiveSessionId is null with no focused terminal', () => {
     const store = createBoardStore({ now: makeClock().now })
-    store.getState().applyWatchEvent(updated(1, 'a', 'idle', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'idle', 100))
     expect(selectRailActiveSessionId(store.getState())).toBeNull()
   })
 
@@ -1001,8 +972,8 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
 
   it('selectRailSection includes every session in the column when nothing is pinned', () => {
     const store = createBoardStore({ now: makeClock().now })
-    store.getState().applyWatchEvent(updated(1, 'a', 'idle', 100))
-    store.getState().applyWatchEvent(updated(1, 'b', 'idle', 200))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'idle', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 200))
     expect(selectRailSection(store.getState(), 'idle', 'default', NO_FILTER)).toEqual(['a', 'b'])
   })
 
@@ -1011,8 +982,8 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
   // this flips, the same three sessions read in two different orders on two surfaces.
   it('selectRailSection sorts oldest-entered FIRST, including the working group', () => {
     const store = createBoardStore({ now: makeClock().now })
-    store.getState().applyWatchEvent(updated(1, 'newer', 'working', 300))
-    store.getState().applyWatchEvent(updated(1, 'older', 'working', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'newer', 'working', 300))
+    store.getState().applyWatchEvent(watchUpdated(1, 'older', 'working', 100))
     expect(selectRailSection(store.getState(), 'working', 'default', NO_FILTER)).toEqual([
       'older',
       'newer'
@@ -1021,8 +992,8 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
 
   it('selectRailSection breaks an enteredColumnAt tie on id, deterministically', () => {
     const store = createBoardStore({ now: makeClock().now })
-    store.getState().applyWatchEvent(updated(1, 'zz', 'needs-you', 100))
-    store.getState().applyWatchEvent(updated(1, 'aa', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'zz', 'needs-you', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'aa', 'needs-you', 100))
     expect(selectRailSection(store.getState(), 'needs-you', 'default', NO_FILTER)).toEqual([
       'aa',
       'zz'
@@ -1043,57 +1014,37 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
 })
 
 describe('workspace filtering', () => {
-  const updated = (
-    id: string,
-    workspaceId: string,
-    column: Column = 'working'
-  ): WatchEventsPayload => ({
-    epoch: 0,
-    event: {
-      type: 'session.updated' as const,
-      id,
-      sessionName: id,
-      projectPath: '/p',
-      status: 'Working',
-      column,
-      enteredColumnAt: 1,
-      pid: 1,
-      workspaceId,
-      tagIds: []
-    }
-  })
-
   it('projects workspaceId onto the board session', () => {
     const store = createBoardStore({ now: () => 1 })
-    store.getState().applyWatchEvent(updated('a', 'w1'))
+    store.getState().applyWatchEvent(watchUpdated(0, 'a', 'working', 1, { workspaceId: 'w1' }))
     expect(store.getState().sessionsById['a']?.workspaceId).toBe('w1')
   })
 
   it('counts needs-you per workspace INCLUDING hidden ones', () => {
     const store = createBoardStore({ now: () => 1 })
-    store.getState().applyWatchEvent(updated('a', 'w1', 'needs-you'))
-    store.getState().applyWatchEvent(updated('b', 'w2', 'needs-you'))
-    store.getState().applyWatchEvent(updated('c', 'w2', 'needs-you'))
-    store.getState().applyWatchEvent(updated('d', 'w2', 'working'))
+    store.getState().applyWatchEvent(watchUpdated(0, 'a', 'needs-you', 1, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'b', 'needs-you', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'c', 'needs-you', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'd', 'working', 1, { workspaceId: 'w2' }))
     expect(selectNeedsYouCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 2 })
   })
 
   it('counts working per workspace INCLUDING hidden ones', () => {
     const store = createBoardStore({ now: () => 1 })
-    store.getState().applyWatchEvent(updated('a', 'w1', 'working'))
-    store.getState().applyWatchEvent(updated('b', 'w2', 'working'))
-    store.getState().applyWatchEvent(updated('c', 'w2', 'working'))
-    store.getState().applyWatchEvent(updated('d', 'w2', 'needs-you'))
-    store.getState().applyWatchEvent(updated('e', 'w2', 'idle'))
+    store.getState().applyWatchEvent(watchUpdated(0, 'a', 'working', 1, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'b', 'working', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'c', 'working', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'd', 'needs-you', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'e', 'idle', 1, { workspaceId: 'w2' }))
     expect(selectWorkingCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 2 })
   })
 
   it('counts every card per workspace, whatever its column, INCLUDING hidden ones', () => {
     const store = createBoardStore({ now: () => 1 })
-    store.getState().applyWatchEvent(updated('a', 'w1', 'needs-you'))
-    store.getState().applyWatchEvent(updated('b', 'w2', 'working'))
-    store.getState().applyWatchEvent(updated('c', 'w2', 'idle'))
-    store.getState().applyWatchEvent(updated('d', 'w2', 'needs-you'))
+    store.getState().applyWatchEvent(watchUpdated(0, 'a', 'needs-you', 1, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'b', 'working', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'c', 'idle', 1, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'd', 'needs-you', 1, { workspaceId: 'w2' }))
     expect(selectCardCountByWorkspace(store.getState())).toEqual({ w1: 1, w2: 3 })
   })
 
@@ -1150,7 +1101,7 @@ describe('workspace filtering', () => {
     const store = createBoardStore({ now: () => clock })
     store.getState().openLaunchedTerminal('t1', 'a', 'w1')
     store.getState().addCorrelation('s1', 't1')
-    store.getState().applyWatchEvent(updated('s1', 'w1'))
+    store.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 1, { workspaceId: 'w1' }))
     clock = 2
     store.getState().openLaunchedTerminal('t2', 'b', 'w1')
     clock = 3
@@ -1226,9 +1177,9 @@ describe('workspace filtering', () => {
     const store = createBoardStore({ now: () => 1 })
     store.getState().openLaunchedTerminal('t1', 'proj', 'w1')
     store.getState().addCorrelation('s1', 't1')
-    store.getState().applyWatchEvent(updated('s1', 'w1'))
+    store.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 1, { workspaceId: 'w1' }))
     // The move arrives as a normal session.updated delta — main is the only writer of this field.
-    store.getState().applyWatchEvent(updated('s1', 'w2'))
+    store.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 1, { workspaceId: 'w2' }))
 
     store.getState().focusWorkspace('w2')
     expect(store.getState().focusedTerminalId).toBe('t1')
@@ -1279,8 +1230,8 @@ describe('workspace filtering', () => {
 describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => {
   it("selectColumn returns only the queried workspace's sessions in that column", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
-    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
     // Without the filter, both calls would return ['a', 'b'] (or ['b','a'] by entered-time) —
     // this fails for the right reason if the `s.workspaceId === workspaceId` term is removed.
     expect(selectColumn(store.getState(), 'working', 'w1', NO_FILTER).map((s) => s.id)).toEqual([
@@ -1293,9 +1244,9 @@ describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => 
 
   it("selectColumnCount counts only the queried workspace's sessions", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
-    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
-    store.getState().applyWatchEvent(updated(1, 'c', 'working', 300, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'c', 'working', 300, { workspaceId: 'w1' }))
     // Without the filter both counts would be 3 (the full column) — non-vacuous.
     expect(selectColumnCount(store.getState(), 'working', 'w1', NO_FILTER)).toBe(2)
     expect(selectColumnCount(store.getState(), 'working', 'w2', NO_FILTER)).toBe(1)
@@ -1303,9 +1254,9 @@ describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => 
 
   it("selectTotalCount counts only the queried workspace's sessions", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
-    store.getState().applyWatchEvent(updated(1, 'b', 'idle', 200, { workspaceId: 'w2' }))
-    store.getState().applyWatchEvent(updated(1, 'c', 'needs-you', 300, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'c', 'needs-you', 300, { workspaceId: 'w2' }))
     // Without the filter both calls would return 3 (the whole board) — non-vacuous.
     expect(selectTotalCount(store.getState(), 'w1', NO_FILTER)).toBe(1)
     expect(selectTotalCount(store.getState(), 'w2', NO_FILTER)).toBe(2)
@@ -1324,8 +1275,8 @@ describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => 
 
   it("selectRailOrder returns only the queried workspace's session ids", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
-    store.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 50, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 50, { workspaceId: 'w2' }))
     // Without the filter, both calls would return ['b', 'a'] (needs-you sorts first) —
     // non-vacuous: the w1 query would wrongly include 'b', the w2 query would wrongly include 'a'.
     expect(selectRailOrder(store.getState(), 'w1')).toEqual(['a'])
@@ -1334,8 +1285,8 @@ describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => 
 
   it("selectRailSection returns only the queried workspace's session ids for that column", () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
-    store.getState().applyWatchEvent(updated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'working', 200, { workspaceId: 'w2' }))
     // Without the filter, both calls would return ['a', 'b'] (oldest-entered first) —
     // non-vacuous either way (each query is missing an exclusion or has an extra inclusion).
     expect(selectRailSection(store.getState(), 'working', 'w1', NO_FILTER)).toEqual(['a'])
@@ -1362,8 +1313,8 @@ describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => 
     // "counts needs-you per workspace INCLUDING hidden ones" above; kept here too so this
     // task's deliverable is self-contained.)
     const store = createBoardStore({ now: () => FIXED_NOW })
-    store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100, { workspaceId: 'w1' }))
-    store.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200, { workspaceId: 'w2' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100, { workspaceId: 'w1' }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200, { workspaceId: 'w2' }))
     const counts = selectNeedsYouCountByWorkspace(store.getState())
     expect(counts['w1']).toBe(1)
     expect(counts['w2']).toBe(1)
@@ -1399,32 +1350,18 @@ describe('session templates — view-state', () => {
 })
 
 describe('tag filtering (spec §4.1)', () => {
-  const tagged = (
-    id: string,
-    tagIds: string[],
-    column: Column = 'working'
-  ): WatchEventsPayload => ({
-    epoch: 0,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: id,
-      projectPath: '/p',
-      status: column === 'needs-you' ? 'NeedsAttention' : 'Working',
-      column,
-      enteredColumnAt: 1,
-      pid: 1,
-      workspaceId: 'default',
-      tagIds
-    }
-  })
-
   function seeded(): ReturnType<typeof createBoardStore> {
     const store = createBoardStore({ now: () => 1 })
-    store.getState().applyWatchEvent(tagged('prod-card', ['t-prod']))
-    store.getState().applyWatchEvent(tagged('plain-card', []))
-    store.getState().applyWatchEvent(tagged('prod-waiting', ['t-prod'], 'needs-you'))
-    store.getState().applyWatchEvent(tagged('plain-waiting', [], 'needs-you'))
+    store
+      .getState()
+      .applyWatchEvent(watchUpdated(0, 'prod-card', 'working', 1, { tagIds: ['t-prod'] }))
+    store.getState().applyWatchEvent(watchUpdated(0, 'plain-card', 'working', 1, { tagIds: [] }))
+    store
+      .getState()
+      .applyWatchEvent(watchUpdated(0, 'prod-waiting', 'needs-you', 1, { tagIds: ['t-prod'] }))
+    store
+      .getState()
+      .applyWatchEvent(watchUpdated(0, 'plain-waiting', 'needs-you', 1, { tagIds: [] }))
     return store
   }
 

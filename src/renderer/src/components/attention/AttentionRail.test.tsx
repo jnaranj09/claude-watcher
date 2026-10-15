@@ -14,41 +14,13 @@ import { needsYouEmphasisClass } from '../../styles/emphasis'
 import { boardStore } from '../../stores/boardStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
-import type { Column, Tag, WatchEventsPayload } from '../../../../shared/ipc/contract'
+import type { Tag } from '../../../../shared/ipc/contract'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { watchUpdated } from '../../../../__fixtures__/watchEvents'
 
 let cleanup: (() => void) | undefined
-
-function updated(
-  epoch: number,
-  id: string,
-  column: Column,
-  enteredColumnAt: number,
-  over: Partial<{
-    sessionName: string
-    projectPath: string
-    workspaceId: string
-    tagIds: string[]
-  }> = {}
-): WatchEventsPayload {
-  return {
-    epoch,
-    event: {
-      type: 'session.updated',
-      id,
-      sessionName: over.sessionName ?? `s-${id}`,
-      projectPath: over.projectPath ?? `/p/${id}`,
-      status: column === 'needs-you' ? 'NeedsAttention' : 'Working',
-      column,
-      enteredColumnAt,
-      pid: 1000,
-      workspaceId: over.workspaceId ?? 'default',
-      tagIds: over.tagIds ?? []
-    }
-  }
-}
 
 function resetStore(): void {
   boardStore.setState({
@@ -103,8 +75,8 @@ function renderWithRename(
 describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => {
   it('is always present and lists one row per app-launched board session (same source as board)', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
-      boardStore.getState().applyWatchEvent(updated(1, 'b', 'working', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'working', 200))
     })
     const r = render()
     expect(r.container.querySelector('[data-testid="attention-rail"]')).not.toBeNull()
@@ -116,7 +88,7 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
     )
     const r = render()
     const row = r.container.querySelector('[data-session-id="a"]')
@@ -134,7 +106,7 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
     )
     const r = render()
     const row = r.container.querySelector('[data-session-id="a"]')
@@ -152,7 +124,7 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100, { sessionName: 'deploy-prod' }))
     )
     const r = render()
     const row = r.container.querySelector('[data-session-id="a"]')
@@ -162,7 +134,7 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
   })
 
   it('collapses to icon-only rows (never hidden) — the rail and rows stay rendered', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100)))
     const r = render()
     const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
     expect(toggle).not.toBeNull()
@@ -181,9 +153,9 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
 
   it('needs-you sessions sort FIRST, then by entered-column time (oldest waiting first)', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'work', 'working', 50))
-      boardStore.getState().applyWatchEvent(updated(1, 'new-needs', 'needs-you', 300))
-      boardStore.getState().applyWatchEvent(updated(1, 'old-needs', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'work', 'working', 50))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'new-needs', 'needs-you', 300))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'old-needs', 'needs-you', 100))
     })
     const r = render()
     const order = [...r.container.querySelectorAll('[data-testid="rail-row"]')].map((el) =>
@@ -220,9 +192,9 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // luck of the sort.
   it('the ACTIVE session is first even when needs-you sessions exist', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'open', 'idle', 500))
-      boardStore.getState().applyWatchEvent(updated(1, 'wants-you', 'needs-you', 100))
-      boardStore.getState().applyWatchEvent(updated(1, 'busy', 'working', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'open', 'idle', 500))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'wants-you', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'busy', 'working', 200))
     })
     focusSession('open', 'tid-open')
     const r = render()
@@ -236,8 +208,8 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // out of its own group by `selectRailSection`.
   it('the ACTIVE session appears exactly once (pinned, NOT repeated in its status group)', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'open', 'needs-you', 100))
-      boardStore.getState().applyWatchEvent(updated(1, 'other', 'needs-you', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'open', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'other', 'needs-you', 200))
     })
     focusSession('open', 'tid-open')
     const r = render()
@@ -259,13 +231,13 @@ describe('AttentionRail — pinned active row + status sections', () => {
     act(() => {
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'open', 'idle', 500, { sessionName: 'Review' }))
+        .applyWatchEvent(watchUpdated(1, 'open', 'idle', 500, { sessionName: 'Review' }))
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'dep', 'needs-you', 100, { sessionName: 'Deploy' }))
+        .applyWatchEvent(watchUpdated(1, 'dep', 'needs-you', 100, { sessionName: 'Deploy' }))
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'rev2', 'needs-you', 200, { sessionName: 'Review two' }))
+        .applyWatchEvent(watchUpdated(1, 'rev2', 'needs-you', 200, { sessionName: 'Review two' }))
     })
     focusSession('open', 'tid-open')
     const r = render()
@@ -279,8 +251,8 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // deliberately standing outside of.
   it('the pinned row has NO divider above it — the first divider belongs to the first group', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'open', 'idle', 500))
-      boardStore.getState().applyWatchEvent(updated(1, 'wants-you', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'open', 'idle', 500))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'wants-you', 'needs-you', 100))
     })
     focusSession('open', 'tid-open')
     const r = render()
@@ -298,9 +270,9 @@ describe('AttentionRail — pinned active row + status sections', () => {
 
   it('groups are dividered Needs you → Working → Idle → Starting, in that order', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'i', 'idle', 300))
-      boardStore.getState().applyWatchEvent(updated(1, 'n', 'needs-you', 100))
-      boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'i', 'idle', 300))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'n', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 200))
       boardStore.getState().openLaunchedTerminal('tid-new', 'fresh', 'default')
     })
     const r = render()
@@ -310,7 +282,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
 
   // Three empty rules over a rail holding one session is furniture, not content.
   it('an EMPTY status group renders no divider and no list', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 200)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 200)))
     const r = render()
     expect(dividerLabels(r)).toEqual(['Working'])
     expect(r.container.querySelector('[data-testid="rail-section"][data-column="idle"]')).toBeNull()
@@ -321,8 +293,8 @@ describe('AttentionRail — pinned active row + status sections', () => {
 
   it('within a group, the longest-waiting session is first (oldest enteredColumnAt)', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'new-needs', 'needs-you', 300))
-      boardStore.getState().applyWatchEvent(updated(1, 'old-needs', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'new-needs', 'needs-you', 300))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'old-needs', 'needs-you', 100))
     })
     const r = render()
     expect(rowOrder(r)).toEqual(['old-needs', 'new-needs'])
@@ -331,7 +303,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // The divider is decoration (aria-hidden); the grouping reaches assistive tech through the
   // sibling list's accessible name. Without this, a screen-reader user gets four unlabelled lists.
   it('each group list carries the status as its accessible name; the divider is aria-hidden', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'n', 'needs-you', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'n', 'needs-you', 100)))
     const r = render()
     const list = r.container.querySelector('[data-testid="rail-list"]')
     expect(list?.getAttribute('aria-label')).toBe('Needs you')
@@ -345,8 +317,8 @@ describe('AttentionRail — pinned active row + status sections', () => {
   // the pinned block would drop it to the bottom of the IDLE group and turn the first test red.
   it('NON-VACUITY: with NO focused terminal there is no pinned list and every session is in a group', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'a', 'idle', 100))
-      boardStore.getState().applyWatchEvent(updated(1, 'b', 'needs-you', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'idle', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
     })
     const r = render()
     expect(r.container.querySelector('[data-testid="rail-pinned-list"]')).toBeNull()
@@ -380,7 +352,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   }
 
   it('the active row is not a <button> and clicking it does not activate anything', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     focusSession('a', 'tid-a')
     const onActivate = vi.fn()
     const r = render(onActivate)
@@ -393,7 +365,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // Not a button and no tabIndex ⇒ it is out of the tab order. A focusable element that does
   // nothing when activated is a dead stop for a keyboard user.
   it('the active row is out of the tab order', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     focusSession('a', 'tid-a')
     const r = render()
     const row = r.container.querySelector<HTMLElement>('[data-session-id="a"]')
@@ -405,7 +377,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // must be real content. Collapsed hides the name visually — it has to survive as sr-only text,
   // or the row announces a status with no session attached to it.
   it('the active row announces name + status as content, collapsed included', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100)))
     focusSession('a', 'tid-a')
     const r = render()
     const expanded = r.container.querySelector<HTMLElement>('[data-session-id="a"]')
@@ -432,7 +404,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
       tagsStore.getState().hydrate([DEPLOY, PROD])
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
     })
     focusSession('a', 'tid-a')
     const r = render()
@@ -445,7 +417,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   })
 
   it('the rename pencil still works on the active row, and is still a sibling not a child', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     focusSession('a', 'tid-a')
     const onRename = vi.fn()
     const r = renderWithRename(onRename)
@@ -461,8 +433,8 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // the rail would become a read-only list and every test above would still pass.
   it('NON-VACUITY: a non-active row is still a <button> and still activates', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100))
-      boardStore.getState().applyWatchEvent(updated(1, 'b', 'working', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'working', 200))
     })
     focusSession('a', 'tid-a')
     const onActivate = vi.fn()
@@ -699,7 +671,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
 
 describe('AttentionRail — needs-you emphasis applied + cleared (AC-2, AC-4)', () => {
   it('a needs-you row carries the SHIPPED needsYouEmphasisClass; acknowledging clears it', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100)))
     const r = render()
     const row = r.container.querySelector('[data-session-id="a"]')
     expect(row?.getAttribute('data-emphasized')).toBe('true')
@@ -715,7 +687,7 @@ describe('AttentionRail — needs-you emphasis applied + cleared (AC-2, AC-4)', 
   })
 
   it('an idle/working row is NOT emphasized (calm)', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'w', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'w', 'working', 100)))
     const r = render()
     expect(
       r.container.querySelector('[data-session-id="w"]')?.getAttribute('data-emphasized')
@@ -724,7 +696,7 @@ describe('AttentionRail — needs-you emphasis applied + cleared (AC-2, AC-4)', 
 
   it('the active row (the session being viewed) is highlighted', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
       boardStore.getState().addCorrelation('a', 'launch-a')
       boardStore.getState().switchTerminal('launch-a')
     })
@@ -737,7 +709,7 @@ describe('AttentionRail — needs-you emphasis applied + cleared (AC-2, AC-4)', 
 
 describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
   it('a row is a <button> activatable by keyboard (Enter = click), same effect as click', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100)))
     const onActivate = vi.fn()
     const r = render(onActivate)
     const row = r.container.querySelector<HTMLButtonElement>('[data-session-id="a"]')
@@ -747,7 +719,7 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
   })
 
   it('click invokes onActivateSession with the sessionId', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100)))
     const onActivate = vi.fn()
     const r = render(onActivate)
     act(() => r.container.querySelector<HTMLButtonElement>('[data-session-id="a"]')?.click())
@@ -759,7 +731,7 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'needs-you', 100, { sessionName: 'preexisting' }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100, { sessionName: 'preexisting' }))
     )
     const r = render()
     const announcer = r.container.querySelector('[data-testid="live-announcer"]')
@@ -769,7 +741,9 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(2, 'b', 'needs-you', 200, { sessionName: 'deploy-prod-rose' }))
+        .applyWatchEvent(
+          watchUpdated(2, 'b', 'needs-you', 200, { sessionName: 'deploy-prod-rose' })
+        )
     )
     expect(announcer?.textContent).toContain('deploy-prod-rose needs you')
   })
@@ -786,16 +760,18 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
     // yet — must never surface while w1 is active, and must not poison w2's own priming either).
     workspacesStore.setState({ activeId: 'w1' })
     act(() => {
-      boardStore
-        .getState()
-        .applyWatchEvent(
-          updated(1, 'a', 'needs-you', 100, { sessionName: 'w1-preexisting', workspaceId: 'w1' })
-        )
-      boardStore
-        .getState()
-        .applyWatchEvent(
-          updated(2, 'b', 'needs-you', 200, { sessionName: 'w2-preexisting', workspaceId: 'w2' })
-        )
+      boardStore.getState().applyWatchEvent(
+        watchUpdated(1, 'a', 'needs-you', 100, {
+          sessionName: 'w1-preexisting',
+          workspaceId: 'w1'
+        })
+      )
+      boardStore.getState().applyWatchEvent(
+        watchUpdated(2, 'b', 'needs-you', 200, {
+          sessionName: 'w2-preexisting',
+          workspaceId: 'w2'
+        })
+      )
     })
     const r = render()
     const announcer = r.container.querySelector('[data-testid="live-announcer"]')
@@ -815,11 +791,12 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
     // A session that ENTERS needs-you in w2 AFTER the re-prime still IS announced — proving the
     // fix does not just blanket-suppress every announcement after a switch.
     act(() =>
-      boardStore
-        .getState()
-        .applyWatchEvent(
-          updated(3, 'c', 'needs-you', 300, { sessionName: 'w2-genuinely-new', workspaceId: 'w2' })
-        )
+      boardStore.getState().applyWatchEvent(
+        watchUpdated(3, 'c', 'needs-you', 300, {
+          sessionName: 'w2-genuinely-new',
+          workspaceId: 'w2'
+        })
+      )
     )
     expect(announcer?.textContent).toContain('w2-genuinely-new needs you')
   })
@@ -894,7 +871,7 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
     act(() => {
       boardStore.getState().openLaunchedTerminal('tid-corr', 'correlated', 'default')
       boardStore.getState().addCorrelation('sess-1', 'tid-corr')
-      boardStore.getState().applyWatchEvent(updated(1, 'sess-1', 'working', 100))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'sess-1', 'working', 100))
     })
     const r = render()
     const startingSection = r.container.querySelector('[data-testid="starting-rail-section"]')
@@ -961,13 +938,13 @@ describe('AttentionRail — Starting group (Story 5.6 rail gap)', () => {
 // ── A2 rename from the rail ───────────────────────────────────────────────────
 describe('AttentionRail — rename affordance (session-naming A2)', () => {
   it('renders NO pencil when onRenameSession is omitted', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     const r = render()
     expect(r.container.querySelector('[data-testid="rail-rename"]')).toBeNull()
   })
 
   it("renders a pencil per row when wired, and fires it with that row's session id", () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     const onRename = vi.fn()
     const r = renderWithRename(onRename)
     const pencil = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-rename"]')
@@ -980,7 +957,7 @@ describe('AttentionRail — rename affordance (session-naming A2)', () => {
   // button is invalid HTML (the browser un-nests it, which silently breaks the click target).
   // SessionCard can nest one because its root is a div[role=button]; this cannot.
   it('the pencil is a SIBLING of the row button, never nested inside it (valid HTML)', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     const r = renderWithRename(vi.fn())
     const row = r.container.querySelector('[data-testid="rail-row"]')
     const pencil = r.container.querySelector('[data-testid="rail-rename"]')
@@ -991,7 +968,7 @@ describe('AttentionRail — rename affordance (session-naming A2)', () => {
   })
 
   it('clicking the pencil does NOT activate the row (they are separate controls)', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     const onActivate = vi.fn()
     const onRename = vi.fn()
     const r = renderWithRename(onRename, onActivate)
@@ -1007,7 +984,7 @@ describe('AttentionRail — rename affordance (session-naming A2)', () => {
   // the circle back off-centre (undoing the measured centring fix). Rename stays available from the
   // board card in that mode.
   it('renders NO pencil in COLLAPSED mode (no room; would de-centre the circle)', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'a', 'working', 100)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100)))
     const r = renderWithRename(vi.fn())
     expect(r.container.querySelector('[data-testid="rail-rename"]')).not.toBeNull()
     const toggle = r.container.querySelector<HTMLButtonElement>('[data-testid="rail-collapse"]')
@@ -1021,7 +998,7 @@ describe('AttentionRail — rename affordance (session-naming A2)', () => {
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'a', 'working', 100, { sessionName: 'deploy-prod' }))
+        .applyWatchEvent(watchUpdated(1, 'a', 'working', 100, { sessionName: 'deploy-prod' }))
     )
     const r = renderWithRename(vi.fn())
     expect(
@@ -1111,8 +1088,10 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
       tagsStore.getState().hydrate([DEPLOY, PROD])
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'tagged', 'working', 10, { tagIds: ['t-prod', 't-deploy'] }))
-      boardStore.getState().applyWatchEvent(updated(1, 'plain', 'working', 20))
+        .applyWatchEvent(
+          watchUpdated(1, 'tagged', 'working', 10, { tagIds: ['t-prod', 't-deploy'] })
+        )
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'plain', 'working', 20))
     })
   }
 
@@ -1145,7 +1124,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     act(() =>
       boardStore
         .getState()
-        .applyWatchEvent(updated(2, 'plain', 'working', 20, { tagIds: ['t-deploy'] }))
+        .applyWatchEvent(watchUpdated(2, 'plain', 'working', 20, { tagIds: ['t-deploy'] }))
     )
     expect(r.container.querySelector('[data-testid="rail-row-tags"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="rail-tags-panel"]')).toBeNull()
@@ -1240,7 +1219,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
       tagsStore.getState().hydrate([DEPLOY, PROD, OWN, OTHER])
       boardStore
         .getState()
-        .applyWatchEvent(updated(1, 'tagged', 'working', 10, { tagIds: ['t-deploy'] }))
+        .applyWatchEvent(watchUpdated(1, 'tagged', 'working', 10, { tagIds: ['t-deploy'] }))
     })
     const r = renderRail({ onSetSessionTags: vi.fn() })
     const item = itemOf(r, 'tagged')
@@ -1265,7 +1244,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
   })
 
   it('hides the header toggle while no tag exists (a control that does nothing is not rendered)', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'plain', 'working', 20)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'plain', 'working', 20)))
     const r = renderRail()
     expect(r.container.querySelector('[data-testid="rail-show-tags"]')).toBeNull()
   })
@@ -1291,7 +1270,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
   })
 
   it('with no tags yet, an untagged row toggle opens tag management instead of a peek', () => {
-    act(() => boardStore.getState().applyWatchEvent(updated(1, 'plain', 'working', 20)))
+    act(() => boardStore.getState().applyWatchEvent(watchUpdated(1, 'plain', 'working', 20)))
     const onManageTags = vi.fn()
     const onActivateSession = vi.fn()
     // No way to create a tag: nothing to show and nothing to offer.
@@ -1377,8 +1356,8 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
 describe('AttentionRail — public theme hooks', () => {
   it('exposes the rail, its head, headings and rows to themes', () => {
     act(() => {
-      boardStore.getState().applyWatchEvent(updated(1, 'open', 'idle', 500))
-      boardStore.getState().applyWatchEvent(updated(1, 'busy', 'working', 200))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'open', 'idle', 500))
+      boardStore.getState().applyWatchEvent(watchUpdated(1, 'busy', 'working', 200))
       boardStore.getState().addCorrelation('open', 'tid-open')
       boardStore.getState().switchTerminal('tid-open')
       boardStore.getState().openLaunchedTerminal('tid-fresh', 'fresh', 'default')
