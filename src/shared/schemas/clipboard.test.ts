@@ -1,6 +1,6 @@
 // Terminal clipboard feature — unit tests for ClipboardWriteTextSchema.
 //
-// Gate: `unit` (jsdom) project — pure schema, no Electron.
+// Gate: `shared-node` project — pure schema, no Electron.
 // Covers: valid write arg, rejection on bad types, failure path exposes only
 // path+code (never the text value), as required by .claude/rules/zod-boundaries.md.
 // [Source: spec-terminal-clipboard.md §Gate note; .claude/rules/zod-boundaries.md]

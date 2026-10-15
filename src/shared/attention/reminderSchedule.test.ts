@@ -1,4 +1,4 @@
-// Attention reminders — the timing math (jsdom `unit` project; pure).
+// Attention reminders — the timing math (`shared-node` project; pure).
 // Spec: docs/superpowers/specs/2026-09-10-attention-reminders-design.md D-2.
 import { describe, it, expect } from 'vitest'
 import { reminderGapMs, reminderOffsetsMinutes } from './reminderSchedule'

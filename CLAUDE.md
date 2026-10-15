@@ -29,7 +29,7 @@ Planning records hold home paths, work email and internal names:
 `lint` · `format` · `test` / `test:watch` (Vitest) · `test:e2e` (Playwright-Electron) ·
 `smoke` (after `build:dir`, or `smoke:packaged`) · release: `.claude/rules/release.md`.
 
-Single test — Vitest projects `unit` (jsdom) and `main-unit` (node):
+Single test — Vitest projects `unit` (jsdom), `shared-node` and `main-unit` (node):
 `npx vitest run <file>` · `npx vitest run --project main-unit -t "desync"`.
 
 **Four profiles, four port sets — never ask the operator to close anything** (window titles end

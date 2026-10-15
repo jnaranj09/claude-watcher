@@ -1,4 +1,4 @@
-// Story 3.5 — the versioned telemetry-schema tests (jsdom `unit` project).
+// Story 3.5 — the versioned telemetry-schema tests (`shared-node` project).
 //
 // Asserts the OUR-shape fail-closed contract (the OPPOSITE of session.ts's
 // additions-pass `.passthrough()`):

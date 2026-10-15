@@ -1,4 +1,4 @@
-// Story 3.1 (FR-10) — terminal IPC-arg schema tests (unit / jsdom project).
+// Story 3.1 (FR-10) — terminal IPC-arg schema tests (`shared-node` project).
 //
 // The cross-process terminal-lifecycle args are UNTRUSTED → the main handler does
 // `Schema.parse(raw)` → THROW typed on bad input (zod-boundaries.md IPC-arg row; this closes

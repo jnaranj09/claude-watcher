@@ -1,6 +1,6 @@
 // Claude per-process session record — unit tests for the third fail-closed Zod boundary.
 //
-// Runs under the `unit` Vitest project (jsdom) — src/shared/schemas/ matches its glob.
+// Runs under the `shared-node` Vitest project — src/shared/** matches its glob.
 //
 // The happy-path shape is VERBATIM (minus operator content) from a live file,
 // `~/.claude/sessions/<pid>.json` on claude 2.1.257 (2026-09-01). The file carries far more

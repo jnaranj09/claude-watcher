@@ -94,11 +94,13 @@ Until it lands, do what the closest sibling does, and do not build the planned h
 hook outside its migration step. The guard must go red when the rule is broken and stay green on
 the migrated code.
 
-**Where a planned guard lives.** Vitest runs only `src/**` (jsdom, except `src/main/**/*.test.ts`,
-which runs under node), `tests/unit/**` (the `unit` project, jsdom) and `tests/main/**` (the
-`main-unit` project, node). A planned guard test goes under `tests/main/` (node, named
-`*.test.ts`: a `*.test.tsx` there never runs), or under `tests/unit/` or `src/renderer/**` (jsdom)
-when it needs the DOM, never beside a harness in `tests/drive/`, `tests/e2e/` or `tests/tools/`, where it would never
+**Where a planned guard lives.** Vitest runs `src/**` and `tests/unit/**` (`*.test.tsx` too), split
+by environment: `src/shared/**`, `src/__fixtures__/**` and `tests/unit/**` run under node (the
+`shared-node` project), `src/main/**` and `tests/main/**` under node (the `main-unit` project), and
+the rest of `src/**` under jsdom (the `unit` project). A planned guard test goes under `tests/main/`
+or `tests/unit/` (node, named `*.test.ts`: a `*.test.tsx` there would run under jsdom), or under
+`src/renderer/**` (jsdom) when it needs the DOM, never beside a harness in `tests/drive/`,
+`tests/e2e/` or `tests/tools/`, where it would never
 run. A guard that walks files also fails when its walk finds no files.
 
 **Non-test files.** Landed walks each read their own set, and keep it until a change rewrites

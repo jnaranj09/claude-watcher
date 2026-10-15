@@ -1,4 +1,4 @@
-// Attention reminders — validate-at-source for the `attention:reminder` push (jsdom `unit`).
+// Attention reminders — validate-at-source for the `attention:reminder` push (`shared-node` project).
 import { describe, it, expect } from 'vitest'
 import { AttentionReminderSchema } from './watchDelta'
 

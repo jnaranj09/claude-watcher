@@ -1,7 +1,6 @@
 // Hook-status feature — unit tests for the HookEventSchema Zod boundary.
 //
-// Runs under the `unit` Vitest project (jsdom) — this is in src/shared/schemas/,
-// which matches the `unit` project's test glob.
+// Runs under the `shared-node` Vitest project — src/shared/** matches its glob.
 //
 // Validates:
 //  - happy-path parse (minimal + extra fields via .passthrough())

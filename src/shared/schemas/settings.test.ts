@@ -1,4 +1,4 @@
-// Story 2.4 — the versioned settings-schema tests (jsdom `unit` project).
+// Story 2.4 — the versioned settings-schema tests (`shared-node` project).
 //
 // Asserts the OUR-shape fail-closed contract (the OPPOSITE of session.ts's
 // additions-pass `.passthrough()`):

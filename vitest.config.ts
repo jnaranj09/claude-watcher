@@ -1,48 +1,57 @@
-// Story 0.3 — Vitest two-project test architecture (AC-4).
-//
-// This is the unit/integration gate the Stop hook runs (`vitest run`). It defines
-// TWO projects via the Vitest 4 `test.projects` API (the successor to the old
-// `workspace` file) so pure code is tested under the right environment:
-//
-//   - `unit`      — environment: 'jsdom' — schemas, the identity adapter, reducers,
-//                   store actions, ESLint-rule fixture runners. Pure; no Electron.
-//   - `main-unit` — environment: 'node'  — main-process logic (the c9watch
-//                   reducer/reconnect with the fake feed; node-pty/child_process
-//                   injected via DI seams in later epics). Pure; no Electron.
-//
-// `MessagePortMain` does NOT exist in jsdom — byte-transport stays packaged-smoke-
-// only (the Story-0.1 `tests/smoke/run-packaged-smoke.mjs` gate); do not try to
-// unit-test it here. [architecture.md#Testing & Test Seams; epics.md#Story 0.3 AC-4]
+// The unit/integration gate the Stop hook runs (`vitest run`). Three projects, so each test runs in
+// the cheapest environment that can run it:
+//   - `unit`        jsdom — renderer code: components, hooks, stores, lib, renderer guards.
+//   - `shared-node` node  — `src/shared/**`, `tests/unit/**`, `src/__fixtures__/**`: no DOM, and jsdom
+//                   setup costs ~0.35 s per file.
+//   - `main-unit`   node  — main-process logic with DI seams; no Electron.
+// Threads, not forks: no unit test loads node-pty or calls chdir/exit (measured 2026-10-14: −15% wall).
+// `isolate` stays on: off, 9 renderer tests fail on state shared between files.
+// `restoreMocks`: every vi.spyOn is restored after each test, so a spy cannot leak.
+// `allowOnly: false` in EACH project (a root-level one does not reach inline projects): a `.only`
+// fails the run, locally too (technical-taste §5b-3).
 import { defineConfig } from 'vitest/config'
+
+const NODE_SHARED = [
+  'src/shared/**/*.test.ts',
+  'tests/unit/**/*.test.ts',
+  'src/__fixtures__/**/*.test.ts'
+]
 
 export default defineConfig({
   test: {
-    // `allowOnly: false` in EACH project (a root-level one does not reach inline projects): a
-    // `.only` fails the run, locally too (technical-taste §5b-3). It would silently skip the rest
-    // of the suite, and the Stop hook would report green.
+    pool: 'threads',
     projects: [
       {
-        // jsdom unit project — pure renderer/shared logic (schemas, adapters,
-        // the fail-closed fixture-replay test, the no-literal-channels runner).
         test: {
           name: 'unit',
           allowOnly: false,
+          restoreMocks: true,
           environment: 'jsdom',
-          // Story 1.3 widened the glob to `.test.{ts,tsx}`: TypeScript only parses
-          // JSX in `.tsx` files, so renderer COMPONENT tests are `.test.tsx`
-          // (util/schema tests stay `.test.ts`). The matching widen in
-          // `tsconfig.test.json` keeps them typechecked. [Story 1.3 Task 8 GOTCHA]
+          // `.tsx` holds JSX; only `.tsx` component tests need it.
           include: ['src/**/*.test.{ts,tsx}', 'tests/unit/**/*.test.{ts,tsx}'],
-          // The main-process unit globs are owned by the `main-unit` project; keep
-          // them out of `unit` so each test runs under exactly one environment.
-          exclude: ['src/main/**/*.test.ts', 'tests/main/**/*.test.ts', '**/node_modules/**']
+          exclude: [
+            'src/main/**/*.test.ts',
+            'tests/main/**/*.test.ts',
+            ...NODE_SHARED,
+            '**/node_modules/**'
+          ]
         }
       },
       {
-        // node main-unit project — main-process logic with DI seams (no Electron).
+        test: {
+          name: 'shared-node',
+          allowOnly: false,
+          restoreMocks: true,
+          environment: 'node',
+          include: NODE_SHARED,
+          exclude: ['**/node_modules/**']
+        }
+      },
+      {
         test: {
           name: 'main-unit',
           allowOnly: false,
+          restoreMocks: true,
           environment: 'node',
           include: ['src/main/**/*.test.ts', 'tests/main/**/*.test.ts'],
           exclude: ['**/node_modules/**']
