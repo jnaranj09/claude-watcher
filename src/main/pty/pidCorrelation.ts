@@ -102,7 +102,7 @@ function parsePpid(statusBlob: string): number | undefined {
   return Number.isInteger(ppid) && ppid >= 0 ? ppid : undefined
 }
 
-// ── REAL `/proc` READER SEAM (Linux-only; the integration test injects it) ────
+// ── REAL `/proc` READER SEAM (Linux-only; pidCorrelation.test.ts reads it) ────
 //
 // The production `ReadStatus` impl. `claudeSessionFile.ts` takes it, and the ONE `/proc`
 // integration test drives it against the real kernel. Linux-only (`/proc` is Linux); callers gate on

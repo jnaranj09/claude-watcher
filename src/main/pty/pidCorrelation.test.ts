@@ -1,10 +1,16 @@
 // The `/proc` ancestry walk, on SYNTHETIC `/proc`-shaped fixtures via the injected `ReadStatus`
-// seam: deterministic, no live processes, no live claude.
+// seam: deterministic, no live processes, no live claude. One Linux-only describe reads the real
+// `/proc` through `readStatusFromProc`.
 //
 // Project: `main-unit` (environment: 'node') — matches the `src/main/**/*.test.ts` glob in
 // vitest.config.ts.
 import { describe, it, expect } from 'vitest'
-import { isAncestorOf, type ReadStatus } from './pidCorrelation'
+import {
+  isAncestorOf,
+  parseStatusField,
+  readStatusFromProc,
+  type ReadStatus
+} from './pidCorrelation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SYNTHETIC `/proc/<pid>/status` FIXTURE — grounded in the real live shape.
@@ -86,5 +92,17 @@ describe('isAncestorOf — subtree ancestry walk (Story 5.5)', () => {
     // A second launch's leader; SESSION is under LEADER, not under OTHER_LEADER.
     const OTHER_LEADER = 999999
     expect(isAncestorOf(OTHER_LEADER, SESSION, tree)).toBe(false)
+  })
+})
+
+describe.skipIf(process.platform !== 'linux')('readStatusFromProc — the real /proc', () => {
+  it('reads this process status: PPid parses to a number', () => {
+    const ppid = parseStatusField(readStatusFromProc(process.pid), 'PPid')
+    expect(Number(ppid)).toBeGreaterThanOrEqual(0)
+    expect(ppid).toMatch(/^\d+$/)
+  })
+
+  it('throws for a pid that does not exist (the fail-closed signal)', () => {
+    expect(() => readStatusFromProc(2 ** 31 - 1)).toThrow()
   })
 })
