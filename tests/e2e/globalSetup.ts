@@ -1,9 +1,10 @@
 // Runs once before any e2e worker starts. It FAILS the run, never skips a test, when the run
 // could not mean anything:
-//   1. the built app in out/ is older than src/ (the specs would test the old bundle). `npm run
-//      test:e2e` builds first; `CW_E2E_ALLOW_STALE=1` runs an old bundle on purpose.
-//   2. the e2e profile's hook or API port is already held. No other profile uses them, so the
-//      holder is a leaked e2e app, and the app under test would bind nothing.
+//   1. a built file in out/ is missing, or older than src/ (the specs would test the old bundle).
+//      Tests and fixtures are not in the bundle, so they never count. `npm run test:e2e` builds
+//      first; `CW_E2E_ALLOW_STALE=1` runs an old bundle on purpose.
+//   2. the e2e profile's hook or API port is already held, so the app under test would bind
+//      nothing. The error names the holder as `ss` sees it.
 // Then every e2e app opens on a hidden display (tests/headless/headlessDisplay.mjs), never on the
 // desktop. The runner's env is changed BEFORE the workers start, so each launch's
 // `{ ...process.env }` inherits it. The returned function is the teardown.
@@ -16,11 +17,12 @@ import { startHeadlessDisplay } from '../headless/headlessDisplay.mjs'
 
 const ROOT = path.resolve(__dirname, '../..')
 
-/** Newest mtime of every file under `dir`. */
-function newestUnder(dir: string): number {
+/** Newest mtime of every bundled source file under `dir`: tests and `__fixtures__` are skipped. */
+function newestSourceUnder(dir: string): number {
   let newest = 0
   for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile()) continue
+    if (!entry.isFile() || entry.name.includes('.test.')) continue
+    if (path.relative(dir, entry.parentPath).split(path.sep).includes('__fixtures__')) continue
     newest = Math.max(newest, statSync(path.join(entry.parentPath, entry.name)).mtimeMs)
   }
   return newest
@@ -31,16 +33,21 @@ function assertFreshBuild(): void {
   const configs = readdirSync(ROOT)
     .filter((n) => n.startsWith('electron.vite.config.'))
     .map((n) => statSync(path.join(ROOT, n)).mtimeMs)
-  const newestSource = Math.max(newestUnder(path.join(ROOT, 'src')), ...configs)
+  const newestSource = Math.max(newestSourceUnder(path.join(ROOT, 'src')), ...configs)
   const preload = path.join(ROOT, 'out/preload')
   const built = [
     path.join(ROOT, 'out/main/index.js'),
     path.join(ROOT, 'out/renderer/index.html'),
     ...(existsSync(preload) ? readdirSync(preload).map((n) => path.join(preload, n)) : [preload])
   ]
-  const oldestBuilt = Math.min(
-    ...built.map((f) => (existsSync(f) ? statSync(f).mtimeMs : Number.NEGATIVE_INFINITY))
-  )
+  const missing = built.find((f) => !existsSync(f))
+  if (missing !== undefined) {
+    const rel = path.relative(ROOT, missing)
+    throw new Error(
+      `e2e: ${rel} is missing — run \`npx electron-vite build\` (npm run test:e2e does it)`
+    )
+  }
+  const oldestBuilt = Math.min(...built.map((f) => statSync(f).mtimeMs))
   if (oldestBuilt < newestSource) {
     throw new Error(
       'e2e: out/ is older than src/ — run `npx electron-vite build` (npm run test:e2e does it)'
@@ -76,7 +83,7 @@ async function assertPortsFree(): Promise<void> {
   for (const port of [E2E_PROFILE.hookPort, E2E_PROFILE.apiPort]) {
     if (await portInUse(port)) {
       throw new Error(
-        `e2e: port ${port} is held by ${portHolder(port)} — a leaked e2e app; kill it`
+        `e2e: port ${port} is held by ${portHolder(port)}; e2e owns this port — stop that process`
       )
     }
   }

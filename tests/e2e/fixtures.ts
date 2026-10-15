@@ -74,7 +74,7 @@ const hasExited = (proc: ChildProcess): boolean =>
 const logs = new WeakMap<ElectronApplication, MainLog>()
 
 /** Launch the built app with `env` and capture its log. */
-export async function launchApp(
+async function launchApp(
   env: NodeJS.ProcessEnv
 ): Promise<{ app: ElectronApplication; log: MainLog }> {
   const defined: Record<string, string> = {}
