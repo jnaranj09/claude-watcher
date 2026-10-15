@@ -133,7 +133,7 @@ declare global {
       // permissions are untouched. Rejects on a blank id (parse-and-throw at the main boundary).
       markSeen(id: string): Promise<void>
       // Story 3.4 (FR-16) — the launch CORRELATION push subscription ({ terminalId, sessionId },
-      // fired once when a launch's Tgid join lands). Builds the renderer's terminalIdBySessionId.
+      // pushed after a mint and after a `/clear` rebind). Builds the renderer's terminalIdBySessionId.
       onCorrelated(cb: (event: LaunchCorrelatedEvent) => void): () => void
       // Session templates — launch `claude` from a saved template by its stable id. Main
       // resolves the template's flags from its own validated store; the renderer sends only

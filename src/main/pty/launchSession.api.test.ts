@@ -1,15 +1,9 @@
 // launchSession tests, part 3: what the programmatic API and past sessions add to the launch
 // recipe. `main-unit` project (node). Covered: the initial prompt and the workspace ride the
-// durable recipe; awaitBinding; resume launches and launchedAt. Fakes: __fixtures__/launchProc.
+// durable recipe; awaitBinding; resume launches and launchedAt.
 import { describe, it, expect, vi, type Mock } from 'vitest'
-import {
-  createLaunchService,
-  NO_LAUNCH_FLAGS,
-  type LaunchService,
-  type LaunchTerminalManager
-} from './launchSession'
+import { createLaunchService, NO_LAUNCH_FLAGS, type LaunchService } from './launchSession'
 import { createLaunchedSet } from './launchedSet'
-import { fakeTerminalManager, readStatusFrom } from '../../__fixtures__/launchProc'
 
 // Programmatic API — the HTTP command that creates a card from a template supplies TWO values
 // the in-app flows never do: the expanded initial prompt claude must start with, and the
@@ -19,19 +13,15 @@ import { fakeTerminalManager, readStatusFrom } from '../../__fixtures__/launchPr
 // launch and read on EVERY spawn of that terminal — so a Reopen re-runs the same prompt in the
 // same workspace instead of degrading to a bare `claude` in whatever workspace is active now.
 /** A launch service whose spawn factory is a SPY, so a test can assert exactly what the recipe
- *  handed it. Deterministic ids; the correlation seams are inert (pidOf null, empty /proc). */
+ *  handed it. Deterministic ids. */
 function makeService(): { svc: LaunchService; spawn: Mock } {
   const spawn = vi.fn(() => ({ file: '/bin/bash', args: ['-l', '-c', 'claude'] }))
   const svc = createLaunchService({
-    terminalManager: { pidOf: () => null } satisfies LaunchTerminalManager,
     launchedSet: createLaunchedSet(),
     isDirectory: () => true,
     spawn,
-    readStatus: readStatusFrom({}),
     newTerminalId: () => 't-1',
-    newSessionId: () => 'sess-1',
-    platform: 'linux',
-    log: () => {}
+    newSessionId: () => 'sess-1'
   })
   return { svc, spawn }
 }
@@ -56,7 +46,6 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
     const { svc, spawn } = makeService()
     svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1' })
     svc.mintSpawn('t-1')
-    svc.forget('t-1')
     svc.mintSpawn('t-1')
     expect(spawn).toHaveBeenLastCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false)
   })
@@ -129,19 +118,15 @@ describe('programmatic API — awaitBinding', () => {
 // mint — a normal launch too — so `launchSynthesis.ts` can stamp the card with it.
 describe('past sessions — resume and launchedAt', () => {
   it('a resume launch mints THAT id, spawns with resume=true, and keeps it for a Reopen', () => {
-    const { manager: tm } = fakeTerminalManager({ t1: 100 })
     const launchedSet = createLaunchedSet()
     const spawn = vi.fn(() => ({ file: 'sh' }))
     const svc = createLaunchService({
-      terminalManager: tm,
       launchedSet,
       isDirectory: () => true,
       spawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't1',
       newSessionId: () => 'fresh',
-      now: () => 777,
-      platform: 'linux'
+      now: () => 777
     })
     const { terminalId } = svc.launch({
       cwd: '/c',
@@ -163,18 +148,14 @@ describe('past sessions — resume and launchedAt', () => {
   // rebind) and is archived under it. A Reopen that still resumed the pre-clear id would put a
   // second id on one conversation and bring back the conversation from before the clear.
   it('a /clear rebind moves the resume id too, so a dead-pane Reopen resumes the NEW id', () => {
-    const { manager: tm } = fakeTerminalManager({ t1: 100 })
     const spawn = vi.fn(() => ({ file: 'sh' }))
     const svc = createLaunchService({
-      terminalManager: tm,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't1',
       newSessionId: () => 'fresh',
-      now: () => 777,
-      platform: 'linux'
+      now: () => 777
     })
     const { terminalId } = svc.launch({
       cwd: '/c',
@@ -198,19 +179,15 @@ describe('past sessions — resume and launchedAt', () => {
   // made in the resumed run lives only in the card and its past-sessions record. A dead-pane
   // Reopen that passed the frozen name would rename claude BACK.
   it('a resume spawns with the name the card last had (resumeName), not the frozen recipe name', () => {
-    const { manager: tm } = fakeTerminalManager({ t1: 100 })
     const spawn = vi.fn(() => ({ file: 'sh' }))
     const names = new Map<string, string>([['sess-A', 'renamed later']])
     const svc = createLaunchService({
-      terminalManager: tm,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't1',
       newSessionId: () => 'fresh',
       now: () => 777,
-      platform: 'linux',
       resumeName: (id) => names.get(id) ?? null
     })
     const { terminalId } = svc.launch({ cwd: '/c', name: 'old name', resumeSessionId: 'sess-A' })
@@ -226,19 +203,15 @@ describe('past sessions — resume and launchedAt', () => {
   })
 
   it('a FRESH launch never consults resumeName', () => {
-    const { manager: tm } = fakeTerminalManager({ t1: 100 })
     const spawn = vi.fn(() => ({ file: 'sh' }))
     const resumeName = vi.fn(() => 'wrong')
     const svc = createLaunchService({
-      terminalManager: tm,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't1',
       newSessionId: () => 'fresh',
       now: () => 777,
-      platform: 'linux',
       resumeName
     })
     const { terminalId } = svc.launch({ cwd: '/c', name: 'typed' })
@@ -248,18 +221,14 @@ describe('past sessions — resume and launchedAt', () => {
   })
 
   it('a /clear rebind never turns a FRESH launch into a resume', () => {
-    const { manager: tm } = fakeTerminalManager({ t2: 100 })
     let s = 0
     const svc = createLaunchService({
-      terminalManager: tm,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn: vi.fn(() => ({ file: 'sh' })),
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't2',
       newSessionId: () => `fresh-${++s}`,
-      now: () => 5,
-      platform: 'linux'
+      now: () => 5
     })
     const { terminalId } = svc.launch({ cwd: '/c', name: 'n' })
     svc.mintSpawn(terminalId)
@@ -270,19 +239,15 @@ describe('past sessions — resume and launchedAt', () => {
   })
 
   it('a normal launch is unchanged: fresh id, resume=false, resume null on the mint', () => {
-    const { manager: tm } = fakeTerminalManager({ t2: 100 })
     const launchedSet = createLaunchedSet()
     const spawn = vi.fn(() => ({ file: 'sh' }))
     const svc = createLaunchService({
-      terminalManager: tm,
       launchedSet,
       isDirectory: () => true,
       spawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't2',
       newSessionId: () => 'fresh',
-      now: () => 5,
-      platform: 'linux'
+      now: () => 5
     })
     const { terminalId } = svc.launch({ cwd: '/c', name: 'n' })
     const minted = svc.mintSpawn(terminalId)

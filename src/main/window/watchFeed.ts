@@ -391,16 +391,6 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
           // Attention reminders — start / keep / cancel this session's reminder series off the SAME
           // delta (every status change and removal passes through here). Never throws.
           reminders.onDelta(delta)
-          // Story 3.2 (FR-11) — attempt the Tgid correlation join for the not-yet-correlated app
-          // launches against the POST-delta reducer snapshot, on the SAME synchronous tick (F4 —
-          // the onDelta path already runs per delta with the current snapshotMap; no new polling
-          // loop). This RE-RESOLVES the Tgid each time (the reported pid wanders — never cached)
-          // and adds a landed join's session id to the launched-set. It NEVER throws (fail-closed
-          // throughout) and is independent of the board ship below — a correlation failure never
-          // blocks a delta. The launch service is null until app-ready constructs it (a race during
-          // startup is a no-op). It CONSUMES the reducer's already-parsed Session map (parse-once;
-          // never re-parses JSON).
-          getLaunchService()?.correlateAgainst(reducer.snapshotMap().values())
           // Story 2.3 — recompute the tray badge off the POST-delta reducer map on the SAME tick,
           // for EVERY delta type (session.updated can raise/lower the count via a column change;
           // session.removed lowers it when the removed session was in needs-you). The badge counts

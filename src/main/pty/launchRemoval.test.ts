@@ -62,16 +62,11 @@ function fakeStoppableManager(): {
  *  removal only touches launch/mintSpawn/sessionIdFor/unbind). */
 function realLaunchService(newSessionId: () => string): LaunchService {
   return createLaunchService({
-    terminalManager: { pidOf: () => null },
     launchedSet: createLaunchedSet(),
     isDirectory: () => true,
     spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
-    readStatus: () => {
-      throw new Error('ENOENT') // never consulted on the removal path
-    },
     newTerminalId: () => 't-1',
-    newSessionId,
-    platform: 'linux'
+    newSessionId
   })
 }
 
@@ -244,8 +239,7 @@ describe('Story 6.3 — PTY exit (double ctrl+c) → immediate removal (removeBo
 
     const { terminalId, sessionId } = launchAndSynthesize(svc, reducer)
 
-    // index.ts onExit: forget() (correlation tracking) is independent; then the removal.
-    svc.forget(terminalId)
+    // index.ts onExit: the removal.
     const removed = removeBoundSession(terminalId, svc, seam.removeLaunched)
 
     expect(removed).toBe(sessionId)
@@ -305,7 +299,6 @@ describe('Story 6.3 — Reopen after exit: fresh binding, no stale removal', () 
     const { terminalId, sessionId: firstId } = launchAndSynthesize(svc, reducer)
     spawn(terminalId, 'tok-1')
     exit(terminalId)
-    svc.forget(terminalId)
     removeBoundSession(terminalId, svc, seam.removeLaunched)
     expect(firstId).toBe('sess-1')
     expect(svc.sessionIdFor(terminalId)).toBeNull()
@@ -346,17 +339,12 @@ function multiLaunchService(): LaunchService {
   let t = 0
   let s = 0
   return createLaunchService({
-    terminalManager: { pidOf: () => null },
     launchedSet: createLaunchedSet(),
     isDirectory: () => true,
     spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
-    readStatus: () => {
-      throw new Error('ENOENT')
-    },
     newTerminalId: () => `t-${++t}`,
     newSessionId: () => `sess-${++s}`,
-    now: () => FIXED_NOW,
-    platform: 'linux'
+    now: () => FIXED_NOW
   })
 }
 
@@ -490,7 +478,7 @@ describe('Past sessions — deleteTerminalSession (Delete drops the record, dead
     reducer: Reducer
     store: PastSessionsStore
     manager: StoppableTerminalManager
-    /** index.ts onExit for `terminalId`: forget, then the ARCHIVE via removeBoundSession. */
+    /** index.ts onExit for `terminalId`: the ARCHIVE via removeBoundSession. */
     exitPty: (terminalId: string) => void
     /** index.ts CH.sessionDelete for `terminalId`, with the renderer's hint. */
     del: (terminalId: string, hint: string | null) => void
@@ -514,7 +502,6 @@ describe('Past sessions — deleteTerminalSession (Delete drops the record, dead
       manager,
       exitPty: (terminalId) => {
         exit(terminalId)
-        svc.forget(terminalId)
         removeBoundSession(terminalId, svc, (id) => seam.removeLaunched(id, 'archive'))
       },
       del: (terminalId, hint) =>

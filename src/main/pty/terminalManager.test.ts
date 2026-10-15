@@ -584,7 +584,7 @@ describe('createTerminalManager — Story 5.6 re-attach + token-aware stop', () 
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Story 3.2 (FR-11) — pidOf (the correlation walk input) + the spawn override (raw claude).
+// Story 3.2 (FR-11) — pidOf (the process-proof input) + the spawn override (raw claude).
 // ─────────────────────────────────────────────────────────────────────────────
 describe('createTerminalManager — Story 3.2 pidOf + spawnOverride', () => {
   it('pidOf returns the spawned pty shell-leader pid for a live terminal, null when unknown/gone', () => {

@@ -15,7 +15,7 @@ import { resolve } from 'node:path'
 const FILE = resolve(__dirname, '../../eslint-suppressions.json')
 
 /** Measured when the test rules landed. Only ever lowered. */
-const PINNED_TOTAL = 1365
+const PINNED_TOTAL = 1361
 
 /** Sum of every `count` in an ESLint bulk-suppressions file; throws on any other shape. */
 export function suppressionTotal(json: unknown): number {

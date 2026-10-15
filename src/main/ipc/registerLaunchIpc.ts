@@ -18,7 +18,6 @@ import {
   SessionLaunchSchema,
   SessionRenameSchema,
   SessionSeenSchema,
-  LaunchCorrelatedSchema,
   SessionArchiveSchema,
   SessionDeleteSchema
 } from '../../shared/schemas/launch'
@@ -31,8 +30,8 @@ import { parseSessionSetTags } from '../persistence/tagsIpc'
 import { resolveTemplateLaunch } from '../pty/launchFromTemplate'
 import type { ClaudeLaunchFlags } from '../pty/launchSession'
 // Story 3.2 (FR-11) — the in-app LAUNCH flow built ON TOP of the Story-3.1 terminal: the raw
-// `claude` launch service (reuses the terminal manager + ptyFactory; reuses pidCorrelation.ts
-// for the Tgid join) + the per-run launched-set it POPULATES. The picked dir + launch request
+// `claude` launch service (reuses the terminal manager + ptyFactory) + the per-run launched-set it
+// fills at each mint. The picked dir + launch request
 // are UNTRUSTED cross-process input → Zod parse-and-throw at the boundary (never log the path).
 import { createLaunchService, type LaunchService } from '../pty/launchSession'
 // Action feedback (spec 2026-09-29 §2.4) — an in-app launch refusal is a CODE the renderer maps to
@@ -52,7 +51,6 @@ import {
   resumeTerminalSession,
   type PastSessionOpenDeps
 } from '../pty/pastSessionOpen'
-import { readStatusFromProc } from '../pty/pidCorrelation'
 import type { RunningElsewhereCheck } from '../pty/runningElsewhere'
 import type { HasTranscript } from '../pty/claudeTranscript'
 import type { ReadTranscriptInfo } from '../pty/claudeTranscriptInfo'
@@ -323,21 +321,14 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     })
   }
 
-  // The launch service spawns through the SAME terminal manager (reuse) + the production
-  // pidCorrelation readers (Linux /proc). It POPULATES the app-global launched-set on a landed
-  // Tgid join. A null terminal manager (a race vs app-ready) is guarded at the handler.
+  // The launch service fills the app-global launched-set at each mint (mintSpawn). A null
+  // terminal manager (a race vs app-ready) is guarded at the handler.
   if (getTerminalManager() === null) {
     // Defensive: registerLaunchIpc is called AFTER registerTerminalIpc in the ready block, so
     // this never trips in practice; surface it as a code rather than spawn a half-wired service.
     console.error('[c9watch][launch] code=launch_ipc_before_terminal_manager')
   }
   const launchService = createLaunchService({
-    // The launch SPAWN rides the existing terminal:open handler; the launch service only reads
-    // the spawned shell leader pid for the correlation walk (pidOf). The terminal manager is
-    // non-null by construction order (registerTerminalIpc ran first); pidOf is null-safe.
-    terminalManager: {
-      pidOf: (terminalId) => getTerminalManager()?.pidOf(terminalId) ?? null
-    },
     launchedSet,
     // UX-11 — refuse a missing folder before anything is registered (no card, no record).
     isDirectory: isExistingDirectory,
@@ -347,33 +338,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     // R3 — a resume's `-n` is the card's LATEST name: its past-sessions record (live or archived)
     // follows every rename, the recipe's name is frozen at Open.
     resumeName: (sessionId) => getPastSessionsStore()?.get(sessionId)?.name ?? null,
-    // Story 5.5 — the ONLY `/proc` seam the correlation needs now: status (for the session's Tgid
-    // + the PPid ancestry walk up to the PTY leader). The pre-5.5 comm/children readers are gone.
-    readStatus: readStatusFromProc,
     // Opaque, unique per launch (NOT a session id, NOT a pid — F6). crypto UUID is plenty unique.
-    newTerminalId: () => `launch-${randomUUID()}`,
-    // Story 3.4 (FR-16) — push the terminalId ↔ sessionId binding to the OWNING window when a
-    // launch's Tgid join lands. Resolve the owner from `terminalOwners` (the same map the
-    // dead-terminal onExit uses); VALIDATE AT SOURCE (LaunchCorrelatedSchema) before send so a
-    // malformed binding never crosses the seam (main→renderer delta; zod-boundaries.md). Re-check
-    // the destroyed window per send (a late event after close is a no-op, mirroring the wc.send
-    // guards above). never-log-the-value: PATH + CODE only on a parse miss (Guardrail #6).
-    onCorrelated: (binding) => {
-      const wc = terminalOwners.get(binding.terminalId)
-      if (!wc || wc.isDestroyed()) return
-      const r = LaunchCorrelatedSchema.safeParse(binding)
-      if (!r.success) {
-        const issue = r.error.issues[0]
-        const issuePath = issue?.path.join('.') ?? ''
-        console.error(
-          `[c9watch][launch] dropped launch:correlated path=${issuePath} code=${issue?.code ?? ''}`
-        )
-        return
-      }
-      wc.send(CH.launchCorrelated, r.data)
-    },
-    // never-log-the-value: a code= ONLY, never a path/pty/session value (Guardrail #6).
-    log: (message) => console.warn(message)
+    newTerminalId: () => `launch-${randomUUID()}`
   })
   // Card shell pane — the companion registry reads the launch recipe (the folder) and stops
   // companions through the same manager; `isExistingDirectory` is the UX-11 preflight check.
@@ -418,9 +384,9 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
 
   // session:launch — UNTRUSTED cross-process input. Parse-and-throw-typed at THIS boundary (a
   // blank/non-string cwd rejects the invoke). NEVER log the cwd value — the throw IS the signal.
-  // On a valid cwd, the launch service spawns raw `claude` (via the reused terminal manager) and
+  // On a valid cwd, the launch service registers the raw `claude` spawn recipe and
   // returns the opaque terminalId the renderer's EmbeddedTerminal opens against. The terminal is
-  // typeable IMMEDIATELY; the Tgid correlation reconciles asynchronously on feed deltas (UX-DR19).
+  // typeable IMMEDIATELY; the session id is minted when the pty spawns (`mintSpawn`, UX-DR19).
   ipc.handle(CH.sessionLaunch, (_event, raw: unknown) => {
     if (launchService === null) throw new Error('launch service not initialized')
     // Both fields are UNTRUSTED cross-process input. `name` comes back already TRIMMED and

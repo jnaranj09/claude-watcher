@@ -10,8 +10,9 @@
 // correlated bindings ∪ the current focusedTerminalId), but only the ACTIVE one is visible (the
 // rest are `active={false}` → visibility:hidden, kept alive). Switching = flipping which is the
 // `focusedTerminalId` (pure view-state) — NO per-switch IPC, NO input sent (alert-only,
-// FR-9-consistent). A rail row whose session's terminalId is not yet known (pre-correlation) is
-// alert-only-non-switchable; it becomes switchable once the CH.launchCorrelated binding lands.
+// FR-9-consistent). A rail row whose session's terminalId is not yet known (the
+// `CH.launchCorrelated` push has not arrived) is alert-only-non-switchable; it becomes switchable
+// once that binding lands (pushed after a mint or a `/clear` rebind).
 //
 // Board ↔ Focused-session is renderer VIEW-STATE (viewMode in the store), NOT routing and NOT a
 // second window (single-window, UX-DR24). Esc returns to the Board (UX-DR21); the "← Board" button
@@ -51,7 +52,7 @@ import { SHELL_TERMS } from '../copy/terms'
 
 /**
  * Story 4.3 (FR-15) — resolve a human-readable name for the focused terminal.
- * The focused terminal may or may not have a correlated session (pre-correlation = no card yet).
+ * The focused terminal may or may not have a correlated session (no binding yet = no card yet).
  * Falls back gracefully to the bare terminalId rather than crashing (FROZEN F4: never crash).
  * Never logs a session name or path — only a code on failure.
  */
@@ -65,13 +66,13 @@ function resolveSessionName(terminalId: string): string {
     const session = state.sessionsById[sessionId]
     if (session !== undefined) return session.sessionName
   }
-  // Pre-correlation or no card yet: degrade gracefully to the bare terminalId (never crash).
+  // No binding yet or no card yet: degrade gracefully to the bare terminalId (never crash).
   return terminalId
 }
 
 /** Name-sync (D-11) — the focused terminal's own BoardSession, so the bar can draw its name +
- *  the ⟳ mark. Reverse-looks-up the session bound to the focused terminal; null pre-correlation
- *  (no card yet) or with no terminal focused — the title falls back to an empty string, never a
+ *  the ⟳ mark. Reverse-looks-up the session bound to the focused terminal; null before the
+ *  binding arrives (no card yet) or with no terminal focused — the title falls back to an empty string, never a
  *  crash. */
 /** The title's dot IS the session's column, as on the rail and the board (compiler-checked). */
 const DOT_STATUS_FOR_COLUMN: Record<Column, DotStatus> = {

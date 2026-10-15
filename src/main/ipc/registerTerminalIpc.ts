@@ -145,16 +145,6 @@ export function registerTerminalIpc(deps: TerminalIpcDeps): TerminalManager {
       const launchService = getLaunchService()
       const wc = terminalOwners.get(terminalId)
       terminalOwners.delete(terminalId)
-      // Story 3.4 (FR-16) / Story 5.4 — a launched `claude` that exits FOR REAL drops its
-      // CORRELATION tracking here so a dead launch's PendingLaunch does not linger / keep
-      // re-correlating. Story 5.4 narrows forget() to the correlation tracking ONLY: the
-      // spawn-override (the Reopen recipe) is deliberately KEPT so the dead-pane "Reopen" affordance
-      // re-spawns claude, not the default `$SHELL`. This is the ONLY forget() call site — the
-      // CH.terminalStop handler intentionally does NOT forget (a StrictMode dev transient stop must
-      // not drop tracking). Idempotent + never throws; the launched-set membership for an
-      // ALREADY-joined session is left intact (the set is per-run, not per-terminal). Runs even if
-      // the owning window is gone (below) — the forget is independent of the dead-terminal push.
-      launchService?.forget(terminalId)
       // Session-rebind — a dead pty can never be adopted, so drop any orphan record for it.
       // `claim` already gates on liveness, so this is hygiene (bounded memory), not correctness.
       orphanRegistry.clear(terminalId)
@@ -387,13 +377,11 @@ export function registerTerminalIpc(deps: TerminalIpcDeps): TerminalManager {
     if (shellCompanions !== null) {
       stopCompanionAfterParentStop(terminalId, parentWasLive, terminalManager, shellCompanions)
     }
-    // Story 5.4 — do NOT forget the launch here. This handler fires on EVERY EmbeddedTerminal
-    // unmount, INCLUDING the transient unmount React StrictMode performs in dev (mount → cleanup
-    // → mount). Forgetting here would drop the launch's correlation tracking AND (pre-5.4) its
-    // spawn-override on that transient stop, so the surviving mount re-spawned the default
-    // `$SHELL` instead of `claude` — the dev blank/wrong-terminal bug. A launch's correlation
-    // tracking is dropped only when its claude exits FOR REAL (the terminalManager onExit →
-    // launchService.forget), and the spawn-override (the Reopen recipe) is kept regardless.
+    // Story 5.4 — do NOT drop the launch's spawn-override here. This handler fires on EVERY
+    // EmbeddedTerminal unmount, INCLUDING the transient unmount React StrictMode performs in dev
+    // (mount → cleanup → mount). Dropping the recipe on that transient stop made the surviving
+    // mount re-spawn the default `$SHELL` instead of `claude` — the dev blank/wrong-terminal bug.
+    // The spawn-override (the Reopen recipe) is kept for the life of the process.
   })
 
   return manager

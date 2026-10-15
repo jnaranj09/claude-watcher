@@ -1,153 +1,20 @@
 // launchSession tests, part 2: the terminalId <-> sessionId bindings. `main-unit` project (node).
-// Covered: onCorrelated fires the binding on a landed join; forget() drops correlation tracking and
-// KEEPS the recipe; terminalIdFor / rebind when claude changes its own id mid-run; bindings() lists
-// every live terminal; template launch flags reach spawn(). Fakes: __fixtures__/launchProc.
-import { describe, it, expect, vi } from 'vitest'
-import {
-  createLaunchService,
-  NO_LAUNCH_FLAGS,
-  type LaunchTerminalManager,
-  type ClaudeLaunchFlags
-} from './launchSession'
+// Covered: terminalIdFor / rebind when claude changes its own id mid-run; bindings() lists every
+// live terminal; template launch flags reach spawn(). Fakes: __fixtures__/launchProc.
+import { describe, it, expect } from 'vitest'
+import { createLaunchService, NO_LAUNCH_FLAGS, type ClaudeLaunchFlags } from './launchSession'
 import { createLaunchedSet } from './launchedSet'
-import {
-  LEADER_PID,
-  REPORTED_PID,
-  fakeTerminalManager,
-  launchTree,
-  readStatusFrom,
-  session,
-  shellClaudeSpawn
-} from '../../__fixtures__/launchProc'
-
-describe('Story 3.4 — onCorrelated fires the terminalId↔sessionId binding on a landed join', () => {
-  it('fires ONCE with { terminalId, sessionId } when the ancestry join lands', () => {
-    const set = createLaunchedSet()
-    const onCorrelated = vi.fn()
-    const { manager } = fakeTerminalManager({ 't-1': LEADER_PID })
-    const svc = createLaunchService({
-      terminalManager: manager,
-      launchedSet: set,
-      isDirectory: () => true,
-      spawn: shellClaudeSpawn,
-      readStatus: readStatusFrom(launchTree()),
-      newTerminalId: () => 't-1',
-      platform: 'linux',
-      onCorrelated
-    })
-    svc.launch({ cwd: '/p', name: 'p' })
-    svc.correlateAgainst([session('sess-A', REPORTED_PID)])
-
-    expect(onCorrelated).toHaveBeenCalledTimes(1)
-    expect(onCorrelated).toHaveBeenCalledWith({ terminalId: 't-1', sessionId: 'sess-A' })
-
-    // A SECOND correlateAgainst (the launch is already joined) does NOT re-fire it.
-    svc.correlateAgainst([session('sess-A', REPORTED_PID)])
-    expect(onCorrelated).toHaveBeenCalledTimes(1)
-  })
-
-  it('does NOT fire in the optimistic window (pidOf null → no leader → no binding)', () => {
-    const onCorrelated = vi.fn()
-    const { manager } = fakeTerminalManager({ 't-1': null }) // terminal not open yet
-    const svc = createLaunchService({
-      terminalManager: manager,
-      launchedSet: createLaunchedSet(),
-      isDirectory: () => true,
-      spawn: shellClaudeSpawn,
-      readStatus: readStatusFrom(launchTree()),
-      newTerminalId: () => 't-1',
-      platform: 'linux',
-      onCorrelated
-    })
-    svc.launch({ cwd: '/p', name: 'p' })
-    svc.correlateAgainst([session('sess-A', REPORTED_PID)])
-    expect(onCorrelated).not.toHaveBeenCalled()
-  })
-
-  it('a THROWING onCorrelated never escapes the per-delta loop (fail-closed) and the join still lands', () => {
-    const set = createLaunchedSet()
-    const log = vi.fn()
-    const { manager } = fakeTerminalManager({ 't-1': LEADER_PID })
-    const svc = createLaunchService({
-      terminalManager: manager,
-      launchedSet: set,
-      isDirectory: () => true,
-      spawn: shellClaudeSpawn,
-      readStatus: readStatusFrom(launchTree()),
-      newTerminalId: () => 't-1',
-      platform: 'linux',
-      onCorrelated: () => {
-        throw new Error('window destroyed')
-      },
-      log
-    })
-    svc.launch({ cwd: '/p', name: 'p' })
-    expect(() => svc.correlateAgainst([session('sess-A', REPORTED_PID)])).not.toThrow()
-    // The join STILL lands (the membership add precedes the callback) and the throw was logged code-only.
-    expect(set.has('sess-A')).toBe(true)
-    expect(log).toHaveBeenCalledWith('[c9watch][launch] code=on_correlated_failed')
-  })
-})
-
-describe('launchSession — forget (drops correlation tracking, KEEPS the recipe)', () => {
-  it('forget() drops a launch’s correlation tracking but KEEPS its spawn-override (idempotent)', () => {
-    const manager: LaunchTerminalManager = { pidOf: () => null }
-    const svc = createLaunchService({
-      terminalManager: manager,
-      launchedSet: createLaunchedSet(),
-      isDirectory: () => true,
-      spawn: shellClaudeSpawn,
-      readStatus: readStatusFrom({}),
-      newTerminalId: () => 't-1',
-      now: () => 0,
-      platform: 'linux'
-    })
-    svc.launch({ cwd: '/p', name: 'p' })
-    expect(svc.isPending('t-1')).toBe(true)
-    svc.forget('t-1')
-    // Correlation tracking dropped — the launch is no longer pending / re-correlated.
-    expect(svc.isPending('t-1')).toBe(false)
-    // ...but the spawn-override (the Reopen recipe) SURVIVES forget (Story 5.4): forget() runs when
-    // claude exits FOR REAL, and a dead-pane Reopen must still re-spawn claude (not the default
-    // $SHELL). A pre-5.4 forget that also deleted the override broke Reopen.
-    expect(svc.peekSpawnOverride('t-1')).toEqual({
-      cwd: '/p',
-      name: 'p',
-      flags: NO_LAUNCH_FLAGS,
-      templateId: null,
-      initialPrompt: null,
-      workspaceId: null,
-      launchedAt: 0,
-      resume: null,
-      lastSessionId: null
-    })
-    svc.forget('t-1') // idempotent
-    expect(svc.peekSpawnOverride('t-1')).toEqual({
-      cwd: '/p',
-      name: 'p',
-      flags: NO_LAUNCH_FLAGS,
-      templateId: null,
-      initialPrompt: null,
-      workspaceId: null,
-      launchedAt: 0,
-      resume: null,
-      lastSessionId: null
-    })
-  })
-})
+import { shellClaudeSpawn } from '../../__fixtures__/launchProc'
 
 describe('Session-rebind — terminalIdFor / rebind (claude changes its own id mid-run)', () => {
   function reboundService(): ReturnType<typeof createLaunchService> {
     let s = 0
     return createLaunchService({
-      terminalManager: fakeTerminalManager({ 't-1': LEADER_PID }).manager,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn: shellClaudeSpawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => 't-1',
-      newSessionId: () => `sess-${++s}`,
-      platform: 'linux'
+      newSessionId: () => `sess-${++s}`
     })
   }
 
@@ -226,14 +93,11 @@ describe('Session-rebind — bindings() lists every live terminal → session bi
     let s = 0
     let t = 0
     return createLaunchService({
-      terminalManager: fakeTerminalManager({ 't-1': LEADER_PID, 't-2': LEADER_PID + 1 }).manager,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn: shellClaudeSpawn,
-      readStatus: readStatusFrom({}),
       newTerminalId: () => `t-${++t}`,
-      newSessionId: () => `sess-${++s}`,
-      platform: 'linux'
+      newSessionId: () => `sess-${++s}`
     })
   }
 
@@ -274,17 +138,14 @@ describe('session templates — launch flags reach spawn()', () => {
     const seen: ClaudeLaunchFlags[] = []
     let n = 0
     const svc = createLaunchService({
-      terminalManager: fakeTerminalManager({ 't-1': LEADER_PID, 't-2': LEADER_PID }).manager,
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn: (sessionId, _name, flags) => {
         seen.push(flags)
         return { file: 'sh', args: ['-l', '-c', `claude --session-id '${sessionId}'`] }
       },
-      readStatus: readStatusFrom(launchTree()),
       newTerminalId: () => `t-${++n}`,
-      now: () => 0,
-      platform: 'linux'
+      now: () => 0
     })
     return { svc, seen }
   }

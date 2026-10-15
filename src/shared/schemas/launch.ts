@@ -119,8 +119,8 @@ export type SessionSetWorkspaceRequest = z.infer<typeof SessionSetWorkspaceSchem
 /**
  * Story 3.4 (FR-16) — validate-AT-SOURCE for the `launch:correlated` push (main → renderer).
  *
- * The launch service emits `{ terminalId, sessionId }` toward the renderer the moment the Tgid
- * correlation join lands; main asserts the shape BEFORE `wc.send` so a malformed binding never
+ * Main emits `{ terminalId, sessionId }` toward the renderer after each mint and after a `/clear`
+ * rebind; main asserts the shape BEFORE `wc.send` so a malformed binding never
  * crosses the seam (renderer-facing delta = validate at source, zod-boundaries.md). Both fields
  * are non-empty strings (blank fails closed) — `terminalId` is the opaque per-terminal id,
  * `sessionId` is the stable UUID session id (NEVER a pid). Both are opaque identifiers, never

@@ -270,8 +270,8 @@ const terminalOwners = new Map<string, Electron.WebContents>()
 let shellCompanions: ShellCompanionRegistry | null = null
 
 // Story 3.2 (FR-11) — the in-app LAUNCH flow. The launch SERVICE spawns raw `claude` under the
-// REUSED terminal manager (file/cwd override) and runs the Tgid correlation join (REUSING
-// pidCorrelation.ts), POPULATING the per-run LAUNCHED-SET. Both are app-global (like the
+// REUSED terminal manager (file/cwd override) and fills the per-run LAUNCHED-SET at each mint
+// (`mintSpawn`). Both are app-global (like the
 // terminal manager + settings store — keyed by the stable session id / opaque terminalId, NOT
 // per-window). Constructed after app-ready (so the terminal manager exists). The launched-set is
 // born here; Story 3.3 CONSUMES it as the board+attention filter — 3.2 does NOT yet filter on it

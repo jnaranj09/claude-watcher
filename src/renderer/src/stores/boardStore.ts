@@ -225,9 +225,8 @@ export interface BoardState {
   viewMode: 'board' | 'focused'
   /** Story 3.2 (FR-11 / UX-DR19) — the OPAQUE terminalId the Focused-session renders (the
    *  optimistic App-launched terminal). Set the MOMENT a launch returns its terminalId — BEFORE
-   *  the Tgid correlation join binds a c9watch session `id` (the terminal is typeable immediately,
-   *  never blocked on the join). Distinct from `selectedId` (the session id, set when a card is
-   *  activated / when the join reconciles in a later story). null when no terminal is focused. */
+   *  the spawn mints the session `id` (the terminal is typeable immediately, never blocked on the
+   *  spawn). Distinct from `selectedId` (the session id, set when a card is activated). null when no terminal is focused. */
   focusedTerminalId: string | null
   /** Story 3.4 (FR-16) — THE ONE shared per-session attention/acknowledge state (AC-4). Maps a
    *  session `id` → epoch-millis it was acknowledged (opened/switched-to while in needs-you). This
@@ -245,12 +244,12 @@ export interface BoardState {
    *  outlive the handled session": both fall together on the same c9watch column-leave/removal). */
   acknowledgedById: Record<string, number>
   /** Story 3.4 (FR-16 / Task 4.1) — the sessionId → terminalId reverse map (renderer VIEW-STATE).
-   *  Populated from the `CH.launchCorrelated` push (`window.launch.onCorrelated`) the moment a
-   *  launch's Tgid join lands in main. The attention rail uses it to switch the visible terminal BY
+   *  Populated from the `CH.launchCorrelated` push (`window.launch.onCorrelated`) (pushed
+   *  after a mint or a `/clear` rebind). The attention rail uses it to switch the visible terminal BY
    *  session id (a pure renderer show/hide of the kept-alive terminals — NO per-switch IPC). The
    *  entry is cleared on `session.removed` (the session — and so its binding — is gone). A session
-   *  with NO entry yet (pre-correlation) is alert-only-non-switchable; it becomes switchable the
-   *  moment the binding lands (degrade gracefully, never crash). */
+   *  with NO entry yet (before the push arrives) is alert-only-non-switchable; it becomes
+   *  switchable the moment the binding lands (degrade gracefully, never crash). */
   terminalIdBySessionId: Record<string, string>
   /**
    * Story 5.6 (AC-1) — the renderer's OWN list of app-launched terminals (RENDERER VIEW-STATE;
@@ -356,9 +355,8 @@ export interface BoardState {
   setSelected: (id: string | null) => void
   /** Story 3.2 (FR-11 / UX-DR19 / F6) — drop into the Focused-session for a freshly LAUNCHED
    *  terminal. Sets `viewMode='focused'` + `focusedTerminalId=terminalId` OPTIMISTICALLY (main
-   *  holds the PTY; the terminal is typeable immediately, not blocked on the Tgid join). The
-   *  c9watch session `id` is not known yet — `selectedId` reconciles later (a future story
-   *  receives the join). Single-window in-app view-state only — NO routing, NO window raise.
+   *  holds the PTY; the terminal is typeable immediately, not blocked on the spawn). The
+   *  session `id` is not known yet — `selectedId` is set when a card is activated. Single-window in-app view-state only — NO routing, NO window raise.
    *  (Named `openLaunchedTerminal` not `focus*` — this is an in-app VIEW transition, NOT an OS
    *  window focus/raise; the Story-2.2 view-state invariant treats `focus`/`raise` action names
    *  as window operations, which this is NOT.)

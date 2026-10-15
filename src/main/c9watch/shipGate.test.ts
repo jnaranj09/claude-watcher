@@ -82,12 +82,12 @@ describe('shouldShipToBoard — ship ONLY launched-set members (Story 3.3 / AC-2
   })
 
   it('edge (b): a launched-but-not-yet-correlated id is NOT shipped (false) — not-yet-on-the-board', () => {
-    // The id has not yet entered the launched-set (the Tgid join has not landed); the gate
-    // returns false, so the session is simply not-yet-shipped. Once the join lands and the id
-    // enters the set, the NEXT delta for it ships (production: correlateAgainst runs per delta).
-    const notYetCorrelated = launchedFrom([]) // join not landed yet
+    // The id has not yet entered the launched-set; the gate returns false, so the session is
+    // simply not-yet-shipped. Once the id enters the set, the NEXT delta for it ships
+    // (production: mintSpawn adds the id before the first delta).
+    const notYetCorrelated = launchedFrom([]) // id not in the set yet
     expect(shouldShipToBoard(updated('pending'), notYetCorrelated)).toBe(false)
-    // After the join lands, the same id ships:
+    // Once the id is in the set, the same id ships:
     expect(shouldShipToBoard(updated('pending'), launchedFrom(['pending']))).toBe(true)
   })
 

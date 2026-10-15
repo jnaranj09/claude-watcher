@@ -82,14 +82,11 @@ export const CH = {
   // by terminalId while the reducer's map is keyed by session id. Invoke returning void; the
   // moved card comes back the normal way, as a `session.updated` delta over CH.watchEvents.
   sessionSetWorkspace: 'session:set-workspace',
-  // Story 3.4 (FR-16) — the ADDITIVE `launch:correlated` push (main → renderer). Fired ONCE,
-  // when the Story-3.2 Tgid correlation join LANDS in `correlateAgainst` (the /proc-only join
-  // that binds an app-spawned `claude` to its c9watch session `id`). It carries the
-  // `{ terminalId, sessionId }` binding the renderer cannot derive itself (the join is a
-  // main-only /proc Tgid computation). The renderer builds a `terminalIdBySessionId` view-state
-  // so the attention rail can switch the visible terminal BY session id — a pure renderer
-  // show/hide of the kept-alive terminals (NO per-switch IPC). This is a SEPARATE channel, NOT a
-  // new member of the FROZEN `AttentionEvent` union. See `LaunchCorrelatedEvent` below.
+  // `launch:correlated` (main → renderer): the `{ terminalId, sessionId }` binding the renderer
+  // cannot derive itself. Pushed after each mint (`registerTerminalIpc.ts`) and after a `/clear`
+  // rebind (`watchFeed.ts`). The renderer builds `terminalIdBySessionId` from it, so the attention
+  // rail can switch the visible terminal by session id (a pure show/hide, no per-switch IPC). A
+  // separate channel, not a member of the frozen `AttentionEvent` union.
   launchCorrelated: 'launch:correlated',
   // Programmatic API — `launch:requested` (main → renderer): the API asked for a card. Main has
   // registered the launch recipe and pushes the terminalId; the renderer opens the terminal
@@ -701,10 +698,9 @@ export type SessionLaunchRequest = {
  * `session:launch` invoke return — the opaque `terminalId` the renderer's `EmbeddedTerminal`
  * opens against (mirrors the Story-3.1 terminal keying — terminals key by `terminalId`, NEVER
  * the session `id`, NEVER a pid — F6). The terminal is typeable IMMEDIATELY (AC-3: never
- * blocked on the Tgid correlation join). The c9watch session `id` is NOT known yet at launch
- * (the join binds the app-spawned claude `Tgid` to the session `id` later, on a feed delta) —
- * so the launch reply carries only the `terminalId`, and the optimistic App-launched card is
- * derived from main's session truth once the join lands (UX-DR19).
+ * blocked on the spawn). The session `id` is NOT known yet at launch (it is minted when the pty
+ * spawns, `mintSpawn`) — so the launch reply carries only the `terminalId`, and the card is
+ * derived from main's session truth once the spawn mints the id (UX-DR19).
  */
 export type SessionLaunchResult = {
   /** The opaque per-terminal id (NOT a session id, NOT a pid — F6). */
@@ -778,12 +774,9 @@ export type SessionSeenRequest = {
 /**
  * Story 3.4 (FR-16) — `launch:correlated` push payload: main → renderer.
  *
- * Emitted ONCE per launch, the moment the Story-3.2 Tgid correlation join LANDS in
- * `correlateAgainst` (right after `launch.correlatedId = result.id` / `launchedSet.add(result.id)`).
- * It surfaces the `terminalId ↔ sessionId` binding — born in main (the /proc Tgid join is a
- * main-only computation the renderer cannot run) — so the renderer can build a
- * `terminalIdBySessionId` view-state. The attention rail uses that map to switch the visible
- * terminal BY session id (a pure renderer show/hide of the kept-alive terminals; NO per-switch IPC).
+ * Pushed after each mint and after a `/clear` rebind, so the renderer can map a session id to its
+ * terminal. The attention rail uses that map to switch the visible terminal BY session id (a pure
+ * renderer show/hide of the kept-alive terminals; NO per-switch IPC).
  *
  * Both fields are already-trusted, safe-to-keep main values: `terminalId` is a main-minted opaque
  * id; `sessionId` is the parse-once c9watch session `id` (the stable UUID — NEVER a pid). It is

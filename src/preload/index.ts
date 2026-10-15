@@ -339,7 +339,7 @@ const launchApi = {
     return ipcRenderer.invoke(CH.sessionSeen, req)
   },
   /** Story 3.4 (FR-16) — subscribe to the launch CORRELATION push (the `{ terminalId, sessionId }`
-   *  binding, fired once when a launch's Tgid join lands in main). The renderer builds a
+   *  binding, pushed after a mint and after a `/clear` rebind). The renderer builds a
    *  `terminalIdBySessionId` view-state from it so the attention rail can switch the visible
    *  terminal by session id. Returns an unsubscribe fn. Mirrors `attentionApi.onActivate` exactly
    *  (subscribe-returns-unsubscribe). `CH.launchCorrelated` is a const, never a literal. */

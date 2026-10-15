@@ -6,14 +6,9 @@
 // FR-13/Epic-4), and is NEVER persisted. It starts EMPTY at construction (never seeded
 // from a prior run).
 //
-// WHEN an id ENTERS the set: a launched session's stable `id` enters the set ONLY when the
-// `Tgid` correlation join LANDS (the launch service binds the app-spawned claude `Tgid` to
-// the c9watch session `id`). NOT at spawn time — at spawn main holds the PTY (the shell
-// leader pid) but does NOT yet know the c9watch session `id` (the join is what binds them).
-// The t0 window (UX-DR19: claude not spawned/scanned yet → the join has not landed) therefore
-// produces NO membership — a launch whose join never resolves never enters the set (no false
-// membership). The optimistic App-launched CARD is a separate concern (the launch service's
-// pending tracker); the set records only CONFIRMED, joined launches.
+// WHEN an id ENTERS the set: a launched session's stable `id` enters the set at mint
+// (`launchService.mintSpawn`, at each actual pty spawn), before the synthesized card's first delta
+// ships. A launch whose pty never spawns never enters the set (no false membership).
 //
 // SCOPE BOUNDARY (F1/F5) — Story 3.2 POPULATES this set; it does NOT yet FILTER on it. The
 // board+attention app-launched-only filter that CONSUMES `has(id)` is Story 3.3. Until 3.3
@@ -25,12 +20,12 @@
 // set keys by the stable session `id` (UUID), which is window-independent. [Source: story 3.2
 // Task 4; F5; epics.md Story 3.3 AC line 432; src/main/index.ts:85-96 (app-global precedent)]
 
-/** The launched-set surface. `add` is idempotent (a re-correlated id is a no-op). `has` is the
+/** The launched-set surface. `add` is idempotent (a re-added id is a no-op). `has` is the
  *  membership query Story 3.3 consumes. `snapshot` returns a defensive copy for diagnostics/
  *  consumers (never the live set — callers can't mutate the authority). */
 export interface LaunchedSet {
-  /** Record a launched session's stable `id` — called ONLY when the Tgid join lands (NOT at
-   *  spawn). Idempotent. */
+  /** Record a launched session's stable `id` — called at each mint (`mintSpawn`).
+   *  Idempotent. */
   add(id: string): void
   /** Whether a session `id` was launched by the Cockpit (the app-launched-vs-external query
    *  Story 3.3 consumes as the board+attention filter). */

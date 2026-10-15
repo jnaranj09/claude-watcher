@@ -1,74 +1,30 @@
-// Story 0.4 — the OQ-6 pid-correlation probe artifact (the validated helper).
+// The `/proc` status readers and the ancestry check the process-tree code uses.
 //
-// Born as the Story-0.4 probe output; now wired into the live app. Main imports it:
-// `launchSession.ts` (`correlate`), `registerLaunchIpc.ts` and `claudeSessionFile.ts`
-// (`readStatusFromProc`; `claudeSessionFile.ts` also `isAncestorOf` + `parseStatusField`).
+// `readStatusFromProc` is the production `ReadStatus` seam. `claudeSessionFile.ts` uses it with
+// `isAncestorOf` + `parseStatusField` to prove which claude process belongs to a terminal.
 //
-// ── WHAT OQ-6 IS ─────────────────────────────────────────────────────────────
-// c9watch reports a session `pid` that is a WANDERING claude *thread* id — it
-// changes between scans for the SAME stable session `id` (UUID). A naive
-// `spawnedPid === reportedPid` join therefore FAILS. The deterministic fix
-// (proven live this session — see oq-6-pid-correlation-finding.md):
+// ── ANCESTRY ─────────────────────────────────────────────────────────────────
+// `isAncestorOf(leaderPid, pid)` walks `PPid` UP from `pid`, so it is shape-agnostic: claude as
+// the PTY leader, as a child, or as a deep descendant (`claude → npm exec claude →
+// MainThread`). Sessions are keyed by their stable `id`, never by `pid`.
 //
-//   - KEY sessions by the stable `id` (UUID), NEVER by `pid`.
-//   - CORRELATE by computing the thread-group id (`Tgid`) from
-//     `/proc/<reported-pid>/status` and matching it to the app-resolved claude
-//     process TGID. `Tgid` is the stable, kernel-guaranteed process id behind any
-//     wandering thread id of that process.
-//
-// The app-spawned side: node-pty gives you the PANE/SHELL leader pid (the
-// smoke's `ptyPid`), not claude. The c9watch-tracked session is SOME process in
-// that PTY's subtree.
-//
-// ── STORY 5.5 — SUBTREE-ANCESTRY MATCH (the live correlation) ─────────────────
-// The original oq-6 walk assumed the tracked claude is an IMMEDIATE child named
-// `claude` of the shell. claude 2.1.186 launched via the app breaks that: the
-// `bash -l -c claude` login shell EXECS the native `claude` ELF (so the PTY leader
-// IS claude), and the c9watch-tracked session runs DEEPER (`claude → npm exec
-// claude → MainThread`, comm != `claude`). So the live correlation now matches a
-// session to a launched terminal iff the session's process (its Tgid) is a
-// DESCENDANT of the terminal's PTY leader pid — `isAncestorOf(leaderPid,
-// sessionTgid)`, walking `PPid` UP. Shape-agnostic + 1:1. The old immediate-child walk
-// and its `comm`/children readers are deleted (no production path reached them).
-//
-// ── DESIGN: DI SEAMS (architecture.md#Testing & Test Seams) ──────────────────
-// Every impure read (`/proc`) is an INJECTED reader so the logic is
-// unit-testable on synthetic fixtures with no live processes, and the ONE real
-// `/proc` read lives in a single integration test. Mirrors the project's
-// `ptyFactory.createPty(): IPtyLike` / `feed.ts(spawnFn)` seam pattern.
+// ── DESIGN: DI SEAMS ─────────────────────────────────────────────────────────
+// Every impure read (`/proc`) is an INJECTED reader so the logic is unit-testable on synthetic
+// fixtures with no live processes, and the ONE real `/proc` read lives in a single integration
+// test.
 //
 // ── FAIL-CLOSED + NEVER-LOG-PARSED-VALUE (Critical Guardrails #3, #4) ─────────
-// Every `/proc` miss (missing `Tgid:`, vanished pid, denied read) returns an
-// "unresolved/unmatched" result — NEVER a wrong silent number, NEVER a crash. We NEVER
-// echo the raw `/proc` blob (it can carry cmdline/env/secrets); helpers surface only
-// field path + a typed error.
-// [Source: epics.md#Story 0.4; #Verified Facts; architecture.md#Process Patterns;
-//  src/shared/schemas/session.ts:62,65; .claude/rules/zod-boundaries.md]
+// Every `/proc` miss (missing field, vanished pid, denied read) returns an "unresolved" result,
+// never a wrong silent number and never a crash. We NEVER echo the raw `/proc` blob (it can
+// carry cmdline/env/secrets).
 
 import { readFileSync } from 'node:fs'
-import type { Session } from '../../shared/schemas/session'
 
 // ── DI SEAM TYPES ────────────────────────────────────────────────────────────
 
 /** Read the raw text of `/proc/<pid>/status`. Throws if the pid is gone/denied
  *  (the process-gone race) — callers treat a throw as "unresolved", fail closed. */
 export type ReadStatus = (pid: number) => string
-
-// ── ERRORS ───────────────────────────────────────────────────────────────────
-
-/** Thrown when `/proc/<pid>/status` is present but malformed (no parseable
- *  `Tgid:` line). Carries the pid (a number, safe) + the field we failed to find
- *  — NEVER the raw blob (Guardrail #4). The caller fails closed on this. */
-export class TgidParseError extends Error {
-  readonly pid: number
-  readonly field: string
-  constructor(pid: number, field: string) {
-    super(`could not parse ${field} from /proc/${pid}/status`)
-    this.name = 'TgidParseError'
-    this.pid = pid
-    this.field = field
-  }
-}
 
 // ── CORE PARSERS (PURE — fed by the seams) ───────────────────────────────────
 
@@ -88,50 +44,6 @@ export function parseStatusField(statusBlob: string, field: string): string | un
     }
   }
   return undefined
-}
-
-/**
- * Resolve the stable claude *process* id (Tgid) from a reported (possibly
- * wandering thread) pid — THE AC-1 mechanism.
- *
- * Reads `/proc/<reportedPid>/status` via the injected `readStatus` seam and
- * returns its `Tgid:` value:
- *   - thread of a process     → `Tgid != Pid`  → returns the process leader.
- *   - the group leader itself → `Tgid == Pid`  → returns it unchanged.
- *
- * FAIL CLOSED:
- *   - reportedPid gone/denied (readStatus throws)   → re-throws (caller catches → unmatched).
- *   - status present but no parseable `Tgid:`        → throws TgidParseError.
- * It NEVER returns a wrong silent number and NEVER logs the blob.
- *
- * [Live evidence: reported pids 664822 & 664819 (`Name: HeapHelper`) both →
- *  `Tgid: 664817` = the real `claude` process. See oq-6 finding.]
- */
-export function resolveTgid(reportedPid: number, readStatus: ReadStatus): number {
-  // readStatus throws on a vanished/denied pid — let it propagate; the caller
-  // (correlate) treats a throw as "process gone → unmatched", failing closed.
-  const blob = readStatus(reportedPid)
-  const raw = parseStatusField(blob, 'Tgid')
-  if (raw === undefined) {
-    throw new TgidParseError(reportedPid, 'Tgid')
-  }
-  // STRICT digits-only match BEFORE parseInt — fail closed on integer-plus-garbage.
-  // `Number.parseInt('664817 stray', 10)` returns 664817 (it stops at the first
-  // non-digit and silently drops the rest), which would PASS a bare
-  // `Number.isInteger && > 0` guard and accept a malformed/partially-written
-  // `Tgid:` line as valid. A real kernel `/proc/<pid>/status` `Tgid:` value is
-  // always pure digits, so anything else is a malformed read → fail closed.
-  // (We test `raw`, never echo it — Guardrail #4.)
-  if (!/^\d+$/.test(raw)) {
-    throw new TgidParseError(reportedPid, 'Tgid')
-  }
-  const tgid = Number.parseInt(raw, 10)
-  if (!Number.isInteger(tgid) || tgid <= 0) {
-    // Defensive: a digit-only string above Number.MAX_SAFE_INTEGER would lose
-    // precision; reject anything that is not a clean positive integer.
-    throw new TgidParseError(reportedPid, 'Tgid')
-  }
-  return tgid
 }
 
 /** Bound the ancestry walk so a degenerate/looping `/proc` chain can never spin.
@@ -181,7 +93,7 @@ export function isAncestorOf(
 }
 
 /** Parse the `PPid:` value out of a `/proc/<pid>/status` blob. Returns the parent pid,
- *  or `undefined` if the field is absent/malformed (same digits-only discipline as Tgid).
+ *  or `undefined` if the field is absent/malformed (digits-only).
  *  NEVER echoes the blob. */
 function parsePpid(statusBlob: string): number | undefined {
   const raw = parseStatusField(statusBlob, 'PPid')
@@ -190,66 +102,15 @@ function parsePpid(statusBlob: string): number | undefined {
   return Number.isInteger(ppid) && ppid >= 0 ? ppid : undefined
 }
 
-/** The correlation result: the stable session `id` (identity) + whether the session's
- *  process belongs to (descends from) the launched terminal's PTY. We key the result on
- *  `id`, NEVER on a pid. */
-export interface CorrelationResult {
-  /** The stable session identity (UUID) — the key, never the pid. */
-  readonly id: string
-  /** True iff the session's process (its Tgid) is a descendant of the launched
-   *  terminal's PTY leader (subtree-ancestry match — Story 5.5). */
-  readonly matched: boolean
-}
-
-/**
- * THE JOIN (Story 5.5): correlate a c9watch session to an app-launched terminal by
- * SUBTREE ANCESTRY, keyed on the stable `id`.
- *
- * Resolves the session's stable process id (`resolveTgid(session.pid)` — the reported
- * pid is a wandering thread id), then asks whether that process is a DESCENDANT of the
- * launched terminal's PTY leader (`ptyLeaderPid` = node-pty's pane-leader pid). The
- * terminal "owns" every process in its PTY subtree, so the session it spawned matches —
- * regardless of how deep claude nests its tracked session (`claude → npm exec claude →
- * MainThread`) or what that process is named.
- *
- * This REPLACES the pre-5.5 `sessionTgid === appClaudeTgid` equality (which assumed the
- * tracked session IS the immediate `claude` child — false for claude 2.1.186). It still
- * NEVER does `spawnedPid === session.pid` (the OQ-6 wandering-pid trap).
- *
- * FAIL CLOSED: if the session's reported pid is gone/denied/malformed, `resolveTgid`
- * throws → caught → `{ id, matched: false }`. The ancestry walk is itself fail-closed
- * (a gone pid in the chain → not-a-match). No crash, no wrong match; the id (an opaque
- * UUID) is always preserved so the caller keeps the card pid-pending.
- *
- * [Source: Story 5.5; src/shared/schemas/session.ts:62,65 (id=identity, pid=non-identity);
- *  UX-DR19 (reconcile when the join lands); live tree session→…→PTY-leader ancestry.]
- */
-export function correlate(
-  ptyLeaderPid: number,
-  session: Pick<Session, 'id' | 'pid'>,
-  readStatus: ReadStatus
-): CorrelationResult {
-  let sessionTgid: number
-  try {
-    sessionTgid = resolveTgid(session.pid, readStatus)
-  } catch {
-    // Process-gone race, denied read, or malformed status → fail closed.
-    // We do NOT log the raw blob; the id is an opaque UUID, safe to keep.
-    return { id: session.id, matched: false }
-  }
-  return { id: session.id, matched: isAncestorOf(ptyLeaderPid, sessionTgid, readStatus) }
-}
-
 // ── REAL `/proc` READER SEAM (Linux-only; the integration test injects it) ────
 //
-// The production `ReadStatus` impl. Main injects it (`registerLaunchIpc.ts`,
-// `claudeSessionFile.ts`), and the ONE `/proc` integration test drives it against the
-// real kernel. Linux-only (`/proc` is Linux); callers gate on
+// The production `ReadStatus` impl. `claudeSessionFile.ts` takes it, and the ONE `/proc`
+// integration test drives it against the real kernel. Linux-only (`/proc` is Linux); callers gate on
 // `process.platform === 'linux'`. node:fs is a core module, statically imported at
 // the top — safe in the main process and the node test env.
 
 /** Real `/proc/<pid>/status` reader (the production `ReadStatus` seam). Throws if
- *  the pid is gone/denied — exactly the fail-closed signal `correlate` expects. */
+ *  the pid is gone/denied — the fail-closed signal `isAncestorOf` expects. */
 export const readStatusFromProc: ReadStatus = (pid: number): string => {
   return readFileSync(`/proc/${pid}/status`, 'utf8')
 }

@@ -15,13 +15,8 @@
 // IDENTITY = the stable `id` (UUID), NEVER pid (CLAUDE.md identity rule). Both
 // `session.updated` and `session.removed` carry `event.id`; the launched-set keys by `id`.
 //
-// TIMING (F3, the load-bearing reconciliation): a just-launched session enters the launched-set
-// only when its `Tgid` correlation join LANDS (a few c9watch scans post-launch). Until then this
-// gate returns `false` for it — it is simply not-yet-on-the-board, which is INVISIBLE because
-// Story 3.2 dropped the operator INTO the live Focused terminal (the optimism is the focused-view
-// + typeable terminal, NOT an optimistic board card). The gate is on the SHIP only — the
-// correlation (`launchService.correlateAgainst`) keeps running per delta UNCONDITIONALLY at the
-// call site, so the join still lands and the NEXT delta for that id ships as a card.
+// TIMING: a launched session enters the launched-set at mint (`launchService.mintSpawn`),
+// before its synthesized card's first delta ships, so this gate passes on that first delta.
 // [Source: story 3.3 Task 1; AC-2; F1/F3; src/main/pty/launchedSet.ts (has); src/main/index.ts
 //  onDelta ship chokepoint; .claude/rules/state.md (renderer = projection)]
 import type { AttentionEvent } from '../../shared/ipc/contract'

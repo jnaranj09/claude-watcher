@@ -196,7 +196,7 @@ function App(): React.JSX.Element {
   const keptAliveTerminalIds = useBoard(useShallow(selectKeptAliveTerminalIds))
 
   // Story 3.4 (FR-16 / Task 4.1) — subscribe to the launch CORRELATION push: main emits
-  // { terminalId, sessionId } once a launch's Tgid join lands. Build the renderer's
+  // { terminalId, sessionId } after a mint and after a `/clear` rebind. Build the renderer's
   // `terminalIdBySessionId` view-state so the attention rail can switch the visible terminal by
   // session id. Mount ONCE (the singleton store survives view switches); skip in smoke mode.
   useEffect(() => {

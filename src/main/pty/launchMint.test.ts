@@ -43,16 +43,11 @@ function fakeLiveTerminals(): {
  *  correlation seams are inert; the mint path only touches launch/mintSpawn/sessionIdFor). */
 function realLaunchService(newSessionId: () => string): LaunchService {
   return createLaunchService({
-    terminalManager: { pidOf: () => null },
     launchedSet: createLaunchedSet(),
     isDirectory: () => true,
     spawn: (sessionId) => ({ file: '/bin/bash', args: ['-l', '-c', `claude '${sessionId}'`] }),
-    readStatus: () => {
-      throw new Error('ENOENT') // never consulted on the mint path
-    },
     newTerminalId: () => 't-1',
-    newSessionId,
-    platform: 'linux'
+    newSessionId
   })
 }
 
@@ -184,19 +179,14 @@ describe('name-sync — the launch name reaches the spawn factory', () => {
   it('mintSpawn hands the operator-typed name to spawn(), beside the minted session id', () => {
     const seen: Array<{ sessionId: string; displayName: string }> = []
     const svc = createLaunchService({
-      terminalManager: { pidOf: () => null },
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn: (sessionId, displayName) => {
         seen.push({ sessionId, displayName })
         return { file: '/bin/bash', args: ['-l', '-c', 'claude'] }
       },
-      readStatus: () => {
-        throw new Error('ENOENT')
-      },
       newTerminalId: () => 't-1',
-      newSessionId: () => 'sess-1',
-      platform: 'linux'
+      newSessionId: () => 'sess-1'
     })
 
     const { terminalId } = svc.launch({ cwd: CWD, name: 'billing api' })
@@ -209,19 +199,14 @@ describe('name-sync — the launch name reaches the spawn factory', () => {
     const names: string[] = []
     let n = 0
     const svc = createLaunchService({
-      terminalManager: { pidOf: () => null },
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
       spawn: (_sessionId, displayName) => {
         names.push(displayName)
         return { file: '/bin/bash', args: ['-l', '-c', 'claude'] }
       },
-      readStatus: () => {
-        throw new Error('ENOENT')
-      },
       newTerminalId: () => 't-1',
-      newSessionId: () => `sess-${++n}`,
-      platform: 'linux'
+      newSessionId: () => `sess-${++n}`
     })
 
     const { terminalId } = svc.launch({ cwd: CWD, name: 'billing api' })
