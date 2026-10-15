@@ -696,6 +696,7 @@ day (spec `2026-10-01-engineering-gaps-design.md`). What is left:
 | 47 `as` casts and 19 comment-only catches remain (budgeted; they only fall)                                                    | §5b-9, 17  |
 | Deleting or loosening a test to get green is still prose only (`.only` is caught)                                              | §5b-3      |
 | `src/main/index.ts` is still the largest main file (1,176 lines); go lower in a later pass                                     | §5b-12, 13 |
+| jscpd ignores test files: 0.88% with tests included (2026-10-14)                                                               | §5b-14     |
 
 ## 15. Keep this file current
 
