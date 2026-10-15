@@ -24,9 +24,15 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **macOS port (unsigned first)**: Add a `mac` job (`macos-latest`, dmg, x64 + arm64) to `.github/workflows/release.yml` beside `linux`. Mostly POSIX already (`$SHELL -l -c`, `kill(pid,0)`); the `/proc` correlation is already gated to Linux in `launchSession.ts`. Replace the scaffold `mac.extendInfo` camera/mic/Documents strings. Decide the tray/notification behaviour without KDE, and how to smoke without a display. Signing + notarization later (Apple account). Testing: a macOS VM at best. `pending_review` `medium_effort`
 - **Keep the board across an app restart**: The app can be closed with sessions open; when it reopens, each previous card is back in its workspace, in the column it was last in. Today a quit archives every bound session into Past sessions (reason `archive`, `archiveBoundSessions`), and the operator reopens them one by one with Resume (`claude --resume <id>`). Decide whether cards come back as live terminals (auto-resume on start) or as parked cards that resume on open; what column a card shows before its first hook arrives (a resumed claude has not told us its status yet); and how this fits the Past sessions records and the "every exit has a reason" rule. `pending_review` `high_effort`
 - **Windows port — native claude, unsigned first**: Run the native Windows `claude.exe` through ConPTY (not WSL). Needs a platform layer for the spawn (`$SHELL -l -c` has no Windows twin), the version probe, the process-alive checks (`kill(pid,0)`, `~/.claude/sessions/<pid>.json`), paths, and an `nsis` job in `release.yml`. SmartScreen warning until a code-signing cert. Testing: the operator's Windows machine. `pending_review` `large_effort`
+- **e2e in CI (`xvfb-run`)**: Run the claude-free e2e specs in CI under `xvfb-run`, with a stub `claude` on PATH for the specs that launch a session. Decide which specs need the stub and which stay local-only. `pending_review` `medium_effort`
+- **e2e: API create makes a card, view not taken**: An e2e spec that creates a session through the programmatic API, asserts the card appears, and asserts the operator's current view was not taken. `pending_review` `low_effort`
+- **e2e: `/clear` rebind with real claude (local only)**: An e2e spec that runs `/clear` in a real `claude` session and asserts the card rebinds (`session.rebound`). Local only: it needs a real claude and a login. `pending_review` `medium_effort`
+- **Decide: delete the `correlateAgainst` launch path**: The launch path and its ~12 tests are dead code per the test review (dead-tests.md). Decide whether to delete both. `pending_review` `low_effort`
 
 ---
 
 ## Bugs
+
+- **Keys typed before a terminal pairs its MessagePort are dropped**: `EmbeddedTerminal`'s `onData` returns while `portRef.current` is null, so an operator who types the instant a terminal mounts loses keys. `terminal.e2e.ts` retries typing to work around it. `pending_review` `low_effort`
 
 ---
