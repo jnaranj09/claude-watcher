@@ -86,6 +86,8 @@ describe('buildPtyEnv — a spawned claude must not inherit the launcher claude 
   })
 
   it('defaults to the real process environment when given no source', () => {
-    expect(typeof buildPtyEnv()).toBe('object')
+    // PATH is in every real environment and is not one of the stripped variables.
+    expect(process.env['PATH']).toBeTruthy()
+    expect(buildPtyEnv()['PATH']).toBe(process.env['PATH'])
   })
 })

@@ -229,7 +229,7 @@ describe('hookServer — EADDRINUSE tolerance (real createHookServer on a used p
     })
 
     // Wait for the 'error' event to fire.
-    await new Promise((r) => setTimeout(r, 100))
+    await vi.waitFor(() => expect(onError).toHaveBeenCalled())
 
     expect(log).toHaveBeenCalledTimes(1)
     const logged = log.mock.calls[0]?.[0]

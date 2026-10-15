@@ -249,6 +249,7 @@ describe('EmbeddedTerminal — terminal colours', () => {
       second.unmount()
     }
     act(() => settingsStore.getState().applyPatch({ terminalScheme: 'light' }))
+    expect(capturedTerminals).toHaveLength(2)
     for (const term of capturedTerminals) expect(term.options.theme).toEqual(xtermLightTheme)
   })
 })

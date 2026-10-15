@@ -74,6 +74,7 @@ afterEach(() => {
   document.documentElement.removeAttribute(GLASS_ON_ATTR)
   Reflect.deleteProperty(window, 'matchMedia')
   Reflect.deleteProperty(HTMLImageElement.prototype, 'decode')
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -317,6 +318,8 @@ describe('GlassLayer', () => {
 
   it('a rejected decode from a disposed renderer leaves the attribute alone', async () => {
     stubWallpaper()
+    // The render loop's frames are driven by hand below, so the tick count is exact.
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
     // One controllable promise per decode() call, in call order.
     const decodes: { resolve: () => void; reject: (e: Error) => void }[] = []
     Object.defineProperty(HTMLImageElement.prototype, 'decode', {
@@ -352,7 +355,7 @@ describe('GlassLayer', () => {
     decodes[1]?.resolve()
     await vi.waitFor(() => expect(document.documentElement.hasAttribute(GLASS_ON_ATTR)).toBe(true))
     decodes[0]?.reject(new Error('late'))
-    await new Promise((r) => setTimeout(r, 50)) // let the stale rejection and a few rAF ticks run
+    await vi.advanceTimersByTimeAsync(100) // the stale rejection settles, then ~6 frames run
     expect(document.documentElement.hasAttribute(GLASS_ON_ATTR)).toBe(true)
     expect(
       vi

@@ -264,7 +264,7 @@ describe('createPastSessionsStore — no conversation, no record (NEW-5)', () =>
       blobStore: fake.blobStore,
       hasTranscript: claude([])
     })
-    expect(store.get('s1')).not.toBeNull()
+    expect(store.get('s1')).toEqual({ ...ROW, transcriptPath: '/t/s1.jsonl' })
   })
 })
 

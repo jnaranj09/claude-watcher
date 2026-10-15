@@ -564,6 +564,7 @@ describe('reducer — determinism + map hygiene', () => {
     const a = r.upsertLaunched(launchedSession(id))
     const b = r.applyHookStatus(id, { kind: 'status', status: 'Working' })
     const c = r.applyHookStatus(id, { kind: 'removed' })
+    expect([a.length, b.length, c.length]).toEqual([1, 1, 1])
     for (const d of [...a, ...b, ...c]) {
       expect(d.epoch).toBe(r.epoch())
     }

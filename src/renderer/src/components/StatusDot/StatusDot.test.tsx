@@ -73,7 +73,7 @@ describe('StatusDot — 3 live states, never color-only (AC-3, AC-8)', () => {
     const { container, unmount } = renderComponent(<StatusDot status="idle" />)
     cleanup = unmount
     const dot = container.querySelector('[data-testid="status-dot"]')
-    expect(dot?.getAttribute('aria-hidden')).not.toBeNull()
+    expect(dot?.getAttribute('aria-hidden')).toBe('true')
   })
 
   it('has NO `done` state — the type union is the 3-state model', () => {

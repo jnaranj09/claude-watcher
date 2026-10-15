@@ -210,24 +210,28 @@ describe('TerminalContextMenu — dismiss', () => {
   })
 
   it('removes all dismiss listeners on unmount (no dangling listeners)', () => {
-    const addSpy = vi.spyOn(document, 'addEventListener')
-    const removeSpy = vi.spyOn(document, 'removeEventListener')
+    const docAdd = vi.spyOn(document, 'addEventListener')
+    const docRemove = vi.spyOn(document, 'removeEventListener')
+    const winAdd = vi.spyOn(window, 'addEventListener')
+    const winRemove = vi.spyOn(window, 'removeEventListener')
     const { result } = renderMenu()
 
-    const addedTypes = addSpy.mock.calls.map(([type]) => type).filter(Boolean)
+    // The listeners the menu itself installs (React and the test harness add others).
+    const docAdded = docAdd.mock.calls.filter(([type]) => ['mousedown', 'keydown'].includes(type))
+    const winAdded = winAdd.mock.calls.filter(([type]) => ['scroll', 'blur'].includes(type))
+    expect(docAdded.map(([type]) => type).sort()).toEqual(['keydown', 'mousedown'])
+    expect(winAdded.map(([type]) => type).sort()).toEqual(['blur', 'scroll'])
 
     act(() => result.unmount())
     cleanup = undefined
 
-    const removedTypes = removeSpy.mock.calls.map(([type]) => type).filter(Boolean)
-
-    // Every type that was added should also appear in removals.
-    for (const t of addedTypes) {
-      expect(removedTypes).toContain(t)
+    // Every listener added is removed again: same type, same handler.
+    for (const [type, handler] of docAdded) {
+      expect(docRemove.mock.calls.some(([t, h]) => t === type && h === handler)).toBe(true)
     }
-
-    addSpy.mockRestore()
-    removeSpy.mockRestore()
+    for (const [type, handler] of winAdded) {
+      expect(winRemove.mock.calls.some(([t, h]) => t === type && h === handler)).toBe(true)
+    }
   })
 })
 

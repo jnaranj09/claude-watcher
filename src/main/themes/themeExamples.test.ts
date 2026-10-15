@@ -716,9 +716,11 @@ describe('docs/themes/examples', () => {
     for (const s of selectors) expect(s).toContain("[data-collapsed='false']")
   })
   it('paper: the rail rows keep the app status edge (no second edge drawn over it)', () => {
-    for (const r of themeRules('paper'))
-      if (r.selectors.some((s) => s.includes('data-rail-row')))
-        expect(r.body).not.toMatch(/inset 3px 0 0/)
+    const railRowRules = themeRules('paper').filter((r) =>
+      r.selectors.some((s) => s.includes('data-rail-row'))
+    )
+    expect(railRowRules.length).toBeGreaterThan(0)
+    for (const r of railRowRules) expect(r.body).not.toMatch(/inset 3px 0 0/)
   })
   it('paper: menus are radius 12 with sunk active rows and no border', () => {
     const box = bodyOf('paper', '[data-popover]')

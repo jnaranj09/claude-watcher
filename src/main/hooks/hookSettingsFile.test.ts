@@ -149,7 +149,10 @@ describe('ensureHookSettingsFile', () => {
   })
 
   describe('fail-soft (never-crash)', () => {
-    it('returns null instead of throwing when the dir cannot be written', () => {
+    // Root ignores the mode bits, so the write succeeds there and the contract cannot be observed.
+    const IS_ROOT = process.getuid?.() === 0
+
+    it.skipIf(IS_ROOT)('returns null instead of throwing when the dir cannot be written', () => {
       const parent = freshDir()
       const dir = join(parent, 'readonly')
       mkdirSync(dir)
@@ -160,16 +163,11 @@ describe('ensureHookSettingsFile', () => {
         result = ensureHookSettingsFile({ dir, log: vi.fn<(msg: string) => void>() })
       }).not.toThrow()
 
-      // Root ignores the mode bits, so only assert the contract when the write really failed.
-      if (result !== null) {
-        expect(existsSync(result)).toBe(true)
-      } else {
-        expect(result).toBeNull()
-      }
+      expect(result).toBeNull()
       chmodSync(dir, 0o700)
     })
 
-    it('logs a CODE only — never the path (it leaks the filesystem layout)', () => {
+    it.skipIf(IS_ROOT)('logs a CODE only — never the path (it leaks the filesystem layout)', () => {
       const parent = freshDir()
       const dir = join(parent, 'readonly2')
       mkdirSync(dir)
@@ -178,13 +176,12 @@ describe('ensureHookSettingsFile', () => {
 
       const result = ensureHookSettingsFile({ dir, log })
 
-      if (result === null) {
-        expect(log).toHaveBeenCalledTimes(1)
-        const msg = log.mock.calls[0]?.[0] ?? ''
-        expect(msg).toContain('code=')
-        expect(msg).not.toContain(dir)
-        expect(msg).not.toContain(parent)
-      }
+      expect(result).toBeNull()
+      expect(log).toHaveBeenCalledTimes(1)
+      const msg = log.mock.calls[0]?.[0] ?? ''
+      expect(msg).toContain('code=')
+      expect(msg).not.toContain(dir)
+      expect(msg).not.toContain(parent)
       chmodSync(dir, 0o700)
     })
 

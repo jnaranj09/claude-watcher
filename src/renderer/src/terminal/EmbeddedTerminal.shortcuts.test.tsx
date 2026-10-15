@@ -285,6 +285,8 @@ describe('EmbeddedTerminal shortcut expander', () => {
     act(() => void capturedKeyHandlers[0]!(ctrlAlt('x')))
     typeInBox('ap 1')
     pressInBox('Enter')
+    expect(postSpy).toHaveBeenCalledWith({ type: 'input', data: 'I explicitly approve 1' })
+    expect(postSpy).toHaveBeenCalledTimes(1)
     for (const [msg] of postSpy.mock.calls) {
       expect((msg as { data: string }).data).not.toContain('\r')
       expect((msg as { data: string }).data).not.toContain('\n')

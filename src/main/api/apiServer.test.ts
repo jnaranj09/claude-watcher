@@ -443,8 +443,9 @@ describe('createApiServer', () => {
     process.on('uncaughtException', uncaught)
     try {
       const { ctx } = makeFakeContext()
-      // Short enough that several pings fall inside the wait below: an un-disarmed interval
+      // Short enough that several pings fall inside the advance below: an un-disarmed interval
       // writing to a finished response is exactly the failure being contained.
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
       const s = await startTestServer([lateError], ctx, { log, pingMs: 5 })
       server = s.server
       const r = await call(s.url, 'GET', '/v1/late-error')
@@ -458,11 +459,14 @@ describe('createApiServer', () => {
       )
       // The sink was ENDED, so its ping interval is disarmed and the stream slot is freed.
       expect(s.server.streams()).toBe(0)
-      await new Promise((resolve) => setTimeout(resolve, 60))
+      // Only the ping interval is faked: a leaked one is still counted here and fires below.
+      expect(vi.getTimerCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(60)
       expect(uncaught).not.toHaveBeenCalled()
       // Nothing was written after the end, so the response's own error guard never fired either.
       expect(String(log.mock.calls)).not.toContain('response_error')
     } finally {
+      vi.useRealTimers()
       process.off('uncaughtException', uncaught)
     }
   })
@@ -473,7 +477,8 @@ describe('createApiServer', () => {
     process.on('uncaughtException', uncaught)
     try {
       const { ctx } = makeFakeContext()
-      // Short pings so several would fire inside the wait below if the sink were left open.
+      // Short pings so several would fire inside the advance below if the sink were left open.
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
       const s = await startTestServer([lateThrow], ctx, { log, pingMs: 5 })
       server = s.server
       const r = await call(s.url, 'GET', '/v1/late-throw')
@@ -488,10 +493,13 @@ describe('createApiServer', () => {
       )
       expect(String(log.mock.calls)).not.toContain('SECRET VALUE')
       expect(s.server.streams()).toBe(0)
-      await new Promise((resolve) => setTimeout(resolve, 60))
+      // Only the ping interval is faked: a leaked one is still counted here and fires below.
+      expect(vi.getTimerCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(60)
       expect(uncaught).not.toHaveBeenCalled()
       expect(String(log.mock.calls)).not.toContain('response_error')
     } finally {
+      vi.useRealTimers()
       process.off('uncaughtException', uncaught)
     }
   })

@@ -64,20 +64,22 @@ describe('createTranscriptLookup', () => {
 })
 
 describe('the real filesystem', () => {
-  it('fileStateOnDisk: file / missing (ENOENT, ENOTDIR, a folder) / unknown (EACCES)', () => {
+  it('fileStateOnDisk: file / missing (ENOENT, ENOTDIR, a folder)', () => {
     const root = mkdtempSync(join(tmpdir(), 'cw-state-'))
     writeFileSync(join(root, 'f'), 'x')
-    mkdirSync(join(root, 'locked'))
-    writeFileSync(join(root, 'locked', 'g'), 'x')
     expect(fileStateOnDisk(join(root, 'f'))).toBe('file')
     expect(fileStateOnDisk(join(root, 'nope'))).toBe('missing')
     expect(fileStateOnDisk(join(root, 'f', 'under-a-file'))).toBe('missing')
     expect(fileStateOnDisk(root)).toBe('missing')
+  })
+  // root ignores permissions, so EACCES cannot be provoked there; the skip is reported, not silent.
+  it.skipIf(process.getuid?.() === 0)('fileStateOnDisk: unknown (EACCES)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cw-state-'))
+    mkdirSync(join(root, 'locked'))
+    writeFileSync(join(root, 'locked', 'g'), 'x')
     chmodSync(join(root, 'locked'), 0o000)
     try {
-      // root ignores permissions — only assert where they apply
-      if (process.getuid?.() !== 0)
-        expect(fileStateOnDisk(join(root, 'locked', 'g'))).toBe('unknown')
+      expect(fileStateOnDisk(join(root, 'locked', 'g'))).toBe('unknown')
     } finally {
       chmodSync(join(root, 'locked'), 0o700)
     }

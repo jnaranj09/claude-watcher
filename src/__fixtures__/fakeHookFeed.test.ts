@@ -133,10 +133,15 @@ describe('fail-closed hook-feed replay against the real HookEventSchema boundary
     // prompt / tool_input / message / reason ride `.passthrough()` — they must
     // survive the parse (fail-OPEN on additions) but are NEVER declared or logged.
     const events = ingestBodies(fakeHookBodies, () => {})
+    const sent = (i: number): Record<string, unknown> =>
+      JSON.parse(fakeHookBodies[i] as string) as Record<string, unknown>
+    // events[] skips the one malformed body (index 2), so [0] and [1] are fixture bodies 0 and 1.
     const prompt = (events[0] as Record<string, unknown>)['prompt']
-    expect(typeof prompt).toBe('string')
+    expect(prompt).toBe(sent(0)['prompt'])
+    expect(prompt).not.toBe('')
     const toolInput = (events[1] as Record<string, unknown>)['tool_input']
-    expect(typeof toolInput).toBe('object')
+    expect(toolInput).toEqual(sent(1)['tool_input'])
+    expect(toolInput).not.toEqual({})
   })
 
   it('a schema-invalid body (blank session_id) also fails closed by path+code, never the value', () => {
