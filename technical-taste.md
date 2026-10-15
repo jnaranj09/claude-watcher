@@ -289,8 +289,9 @@ yet. Prefer turning prose-only rules into sensors.
    the test's removal as a decision in the commit. Agents are known to "fix" a red test by
    disabling it. A conditional runtime skip is allowed only for a platform the test cannot run
    on (`describe.skip` off Linux); a busy port or a missing resource fails the run. _Consensus_
-   (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per project) and Playwright
-   (`forbidOnly: true`). Deleting or loosening a test is still prose only.
+   (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per project, pinned by
+   `tests/main/vitestConfig.guard.test.ts`) and Playwright (`forbidOnly: true`). Deleting or
+   loosening a test is still prose only.
 4. **Review in a fresh context, aimed at correctness and the spec.** Don't chase every finding
    into extra layers: a reviewer told to find gaps always finds some. Code review mostly transfers
    understanding and catches fewer bugs than people think, so it does not replace tests. _Evidence_

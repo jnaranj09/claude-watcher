@@ -10,7 +10,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 // @ts-expect-error — plain .mjs tool, no type declarations
 import { findName, needlesFor } from '../tools/findName.mjs'
 
@@ -39,6 +39,7 @@ function put(root: string, rel: string, body: string): void {
   writeFileSync(path.join(root, rel), body)
 }
 
+let treeBase = ''
 let root = ''
 let other = ''
 const files = (name: string): string[] =>
@@ -47,9 +48,9 @@ const files = (name: string): string[] =>
   )
 
 beforeAll(() => {
-  const base = mkdtempSync(path.join(tmpdir(), 'find-name-'))
-  root = path.join(base, 'main')
-  other = path.join(base, 'branch')
+  treeBase = mkdtempSync(path.join(tmpdir(), 'find-name-'))
+  root = path.join(treeBase, 'main')
+  other = path.join(treeBase, 'branch')
   mkdirSync(root)
   initRepo(root)
   // `.superpowers/` is NOT ignored here: in a real clone only a local `.git/info/exclude` may
@@ -86,6 +87,10 @@ beforeAll(() => {
   )
   put(root, 'src/jsx.tsx', "const p = (\n  <p>\n    the Past{' '}\n    sessions list\n  </p>\n)\n")
   put(root, 'src/glassy.ts', '// the glass shader, bound to Ctrl+\n')
+})
+
+afterAll(() => {
+  if (treeBase !== '') rmSync(treeBase, { recursive: true, force: true })
 })
 
 describe('findName', () => {
@@ -179,6 +184,10 @@ describe('findName warnings and worktree labels (CLI)', () => {
       put(path.join(base, dir), 'docs/superpowers/r.md', 'shared needle record\n')
     }
     rmSync(path.join(base, 'gone'), { recursive: true, force: true })
+  })
+
+  afterAll(() => {
+    if (base !== '') rmSync(base, { recursive: true, force: true })
   })
 
   const cli = (): ReturnType<typeof spawnSync> =>

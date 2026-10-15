@@ -212,13 +212,20 @@ describe('TerminalContextMenu — dismiss', () => {
     act(() => result.unmount())
     cleanup = undefined
 
-    // Every listener added is removed again: same type, same handler.
-    for (const [type, handler] of docAdded) {
-      expect(docRemove.mock.calls.some(([t, h]) => t === type && h === handler)).toBe(true)
-    }
-    for (const [type, handler] of winAdded) {
-      expect(winRemove.mock.calls.some(([t, h]) => t === type && h === handler)).toBe(true)
-    }
+    // Scroll is caught in the capture phase, so a scroll inside any element dismisses too.
+    expect(winAdded.find(([type]) => type === 'scroll')?.[2]).toBe(true)
+
+    // Every listener added is removed again: same type, same handler, same capture flag. A
+    // removal with another capture flag removes nothing, and the listener dangles.
+    const capture = (options: boolean | EventListenerOptions | undefined): boolean =>
+      typeof options === 'boolean' ? options : (options?.capture ?? false)
+    const removed = (
+      calls: Parameters<typeof document.removeEventListener>[],
+      [type, handler, options]: Parameters<typeof document.addEventListener>
+    ): boolean =>
+      calls.some(([t, h, o]) => t === type && h === handler && capture(o) === capture(options))
+    for (const added of docAdded) expect(removed(docRemove.mock.calls, added)).toBe(true)
+    for (const added of winAdded) expect(removed(winRemove.mock.calls, added)).toBe(true)
   })
 })
 

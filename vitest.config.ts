@@ -10,7 +10,8 @@
 // `isolate` stays on: off, 9 renderer tests fail on state shared between files.
 // `restoreMocks`: every vi.spyOn is restored after each test, so a spy cannot leak.
 // `allowOnly: false` in EACH project (same reason): a `.only` fails the run, locally too
-// (technical-taste §5b-3).
+// (technical-taste §5b-3). `tests/main/vitestConfig.guard.test.ts` fails when a project drops
+// `pool`, `restoreMocks` or `allowOnly`.
 import { defineConfig } from 'vitest/config'
 
 const NODE_SHARED = [
