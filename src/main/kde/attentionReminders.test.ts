@@ -7,18 +7,12 @@ import type { ReducerWatchEventsPayload } from '../../shared/ipc/contract'
 import type { Session } from '../../shared/schemas/session'
 import { launchedSession } from '../../__fixtures__/fakeSessions'
 import { createFakeTimers } from '../../__fixtures__/fakeTimers'
+import { reducerUpdated } from '../../__fixtures__/watchEvents'
 
 const START = 1_750_000_000_000
 const MIN = 60_000
 const ID = 'cccc4444-0000-4000-8000-000000000001'
 const OTHER = 'cccc4444-0000-4000-8000-000000000002'
-
-function updated(id: string, status: string): ReducerWatchEventsPayload {
-  return {
-    epoch: 0,
-    event: { type: 'session.updated', id, sessionName: 'proj', projectPath: '/p/proj', status }
-  }
-}
 
 function removed(id: string): ReducerWatchEventsPayload {
   return {
@@ -67,7 +61,7 @@ function setup(initial: ReminderSettings = { reminderCount: 3, reminderFirstDela
     logs,
     set: (id, status) => {
       statusById.set(id, status)
-      reminders.onDelta(updated(id, status))
+      reminders.onDelta(reducerUpdated(id, { status }))
     },
     remove: (id) => {
       statusById.delete(id)
@@ -269,7 +263,7 @@ describe('attention reminders — never crash, never log a value', () => {
       remind: () => {},
       log: (message) => logs.push(message)
     })
-    expect(() => reminders.onDelta(updated(ID, 'NeedsPermission'))).not.toThrow()
+    expect(() => reminders.onDelta(reducerUpdated(ID, { status: 'NeedsPermission' }))).not.toThrow()
     expect(logs).toEqual([`[claude-watcher][reminders] id=${ID} code=reminder_failed`])
   })
 })

@@ -14,7 +14,7 @@ import { useAttentionSound } from './useAttentionSound'
 import type { AttentionSound } from './attentionSound'
 import { renderComponent } from '../test/renderComponent'
 import type { WatchEventsPayload, AttentionReminderPayload } from '../../../shared/ipc/contract'
-import { watchUpdated } from '../../../__fixtures__/watchEvents'
+import { watchRemoved, watchUpdated } from '../../../__fixtures__/watchEvents'
 
 /** The shape the hook needs off window.watch (mirrors the preload WatchApi). */
 interface WatchBridge {
@@ -95,13 +95,6 @@ function raised(epoch: number, id: string): WatchEventsPayload {
   }
 }
 
-function removed(epoch: number, id: string): WatchEventsPayload {
-  return {
-    epoch,
-    event: { type: 'session.removed', id, sessionName: `s-${id}`, projectPath: `/p/${id}` }
-  }
-}
-
 describe('useAttentionSound — plays 1:1 off attention.raised when enabled (AC-1/2/3)', () => {
   it('an attention.raised with sound ENABLED plays exactly once', () => {
     const watch = stubWatch()
@@ -144,7 +137,7 @@ describe('useAttentionSound — plays 1:1 off attention.raised when enabled (AC-
     cleanup = unmount
 
     watch.push(watchUpdated(1, 'a', 'working', 1))
-    watch.push(removed(2, 'a'))
+    watch.push(watchRemoved(2, 'a'))
     expect(play).not.toHaveBeenCalled()
   })
 

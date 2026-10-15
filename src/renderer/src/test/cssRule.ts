@@ -54,20 +54,3 @@ export function ruleBody(css: string, selector: string): string {
   }
   return bodies.join('\n')
 }
-
-/** A shorthand value split on its top-level spaces, never inside `calc(…)` or `var(…)`:
- *  `calc(a + b) 4px` → [`calc(a + b)`, `4px`]. */
-export function shorthandParts(value: string): string[] {
-  const out: string[] = []
-  let depth = 0
-  let cur = ''
-  for (const ch of value) {
-    if (ch === '(') depth++
-    if (ch === ')') depth--
-    const split = ch === ' ' && depth === 0
-    if (split && cur !== '') out.push(cur)
-    cur = split ? '' : cur + ch
-  }
-  if (cur !== '') out.push(cur)
-  return out
-}

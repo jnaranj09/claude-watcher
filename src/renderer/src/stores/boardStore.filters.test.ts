@@ -503,24 +503,12 @@ describe('search — the filter bar narrows the board by card NAME', () => {
     id: string,
     sessionName: string,
     over: { tagIds?: string[]; column?: Column; projectPath?: string } = {}
-  ): WatchEventsPayload => {
-    const column = over.column ?? 'working'
-    return {
-      epoch: 0,
-      event: {
-        type: 'session.updated',
-        id,
-        sessionName,
-        projectPath: over.projectPath ?? '/p',
-        status: column === 'needs-you' ? 'NeedsAttention' : 'Working',
-        column,
-        enteredColumnAt: 1,
-        pid: 1,
-        workspaceId: 'default',
-        tagIds: over.tagIds ?? []
-      }
-    }
-  }
+  ): WatchEventsPayload =>
+    watchUpdated(0, id, over.column ?? 'working', 1, {
+      sessionName,
+      projectPath: over.projectPath ?? '/p',
+      tagIds: over.tagIds ?? []
+    })
 
   function seeded(): ReturnType<typeof createBoardStore> {
     const store = createBoardStore({ now: () => 1 })

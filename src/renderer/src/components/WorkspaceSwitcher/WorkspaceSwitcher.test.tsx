@@ -13,7 +13,24 @@ import { MOTION_EXIT_MS } from '../../styles/motion'
 import { pointerInput } from '../../test/pointerInput'
 import type { Column } from '../../../../shared/ipc/contract'
 import { TOKENS } from '../../../../shared/theme/tokens'
-import { cssRule, cssRules, readCss, shorthandParts } from '../../test/cssRule'
+import { cssRule, cssRules, readCss } from '../../test/cssRule'
+
+/** A shorthand value split on its top-level spaces, never inside `calc(…)` or `var(…)`:
+ *  `calc(a + b) 4px` → [`calc(a + b)`, `4px`]. */
+function shorthandParts(value: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let cur = ''
+  for (const ch of value) {
+    if (ch === '(') depth++
+    if (ch === ')') depth--
+    const split = ch === ' ' && depth === 0
+    if (split && cur !== '') out.push(cur)
+    cur = split ? '' : cur + ch
+  }
+  if (cur !== '') out.push(cur)
+  return out
+}
 
 const rows = [
   { id: 'default', name: 'Default', color: 'slate' as const, defaultCwd: null },

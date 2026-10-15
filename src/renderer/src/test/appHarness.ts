@@ -15,11 +15,11 @@
 // harness: App skips `window.quit` and `window.themes` when they are absent (App.tsx), and these
 // suites are what reach that path. An override is merged over the bridge's defaults member by
 // member, so `quit: {}` installs the default quit bridge.
-import { act, createElement } from 'react'
+import { createElement } from 'react'
 import { vi } from 'vitest'
 import App from '../App'
 import { boardStore } from '../stores/boardStore'
-import { renderTracked, type RenderResult } from './renderComponent'
+import { flush, renderTracked, type RenderResult } from './renderComponent'
 import { stubXtermBrowserApis } from './terminalHarness'
 
 type Bridge = Record<string, unknown>
@@ -160,8 +160,6 @@ export function stubAppBridges(overrides: AppBridgeOverrides = {}): void {
  *  here). Unmount in afterEach with `unmountRendered()` (renderComponent.ts). */
 export async function renderApp(): Promise<RenderResult> {
   const r = renderTracked(createElement(App))
-  await act(async () => {
-    for (let i = 0; i < 3; i++) await Promise.resolve()
-  })
+  await flush(3)
   return r
 }
