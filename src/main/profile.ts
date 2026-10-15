@@ -7,14 +7,16 @@
 //
 // The profile is decided ONCE, at import, from the environment. `ELECTRON_RENDERER_URL` is the
 // signal: electron-vite sets it only for `electron-vite dev` (it is the HMR server's URL), so a
-// packaged app, `npm run smoke` and the e2e runs of the BUILT app (`out/main/index.js`) stay on
-// the default profile and keep the ports their harnesses POST to. The drive runs set
-// `CLAUDE_WATCHER_PROFILE=drive` and get DRIVE_PROFILE (below).
+// packaged app and `npm run smoke` stay on the default profile and keep the ports their harnesses
+// POST to. The drive runs set `CLAUDE_WATCHER_PROFILE=drive` and get DRIVE_PROFILE (below); the e2e
+// runs of the BUILT app (`out/main/index.js`) set `CLAUDE_WATCHER_PROFILE=e2e` and get E2E_PROFILE.
 //
 // This module is pure (no electron import) so `hookContract.ts` — imported by main-unit tests —
 // can read its port from here without loading electron.
 
-export type ProfileName = 'default' | 'dev' | 'drive'
+import { isAbsolute } from 'node:path'
+
+export type ProfileName = 'default' | 'dev' | 'drive' | 'e2e'
 
 export interface Profile {
   readonly name: ProfileName
@@ -59,10 +61,31 @@ export const DRIVE_PROFILE: Profile = {
   titleSuffix: ' (drive)'
 }
 
+// The e2e runs of the BUILT app (`tests/e2e`) get their own profile: before it they ran on the
+// default profile, so with the installed app running they skipped (port 9279 taken) and read and
+// wrote the operator's own userData. 3xxxx mirrors, same reason as the dev and drive ports. Its
+// userData is a fresh temp folder per launch (`e2eDataDir`), never a shared one.
+export const E2E_PROFILE: Profile = {
+  name: 'e2e',
+  userDataDirName: 'claude-watcher-e2e',
+  hookPort: 39279,
+  apiPort: 39281,
+  titleSuffix: ' (e2e)'
+}
+
+export const E2E_DATA_DIR_ENV = 'CLAUDE_WATCHER_E2E_DATA_DIR'
+
+/** The absolute data dir an e2e app must use, or null when missing or relative. */
+export function e2eDataDir(env: NodeJS.ProcessEnv): string | null {
+  const dir = env[E2E_DATA_DIR_ENV]
+  return dir !== undefined && isAbsolute(dir) ? dir : null
+}
+
 export function resolveProfile(env: NodeJS.ProcessEnv): Profile {
-  // Exact match only: this var can select `drive` and nothing else, so it can never move a
+  // Exact match only: this var selects `drive` or `e2e` and nothing else, so it can never move a
   // packaged app onto another profile's ports by accident.
   if (env['CLAUDE_WATCHER_PROFILE'] === 'drive') return DRIVE_PROFILE
+  if (env['CLAUDE_WATCHER_PROFILE'] === 'e2e') return E2E_PROFILE
   const rendererUrl = env['ELECTRON_RENDERER_URL']
   return rendererUrl !== undefined && rendererUrl !== '' ? DEV_PROFILE : DEFAULT_PROFILE
 }

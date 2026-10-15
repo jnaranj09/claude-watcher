@@ -24,16 +24,23 @@
 // operator who has genuinely turned transcripts off. If they have, the feature degrades
 // quietly to the age backstop rather than fighting their setting.
 
+import { E2E_DATA_DIR_ENV } from '../profile'
+
 /** The prefix owned by Claude Code's own session state. Nothing under it should cross
  *  from the launching session into a session this app spawns. */
 const CLAUDE_SESSION_PREFIX = 'CLAUDE_CODE_'
 
-/** The packaged-smoke harness variables, which must never reach a real terminal. */
-const SMOKE_VARS: ReadonlySet<string> = new Set(['C9_SMOKE', 'C9_SMOKE_OUT', 'C9_TEST_PICK_DIR'])
+/** The packaged-smoke and e2e harness variables, which must never reach a real terminal. */
+const SMOKE_VARS: ReadonlySet<string> = new Set([
+  'C9_SMOKE',
+  'C9_SMOKE_OUT',
+  'C9_TEST_PICK_DIR',
+  E2E_DATA_DIR_ENV
+])
 
 /**
  * Build the environment handed to a spawned pty: the app's own environment minus the
- * launcher's Claude Code session state and the smoke-harness variables.
+ * launcher's Claude Code session state and the smoke and e2e harness variables.
  *
  * `source` is injectable so this is testable without mutating the real process env.
  */

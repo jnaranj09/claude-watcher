@@ -32,15 +32,15 @@ Planning records hold home paths, work email and internal names:
 Single test — Vitest projects `unit` (jsdom) and `main-unit` (node):
 `npx vitest run <file>` · `npx vitest run --project main-unit -t "desync"`.
 
-**Three profiles, three port sets — never ask the operator to close anything:**
+**Four profiles, four port sets — never ask the operator to close anything** (window titles end
+`(dev)` / `(drive)` / `(e2e)`; `src/main/profile.ts`):
 
-| Profile                                                | hook  | API   | userData                         |
-| ------------------------------------------------------ | ----- | ----- | -------------------------------- |
-| default (packaged, smoke, e2e)                         | 9279  | 9281  | `~/.config/claude-watcher`       |
-| dev (`npm run dev`, signal `ELECTRON_RENDERER_URL`)    | 19279 | 19281 | `~/.config/claude-watcher-dev`   |
-| drive (`CLAUDE_WATCHER_PROFILE=drive`, `tests/drive/`) | 29279 | 29281 | `~/.config/claude-watcher-drive` |
-
-Dev window title ends `(dev)`. `src/main/profile.ts`.
+| Profile                                                | hook  | API   | userData                                            |
+| ------------------------------------------------------ | ----- | ----- | --------------------------------------------------- |
+| default (packaged, smoke)                              | 9279  | 9281  | `~/.config/claude-watcher`                          |
+| dev (`npm run dev`, signal `ELECTRON_RENDERER_URL`)    | 19279 | 19281 | `~/.config/claude-watcher-dev`                      |
+| drive (`CLAUDE_WATCHER_PROFILE=drive`, `tests/drive/`) | 29279 | 29281 | `~/.config/claude-watcher-drive`                    |
+| e2e (`CLAUDE_WATCHER_PROFILE=e2e`, `tests/e2e/`)       | 39279 | 39281 | temp dir per launch (`CLAUDE_WATCHER_E2E_DATA_DIR`) |
 
 **Visual changes:** tests cannot see CSS. `npm run build`, then drive the built app
 (`tests/drive/driveApp.mjs`) — recipe in `.claude/rules/run-app.md`.

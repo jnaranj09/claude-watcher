@@ -75,6 +75,11 @@ describe('buildPtyEnv — a spawned claude must not inherit the launcher claude 
     expect(env).toEqual({ PATH: '/usr/bin' })
   })
 
+  it('strips the e2e data-dir variable', () => {
+    const env = buildPtyEnv({ CLAUDE_WATCHER_E2E_DATA_DIR: '/tmp/cw-e2e-x', PATH: '/usr/bin' })
+    expect(env).toEqual({ PATH: '/usr/bin' })
+  })
+
   it('drops undefined values rather than passing them through', () => {
     const env = buildPtyEnv({ PATH: '/usr/bin', NOPE: undefined })
     expect('NOPE' in env).toBe(false)

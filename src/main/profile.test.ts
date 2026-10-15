@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE, resolveProfile } from './profile'
+import {
+  DEFAULT_PROFILE,
+  DEV_PROFILE,
+  DRIVE_PROFILE,
+  E2E_PROFILE,
+  e2eDataDir,
+  resolveProfile
+} from './profile'
 
 describe('resolveProfile', () => {
   it('is dev only while electron-vite dev serves the renderer', () => {
@@ -25,10 +32,35 @@ describe('resolveProfile', () => {
   })
 
   it('no two profiles share a data dir or a port, and none takes 9280', () => {
-    const all = [DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE]
+    const all = [DEFAULT_PROFILE, DEV_PROFILE, DRIVE_PROFILE, E2E_PROFILE]
     expect(new Set(all.map((p) => p.userDataDirName)).size).toBe(all.length)
     const ports = all.flatMap((p) => [p.hookPort, p.apiPort])
     expect(new Set(ports).size).toBe(ports.length)
     expect(ports).not.toContain(9280)
+  })
+})
+
+describe('e2e profile', () => {
+  it('is selected only by the exact CLAUDE_WATCHER_PROFILE=e2e', () => {
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: 'e2e' })).toBe(E2E_PROFILE)
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: 'E2E' })).toBe(DEFAULT_PROFILE)
+    expect(resolveProfile({ CLAUDE_WATCHER_PROFILE: 'e2e ' })).toBe(DEFAULT_PROFILE)
+  })
+
+  it('owns its own ports and folder', () => {
+    expect(E2E_PROFILE).toEqual({
+      name: 'e2e',
+      userDataDirName: 'claude-watcher-e2e',
+      hookPort: 39279,
+      apiPort: 39281,
+      titleSuffix: ' (e2e)'
+    })
+  })
+
+  it('e2eDataDir accepts only an absolute path', () => {
+    expect(e2eDataDir({ CLAUDE_WATCHER_E2E_DATA_DIR: '/tmp/cw-e2e-x' })).toBe('/tmp/cw-e2e-x')
+    expect(e2eDataDir({ CLAUDE_WATCHER_E2E_DATA_DIR: 'rel/dir' })).toBeNull()
+    expect(e2eDataDir({ CLAUDE_WATCHER_E2E_DATA_DIR: '' })).toBeNull()
+    expect(e2eDataDir({})).toBeNull()
   })
 })

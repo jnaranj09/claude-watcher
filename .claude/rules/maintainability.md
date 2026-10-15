@@ -218,11 +218,11 @@ Landed walks today:
   `apiServer.ts` listens on when no port is passed) is deleted and `apiServer.ts` uses
   `DEFAULT_API_PORT`. `DEFAULT_PROFILE.apiPort` in `src/main/profile.ts` becomes that constant
   too (each is a raw number today). The profiles in `profile.ts` (`DEFAULT_PROFILE`,
-  `DEV_PROFILE`, `DRIVE_PROFILE`) own the hook ports and the dev and drive API ports. A raw-port
+  `DEV_PROFILE`, `DRIVE_PROFILE`, `E2E_PROFILE`) own the hook ports and the dev, drive and e2e API ports. A raw-port
   walk (comments stripped) reads non-test files under `src/` and the harnesses that talk to a
   running app (`tests/e2e`, `tests/drive`, `tests/smoke`), and fails on any port a profile in
   `profile.ts` sets, outside `profile.ts` and `settings.ts`. Today the e2e holds its own raw `HOOK_PORT`.
-  Planned: it imports `DEFAULT_PROFILE.hookPort` from `profile.ts` instead (not `PROFILE`, which
+  Planned: it imports `E2E_PROFILE.hookPort` from `profile.ts` instead (not `PROFILE`, which
   resolves from the importing process's env), which is safe because `profile.ts` imports no electron
   (its header says so), and that stays true once it imports `settings.ts`. `driveApp.mjs`
   cannot import TypeScript, so it keeps its `HOOK_PORT` on the allow-list, and a test under `tests/main/` pins it to
