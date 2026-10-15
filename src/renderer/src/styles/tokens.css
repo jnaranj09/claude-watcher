@@ -2,8 +2,9 @@
  * Story 1.3 — the design-token CSS custom-property sheet (AC-1).
  *
  * Generated 1:1 from the DESIGN.md frontmatter token set (the SINGLE source of
- * truth). Values are mirrored in `tokens.ts` (the typed map) and `tokens.test.ts`
- * asserts this sheet equals that map — a typo on either side fails the harness.
+ * truth). Values are mirrored in `src/shared/theme/tokens.ts` (the typed map) and
+ * `tokens.test.ts` asserts this sheet equals that map — a typo on either side fails the
+ * harness.
  * Components reference `var(--token)`, NEVER a hardcoded hex.
  *
  * 3-state model: `--done` is generated (1:1 with frontmatter) but UNUSED by any

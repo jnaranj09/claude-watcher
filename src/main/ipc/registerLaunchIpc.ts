@@ -192,11 +192,10 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // FROZEN DECISION (F3 fork resolved with live evidence): we spawn `claude` via a LOGIN SHELL
   // that runs claude AS A CHILD — `$SHELL -l -c 'claude'` — NOT the direct spawn and NOT
   // `exec claude`. Rationale grounded in the Story-0.4 LIVE evidence (oq-6 finding §E3): the
-  // validated correlation walk (`resolveClaudeDescendant`, reused AS-IS) resolves claude as a
+  // then-validated correlation walk (an immediate-child walk, since deleted) resolved claude as a
   // CHILD of the node-pty shell leader (the proven live ancestry `claude(664817) → bash(189223)`).
   //   - A DIRECT spawn (`file: 'claude'`) would make claude the PTY LEADER (term.pid == claude), so
-  //     `resolveClaudeDescendant(term.pid)` finds NO claude CHILD → CLAUDE_NOT_RESOLVED forever
-  //     (the as-is descendant walk only inspects children). It would also break on a minimal
+  //     that walk found NO claude CHILD and never resolved (it only inspected children). It would also break on a minimal
   //     KDE-launched-app PATH where bare `claude` is not resolvable.
   //   - `exec claude` REPLACES the shell with claude (same defeat: claude becomes the leader).
   //   - The LOGIN SHELL (`-l`) resolves PATH/rc reliably (KDE app env can have a minimal PATH), and

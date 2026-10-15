@@ -2,19 +2,12 @@
 // (components/ExpanderBox) owns the input, the highlight and the port write; this module only
 // answers "given this input and these shortcuts, what text comes out (or which error)".
 // `expand` and its result/error types are SHARED with the programmatic API (main), so they live
-// in `src/shared/prompt/expand.ts`; this module re-exports them so the box's call sites and tests
-// keep one import. Its control-char policy is split there: any control char in an arg VALUE is
-// rejected (a value is untrusted and the box types the result into a pty), the RESULT is checked
-// for every control char but `\n` (the API's template prompt is multi-line prose).
+// in `src/shared/prompt/expand.ts`, which this module imports. Its control-char policy is split
+// there: any control char in an arg VALUE is rejected (a value is untrusted and the box types
+// the result into a pty), the RESULT is checked for every control char but `\n` (the API's
+// template prompt is multi-line prose).
 import { scanPlaceholders, type Shortcut } from '../../../shared/schemas/shortcut'
 import {
-  expand,
-  EXPANDED_TEXT_MAX_LENGTH,
-  type ExpandError,
-  type ExpandResult
-} from '../../../shared/prompt/expand'
-
-export {
   expand,
   EXPANDED_TEXT_MAX_LENGTH,
   type ExpandError,

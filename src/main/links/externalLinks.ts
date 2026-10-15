@@ -26,11 +26,6 @@ function parse(raw: string): URL | null {
   }
 }
 
-export function isExternalUrl(raw: string): boolean {
-  const url = parse(raw)
-  return url !== null && ALLOWED_PROTOCOLS.has(url.protocol)
-}
-
 export function createExternalLinks(opts: {
   openExternal: (url: string) => Promise<void>
   log?: (message: string) => void

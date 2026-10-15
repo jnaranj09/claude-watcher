@@ -18,7 +18,6 @@ import {
   selectSelectedId,
   selectViewMode,
   selectFocusedTerminalId,
-  selectIsAcknowledged,
   selectRailEmphasis,
   selectTerminalIdForSession,
   selectKeptAliveTerminalIds,
@@ -498,7 +497,7 @@ describe('boardStore — Story 3.2 view-state (Board ↔ Focused-session; F6)', 
     // It still SELECTS + acknowledges (the operator did click it), but entering Focused here
     // would put A's terminal on screen under B's name — the exact bug, one card later.
     expect(selectSelectedId(store.getState())).toBe('b')
-    expect(selectIsAcknowledged(store.getState(), 'b')).toBe(true)
+    expect(store.getState().acknowledgedById['b']).toBeDefined()
     expect(selectViewMode(store.getState())).toBe('board')
     expect(selectFocusedTerminalId(store.getState())).toBe('term-a')
   })
@@ -549,11 +548,11 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
     // Before acknowledge: emphasized (needs-you + not acknowledged).
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('needs-you')
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    expect(store.getState().acknowledgedById['a']).toBeUndefined()
 
     store.getState().acknowledge('a')
     // After acknowledge: calm (in-app emphasis cleared even though c9watch still says needs-you).
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
     // The ack stamp is the injected now() (determinism).
     expect(store.getState().acknowledgedById['a']).toBe(clock.now())
@@ -570,7 +569,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
   it('an absent session is calm (never crash on an unknown id)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     expect(selectRailEmphasis(store.getState(), 'ghost')).toBe('calm')
-    expect(selectIsAcknowledged(store.getState(), 'ghost')).toBe(false)
+    expect(store.getState().acknowledgedById['ghost']).toBeUndefined()
   })
 
   it('emphasis RETURNS on a needs-you RE-ENTRY (clearing on column-leave makes re-entry a new event)', () => {
@@ -581,7 +580,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
 
     // c9watch reports the session LEFT needs-you (handled) → ack entry cleared.
     store.getState().applyWatchEvent(updated(2, 'a', 'working', 200))
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    expect(store.getState().acknowledgedById['a']).toBeUndefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm') // not needs-you now
 
     // c9watch reports it RE-ENTERS needs-you → a NEW attention event → re-emphasized.
@@ -593,10 +592,10 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
     store.getState().acknowledge('a')
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(store.getState().acknowledgedById['a']).toBeDefined()
 
     store.getState().applyWatchEvent(removed(2, 'a'))
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    expect(store.getState().acknowledgedById['a']).toBeUndefined()
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
   })
 
@@ -608,7 +607,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     store
       .getState()
       .applyWatchEvent(updated(2, 'a', 'needs-you', 100, { status: 'NeedsPermission' }))
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
   })
 
@@ -623,7 +622,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(updated(1, 'a', 'needs-you', 100))
     store.getState().activateCard('a')
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(true)
+    expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
   })
 })
@@ -664,7 +663,7 @@ describe('boardStore — Story 3.4 terminalIdBySessionId + switchTerminal (AC-3,
     store.getState().addCorrelation('a', 'launch-1')
     store.getState().switchTerminal('launch-1')
     // The switch alone does not clear emphasis — the rail click calls acknowledge(sessionId) too.
-    expect(selectIsAcknowledged(store.getState(), 'a')).toBe(false)
+    expect(store.getState().acknowledgedById['a']).toBeUndefined()
     store.getState().acknowledge('a')
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
   })

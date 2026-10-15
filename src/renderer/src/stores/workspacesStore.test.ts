@@ -4,7 +4,6 @@ import {
   loadWorkspaces,
   removeWorkspace,
   saveWorkspace,
-  selectActiveWorkspace,
   setActiveWorkspace,
   workspacesStore
 } from './workspacesStore'
@@ -86,12 +85,5 @@ describe('workspacesStore', () => {
   it('setActive confirms the requested id when main agrees', async () => {
     await setActiveWorkspace('w1')
     expect(workspacesStore.getState().activeId).toBe('w1')
-  })
-
-  it('selectActiveWorkspace resolves the row, and falls back to null when it is gone', async () => {
-    await loadWorkspaces()
-    expect(selectActiveWorkspace(workspacesStore.getState())?.id).toBe(DEFAULT_WORKSPACE_ID)
-    workspacesStore.setState({ activeId: 'ghost' })
-    expect(selectActiveWorkspace(workspacesStore.getState())).toBeNull()
   })
 })

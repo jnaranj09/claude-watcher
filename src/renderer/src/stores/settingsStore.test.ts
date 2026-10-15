@@ -8,7 +8,6 @@ import {
   createSettingsStore,
   selectSoundEnabled,
   selectTerminalFontSize,
-  selectLoaded,
   selectReminderCount,
   selectReminderFirstDelayMinutes,
   selectExpanderKey,
@@ -24,16 +23,15 @@ import {
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
 describe('createSettingsStore — view-state projection (AC-3/5)', () => {
-  it('starts at DEFAULT_SETTINGS (sound ON) and not-yet-loaded', () => {
+  it('starts at DEFAULT_SETTINGS (sound ON)', () => {
     const store = createSettingsStore()
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(DEFAULT_SETTINGS.soundEnabled)
     expect(selectSoundEnabled(s)).toBe(true)
     expect(selectTerminalFontSize(s)).toBe(DEFAULT_SETTINGS.terminalFontSize)
-    expect(selectLoaded(s)).toBe(false)
   })
 
-  it('hydrate replaces the projection from a main-sourced Settings and marks loaded', () => {
+  it('hydrate replaces the projection from a main-sourced Settings', () => {
     const store = createSettingsStore()
     store.getState().hydrate({
       version: 1,
@@ -55,7 +53,6 @@ describe('createSettingsStore — view-state projection (AC-3/5)', () => {
     const s = store.getState()
     expect(selectSoundEnabled(s)).toBe(false)
     expect(selectTerminalFontSize(s)).toBe(22)
-    expect(selectLoaded(s)).toBe(true)
     expect(selectReminderCount(s)).toBe(5)
     expect(selectReminderFirstDelayMinutes(s)).toBe(10)
     expect(selectTerminalScheme(s)).toBe('light')

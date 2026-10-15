@@ -10,7 +10,7 @@
 // `Tgid` correlation join LANDS (the launch service binds the app-spawned claude `Tgid` to
 // the c9watch session `id`). NOT at spawn time — at spawn main holds the PTY (the shell
 // leader pid) but does NOT yet know the c9watch session `id` (the join is what binds them).
-// The t0 window (UX-DR19: claude not spawned/scanned yet → `CLAUDE_NOT_RESOLVED`) therefore
+// The t0 window (UX-DR19: claude not spawned/scanned yet → the join has not landed) therefore
 // produces NO membership — a launch whose join never resolves never enters the set (no false
 // membership). The optimistic App-launched CARD is a separate concern (the launch service's
 // pending tracker); the set records only CONFIRMED, joined launches.

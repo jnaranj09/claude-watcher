@@ -55,8 +55,6 @@ export interface SettingsState {
   /** Include global (spec 2026-10-03 H) — a workspace view of a config list also shows the global
    *  rows. One value for every list. */
   includeGlobal: boolean
-  /** Whether the initial load from main has completed (until then the defaults are shown). */
-  loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.1) — the last Settings MAIN returned (DEFAULT_SETTINGS
    *  before the first load). A refused write rolls the projection back to it. */
   authoritative: Settings
@@ -91,7 +89,6 @@ export function createSettingsStore(): SettingsStoreApi {
     terminalScheme: DEFAULT_SETTINGS.terminalScheme,
     terminalMenuTrigger: DEFAULT_SETTINGS.terminalMenuTrigger,
     includeGlobal: DEFAULT_SETTINGS.includeGlobal,
-    loaded: false,
     authoritative: DEFAULT_SETTINGS,
 
     hydrate: (settings) => {
@@ -110,7 +107,6 @@ export function createSettingsStore(): SettingsStoreApi {
         terminalScheme: settings.terminalScheme,
         terminalMenuTrigger: settings.terminalMenuTrigger,
         includeGlobal: settings.includeGlobal,
-        loaded: true,
         authoritative: settings
       })
     },
@@ -183,8 +179,6 @@ export const selectThemeId = (state: SettingsState): string => state.themeId
 /** Same object reference until a hydrate/patch replaces it — safe without `useShallow`. */
 export const selectWallpaperByTheme = (state: SettingsState): Readonly<Record<string, string>> =>
   state.wallpaperByTheme
-/** Whether the initial load has completed (primitive). */
-export const selectLoaded = (state: SettingsState): boolean => state.loaded
 
 // ---------------------------------------------------------------------------
 // The app singleton store + bound hook. Tests use `createSettingsStore()` directly.

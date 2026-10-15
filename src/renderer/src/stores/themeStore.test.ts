@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { DEFAULT_THEME_BUNDLE } from '../../../shared/schemas/theme'
-import { createThemeStore, selectAppliedThemeId, selectThemeTerminal } from './themeStore'
+import { createThemeStore, selectThemeTerminal } from './themeStore'
 
 describe('themeStore', () => {
   it('starts on the default bundle and replaces it wholesale', () => {
@@ -13,7 +13,7 @@ describe('themeStore', () => {
       colorScheme: 'light',
       terminal: { red: '#f00' }
     })
-    expect(selectAppliedThemeId(store.getState())).toBe('paper')
+    expect(store.getState().bundle.id).toBe('paper')
     expect(selectThemeTerminal(store.getState())).toEqual({ red: '#f00' })
   })
 })

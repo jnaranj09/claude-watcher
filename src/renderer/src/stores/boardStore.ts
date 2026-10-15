@@ -1087,11 +1087,6 @@ export const selectShellPane = (state: BoardState, parentTerminalId: string): Sh
 // ACTIVE row maps to the focused terminal's session (the one being viewed), not to selectedId.
 // ---------------------------------------------------------------------------
 
-/** True iff the session has been acknowledged (opened/switched-to while in needs-you). A primitive
- *  parameterized selector — safe without useShallow. */
-export const selectIsAcknowledged = (state: BoardState, id: string): boolean =>
-  state.acknowledgedById[id] !== undefined
-
 /** The rail/card emphasis for a session: `'needs-you'` iff it is in the needs-you column AND NOT
  *  acknowledged; otherwise `'calm'`. The ONE derivation BOTH the rail row and the board card read
  *  (no second ack flag). A primitive string — safe without useShallow (per-row subscription). */

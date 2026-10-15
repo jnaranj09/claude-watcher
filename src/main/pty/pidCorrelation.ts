@@ -29,25 +29,23 @@
 // claude → MainThread`, comm != `claude`). So the live correlation now matches a
 // session to a launched terminal iff the session's process (its Tgid) is a
 // DESCENDANT of the terminal's PTY leader pid — `isAncestorOf(leaderPid,
-// sessionTgid)`, walking `PPid` UP. Shape-agnostic + 1:1. The old
-// `resolveClaudeDescendant` (immediate-child walk) is RETAINED but unwired.
+// sessionTgid)`, walking `PPid` UP. Shape-agnostic + 1:1. The old immediate-child walk
+// and its `comm`/children readers are deleted (no production path reached them).
 //
 // ── DESIGN: DI SEAMS (architecture.md#Testing & Test Seams) ──────────────────
-// Every impure read (`/proc`, `pgrep`) is an INJECTED reader so the logic is
+// Every impure read (`/proc`) is an INJECTED reader so the logic is
 // unit-testable on synthetic fixtures with no live processes, and the ONE real
 // `/proc` read lives in a single integration test. Mirrors the project's
 // `ptyFactory.createPty(): IPtyLike` / `feed.ts(spawnFn)` seam pattern.
 //
 // ── FAIL-CLOSED + NEVER-LOG-PARSED-VALUE (Critical Guardrails #3, #4) ─────────
-// Every `/proc` miss (missing `Tgid:`, vanished pid, denied read, no claude
-// child yet) returns an "unresolved/unmatched" sentinel — NEVER a wrong silent
+// Every `/proc` miss (missing `Tgid:`, vanished pid, denied read) returns an "unresolved/unmatched" sentinel — NEVER a wrong silent
 // number, NEVER a crash. We NEVER echo the raw `/proc` blob (it can carry
 // cmdline/env/secrets); helpers surface only field path + a typed error.
 // [Source: epics.md#Story 0.4; #Verified Facts; architecture.md#Process Patterns;
 //  src/shared/schemas/session.ts:62,65; .claude/rules/zod-boundaries.md]
 
-import { readFileSync, readdirSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import type { Session } from '../../shared/schemas/session'
 
 // ── DI SEAM TYPES ────────────────────────────────────────────────────────────
@@ -56,24 +54,7 @@ import type { Session } from '../../shared/schemas/session'
  *  (the process-gone race) — callers treat a throw as "unresolved", fail closed. */
 export type ReadStatus = (pid: number) => string
 
-/** Read `comm` (the process name) for a pid — typically `/proc/<pid>/comm` or the
- *  `Name:` line of status. Throws if gone/denied. */
-export type ReadComm = (pid: number) => string
-
-/** List the child pids of a shell pid (the node-pty pane leader). The real impl
- *  reads `/proc/<shellPid>/task/<tid>/children` (preferred) or shells out to
- *  `pgrep -P <shellPid>`. Returns [] when there are no children (the OQ-6 timing
- *  gap: claude not spawned/scanned yet). MUST NOT throw for "no children". */
-export type ListChildren = (shellPid: number) => readonly number[]
-
-// ── SENTINEL / ERRORS ────────────────────────────────────────────────────────
-
-/** Returned by descendant resolution when no `claude` child is resolvable YET —
- *  the OQ-6 *timing* gap (UX-DR19: a freshly launched session may appear before
- *  its claude pid is joined). This is NOT an error: the caller shows the card
- *  pid-pending and reconciles when the join lands. Distinct from a wrong pid. */
-export const CLAUDE_NOT_RESOLVED = null
-export type ClaudeDescendant = number | typeof CLAUDE_NOT_RESOLVED
+// ── ERRORS ───────────────────────────────────────────────────────────────────
 
 /** Thrown when `/proc/<pid>/status` is present but malformed (no parseable
  *  `Tgid:` line). Carries the pid (a number, safe) + the field we failed to find
@@ -151,58 +132,6 @@ export function resolveTgid(reportedPid: number, readStatus: ReadStatus): number
     throw new TgidParseError(reportedPid, 'Tgid')
   }
   return tgid
-}
-
-/**
- * Resolve the `claude` DESCENDANT pid from a node-pty shell (pane leader) pid —
- * the AC-2 mechanism. node-pty hands you the shell leader, NOT claude; claude is
- * a child of that shell (`claude → bash → …` live ancestry).
- *
- * ⚠ SUPERSEDED (Story 5.5) — NO LONGER WIRED into the live correlation. It assumed
- * the tracked claude is an IMMEDIATE child named `claude` of the pane shell. claude
- * 2.1.186 launched via the app does NOT have that shape: the `bash -l -c claude`
- * login shell EXECS into the native `claude` ELF (so the PTY leader IS claude), and
- * the c9watch-TRACKED session runs as a DEEP descendant (`claude → npm exec claude →
- * MainThread`, comm != `claude`). So this immediate-child-named-`claude` walk returns
- * CLAUDE_NOT_RESOLVED forever for an app launch. The live correlation now matches by
- * SUBTREE ANCESTRY instead (see `isAncestorOf` / `correlate`). This function + its
- * readers are RETAINED as a tested utility + the oq-6 record. [Source: Story 5.5]
- *
- * Lists the shell's children via the injected `listChildren` seam (the real impl
- * reads `/proc/<shell>/task/*\/children`, falling back to `pgrep -P`), then
- * VALIDATES each child's `comm`/`Name` is exactly `claude` before returning it —
- * so we never match the pane shell (`bash`) itself (the classic OQ-6 trap).
- *
- * FAIL CLOSED / TIMING:
- *   - no children, or no child whose `comm == 'claude'` yet → CLAUDE_NOT_RESOLVED
- *     (the UX-DR19 pid-pending timing gap — NOT a wrong pid, NOT a crash).
- *   - a child whose `comm` read throws (vanished between list & read) is SKIPPED.
- *
- * [Live evidence: shell bash(189223) → /proc/189223/task/189223/children = 664817;
- *  comm(664817) == 'claude'. pgrep -P 189223 also yields 664817 (comm=claude).]
- */
-export function resolveClaudeDescendant(
-  shellPid: number,
-  listChildren: ListChildren,
-  readComm: ReadComm
-): ClaudeDescendant {
-  const children = listChildren(shellPid)
-  for (const child of children) {
-    let comm: string
-    try {
-      comm = readComm(child).trim()
-    } catch {
-      // Child vanished between the list and the comm read (race) — skip it, keep
-      // scanning the rest. Never echo anything about the child beyond skipping.
-      continue
-    }
-    if (comm === 'claude') {
-      return child
-    }
-  }
-  // Either no children yet (claude not spawned) or only the pane shell so far:
-  // the timing gap. Reconcile on a later scan — never return a wrong pid.
-  return CLAUDE_NOT_RESOLVED
 }
 
 /** Bound the ancestry walk so a degenerate/looping `/proc` chain can never spin.
@@ -311,87 +240,16 @@ export function correlate(
   return { id: session.id, matched: isAncestorOf(ptyLeaderPid, sessionTgid, readStatus) }
 }
 
-// ── REAL `/proc` READER SEAMS (Linux-only; the integration test injects these) ─
+// ── REAL `/proc` READER SEAM (Linux-only; the integration test injects it) ────
 //
-// These are the production reader impls Epic-3 adopts. They are exported so the
-// ONE `/proc` integration test can drive them against the real kernel, and so
-// Epic-3's manager can inject them. They are NOT invoked anywhere in this story's
-// runtime (no IPC/main wiring). Linux-only (`/proc` is Linux); callers gate on
-// `process.platform === 'linux'`. node:fs/child_process are core modules,
-// statically imported at the top — safe in the main process and the node test env.
+// The production `ReadStatus` impl. Main injects it (`registerLaunchIpc.ts`,
+// `claudeSessionFile.ts`), and the ONE `/proc` integration test drives it against the
+// real kernel. Linux-only (`/proc` is Linux); callers gate on
+// `process.platform === 'linux'`. node:fs is a core module, statically imported at
+// the top — safe in the main process and the node test env.
 
 /** Real `/proc/<pid>/status` reader (the production `ReadStatus` seam). Throws if
  *  the pid is gone/denied — exactly the fail-closed signal `correlate` expects. */
 export const readStatusFromProc: ReadStatus = (pid: number): string => {
   return readFileSync(`/proc/${pid}/status`, 'utf8')
-}
-
-/** Real `comm` reader (the production `ReadComm` seam): `/proc/<pid>/comm` is the
- *  process name (truncated to 15 chars by the kernel, but `claude` fits). */
-export const readCommFromProc: ReadComm = (pid: number): string => {
-  return readFileSync(`/proc/${pid}/comm`, 'utf8').trim()
-}
-
-/**
- * Real child-list reader (the production `ListChildren` seam): reads
- * `/proc/<shellPid>/task/<tid>/children` for every thread of the shell and
- * unions the pids. This is the PREFERRED path (no extra binary; needs
- * CONFIG_PROC_CHILDREN, present on Fedora). Returns [] (not throw) when the shell
- * has no children or the dirs are unreadable — the timing gap, fail closed.
- */
-export const listChildrenFromProc: ListChildren = (shellPid: number): readonly number[] => {
-  const pids = new Set<number>()
-  let tids: string[]
-  try {
-    tids = readdirSync(`/proc/${shellPid}/task`)
-  } catch {
-    return [] // shell gone or denied → no children resolvable (fail closed)
-  }
-  for (const tid of tids) {
-    let raw: string
-    try {
-      raw = readFileSync(`/proc/${shellPid}/task/${tid}/children`, 'utf8')
-    } catch {
-      continue // this thread's children file vanished/denied — skip
-    }
-    // The file is space-separated pids (possibly with a trailing space/newline).
-    for (const token of raw.split(/\s+/)) {
-      if (token.length === 0) continue
-      // Digits-only: reject a malformed token (e.g. `664817x`) instead of letting
-      // parseInt silently truncate it to a wrong pid — fail closed per token.
-      if (!/^\d+$/.test(token)) continue
-      const childPid = Number.parseInt(token, 10)
-      if (Number.isInteger(childPid) && childPid > 0) {
-        pids.add(childPid)
-      }
-    }
-  }
-  return [...pids]
-}
-
-/**
- * `pgrep -P <shellPid>` fallback child-list reader (the documented AC-2
- * fallback when `task/*\/children` is unavailable). Synchronous, returns [] on
- * any failure (no match → pgrep exits 1; we treat that as "no children").
- */
-export const listChildrenFromPgrep: ListChildren = (shellPid: number): readonly number[] => {
-  let out: string
-  try {
-    out = execFileSync('pgrep', ['-P', String(shellPid)], { encoding: 'utf8' })
-  } catch {
-    // pgrep exits non-zero when there are no children — fail closed to [].
-    return []
-  }
-  const pids = new Set<number>()
-  for (const token of out.split(/\s+/)) {
-    if (token.length === 0) continue
-    // Digits-only (same fail-closed discipline as listChildrenFromProc) + dedup
-    // via a Set so both readers return a consistent, garbage-free pid list.
-    if (!/^\d+$/.test(token)) continue
-    const childPid = Number.parseInt(token, 10)
-    if (Number.isInteger(childPid) && childPid > 0) {
-      pids.add(childPid)
-    }
-  }
-  return [...pids]
 }

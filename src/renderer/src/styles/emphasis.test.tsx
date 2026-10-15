@@ -1,12 +1,12 @@
 // Story 1.3 — emphasis primitives tests (AC-7, AC-8).
 //
 // Asserts: the LiveAnnouncer renders an `aria-live="polite"` region (and updates);
-// the gold token reference is exported; the pulse class hook is exported; and the
-// `prefers-reduced-motion: reduce` fallback rule EXISTS in the CSS module source.
+// the pulse class hook is exported; and the `prefers-reduced-motion: reduce` fallback
+// rule EXISTS in the CSS module source.
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { describe, it, expect, afterEach } from 'vitest'
-import { NEEDS_YOU_TOKEN, needsYouEmphasisClass, emphasisStyles } from './emphasis'
+import { needsYouEmphasisClass, emphasisStyles } from './emphasis'
 import { LiveAnnouncer } from './LiveAnnouncer'
 import { renderComponent } from '../test/renderComponent'
 
@@ -17,10 +17,6 @@ afterEach(() => {
 })
 
 describe('emphasis primitives — gold/pulse/reduced-motion/announcer (AC-7, AC-8)', () => {
-  it('exports the gold token reference (the one reserved alert hue)', () => {
-    expect(NEEDS_YOU_TOKEN).toBe('var(--needs-you)')
-  })
-
   it('exports a non-empty pulse class hook', () => {
     expect(typeof needsYouEmphasisClass).toBe('string')
     expect(needsYouEmphasisClass.length).toBeGreaterThan(0)

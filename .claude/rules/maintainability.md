@@ -118,10 +118,9 @@ the same paths. A bullet below that widens this says so.
 
 **Scope of raw-value walks.** Unless a bullet below widens it, a walk reads app source only:
 non-test files under `src/renderer/src`. It also skips the files `noHexLiterals.test.ts`
-allows: `styles/tokens.css`, `styles/tokens.ts` (a re-export), `styles/xtermTheme.ts` and
-`SmokeCockpit.tsx`. The bundled theme CSS (`docs/themes/examples/`) is outside that root. A walk
-that reads CSS only does not see a TSX inline style (`style={{ zIndex: 60 }}`); a raw copy of a
-token value there is a review item.
+allows: `styles/tokens.css`, `styles/xtermTheme.ts` and `SmokeCockpit.tsx`. The bundled theme
+CSS (`docs/themes/examples/`) is outside that root. A walk that reads CSS only does not see a TSX
+inline style (`style={{ zIndex: 60 }}`); a raw copy of a token value there is a review item.
 
 **Comments.** Every planned walk that matches code reads it with its comments removed. These planned
 guards read comments on purpose, through the parser's comment ranges: the scratch-citation guard

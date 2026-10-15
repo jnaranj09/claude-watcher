@@ -42,10 +42,6 @@ export const selectWorkspacesLoaded = (s: WorkspacesState): boolean => s.loaded
 /** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
 export const selectWorkspacesLoadFailed = (s: WorkspacesState): boolean =>
   !selectWorkspacesLoaded(s) && s.loadFailed
-/** null when the persisted activeId names a workspace the list no longer has — the callers
- *  render the plain label rather than crash (never-crash past the boundary). */
-export const selectActiveWorkspace = (s: WorkspacesState): Workspace | null =>
-  s.workspaces.find((w) => w.id === s.activeId) ?? null
 
 const LOG_PREFIX = '[claude-watcher][workspaces]'
 

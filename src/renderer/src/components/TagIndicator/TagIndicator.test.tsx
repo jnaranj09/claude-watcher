@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { TagIndicator } from './TagIndicator'
 import { TAG_GLYPH_PATH } from './tagGlyph'
-import { TOKENS } from '../../styles/tokens'
+import { TOKENS } from '../../../../shared/theme/tokens'
 import { TAG_COLORS, type TagColor } from '../../../../shared/schemas/tag'
 import { contrast, hexToRgb, over } from '../../test/contrast'
 

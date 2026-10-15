@@ -8,7 +8,7 @@ import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { TagChip, TagChipWrap } from './TagChip'
 import { TagChipRow } from './TagChipRow'
 import { fitCount } from './fitCount'
-import { TOKENS } from '../../styles/tokens'
+import { TOKENS } from '../../../../shared/theme/tokens'
 import { TAG_COLORS } from '../../../../shared/schemas/tag'
 import { contrast, hexToRgb } from '../../test/contrast'
 

@@ -21,10 +21,10 @@
 // pid as identity (oq-6 caveat #2). When the join firms up, the session `id` enters the
 // launched-set (Task 4) — NOT at spawn.
 //
-// FAIL-CLOSED / NEVER-CRASH — at t0 `resolveClaudeDescendant` returns `CLAUDE_NOT_RESOLVED`
-// (claude not spawned/scanned yet — NOT a wrong pid, NOT a crash); `resolveTgid`/`correlate`
-// fail closed (`matched:false`) on a gone/denied/malformed `/proc` read. A failed launch /
-// failed correlation degrades gracefully — one bad session never takes the board down. The
+// FAIL-CLOSED / NEVER-CRASH — at t0 the join simply does not land yet (claude not
+// spawned/scanned — NOT a wrong pid, NOT a crash); `resolveTgid`/`correlate` fail closed
+// (`matched:false`) on a gone/denied/malformed `/proc` read. A failed launch / failed
+// correlation degrades gracefully — one bad session never takes the board down. The
 // `/proc` path NEVER logs the value: pidCorrelation already surfaces only pid + field; the
 // call site logs a `code=` only.
 //
@@ -34,15 +34,14 @@
 // empty there — accepted: Story 3.3's filter is Linux-only too, by the same constraint).
 //
 // DI SEAMS (AR-11) — the spawn is the REUSED ptyFactory (no real node-pty on the unit path);
-// the `/proc` readers are the pidCorrelation.ts seams (`ReadStatus`/`ReadComm`/`ListChildren`)
+// the `/proc` readers are the pidCorrelation.ts `ReadStatus` seam
 // — inject a fake `/proc` reader; NO live `claude` in unit tests. Mirrors the Story-0.4 test
 // pattern + the createTerminalManager/createTrayController DI-seam shape (inject + code-only log).
 // [Source: story 3.2 Tasks 2/3/4; F3/F4/F5; AR-7; oq-6-pid-correlation-finding.md §"The
 //  correlation contract"; src/main/pty/pidCorrelation.ts; src/main/pty/terminalManager.ts]
 // Story 5.5 — the correlation is now SUBTREE ANCESTRY: `correlate` matches a session to a
 // launched terminal iff the session's process descends from the terminal's PTY leader pid
-// (`pidOf`). The pre-5.5 immediate-`claude`-child walk (resolveClaudeDescendant + the
-// comm/children readers) is no longer used here.
+// (`pidOf`). The pre-5.5 immediate-`claude`-child walk is deleted.
 // Story 6.2 — MINT THE SESSION ID AT LAUNCH (the native-session-engine keystone). claude
 // 2.1.199 accepts a caller-minted `--session-id <uuid>`: the transcript + every hook payload
 // carry that uuid as the session identity. So the launch service now OWNS the identity: at
@@ -67,7 +66,7 @@ import type { EffortLevel, PermissionMode } from '../../shared/schemas/template'
  *  manager spawns the PTY with the launch's spawnOverride). So the launch service does NOT call
  *  open() — it only reads the spawned shell leader pid for the correlation walk (pidOf). */
 export interface LaunchTerminalManager {
-  /** The PTY shell-leader pid for a live terminal (the input to resolveClaudeDescendant). Null
+  /** The PTY shell-leader pid for a live terminal (the ancestor `correlate` walks up to). Null
    *  until the terminal is open / once it is gone — the correlation retries on the next delta. */
   pidOf(terminalId: string): number | null
 }

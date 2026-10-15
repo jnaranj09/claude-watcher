@@ -13,6 +13,16 @@ describe('shared expand()', () => {
   })
   it('$* takes every value no number took', () => {
     expect(expand('$1: $*', ['a', 'b', 'c'])).toEqual({ ok: true, value: 'a: b c' })
+    expect(expand('$2 then $*', ['a', 'b', 'c'])).toEqual({ ok: true, value: 'b then a c' })
+  })
+  it('a number used twice takes the same value', () => {
+    expect(expand('$1 and $1', ['x'])).toEqual({ ok: true, value: 'x and x' })
+  })
+  it('$* with nothing left is empty', () => {
+    expect(expand('say $*', [])).toEqual({ ok: true, value: 'say ' })
+  })
+  it('extra values are dropped when there is no $*', () => {
+    expect(expand('ticket $1', ['1', '2'])).toEqual({ ok: true, value: 'ticket 1' })
   })
   it('rejects a control character in a value', () => {
     expect(expand('x $1', ['a\x1b[31m'])).toEqual({ ok: false, error: { code: 'control_char' } })

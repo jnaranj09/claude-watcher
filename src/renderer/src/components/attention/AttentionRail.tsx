@@ -15,7 +15,7 @@
 //     no residual transform; the static gold carries it — UX-DR27/29). The rail ADDS the 44→56px
 //     enlarge + 14%-gold fill as its OWN row styling, but keeps the enlarge in the reduced-motion
 //     path too (only the bounce drops — see AttentionRail.module.css).
-//   - the `--needs-you` gold token (NEEDS_YOU_TOKEN) for the fill; the row's BORDER colour comes
+//   - the `--needs-you` gold token for the fill; the row's BORDER colour comes
 //     from `data-status` instead, so the edge and the dot always agree.
 //   - the shipped `StatusDot` (never color-only — paired with a text label, UX-DR29).
 //   - a `LiveAnnouncer` (aria-live=polite) for a session NEWLY entering needs-you.

@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { TOKENS } from './tokens'
+import { TOKENS } from '../../../shared/theme/tokens'
 
 /** Parse `--name: value;` declarations out of the single `:root { ... }` block. */
 function parseRootCustomProps(css: string): Record<string, string> {

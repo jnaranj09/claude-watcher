@@ -5,14 +5,13 @@ import { favoritesFirst } from '../lib/favoritesFirst'
 import {
   parseInput,
   matchAliases,
-  expand,
   expandInput,
   expandErrorCopy,
   completeAlias,
   usageFor,
-  PLACEHOLDER_HELP,
-  EXPANDED_TEXT_MAX_LENGTH
+  PLACEHOLDER_HELP
 } from './expand'
+import { EXPANDED_TEXT_MAX_LENGTH } from '../../../shared/prompt/expand'
 
 function sc(alias: string, text: string, name = alias): Shortcut {
   return { id: `id-${alias}`, name, alias, text, workspaceId: null, favorite: false }
@@ -87,45 +86,6 @@ describe('matchAliases', () => {
   })
   it('returns nothing when nothing matches', () => {
     expect(matchAliases('zzz', list)).toEqual([])
-  })
-})
-
-describe('expand', () => {
-  it('fills $1..$n by position', () => {
-    expect(expand('deploy $1 to $2', ['api', 'staging'])).toEqual({
-      ok: true,
-      value: 'deploy api to staging'
-    })
-  })
-  it('a number used twice takes the same value', () => {
-    expect(expand('$1 and $1', ['x'])).toEqual({ ok: true, value: 'x and x' })
-  })
-  it('$* takes the values no number took, joined with one space', () => {
-    expect(expand('say $*', ['a', 'b', 'c'])).toEqual({ ok: true, value: 'say a b c' })
-    expect(expand('$2 then $*', ['a', 'b', 'c'])).toEqual({ ok: true, value: 'b then a c' })
-  })
-  it('$* with nothing left is empty', () => {
-    expect(expand('say $*', [])).toEqual({ ok: true, value: 'say ' })
-  })
-  it('$$ is a literal dollar, and $$1 is a dollar then a 1', () => {
-    expect(expand('cost $$ $$1', [])).toEqual({ ok: true, value: 'cost $ $1' })
-  })
-  it('extra values are dropped when there is no $*', () => {
-    expect(expand('ticket $1', ['1', '2'])).toEqual({ ok: true, value: 'ticket 1' })
-  })
-  it('a missing value fails closed and names the index', () => {
-    expect(expand('deploy $1 to $2', ['api'])).toEqual({
-      ok: false,
-      error: { code: 'missing_arg', index: 2 }
-    })
-  })
-  it('a result over the cap fails closed', () => {
-    const r = expand('$1', ['a'.repeat(EXPANDED_TEXT_MAX_LENGTH + 1)])
-    expect(r).toEqual({ ok: false, error: { code: 'too_long' } })
-  })
-  it('fails closed when a typed value carries a control character (e.g. a pasted ANSI escape)', () => {
-    const r = expand('say $1', ['\u001b[31mred'])
-    expect(r).toEqual({ ok: false, error: { code: 'control_char' } })
   })
 })
 

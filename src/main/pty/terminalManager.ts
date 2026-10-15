@@ -126,9 +126,9 @@ export interface TerminalManager {
   stop(terminalId: string, openToken?: string): void
   /** Whether a terminal id is currently live (for tests/diagnostics). */
   has(terminalId: string): boolean
-  /** The PTY shell/pane-leader pid for a live terminal, or null if unknown/destroyed. Story
-   *  3.2 reads this to walk DOWN to the launched `claude` descendant for the Tgid correlation
-   *  (`resolveClaudeDescendant(shellPid, …)`). It is the SHELL leader, NOT claude (claude is a
+  /** The PTY shell/pane-leader pid for a live terminal, or null if unknown/destroyed. The
+   *  launch correlation reads this as the ancestor of the launched `claude` session
+   *  (`isAncestorOf(leaderPid, …)`). It is the SHELL leader, NOT claude (claude is a
    *  descendant) and NEVER an identity key — a wandering thread id; terminals key by
    *  `terminalId` (F6). [Source: story 3.2 Task 2; oq-6 finding §E3 (shell→claude descendant)] */
   pidOf(terminalId: string): number | null

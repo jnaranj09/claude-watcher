@@ -23,18 +23,11 @@ import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import {
   resolveTgid,
-  resolveClaudeDescendant,
   isAncestorOf,
   correlate,
-  CLAUDE_NOT_RESOLVED,
   TgidParseError,
   readStatusFromProc,
-  readCommFromProc,
-  listChildrenFromProc,
-  listChildrenFromPgrep,
-  type ReadStatus,
-  type ReadComm,
-  type ListChildren
+  type ReadStatus
 } from './pidCorrelation'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,20 +81,6 @@ function readStatusFrom(table: Readonly<Record<number, string>>): ReadStatus {
     }
     return blob
   }
-}
-
-/** Build a `ReadComm` seam from a pid→comm table; missing pid THROWS (race). */
-function readCommFrom(table: Readonly<Record<number, string>>): ReadComm {
-  return (pid: number): string => {
-    const comm = table[pid]
-    if (comm === undefined) throw new Error('ENOENT')
-    return comm
-  }
-}
-
-/** Build a `ListChildren` seam from a shell→children table; missing shell → []. */
-function listChildrenFrom(table: Readonly<Record<number, readonly number[]>>): ListChildren {
-  return (shellPid: number): readonly number[] => table[shellPid] ?? []
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,43 +169,6 @@ describe('THE LOAD-BEARING TEST — two reported pids → ONE Tgid (AC-1 thesis)
     // Tgid-right, equality-wrong, for the SAME inputs:
     expect(rA.matched).toBe(true)
     expect(rB.matched).toBe(true)
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-describe('resolveClaudeDescendant — shell-layer resolution (AC-2)', () => {
-  it('returns the claude child of the pane shell, validated by comm == claude', () => {
-    // Real live shape: bash(189223) → child 664817, comm(664817) == 'claude'.
-    const list = listChildrenFrom({ 189223: [664817] })
-    const comm = readCommFrom({ 664817: 'claude' })
-    expect(resolveClaudeDescendant(189223, list, comm)).toBe(664817)
-  })
-
-  it('picks claude out of a sibling set, NEVER the pane shell itself (the OQ-6 trap)', () => {
-    // The shell has multiple children; only one is claude. Must not match a bash.
-    const list = listChildrenFrom({ 189223: [200001, 664817, 200002] })
-    const comm = readCommFrom({ 200001: 'bash', 664817: 'claude', 200002: 'node' })
-    expect(resolveClaudeDescendant(189223, list, comm)).toBe(664817)
-  })
-
-  it('returns CLAUDE_NOT_RESOLVED (timing gap, UX-DR19) when only the pane shell exists yet — NOT a wrong pid', () => {
-    // Freshly launched: shell spawned, claude not yet a child / not yet scanned.
-    const list = listChildrenFrom({ 189223: [200001] }) // only a bash so far
-    const comm = readCommFrom({ 200001: 'bash' })
-    expect(resolveClaudeDescendant(189223, list, comm)).toBe(CLAUDE_NOT_RESOLVED)
-  })
-
-  it('returns CLAUDE_NOT_RESOLVED when the shell has no children yet (fail closed)', () => {
-    const list = listChildrenFrom({}) // shell present but childless
-    const comm = readCommFrom({})
-    expect(resolveClaudeDescendant(189223, list, comm)).toBe(CLAUDE_NOT_RESOLVED)
-  })
-
-  it('skips a child that vanished between list and comm read (race), keeps scanning', () => {
-    // First child disappears (comm read throws); the second IS claude → resolved.
-    const list = listChildrenFrom({ 189223: [300001, 664817] })
-    const comm = readCommFrom({ 664817: 'claude' }) // 300001 missing → throws → skipped
-    expect(resolveClaudeDescendant(189223, list, comm)).toBe(664817)
   })
 })
 
@@ -368,138 +310,56 @@ describe('correlate — the join by SUBTREE ANCESTRY off the PTY leader, keyed o
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE ONE `/proc` INTEGRATION CHECK (AC-1, AC-4) — real kernel format, real tree.
+// THE ONE `/proc` INTEGRATION CHECK (AC-1, AC-4) — real kernel format.
 //
-// NOT live claude: a deterministic node sleeper (renamed via `process.title`)
-// proves the /proc plumbing against the real kernel. We model the SAME shape the
-// app faces — a SHELL (bash, the node-pty pane leader) with a node child (the
-// "claude" stand-in) — and resolve the child from the shell pid through BOTH real
-// seams (`/proc/<shell>/task/*\/children` and `pgrep -P`), then resolveTgid on it.
+// NOT live claude: a deterministic node sleeper proves the `/proc/<pid>/status`
+// plumbing (`readStatusFromProc` → `resolveTgid`) against the real kernel.
 //
-// REAPING (Guardrail #6 / the 0.1 lesson): the shell is spawned `detached` so it
+// REAPING (Guardrail #6 / the 0.1 lesson): the sleeper is spawned `detached` so it
 // leads its OWN process group; afterEach SIGKILLs the WHOLE group (negative pid),
-// so the bash AND its node grandchild die on every path — no orphans. Skipped on
-// non-Linux (/proc is Linux-only) so the suite stays green cross-platform.
+// so it dies on every path — no orphans. Skipped on non-Linux (/proc is
+// Linux-only) so the suite stays green cross-platform.
 // ─────────────────────────────────────────────────────────────────────────────
 const onLinux = process.platform === 'linux'
 const describeLinux = onLinux ? describe : describe.skip
 
-describeLinux(
-  'INTEGRATION — real /proc of a real shell→child tree (mechanism plumbing is real)',
-  () => {
-    // Every spawned process group, killed whole on every path (no orphans).
-    const groups: number[] = []
+describeLinux('INTEGRATION — real /proc of a real process (mechanism plumbing is real)', () => {
+  // Every spawned process group, killed whole on every path (no orphans).
+  const groups: number[] = []
 
-    function killGroup(pgid: number): void {
-      try {
-        // Negative pid = the whole process group (the detached bash + its children).
-        process.kill(-pgid, 'SIGKILL')
-      } catch {
-        // group already gone — fine
-      }
+  function killGroup(pgid: number): void {
+    try {
+      // Negative pid = the whole process group (the detached sleeper + any children).
+      process.kill(-pgid, 'SIGKILL')
+    } catch {
+      // group already gone — fine
     }
-
-    afterEach(() => {
-      for (const pgid of groups) killGroup(pgid)
-      groups.length = 0
-    })
-
-    /** Busy-wait (bounded, no fixed sleep) until `predicate()` is true or the
-     *  deadline passes. Deterministic: returns as soon as the condition holds. */
-    function pollUntil(predicate: () => boolean, budgetMs: number): boolean {
-      const deadline = Date.now() + budgetMs
-      while (Date.now() < deadline) {
-        if (predicate()) return true
-      }
-      return predicate()
-    }
-
-    /** Did `children` contain a pid whose REAL comm == wanted? Uses the production
-     *  comm reader (mirrors resolveClaudeDescendant's validation for an arbitrary
-     *  target name — the test uses a renamed node sleeper, not literal `claude`). */
-    function findByComm(children: readonly number[], wanted: string): number | undefined {
-      for (const child of children) {
-        let comm: string
-        try {
-          comm = readCommFromProc(child)
-        } catch {
-          continue
-        }
-        if (comm === wanted) return child
-      }
-      return undefined
-    }
-
-    it('reads real /proc/<pid>/status and resolveTgid returns a sane leader for a real process', () => {
-      // A deterministic single-threaded node sleeper; its own pid IS its Tgid (leader).
-      const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
-        stdio: 'ignore',
-        detached: true
-      })
-      const pid = child.pid
-      expect(pid).toBeTypeOf('number')
-      if (pid === undefined) return
-      groups.push(pid) // detached → pid is its own pgid
-
-      // resolveTgid against the REAL kernel /proc format, via the production seam.
-      const tgid = resolveTgid(pid, readStatusFromProc)
-      expect(tgid).toBe(pid) // freshly spawned leader: Tgid == Pid
-
-      // Sanity: the real status blob carries both Pid: and Tgid: lines (the format
-      // resolveTgid parses). Assert the format, never log the blob.
-      const realBlob = readFileSync(`/proc/${pid}/status`, 'utf8')
-      expect(realBlob).toMatch(/^Tgid:\s+\d+/m)
-      expect(realBlob).toMatch(/^Pid:\s+\d+/m)
-    })
-
-    it('resolves the node child of a real bash shell via BOTH /proc task/children AND pgrep -P, then Tgid-joins it', () => {
-      // Model the app's tree: bash (pane leader, like node-pty's shell) → node child
-      // renamed to a known comm token (the "claude" stand-in; comm <=15 chars).
-      const COMM = 'c9probe-kid' // 11 chars, fits the kernel's 15-char comm limit
-      const kidScript = `process.title=${JSON.stringify(COMM)}; setTimeout(()=>{}, 30000)`
-      // bash stays alive as the parent (background the node child + `wait`), so there
-      // IS a shell→child layer to walk. detached → its own group for whole-group reap.
-      const shell = spawn(
-        '/bin/bash',
-        ['-c', `${process.execPath} -e ${JSON.stringify(kidScript)} & wait`],
-        { stdio: 'ignore', detached: true }
-      )
-      const shellPid = shell.pid
-      expect(shellPid).toBeTypeOf('number')
-      if (shellPid === undefined) return
-      groups.push(shellPid)
-
-      // Poll (deterministic, bounded) until the PREFERRED /proc task/children path
-      // surfaces a child whose real comm == COMM — proves the kernel format parses.
-      let kidViaProc: number | undefined
-      const okProc = pollUntil(() => {
-        kidViaProc = findByComm(listChildrenFromProc(shellPid), COMM)
-        return kidViaProc !== undefined
-      }, 5000)
-      expect(okProc).toBe(true)
-      expect(kidViaProc).toBeTypeOf('number')
-
-      // The pgrep -P FALLBACK finds the SAME child by comm (the documented AC-2 fallback).
-      const kidViaPgrep = findByComm(listChildrenFromPgrep(shellPid), COMM)
-      expect(kidViaPgrep).toBe(kidViaProc)
-
-      // End-to-end: resolveClaudeDescendant (the production fn) finds the kid from the
-      // shell pid using the REAL seams — and resolveTgid on it returns a real leader.
-      if (kidViaProc === undefined) return
-      // The kid is single-threaded leader, so its comm token also identifies it; we
-      // reuse resolveClaudeDescendant with a comm seam that maps our token to itself
-      // ONLY for the real kid (validates the fn's shell→child contract on real data).
-      const descendant = resolveClaudeDescendant(shellPid, listChildrenFromProc, (p) =>
-        readCommFromProc(p)
-      )
-      // resolveClaudeDescendant looks for comm == 'claude'; our stand-in is COMM, so
-      // it returns CLAUDE_NOT_RESOLVED (correct — there is no literal `claude` here).
-      // That itself proves the comm VALIDATION gate (it won't match a non-claude kid).
-      expect(descendant).toBe(CLAUDE_NOT_RESOLVED)
-
-      // And the Tgid join on the real kid yields its real leader pid (Tgid == pid):
-      const kidTgid = resolveTgid(kidViaProc, readStatusFromProc)
-      expect(kidTgid).toBe(kidViaProc)
-    })
   }
-)
+
+  afterEach(() => {
+    for (const pgid of groups) killGroup(pgid)
+    groups.length = 0
+  })
+
+  it('reads real /proc/<pid>/status and resolveTgid returns a sane leader for a real process', () => {
+    // A deterministic single-threaded node sleeper; its own pid IS its Tgid (leader).
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
+      stdio: 'ignore',
+      detached: true
+    })
+    const pid = child.pid
+    expect(pid).toBeTypeOf('number')
+    if (pid === undefined) return
+    groups.push(pid) // detached → pid is its own pgid
+
+    // resolveTgid against the REAL kernel /proc format, via the production seam.
+    const tgid = resolveTgid(pid, readStatusFromProc)
+    expect(tgid).toBe(pid) // freshly spawned leader: Tgid == Pid
+
+    // Sanity: the real status blob carries both Pid: and Tgid: lines (the format
+    // resolveTgid parses). Assert the format, never log the blob.
+    const realBlob = readFileSync(`/proc/${pid}/status`, 'utf8')
+    expect(realBlob).toMatch(/^Tgid:\s+\d+/m)
+    expect(realBlob).toMatch(/^Pid:\s+\d+/m)
+  })
+})

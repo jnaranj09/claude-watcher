@@ -2,7 +2,7 @@
 // main-unit (node) project. Electron's `shell.openExternal` is injected, so nothing here
 // launches a browser.
 import { describe, it, expect, vi } from 'vitest'
-import { createExternalLinks, installLinkGuards, isExternalUrl } from './externalLinks'
+import { createExternalLinks, installLinkGuards } from './externalLinks'
 
 function setup(): {
   links: ReturnType<typeof createExternalLinks>
@@ -15,34 +15,39 @@ function setup(): {
   return { links, openExternal, logs }
 }
 
-describe('isExternalUrl', () => {
-  it('accepts http and https', () => {
-    expect(isExternalUrl('https://github.com/org/repo/pull/1')).toBe(true)
-    expect(isExternalUrl('http://localhost:3000/')).toBe(true)
+describe('createExternalLinks().open', () => {
+  it('hands an https URL to the OS opener', () => {
+    const { links, openExternal } = setup()
+    expect(links.open('https://example.com/a?b=1')).toBe(true)
+    expect(openExternal).toHaveBeenCalledWith('https://example.com/a?b=1')
   })
-  it('refuses every other scheme', () => {
+
+  it('hands an http URL to the OS opener', () => {
+    const { links, openExternal } = setup()
+    expect(links.open('http://localhost:3000/')).toBe(true)
+    expect(openExternal).toHaveBeenCalledWith('http://localhost:3000/')
+  })
+
+  it('refuses every scheme other than http and https', () => {
     for (const url of [
-      'file:///etc/passwd',
       'javascript:alert(1)',
       'data:text/html,hi',
       'mailto:a@b.c',
       'vscode://file/x',
       'smb://host/share'
     ]) {
-      expect(isExternalUrl(url)).toBe(false)
+      const { links, openExternal, logs } = setup()
+      expect(links.open(url)).toBe(false)
+      expect(openExternal).not.toHaveBeenCalled()
+      expect(logs).toEqual(['[claude-watcher][links] code=link_scheme_refused'])
     }
   })
-  it('refuses a string that is not a URL', () => {
-    expect(isExternalUrl('not a url')).toBe(false)
-    expect(isExternalUrl('')).toBe(false)
-  })
-})
 
-describe('createExternalLinks().open', () => {
-  it('hands an https URL to the OS opener', () => {
-    const { links, openExternal } = setup()
-    expect(links.open('https://example.com/a?b=1')).toBe(true)
-    expect(openExternal).toHaveBeenCalledWith('https://example.com/a?b=1')
+  it('refuses an empty string as malformed', () => {
+    const { links, openExternal, logs } = setup()
+    expect(links.open('')).toBe(false)
+    expect(openExternal).not.toHaveBeenCalled()
+    expect(logs).toEqual(['[claude-watcher][links] code=link_invalid'])
   })
 
   it('refuses a file: URL, never calls the opener, and logs a code only', () => {
