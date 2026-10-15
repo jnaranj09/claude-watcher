@@ -158,7 +158,8 @@ if (PROFILE.name === 'e2e') {
 } else if (PROFILE.name !== 'default') {
   app.setPath('userData', join(app.getPath('appData'), PROFILE.userDataDirName))
 }
-if (PROFILE.name !== 'default') {
+// A refused start reports only the refusal, never a profile it does not run on.
+if (PROFILE.name !== 'default' && !E2E_REFUSED) {
   console.log(`[claude-watcher][profile] name=${PROFILE.name} hookPort=${PROFILE.hookPort}`)
 }
 const PROFILE_SETTINGS_DEFAULTS = { ...DEFAULT_SETTINGS, apiPort: PROFILE.apiPort }

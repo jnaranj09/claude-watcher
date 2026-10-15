@@ -221,10 +221,10 @@ Landed walks today:
   `DEV_PROFILE`, `DRIVE_PROFILE`, `E2E_PROFILE`) own the hook ports and the dev, drive and e2e API ports. A raw-port
   walk (comments stripped) reads non-test files under `src/` and the harnesses that talk to a
   running app (`tests/e2e`, `tests/drive`, `tests/smoke`), and fails on any port a profile in
-  `profile.ts` sets, outside `profile.ts` and `settings.ts`. Today the e2e holds its own raw `HOOK_PORT`.
-  Planned: it imports `E2E_PROFILE.hookPort` from `profile.ts` instead (not `PROFILE`, which
-  resolves from the importing process's env), which is safe because `profile.ts` imports no electron
-  (its header says so), and that stays true once it imports `settings.ts`. `driveApp.mjs`
+  `profile.ts` sets, outside `profile.ts` and `settings.ts`. Landed: the e2e imports
+  `E2E_PROFILE` from `profile.ts` (not `PROFILE`, which resolves from the importing process's
+  env), which is safe because `profile.ts` imports no electron (its header says so), and that
+  stays true once it imports `settings.ts`. `driveApp.mjs`
   cannot import TypeScript, so it keeps its `HOOK_PORT` on the allow-list, and a test under `tests/main/` pins it to
   `DRIVE_PROFILE.hookPort`. A unit test that feeds a port as data is exempt.
 - **Modals.** Planned: `BoardState` holds one union, `modal: Modal | null`, and an exhaustive
@@ -303,8 +303,7 @@ Landed walks today:
   allow-list naming its emitter file, and the test checks that the file holds the token as a
   string literal (`'interrupt_key'` in `window/watchFeed.ts`). Unit tests are out of scope: they
   call the emitter and assert its output, so a lost emitter already turns them red.
-  `tests/tools/` emits its own codes. It lands with its migration step: today the e2e wait for
-  `interrupt_key_background_kept` has no emitter, so that step emits the code or deletes the wait.
+  `tests/tools/` emits its own codes. It lands with its migration step.
 - **(d) Wire shape.** Planned: every test stand-in for an IPC rejection is built by
   `wrappedIpcError(code)` _(to write)_ in `src/renderer/src/test/`, which produces Electron's
   real wire shape. No other test file contains `Error invoking remote method`; the guard imports

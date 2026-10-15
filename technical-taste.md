@@ -287,9 +287,10 @@ yet. Prefer turning prose-only rules into sensors.
    (Inozemtseva & Holmes 2014; Google mutation study 2021). Sensor: the `code-reviewer` Step 2.
 3. **Never delete, skip, `.only`, loosen or re-record a test to get green.** Fix the code, or report
    the test's removal as a decision in the commit. Agents are known to "fix" a red test by
-   disabling it. A conditional runtime skip with a stated reason (the e2e port guard) is not
-   tampering. _Consensus_ (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per
-   project) and Playwright (`forbidOnly: true`). Deleting or loosening a test is still prose only.
+   disabling it. A conditional runtime skip is allowed only for a platform the test cannot run
+   on (`describe.skip` off Linux); a busy port or a missing resource fails the run. _Consensus_
+   (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per project) and Playwright
+   (`forbidOnly: true`). Deleting or loosening a test is still prose only.
 4. **Review in a fresh context, aimed at correctness and the spec.** Don't chase every finding
    into extra layers: a reviewer told to find gaps always finds some. Code review mostly transfers
    understanding and catches fewer bugs than people think, so it does not replace tests. _Evidence_
@@ -559,8 +560,8 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
     results.
   - Merge to local `main` only if your run says so. **Never push, tag or publish.** Releases are a
     tag → CI → draft that the owner publishes by hand.
-- **Profiles:** dev and drive use their own ports and userData. Never ask the operator to close
-  the installed app.
+- **Profiles:** dev, drive and e2e use their own ports and userData. Never ask the operator to
+  close the installed app.
 - **Public repo:** no home paths, no work email, no employer or internal names anywhere, including
   commit messages and test fixtures. Use `acme/prod`-style examples.
 
@@ -650,6 +651,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Graphite default wallpaper                                                                          | Lake                                                                                                | Owner pick 2026-10-08                                                             |
 | Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                            | Owner 2026-10-13: quiet in every row                                              |
 | Workspace bubble text centred everywhere; Manage rail rows 36px, one line, hover on the label only  | Manage rail rows 44px, two lines where there is detail, left-aligned; hover is the whole row        | Owner 2026-10-14: names were cut, centring left odd space, the pin sat outside    |
+| e2e skips when its port is busy (not tampering)                                                     | e2e has its own profile and fails when its port is busy                                             | The skip hid a test that could not pass for two weeks (owner, 2026-10-14)         |
 
 ## 13. Rejected — don't propose these again
 

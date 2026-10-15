@@ -1,4 +1,4 @@
-# The gate (CLAUDE.md "Gate buckets"): typecheck, lint, test, build. Runs on every push and
+# The gate (CLAUDE.md "Gates"): typecheck, lint, test, build. Runs on every push and
 # PR to main, and is CALLED by release.yml so a release never skips it.
 name: CI
 

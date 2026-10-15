@@ -15,15 +15,15 @@
  *
  * SMOKE_WEBGL=optional (CI only) makes the WebGL check a warning — see smokeVerdict.mjs.
  *
- * NOTE: This is intentionally a tiny zero-dependency Node script, not a
- * Playwright-Electron harness. The full Vitest + Playwright-Electron test
- * architecture is Story 0.3 scope; this story's acceptance is the packaged
- * smoke itself, and it must not pull in unrequested test deps.
+ * NOTE: This is a zero-dependency Node script, not a Playwright-Electron harness:
+ * it runs the PACKAGED binary, whose fuses refuse `--inspect`, and Playwright's
+ * Electron launcher passes `--inspect=0`. The Playwright-Electron e2e
+ * (tests/e2e) runs the built, unpackaged app instead.
  *
- * Runner robustness (pulled forward from Story 0.3): under Electron 39 + Wayland
- * the helper processes (GPU/zygote/utility) do not tear down promptly, so a
- * blocking `spawnSync(..., { stdio: 'inherit' })` never returns even after the
- * verdict is written — the inherited descriptors keep the parent waiting on the
+ * Runner robustness: on Wayland the Electron helper processes (GPU/zygote/
+ * utility) did not tear down promptly (observed under Electron 39), so a
+ * blocking `spawnSync(..., { stdio: 'inherit' })` never returned even after the
+ * verdict was written — the inherited descriptors kept the parent waiting on the
  * lingering helper tree. We therefore (a) launch async with `spawn` + `detached`
  * so the app gets its own process group, (b) treat the VERDICT FILE as the
  * completion signal (poll, don't wait on the process), and (c) SIGKILL the whole

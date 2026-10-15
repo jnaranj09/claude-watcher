@@ -4,7 +4,7 @@
   "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,mjs}", "eslint-rules/**/*.js"],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": ["swagger-ui-dist"],
-  "ignoreBinaries": ["pgrep", "kwin_wayland"],
+  "ignoreBinaries": ["pgrep", "kwin_wayland", "ss"],
   "rules": {
     "types": "off"
   }

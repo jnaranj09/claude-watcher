@@ -6,8 +6,9 @@
 // the same whole-file stores: the last writer silently reverted the other's templates, tags,
 // rules and past sessions.
 //
-// Electron's lock lives in `userData`, so it is PER PROFILE: the dev and drive profiles move
-// userData first and never collide with the installed app. The smoke run is the exception — it
+// Electron's lock lives in `userData`, so it is PER PROFILE: the dev, drive and e2e profiles move
+// userData first and never collide with the installed app (tests/e2e/singleInstance.e2e.ts proves
+// the real lock). The smoke run is the exception — it
 // runs on the DEFAULT profile beside a running installed app, and must still run, so it never
 // takes the lock.
 

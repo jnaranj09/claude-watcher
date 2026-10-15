@@ -9,22 +9,28 @@
 //   1. `pageerror` collector: registers at launch; asserts ZERO errors matching the
 //      exact bug signatures (`port.start is not a function` / `port.postMessage is
 //      not a function`) fired during the test — directly pins this bug's regression.
-//   2. Screenshot artifact: captures the terminal `<canvas>` area into the test's output dir.
-//      The WebGL renderer paints to canvas so there is no readable `.xterm-rows`.
+//   2. Round trip: a typed `echo <token> > <pickDir>/probe` must produce that file. The WebGL
+//      renderer paints to canvas so there is no readable `.xterm-rows`; the file is what the
+//      shell did with the keys. A screenshot is kept in the test's output dir.
 //
 // Navigation: App.tsx reads `parseTerminalHostCount(window.location.hash)` ONCE at
 // render. We set the hash via `location.hash` then call `location.reload()` so the
 // TerminalHost mounts on the fresh render pass. Launch and teardown live in ./fixtures.ts.
 
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test, expect } from './fixtures'
 
 // Exact error message substrings that identify the transport regression.
 const PORT_BUG_SIGNATURES = ['port.start is not a function', 'port.postMessage is not a function']
 
+const PROBE_TOKEN = 'cw-e2e-probe'
+
 test.setTimeout(120000)
 
-test('embedded terminal MessagePort round-trip — no port.* errors + canvas paints', async ({
-  page
+test('embedded terminal MessagePort round-trip — a typed command reaches the shell + no port.* errors', async ({
+  page,
+  appEnv
 }, testInfo) => {
   const pageErrors: string[] = []
 
@@ -47,22 +53,30 @@ test('embedded terminal MessagePort round-trip — no port.* errors + canvas pai
   //    smokeConfig() first, then renders the #terminals host.
   await page.waitForSelector('[data-testid="embedded-terminal"]', { timeout: 20000 })
 
-  // Give the terminal time to fully mount, open the PTY, and pair its port.
-  await page.waitForTimeout(2000)
-
-  // 3. Focus the terminal and type a token + Enter.
+  // 3. THE ROUND TRIP: type a command that writes a file, and wait for the file. That proves
+  //    renderer → MessagePort → PTY → shell without reading the WebGL canvas. Keystrokes typed
+  //    before the terminal pairs its port are dropped (EmbeddedTerminal's onData has no port
+  //    yet), and the DOM shows no "paired" state, so the attempt repeats until the file holds
+  //    exactly the token: a line cut short by the pairing can create the file (the redirect
+  //    runs) but never with that content. Ctrl+U clears a cut line before the next attempt.
   const terminal = page.locator('[data-testid="embedded-terminal"]')
+  const probe = join(appEnv.pickDir, 'probe')
   await terminal.click()
-  await page.keyboard.type('echo C9WATCH_E2E_TOKEN')
-  await page.keyboard.press('Enter')
+  await expect(async () => {
+    await page.keyboard.press('Control+U')
+    await page.keyboard.type(`echo ${PROBE_TOKEN} > ${probe}`)
+    await page.keyboard.press('Enter')
+    await expect
+      .poll(() => (existsSync(probe) ? readFileSync(probe, 'utf8') : null), { timeout: 2000 })
+      .toBe(`${PROBE_TOKEN}\n`)
+  }, 'the typed command must reach the shell through the terminal port').toPass({
+    timeout: 10_000
+  })
 
-  // 4. Allow time for the keystroke to travel: renderer → port → PTY → output → port → renderer.
-  await page.waitForTimeout(1500)
-
-  // 5. Capture a screenshot as an artifact (canvas content proves output painted).
+  // 4. Capture a screenshot as an artifact.
   await page.screenshot({ path: testInfo.outputPath('terminal-e2e.png') })
 
-  // 6. PRIMARY ASSERTION: no port.* transport errors fired.
+  // 5. No port.* transport errors fired.
   //    These are the EXACT regression signatures from the original bug.
   const portBugErrors = pageErrors.filter((msg) =>
     PORT_BUG_SIGNATURES.some((sig) => msg.includes(sig))
@@ -72,10 +86,10 @@ test('embedded terminal MessagePort round-trip — no port.* errors + canvas pai
     `Transport regression detected — port.* errors fired: ${portBugErrors.join('; ')}`
   ).toHaveLength(0)
 
-  // 7. SECONDARY ASSERTION: the terminal element is present and visible.
+  // 6. The terminal element is present and visible.
   await expect(terminal).toBeVisible()
 
-  // 8. Report non-fatal pageerrors for debugging.
+  // 7. Report non-fatal pageerrors for debugging.
   if (pageErrors.length > 0) {
     console.warn('[e2e] pageerrors observed during test (not port.* — not a failure):', pageErrors)
   }

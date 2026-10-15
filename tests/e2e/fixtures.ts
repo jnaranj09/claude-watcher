@@ -7,9 +7,9 @@
 // starts with alerts muted (a launched claude's turn end would otherwise pop a desktop
 // notification), and is removed after the test.
 //
-// Teardown runs on pass AND fail, in this order: on failure keep the trace, main's log and a
-// screenshot under the test's output dir; then reap the launched claudes (they sit in their own
-// session); then SIGKILL the Electron process group. `app.close()` is never used: a title-bar
+// Teardown runs on pass AND fail, in this order: on failure keep the trace (`trace.zip` in the
+// test's output dir) and attach main's log and a screenshot to the test; then reap the launched
+// claudes (they sit in their own session); then SIGKILL the Electron process group. `app.close()` is never used: a title-bar
 // close only minimizes this app, so it hangs ~120 s.
 //
 // The native KDE folder picker cannot be driven, so `C9_TEST_PICK_DIR` (a test-only seam in
@@ -18,6 +18,8 @@
 import { test as base, _electron as electron } from '@playwright/test'
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test'
 import type { ChildProcess } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -81,6 +83,26 @@ export async function launchApp(
   const log = captureLog(app.process())
   logs.set(app, log)
   return { app, log }
+}
+
+/**
+ * Start the built app as a plain child process, for a run that must EXIT at once (a second
+ * instance, a refused start). Playwright's launcher cannot be used there: it rejects with
+ * "Process failed to launch!" when the process exits before its debugger connects. Spawned
+ * detached (its own process group), so a run that does not exit can be SIGKILLed whole.
+ */
+export function spawnApp(env: NodeJS.ProcessEnv): {
+  proc: ChildProcess
+  log: MainLog
+  exited: Promise<number | null>
+} {
+  const electronBin: unknown = createRequire(__filename)('electron')
+  if (typeof electronBin !== 'string')
+    throw new Error('e2e: the electron package gave no binary path')
+  const proc = spawn(electronBin, [BUILT_MAIN], { env, detached: true, stdio: 'pipe' })
+  const log = captureLog(proc)
+  const exited = new Promise<number | null>((resolve) => proc.once('exit', (code) => resolve(code)))
+  return { proc, log, exited }
 }
 
 /** SIGKILL a process group and wait for its leader to close (no-op when already gone). */
