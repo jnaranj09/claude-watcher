@@ -17,30 +17,12 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { ruleBody } from './test/cssRule'
 
 const FILTER_BAR_Z_INDEX = 50
 // Modal dialogs (ManageDialog/SessionNameDialog/QuitGuard/StopConfirm) sit at z-index: 60. The
 // header must beat the board but never a modal, so it has to land strictly between the two.
 const MODAL_Z_INDEX = 60
-
-function ruleBody(css: string, selector: string): string {
-  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
-  const pattern = new RegExp(`(^|[\\s,>+~(])\\${selector}(?![\\w-])`)
-  const bodies: string[] = []
-  let start = 0
-  let prelude = ''
-  for (let i = 0; i < stripped.length; i++) {
-    if (stripped[i] === '{') {
-      prelude = stripped.slice(start, i)
-      start = i + 1
-    } else if (stripped[i] === '}') {
-      if (pattern.test(prelude)) bodies.push(stripped.slice(start, i))
-      prelude = ''
-      start = i + 1
-    }
-  }
-  return bodies.join('\n')
-}
 
 function readZIndex(css: string, selector: string): number {
   const body = ruleBody(css, selector)

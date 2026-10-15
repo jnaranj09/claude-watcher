@@ -20,6 +20,7 @@ import { MOTION_EXIT_MS } from '../../styles/motion'
 import { pointerInput } from '../../test/pointerInput'
 import type { Column } from '../../../../shared/ipc/contract'
 import { TOKENS } from '../../../../shared/theme/tokens'
+import { cssRule, cssRules, readCss, shorthandParts } from '../../test/cssRule'
 
 const rows = [
   { id: 'default', name: 'Default', color: 'slate' as const, defaultCwd: null },
@@ -298,10 +299,8 @@ describe('WorkspaceSwitcher', () => {
       ),
       'utf8'
     )
-    const block = (sel: string): string => {
-      const i = css.indexOf(`${sel} {`)
-      return css.slice(i, css.indexOf('}', i))
-    }
+    const block = (selector: string): string =>
+      cssRule('components/WorkspaceSwitcher/WorkspaceSwitcher.module.css', selector)
     expect(block('.switcher')).toContain('background: var(--ws-fill, var(--bg-surface-raised))')
     expect(block('.switcher')).toContain('border: 1px solid var(--ws-border, var(--border-strong))')
     expect(block(SWITCHER_HOVER)).toContain('background: var(--ws-fill, var(--bg-surface))')
@@ -344,15 +343,10 @@ describe('WorkspaceSwitcher', () => {
     expect(tab.hasAttribute('data-tucked')).toBe(true)
     click(q(r, '[data-testid="workspace-switcher"]'))
     expect(tab.hasAttribute('data-tucked')).toBe(false)
-    const css = readFileSync(
-      join(
-        process.cwd(),
-        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
-      ),
-      'utf8'
+    const rule = cssRule(
+      'components/WorkspaceSwitcher/WorkspaceSwitcher.module.css',
+      '.tab[data-tucked]'
     )
-    const i = css.indexOf('.tab[data-tucked] {')
-    const rule = css.slice(i, css.indexOf('}', i))
     expect(rule).toContain('transform: translateX(-100%)')
     expect(rule).toContain('opacity: 0')
   })
@@ -365,38 +359,17 @@ describe('WorkspaceSwitcher', () => {
   // Each pill is sized for a two-digit count (up to 99): two of the widest digit (--switcher-digit,
   // measured on the widest UI font) plus the pill's own side padding.
   it('the button is always wider than the tucked tab with its three two-digit pills', () => {
-    const css = readFileSync(
-      join(
-        process.cwd(),
-        'src/renderer/src/components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'
-      ),
-      'utf8'
-    ).replace(/\/\*[\s\S]*?\*\//g, '')
+    const rules = cssRules(readCss('components/WorkspaceSwitcher/WorkspaceSwitcher.module.css'))
+    // The LAST rule listing `sel` that sets `prop` wins, as in the cascade.
     const decl = (sel: string, prop: string): string => {
-      const blocks = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) =>
-        (m[1] ?? '').split(',').some((s) => s.trim() === sel)
-      )
-      for (const b of blocks.reverse()) {
-        const m = new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+);`).exec(b[2] ?? '')
-        if (m?.[1] !== undefined) return m[1].trim()
-      }
-      throw new Error(`no ${prop} on ${sel}`)
-    }
-    // Split a shorthand on top-level spaces (not inside calc()).
-    const parts = (v: string): string[] => {
-      const out: string[] = []
-      let depth = 0
-      let cur = ''
-      for (const ch of v) {
-        if (ch === '(') depth++
-        if (ch === ')') depth--
-        if (ch === ' ' && depth === 0) {
-          if (cur !== '') out.push(cur)
-          cur = ''
-        } else cur += ch
-      }
-      if (cur !== '') out.push(cur)
-      return out
+      const pattern = new RegExp(`(?:^|[;\\s])${prop}\\s*:\\s*([^;]+);`)
+      const values = rules
+        .filter((r) => r.selectors.includes(sel))
+        .map((r) => pattern.exec(r.body)?.[1]?.trim())
+        .filter((v) => v !== undefined)
+      const last = values[values.length - 1]
+      if (last === undefined) throw new Error(`no ${prop} on ${sel}`)
+      return last
     }
     const themes = ['builtin-dark', 'liquid-glass', 'paper'].map((t) => {
       const file = join(process.cwd(), `docs/themes/examples/${t}/theme.json`)
@@ -416,10 +389,10 @@ describe('WorkspaceSwitcher', () => {
         if (!/^[\d\s.+\-*/()]+$/.test(e)) throw new Error(`cannot evaluate ${v} → ${e}`)
         return Number(new Function(`return (${e})`)())
       }
-      const pad = parts(decl('.tab', 'padding'))
+      const pad = shorthandParts(decl('.tab', 'padding'))
       const tabPadding = px(pad[1] ?? '') + px(pad[3] ?? pad[1] ?? '')
-      const tabBorder = 2 * px(parts(decl('.tab', 'border'))[0] ?? '')
-      const pillPadding = 2 * px(parts(decl('.badge', 'padding'))[1] ?? '')
+      const tabBorder = 2 * px(shorthandParts(decl('.tab', 'border'))[0] ?? '')
+      const pillPadding = 2 * px(shorthandParts(decl('.badge', 'padding'))[1] ?? '')
       const pill = Math.max(
         px(decl('.badge', 'min-width')),
         2 * px('var(--switcher-digit)') + pillPadding

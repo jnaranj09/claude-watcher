@@ -10,6 +10,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { readdirSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { cssRule, ruleBody } from '../../test/cssRule'
 
 const componentsDir = join(process.cwd(), 'src/renderer/src/components')
 
@@ -40,28 +41,6 @@ function selectorSegments(css: string): string[] {
     }
   }
   return segments
-}
-
-/** The declaration text of every rule whose selector list names `selector` (the same matcher
- *  `declares` uses), comments stripped and joined. `''` when no such rule exists — so an assertion
- *  on a property passes only when the rule IS there and carries it. */
-function ruleBody(css: string, selector: string): string {
-  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
-  const pattern = new RegExp(`(^|[\\s,>+~(])\\${selector}(?![\\w-])`)
-  const bodies: string[] = []
-  let start = 0
-  let prelude = ''
-  for (let i = 0; i < stripped.length; i++) {
-    if (stripped[i] === '{') {
-      prelude = stripped.slice(start, i)
-      start = i + 1
-    } else if (stripped[i] === '}') {
-      if (pattern.test(prelude)) bodies.push(stripped.slice(start, i))
-      prelude = ''
-      start = i + 1
-    }
-  }
-  return bodies.join('\n')
 }
 
 /** Recurses — a `*.module.css` any number of directories under `baseDir` must still be seen (a
@@ -273,12 +252,8 @@ describe('componentModules() scans every *.module.css under baseDir, any number 
 // Spacing roles (spec 2026-10-01-spacing-roles-design.md): a label sits closer to its own field
 // than to the field above, and a form taller than the window scrolls UNDER [Delete] [Save].
 describe('ManageDialog form rhythm', () => {
-  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
-  const rule = (selector: string): string => {
-    const at = css.indexOf(`${selector} {`)
-    if (at === -1) throw new Error(`no ${selector} rule`)
-    return css.slice(at, css.indexOf('}', at))
-  }
+  const rule = (selector: string): string =>
+    cssRule('components/ManageDialog/ManageDialog.module.css', selector)
 
   it('label → field is --gap-field; field → next label is --gap-section', () => {
     expect(rule('.form,\n.pane')).toMatch(/gap:\s*var\(--gap-field\)/)
@@ -299,12 +274,8 @@ describe('ManageDialog form rhythm', () => {
 })
 
 describe('ManageDialog sticky footer never hides a field (final review)', () => {
-  const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
-  const rule = (selector: string): string => {
-    const at = css.indexOf(`${selector} {`)
-    if (at === -1) throw new Error(`no ${selector} rule`)
-    return css.slice(at, css.indexOf('}', at))
-  }
+  const rule = (selector: string): string =>
+    cssRule('components/ManageDialog/ManageDialog.module.css', selector)
 
   it('Tab scrolls a field clear of the sticky footer, not under it', () => {
     expect(rule('.form,\n.pane')).toMatch(
@@ -322,8 +293,8 @@ describe('ManageDialog sticky footer never hides a field (final review)', () => 
   })
 
   it('the first label starts level with the first rail row', () => {
-    expect(css).toMatch(
-      /\.form > \.label:first-child,\s*\.pane > \.label:first-child\s*\{[^}]*margin-top:\s*0/
+    expect(rule('.form > .label:first-child, .pane > .label:first-child')).toMatch(
+      /margin-top:\s*0/
     )
   })
 })

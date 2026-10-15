@@ -3,11 +3,11 @@
 // ALWAYS the last row (spec 2026-10-03 A). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
-import { readFileSync } from 'node:fs'
 import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
 import { AppMenu, type AppMenuProps } from './AppMenu'
 import { MOTION_EXIT_MS } from '../../styles/motion'
 import { pointerInput } from '../../test/pointerInput'
+import { cssRule } from '../../test/cssRule'
 
 let cleanup: (() => void) | undefined
 let clearInput: (() => void) | undefined
@@ -361,9 +361,8 @@ describe('AppMenu', () => {
   })
 
   it('pins the wrappers placement in the stylesheet (jsdom has no layout)', () => {
-    const css = readFileSync('src/renderer/src/components/AppMenu/AppMenu.module.css', 'utf8')
-    const rule = (sel: string): string =>
-      new RegExp(`${sel.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+    const rule = (selector: string): string =>
+      cssRule('components/AppMenu/AppMenu.module.css', selector)
     const menu = rule('.menuWrap')
     expect(menu).toMatch(/position:\s*absolute/)
     expect(menu).toMatch(/top:\s*calc\(100% \+ var\(--space-1\)\)/)

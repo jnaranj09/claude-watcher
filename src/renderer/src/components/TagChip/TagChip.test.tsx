@@ -11,6 +11,7 @@ import { fitCount } from './fitCount'
 import { TOKENS } from '../../../../shared/theme/tokens'
 import { TAG_COLORS } from '../../../../shared/schemas/tag'
 import { contrast, hexToRgb } from '../../test/contrast'
+import { installFakeResizeObserver } from '../../test/fakeResizeObserver'
 
 const PROD = { id: 't-prod', name: 'prod', color: 'rose' as const }
 const DEPLOY = { id: 't-deploy', name: 'deploy', color: 'amber' as const }
@@ -77,26 +78,7 @@ describe('TagChipRow — one line, +N for the rest (T-26)', () => {
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(50)
     const clientWidthSpy = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(120)
 
-    class FakeResizeObserver {
-      static registrations: { target: Element; cb: () => void }[] = []
-      constructor(private cb: () => void) {}
-      observe(target: Element): void {
-        FakeResizeObserver.registrations.push({ target, cb: this.cb })
-      }
-      disconnect(): void {
-        FakeResizeObserver.registrations = FakeResizeObserver.registrations.filter(
-          (r) => r.cb !== this.cb
-        )
-      }
-      static fireResizeOn(target: Element): void {
-        for (const r of FakeResizeObserver.registrations) {
-          if (r.target === target) r.cb()
-        }
-      }
-    }
-    FakeResizeObserver.registrations = []
-    const originalRO = globalThis.ResizeObserver
-    ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = FakeResizeObserver
+    const resizeObserver = installFakeResizeObserver()
     const g = globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean | undefined }
     const originalActEnv = g.IS_REACT_ACT_ENVIRONMENT
     g.IS_REACT_ACT_ENVIRONMENT = true
@@ -115,12 +97,12 @@ describe('TagChipRow — one line, +N for the rest (T-26)', () => {
     clientWidthSpy.mockReturnValue(1000)
     const slot = r.container.querySelector('[data-testid="slot"]')
     act(() => {
-      if (slot !== null) FakeResizeObserver.fireResizeOn(slot)
+      if (slot !== null) resizeObserver.resize(slot)
     })
 
     expect(chipNames(r)).toEqual(['deploy', 'prod', 'release-2.1'])
     expect(r.container.querySelector('[data-testid="tag-chip-more"]')).toBeNull()
-    ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = originalRO
+    resizeObserver.restore()
     g.IS_REACT_ACT_ENVIRONMENT = originalActEnv
   })
 })

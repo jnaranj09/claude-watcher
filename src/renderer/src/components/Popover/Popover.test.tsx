@@ -9,6 +9,7 @@ import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { Popover } from './Popover'
 import { Presence } from '../Presence/Presence'
 import { pointerInput } from '../../test/pointerInput'
+import { cssRule } from '../../test/cssRule'
 
 let cleanup: (() => void) | undefined
 let clearInput: (() => void) | undefined
@@ -224,9 +225,10 @@ describe('Popover.Surface — a container (holds a submenu) never fades itself',
     'utf8'
   )
   it('keeps opacity 1 while leaving and clears its box instead', () => {
-    const i = css.indexOf('.surface[data-leaving]:has(.surface) {')
-    expect(i).toBeGreaterThanOrEqual(0)
-    const rule = css.slice(i, css.indexOf('}', i))
+    const rule = cssRule(
+      'components/Popover/Popover.module.css',
+      '.surface[data-leaving]:has(.surface)'
+    )
     expect(rule).toMatch(/opacity:\s*1;/)
     expect(rule).toMatch(/background-color:\s*transparent;/)
     expect(rule).toMatch(/box-shadow:\s*none;/)
@@ -242,20 +244,15 @@ describe('Popover.Surface — a container (holds a submenu) never fades itself',
 })
 
 describe('Popover rows — one size and text style (spec 2026-10-07 A.5)', () => {
-  const css = readFileSync(
-    join(process.cwd(), 'src/renderer/src/components/Popover/Popover.module.css'),
-    'utf8'
-  )
-  const rule = (sel: string): string =>
-    new RegExp(`\\n${sel.replace(/[.[\]'=()]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+  const rule = (selector: string): string =>
+    cssRule('components/Popover/Popover.module.css', selector)
   it('a row is 36px, body size, 500', () => {
     expect(rule('.item')).toMatch(/min-height: 36px;/)
     expect(rule('.item')).toMatch(/font-size: var\(--font-size-body\);/)
     expect(rule('.item')).toMatch(/font-weight: 500;/)
   })
   it('compact and quiet rows keep their own size (no 36px, label text)', () => {
-    const own =
-      /\n\.item\[data-density='compact'\],\s*\.item\[data-quiet\] \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    const own = rule(".item[data-density='compact'], .item[data-quiet]")
     expect(own).toMatch(/min-height: 0;/)
     expect(own).toMatch(/font-size: var\(--font-size-label\);/)
     expect(own).toMatch(/font-weight: var\(--font-weight-label\);/)

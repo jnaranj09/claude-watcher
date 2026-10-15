@@ -9,14 +9,8 @@
 // *.module.css resolves to a proxy that answers EVERY key with a string
 // (.claude/rules/design.md "A note on testing CSS classes").
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cssRule, readCss } from '../../test/cssRule'
 
-const read = (rel: string): string =>
-  readFileSync(join(process.cwd(), 'src/renderer/src', rel), 'utf8').replace(
-    /\/\*[\s\S]*?\*\//g,
-    ''
-  )
 const squash = (s: string): string => s.replace(/\s+/g, '')
 
 const RAIL = squash('var(--rail-surface, var(--bg-surface))')
@@ -24,26 +18,22 @@ const TOP = squash('var(--rail-surface-top, var(--rail-surface, var(--bg-surface
 
 const FILES = ['components/attention/AttentionRail.module.css', 'views/FocusedSession.module.css']
 
-/** The body of the rule whose whole selector list is exactly `selector` (whitespace ignored). */
-function rule(css: string, selector: string): string {
-  for (const [, sel = '', body = ''] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (squash(sel) === squash(selector)) return squash(body)
-  }
-  return ''
-}
+/** The declarations of the rule whose selector list is exactly `selector`, all whitespace removed
+ *  (the chains above are compared squashed). */
+const rule = (file: string, selector: string): string => squash(cssRule(file, selector))
 
 describe('the rail surface hooks', () => {
   it('never reads --bg-surface outside the two chains', () => {
     for (const file of FILES) {
       // TOP first: it contains RAIL.
-      const rest = squash(read(file)).split(TOP).join('').split(RAIL).join('')
+      const rest = squash(readCss(file)).split(TOP).join('').split(RAIL).join('')
       expect(rest, file).not.toContain('--bg-surface')
     }
   })
 
   it('each layer paints its chain', () => {
-    const rail = read('components/attention/AttentionRail.module.css')
-    const bar = read('views/FocusedSession.module.css')
+    const rail = 'components/attention/AttentionRail.module.css'
+    const bar = 'views/FocusedSession.module.css'
     // The header band: TOP on the top bar row only (an inset shadow --topbar-height tall), RAIL
     // below it (clipped to the content box, which the same padding pushes down) — the layer is full
     // height when there is no pinned slot. Not a gradient: Chromium dithers gradients, so Default
@@ -63,7 +53,7 @@ describe('the rail surface hooks', () => {
 
   it('declares neither property: a declaration would shadow the theme value', () => {
     for (const file of FILES) {
-      expect(read(file), file).not.toMatch(/--rail-surface(-top)?\s*:/)
+      expect(readCss(file), file).not.toMatch(/--rail-surface(-top)?\s*:/)
     }
   })
 })

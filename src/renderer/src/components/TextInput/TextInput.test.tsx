@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { TextInput, type TextInputProps } from './TextInput'
+import { cssRule } from '../../test/cssRule'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -140,12 +141,8 @@ describe('TextInput', () => {
 })
 
 describe('the text field box', () => {
-  const css = readFileSync(
-    join(process.cwd(), 'src/renderer/src/components/TextInput/TextInput.module.css'),
-    'utf8'
-  )
   const rule = (selector: string): string =>
-    new RegExp(`\\n${selector.replace(/[.[\]]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+    cssRule('components/TextInput/TextInput.module.css', selector)
 
   // Select's `inline` variant (Select.module.css `.inline`) is compact chrome; a text field in the
   // same chrome must be the same box, or a search box and a dropdown in one bar differ in height.
@@ -175,8 +172,7 @@ describe('the text field is the only one', () => {
   const componentsDir = join(process.cwd(), 'src/renderer/src/components')
 
   it('states its placeholder in --text-secondary, which clears the contrast floor', () => {
-    const css = readFileSync(join(componentsDir, 'TextInput/TextInput.module.css'), 'utf8')
-    const rule = /\.input::placeholder\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    const rule = cssRule('components/TextInput/TextInput.module.css', '.input::placeholder')
     expect(rule).toContain('var(--text-secondary)')
     // --text-muted is 2.85:1 on --bg-surface. It was the drifted value in one dialog.
     expect(rule).not.toContain('var(--text-muted)')
@@ -187,19 +183,19 @@ describe('the text field is the only one', () => {
   // `.textArea`. Every other module is an offender — a sixth copy-pasted box is how the first
   // five drifted.
   it('is the only module that draws a text-field box', () => {
-    const offenders: string[] = []
-    for (const dir of readdirSync(componentsDir, { withFileTypes: true })) {
-      if (!dir.isDirectory() || dir.name === 'TextInput' || dir.name === 'TextArea') continue
-      for (const file of readdirSync(join(componentsDir, dir.name))) {
-        if (!file.endsWith('.module.css')) continue
-        const css = readFileSync(join(componentsDir, dir.name, file), 'utf8')
-        for (const selector of ['.input', '.search', '.textField', '.textArea']) {
-          if (new RegExp(`^\\${selector}[\\s{:,\\[]`, 'm').test(css)) {
-            offenders.push(`${dir.name}/${file} → ${selector}`)
-          }
-        }
-      }
-    }
+    const modules = readdirSync(componentsDir, { withFileTypes: true })
+      .filter((dir) => dir.isDirectory() && dir.name !== 'TextInput' && dir.name !== 'TextArea')
+      .flatMap((dir) =>
+        readdirSync(join(componentsDir, dir.name))
+          .filter((file) => file.endsWith('.module.css'))
+          .map((file) => `${dir.name}/${file}`)
+      )
+    const offenders = modules.flatMap((module) => {
+      const css = readFileSync(join(componentsDir, module), 'utf8')
+      return ['.input', '.search', '.textField', '.textArea']
+        .filter((selector) => new RegExp(`^\\${selector}[\\s{:,\\[]`, 'm').test(css))
+        .map((selector) => `${module} → ${selector}`)
+    })
     expect(offenders).toEqual([])
   })
 })

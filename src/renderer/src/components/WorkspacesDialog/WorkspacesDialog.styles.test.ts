@@ -1,14 +1,9 @@
 // The Workspaces dialog sheet. Tests can't see layout; these pin the rules the CSS must keep.
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cssRule } from '../../test/cssRule'
 
-const css = readFileSync(
-  join(process.cwd(), 'src/renderer/src/components/WorkspacesDialog/WorkspacesDialog.module.css'),
-  'utf8'
-)
-const rule = (sel: string): string =>
-  new RegExp(`\\n${sel.replace(/[.:()]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+const rule = (selector: string): string =>
+  cssRule('components/WorkspacesDialog/WorkspacesDialog.module.css', selector)
 
 describe('Workspaces dialog sheet', () => {
   // design.md, label → its control: a colour's swatch names its radio, so it sits `--gap-field`

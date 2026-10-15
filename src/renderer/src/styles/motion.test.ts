@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { MOTION_EXIT_MS } from './motion'
+import { cssRule } from '../test/cssRule'
 
 const css = readFileSync(join(process.cwd(), 'src/renderer/src/styles/motion.css'), 'utf8')
 const decl = (name: string): string | undefined =>
@@ -27,12 +28,7 @@ describe('motion values', () => {
 
 describe('dialog motion (spec 2026-10-04 §6)', () => {
   const D = "[role='dialog'][data-motion='dialog']"
-  /** The declarations of the first rule whose selector is exactly `sel`. */
-  const rule = (sel: string): string => {
-    const i = css.indexOf(`${sel} {`)
-    expect(i, sel).toBeGreaterThanOrEqual(0)
-    return css.slice(i, css.indexOf('}', i))
-  }
+  const rule = (selector: string): string => cssRule('styles/motion.css', selector)
   it('the scrim fades its colour, never the overlay opacity (Liquid Glass backdrop root)', () => {
     expect(rule(D)).toContain('background-color var(--motion-enter)')
     expect(rule(D)).not.toContain('opacity')

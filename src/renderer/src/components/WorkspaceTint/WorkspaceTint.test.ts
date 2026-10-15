@@ -4,17 +4,15 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { WORKSPACE_COLORS } from '../../../../shared/schemas/workspace'
+import { cssRule } from '../../test/cssRule'
 
 const CSS = readFileSync(
   join(process.cwd(), 'src/renderer/src/components/WorkspaceTint/WorkspaceTint.module.css'),
   'utf8'
 )
 
-function rule(selector: string): string {
-  const start = CSS.indexOf(`${selector} {`)
-  expect(start, `missing ${selector}`).toBeGreaterThanOrEqual(0)
-  return CSS.slice(start, CSS.indexOf('}', start))
-}
+const rule = (selector: string): string =>
+  cssRule('components/WorkspaceTint/WorkspaceTint.module.css', selector)
 
 describe('WorkspaceTint.module.css', () => {
   it('maps every WORKSPACE_COLORS entry to its own two tokens', () => {

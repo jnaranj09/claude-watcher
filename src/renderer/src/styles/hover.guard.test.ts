@@ -2,9 +2,10 @@
 // `cursor: pointer` and no `:hover` rule at all (the Select box, the card), and hovers painted with
 // a SURFACE token (`--bg-surface`, …) that vanished wherever that surface was the panel's own
 // colour (the old Paper's white-on-white). A hover paints the `--bg-hover` layer, or moves the border / ink.
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, it, expect } from 'vitest'
+import { cssRules, readCss } from '../test/cssRule'
 
 const rendererDir = join(__dirname, '..')
 
@@ -18,13 +19,8 @@ function walk(dir: string): string[] {
 const sheets = walk(rendererDir).filter((f) => f.endsWith('.module.css'))
 
 // `selector { body }` leaves; an @media wrapper's inner rules match on their own.
-function rules(file: string): { selectors: string[]; body: string }[] {
-  const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
-  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, sel, body]) => ({
-    selectors: sel!.split(',').map((s) => s.trim()),
-    body: body!
-  }))
-}
+const rules = (file: string): { selectors: string[]; body: string }[] =>
+  cssRules(readCss(relative(rendererDir, file)))
 
 // The compound selector a pseudo-class sits on: `.a:hover .b` → `.a:hover`.
 const compoundWith = (selector: string, pseudo: string): string | undefined =>

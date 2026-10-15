@@ -6,6 +6,7 @@ import { q, renderComponent, type RenderResult } from '../../test/renderComponen
 import { NewSessionMenu } from './NewSessionMenu'
 import { filterTemplates } from './filterTemplates'
 import type { Template } from '../../../../shared/ipc/contract'
+import { cssRule } from '../../test/cssRule'
 
 const T1: Template = {
   id: 'a',
@@ -220,9 +221,8 @@ describe('NewSessionMenu — favorites', () => {
 
 describe('NewSessionMenu — the pin sits inside the row, on the right', () => {
   // Owner, 2026-10-13: a left gutter outside the row's highlight wasted width on every row.
-  const css = readFileSync(join(__dirname, 'NewSessionMenu.module.css'), 'utf8')
-  const rule = (sel: string): string =>
-    new RegExp(`(?:^|\\n)${sel.replace(/[.*()[\]:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+  const rule = (selector: string): string =>
+    cssRule('components/NewSessionMenu/NewSessionMenu.module.css', selector)
   it('the pin comes after the row button (Tab goes row, then its pin)', () => {
     const { r } = render([T1])
     const row = q(r, '[data-template-id="a"]')

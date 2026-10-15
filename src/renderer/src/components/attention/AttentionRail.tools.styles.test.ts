@@ -6,22 +6,10 @@
 //
 // Reads the stylesheet off disk: an imported *.module.css is a proxy in vitest (design.md).
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cssRules, readCss } from '../../test/cssRule'
 
-const css = readFileSync(
-  join(process.cwd(), 'src/renderer/src/components/attention/AttentionRail.module.css'),
-  'utf8'
-).replace(/\/\*[\s\S]*?\*\//g, '')
-
-/** Every `selector-list { body }` pair in the sheet, top level (the sheet has no nesting here). */
-function rules(): { selectors: string[]; body: string }[] {
-  const out: { selectors: string[]; body: string }[] = []
-  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    out.push({ selectors: (m[1] ?? '').split(',').map((s) => s.trim()), body: m[2] ?? '' })
-  }
-  return out
-}
+const rules = (): { selectors: string[]; body: string }[] =>
+  cssRules(readCss('components/attention/AttentionRail.module.css'))
 
 function paddingFor(selector: string): string | null {
   const hit = rules().find((r) => r.selectors.includes(selector))

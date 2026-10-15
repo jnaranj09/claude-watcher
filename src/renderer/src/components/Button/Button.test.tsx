@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { Button, type ButtonProps } from './Button'
+import { cssRule } from '../../test/cssRule'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -279,16 +280,17 @@ describe('Button owns every button style', () => {
   // jsdom has no layout: read the stylesheet. A round icon is a CIRCLE, and it is still an icon:
   // the square's width per size comes from `.icon`, the shape only rounds it.
   it('rounds a round icon into a circle', () => {
-    const css = readFileSync(join(componentsDir, 'Button/Button.module.css'), 'utf8')
-    expect(/\n\.round \{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/border-radius: 50%;/)
+    expect(cssRule('components/Button/Button.module.css', '.round')).toMatch(/border-radius: 50%;/)
   })
 
   // `.secondary:hover:not(:disabled)` (0,3,0) outranks `.button[data-lit]` (0,2,0): a hovered
   // lit Filter button took the surface fill but KEPT the dark lit ink, so its icon and label
   // vanished. The lit hover rule must out-rank every variant's hover and keep the lit ink.
   it('keeps a lit button lit on hover', () => {
-    const css = readFileSync(join(componentsDir, 'Button/Button.module.css'), 'utf8')
-    const rule = /\n\.button\[data-lit\]:hover:not\(:disabled\) \{([^}]*)\}/.exec(css)?.[1] ?? ''
+    const rule = cssRule(
+      'components/Button/Button.module.css',
+      '.button[data-lit]:hover:not(:disabled)'
+    )
     expect(rule).toMatch(/background: var\(--text-primary\);/)
     expect(rule).toMatch(/color: var\(--text-on-lit\);/)
   })
