@@ -139,7 +139,8 @@ export function resetBoardView(): void {
 }
 
 /** Install the fake preload, plus the browser APIs jsdom omits that xterm needs (matchMedia,
- *  ResizeObserver), and clear the hash so no earlier test steers App into the terminal-host view. */
+ *  ResizeObserver), and clear the hash so no earlier test steers App into the
+ *  terminal-host view. */
 export function stubAppBridges(overrides: AppBridgeOverrides = {}): void {
   stubXtermBrowserApis()
   const w = window as unknown as Record<string, unknown>

@@ -28,7 +28,8 @@ beforeEach(() => {
     selectedId: null,
     acknowledgedById: {},
     terminalIdBySessionId: {},
-    // Story 5.6 — reset the launched-terminals registry between tests (prevents cross-test leakage).
+    // Story 5.6 — reset the launched-terminals registry between tests (prevents cross-test
+    // leakage).
     launchedTerminals: {},
     shellPanes: {}
   })
@@ -106,7 +107,8 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
     expect(new Set(terms)).toEqual(new Set(['launch-a', 'launch-b']))
   })
 
-  // A theme hook (owner, 2026-10-08): Liquid Glass tunes the bar's white film under the WebGL glass.
+  // A theme hook (owner, 2026-10-08): Liquid Glass tunes the bar's white film under the WebGL
+  // glass.
   it('the top bar carries the data-focused-bar hook, holding the Board button', () => {
     boardStore.getState().openLaunchedTerminal('launch-term-1', 'term-1', 'default')
     const r = render()
@@ -857,7 +859,8 @@ describe('FocusedSession — the >_ Shell button (card shell pane)', () => {
       r.container.querySelector<HTMLButtonElement>('[data-testid="focused-shell"]')?.click()
     )
     await flush()
-    // claude exits: App forgets the registry entry, but the terminal is still FOCUSED → still rendered.
+    // claude exits: App forgets the registry entry, but the terminal is still FOCUSED → still
+    // rendered.
     act(() => boardStore.getState().forgetLaunchedTerminal('launch-a'))
     expect(selectShellPane(boardStore.getState(), 'launch-a')).not.toBeNull()
     // focus leaves it (a switch away): the frame unmounts → the pane is pruned.

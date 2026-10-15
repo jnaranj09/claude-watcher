@@ -8,7 +8,6 @@
 // renderer-facing push (`.claude/rules/zod-boundaries.md`: main → renderer delta = validate at
 // source), dropping + logging PATH + CODE ONLY on a miss (never a session value — Guardrail #6),
 // (e) `send` the validated payload.
-// [Source: .superpowers/sdd/2026-09-10-attention-reminders/final-fix-brief.md F1]
 import { AttentionReminderSchema } from '../../shared/schemas/watchDelta'
 import type { AttentionReminderPayload } from '../../shared/ipc/contract'
 import type { Session } from '../../shared/schemas/session'

@@ -35,7 +35,8 @@ export function cssRule(file: string, selector: string): string {
 
 /** The declarations of EVERY rule whose selector list names `selector` anywhere (`.panel` in
  *  `.a .panel:hover` counts; `.panelWide` does not), joined. `''` when no rule names it — so an
- *  assertion on a property passes only when such a rule exists and carries it. Comments stripped. */
+ *  assertion on a property passes only when such a rule exists and carries it.
+ *  Comments stripped. */
 export function ruleBody(css: string, selector: string): string {
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
   const pattern = new RegExp(`(^|[\\s,>+~(])\\${selector}(?![\\w-])`)

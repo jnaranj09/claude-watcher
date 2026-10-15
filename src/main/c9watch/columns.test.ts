@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest'
 import { columnForStatus, type Column } from './columns'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 
-describe('columnForStatus — pure status→live-column classifier (D1, corrected mapping)', () => {
+describe('columnForStatus — pure status→live-column classifier (working, idle, needs-you)', () => {
   it('maps Working → working', () => {
     expect(columnForStatus('Working')).toBe('working')
   })

@@ -220,7 +220,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
 
     store.getState().acknowledge('a')
-    // After acknowledge: calm (in-app emphasis cleared even though the session still says needs-you).
+    // After acknowledge: calm (in-app emphasis cleared though the session still says needs-you).
     expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
     // The ack stamp is the injected now() (determinism).
@@ -271,7 +271,8 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().acknowledge('a')
-    // Another needs-you update (e.g. a status field change while still waiting) keeps it acknowledged.
+    // Another needs-you update (e.g. a status field change while still waiting) keeps it
+    // acknowledged.
     store
       .getState()
       .applyWatchEvent(watchUpdated(2, 'a', 'needs-you', 100, { status: 'NeedsPermission' }))
@@ -454,7 +455,8 @@ describe('boardStore — registerLaunchedTerminal (an API launch must not steal 
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'default')
     // This is the ONLY thing that makes an unfocused API launch reach a pty: App mounts the
-    // focused layer (hidden) whenever kept-alive is non-empty, and EmbeddedTerminal spawns on mount.
+    // focused layer (hidden) whenever kept-alive is non-empty, and EmbeddedTerminal spawns on
+    // mount.
     expect(selectKeptAliveTerminalIds(store.getState())).toContain('api-t')
   })
 
@@ -499,7 +501,8 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
     //   1. Launch A → recorded in registry, focusedTerminalId = A.
     //   2. Launch B → focusedTerminalId moves to B, focus leaves A.
     //   3. A is NOT yet correlated (no addCorrelation for A).
-    //   → A must STILL be in selectKeptAliveTerminalIds via the registry (not just focusedTerminalId).
+    //   → A must STILL be in selectKeptAliveTerminalIds via the registry (not just
+    //     focusedTerminalId).
     //
     // FAULT-INJECTION EVIDENCE (proved non-vacuous before committing):
     //   Removing the registry loop from selectKeptAliveTerminalIds causes this test to FAIL
@@ -524,7 +527,8 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
     expect(selectKeptAliveTerminalIds(store.getState())).toContain('t-1')
     store.getState().forgetLaunchedTerminal('t-1')
     // t-1 is no longer in launchedTerminals or focusedTerminalId (focusedTerminalId still set, but
-    // that's OK — the terminal will show the "exited" pane when focused; it's gone from the registry).
+    // that's OK — the terminal will show the "exited" pane when focused; it's gone from the
+    // registry).
     // Actually focusedTerminalId is still 't-1' here, so it STILL appears via that path.
     // What we assert is that the registry term no longer holds it.
     expect(Object.keys(store.getState().launchedTerminals)).not.toContain('t-1')
@@ -535,7 +539,8 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
     store.getState().applyWatchEvent(watchUpdated(1, 'sess-a', 'working', 100))
     store.getState().addCorrelation('sess-a', 'terminal-b')
     store.getState().openLaunchedTerminal('terminal-a', 'projectA', 'default')
-    // Now: terminalIdBySessionId = { 'sess-a': 'terminal-b' }, launchedTerminals = { 'terminal-a': ... },
+    // Now: terminalIdBySessionId = { 'sess-a': 'terminal-b' },
+    // launchedTerminals = { 'terminal-a': ... },
     // focusedTerminalId = 'terminal-a'. The union should be ['terminal-a', 'terminal-b'] sorted.
     const alive = selectKeptAliveTerminalIds(store.getState())
     expect(alive).toEqual([...alive].sort()) // sorted

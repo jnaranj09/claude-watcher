@@ -1,4 +1,5 @@
-// AttentionRail component tests, part 2: what a rail row can carry. jsdom `unit` project. Covers the
+// AttentionRail component tests, part 2: what a rail row can carry. jsdom `unit` project. Covers
+// the
 // Starting group (launched, not yet correlated), the rename affordance, the collapsed-rail
 // geometry regression, the tag chips and tag filter, and the public theme hooks. Same harness as
 // AttentionRail.test.tsx (test/railHarness).
@@ -241,8 +242,8 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
    *  rail is sized to exactly fit. Swept rather than named so a new widest state cannot slip past.
    *
    *  `.active` rules are skipped on purpose, and it is the one exception: that row is not a centred
-   *  square any more but a tab that grows rightward ONTO the wall, so it is SUPPOSED to end past the
-   *  content edge. Seating it would mean shrinking it back inside the rail. Its own geometry is
+   *  square any more but a tab that grows rightward ONTO the wall, so it is SUPPOSED to end past
+   *  the content edge. Seating it would mean shrinking it back inside the rail. Its own geometry is
    *  pinned by "grows the collapsed square rightward ONTO the wall" above. */
   const widestCollapsedSquare = (rail: string): number =>
     Math.max(
@@ -379,11 +380,13 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     expect(panel).not.toBeNull()
     expect(row?.contains(panel ?? null)).toBe(true)
     expect(row?.hasAttribute('data-two-line')).toBe(true)
-    // The ghost holds the pill's place as the LAST item of the chip flow, hidden from assistive tech.
+    // The ghost holds the pill's place as the LAST item of the chip flow, hidden from assistive
+    // tech.
     const ghost = panel?.querySelector('[data-testid="rail-tags-add-ghost"]')
     expect(ghost?.getAttribute('aria-hidden')).toBe('true')
     expect(ghost?.parentElement?.lastElementChild).toBe(ghost)
-    // A <button> cannot hold a <button>: the real `+ tag` is the row's sibling, laid over the ghost.
+    // A <button> cannot hold a <button>: the real `+ tag` is the row's sibling, laid over the
+    // ghost.
     const add = item?.querySelector('[data-testid="rail-tags-add"]')
     expect(add?.textContent).toBe('+ tag')
     expect(row?.contains(add ?? null)).toBe(false)
@@ -544,7 +547,8 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     const css = readBesideTest('./AttentionRail.module.css')
     const block = (re: RegExp): string => re.exec(css)?.[1] ?? ''
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/--text-on-lit|data-lit/)
-    // Each wrapper scopes its own anchor; the ghost names it and stays invisible; the real button is
+    // Each wrapper scopes its own anchor; the ghost names it and stays invisible; the real button
+    // is
     // laid over it.
     expect(block(/\.rowWrap\s*\{([^}]*)\}/)).toMatch(/anchor-scope:\s*--rail-add-tag/)
     const ghost = block(/\.addTagGhost\s*\{([^}]*)\}/)

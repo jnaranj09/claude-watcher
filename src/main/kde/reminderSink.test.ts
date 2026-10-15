@@ -2,7 +2,6 @@
 // production wiring (the launched gate, the ReminderInput shape, the isDestroyed check, the
 // validate-at-source send) is exercised by a real test instead of a copy that lives only in
 // the pipeline test's fixture. Byte-for-byte the same behavior the inline callback had.
-// [Source: .superpowers/sdd/2026-09-10-attention-reminders/final-fix-brief.md F1]
 import { describe, it, expect } from 'vitest'
 import { createReminderSink } from './reminderSink'
 import type { ReminderInput, AttentionNotifier } from './notifications'

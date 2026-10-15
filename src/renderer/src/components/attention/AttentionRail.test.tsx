@@ -1,4 +1,5 @@
-// AttentionRail component tests, part 1: the rail's structure and interaction. jsdom `unit` project.
+// AttentionRail component tests, part 1: the rail's structure and interaction. jsdom `unit`
+// project.
 // Drives the rail against the singleton boardStore (reset per case by test/railHarness). Covers:
 // always present + collapsible to icons; the pinned active row (not a control) and the status
 // sections; needs-you emphasis applied (the SHIPPED needsYouEmphasisClass) and cleared on
@@ -97,7 +98,8 @@ describe('AttentionRail — always present + collapsible (AC-1, UX-DR9)', () => 
     act(() => toggle?.click())
     const rail = r.container.querySelector('[data-testid="attention-rail"]')
     expect(rail?.getAttribute('data-collapsed')).toBe('true')
-    // Still present (NEVER hidden) — the row + dot remain; the visible name text is gone (icon-only).
+    // Still present (NEVER hidden) — the row + dot remain; the visible name text is gone
+    // (icon-only).
     expect(r.container.querySelectorAll('[data-testid="rail-row"]').length).toBe(1)
     expect(r.container.querySelector('[data-testid="rail-row-name"]')).toBeNull()
     // Goal B: the circle ALONE. The row used to also print the name's first letter beside the dot
@@ -181,7 +183,8 @@ describe('AttentionRail — pinned active row + status sections', () => {
     ).toEqual(['other'])
   })
 
-  // The board's search box narrows the rail's groups like the tag filter does. The pinned row is the
+  // The board's search box narrows the rail's groups like the tag filter does. The pinned row is
+  // the
   // terminal you are typing in, so it stays whatever the search says.
   it('the search narrows the status groups, never the pinned row', () => {
     act(() => {
@@ -736,7 +739,8 @@ describe('AttentionRail — keyboard + aria-live (AC-5, UX-DR29)', () => {
 
     // Switch the active workspace to w2. `focusWorkspace` is a boardStore action (it fires the
     // rail's `boardStore.subscribe` callback), which is how a real workspace switch reaches the
-    // announce effect — mirrors how Task 9b's switcher will wire setActiveWorkspace + focusWorkspace.
+    // announce effect — mirrors how Task 9b's switcher will wire setActiveWorkspace +
+    // focusWorkspace.
     act(() => {
       workspacesStore.setState({ activeId: 'w2' })
       boardStore.getState().focusWorkspace('w2')

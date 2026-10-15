@@ -1,5 +1,5 @@
-// launchSession tests, part 1: launching. `main-unit` project (node). NO real node-pty (the terminal
-// manager is a fake), NO live `claude` (the `/proc` reader is an injected fake; see
+// launchSession tests, part 1: launching. `main-unit` project (node). NO real node-pty (the
+// terminal manager is a fake), NO live `claude` (the `/proc` reader is an injected fake; see
 // __fixtures__/launchProc).
 //
 // Covered: launch() registers the durable picked-cwd recipe and returns the opaque terminalId;

@@ -49,8 +49,7 @@
 //   - Esc-while-confirm-open → clearStopConfirm (cancel; guard is the topmost layer, App.tsx).
 //   - Render `<StopConfirm/>` when `selectStopConfirm !== null`.
 //
-// [Source: story 4.3 Task 3; task-10-brief.md (D-3/D-5); UX-DR14/22; DESIGN.md Dialogs;
-//  QuitGuard.tsx (mirror); .claude/rules/state.md; ../../lib/sessionExit.ts]
+// See QuitGuard.tsx (mirror), .claude/rules/state.md and ../../lib/sessionExit.ts.
 
 import { useEffect, useRef, type JSX } from 'react'
 import type { StopConfirmPayload } from '../../stores/boardStore'

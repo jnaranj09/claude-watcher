@@ -1,5 +1,4 @@
-// Pins the rail-wall NOTCH mechanism (fix/theme-glass-flare) — see
-// .superpowers/sdd/2026-09-20-custom-themes/rail-wall-design.md.
+// Pins the rail-wall NOTCH mechanism (fix/theme-glass-flare).
 //
 // This file used to pin the active-row flare's opacity-independence fix (`.active::before` /
 // `.active::after` painting a transparent disc instead of `--bg-surface`). That mechanism is

@@ -184,10 +184,11 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   //
   // STORY 5.5 UPDATE: the descendant-walk rationale below NO LONGER constrains the spawn — the
   // correlation now matches by SUBTREE ANCESTRY off the PTY leader (pidCorrelation.ts
-  // `isAncestorOf`), which works whatever the spawn shape (in practice `bash -l -c claude` execs the claude ELF, so
-  // the PTY leader IS claude and the tracked session is a deep `npm exec claude` descendant — both
-  // are under the leader). We KEEP `$SHELL -l -c claude` purely for the LOGIN-SHELL PATH/rc benefit
-  // (the second bullet below); the "claude must stay a child" reasoning is now moot.
+  // `isAncestorOf`), which works whatever the spawn shape (in practice `bash -l -c claude` execs
+  // the claude ELF, so the PTY leader IS claude and the tracked session is a deep `npm exec
+  // claude` descendant — both are under the leader). We KEEP `$SHELL -l -c claude` purely for the
+  // LOGIN-SHELL PATH/rc benefit (the second bullet below); the "claude must stay a child"
+  // reasoning is now moot.
   //
   // FROZEN DECISION (F3 fork resolved with live evidence): we spawn `claude` via a LOGIN SHELL
   // that runs claude AS A CHILD — `$SHELL -l -c 'claude'` — NOT the direct spawn and NOT
@@ -262,10 +263,10 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
       file: SHELL,
       // Composed in claudeBin.ts, NOT inlined here: this registrar is only reachable through
       // Electron's ipc, so the quoting of the operator-typed name would otherwise be untestable.
-      // Name-sync adds `-n <name>` so claude runs under the operator's name instead of generating its own title,
-      // `--settings <file>` carries the hook block WITHOUT touching the operator's project, and
-      // `--append-system-prompt` injects the deterministic-attention question-format nudge
-      // (DA-4; probe-verified GO).
+      // Name-sync adds `-n <name>` so claude runs under the operator's name instead of
+      // generating its own title, `--settings <file>` carries the hook block WITHOUT touching the
+      // operator's project, and `--append-system-prompt` injects the deterministic-attention
+      // question-format nudge (DA-4; probe-verified GO).
       args: [
         '-l',
         '-c',

@@ -543,10 +543,10 @@ describe('App — Story 5.6 selectStartingTerminals reflects launched-but-uncorr
 // show/hide. `selectKeptAliveTerminalIds` proves the SELECTOR body is unfiltered
 // (boardStore.test.ts), but that cannot catch the catastrophic version of the mistake: someone
 // wrapping the `keptAlive.map(...)` in FocusedSession.tsx (or the `App.tsx` mount-gate that keeps
-// FocusedSession alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT the
-// EmbeddedTerminal, which runs its cleanup (term.dispose() + window.terminal.stop(terminalId)) and
-// KILLS the live PTY — losing the operator's session. This mirrors the B-1 regression guard above,
-// just for a WORKSPACE switch instead of a Board↔Focused toggle.
+// FocusedSession alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT
+// the EmbeddedTerminal, which runs its cleanup (term.dispose() + window.terminal.stop(terminalId))
+// and KILLS the live PTY — losing the operator's session. This mirrors the B-1 regression guard
+// above, just for a WORKSPACE switch instead of a Board↔Focused toggle.
 describe("App — Task 9a fix: a workspace switch keeps a HIDDEN workspace's terminal mounted (PTY survives)", () => {
   it('a terminal launched in workspace w1 stays in the DOM (and its PTY is never stopped) after switching the active workspace to w2', async () => {
     const r = await renderApp()
