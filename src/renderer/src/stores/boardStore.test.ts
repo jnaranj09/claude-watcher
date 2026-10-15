@@ -16,17 +16,8 @@ import {
   NO_FILTER,
   type BoardState
 } from './boardStore'
-import type { WatchEventsPayload } from '../../../shared/ipc/contract'
-import { watchUpdated } from '../../../__fixtures__/watchEvents'
-
-const FIXED_NOW = 1_750_000_000_000
-
-function removed(epoch: number, id: string): WatchEventsPayload {
-  return {
-    epoch,
-    event: { type: 'session.removed', id, sessionName: `s-${id}`, projectPath: `/p/${id}` }
-  }
-}
+import { watchRemoved, watchUpdated } from '../../../__fixtures__/watchEvents'
+import { FIXED_NOW } from '../test/boardStoreFixtures'
 
 describe('boardStore — reduces validated deltas into a BoardSession projection (AC-8)', () => {
   it('upserts a session.updated into the projection map keyed by id, building from the delta', () => {
@@ -88,7 +79,7 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
     expect(selectTotalCount(store.getState(), 'default', NO_FILTER)).toBe(1)
-    store.getState().applyWatchEvent(removed(2, 'a'))
+    store.getState().applyWatchEvent(watchRemoved(2, 'a'))
     expect(store.getState().sessionsById['a']).toBeUndefined()
     expect(selectTotalCount(store.getState(), 'default', NO_FILTER)).toBe(0)
   })

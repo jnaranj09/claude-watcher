@@ -12,23 +12,8 @@ import {
   selectKeptAliveTerminalIds,
   selectStartingTerminals
 } from './boardStore'
-import type { WatchEventsPayload } from '../../../shared/ipc/contract'
-import { watchUpdated } from '../../../__fixtures__/watchEvents'
-
-const FIXED_NOW = 1_750_000_000_000
-
-/** A controllable clock for deterministic time-based assertions. */
-function makeClock(start = FIXED_NOW): { now: () => number; advance: (ms: number) => void } {
-  let t = start
-  return { now: () => t, advance: (ms) => (t += ms) }
-}
-
-function removed(epoch: number, id: string): WatchEventsPayload {
-  return {
-    epoch,
-    event: { type: 'session.removed', id, sessionName: `s-${id}`, projectPath: `/p/${id}` }
-  }
-}
+import { watchRemoved, watchUpdated } from '../../../__fixtures__/watchEvents'
+import { FIXED_NOW, makeClock } from '../test/boardStoreFixtures'
 
 describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () => {
   it('selectedId defaults to null; selectSelectedId is a narrow primitive selector', () => {
@@ -72,10 +57,10 @@ describe('boardStore — FR-9 selection view-state (Story 2.2: AC-5, AC-8)', () 
     store.getState().setSelected('a')
     expect(selectSelectedId(store.getState())).toBe('a')
     // Removing a DIFFERENT session leaves the selection intact.
-    store.getState().applyWatchEvent(removed(2, 'b'))
+    store.getState().applyWatchEvent(watchRemoved(2, 'b'))
     expect(selectSelectedId(store.getState())).toBe('a')
     // Removing the SELECTED session clears it.
-    store.getState().applyWatchEvent(removed(3, 'a'))
+    store.getState().applyWatchEvent(watchRemoved(3, 'a'))
     expect(selectSelectedId(store.getState())).toBeNull()
   })
 
@@ -278,7 +263,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     store.getState().acknowledge('a')
     expect(store.getState().acknowledgedById['a']).toBeDefined()
 
-    store.getState().applyWatchEvent(removed(2, 'a'))
+    store.getState().applyWatchEvent(watchRemoved(2, 'a'))
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
   })
@@ -326,7 +311,7 @@ describe('boardStore — Story 3.4 terminalIdBySessionId + switchTerminal (AC-3,
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(watchUpdated(1, 'a', 'needs-you', 100))
     store.getState().addCorrelation('a', 'launch-1')
-    store.getState().applyWatchEvent(removed(2, 'a'))
+    store.getState().applyWatchEvent(watchRemoved(2, 'a'))
     expect(selectTerminalIdForSession(store.getState(), 'a')).toBeUndefined()
   })
 
@@ -612,7 +597,7 @@ describe('boardStore — Story 5.6 selectStartingTerminals (AC-3, AC-4)', () => 
     // Correlated + card present → NOT starting.
     expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(0)
     // Session removed → card gone + binding cleared → falls back into strip.
-    store.getState().applyWatchEvent(removed(2, 'sess-1'))
+    store.getState().applyWatchEvent(watchRemoved(2, 'sess-1'))
     expect(selectStartingTerminals(store.getState(), 'default')).toHaveLength(1)
   })
 

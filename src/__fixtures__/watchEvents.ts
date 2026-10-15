@@ -1,6 +1,7 @@
 // `session.updated` delta builders for tests, at the two stages of the watch pipeline:
 //   - `reducerUpdated` — what the reducer emits, before enrichment (main side);
-//   - `watchUpdated`   — the enriched, validated wire shape main ships to the renderer.
+//   - `watchUpdated`   — the enriched, validated wire shape main ships to the renderer;
+//   - `watchRemoved`   — the `session.removed` delta.
 // Each test states only the fields it is about; the rest are fixed defaults. Fresh object per call.
 import type {
   Column,
@@ -50,5 +51,13 @@ export function watchUpdated(
       tagIds: [],
       ...over
     }
+  }
+}
+
+/** A `session.removed` delta for session `id`. */
+export function watchRemoved(epoch: number, id: string): WatchEventsPayload {
+  return {
+    epoch,
+    event: { type: 'session.removed', id, sessionName: `s-${id}`, projectPath: `/p/${id}` }
   }
 }

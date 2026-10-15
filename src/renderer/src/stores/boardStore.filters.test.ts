@@ -23,22 +23,8 @@ import {
   NO_FILTER
 } from './boardStore'
 import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
-import { watchUpdated } from '../../../__fixtures__/watchEvents'
-
-const FIXED_NOW = 1_750_000_000_000
-
-/** A controllable clock for deterministic time-based assertions. */
-function makeClock(start = FIXED_NOW): { now: () => number; advance: (ms: number) => void } {
-  let t = start
-  return { now: () => t, advance: (ms) => (t += ms) }
-}
-
-function removed(epoch: number, id: string): WatchEventsPayload {
-  return {
-    epoch,
-    event: { type: 'session.removed', id, sessionName: `s-${id}`, projectPath: `/p/${id}` }
-  }
-}
+import { watchRemoved, watchUpdated } from '../../../__fixtures__/watchEvents'
+import { FIXED_NOW, makeClock } from '../test/boardStoreFixtures'
 
 // ---------------------------------------------------------------------------
 // Rail SECTIONS — the pinned active row + one group per status.
@@ -78,7 +64,7 @@ describe('boardStore — rail sections: pinned active row + per-status groups', 
   // Resolving to a session that is no longer in `sessionsById` would pin a row that renders null.
   it('selectRailActiveSessionId is null when the bound session has been removed', () => {
     const store = withFocus()
-    store.getState().applyWatchEvent(removed(2, 'open'))
+    store.getState().applyWatchEvent(watchRemoved(2, 'open'))
     expect(selectRailActiveSessionId(store.getState())).toBeNull()
   })
 
