@@ -49,6 +49,9 @@ interface WatchEntry {
 export interface TranscriptWatcherOptions {
   /** Called for every signal found. Never called with session content. */
   onSignal: (sessionId: string, signal: TranscriptSignalResult) => void
+  /** Backup poll interval (ms). Tests pass a short one so the poll runs inside their
+   *  settle window; production uses the default, `TRANSCRIPT_POLL_MS`. */
+  pollMs?: number
 }
 
 export interface TranscriptWatcher {
@@ -151,7 +154,7 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
         if (entry.watcher === undefined) attach(sessionId, entry)
         scheduleDrain(sessionId, entry)
       }
-    }, TRANSCRIPT_POLL_MS)
+    }, options.pollMs ?? TRANSCRIPT_POLL_MS)
     poll.unref?.()
   }
 

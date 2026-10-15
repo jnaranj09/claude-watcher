@@ -10,6 +10,9 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createTranscriptWatcher, type TranscriptWatcher } from './transcriptWatcher'
 
+/** Short backup poll so a negative test's settle window spans several polls. */
+const POLL_MS = 25
+
 let dir: string
 let watcher: TranscriptWatcher
 let signals: Array<{ sessionId: string; kind: string }>
@@ -23,6 +26,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'tw-'))
   signals = []
   watcher = createTranscriptWatcher({
+    pollMs: POLL_MS,
     onSignal: (sessionId, signal) =>
       signals.push({
         sessionId,
@@ -40,8 +44,9 @@ const file = (name: string): string => join(dir, name)
 
 /** Wait a real interval before asserting. `vi.waitFor` is WRONG for a negative
  *  assertion — it succeeds on its FIRST check, so "stays empty" passes instantly
- *  without ever giving the watcher a chance to (incorrectly) fire. */
-const settle = (ms = 900): Promise<void> => new Promise((r) => setTimeout(r, ms))
+ *  without ever giving the watcher a chance to (incorrectly) fire. The default spans
+ *  several `POLL_MS` polls, so the backup poll gets its chance to fire too. */
+const settle = (ms = 100): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 describe('createTranscriptWatcher — incremental tailing', () => {
   it('reports an interrupt appended after watching starts', async () => {
