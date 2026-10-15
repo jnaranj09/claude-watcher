@@ -11,7 +11,7 @@
 //     while it is open; ✕ closes it.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { click, flush, q, unmountRendered } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { templatesStore } from './stores/templatesStore'
@@ -28,15 +28,6 @@ const T1: Template = {
   initialPrompt: null,
   params: [],
   favorite: false
-}
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
 }
 
 let launch: ReturnType<typeof vi.fn>
@@ -70,13 +61,6 @@ function qDoc<T extends Element>(sel: string): T {
   if (el === null) throw new Error(`missing ${sel}`)
   return el
 }
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('App — session templates', () => {
   it('loads templates on mount and the header menu lists them', async () => {
@@ -105,7 +89,7 @@ describe('App — session templates', () => {
     click(q(r, '[data-testid="header-new-session"]'))
     click(qDoc('[data-template-id="tpl-a"]'))
     click(q(r, '[data-testid="session-name-confirm"]'))
-    await flush()
+    await flush(3)
     expect(launchFromTemplate).toHaveBeenCalledWith('tpl-a', 'work api')
     expect(launch).not.toHaveBeenCalled()
     expect(boardStore.getState().focusedTerminalId).toBe('launch-term-tpl')
@@ -115,7 +99,7 @@ describe('App — session templates', () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
     click(qDoc('[data-testid="menu-pick-folder"]'))
-    await flush()
+    await flush(3)
     expect(pickDirectory).toHaveBeenCalledTimes(1)
     expect(boardStore.getState().sessionNamePrompt?.mode).toBe('create')
   })
@@ -128,7 +112,7 @@ describe('App — session templates', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
     })
-    await flush()
+    await flush(3)
     expect(pickDirectory).not.toHaveBeenCalled()
     expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
     click(q(r, '[data-testid="sessions-close"]'))
@@ -178,7 +162,7 @@ describe('App — session templates', () => {
     expect(menu, 'the dead pane must open the templates popover').not.toBeNull()
 
     click(document.body.querySelector('[data-template-id="tpl-a"]') as Element)
-    await flush()
+    await flush(3)
     // Same destination as the header path: the name prompt, carrying the templateId.
     expect(boardStore.getState().sessionNamePrompt).toEqual({
       mode: 'create',

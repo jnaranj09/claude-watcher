@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { NewSessionMenu } from './NewSessionMenu'
 import { filterTemplates } from './filterTemplates'
 import type { Template } from '../../../../shared/ipc/contract'
@@ -57,11 +57,6 @@ function render(templates: Template[] = [T1, T2]): {
   )
   cleanup = r.unmount
   return { r, ...props }
-}
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
 }
 function type(input: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set

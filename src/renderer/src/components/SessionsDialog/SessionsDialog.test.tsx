@@ -2,7 +2,7 @@
 // jsdom `unit`; the same store setup as the Past sessions and Templates dialog tests.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, useState, type JSX } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { flush, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, selectedValue } from '../../test/selectHarness'
 import { SessionsDialog } from './SessionsDialog'
 import type { SessionsPage } from '../../stores/boardStore'
@@ -67,12 +67,6 @@ function render(initial: SessionsPage): RenderResult {
 const q = (r: RenderResult, sel: string): HTMLElement | null =>
   r.container.querySelector<HTMLElement>(sel)
 const click = (el: Element | null): void => act(() => (el as HTMLElement | null)?.click())
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 describe('SessionsDialog', () => {
   it('is ONE dialog titled Sessions with a page column; the asked-for page is current', async () => {

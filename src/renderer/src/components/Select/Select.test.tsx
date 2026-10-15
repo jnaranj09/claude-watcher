@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { Select, type SelectOption } from './Select'
 import { MOTION_EXIT_MS } from '../../styles/motion'
 import { pointerInput } from '../../test/pointerInput'
@@ -49,8 +49,6 @@ function q<T extends Element>(_r: RenderResult, sel: string): T {
   if (el === null) throw new Error(`missing ${sel}`)
   return el
 }
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 function key(el: Element, k: string): void {
   act(() => {

@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, type JSX } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ManageDialog, useManageDialog, useManageDialogContext } from './ManageDialog'
 
 let cleanup: (() => void) | undefined
@@ -66,14 +66,6 @@ function render(): { r: RenderResult; onMoveUp: ReturnType<typeof vi.fn> } {
   cleanup = r.unmount
   return { r, onMoveUp }
 }
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('ManageDialog.Row', () => {
   // design.md: the list is FLAT — no section wrapper may ever sit between the rows.

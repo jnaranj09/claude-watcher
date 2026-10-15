@@ -3,7 +3,7 @@
 // bridges, the real App — the shared App harness (test/appHarness.ts).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { click, q, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { tagsStore } from './stores/tagsStore'
@@ -35,14 +35,6 @@ afterEach(() => {
   act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
   vi.restoreAllMocks()
 })
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 /** The header ☰ menu → its Tags submenu → one of the submenu's rows. */
 function chooseFromTagsSubmenu(r: RenderResult, row: 'manage-tags' | 'manage-rules'): void {

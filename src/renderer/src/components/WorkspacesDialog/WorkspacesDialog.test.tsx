@@ -5,7 +5,7 @@
 // discipline, the act()-wrapped async-settling `flush()` idiom in place of `waitFor`).
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { WorkspacesDialog } from './WorkspacesDialog'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { boardStore } from '../../stores/boardStore'
@@ -58,24 +58,11 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
   const r = renderComponent(<WorkspacesDialog onClose={onClose} />)
   cleanup = r.unmount
   return { r, onClose }
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
 }
 
 function type(el: HTMLInputElement, value: string): void {
@@ -85,8 +72,6 @@ function type(el: HTMLInputElement, value: string): void {
     el.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('WorkspacesDialog', () => {
   // Real assertion: the two seeded rows each render their own testid'd item AND carry their

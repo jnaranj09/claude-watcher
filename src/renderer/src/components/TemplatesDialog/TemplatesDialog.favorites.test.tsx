@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
 import { settingsStore } from '../../stores/settingsStore'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
@@ -74,12 +74,6 @@ function render(): RenderResult {
   )
   cleanup = r.unmount
   return r
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
 }
 
 const ids = (r: RenderResult): (string | null)[] =>

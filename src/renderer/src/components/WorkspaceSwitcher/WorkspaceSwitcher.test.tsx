@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, fireEvent, type RenderResult } from '../../test/renderComponent'
+import { fireEvent, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { boardStore } from '../../stores/boardStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
@@ -96,12 +96,6 @@ function renderSwitcher(onManage: () => void = () => {}): RenderResult {
   const r = renderComponent(<WorkspaceSwitcher onManage={onManage} />)
   cleanup = r.unmount
   return r
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
 }
 
 function click(el: Element): void {

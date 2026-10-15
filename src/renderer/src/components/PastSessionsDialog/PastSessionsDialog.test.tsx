@@ -2,7 +2,7 @@
 // `renderComponent` harness and `selectHarness` for the scope dropdown, like TagsDialog.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { flush, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues } from '../../test/selectHarness'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { pastSessionsStore } from '../../stores/pastSessionsStore'
@@ -68,13 +68,6 @@ afterEach(() => {
   })
   vi.restoreAllMocks()
 })
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()

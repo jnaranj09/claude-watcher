@@ -6,7 +6,7 @@
 // Fake window bridges from the shared App harness (test/appHarness.ts), no Electron.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { click, flush, q, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { shortcutsStore } from './stores/shortcutsStore'
@@ -19,15 +19,6 @@ const SC: Shortcut = {
   text: 'I explicitly approve',
   workspaceId: null,
   favorite: false
-}
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
 }
 
 let pickDirectory: ReturnType<typeof vi.fn>
@@ -45,14 +36,6 @@ afterEach(() => {
   act(() => shortcutsStore.getState().hydrate([]))
   vi.restoreAllMocks()
 })
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 /** The header ☰ menu → Shortcuts…. */
 function openShortcuts(r: RenderResult): void {
@@ -80,7 +63,7 @@ describe('App — shortcuts entry point', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
     })
-    await flush()
+    await flush(3)
     expect(pickDirectory).not.toHaveBeenCalled()
     expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   })
@@ -96,7 +79,7 @@ describe('App — shortcuts entry point', () => {
       boardStore.getState().openWorkspacesDialog()
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }))
     })
-    await flush()
+    await flush(3)
     expect(pickDirectory).not.toHaveBeenCalled()
     expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
   })

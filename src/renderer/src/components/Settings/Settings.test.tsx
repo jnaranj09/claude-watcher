@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { act } from 'react'
 import { SettingsPanel } from './Settings'
 import { settingsStore } from '../../stores/settingsStore'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, selectedValue, optionValues, optionLabel } from '../../test/selectHarness'
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/schemas/settings'
 import { mergedSettings, stubSettings } from '../../test/settingsBridge'
@@ -84,20 +84,6 @@ function stubClipboard(): ReturnType<typeof vi.fn> {
   return writeText
 }
 
-/** Let the token-bridge promises settle inside `act` so React state has landed. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
 /** Type into a React-controlled field the way the DOM does, so onChange fires. */
 function type(el: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
@@ -106,8 +92,6 @@ function type(el: HTMLInputElement, value: string): void {
     el.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 /** React 17+ delegates onBlur to the native `focusout` event — a `blur` Event never reaches it. */
 function blur(el: Element): void {

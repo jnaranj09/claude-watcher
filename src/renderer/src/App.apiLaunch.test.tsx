@@ -14,18 +14,10 @@
 // A SIBLING of App.launch.test.tsx (the B-1 guardrail); both use the shared App harness.
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { flush, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { LaunchRequestedEvent } from '../../shared/ipc/contract'
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle before asserting. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 /** Called by the unsubscribe the fake bridge hands back — asserted to run on unmount. */
 let offSpy: Mock<() => void>

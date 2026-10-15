@@ -13,19 +13,10 @@
 // and App.launch.test.tsx (the B-1 guardrail).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered } from './test/renderComponent'
+import { flush, unmountRendered } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { watchUpdated } from '../../__fixtures__/watchEvents'
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 let archiveSpy: ReturnType<typeof vi.fn>
 let deleteSpy: ReturnType<typeof vi.fn>
@@ -51,7 +42,7 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
         .getState()
         .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
     )
-    await flush()
+    await flush(3)
 
     // The card exists (the board shows it) but its terminal binding has not landed yet — a card
     // whose binding is unknown cannot be exited (sessionExit.ts needs a terminalId, not a
@@ -65,7 +56,7 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
     // The Tgid-join correlation lands (CH.launchCorrelated in production; addCorrelation is its
     // store-side effect).
     act(() => boardStore.getState().addCorrelation('sess-1', 'term-1'))
-    await flush()
+    await flush(3)
 
     expect(r.container.querySelector('[data-testid="card-archive"]')).not.toBeNull()
     expect(r.container.querySelector('[data-testid="card-delete"]')).not.toBeNull()
@@ -79,12 +70,12 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
         .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
       boardStore.getState().addCorrelation('sess-1', 'term-1')
     })
-    await flush()
+    await flush(3)
 
     const archiveBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="card-archive"]')
     expect(archiveBtn).not.toBeNull()
     act(() => archiveBtn?.click())
-    await flush()
+    await flush(3)
 
     expect(archiveSpy).toHaveBeenCalledWith('term-1')
     expect(deleteSpy).not.toHaveBeenCalled()
@@ -102,12 +93,12 @@ describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Boa
         .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
       boardStore.getState().addCorrelation('sess-1', 'term-1')
     })
-    await flush()
+    await flush(3)
 
     const deleteBtn = r.container.querySelector<HTMLButtonElement>('[data-testid="card-delete"]')
     expect(deleteBtn).not.toBeNull()
     act(() => deleteBtn?.click())
-    await flush()
+    await flush(3)
 
     expect(boardStore.getState().stopConfirm).toEqual({
       terminalId: 'term-1',

@@ -4,18 +4,10 @@
 // App.tags.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { click, flush, q, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { QuitGuardPayload } from '../../shared/ipc/contract'
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 let guardShow: ((payload: QuitGuardPayload) => void) | undefined
 
@@ -51,13 +43,6 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 const overlay = (r: RenderResult): Element | null =>
   r.container.querySelector('[data-testid="settings-overlay"]')
 
@@ -133,7 +118,7 @@ describe('App — the header ☰ menu', () => {
       const r = await renderApp()
       expect(panel(r)).toBeNull()
       openPastSessions(r)
-      await flush()
+      await flush(3)
       expect(panel(r)).not.toBeNull()
       expect(window.pastSessions.list).toHaveBeenCalledTimes(1)
       expect(q(r, '[data-testid="app-header"]').hasAttribute('inert')).toBe(true)
@@ -147,7 +132,7 @@ describe('App — the header ☰ menu', () => {
           new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true })
         )
       })
-      await flush()
+      await flush(3)
       expect(window.launch.pickDirectory).not.toHaveBeenCalled()
       expect(document.querySelector('[data-testid="new-session-menu"]')).toBeNull()
       openSettings(r)

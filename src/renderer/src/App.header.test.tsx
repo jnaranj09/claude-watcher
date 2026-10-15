@@ -3,7 +3,7 @@
 // Fake window bridges from the shared App harness (test/appHarness.ts), no Electron.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { q, unmountRendered } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { themeStore } from './stores/themeStore'
 import { THEME_STYLE_ID } from './hooks/useApplyTheme'
@@ -26,12 +26,6 @@ afterEach(() => {
   document.documentElement.style.colorScheme = ''
   act(() => themeStore.getState().setBundle(DEFAULT_THEME_BUNDLE))
 })
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
 
 /** The header's direct child that holds `el` — the group it was placed in. */
 function headerGroupOf(header: Element, el: Element): Element {

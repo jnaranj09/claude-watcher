@@ -2,7 +2,7 @@
 // offers it; hidden where it would do nothing; a refused write puts it back and says so.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { flush, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { stubSettings } from '../../test/settingsBridge'
 import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
 import { settingsStore } from '../../stores/settingsStore'
@@ -32,11 +32,6 @@ afterEach(() => {
   cleanup = undefined
   vi.restoreAllMocks()
 })
-async function flush(): Promise<void> {
-  await act(async () => {
-    for (let i = 0; i < 4; i++) await Promise.resolve()
-  })
-}
 const box = (r: RenderResult, id: string): HTMLInputElement | null =>
   r.container.querySelector<HTMLInputElement>(`[data-testid="${id}"]`)
 
@@ -57,7 +52,7 @@ describe('Include global', () => {
     const { setCalls } = stubSettings()
     const first = renderComponent(<ShortcutsDialog onClose={() => {}} />)
     act(() => box(first, 'shortcut-include-global')?.click())
-    await flush()
+    await flush(4)
     expect(setCalls).toEqual([{ includeGlobal: false }])
     first.unmount()
     const second = renderComponent(
@@ -73,7 +68,7 @@ describe('Include global', () => {
     const r = renderComponent(<ShortcutsDialog onClose={() => {}} />)
     cleanup = r.unmount
     act(() => box(r, 'shortcut-include-global')?.click())
-    await flush()
+    await flush(4)
     expect(box(r, 'shortcut-include-global')?.checked).toBe(true)
     expect(r.container.querySelector('[data-testid="shortcuts-error"]')?.textContent).toBe(
       'Could not save the Include global choice.'

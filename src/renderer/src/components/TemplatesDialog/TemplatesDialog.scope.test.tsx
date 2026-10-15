@@ -10,7 +10,7 @@ import { act } from 'react'
 import { rowText } from '../../test/rowText'
 import { settingsStore } from '../../stores/settingsStore'
 import { stubSettings } from '../../test/settingsBridge'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionLabel, optionValues, selectedValue } from '../../test/selectHarness'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
@@ -89,26 +89,11 @@ function render(): RenderResult {
   return r
 }
 
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
 function names(r: RenderResult): string[] {
   return [...r.container.querySelectorAll('[data-testid="template-row"]')].map(rowText)
 }
 
 const FILTER = 'template-scope-filter'
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('TemplatesDialog scope filter', () => {
   // `All templates` names the LIST; `Global` names a property of a row and is a SUBSET of it.

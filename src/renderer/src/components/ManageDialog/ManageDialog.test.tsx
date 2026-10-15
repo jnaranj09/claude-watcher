@@ -5,7 +5,7 @@
 // dialogs built on the shell do not each re-prove them (spec §6).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, type JSX } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ManageDialog, useManageDialog, useManageDialogContext } from './ManageDialog'
 import styles from './ManageDialog.module.css'
 
@@ -77,14 +77,6 @@ function render(): {
   cleanup = r.unmount
   return { r, onClose, onConfirm }
 }
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 function key(el: Element, k: string): void {
   act(() => {

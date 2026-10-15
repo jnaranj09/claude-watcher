@@ -18,7 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered } from './test/renderComponent'
+import { flush, unmountRendered } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { QuitGuardPayload } from '../../shared/ipc/contract'
@@ -26,14 +26,6 @@ import type { QuitGuardPayload } from '../../shared/ipc/contract'
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle before asserting. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 // ---------------------------------------------------------------------------
 // The window.quit spies (the rest of the fake preload is the shared App harness)

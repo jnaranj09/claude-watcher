@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { settingsStore } from '../../stores/settingsStore'
 import { stubSettings } from '../../test/settingsBridge'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionLabel, optionValues, selectedValue } from '../../test/selectHarness'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
@@ -81,12 +81,6 @@ function render(): RenderResult {
   return r
 }
 
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
 function ids(r: RenderResult): string[] {
   return [...r.container.querySelectorAll('[data-testid^="shortcut-row-"]')].map(
     (el) => el.getAttribute('data-testid') ?? ''
@@ -94,8 +88,6 @@ function ids(r: RenderResult): string[] {
 }
 
 const FILTER = 'shortcut-scope-filter'
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('ShortcutsDialog scope filter', () => {
   // Same words as the Templates dialog's own entry, with the dialog's own noun — see the sibling

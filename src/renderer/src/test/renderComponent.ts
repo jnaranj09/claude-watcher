@@ -65,3 +65,23 @@ export function fireEvent(target: Element | Window | Document, event: Event): vo
     target.dispatchEvent(event)
   })
 }
+
+/** Let `microtasks` turns of the microtask queue run inside `act`, so promise-driven effects
+ *  settle before the test asserts. */
+export async function flush(microtasks = 2): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < microtasks; i++) await Promise.resolve()
+  })
+}
+
+/** The one element under `r` matching `sel`; throws when there is none, so a typo cannot pass. */
+export function q<T extends Element = HTMLElement>(r: RenderResult, sel: string): T {
+  const el = r.container.querySelector<T>(sel)
+  if (el === null) throw new Error(`missing ${sel}`)
+  return el
+}
+
+/** Click `el` inside `act`. */
+export function click(el: Element): void {
+  act(() => (el as HTMLElement).click())
+}

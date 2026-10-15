@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { rowText } from '../../test/rowText'
 import { settingsStore } from '../../stores/settingsStore'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption } from '../../test/selectHarness'
 import { TagsDialog } from './TagsDialog'
 import { tagsStore } from '../../stores/tagsStore'
@@ -54,24 +54,11 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
   const r = renderComponent(<TagsDialog page="tags" onPageChange={() => {}} onClose={onClose} />)
   cleanup = r.unmount
   return { r, onClose }
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
 }
 
 function type(el: HTMLInputElement, value: string): void {
@@ -82,7 +69,6 @@ function type(el: HTMLInputElement, value: string): void {
   })
 }
 
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 const rowNames = (r: RenderResult): string[] =>
   [...r.container.querySelectorAll('[data-testid="tag-row"]')].map(rowText)
 

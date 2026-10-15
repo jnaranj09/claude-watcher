@@ -3,16 +3,10 @@
 // cancel never leave an unhandled rejection.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { flush, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { toastStore } from './stores/toastStore'
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    for (let i = 0; i < 6; i++) await Promise.resolve()
-  })
-}
 
 const bridges = {
   pickDirectory: vi.fn<() => Promise<string | null>>(),
@@ -74,7 +68,7 @@ describe('App — the folder picker', () => {
     bridges.pickDirectory.mockImplementation(() => Promise.reject(new Error('dbus /home/op')))
     const r = await renderApp()
     clickPickFolder(r)
-    await flush()
+    await flush(6)
     expect(toasts()).toEqual([['error', 'Could not open the folder picker.']])
   })
 
@@ -113,7 +107,7 @@ describe('App — the quit paths never leave a rejection unhandled', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', ctrlKey: true }))
     })
-    await flush()
+    await flush(6)
     expect(warn).toHaveBeenCalledWith('[claude-watcher][quit] code=request_quit_failed')
   })
 
@@ -125,7 +119,7 @@ describe('App — the quit paths never leave a rejection unhandled', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
-    await flush()
+    await flush(6)
     expect(boardStore.getState().quitGuard).toBeNull()
     expect(warn).toHaveBeenCalledWith('[claude-watcher][quit] code=quit_cancel_failed')
   })
@@ -137,7 +131,7 @@ describe('App — startup loads', () => {
     bridges.tagsList.mockImplementation(() => Promise.reject(new Error('x')))
     bridges.rulesList.mockImplementation(() => Promise.reject(new Error('x')))
     await renderApp()
-    await flush()
+    await flush(6)
     expect(toasts()).toEqual([
       ['error', 'Could not load tags and rules. Reopen the app to try again.']
     ])

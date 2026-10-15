@@ -15,7 +15,7 @@
 // window.terminal fakes (it just wires open()).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { flush, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import {
   boardStore,
@@ -24,14 +24,6 @@ import {
 } from './stores/boardStore'
 import { workspacesStore } from './stores/workspacesStore'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from '../../shared/schemas/launch'
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle before asserting. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 /**
  * Session-naming — the launch flow is now picker → NAME PROMPT → launch. These Story-3.2 flow

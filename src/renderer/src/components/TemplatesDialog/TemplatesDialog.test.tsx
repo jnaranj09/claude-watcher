@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import inputStyles from '../TextInput/TextInput.module.css'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, optionValues, selectedValue } from '../../test/selectHarness'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
@@ -50,12 +50,6 @@ afterEach(() => {
   )
   vi.restoreAllMocks()
 })
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   const onClose = vi.fn()
   const r = renderComponent(
@@ -64,11 +58,6 @@ function render(): { r: RenderResult; onClose: ReturnType<typeof vi.fn> } {
   cleanup = r.unmount
   return { r, onClose }
 }
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
 function type(el: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
   act(() => {
@@ -76,7 +65,6 @@ function type(el: HTMLInputElement, value: string): void {
     el.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
 
 describe('TemplatesDialog', () => {
   it('+ New opens a NEW draft: Save disabled, no Delete, list shows the store rows', () => {

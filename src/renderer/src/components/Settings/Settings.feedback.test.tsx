@@ -10,7 +10,7 @@ import { act } from 'react'
 import { SettingsPanel } from './Settings'
 import { settingsStore } from '../../stores/settingsStore'
 import { themeStore } from '../../stores/themeStore'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { deferred } from '../../test/deferred'
 import { mergedSettings, stubSettings } from '../../test/settingsBridge'
 import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
@@ -75,24 +75,8 @@ function render(): RenderResult {
   return r
 }
 
-function q<T extends Element = HTMLElement>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
-}
-
-const click = (el: Element): void => act(() => (el as HTMLElement).click())
-
 function openCategory(r: RenderResult, id: string): void {
   click(q(r, `[data-testid="settings-category-${id}"] button`))
-}
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
 }
 
 describe('Settings — ✓ Saved and rollback', () => {
@@ -101,12 +85,12 @@ describe('Settings — ✓ Saved and rollback', () => {
     stubSettings()
     stubThemes()
     const r = render()
-    await flush()
+    await flush(3)
     const mark = q(r, '[data-testid="settings-message"]')
     expect(mark.getAttribute('role')).toBe('status')
     expect(mark.textContent).toBe('')
     click(q(r, '[data-testid="settings-sound-toggle"]'))
-    await flush()
+    await flush(3)
     expect(mark.textContent).toBe('Saved')
     // The slot is the live region (always in the page); the callout inside does not re-announce.
     const callout = mark.querySelector('[data-testid="settings-success"]')
@@ -129,10 +113,10 @@ describe('Settings — ✓ Saved and rollback', () => {
     stubThemes()
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, soundEnabled: true }))
     const r = render()
-    await flush()
+    await flush(3)
     const toggle = q<HTMLInputElement>(r, '[data-testid="settings-sound-toggle"]')
     click(toggle)
-    await flush()
+    await flush(3)
     expect(toggle.checked).toBe(true)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Could not save the attention sound.'
@@ -150,13 +134,13 @@ describe('Settings — ✓ Saved and rollback', () => {
     )
     stubThemes()
     const r = render()
-    await flush()
+    await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
-    await flush()
+    await flush(3)
     expect(r.container.querySelector('[data-testid="settings-error"]')).not.toBeNull()
     refuse = false
     click(q(r, '[data-testid="settings-notifications-toggle"]'))
-    await flush()
+    await flush(3)
     expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
   })
 })
@@ -188,17 +172,17 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     stubApi()
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
     const r = render()
-    await flush()
+    await flush(3)
     openCategory(r, 'api')
     commitPort(r, '30000')
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
     refuse = true
     commitPort(r, '30001')
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not save the API port.')
     commitPort(r, '30000')
-    await flush()
+    await flush(3)
     expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
     expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
   })
@@ -208,15 +192,15 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     stubSettings(() => Promise.reject(new Error('x')))
     stubThemes()
     const r = render()
-    await flush()
+    await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Could not save the attention sound.'
     )
     openCategory(r, 'api')
     commitPort(r, '80')
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Port must be between 1024 and 65535.'
     )
@@ -231,15 +215,15 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     stubThemes()
     stubApi()
     const r = render()
-    await flush()
+    await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
-    await flush()
+    await flush(3)
     openCategory(r, 'api')
     commitPort(r, '80')
-    await flush()
+    await flush(3)
     refuse = false
     click(q(r, '[data-testid="settings-api-enabled"]'))
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Port must be between 1024 and 65535.'
     )
@@ -249,9 +233,9 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     stubSettings()
     stubThemes()
     const r = render()
-    await flush()
+    await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
     openCategory(r, 'terminal')
     expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
@@ -265,13 +249,13 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     )
     stubThemes()
     const r = render()
-    await flush()
+    await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
     refuse = true
     click(q(r, '[data-testid="settings-notifications-toggle"]'))
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
       'Could not save desktop notifications.'
     )
@@ -289,17 +273,17 @@ describe('Settings — API token actions', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
     const r = render()
     openCategory(r, 'api')
-    await flush()
+    await flush(3)
     expect(r.container.querySelector('[data-testid="settings-api-copy"]')).toBeNull()
     token.resolve({ token: 'c'.repeat(64) })
-    await flush()
+    await flush(3)
     const copy = q<HTMLButtonElement>(r, '[data-testid="settings-api-copy"]')
     // Before the flash the live region is empty (both layers are always in the button, so its
     // textContent says nothing about which one shows — the status sibling does).
     expect(copy.nextElementSibling?.getAttribute('role')).toBe('status')
     expect(copy.nextElementSibling?.textContent).toBe('')
     click(copy)
-    await flush()
+    await flush(3)
     expect(writeText).toHaveBeenCalledWith('c'.repeat(64))
     expect(copy.nextElementSibling?.textContent).toBe('✓ Copied')
   })
@@ -313,10 +297,10 @@ describe('Settings — API token actions', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
     const r = render()
     openCategory(r, 'api')
-    await flush()
+    await flush(3)
     const copy = q<HTMLButtonElement>(r, '[data-testid="settings-api-copy"]')
     click(copy)
-    await flush()
+    await flush(3)
     expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not copy the token.')
     expect(copy.nextElementSibling?.textContent).toBe('')
     expect(warn.mock.calls.flat().join(' ')).not.toContain('a'.repeat(64))
@@ -330,7 +314,7 @@ describe('Settings — API token actions', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, apiEnabled: true }))
     const r = render()
     openCategory(r, 'api')
-    await flush()
+    await flush(3)
     const btn = q<HTMLButtonElement>(r, '[data-testid="settings-api-regenerate"]')
     expect(btn.nextElementSibling?.textContent).toBe('')
     click(btn) // arm
@@ -341,7 +325,7 @@ describe('Settings — API token actions', () => {
     click(btn) // a second confirm while in flight
     expect(regenerate).toHaveBeenCalledTimes(1)
     minted.resolve({ token: 'd'.repeat(64) })
-    await flush()
+    await flush(3)
     expect(btn.disabled).toBe(false)
     expect(btn.hasAttribute('data-armed')).toBe(false)
     expect(btn.nextElementSibling?.textContent).toBe('✓ New token')
@@ -355,7 +339,7 @@ describe('Settings — themes', () => {
     const { reload: reloadSpy } = stubThemes(undefined, () => done.promise)
     const r = render()
     openCategory(r, 'appearance')
-    await flush()
+    await flush(3)
     const reload = q<HTMLButtonElement>(r, '[data-testid="settings-theme-reload"]')
     expect(reload.nextElementSibling?.textContent).toBe('')
     click(reload)
@@ -364,7 +348,7 @@ describe('Settings — themes', () => {
     click(reload) // a second press while in flight
     expect(reloadSpy).toHaveBeenCalledTimes(1)
     done.resolve({ ok: true, id: 'default' })
-    await flush()
+    await flush(3)
     expect(reload.hasAttribute('aria-busy')).toBe(false)
     expect(reload.nextElementSibling?.textContent).toBe('✓ Reloaded')
   })
@@ -375,7 +359,7 @@ describe('Settings — themes', () => {
     const { openFolder } = stubThemes(undefined, undefined, () => opened.promise)
     const r = render()
     openCategory(r, 'appearance')
-    await flush()
+    await flush(3)
     const btn = q<HTMLButtonElement>(r, '[data-testid="settings-theme-open-folder"]')
     click(btn)
     expect(btn.getAttribute('aria-busy')).toBe('true')
@@ -383,7 +367,7 @@ describe('Settings — themes', () => {
     click(btn) // a second press while in flight
     expect(openFolder).toHaveBeenCalledTimes(1)
     opened.resolve()
-    await flush()
+    await flush(3)
     expect(btn.hasAttribute('aria-busy')).toBe(false)
     expect(btn.disabled).toBe(false)
   })
@@ -395,7 +379,7 @@ describe('Settings — themes', () => {
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'paper' }))
     const r = render()
     openCategory(r, 'appearance')
-    await flush()
+    await flush(3)
     const trigger = q(r, '[data-testid="settings-theme"]')
     expect(trigger.textContent).toContain('Loading…')
     expect(trigger.textContent).not.toContain('paper')

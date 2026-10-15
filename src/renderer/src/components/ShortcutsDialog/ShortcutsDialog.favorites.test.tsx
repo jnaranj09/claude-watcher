@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
 import { settingsStore } from '../../stores/settingsStore'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { shortcutsStore } from '../../stores/shortcutsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
@@ -71,12 +71,6 @@ function render(): RenderResult {
   const r = renderComponent(<ShortcutsDialog onClose={vi.fn()} />)
   cleanup = r.unmount
   return r
-}
-
-function q<T extends Element>(r: RenderResult, sel: string): T {
-  const el = r.container.querySelector<T>(sel)
-  if (el === null) throw new Error(`missing ${sel}`)
-  return el
 }
 
 const ids = (r: RenderResult): string[] =>

@@ -8,20 +8,11 @@
 // A SIBLING of App.launch.test.tsx (the B-1 guardrail); both use the shared App harness.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { flush, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { pointerInput } from './test/pointerInput'
 import { watchUpdated } from '../../__fixtures__/watchEvents'
-
-/** Resolve a microtask/Promise chain inside act() so async effects settle. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
 
 let renameSpy: ReturnType<typeof vi.fn>
 
@@ -52,7 +43,7 @@ async function renderWithCard(
       .getState()
       .applyWatchEvent(watchUpdated(0, id, 'working', 100, { sessionName: name }))
   )
-  await flush()
+  await flush(3)
   const pencil = r.container.querySelector<HTMLButtonElement>('[data-testid="card-rename"]')
   expect(pencil).not.toBeNull()
   return { r, pencil: pencil as HTMLButtonElement }
@@ -63,7 +54,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
 
     act(() => pencil.click())
-    await flush()
+    await flush(3)
 
     const prompt = boardStore.getState().sessionNamePrompt
     expect(prompt?.mode).toBe('rename')
@@ -80,7 +71,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
   it('submitting calls window.launch.rename with the session id and the typed name', async () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
-    await flush()
+    await flush(3)
 
     // The dialog's own field, by testid: the board's search box is a text input too, and sits first.
     const input = r.container.querySelector<HTMLInputElement>('[data-testid="session-name-input"]')
@@ -98,7 +89,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     act(() => {
       form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
-    await flush()
+    await flush(3)
 
     expect(renameSpy).toHaveBeenCalledTimes(1)
     expect(renameSpy).toHaveBeenCalledWith('sess-1', 'deploy-prod')
@@ -109,7 +100,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
   it('does NOT write the new name into the store — main owns session truth', async () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
-    await flush()
+    await flush(3)
     // The dialog's own field, by testid: the board's search box is a text input too, and sits first.
     const input = r.container.querySelector<HTMLInputElement>('[data-testid="session-name-input"]')
     act(() => {
@@ -125,7 +116,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
         .querySelector('form')
         ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
-    await flush()
+    await flush(3)
 
     // The IPC fired, but the projection still shows the OLD name: the renderer never invents
     // session truth (state.md). It changes only when main echoes the delta back.
@@ -138,7 +129,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
         .getState()
         .applyWatchEvent(watchUpdated(0, 'sess-1', 'working', 100, { sessionName: 'deploy-prod' }))
     )
-    await flush()
+    await flush(3)
     expect(boardStore.getState().sessionsById['sess-1']?.sessionName).toBe('deploy-prod')
     expect(r.container.querySelector('[data-testid="session-name"]')?.textContent).toBe(
       'deploy-prod'
@@ -148,14 +139,14 @@ describe('App — rename an existing session (session-naming A2)', () => {
   it('cancelling the rename prompt is a complete no-op (no IPC, name unchanged)', async () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
-    await flush()
+    await flush(3)
 
     const cancel = [...r.container.querySelectorAll('button')].find(
       (b) => b.textContent?.trim() === 'Cancel'
     )
     expect(cancel).not.toBeUndefined()
     act(() => cancel?.click())
-    await flush()
+    await flush(3)
 
     expect(boardStore.getState().sessionNamePrompt).toBeNull()
     expect(renameSpy).not.toHaveBeenCalled()
@@ -167,7 +158,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     renameSpy.mockImplementation(() => Promise.reject(new Error('boundary rejected')))
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
-    await flush()
+    await flush(3)
     // The dialog's own field, by testid: the board's search box is a text input too, and sits first.
     const input = r.container.querySelector<HTMLInputElement>('[data-testid="session-name-input"]')
     act(() => {
@@ -183,7 +174,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
         .querySelector('form')
         ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
-    await flush()
+    await flush(3)
 
     // Never-crash: the card is still on the board with its old name.
     expect(r.container.querySelector('[data-testid="session-name"]')?.textContent).toBe('project')
@@ -197,7 +188,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     const { pencil } = await renderWithCard('sess-1', 'project')
 
     act(() => pencil.click())
-    await flush()
+    await flush(3)
 
     // If the click had bubbled to the card root, activateCard would have switched the view and
     // selected the session — leaving the rename dialog floating over the focused terminal.
@@ -208,7 +199,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
   it('the rename dialog carries the one helper line; the create dialog does not', async () => {
     const { r, pencil } = await renderWithCard('sess-1', 'project')
     act(() => pencil.click())
-    await flush()
+    await flush(3)
 
     expect(document.querySelector('[data-testid="session-name-helper"]')?.textContent).toBe(
       'Applies in Claude on your next prompt.'
@@ -220,7 +211,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
       (b) => b.textContent?.trim() === 'Cancel'
     )
     act(() => cancel?.click())
-    await flush()
+    await flush(3)
     expect(boardStore.getState().sessionNamePrompt).toBeNull()
 
     // Now open the CREATE dialog the same way App.launch.test.tsx does: the header's `+ New
@@ -232,7 +223,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     act(() =>
       (document.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
     )
-    await flush()
+    await flush(3)
 
     expect(boardStore.getState().sessionNamePrompt?.mode).toBe('create')
     expect(r.container.querySelector('[data-testid="session-name-helper"]')).toBeNull()
@@ -248,15 +239,15 @@ describe('App — rename an existing session (session-naming A2)', () => {
         .getState()
         .applyWatchEvent(watchUpdated(0, 'sess-2', 'working', 100, { sessionName: 'second' }))
     })
-    await flush()
+    await flush(3)
 
     const pencils = r.container.querySelectorAll<HTMLButtonElement>('[data-testid="card-rename"]')
     expect(pencils.length).toBe(2)
     act(() => pencils[0]?.click())
-    await flush()
+    await flush(3)
     const firstPrompt = boardStore.getState().sessionNamePrompt
     act(() => pencils[1]?.click())
-    await flush()
+    await flush(3)
 
     // Still the FIRST session's prompt — the second click was refused, so the dialog's input can
     // never hold one session's typed name while onSubmit closes over another's id.
@@ -269,7 +260,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
   it('the prompt fading out after a busy submit keeps its busy label', async () => {
     const { r, pencil } = await renderWithCard()
     act(() => pencil.click())
-    await flush()
+    await flush(3)
     act(() => boardStore.getState().setSessionNamePromptBusy(true))
     const confirm = (): HTMLButtonElement | null =>
       r.container.querySelector<HTMLButtonElement>('[data-testid="session-name-confirm"]')
