@@ -398,10 +398,10 @@ yet. Prefer turning prose-only rules into sensors.
     - Use Playwright's waiting, web-first assertions.
 
     The unit / integration / e2e ratio is _taste_; there is no evidence for any pyramid. _Consensus_
-    (Testing Library, Playwright docs). Sensors: the test lint rules (`@vitest/eslint-plugin`, `eslint-plugin-testing-library`,
-    `eslint-plugin-jest-dom`, `eslint-plugin-playwright`, all errors, old hits in the shrink-only
-    `eslint-suppressions.json`) and `tests/main/testHygiene.guard.test.ts`;
-    `.claude/rules/testing.md`.
+    (Testing Library, Playwright docs). Sensors: the test lint rules (`@vitest/eslint-plugin`,
+    `eslint-plugin-testing-library`, `eslint-plugin-jest-dom`, `eslint-plugin-playwright`, all
+    errors, old hits in the shrink-only `eslint-suppressions.json`) and
+    `tests/main/testHygiene.guard.test.ts`; `.claude/rules/testing.md`.
 
 22. **Electron hardening, from the official checklist.**
     - Validate each IPC sender's frame or URL.
