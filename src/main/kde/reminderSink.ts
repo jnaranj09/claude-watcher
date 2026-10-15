@@ -21,7 +21,8 @@ export interface ReminderSinkOptions {
   isViewing: (id: string) => boolean
   /** Only the method this sink calls — keeps the test surface minimal. */
   notifier: Pick<AttentionNotifier, 'remind'>
-  /** Push the validated payload to the window. A `CH.*` const at the call site (no-literal-channels). */
+  /** Push the validated payload to the window. A `CH.*` const at the call site
+   *  (no-literal-channels). */
   send: (payload: AttentionReminderPayload) => void
   isDestroyed: () => boolean
   /** Log sink — PATH + CODE only, NEVER a session value. Defaults to console.warn. */

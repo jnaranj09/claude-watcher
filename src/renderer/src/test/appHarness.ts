@@ -115,7 +115,8 @@ function optionalBridgeDefaults(): Partial<Record<OptionalBridgeName, Bridge>> {
   }
 }
 
-/** Reset the singleton boardStore's view-state (App uses the app singleton) to its initial values. */
+/** Reset the singleton boardStore's view-state (App uses the app singleton) to its initial
+ *  values. */
 export function resetBoardView(): void {
   boardStore.setState({
     viewMode: 'board',
