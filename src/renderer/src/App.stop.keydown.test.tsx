@@ -1,8 +1,8 @@
 // Story 4.3 (FR-15) → Past sessions (D-3/D-5) — App-level Ctrl+W keydown tests + Esc-confirm
 // disambiguation.
 //
-// A NEW test file (rather than extending App.keydown.test.tsx) to avoid touching the green 4-2
-// guardrail tests. The 4-2 App.keydown.test.tsx assertions STAY UNCHANGED.
+// A separate file from App.keydown.test.tsx, which covers the quit keys (Ctrl+Q, Esc on the
+// guard).
 //
 // D-3/D-5 made Ctrl+W archive directly; R27 (2026-09-28) took that away — a delete-word typed
 // with focus off the terminal archived the session. Ctrl+W now does nothing app-side (the Archive
@@ -22,57 +22,20 @@
 //       showBoard (the confirm is the topmost layer; Esc disambiguates).
 //   (f) Esc-with-Delete-confirm-open does NOT call window.quit.cancel.
 //
-// Does NOT modify App.keydown.test.tsx (the B-1 guardrail for 4-2 must stay unchanged — F6).
-//
-// [Source: story 4.3 Task 5; task-10-brief.md (D-3/D-5); UX-DR14/21; src/renderer/src/App.tsx
-//  keydown effect; src/renderer/src/App.keydown.test.tsx (pattern reference — DO NOT MODIFY)]
+// [Source: story 4.3 Task 5; UX-DR14/21; src/renderer/src/App.tsx keydown effect]
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { QuitGuardPayload } from '../../shared/ipc/contract'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// The window.quit spies (the rest of the fake preload is the shared App harness)
 // ---------------------------------------------------------------------------
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Fake window bridges (same pattern as App.keydown.test.tsx)
-// ---------------------------------------------------------------------------
-
-interface QuitBridge {
-  requestQuit: () => Promise<void>
-  confirm: () => Promise<void>
-  cancel: () => Promise<void>
-  onGuardShow: (cb: (p: QuitGuardPayload) => void) => () => void
-}
 
 let cancelSpy: ReturnType<typeof vi.fn>
 let guardShow: ((p: QuitGuardPayload) => void) | undefined
-let cleanup: (() => void) | undefined
-
-function stubQuit(): void {
-  cancelSpy = vi.fn().mockResolvedValue(undefined)
-  const bridge: QuitBridge = {
-    requestQuit: vi.fn().mockResolvedValue(undefined) as unknown as () => Promise<void>,
-    confirm: vi.fn().mockResolvedValue(undefined) as unknown as () => Promise<void>,
-    cancel: cancelSpy as unknown as () => Promise<void>,
-    onGuardShow: vi.fn((cb: (p: QuitGuardPayload) => void) => {
-      guardShow = cb
-      return () => {}
-    })
-  }
-  ;(window as unknown as { quit: QuitBridge }).quit = bridge
-}
 
 function makeGuardPayload(): QuitGuardPayload {
   return {
@@ -87,120 +50,26 @@ function makeGuardPayload(): QuitGuardPayload {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  // Reset the singleton store between tests.
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    quitGuard: null,
-    stopConfirm: null
+  resetBoardView()
+  cancelSpy = vi.fn().mockResolvedValue(undefined)
+  stubAppBridges({
+    quit: {
+      cancel: cancelSpy,
+      onGuardShow: vi.fn((cb: (p: QuitGuardPayload) => void) => {
+        guardShow = cb
+        return () => {}
+      })
+    }
   })
-
-  // xterm shims (jsdom omits these)
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-
-  // Minimal window bridge shims
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })
-    ),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined)),
-    // Past sessions (D-3/D-5) — stubbed so a test can assert no key archives (R27: only the
-    // Archive button does).
-    archiveSession: vi.fn(() => Promise.resolve(undefined)),
-    deleteSession: vi.fn(() => Promise.resolve(undefined))
-  }
-  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
-  // console.warns a code (App.templates.test.tsx amendment #2).
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  stubQuit()
-
-  window.location.hash = ''
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
   act(() => {
     boardStore.setState({ stopConfirm: null, quitGuard: null })
   })
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush() // resolve smokeConfig → board view
-  return r
-}
 
 // ---------------------------------------------------------------------------
 // (a) Ctrl+W while focused archives NOTHING (R27) + preventDefault fires

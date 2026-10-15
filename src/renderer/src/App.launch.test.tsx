@@ -15,8 +15,8 @@
 // window.terminal fakes (it just wires open()).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import {
   boardStore,
   selectKeptAliveTerminalIds,
@@ -66,7 +66,6 @@ async function submitNamePrompt(r: RenderResult, name?: string): Promise<void> {
   await flush()
 }
 
-let cleanup: (() => void) | undefined
 let pickResult: { current: string | null }
 let launchResult: { current: { terminalId: string; workspaceId: string } }
 let pickSpy: ReturnType<typeof vi.fn>
@@ -83,133 +82,38 @@ function simulateExit(info: { terminalId: string; exitCode: number }): void {
 
 beforeEach(() => {
   onExitSubscribers.clear()
-  // Reset the singleton store view-state between cases (App uses the app singleton boardStore).
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    // Every case here reuses the SAME fake terminalId ('launch-term-xyz'), and
-    // openLaunchedTerminal deliberately KEEPS an existing registry entry (Story 5.6: a re-open
-    // must not re-stamp launchedAt or re-sort the Starting list). Without resetting the registry
-    // the first case's label would leak into every later one.
-    launchedTerminals: {},
-    // Session-naming — no create-time prompt open at the start of a case.
-    sessionNamePrompt: null
-  })
+  // Every case here reuses the SAME fake terminalId ('launch-term-xyz'), and openLaunchedTerminal
+  // deliberately KEEPS an existing registry entry (Story 5.6: a re-open must not re-stamp
+  // launchedAt or re-sort the Starting list), so the reset of `launchedTerminals` is what keeps
+  // the first case's label from leaking into every later one.
+  resetBoardView()
   // Workspaces (Task 9a fix, review round 1, Finding 3) — reset the active workspace so a test
   // that switches it does not bleed into a later test in this file.
   workspacesStore.setState({ activeId: 'default' })
-
-  // xterm assumes a real browser: shim matchMedia + ResizeObserver (jsdom omits both) so the
-  // EmbeddedTerminal mounts in the focused view.
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
 
   pickResult = { current: '/home/op/project' }
   launchResult = { current: { terminalId: 'launch-term-xyz', workspaceId: 'default' } }
   pickSpy = vi.fn(() => Promise.resolve(pickResult.current))
   launchSpy = vi.fn(() => Promise.resolve(launchResult.current))
-
-  // The full window bridge surface App + Board + EmbeddedTerminal touch.
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
   terminalStopSpy = vi.fn(() => Promise.resolve())
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: terminalStopSpy,
-    onExit: vi.fn((cb: (info: { terminalId: string; exitCode: number }) => void) => {
-      onExitSubscribers.add(cb)
-      return () => {
-        onExitSubscribers.delete(cb)
-      }
-    })
-  }
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: pickSpy,
-    launch: launchSpy,
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })
-    ),
-    // Story 3.4 — App subscribes to the launch-correlation push; the fake returns an unsubscribe.
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
-  }
-  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
-  // console.warns a code (App.templates.test.tsx amendment #2). This suite spies on console.warn.
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  // Ensure no leftover hash from a prior test steers the terminal-host view.
-  window.location.hash = ''
+  stubAppBridges({
+    terminal: {
+      stop: terminalStopSpy,
+      onExit: vi.fn((cb: (info: { terminalId: string; exitCode: number }) => void) => {
+        onExitSubscribers.add(cb)
+        return () => {
+          onExitSubscribers.delete(cb)
+        }
+      })
+    },
+    launch: { pickDirectory: pickSpy, launch: launchSpy }
+  })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush() // resolve smokeConfig → board view
-  return r
-}
 
 // Session templates: `+ New session` is now a popover (folder / templates / Manage), not a
 // direct-action button. Every site here that used to click the header button straight into the

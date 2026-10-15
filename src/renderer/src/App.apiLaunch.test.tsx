@@ -11,11 +11,11 @@
 //
 // The renderer INVENTS NOTHING here: the label and the workspace are main's (session truth).
 //
-// A SIBLING of App.launch.test.tsx (the B-1 guardrail) that mirrors its `window.*` stub block.
+// A SIBLING of App.launch.test.tsx (the B-1 guardrail); both use the shared App harness.
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { LaunchRequestedEvent } from '../../shared/ipc/contract'
 
@@ -27,7 +27,6 @@ async function flush(): Promise<void> {
   })
 }
 
-let cleanup: (() => void) | undefined
 /** Called by the unsubscribe the fake bridge hands back — asserted to run on unmount. */
 let offSpy: Mock<() => void>
 /** The fake `window.launch.onLaunchRequested`. */
@@ -37,42 +36,7 @@ let onLaunchRequestedSpy: ReturnType<typeof vi.fn>
 const subscribers = new Set<(event: LaunchRequestedEvent) => void>()
 
 beforeEach(() => {
-  // Reset the singleton store view-state between cases (App uses the app singleton boardStore).
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    sessionNamePrompt: null
-  })
-
-  // xterm assumes a real browser: shim matchMedia + ResizeObserver (jsdom omits both) so the
-  // EmbeddedTerminal mounts in the focused view the push drops us into.
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-
+  resetBoardView()
   subscribers.clear()
   offSpy = vi.fn()
   onLaunchRequestedSpy = vi.fn((cb: (event: LaunchRequestedEvent) => void) => {
@@ -82,78 +46,13 @@ beforeEach(() => {
       subscribers.delete(cb)
     }
   })
-
-  // The window bridge surface App + Board + EmbeddedTerminal touch (mirrors App.launch.test.tsx).
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })
-    ),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined)),
-    onLaunchRequested: onLaunchRequestedSpy
-  }
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  // Ensure no leftover hash from a prior test steers the terminal-host view.
-  window.location.hash = ''
+  stubAppBridges({ launch: { onLaunchRequested: onLaunchRequestedSpy } })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
 })
-
-/** Mount App and settle smokeConfig → the board view (the non-smoke subscriptions mount here). */
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
-  return r
-}
 
 /** Main's `launch:requested` push, delivered by hand to whatever App subscribed. */
 function deliver(event: LaunchRequestedEvent): void {
@@ -236,7 +135,6 @@ describe('programmatic API — launch:requested opens the terminal', () => {
     expect(offSpy).not.toHaveBeenCalled()
 
     r.unmount()
-    cleanup = undefined
 
     // Fault-injection: drop the `return off` from the effect and this goes red.
     expect(offSpy).toHaveBeenCalled()

@@ -11,8 +11,8 @@
 //     while it is open; ✕ closes it.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { templatesStore } from './stores/templatesStore'
 import type { Template } from '../../shared/ipc/contract'
@@ -39,85 +39,12 @@ async function flush(): Promise<void> {
   })
 }
 
-let cleanup: (() => void) | undefined
 let launch: ReturnType<typeof vi.fn>
 let launchFromTemplate: ReturnType<typeof vi.fn>
 let pickDirectory: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  // Reset the singleton store view-state between cases (App uses the app singleton boardStore).
-  // Mirrors App.rename.test.tsx's beforeEach body, plus sessionsDialog: null.
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    sessionNamePrompt: null,
-    sessionsDialog: null
-  })
-
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
+  resetBoardView()
   launch = vi.fn(() =>
     Promise.resolve({ terminalId: 'launch-term-folder', workspaceId: 'default' })
   )
@@ -125,35 +52,17 @@ beforeEach(() => {
     Promise.resolve({ terminalId: 'launch-term-tpl', workspaceId: 'default' })
   )
   pickDirectory = vi.fn(() => Promise.resolve('/home/op/project'))
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory,
-    launch,
-    launchFromTemplate,
-    rename: vi.fn(() => Promise.resolve()),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
-  }
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([T1])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  window.location.hash = ''
+  stubAppBridges({
+    launch: { pickDirectory, launch, launchFromTemplate },
+    templates: { list: vi.fn(() => Promise.resolve([T1])) }
+  })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   act(() => templatesStore.getState().hydrate([]))
   vi.restoreAllMocks()
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
-  return r
-}
 
 /** The `+ New session` menu is portaled to document.body. */
 function qDoc<T extends Element>(sel: string): T {

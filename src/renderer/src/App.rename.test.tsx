@@ -5,11 +5,11 @@
 // renderer does NOT write the new name into the store — session truth is main's, so the retitled
 // card only appears when main echoes a `session.updated` delta back.
 //
-// A SIBLING of App.launch.test.tsx (the B-1 guardrail), mirroring its beforeEach/seams.
+// A SIBLING of App.launch.test.tsx (the B-1 guardrail); both use the shared App harness.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { pointerInput } from './test/pointerInput'
 import type { WatchEventsPayload } from '../../shared/ipc/contract'
@@ -42,116 +42,23 @@ function updated(id: string, sessionName: string): WatchEventsPayload {
   }
 }
 
-let cleanup: (() => void) | undefined
 let renameSpy: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    sessionNamePrompt: null
-  })
-
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
+  resetBoardView()
   renameSpy = vi.fn(() => Promise.resolve())
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve('/home/op/project')),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'launch-term-tpl', workspaceId: 'default' })
-    ),
-    rename: renameSpy,
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
-  }
-  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
-  // console.warns a code (App.templates.test.tsx amendment #2).
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  window.location.hash = ''
+  stubAppBridges({
+    launch: { pickDirectory: vi.fn(() => Promise.resolve('/home/op/project')), rename: renameSpy }
+  })
 })
 
 let clearInput: (() => void) | undefined
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   clearInput?.()
   clearInput = undefined
   vi.restoreAllMocks()
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
-  return r
-}
 
 /** Seed one board card and render, returning the card's rename pencil. */
 async function renderWithCard(

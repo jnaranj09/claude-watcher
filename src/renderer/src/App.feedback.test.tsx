@@ -3,11 +3,10 @@
 // cancel never leave an unhandled rejection.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { toastStore } from './stores/toastStore'
-import { DEFAULT_SETTINGS } from '../../shared/schemas/settings'
 
 async function flush(): Promise<void> {
   await act(async () => {
@@ -15,7 +14,6 @@ async function flush(): Promise<void> {
   })
 }
 
-let cleanup: (() => void) | undefined
 const bridges = {
   pickDirectory: vi.fn<() => Promise<string | null>>(),
   requestQuit: vi.fn<() => Promise<void>>(),
@@ -27,42 +25,8 @@ const bridges = {
 }
 
 beforeEach(() => {
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    sessionNamePrompt: null,
-    sessionNamePromptBusy: false,
-    sessionNamePromptError: null,
-    quitGuard: null,
-    stopConfirm: null
-  })
+  resetBoardView()
   toastStore.setState({ toasts: [] })
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
   // Module-level mocks: clear calls AND implementations between tests.
   for (const fn of Object.values(bridges)) fn.mockReset()
   bridges.pickDirectory.mockImplementation(() => Promise.resolve(null))
@@ -72,66 +36,28 @@ beforeEach(() => {
   bridges.tagsList.mockImplementation(() => Promise.resolve([]))
   bridges.rulesList.mockImplementation(() => Promise.resolve({ rules: [], brokenIds: [] }))
   bridges.templatesList.mockImplementation(() => Promise.resolve([]))
-  const w = window as unknown as Record<string, unknown>
-  w['pty'] = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  w['watch'] = { onEvents: vi.fn(() => () => {}), onStatus: vi.fn(() => () => {}) }
-  w['attention'] = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  w['settings'] = {
-    get: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
-    set: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS))
-  }
-  w['terminal'] = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
-  w['launch'] = {
-    pickDirectory: bridges.pickDirectory,
-    launch: vi.fn(() => Promise.resolve({ terminalId: 't-1', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
-  }
-  w['templates'] = { list: bridges.templatesList, save: vi.fn(), remove: vi.fn() }
-  w['shortcuts'] = { list: vi.fn(() => Promise.resolve([])) }
-  w['workspaces'] = {
-    list: vi.fn(() =>
-      Promise.resolve({
-        activeId: 'default',
-        workspaces: [{ id: 'default', name: 'Default', color: 'slate', defaultCwd: null }]
-      })
-    )
-  }
-  w['tags'] = { list: bridges.tagsList }
-  w['rules'] = { list: bridges.rulesList }
-  w['quit'] = {
-    requestQuit: bridges.requestQuit,
-    cancel: bridges.cancel,
-    confirm: bridges.confirm,
-    onGuardShow: vi.fn(() => () => {})
-  }
-  window.location.hash = ''
+  stubAppBridges({
+    launch: { pickDirectory: bridges.pickDirectory },
+    templates: { list: bridges.templatesList },
+    shortcuts: {},
+    workspaces: {
+      list: vi.fn(() =>
+        Promise.resolve({
+          activeId: 'default',
+          workspaces: [{ id: 'default', name: 'Default', color: 'slate', defaultCwd: null }]
+        })
+      )
+    },
+    tags: { list: bridges.tagsList },
+    rules: { list: bridges.rulesList },
+    quit: { requestQuit: bridges.requestQuit, cancel: bridges.cancel, confirm: bridges.confirm }
+  })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
-  return r
-}
 
 function clickPickFolder(r: RenderResult): void {
   act(() =>

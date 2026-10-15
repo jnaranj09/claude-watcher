@@ -11,8 +11,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 
 async function flush(): Promise<void> {
@@ -22,107 +22,21 @@ async function flush(): Promise<void> {
   })
 }
 
-let cleanup: (() => void) | undefined
 let requestQuit: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    quitGuard: null,
-    stopConfirm: null
-  })
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  const settings = {
-    version: 1,
-    soundEnabled: true,
-    terminalFontSize: 14,
-    reminderCount: 3,
-    reminderFirstDelayMinutes: 2
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() => Promise.resolve(settings)),
-    set: vi.fn(() => Promise.resolve(settings))
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })
-    ),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined)),
-    archiveSession: vi.fn(() => Promise.resolve(undefined)),
-    deleteSession: vi.fn(() => Promise.resolve(undefined))
-  }
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
+  resetBoardView()
   requestQuit = vi.fn().mockResolvedValue(undefined)
-  ;(window as unknown as { quit: unknown }).quit = {
-    requestQuit,
-    confirm: vi.fn().mockResolvedValue(undefined),
-    cancel: vi.fn().mockResolvedValue(undefined),
-    onGuardShow: vi.fn(() => () => {})
-  }
-  window.location.hash = ''
+  stubAppBridges({ quit: { requestQuit } })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
 })
 
 async function renderFocused(terminalId = 'term-keys'): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
+  const r = await renderApp()
   act(() => {
     boardStore.setState({ viewMode: 'focused', focusedTerminalId: terminalId })
   })

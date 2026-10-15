@@ -13,8 +13,7 @@
 // and App.launch.test.tsx (the B-1 guardrail).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { WatchEventsPayload } from '../../shared/ipc/contract'
 
@@ -46,118 +45,21 @@ function updated(id: string, sessionName: string): WatchEventsPayload {
   }
 }
 
-let cleanup: (() => void) | undefined
 let archiveSpy: ReturnType<typeof vi.fn>
 let deleteSpy: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    sessionNamePrompt: null,
-    stopConfirm: null
-  })
-
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
+  resetBoardView()
   archiveSpy = vi.fn(() => Promise.resolve())
   deleteSpy = vi.fn(() => Promise.resolve())
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'launch-term-xyz', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'launch-term-tpl', workspaceId: 'default' })
-    ),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined)),
-    // Past sessions (D-3/D-5) — the two exits under test.
-    archiveSession: archiveSpy,
-    deleteSession: deleteSpy
-  }
-  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
-  // console.warns a code (App.templates.test.tsx amendment #2).
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  window.location.hash = ''
+  // Past sessions (D-3/D-5) — the two exits under test.
+  stubAppBridges({ launch: { archiveSession: archiveSpy, deleteSession: deleteSpy } })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
-  return r
-}
 
 describe('App — card Archive/Delete gate on the terminal binding (D-3/D-5, Board → Column → SessionCard)', () => {
   it('renders NEITHER control before correlation, BOTH once terminalIdBySessionId binds the card', async () => {

@@ -11,15 +11,14 @@
 //   (c) Esc WITH the guard closed calls showBoard (the existing Focused→Board behavior)
 //       and does NOT call window.quit.cancel.
 //
-// Mirrors App.launch.test.tsx patterns (window bridge stubs, renderComponent, flush).
+// Renders the real App on the shared App harness (test/appHarness.ts).
 //
 // [Source: story 4.2 Task 6.4; UX-DR14; UX-DR21; src/renderer/src/App.tsx:167-198
 //  (keydown effect); src/renderer/src/App.launch.test.tsx (test pattern reference)]
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { QuitGuardPayload } from '../../shared/ipc/contract'
 
@@ -36,31 +35,11 @@ async function flush(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fake window.quit bridge
+// The window.quit spies (the rest of the fake preload is the shared App harness)
 // ---------------------------------------------------------------------------
-
-interface QuitBridge {
-  requestQuit: () => Promise<void>
-  confirm: () => Promise<void>
-  cancel: () => Promise<void>
-  onGuardShow: (cb: (p: QuitGuardPayload) => void) => () => void
-}
 
 let requestQuitSpy: ReturnType<typeof vi.fn>
 let cancelSpy: ReturnType<typeof vi.fn>
-let cleanup: (() => void) | undefined
-
-function stubQuit(): void {
-  requestQuitSpy = vi.fn().mockResolvedValue(undefined)
-  cancelSpy = vi.fn().mockResolvedValue(undefined)
-  const bridge: QuitBridge = {
-    requestQuit: requestQuitSpy as unknown as () => Promise<void>,
-    confirm: vi.fn().mockResolvedValue(undefined) as unknown as () => Promise<void>,
-    cancel: cancelSpy as unknown as () => Promise<void>,
-    onGuardShow: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { quit: QuitBridge }).quit = bridge
-}
 
 // ---------------------------------------------------------------------------
 // Sample guard payload (for tests that need the guard to be open)
@@ -79,117 +58,20 @@ function makePayload(): QuitGuardPayload {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  // Reset the singleton store view-state between tests.
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    quitGuard: null
-  })
-
-  // xterm assumes a real browser: shim matchMedia + ResizeObserver (jsdom omits both)
-  // so EmbeddedTerminal can mount in the focused view (mirrors App.launch.test.tsx).
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-
-  // Minimal window bridge shims (mirrors App.launch.test.tsx).
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    ),
-    set: vi.fn(() =>
-      Promise.resolve({
-        version: 1,
-        soundEnabled: true,
-        terminalFontSize: 14,
-        reminderCount: 3,
-        reminderFirstDelayMinutes: 2
-      })
-    )
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(() => Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })),
-    launchFromTemplate: vi.fn(() =>
-      Promise.resolve({ terminalId: 'term-1', workspaceId: 'default' })
-    ),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
-  }
-  // Session templates: loadTemplates() now runs on every App mount — stub it so it never
-  // console.warns a code (App.templates.test.tsx amendment #2).
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  stubQuit()
-
-  window.location.hash = ''
+  resetBoardView()
+  requestQuitSpy = vi.fn().mockResolvedValue(undefined)
+  cancelSpy = vi.fn().mockResolvedValue(undefined)
+  stubAppBridges({ quit: { requestQuit: requestQuitSpy, cancel: cancelSpy } })
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
   // Clear the quitGuard store state between tests.
   act(() => {
     boardStore.setState({ quitGuard: null })
   })
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush() // resolve smokeConfig → board view
-  return r
-}
 
 // ---------------------------------------------------------------------------
 // (a) Ctrl+Q calls window.quit.requestQuit()

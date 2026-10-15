@@ -4,8 +4,8 @@
 // App.tags.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from './test/renderComponent'
-import App from './App'
+import type { RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { QuitGuardPayload } from '../../shared/ipc/contract'
 
@@ -17,136 +17,39 @@ async function flush(): Promise<void> {
   })
 }
 
-let cleanup: (() => void) | undefined
 let guardShow: ((payload: QuitGuardPayload) => void) | undefined
 
 beforeEach(() => {
-  boardStore.setState({
-    viewMode: 'board',
-    focusedTerminalId: null,
-    selectedId: null,
-    sessionsById: {},
-    acknowledgedById: {},
-    terminalIdBySessionId: {},
-    launchedTerminals: {},
-    sessionNamePrompt: null,
-    sessionsDialog: null,
-    tagsDialog: null,
-    settingsDialogOpen: false,
-    quitGuard: null
+  resetBoardView()
+  stubAppBridges({
+    themes: {
+      list: vi.fn(() => Promise.resolve([])),
+      reload: vi.fn(() => Promise.resolve({ ok: true as const, id: 'default' })),
+      openFolder: vi.fn(() => Promise.resolve()),
+      onApplied: vi.fn(() => () => {})
+    },
+    tags: {},
+    rules: {},
+    pastSessions: {
+      list: vi.fn(() => Promise.resolve([])),
+      forget: vi.fn(() => Promise.resolve([])),
+      open: vi.fn()
+    },
+    quit: {
+      onGuardShow: vi.fn((cb: (payload: QuitGuardPayload) => void) => {
+        guardShow = cb
+        return () => {
+          guardShow = undefined
+        }
+      })
+    }
   })
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-  ;(window as unknown as { pty: unknown }).pty = {
-    smokeConfig: vi.fn(() => Promise.resolve({ enabled: false, electron: '', abi: '', node: '' }))
-  }
-  ;(window as unknown as { watch: unknown }).watch = {
-    onEvents: vi.fn(() => () => {}),
-    onStatus: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { attention: unknown }).attention = {
-    onActivate: vi.fn(() => () => {}),
-    onReminder: vi.fn(() => () => {}),
-    reportFocusedTerminal: vi.fn()
-  }
-  const settings = {
-    version: 1,
-    soundEnabled: true,
-    terminalFontSize: 14,
-    reminderCount: 3,
-    reminderFirstDelayMinutes: 2
-  }
-  ;(window as unknown as { settings: unknown }).settings = {
-    get: vi.fn(() => Promise.resolve(settings)),
-    set: vi.fn(() => Promise.resolve(settings))
-  }
-  ;(window as unknown as { themes: unknown }).themes = {
-    list: vi.fn(() => Promise.resolve([])),
-    reload: vi.fn(() => Promise.resolve({ ok: true as const, id: 'default' })),
-    openFolder: vi.fn(() => Promise.resolve()),
-    onApplied: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
-  ;(window as unknown as { launch: unknown }).launch = {
-    pickDirectory: vi.fn(() => Promise.resolve(null)),
-    launch: vi.fn(),
-    launchFromTemplate: vi.fn(),
-    rename: vi.fn(() => Promise.resolve()),
-    setTags: vi.fn(() => Promise.resolve()),
-    onCorrelated: vi.fn(() => () => {}),
-    markSeen: vi.fn(() => Promise.resolve(undefined))
-  }
-  ;(window as unknown as { templates: unknown }).templates = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  ;(window as unknown as { tags: unknown }).tags = {
-    list: vi.fn(() => Promise.resolve([])),
-    save: vi.fn(),
-    remove: vi.fn()
-  }
-  ;(window as unknown as { rules: unknown }).rules = {
-    list: vi.fn(() => Promise.resolve({ rules: [], brokenIds: [] })),
-    save: vi.fn(),
-    remove: vi.fn(),
-    move: vi.fn()
-  }
-  ;(window as unknown as { pastSessions: unknown }).pastSessions = {
-    list: vi.fn(() => Promise.resolve([])),
-    forget: vi.fn(() => Promise.resolve([])),
-    open: vi.fn()
-  }
-  ;(window as unknown as { quit: unknown }).quit = {
-    onGuardShow: vi.fn((cb: (payload: QuitGuardPayload) => void) => {
-      guardShow = cb
-      return () => {
-        guardShow = undefined
-      }
-    }),
-    cancel: vi.fn(() => Promise.resolve()),
-    confirm: vi.fn(() => Promise.resolve()),
-    requestQuit: vi.fn(() => Promise.resolve())
-  }
-  window.location.hash = ''
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountApp()
   vi.restoreAllMocks()
 })
-
-async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(<App />)
-  cleanup = r.unmount
-  await flush()
-  return r
-}
 
 function q<T extends Element>(r: RenderResult, sel: string): T {
   const el = r.container.querySelector<T>(sel)
