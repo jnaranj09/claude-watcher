@@ -29,3 +29,7 @@ docs/superpowers/
 
 # Liquid Glass wallpaper sources (fetched by src/wallpapers.py --photos; not redistributed raw)
 docs/themes/examples/liquid-glass/src/*.jpg
+
+# StrykerJS mutation run output (`npm run mutate`), regenerable.
+/reports/
+.stryker-tmp/

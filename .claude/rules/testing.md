@@ -58,6 +58,8 @@ only".
   maintainability.md "Where a planned guard lives".
 - e2e only for what crosses processes (pty, IPC, app lifecycle), always through
   `tests/e2e/fixtures.ts`. Use web-first assertions. Lint: `playwright/*`.
+- Mutation testing (`npm run mutate`, StrykerJS) runs in the release clean-up pass (`release.md`
+  step 0), never in the gate. Prose only.
 
 ## The lint budget
 

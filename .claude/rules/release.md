@@ -17,6 +17,9 @@ Spec: `docs/superpowers/specs/2026-09-30-release-pipeline-linux-design.md` (loca
    look at the clones `npx jscpd` lists (fold only a clear copy; duplication beats the wrong
    abstraction) and at the slowest tests. `npm run lint` already fails on dead code (knip) and on
    duplication over 0.5% (jscpd).
+   Run `npm run mutate` (StrykerJS on the core modules, about 3 min, incremental). Each surviving
+   mutant ends as a killing test (own commit), an IdeasBoard item, or a one-line reason it does not
+   matter (an equivalent mutant).
 1. Bump the version: `npm version <x.y.z> --no-git-tag-version` (updates `package.json` and
    `package-lock.json`).
 2. Commit, push `main`.
