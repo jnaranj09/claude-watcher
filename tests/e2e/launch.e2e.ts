@@ -13,7 +13,7 @@
 // React StrictMode does NOT double-invoke effects. So it exercises the PROD fresh-launch path
 // (single mount). The DEV-only StrictMode regressions — the override surviving a transient stop
 // (Fix A/B) and the per-open-token port disambiguation (Fix C) — are covered by the UNIT tests
-// (src/main/pty/launchSession.test.ts, src/renderer/src/terminal/EmbeddedTerminal.test.tsx). This
+// (src/main/pty/launchSession*.test.ts, src/renderer/src/terminal/EmbeddedTerminal.test.tsx). This
 // e2e is the prod end-to-end gate + scope confirmation: it PASSES whether or not the dev fix is
 // present (prod fresh-launch always worked), and guards against a FUTURE break of the override
 // wiring or the launch transport. Do not "strengthen" it to assert StrictMode behavior — the built
