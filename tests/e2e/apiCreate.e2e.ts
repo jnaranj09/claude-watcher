@@ -101,6 +101,8 @@ test('an API create adds a card and leaves the focused session in view and in fo
   // 5. The view was not taken: A is still shown and still holds the focus.
   await expect(page.locator('[data-testid="focused-layer"]')).toHaveAttribute('data-active', 'true')
   await expect(page.locator(`[data-terminal-id="${terminalA}"]`)).toBeVisible()
-  await expect(page.locator(`[data-terminal-id="${created.terminalId}"]`)).toBeHidden()
+  const frameB = page.locator(`[data-terminal-id="${created.terminalId}"]`)
+  await expect(frameB).toBeAttached({ timeout: 20000 })
+  await expect(frameB).toBeHidden()
   expect(await focusedTerminalId(page)).toBe(terminalA)
 })
