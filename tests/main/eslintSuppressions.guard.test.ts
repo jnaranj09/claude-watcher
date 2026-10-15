@@ -1,8 +1,12 @@
 // The test-lint budget (spec 2026-10-15 testing standards). `eslint-suppressions.json` holds the
 // test-rule violations that existed when the rules landed. ESLint fails on a new violation and on
-// a suppression that no longer matches (`--prune-suppressions` removes it). Nothing in ESLint
-// stops a re-run of `--suppress-all` from hiding new ones, so this guard pins the total, matched
+// a stale suppression for a file it still lints. It does not see an entry for a deleted or moved
+// path; only this pin catches that (`--prune-suppressions` removes it). Nothing in ESLint stops a
+// re-run of `--suppress-all` from hiding new violations, so this guard pins the total, matched
 // EXACTLY: it can only fall, and a fix lowers PINNED_TOTAL in the same commit.
+// Limit: the pin stops the total from rising, not a swap (fix N, add N, re-suppress). A swap shows
+// only as a count that goes UP in the `eslint-suppressions.json` diff; review rejects it, because
+// no count in that file ever goes up.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
