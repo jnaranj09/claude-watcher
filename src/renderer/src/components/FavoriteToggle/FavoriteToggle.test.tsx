@@ -1,6 +1,8 @@
 // Favorites — the ONE pin toggle. jsdom `unit` project, `renderComponent` harness.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
+import { render as renderRtl, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { FavoriteToggle, type FavoriteToggleProps } from './FavoriteToggle'
 
@@ -111,5 +113,16 @@ describe('FavoriteToggle — never steals focus', () => {
     act(() => r.root.render(<FavoriteToggle {...BASE} favorite={false} busy={false} />))
     expect(document.activeElement).toBe(other)
     other.remove()
+  })
+
+  it('a click on the pin asks to toggle once (Testing Library, user-facing query)', async () => {
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    const { unmount } = renderRtl(<FavoriteToggle {...BASE} onToggle={onToggle} />)
+    const pin = screen.getByRole('button', { name: 'Pin deploy' })
+    expect(pin).toHaveAttribute('aria-pressed', 'false')
+    await user.click(pin)
+    expect(onToggle).toHaveBeenCalledOnce()
+    unmount()
   })
 })

@@ -30,6 +30,7 @@ export default defineConfig({
           allowOnly: false,
           restoreMocks: true,
           environment: 'jsdom',
+          setupFiles: ['src/renderer/src/test/setup.ts'],
           // `.tsx` holds JSX; only `.tsx` component tests need it.
           include: ['src/**/*.test.{ts,tsx}', 'tests/unit/**/*.test.{ts,tsx}'],
           exclude: [

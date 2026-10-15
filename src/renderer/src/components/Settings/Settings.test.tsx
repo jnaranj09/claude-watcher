@@ -83,7 +83,7 @@ describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
 /** Set a React-controlled input's value via the NATIVE prototype setter, then dispatch the
  *  event React listens for. React tracks the value on the element via its own descriptor, so a
  *  plain `el.value = x` is ignored by onChange — the native setter + an `input`/`change` event is
- *  the standard way to drive a controlled input in a jsdom test without React Testing Library. */
+ *  the standard way to drive a controlled input in a jsdom test without `userEvent` (new tests use `userEvent`). */
 function setReactCheckbox(el: HTMLInputElement, checked: boolean): void {
   const proto = window.HTMLInputElement.prototype
   const setter = Object.getOwnPropertyDescriptor(proto, 'checked')?.set
