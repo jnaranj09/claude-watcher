@@ -109,13 +109,13 @@ describe('NewSessionMenu', () => {
     const { r } = render([])
     expect(q(r, '[data-testid="menu-empty"]').textContent).toBe('No templates yet')
   })
-  it('Pick a folder… carries a decorative (aria-hidden) folder icon and keeps its label', () => {
+  it('Pick a folder carries a decorative (aria-hidden) folder icon and keeps its label', () => {
     const { r } = render()
     const item = q<HTMLButtonElement>(r, '[data-testid="menu-pick-folder"]')
     const icon = item.querySelector('svg')
     expect(icon).not.toBeNull()
     expect(icon?.getAttribute('aria-hidden')).toBe('true')
-    expect(item.textContent).toBe('Pick a folder…')
+    expect(item.textContent).toBe('Pick a folder')
   })
   it('clicking a row / folder / manage fires the matching callback', () => {
     const { r, onPickTemplate, onPickFolder, onManage } = render()
@@ -295,7 +295,7 @@ describe('NewSessionMenu — public theme hooks', () => {
   it('exposes the template parts and the end rows to themes', () => {
     const { r } = render([T1])
     expect(q(r, '[data-menu-pick-folder]')).toBeTruthy()
-    expect(q(r, '[data-menu-manage]').textContent).toContain('Manage templates…')
+    expect(q(r, '[data-menu-manage]').textContent).toContain('Manage templates')
     expect(q(r, '[data-template-id] [data-template-name]').textContent).toBe('work api')
     expect(q(r, '[data-template-id] [data-template-path]').textContent).toBe('/home/op/api')
     expect(q(r, '[data-template-id] [data-template-flags]').textContent).toContain('opus')

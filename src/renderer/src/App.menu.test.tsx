@@ -1,5 +1,5 @@
 // The header ☰ menu — App-level wiring (2026-09-14): it is the ONE header control besides
-// `+ New session`, and its Settings… and Past sessions… rows open their dialogs under the
+// `+ New session`, and its Settings and Past sessions rows open their dialogs under the
 // single-modal rule (UX-DR14). FAKE window bridges, the real App — the same harness as
 // App.tags.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -63,7 +63,7 @@ describe('App — the header ☰ menu', () => {
     expect(newSession.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('Settings… opens the Settings dialog; ✕ closes it', async () => {
+  it('Settings opens the Settings dialog; ✕ closes it', async () => {
     const r = await renderApp()
     expect(overlay(r)).toBeNull()
     openSettings(r)
@@ -89,7 +89,7 @@ describe('App — the header ☰ menu', () => {
 
   // jsdom ignores `inert`, so the click DOES reach the menu while another dialog is open — which is
   // what makes this test able to fail: the Settings opener itself must refuse.
-  it('the single-modal rule: Settings… does nothing while another dialog is open', async () => {
+  it('the single-modal rule: Settings does nothing while another dialog is open', async () => {
     const r = await renderApp()
     act(() => boardStore.getState().openSessionsDialog('templates'))
     openSettings(r)
@@ -114,7 +114,7 @@ describe('App — the header ☰ menu', () => {
       click(q(r, '[data-testid="sessions-menu-past"]'))
     }
 
-    it('is the last ☰ row; Past sessions… opens the Sessions dialog on Past, which loads the history', async () => {
+    it('is the last ☰ row; Past sessions opens the Sessions dialog on Past, which loads the history', async () => {
       const r = await renderApp()
       expect(panel(r)).toBeNull()
       openPastSessions(r)

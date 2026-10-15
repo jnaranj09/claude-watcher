@@ -14,7 +14,7 @@
 // close only minimizes this app, so it hangs ~120 s.
 //
 // The native KDE folder picker cannot be driven, so `C9_TEST_PICK_DIR` (a test-only seam in
-// src/main/ipc/registerLaunchIpc.ts) makes `+ New session → Pick a folder…` return `pickDir`.
+// src/main/ipc/registerLaunchIpc.ts) makes `+ New session → Pick a folder` return `pickDir`.
 
 import { test as base, _electron as electron } from '@playwright/test'
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test'
@@ -152,7 +152,7 @@ async function keepFailureArtifacts(
   }
 }
 
-/** `+ New session` → `Pick a folder…` (returns `pickDir`) → accept the name prompt's prefill.
+/** `+ New session` → `Pick a folder` (returns `pickDir`) → accept the name prompt's prefill.
  *  Nothing spawns until the name prompt is confirmed. */
 async function launchSession(page: Page): Promise<void> {
   await page.locator('[data-testid="header-new-session"]').click({ timeout: 20000 })
@@ -161,7 +161,7 @@ async function launchSession(page: Page): Promise<void> {
 }
 
 /** Confirm the create-time name prompt (accepts the prefill, the cwd basename). Also needed
- *  after the dead pane's `New session → Pick a folder…`. */
+ *  after the dead pane's `New session → Pick a folder`. */
 export async function confirmSessionName(page: Page): Promise<void> {
   const confirm = page.locator('[data-testid="session-name-confirm"]')
   await confirm.waitFor({ state: 'visible', timeout: 20000 })

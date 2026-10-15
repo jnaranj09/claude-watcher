@@ -109,7 +109,7 @@ afterEach(() => {
 
 // Session templates: `+ New session` is now a popover (folder / templates / Manage), not a
 // direct-action button. Every site here that used to click the header button straight into the
-// folder flow now opens the popover first, then clicks its "Pick a folder…" row.
+// folder flow now opens the popover first, then clicks its "Pick a folder" row.
 function clickPickFolder(r: RenderResult): void {
   act(() =>
     (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()
@@ -119,7 +119,7 @@ function clickPickFolder(r: RenderResult): void {
   )
 }
 
-/** A full launch: header button → "Pick a folder…" → picker → accept the prefilled name. */
+/** A full launch: header button → "Pick a folder" → picker → accept the prefilled name. */
 async function launchViaPicker(r: RenderResult): Promise<void> {
   clickPickFolder(r)
   await flush()
@@ -234,7 +234,7 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
 // renderer: the prompt is prefilled with the cwd basename, a replaced name is what reaches the
 // launch AND the Starting-banner label, cancelling spawns nothing, and a blank name cannot submit.
 describe('App — session-naming: the create-time name prompt', () => {
-  /** Open the prompt via the header button's "Pick a folder…" row. */
+  /** Open the prompt via the header button's "Pick a folder" row. */
   async function openPrompt(): Promise<RenderResult> {
     const r = await renderApp()
     clickPickFolder(r)

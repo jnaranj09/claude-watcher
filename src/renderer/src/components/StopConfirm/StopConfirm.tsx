@@ -2,7 +2,7 @@
 //
 // This component WAS the Stop-confirm (Story 4.3): the operator's ⏹ Stop session button / Ctrl+W
 // raised it before killing the pty. Task 10 (D-3/D-5) splits the single exit into two: Archive
-// (D-3) needs no confirmation at all (it is reversible through `Past sessions…`) and fires
+// (D-3) needs no confirmation at all (it is reversible through `Past sessions`) and fires
 // straight from `sessionExit.archiveTerminal` — the card, the focused bar and Ctrl+W all call it
 // directly, never through this modal. DELETE is the one exit that is NOT reversible (no record is
 // kept), so it is the only one still gated behind a confirm — this component, unrenamed (the

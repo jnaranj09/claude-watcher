@@ -111,7 +111,7 @@ A session that ends any other way — `/exit`, `Ctrl+C` twice, claude exiting, q
 closing the window — is archived too. A session is also on record while it runs, so even a crash
 or a power loss leaves it in Past sessions.
 
-**☰ → Past sessions…** lists them (it keeps the 200 most recent). **Open** brings one back as a
+**☰ → Past sessions** lists them (it keeps the 200 most recent). **Open** brings one back as a
 live card with `claude --resume`, under the same id; **Forget** removes it from the list. Open is
 refused, with a line saying why, when the folder is gone, when claude no longer has the
 conversation, or when that conversation is running in another terminal outside the app.
@@ -123,8 +123,8 @@ and offers **Resume conversation**, which replaces the dead pane with the resume
 
 A template is a saved bundle of **folder + model + permission mode + thinking effort** under
 a name. `+ New session` (the header button and the empty board's) opens a menu:
-`Pick a folder…` (the plain flow), a searchable list of your templates, and
-`Manage templates…`. Picking a template asks only for the session name, then launches
+`Pick a folder` (the plain flow), a searchable list of your templates, and
+`Manage templates`. Picking a template asks only for the session name, then launches
 `claude` in that folder with `--model` / `--permission-mode` / `--effort` from the template
 (each is omitted when set to _Default_, which leaves the choice to claude). Templates live in
 `claude-watcher-templates.json` under the app's data dir; a corrupt file is backed up
@@ -146,7 +146,7 @@ and `$$` for a literal `$`. A value can hold spaces when you quote it (`"…"` o
 escapes the next character. A missing value is an error in the box, never a half-filled phrase.
 `Esc` closes the box without typing anything.
 
-Manage them from **☰ → Shortcuts…**: a **Name**, an **Alias** (letters and digits), the
+Manage them from **☰ → Shortcuts**: a **Name**, an **Alias** (letters and digits), the
 **Phrase**, and a **Workspace** (below). The same dialog changes the key that opens the box
 (**Open with**, always `Ctrl+Alt+<letter>`). Any other `Ctrl+Alt` chord still reaches the
 terminal untouched.
@@ -170,8 +170,8 @@ header also badges itself with how many sessions need you elsewhere, so you neve
 session just because you switched away from it.
 
 Every install starts with a **Default** workspace, which cannot be deleted. The header switcher
-lists the other workspaces to switch to, then **Manage workspaces…**: a name, a color, and an
-optional default folder for its `+ New session → Pick a folder…` picker. **A workspace with any
+lists the other workspaces to switch to, then **Manage workspaces**: a name, a color, and an
+optional default folder for its `+ New session → Pick a folder` picker. **A workspace with any
 running session cannot be deleted**; the dialog tells you to stop or move the sessions first.
 Deleting an allowed (empty) workspace also deletes every template, shortcut, tag and rule scoped
 to it, and its past sessions.
@@ -189,7 +189,7 @@ aren't lost: they stop being offered anywhere, and the dialog's dropdown gains a
 
 ## Tags, rules and the filter bar
 
-Tags are colored labels on a card (**☰ → Tags → Manage tags…**). Rules (**Manage rules…**) add or
+Tags are colored labels on a card (**☰ → Tags → Manage tags**). Rules (**Manage rules**) add or
 remove tags on their own when a session launches, changes column, or sits in a column for a
 while — matched by tag, template, folder or name, and run top to bottom.
 
@@ -202,7 +202,7 @@ notifications, the badge and the sound ignore them.
 The whole look — every colour, radius, font and spacing token, the terminal palette, and anything a
 stylesheet can do on top — is a **theme package**: one folder in `~/.config/claude-watcher/themes/`
 (the app's data folder) holding a `theme.json`, an optional CSS file and the images or fonts that
-CSS uses. **Liquid Glass** and **Paper** ship with the app. Pick one in **☰ → Settings… → Theme**. **Reload themes** re-reads the folder; **Open themes
+CSS uses. **Liquid Glass** and **Paper** ship with the app. Pick one in **☰ → Settings → Theme**. **Reload themes** re-reads the folder; **Open themes
 folder** opens it in your file manager. Light themes are a package with `"colorScheme": "light"`.
 
 A broken package is never applied and never crashes the app: it is listed under the picker with the
@@ -215,7 +215,7 @@ autocomplete for `theme.json`.
 ## Local API
 
 An optional HTTP API lets your own automation launch a session from a template and watch its card
-move. It is **off by default**: turn it on in **☰ → Settings… → Local API**. It listens on
+move. It is **off by default**: turn it on in **☰ → Settings → Local API**. It listens on
 `127.0.0.1` only (port 9281 by default), every request needs the bearer token shown in Settings,
 and the interactive docs are at `http://127.0.0.1:<port>/docs`. A caller can run a template's own
 prompt and read session state — never a session's prompts, Claude's replies or tool input. A

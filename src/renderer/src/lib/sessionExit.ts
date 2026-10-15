@@ -120,7 +120,7 @@ export async function exitSessions(
   )
 }
 
-/** Archive: no confirmation (reversible through Past sessions… and the toast's [Resume]). */
+/** Archive: no confirmation (reversible through Past sessions and the toast's [Resume]). */
 export async function archiveTerminal(terminalId: string): Promise<void> {
   if (archiving.has(terminalId)) return
   archiving.add(terminalId)

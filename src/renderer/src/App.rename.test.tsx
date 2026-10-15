@@ -208,7 +208,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     expect(boardStore.getState().sessionNamePrompt).toBeNull()
 
     // Now open the CREATE dialog the same way App.launch.test.tsx does: the header's `+ New
-    // session` popover → `Pick a folder…`, which resolves window.launch.pickDirectory and opens
+    // session` popover → `Pick a folder`, which resolves window.launch.pickDirectory and opens
     // the prompt in create mode.
     act(() =>
       (r.container.querySelector('[data-testid="header-new-session"]') as HTMLButtonElement).click()

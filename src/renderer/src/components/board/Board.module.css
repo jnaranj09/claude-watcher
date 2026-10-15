@@ -123,7 +123,7 @@
   max-width: 42ch;
 }
 
-/* `+ New session` (primary) and `Past sessions…` (secondary) on one row, with the top margin the
+/* `+ New session` (primary) and `Past sessions` (secondary) on one row, with the top margin the
    empty-board copy expects (it used to sit on the primary's anchor alone). */
 .emptyBoardActions {
   display: flex;

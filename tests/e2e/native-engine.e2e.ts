@@ -189,7 +189,7 @@ test.describe('native engine', () => {
     await page.screenshot({ path: testInfo.outputPath('native-engine-e2e-needs-you.png') })
 
     // ── (3) FAST REMOVAL via the Archive button ─────────────────────────────────────────
-    // Archive asks no confirmation (it is reversible through `Past sessions…`; StopConfirm.tsx
+    // Archive asks no confirmation (it is reversible through `Past sessions`; StopConfirm.tsx
     // is the DELETE-only confirm). Card click → activateCard → the focused view (the terminal
     // is still focused-bound); Archive → sessionExit.archiveTerminal stops the PTY FIRST
     // (window.launch.archiveSession → main removes the bound session synchronously) then

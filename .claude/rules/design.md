@@ -319,16 +319,16 @@ here.` aria-live too.
 - Tag is the only filter type: `+ Add filter` opens the tag list directly. One tag at a time
   (`+ Add filter` not rendered while on).
 - Drawn only when the workspace has sessions (stays when filter hides all). No tag: list offers
-  `Create tags…`; no tag AND no Tags dialog → no `Filter` button.
+  `Create tags`; no tag AND no Tags dialog → no `Filter` button.
 - `Sort` / `⋯` not built (IdeasBoard) — not rendered.
 
 ## Header ☰ menu (`components/AppMenu/AppMenu.tsx`)
 
 Only header control besides `+ New session`; filters nothing.
 
-- Rows: `Settings…` (sliders), `Shortcuts…` (keyboard), `Tags ›` (`Manage tags…` /
-  `Manage rules…`), `Sessions ›` (clock; `Active sessions…` / `Past sessions…` / `Templates…` /
-  `Import session…`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
+- Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
+  `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /
+  `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
   14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
 - Submenus are ONE `Submenu` (AppMenu.tsx): open LEFT, level with their row; hover opens, click
   OPENS (never toggles); ArrowRight opens on the first row, ArrowLeft back; ONE open at a time.
@@ -458,7 +458,7 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   `ghost xs icon` with `aria-pressed`; its filled pin IS the on look, never `lit`. **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.
   Workspace switcher is NOT a Button (compound pill, matches `md` height); its menu lists only the
-  OTHER workspaces (none → just `Manage workspaces…`). Dashed pills and menu rows are Popover rows.
+  OTHER workspaces (none → just `Manage workspaces`). Dashed pills and menu rows are Popover rows.
 - **Hand-made menu/list popup → `components/Popover`** (spec
   `2026-10-01-popover-standard-design.md`). Parts: `Surface` (box, never scrolls), `List` (only
   scrolling part, `--popover-max-height` on the caller's wrapper), `Item`, `CompactItem`,
@@ -469,6 +469,16 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   (+ `[data-density='compact']`, `[data-quiet]`, `[data-tone]`), `[data-popover-divider]`.
   `Popover.guard.test.ts` fails on a raw `role="menu"`/`listbox`/`option` or a `--shadow-pop` box
   elsewhere.
+- **Menu rows: an icon, never `…`** (owner, 2026-10-15). Every ACTION row (`Popover.Item` /
+  `QuietItem` that opens a dialog or runs a command: `Settings`, `Manage tags`, `Pick a folder`,
+  `Create tags`, `Manage workspaces`) puts a 14px icon in `Popover.ItemIcon`, from
+  `components/Icon/MenuIcons.tsx` (16 grid, 1.5 stroke), `TagGlyphIcon` or `LucideIcon`. Same
+  thing, same icon (Templates and `Manage templates` share one). A new icon goes in `MenuIcons.tsx`.
+  The label never ends in `…`, and no other option does either (a `Select` option, `Custom`).
+  Exempt: DATA rows (a template, a workspace, a tag, a Select option) — their name, tint or chip
+  is the mark; and `CompactItem` rows (Copy / Paste, card move) keep their compact look. Busy and
+  progress words (`Starting…`, `Loading…`) are not options and keep their `…`.
+  `Popover.guard.test.ts` fails on a static-label action row with no `ItemIcon` or with a `…`.
 - **Overlay motion** (spec `2026-10-04-overlay-motion-design.md`; values in `styles/motion.css`, not
   theme tokens). A popover or modal renders through `<Presence value={x}>` (`open || null` for a
   boolean), never `open && <…>`: it stays mounted `MOTION_EXIT_MS` with `data-leaving` + `inert`

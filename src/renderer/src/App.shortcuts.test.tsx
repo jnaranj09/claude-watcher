@@ -37,7 +37,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-/** The header ☰ menu → Shortcuts…. */
+/** The header ☰ menu → Shortcuts. */
 function openShortcuts(r: RenderResult): void {
   click(q(r, '[data-testid="app-menu"]'))
   click(q(r, '[data-testid="app-menu-shortcuts"]'))
@@ -50,7 +50,7 @@ describe('App — shortcuts entry point', () => {
     expect(shortcutsStore.getState().shortcuts).toEqual([SC])
   })
 
-  it('the header ☰ menu’s Shortcuts… opens the shortcuts dialog', async () => {
+  it('the header ☰ menu’s Shortcuts opens the shortcuts dialog', async () => {
     const r = await renderApp()
     expect(r.container.querySelector('[data-testid="shortcuts-overlay"]')).toBeNull()
     openShortcuts(r)

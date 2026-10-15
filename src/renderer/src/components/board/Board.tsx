@@ -82,13 +82,13 @@ function SkeletonColumn({
 export interface BoardProps {
   /** Card activation seam (Epic-3 focused-session open). Defaults to a no-op. */
   onActivateCard?: (id: string) => void
-  /** New-session launch seam (Epic-3 / FR-11) — the popover's `Pick a folder…`. Defaults to a no-op. */
+  /** New-session launch seam (Epic-3 / FR-11) — the popover's `Pick a folder`. Defaults to a no-op. */
   onNewSession?: () => void
   /** Session templates — the popover's template rows. Defaults to a no-op. */
   onPickTemplate?: (template: Template) => void
-  /** Session templates — the popover's `Manage templates…`. Defaults to a no-op. */
+  /** Session templates — the popover's `Manage templates`. Defaults to a no-op. */
   onManageTemplates?: () => void
-  /** Past sessions — the empty board's `Past sessions…`, beside `+ New session` (the same opener
+  /** Past sessions — the empty board's `Past sessions`, beside `+ New session` (the same opener
    *  as the ☰ item). Omitted ⇒ no button. */
   onOpenPastSessions?: () => void
   /** Session-naming A2 — card rename seam (the pencil). Omitted ⇒ no pencil is rendered. */
@@ -239,7 +239,7 @@ export function Board({
         // AC-4 — empty board (cold-loaded, zero sessions). Headline + line + the ONE
         // primary action. `+ New session` launches an in-app session (Epic-3 / FR-11).
         // Story 3.3 (FR-1 amended) — the Board shows ONLY app-launched sessions, so the empty
-        // board is the NORMAL cold state and the main affordance is `+ New session`, with `Past sessions…`
+        // board is the NORMAL cold state and the main affordance is `+ New session`, with `Past sessions`
         // beside it. The old
         // "…or start one in Konsole and it'll appear here" invite is GONE: external/Konsole
         // sessions are intentionally never shown (the launched-set is the single gate, AC-4/F5).
@@ -268,7 +268,7 @@ export function Board({
                 is starting (the board is about to fill). */}
             {startingCount === 0 && onOpenPastSessions !== undefined && (
               <Button testId="empty-board-past-sessions" onClick={onOpenPastSessions}>
-                Past sessions…
+                Past sessions
               </Button>
             )}
           </div>

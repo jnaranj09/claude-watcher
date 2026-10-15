@@ -64,7 +64,7 @@ describe('App — tags', () => {
     expect(q(r, '[data-testid="board-layer"] [data-testid="filter-bar"]')).toBeTruthy()
   })
 
-  it('Manage tags… opens the Tags dialog; Escape closes it', async () => {
+  it('Manage tags opens the Tags dialog; Escape closes it', async () => {
     const r = await renderApp()
     openManageTags(r)
     expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()
@@ -77,7 +77,7 @@ describe('App — tags', () => {
   // jsdom ignores `inert`, so the click DOES reach the button while the Templates dialog is open —
   // which is exactly what makes this test able to fail: `handleManageTags` itself must refuse.
   // Reverting its `isModalOpen()` guard turns this red.
-  it('the single-modal rule: Manage tags… does nothing while another dialog is open', async () => {
+  it('the single-modal rule: Manage tags does nothing while another dialog is open', async () => {
     const r = await renderApp()
     act(() => boardStore.getState().openSessionsDialog('templates'))
     openManageTags(r)
@@ -102,7 +102,7 @@ describe('App — tags', () => {
     expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()
   })
 
-  it('Manage rules… opens the Tags dialog on Rules under the single-modal rule; Escape closes it', async () => {
+  it('Manage rules opens the Tags dialog on Rules under the single-modal rule; Escape closes it', async () => {
     const r = await renderApp()
     chooseFromTagsSubmenu(r, 'manage-rules')
     expect(r.container.querySelector('[data-testid="tags-overlay"]')).not.toBeNull()

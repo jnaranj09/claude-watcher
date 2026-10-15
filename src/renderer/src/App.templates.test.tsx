@@ -6,8 +6,8 @@
 //   - picking a template opens the name prompt with templateId + the template name as the
 //     prefill, hint = the template's cwd, and does NOT touch window.launch.pickDirectory;
 //   - submitting the prompt launches via window.launch.launchFromTemplate (never launch());
-//   - "Pick a folder…" still runs the plain folder flow unchanged;
-//   - "Manage templates…" opens the Sessions dialog on its Templates page; UX-DR14 single-modal rule refuses Ctrl+N
+//   - "Pick a folder" still runs the plain folder flow unchanged;
+//   - "Manage templates" opens the Sessions dialog on its Templates page; UX-DR14 single-modal rule refuses Ctrl+N
 //     while it is open; ✕ closes it.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
@@ -95,7 +95,7 @@ describe('App — session templates', () => {
     expect(boardStore.getState().focusedTerminalId).toBe('launch-term-tpl')
   })
 
-  it('"Pick a folder…" still runs the folder flow', async () => {
+  it('"Pick a folder" still runs the folder flow', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
     click(qDoc('[data-testid="menu-pick-folder"]'))
@@ -104,7 +104,7 @@ describe('App — session templates', () => {
     expect(boardStore.getState().sessionNamePrompt?.mode).toBe('create')
   })
 
-  it('"Manage templates…" opens the dialog; Ctrl+N is refused while it is open; ✕ closes it', async () => {
+  it('"Manage templates" opens the dialog; Ctrl+N is refused while it is open; ✕ closes it', async () => {
     const r = await renderApp()
     click(q(r, '[data-testid="header-new-session"]'))
     click(qDoc('[data-testid="menu-manage"]'))

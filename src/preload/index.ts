@@ -356,7 +356,7 @@ const launchApi = {
     return () => ipcRenderer.removeListener(CH.launchRequested, listener)
   },
   /** Past sessions (D-3) — ARCHIVE this terminal's session: stop the pty, keep a record in the
-   *  history, remove the card. No confirmation; reversible through `Past sessions…`. */
+   *  history, remove the card. No confirmation; reversible through `Past sessions`. */
   archiveSession(terminalId: string): Promise<void> {
     const req: SessionArchiveRequest = { terminalId }
     return ipcRenderer.invoke(CH.sessionArchive, req)

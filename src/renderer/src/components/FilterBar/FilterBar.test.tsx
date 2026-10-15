@@ -274,7 +274,7 @@ describe('FilterBar', () => {
     expect(menu(r)).toBeNull()
   })
 
-  it('with no tags yet, + Add filter offers Create tags…, which opens tag management', () => {
+  it('with no tags yet, + Add filter offers Create tags, which opens tag management', () => {
     act(() => tagsStore.setState({ tags: [] }))
     const onManageTags = vi.fn()
     const r = renderOpen({ onManageTags })

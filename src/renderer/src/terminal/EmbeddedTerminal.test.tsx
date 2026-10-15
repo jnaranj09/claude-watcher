@@ -293,7 +293,7 @@ describe('EmbeddedTerminal — dead-terminal pane (AC-4 / Story 6.1 one-button o
       btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     // Session-templates parity (2026-09-05): the button now opens the SAME popover as the
-    // header instead of firing the folder flow directly, so `Pick a folder…` is one row down.
+    // header instead of firing the folder flow directly, so `Pick a folder` is one row down.
     // The menu is portaled to document.body (this frame is `overflow: clip`).
     act(() =>
       (document.body.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
@@ -475,7 +475,7 @@ describe('EmbeddedTerminal — dead pane opens the New-session popover (template
     // The popover escaped the `overflow: clip` frame — it is NOT inside this terminal's DOM.
     expect(r.container.contains(bodyMenu())).toBe(false)
 
-    // "Pick a folder…" is the OLD behaviour, now one row down.
+    // "Pick a folder" is the OLD behaviour, now one row down.
     act(() =>
       (document.body.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()
     )

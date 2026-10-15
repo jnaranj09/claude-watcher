@@ -1,7 +1,7 @@
 // Session templates — the Templates PAGE of the Sessions dialog (spec 2026-10-03 F), on the shared
 // ManageDialog shell (.claude/rules/design.md). The dialog owns the shell state, the scope and the
 // page column; this page owns the "follow a row a save moved" rule. The list and the form are
-// separate units. `+ New session` → `Manage templates…` opens the dialog on this page.
+// separate units. `+ New session` → `Manage templates` opens the dialog on this page.
 import { selectIncludeGlobal, useSettings } from '../../stores/settingsStore'
 import { IncludeGlobal } from '../ScopeFilter/IncludeGlobal'
 import type { JSX } from 'react'

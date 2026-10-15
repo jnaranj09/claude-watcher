@@ -608,11 +608,11 @@ describe('WorkspaceSwitcher', () => {
     expect(onManage).toHaveBeenCalled()
   })
 
-  // `Manage workspaces…` is a row like the others, so its hover fill is rounded like theirs. The
+  // `Manage workspaces` is a row like the others, so its hover fill is rounded like theirs. The
   // line above it used to be the button's own `border-top`, which forced `border-radius: 0` (a
   // rounded box bends its top border up at the corners) and drew a SQUARE hover under a rounded
   // menu. The line is its own element now, as in NewSessionMenu.
-  it('draws the line above Manage workspaces… as its own separator, so the row stays rounded', () => {
+  it('draws the line above Manage workspaces as its own separator, so the row stays rounded', () => {
     const r = renderSwitcher()
     click(q(r, '[data-testid="workspace-switcher"]'))
     const manage = q(r, '[data-testid="workspace-manage"]')

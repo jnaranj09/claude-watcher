@@ -231,7 +231,7 @@ export const cardIds = (page) =>
     .locator('[data-column] [data-session-id]')
     .evaluateAll((els) => els.map((e) => e.getAttribute('data-session-id')))
 
-/** `+ New session` → `Pick a folder…` → accept the name → back to the board. Returns the new
+/** `+ New session` → `Pick a folder` → accept the name → back to the board. Returns the new
  *  card's session id. Waits 3 s at the end so claude's own startup hooks land before yours. */
 export async function launchSession(page) {
   const before = new Set(await cardIds(page))

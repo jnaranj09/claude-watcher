@@ -1,7 +1,8 @@
 // The header ☰ MENU (2026-09-14): the ONE header control besides `+ New session`. Rows:
-// `Settings…`, `Shortcuts…`, `Tags ›` (Manage tags… / Manage rules…) and `Sessions ›` (spec
-// 2026-10-03 A: Past sessions… / Templates… / Import session…) — ALWAYS the last row, in the slot
-// `Past sessions…` held, with its clock. Both submenus are ONE `Submenu`: they open to the LEFT
+// `Settings`, `Shortcuts`, `Tags ›` (Manage tags / Manage rules) and `Sessions ›` (spec
+// 2026-10-03 A: Active sessions / Past sessions / Templates / Import session) — ALWAYS the last
+// row, in the slot `Past sessions` held, with its clock. Every row has an icon and no `…`
+// (design.md, "Menu rows"). Both submenus are ONE `Submenu`: they open to the LEFT
 // (the menu sits at the window's right edge), hover opens, click OPENS (never toggles), ArrowRight
 // opens on the first row, ArrowLeft goes back, and only one is open at a time.
 //
@@ -19,6 +20,16 @@ import {
 } from 'react'
 import type { SessionsPage } from '../../stores/boardStore'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
+import {
+  ArchiveIcon,
+  ClockIcon,
+  ImportIcon,
+  KeyboardIcon,
+  RulesIcon,
+  SlidersIcon,
+  TemplateIcon,
+  TerminalIcon
+} from '../Icon/MenuIcons'
 import { Button } from '../Button/Button'
 import { Popover } from '../Popover/Popover'
 import { Presence } from '../Presence/Presence'
@@ -29,7 +40,7 @@ export interface AppMenuProps {
   onOpenSettings: () => void
   onOpenShortcuts: () => void
   onManageTags: () => void
-  /** Rules — the `Manage rules…` row. Omitted ⇒ no row (a control nobody handles is not rendered). */
+  /** Rules — the `Manage rules` row. Omitted ⇒ no row (a control nobody handles is not rendered). */
   onManageRules?: () => void
   /** Sessions (spec 2026-10-03 A) — ALWAYS the last row, a submenu; each row opens the Sessions
    *  dialog on its page. Omitted ⇒ no row (a control nobody handles is not rendered). */
@@ -49,75 +60,14 @@ function MenuIcon(): JSX.Element {
   )
 }
 
-/** Sessions — a clock face, on the tag glyph's 14px grid and 1.5 stroke. */
-function ClockIcon(): JSX.Element {
-  return (
-    <svg
-      width={14}
-      height={14}
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-    >
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 4.5V8l2.5 1.5" />
-    </svg>
-  )
-}
-
-/** Settings — two sliders, on the clock's 16 grid and 1.5 stroke. */
-function SlidersIcon(): JSX.Element {
-  return (
-    <svg
-      width={14}
-      height={14}
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-    >
-      <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
-      <circle cx="10" cy="4.5" r="1.5" />
-      <circle cx="6" cy="11.5" r="1.5" />
-    </svg>
-  )
-}
-
-/** Shortcuts — a keyboard, same grid and stroke. */
-function KeyboardIcon(): JSX.Element {
-  return (
-    <svg
-      width={14}
-      height={14}
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-    >
-      <rect x="1.5" y="3.75" width="13" height="8.5" rx="1.75" />
-      <path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h.01M5.5 9.5h5" />
-    </svg>
-  )
-}
-
 type SubmenuId = 'tags' | 'sessions'
 
 /** The Sessions submenu's rows, in the dialog's page order. */
-const SESSIONS_ROWS: readonly { page: SessionsPage; label: string }[] = [
-  { page: 'active', label: 'Active sessions…' },
-  { page: 'past', label: 'Past sessions…' },
-  { page: 'templates', label: 'Templates…' },
-  { page: 'import', label: 'Import session…' }
+const SESSIONS_ROWS: readonly { page: SessionsPage; label: string; icon: JSX.Element }[] = [
+  { page: 'active', label: 'Active sessions', icon: <TerminalIcon /> },
+  { page: 'past', label: 'Past sessions', icon: <ArchiveIcon /> },
+  { page: 'templates', label: 'Templates', icon: <TemplateIcon /> },
+  { page: 'import', label: 'Import session', icon: <ImportIcon /> }
 ]
 
 interface SubmenuProps {
@@ -300,7 +250,7 @@ export function AppMenu({
                 <Popover.ItemIcon>
                   <SlidersIcon />
                 </Popover.ItemIcon>
-                Settings…
+                Settings
               </Popover.Item>
               <Popover.Item
                 role="menuitem"
@@ -311,7 +261,7 @@ export function AppMenu({
                 <Popover.ItemIcon>
                   <KeyboardIcon />
                 </Popover.ItemIcon>
-                Shortcuts…
+                Shortcuts
               </Popover.Item>
               <Submenu
                 id="tags"
@@ -329,7 +279,10 @@ export function AppMenu({
                   testId="tags-menu-manage-tags"
                   onClick={() => choose(onManageTags)}
                 >
-                  Manage tags…
+                  <Popover.ItemIcon>
+                    <TagGlyphIcon size={14} />
+                  </Popover.ItemIcon>
+                  Manage tags
                 </Popover.Item>
                 {onManageRules !== undefined && (
                   <Popover.Item
@@ -337,7 +290,10 @@ export function AppMenu({
                     testId="tags-menu-manage-rules"
                     onClick={() => choose(onManageRules)}
                   >
-                    Manage rules…
+                    <Popover.ItemIcon>
+                      <RulesIcon />
+                    </Popover.ItemIcon>
+                    Manage rules
                   </Popover.Item>
                 )}
               </Submenu>
@@ -360,6 +316,7 @@ export function AppMenu({
                       testId={`sessions-menu-${row.page}`}
                       onClick={() => choose(() => onOpenSessions(row.page))}
                     >
+                      <Popover.ItemIcon>{row.icon}</Popover.ItemIcon>
                       {row.label}
                     </Popover.Item>
                   ))}

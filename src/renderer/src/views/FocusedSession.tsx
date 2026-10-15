@@ -182,7 +182,7 @@ export function FocusedSession({
   }, [])
 
   // Past sessions (D-3) — Archive the currently-focused terminal's session. No confirmation
-  // (reversible through Past sessions…) — fires straight through sessionExit.archiveTerminal,
+  // (reversible through Past sessions) — fires straight through sessionExit.archiveTerminal,
   // the SAME helper the card calls. No-op guard: focusedTerminalId should never be
   // null in the focused view, but guard anyway (degrade gracefully, never crash).
   // Action feedback (spec 2026-09-29 §2.3): busy until main answers — one press, one archive.
@@ -278,7 +278,7 @@ export function FocusedSession({
           >
             <span aria-hidden>{'>_'}</span> {SHELL_TERMS.label}
           </Button>
-          {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions…. The
+          {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions. The
               button is the ONLY path: Ctrl+W archives nothing (R27 — it is claude's delete-word,
               and a slipped focus turned it into an archive). */}
           <Button

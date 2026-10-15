@@ -54,7 +54,7 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   `teardownWatchFeed`. Never throws (`code=teardown_archive_failed`). `Delete` → reason `delete`:
   no record, earlier record dropped, using the override's `lastSessionId` (`deleteTerminalSession`;
   renderer `sessionId` is a hint). Never touches claude's files. Late `SessionEnd` is idempotent.
-- **Resume:** `Past sessions…` reopens with `claude --resume <id>` (`resumeSessionId`; id kept) plus
+- **Resume:** `Past sessions` reopens with `claude --resume <id>` (`resumeSessionId`; id kept) plus
   `-n <record name>` (`resumeName`, not the frozen recipe's). Dead pane (UX-10) shows exit
   code/signal (`CH.terminalExit`); `Resume conversation` calls `CH.pastSessionResumeTerminal` with
   the terminal id only → main uses `lastSessionId` (`resumeTerminalSession`); renderer opens the

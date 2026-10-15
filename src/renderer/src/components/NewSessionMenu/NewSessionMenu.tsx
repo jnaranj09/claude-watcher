@@ -7,6 +7,7 @@ import { filterTemplates } from './filterTemplates'
 import { favoritesFirst } from '../../lib/favoritesFirst'
 import { FavoriteToggle } from '../FavoriteToggle/FavoriteToggle'
 import { Popover } from '../Popover/Popover'
+import { FolderIcon, TemplateIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './NewSessionMenu.module.css'
 import { leavingProps, useLeaving } from '../Presence/leaving'
@@ -89,23 +90,9 @@ export function NewSessionMenu({
           onClick={onPickFolder}
         >
           <Popover.ItemIcon>
-            {/* Inline SVG folder (same convention as the SessionCard pencil): no icon dependency,
-                `currentColor` follows the text ramp. The label is the accessible name. */}
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M1.5 4a1 1 0 0 1 1-1h3.4l1.6 1.6h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />
-            </svg>
+            <FolderIcon />
           </Popover.ItemIcon>
-          Pick a folder…
+          Pick a folder
         </Popover.Item>
         <Popover.Divider />
         <TextInput
@@ -165,7 +152,10 @@ export function NewSessionMenu({
         </Popover.List>
         <Popover.Divider />
         <Popover.Item data-menu-item data-menu-manage="" testId="menu-manage" onClick={onManage}>
-          Manage templates…
+          <Popover.ItemIcon>
+            <TemplateIcon />
+          </Popover.ItemIcon>
+          Manage templates
         </Popover.Item>
       </Popover.Surface>
     </div>

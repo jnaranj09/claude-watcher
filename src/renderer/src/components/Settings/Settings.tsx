@@ -4,7 +4,7 @@
 // `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on
 // Notifications and never shows a placeholder. The panel's ONE error line carries the standing theme error whatever category is
 // open. Dropdowns are `Select` (a native <select> is banned — design.md); labels of a Select are
-// <span>s with `ariaLabel`. Reached from the ☰ menu's `Settings…` row (App.tsx renders
+// <span>s with `ariaLabel`. Reached from the ☰ menu's `Settings` row (App.tsx renders
 // `SettingsPanel` from `settingsDialogOpen`); the `Settings` gear below only serves `#terminals`.
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import {

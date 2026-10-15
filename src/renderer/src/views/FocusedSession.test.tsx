@@ -185,7 +185,7 @@ describe('FocusedSession — Story 3.4 rail + kept-alive terminals (AC-1, AC-3, 
       btn?.click()
     })
     // Session-templates parity (2026-09-05): the dead button now opens the SAME popover as the
-    // header, so the folder flow is its `Pick a folder…` row. The menu is portaled to
+    // header, so the folder flow is its `Pick a folder` row. The menu is portaled to
     // document.body (the terminal frame is `overflow: clip`).
     act(() =>
       (document.body.querySelector('[data-testid="menu-pick-folder"]') as HTMLButtonElement).click()

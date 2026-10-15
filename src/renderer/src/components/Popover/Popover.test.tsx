@@ -126,7 +126,7 @@ describe('Popover parts', () => {
     const r = render(
       <Popover.Item testId="i">
         <Popover.ItemIcon>⚙</Popover.ItemIcon>
-        Settings…
+        Settings
       </Popover.Item>
     )
     expect(q(r, '[data-testid="i"] [aria-hidden="true"]').textContent).toBe('⚙')

@@ -156,7 +156,7 @@ describe('Board — cold-load-complete via watch:status (Story 5.3/6.4 — the e
 })
 
 describe('Board — empty states never collapse (AC-4)', () => {
-  describe('Past sessions… beside + New session (empty board only)', () => {
+  describe('Past sessions beside + New session (empty board only)', () => {
     afterEach(() => act(() => boardStore.setState({ launchedTerminals: {} })))
 
     it('shows next to + New session and opens Past sessions', () => {
@@ -169,7 +169,7 @@ describe('Board — empty states never collapse (AC-4)', () => {
       const btn = container.querySelector<HTMLButtonElement>(
         '[data-testid="empty-board-past-sessions"]'
       )
-      expect(btn?.textContent).toBe('Past sessions…')
+      expect(btn?.textContent).toBe('Past sessions')
       expect(btn?.parentElement?.querySelector('[data-testid="new-session"]')).not.toBeNull()
       act(() => btn?.click())
       expect(onOpenPastSessions).toHaveBeenCalledTimes(1)
@@ -177,7 +177,7 @@ describe('Board — empty states never collapse (AC-4)', () => {
 
     it('both buttons share one row offset (the spacing sits on the row, not on one anchor)', () => {
       // A margin on NewSessionButton's primary anchor alone put `+ New session` 4px below
-      // `Past sessions…` (drive run 2026-10-02). jsdom has no layout, so the CSS is the proxy.
+      // `Past sessions` (drive run 2026-10-02). jsdom has no layout, so the CSS is the proxy.
       const read = (file: string): string =>
         readFileSync(resolve(process.cwd(), file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
       const menu = read('src/renderer/src/components/NewSessionMenu/NewSessionMenu.module.css')
@@ -239,7 +239,7 @@ describe('Board — empty states never collapse (AC-4)', () => {
     }
     afterEach(() => act(() => templatesStore.getState().hydrate([])))
 
-    it('click opens the popover; Pick a folder… fires onNewSession and closes it', () => {
+    it('click opens the popover; Pick a folder fires onNewSession and closes it', () => {
       boardStore.setState({ coldLoaded: true })
       const onNewSession = vi.fn()
       const { container, unmount } = renderComponent(<Board onNewSession={onNewSession} />)
@@ -629,7 +629,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     expect(bar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('the filtered-empty board has no Past sessions… button', () => {
+  it('the filtered-empty board has no Past sessions button', () => {
     const { container, unmount } = renderComponent(<Board onOpenPastSessions={vi.fn()} />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'plain', 'working', 100))

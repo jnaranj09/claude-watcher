@@ -1,5 +1,5 @@
-// The header ☰ menu (2026-09-14): the ONE header control besides + New session. Settings…,
-// Shortcuts…, a Tags › submenu holding Manage tags… / Manage rules…, and a Sessions › submenu —
+// The header ☰ menu (2026-09-14): the ONE header control besides + New session. Settings,
+// Shortcuts, a Tags › submenu holding Manage tags / Manage rules, and a Sessions › submenu —
 // ALWAYS the last row (spec 2026-10-03 A). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
@@ -72,11 +72,11 @@ describe('AppMenu', () => {
     expect(button?.querySelector('svg')).not.toBeNull()
   })
 
-  it('opens Settings…, Shortcuts…, Tags and Sessions, both as closed submenus', () => {
+  it('opens Settings, Shortcuts, Tags and Sessions, both as closed submenus', () => {
     const r = render()
     click(q(r, 'app-menu'))
     expect(q(r, 'app-menu')?.getAttribute('aria-expanded')).toBe('true')
-    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags', 'Sessions'])
+    expect(labels(mainMenu(r))).toEqual(['Settings', 'Shortcuts', 'Tags', 'Sessions'])
     for (const id of ['app-menu-tags', 'app-menu-sessions']) {
       expect(q(r, id)?.getAttribute('aria-haspopup')).toBe('menu')
       expect(q(r, id)?.getAttribute('aria-expanded')).toBe('false')
@@ -110,7 +110,7 @@ describe('AppMenu', () => {
     }
   })
 
-  it('Settings… closes the menu and calls onOpenSettings', () => {
+  it('Settings closes the menu and calls onOpenSettings', () => {
     const onOpenSettings = vi.fn()
     const r = render({ onOpenSettings })
     click(q(r, 'app-menu'))
@@ -119,7 +119,7 @@ describe('AppMenu', () => {
     expect(mainMenu(r)).toBeNull()
   })
 
-  it('Shortcuts… closes the menu and calls onOpenShortcuts', () => {
+  it('Shortcuts closes the menu and calls onOpenShortcuts', () => {
     const onOpenShortcuts = vi.fn()
     const r = render({ onOpenShortcuts })
     click(q(r, 'app-menu'))
@@ -139,18 +139,32 @@ describe('AppMenu', () => {
     click(q(r, 'app-menu-sessions'))
     expect(sessionsMenu(r)?.getAttribute('aria-label')).toBe('Sessions')
     expect(labels(sessionsMenu(r))).toEqual([
-      'Active sessions…',
-      'Past sessions…',
-      'Templates…',
-      'Import session…'
+      'Active sessions',
+      'Past sessions',
+      'Templates',
+      'Import session'
     ])
   })
 
+  it('every row of the menu and both submenus has an icon and no …', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    click(q(r, 'app-menu-tags'))
+    const tagRows = [...(subMenu(r)?.querySelectorAll('[role="menuitem"]') ?? [])]
+    click(q(r, 'app-menu-sessions'))
+    const rows = [...(mainMenu(r)?.querySelectorAll('[role="menuitem"]') ?? []), ...tagRows]
+    expect(rows).toHaveLength(10)
+    for (const row of rows) {
+      expect(row.querySelector(':scope > [aria-hidden="true"] svg'), rowName(row)).not.toBeNull()
+      expect(rowName(row)).not.toContain('…')
+    }
+  })
+
   it.each([
-    ['active', 'Active sessions…'],
-    ['past', 'Past sessions…'],
-    ['templates', 'Templates…'],
-    ['import', 'Import session…']
+    ['active', 'Active sessions'],
+    ['past', 'Past sessions'],
+    ['templates', 'Templates'],
+    ['import', 'Import session']
   ] as const)(
     '%s: its row (%s) closes both menus and opens the Sessions dialog on that page',
     (page, label) => {
@@ -171,7 +185,7 @@ describe('AppMenu', () => {
     )
     cleanup = r.unmount
     click(q(r, 'app-menu'))
-    expect(labels(mainMenu(r))).toEqual(['Settings…', 'Shortcuts…', 'Tags'])
+    expect(labels(mainMenu(r))).toEqual(['Settings', 'Shortcuts', 'Tags'])
   })
 
   it('only one submenu is open: pointing at Sessions closes Tags, and the other way round', () => {
@@ -220,13 +234,13 @@ describe('AppMenu', () => {
     expect(document.activeElement).not.toBe(q(r, 'sessions-menu-past'))
   })
 
-  it('Tags opens the tags submenu: Manage tags… and Manage rules…', () => {
+  it('Tags opens the tags submenu: Manage tags and Manage rules', () => {
     const r = render()
     click(q(r, 'app-menu'))
     click(q(r, 'app-menu-tags'))
     expect(q(r, 'app-menu-tags')?.getAttribute('aria-expanded')).toBe('true')
     expect(subMenu(r)?.getAttribute('aria-label')).toBe('Tags')
-    expect(labels(subMenu(r))).toEqual(['Manage tags…', 'Manage rules…'])
+    expect(labels(subMenu(r))).toEqual(['Manage tags', 'Manage rules'])
   })
 
   // A mouse points at a row before it clicks it: the pointer opens the submenu, and the click that
@@ -249,7 +263,7 @@ describe('AppMenu', () => {
     expect(subMenu(r)).toBeNull()
   })
 
-  it('Manage tags… closes both menus and calls onManageTags', () => {
+  it('Manage tags closes both menus and calls onManageTags', () => {
     const onManageTags = vi.fn()
     const r = render({ onManageTags })
     click(q(r, 'app-menu'))
@@ -260,7 +274,7 @@ describe('AppMenu', () => {
     expect(subMenu(r)).toBeNull()
   })
 
-  it('Manage rules… closes both menus and calls onManageRules', () => {
+  it('Manage rules closes both menus and calls onManageRules', () => {
     const onManageRules = vi.fn()
     const r = render({ onManageRules })
     click(q(r, 'app-menu'))
@@ -270,14 +284,14 @@ describe('AppMenu', () => {
     expect(mainMenu(r)).toBeNull()
   })
 
-  it('offers no Manage rules… row when nobody handles it', () => {
+  it('offers no Manage rules row when nobody handles it', () => {
     const r = renderComponent(
       <AppMenu onOpenSettings={vi.fn()} onOpenShortcuts={vi.fn()} onManageTags={vi.fn()} />
     )
     cleanup = r.unmount
     click(q(r, 'app-menu'))
     click(q(r, 'app-menu-tags'))
-    expect(labels(subMenu(r))).toEqual(['Manage tags…'])
+    expect(labels(subMenu(r))).toEqual(['Manage tags'])
   })
 
   it('ArrowRight on Tags opens the submenu on its first row; ArrowLeft goes back to Tags', () => {

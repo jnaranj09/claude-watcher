@@ -77,6 +77,43 @@ function rawMenuRoles(file: string): string[] {
   return hits
 }
 
+const ACTION_ROWS = new Set(['Popover.Item', 'Popover.QuietItem'])
+
+/** Every `Popover.Item` / `QuietItem` in `file` whose label is STATIC text (an action row) and
+ *  that has no `Popover.ItemIcon` or ends its label in `…` (design.md, "Menu rows"). A row whose
+ *  label comes from an expression is a data row (or reads a list a component test covers). */
+function badActionRows(file: string): string[] {
+  const src = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  )
+  const hits: string[] = []
+  const visit = (node: ts.Node): void => {
+    if (ts.isJsxElement(node) && ACTION_ROWS.has(node.openingElement.tagName.getText(src))) {
+      const label = node.children
+        .filter(ts.isJsxText)
+        .map((t) => t.text.trim())
+        .join(' ')
+        .trim()
+      if (label !== '') {
+        const hasIcon = node.children.some(
+          (c) => ts.isJsxElement(c) && c.openingElement.tagName.getText(src) === 'Popover.ItemIcon'
+        )
+        const { line } = src.getLineAndCharacterOfPosition(node.getStart(src))
+        const at = `${relative(rendererDir, file)}:${line + 1} "${label}"`
+        if (!hasIcon) hits.push(`${at} has no Popover.ItemIcon`)
+        if (label.endsWith('…')) hits.push(`${at} ends in …`)
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(src)
+  return hits
+}
+
 const tmpFiles: string[] = []
 afterEach(() => {
   for (const f of tmpFiles.splice(0)) rmSync(f, { force: true })
@@ -108,6 +145,29 @@ describe('Popover owns every menu and list popup', () => {
     expect(rawMenuRoles(tmp)).toHaveLength(1)
     writeFileSync(tmp, 'export const X = () => <div role="dialog" />\n')
     expect(rawMenuRoles(tmp)).toEqual([])
+  })
+})
+
+describe('menu rows: an icon, never …', () => {
+  it('every static-label action row has an ItemIcon and no trailing …', () => {
+    const offenders = files('.tsx')
+      .filter((f) => !relative(rendererDir, f).startsWith('components/Popover/'))
+      .flatMap(badActionRows)
+    expect(offenders).toEqual([])
+  })
+
+  it('catches a row with no icon, a row with …, and passes a data row', () => {
+    const tmp = join(tmpdir(), `popover-row-probe-${process.pid}.tsx`)
+    tmpFiles.push(tmp)
+    writeFileSync(tmp, 'export const X = () => <Popover.Item>Settings</Popover.Item>\n')
+    expect(badActionRows(tmp)).toHaveLength(1)
+    writeFileSync(
+      tmp,
+      'export const X = () => <Popover.QuietItem><Popover.ItemIcon><I /></Popover.ItemIcon>Manage…</Popover.QuietItem>\n'
+    )
+    expect(badActionRows(tmp)).toEqual([expect.stringContaining('ends in …')])
+    writeFileSync(tmp, 'export const X = ({ n }) => <Popover.Item>{n}</Popover.Item>\n')
+    expect(badActionRows(tmp)).toEqual([])
   })
 })
 

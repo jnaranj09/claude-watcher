@@ -42,6 +42,7 @@ import { visibleTags } from '../../../../shared/tags/tagScope'
 import { Button } from '../Button/Button'
 import { TagChip } from '../TagChip/TagChip'
 import { Popover } from '../Popover/Popover'
+import { PlusIcon } from '../Icon/MenuIcons'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
@@ -52,7 +53,7 @@ export interface FilterBarProps {
   total: number
   /** Sessions in the active workspace, unfiltered. 0 ⇒ nothing to filter, so no bar. */
   workspaceTotal: number
-  /** Opens the Tags dialog: the list's `Create tags…` row while no tag exists yet. Omitted ⇒ with no
+  /** Opens the Tags dialog: the list's `Create tags` row while no tag exists yet. Omitted ⇒ with no
    *  tag to offer, no `Filter` button (a control that opens onto nothing is not rendered). */
   onManageTags?: () => void
 }
@@ -299,7 +300,10 @@ export function FilterBar({
                         testId="filter-create-tags"
                         onClick={createTags}
                       >
-                        Create tags…
+                        <Popover.ItemIcon>
+                          <PlusIcon />
+                        </Popover.ItemIcon>
+                        Create tags
                       </Popover.QuietItem>
                     </>
                   ) : (

@@ -14,27 +14,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './components/board/Board'
 import { SmokeCockpit } from './SmokeCockpit'
-// Session templates — the header `+ New session` popover (folder / templates / Manage templates…,
+// Session templates — the header `+ New session` popover (folder / templates / Manage templates,
 // which opens the Sessions dialog's Templates page). See NewSessionButton.tsx / TemplatesPage.tsx.
 import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
 import { Presence } from './components/Presence/Presence'
-// Phrase shortcuts — the Manage-shortcuts modal (☰ menu → Shortcuts…) + the startup shortcuts load.
+// Phrase shortcuts — the Manage-shortcuts modal (☰ menu → Shortcuts) + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 // Workspaces (Task 9b) — the header switcher + the startup workspaces load. Task 10 wires
 // `onManage` to the Manage-workspaces modal below.
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
-// The header ☰ menu — Settings…, Shortcuts…, and the Tags submenu (Manage tags… / Manage rules…).
+// The header ☰ menu — Settings, Shortcuts, and the Tags submenu (Manage tags / Manage rules).
 import { AppMenu } from './components/AppMenu/AppMenu'
 // Tags — the Manage-tags modal.
 import { TagsDialog } from './components/TagsDialog/TagsDialog'
 import { setSessionTags } from './stores/tagsStore'
 // Rules — the Manage-rules modal (+ the startup rules load).
-// Past sessions (D-6) — the history modal (☰ menu → Past sessions…, always the last row). It loads
+// Past sessions (D-6) — the history modal (☰ menu → Past sessions, always the last row). It loads
 // the history itself on open; nothing loads at startup.
 import { SessionsDialog } from './components/SessionsDialog/SessionsDialog'
 import type { Template } from '../../shared/ipc/contract'
-// Story 2.4 — the minimal Settings surface (☰ menu → Settings…; the `#terminals` proof view keeps
+// Story 2.4 — the minimal Settings surface (☰ menu → Settings; the `#terminals` proof view keeps
 // its own ⚙ gear) + the startup settings load.
 import { Settings, SettingsPanel } from './components/Settings/Settings'
 // Story 3.1 (FR-10) — the minimal embedded-terminal host. Reachable via the URL hash
@@ -338,54 +338,54 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  // Sessions (spec 2026-10-03 B) — every way into the Sessions dialog: `Manage templates…`, the
+  // Sessions (spec 2026-10-03 B) — every way into the Sessions dialog: `Manage templates`, the
   // empty board's Past sessions link (and the ☰ Sessions submenu). Same single-modal guard as every
   // opener.
   const handleOpenSessions = useCallback((page: SessionsPage): void => {
     if (isModalOpen()) return
     boardStore.getState().openSessionsDialog(page)
   }, [])
-  // Session templates — "Manage templates…" from the header popover. Opens the Sessions dialog's
+  // Session templates — "Manage templates" from the header popover. Opens the Sessions dialog's
   // Templates page.
   const handleManageTemplates = useCallback(
     (): void => handleOpenSessions('templates'),
     [handleOpenSessions]
   )
 
-  // Workspaces — "Manage workspaces…" from the header switcher. Opens the Manage-workspaces
+  // Workspaces — "Manage workspaces" from the header switcher. Opens the Manage-workspaces
   // modal (WorkspacesDialog); guarded by the same single-modal rule as every other entry point.
   const handleManageWorkspaces = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openWorkspacesDialog()
   }, [])
 
-  // Tags — "Manage tags…" from the ☰ menu's Tags submenu (and a card's or rail row's Create tags).
+  // Tags — "Manage tags" from the ☰ menu's Tags submenu (and a card's or rail row's Create tags).
   // Same single-modal guard as every opener.
   const handleManageTags = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openTagsDialog('tags')
   }, [])
 
-  // Rules — "Manage rules…" from the ☰ menu's Tags submenu: the Tags dialog's Rules page. Same
+  // Rules — "Manage rules" from the ☰ menu's Tags submenu: the Tags dialog's Rules page. Same
   // single-modal guard as every opener.
   const handleManageRules = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openTagsDialog('rules')
   }, [])
 
-  // Settings — "Settings…" from the ☰ menu. Same single-modal guard as every opener.
+  // Settings — "Settings" from the ☰ menu. Same single-modal guard as every opener.
   const handleOpenSettings = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openSettingsDialog()
   }, [])
 
-  // Phrase shortcuts — "Shortcuts…" from the ☰ menu. Same single-modal guard as every opener.
+  // Phrase shortcuts — "Shortcuts" from the ☰ menu. Same single-modal guard as every opener.
   const handleOpenShortcuts = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openShortcutsDialog()
   }, [])
 
-  // Past sessions (D-6) — "Past sessions…" from the ☰ menu. Opens the Sessions dialog's Past page.
+  // Past sessions (D-6) — "Past sessions" from the ☰ menu. Opens the Sessions dialog's Past page.
   const handleOpenPastSessions = useCallback(
     (): void => handleOpenSessions('past'),
     [handleOpenSessions]
@@ -481,7 +481,7 @@ function App(): React.JSX.Element {
   // Story 6.1 — a STABLE void-returning wrapper of handleNewSession for the always-mounted
   // FocusedSession (same stability rule as handleBack). Threaded down to each EmbeddedTerminal.
   // Session-templates parity (2026-09-05): the dead pane's button now opens the SAME popover as
-  // the header, and this is the flow behind its `Pick a folder…` row (picker → launch → focused
+  // the header, and this is the flow behind its `Pick a folder` row (picker → launch → focused
   // view). Its two sibling rows reach handleTemplateSession / handleManageTemplates — the very
   // same handlers the header button uses. Ctrl+N opens the header popover instead (W-13).
   const handleNewSessionSync = useCallback((): void => {
@@ -681,8 +681,8 @@ function App(): React.JSX.Element {
             onPickTemplate={handleTemplateSession}
             onManage={handleManageTemplates}
           />
-          {/* The ONE header control besides + New session: Settings…, Shortcuts…, the Tags
-              submenu and Past sessions… (last). It filters nothing: the tag filter is the board's
+          {/* The ONE header control besides + New session: Settings, Shortcuts, the Tags
+              submenu and Past sessions (last). It filters nothing: the tag filter is the board's
               FilterBar. */}
           <AppMenu
             onOpenSettings={handleOpenSettings}
@@ -782,7 +782,7 @@ function App(): React.JSX.Element {
           />
         )}
       </Presence>
-      {/* Settings — the Settings dialog (☰ menu → Settings…; same single-modal rule). */}
+      {/* Settings — the Settings dialog (☰ menu → Settings; same single-modal rule). */}
       <Presence value={settingsDialogOpen || null}>
         {() => <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />}
       </Presence>

@@ -302,5 +302,5 @@ export const EFFORT_CHOICES: ReadonlyArray<{ value: EffortChoice; label: string 
 export const MODEL_CHOICES: ReadonlyArray<{ value: ModelChoice; label: string }> = [
   { value: 'default', label: 'Default (claude decides)' },
   ...MODEL_ALIASES.map((alias) => ({ value: alias, label: alias })),
-  { value: 'custom', label: 'Custom…' }
+  { value: 'custom', label: 'Custom' }
 ]

@@ -1,7 +1,7 @@
 # claude-watcher themes
 
 A theme is a folder you drop into the app's themes folder. The app reads it, checks it, and
-offers it in **☰ → Settings… → Theme**. Nothing in a theme can crash the app: a package that
+offers it in **☰ → Settings → Theme**. Nothing in a theme can crash the app: a package that
 breaks a rule is listed with the reason and never applied.
 
 The themes folder is `themes/` inside the app's data folder — on Linux
@@ -408,7 +408,7 @@ What you can target:
     children are the terminal frames.
 - **Menu hooks.** `[data-popover-icon]` and `[data-popover-end]` are a popover row's icon and
   trailing slot. In the `+ New session` popover: `[data-menu-pick-folder]` is the folder row,
-  `[data-menu-manage]` the `Manage templates…` row, and a template row holds `[data-template-name]`,
+  `[data-menu-manage]` the `Manage templates` row, and a template row holds `[data-template-name]`,
   `[data-template-path]` and `[data-template-flags]`.
 - **Dialog hooks.** `[data-manage-panel]` is the dialog box, `[data-manage-head]` its header,
   `[data-manage-title]` the title, `[data-manage-close]` the ✕, `[data-manage-body]` the rail and

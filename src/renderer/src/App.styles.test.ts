@@ -1,5 +1,5 @@
 // Pins the header's stacking-context fix (custom-themes task 15). A Playwright drive of the
-// liquid-glass example theme found the ☰ menu → Settings… click intercepted by the board's
+// liquid-glass example theme found the ☰ menu → Settings click intercepted by the board's
 // filter row: `backdrop-filter` on [data-testid='app-header'] creates a stacking context ON THE
 // HEADER, and an ordinary in-flow .header (no position, no z-index of its own) has none — so
 // AppMenu's z-index: 50 popover, once trapped inside that new header context, paints as part of

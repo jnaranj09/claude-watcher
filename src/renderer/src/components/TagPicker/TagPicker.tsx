@@ -97,7 +97,7 @@ export function TagPicker({
     >
       {tags.length === 0 ? (
         <TagMenuNote testId={`${testId}-empty`}>
-          No tags here yet. Create them in the ☰ menu: Tags › Manage tags….
+          No tags here yet. Create them in the ☰ menu: Tags › Manage tags.
         </TagMenuNote>
       ) : (
         tags.map((t) => (

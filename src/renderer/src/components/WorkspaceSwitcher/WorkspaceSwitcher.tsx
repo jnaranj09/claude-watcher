@@ -302,7 +302,10 @@ export function WorkspaceSwitcher({ onManage }: WorkspaceSwitcherProps): JSX.Ele
                   onManage()
                 }}
               >
-                Manage workspaces…
+                <Popover.ItemIcon>
+                  <LucideIcon name="layers" />
+                </Popover.ItemIcon>
+                Manage workspaces
               </Popover.QuietItem>
             </Popover.Surface>
           </div>

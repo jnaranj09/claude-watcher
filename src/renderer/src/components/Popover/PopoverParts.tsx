@@ -110,7 +110,7 @@ export function PopoverItem(props: PopoverItemProps): JSX.Element {
 export function PopoverCompactItem(props: PopoverItemProps): JSX.Element {
   return row({ 'data-density': 'compact' }, props)
 }
-/** A secondary action at the end of a list (`Manage workspaces…`, `Create tags…`). */
+/** A secondary action at the end of a list (`Manage workspaces`, `Create tags`). */
 export function PopoverQuietItem(props: PopoverItemProps): JSX.Element {
   return row({ 'data-quiet': '' }, props)
 }
