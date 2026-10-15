@@ -205,8 +205,7 @@ describe('tag colours', () => {
   })
 
   // `overflow: hidden` + `line-height: 1` cut the tail of every p/g/y flat and sat the lowercase
-  // body
-  // ~1px low (measured in Electron's Chromium). The name clips SIDEWAYS only, and centres its
+  // body ~1px low (measured in Electron's Chromium). The name clips SIDEWAYS only, and centres its
   // x-height.
   it('the name clips sideways only (never a descender) and centres on the lowercase body', () => {
     const rule = /\.name\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''

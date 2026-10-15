@@ -1,6 +1,5 @@
 // AttentionRail component tests, part 2: what a rail row can carry. jsdom `unit` project. Covers
-// the
-// Starting group (launched, not yet correlated), the rename affordance, the collapsed-rail
+// the Starting group (launched, not yet correlated), the rename affordance, the collapsed-rail
 // geometry regression, the tag chips and tag filter, and the public theme hooks. Same harness as
 // AttentionRail.test.tsx (test/railHarness).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -548,8 +547,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     const block = (re: RegExp): string => re.exec(css)?.[1] ?? ''
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/--text-on-lit|data-lit/)
     // Each wrapper scopes its own anchor; the ghost names it and stays invisible; the real button
-    // is
-    // laid over it.
+    // is laid over it.
     expect(block(/\.rowWrap\s*\{([^}]*)\}/)).toMatch(/anchor-scope:\s*--rail-add-tag/)
     const ghost = block(/\.addTagGhost\s*\{([^}]*)\}/)
     expect(ghost).toMatch(/anchor-name:\s*--rail-add-tag/)

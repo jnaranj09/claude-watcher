@@ -732,8 +732,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
 })
 
 // The filter bar's search box narrows the board by card NAME, like the tag filter narrows it by
-// tag,
-// and every "why is this empty" sentence has to say which of the two is hiding the cards.
+// tag, and every "why is this empty" sentence has to say which of the two is hiding the cards.
 describe('Board — the search box', () => {
   const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
   const cardIds = (container: HTMLElement): string[] =>

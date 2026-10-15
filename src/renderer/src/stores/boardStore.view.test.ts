@@ -454,9 +454,8 @@ describe('boardStore — registerLaunchedTerminal (an API launch must not steal 
   it('the registered terminal IS kept alive, so its frame mounts and spawns the pty', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().registerLaunchedTerminal('api-t', 'HT-2', 'default')
-    // This is the ONLY thing that makes an unfocused API launch reach a pty: App mounts the
-    // focused layer (hidden) whenever kept-alive is non-empty, and EmbeddedTerminal spawns on
-    // mount.
+    // This is the ONLY thing that makes an unfocused API launch reach a pty: App mounts the focused
+    // layer (hidden) whenever kept-alive is non-empty, and EmbeddedTerminal spawns on mount.
     expect(selectKeptAliveTerminalIds(store.getState())).toContain('api-t')
   })
 
@@ -528,8 +527,7 @@ describe('boardStore — Story 5.6 selectKeptAliveTerminalIds includes registry 
     store.getState().forgetLaunchedTerminal('t-1')
     // t-1 is no longer in launchedTerminals or focusedTerminalId (focusedTerminalId still set, but
     // that's OK — the terminal will show the "exited" pane when focused; it's gone from the
-    // registry).
-    // Actually focusedTerminalId is still 't-1' here, so it STILL appears via that path.
+    // registry). Actually focusedTerminalId is still 't-1' here, so it STILL appears via that path.
     // What we assert is that the registry term no longer holds it.
     expect(Object.keys(store.getState().launchedTerminals)).not.toContain('t-1')
   })

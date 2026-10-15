@@ -1,8 +1,7 @@
 // AttentionRail component tests, part 1: the rail's structure and interaction. jsdom `unit`
-// project.
-// Drives the rail against the singleton boardStore (reset per case by test/railHarness). Covers:
-// always present + collapsible to icons; the pinned active row (not a control) and the status
-// sections; needs-you emphasis applied (the SHIPPED needsYouEmphasisClass) and cleared on
+// project. Drives the rail against the singleton boardStore (reset per case by test/railHarness).
+// Covers: always present + collapsible to icons; the pinned active row (not a control) and the
+// status sections; needs-you emphasis applied (the SHIPPED needsYouEmphasisClass) and cleared on
 // acknowledge; keyboard activation and aria-live; `railName.shortName`. The Starting group, rename,
 // collapsed geometry, tags and theme hooks are in AttentionRail.rows.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -184,8 +183,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
   })
 
   // The board's search box narrows the rail's groups like the tag filter does. The pinned row is
-  // the
-  // terminal you are typing in, so it stays whatever the search says.
+  // the terminal you are typing in, so it stays whatever the search says.
   it('the search narrows the status groups, never the pinned row', () => {
     act(() => {
       boardStore
