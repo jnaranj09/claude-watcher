@@ -28,6 +28,7 @@ import {
   capturedTerminals,
   deliverPort,
   lastOpenToken,
+  menuItem,
   stubTerminalBridge,
   type TerminalFakes
 } from '../test/terminalHarness'
@@ -314,9 +315,7 @@ describe('EmbeddedTerminal context menu', () => {
 
     // Click the Copy button.
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const copyBtn = menuItem(menu, 'Copy')
     act(() => {
       copyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
@@ -347,9 +346,7 @@ describe('EmbeddedTerminal context menu', () => {
     })
 
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const pasteBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Paste'
-    )
+    const pasteBtn = menuItem(menu, 'Paste')
     act(() => {
       pasteBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
@@ -467,9 +464,7 @@ describe('context menu Copy — the result is a toast', () => {
       await Promise.resolve()
     })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const copyBtn = menuItem(menu, 'Copy')
     act(() => {
       copyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })

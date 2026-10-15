@@ -10,6 +10,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, fireEvent, type RenderResult } from '../test/renderComponent'
 import { TerminalContextMenu } from './TerminalContextMenu'
+import { menuItem } from '../test/terminalHarness'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,8 +65,8 @@ describe('TerminalContextMenu — render', () => {
     // The menu is portaled to document.body.
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
     expect(menu).not.toBeNull()
-    const buttons = [...(menu?.querySelectorAll('button') ?? [])]
-    const labels = buttons.map((b) => b.textContent)
+    const items = [...(menu?.querySelectorAll('[role="menuitem"]') ?? [])]
+    const labels = items.map((item) => item.textContent)
     expect(labels).toContain('Copy')
     expect(labels).toContain('Paste')
   })
@@ -73,36 +74,28 @@ describe('TerminalContextMenu — render', () => {
   it('Copy button is disabled when canCopy=false', () => {
     renderMenu({ canCopy: false, canPaste: true })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const copyBtn = menuItem(menu, 'Copy')
     expect(copyBtn?.disabled).toBe(true)
   })
 
   it('Copy button is enabled when canCopy=true', () => {
     renderMenu({ canCopy: true, canPaste: false })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const copyBtn = menuItem(menu, 'Copy')
     expect(copyBtn?.disabled).toBe(false)
   })
 
   it('Paste button is disabled when canPaste=false', () => {
     renderMenu({ canCopy: true, canPaste: false })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const pasteBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Paste'
-    )
+    const pasteBtn = menuItem(menu, 'Paste')
     expect(pasteBtn?.disabled).toBe(true)
   })
 
   it('Paste button is enabled when canPaste=true', () => {
     renderMenu({ canCopy: false, canPaste: true })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const pasteBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Paste'
-    )
+    const pasteBtn = menuItem(menu, 'Paste')
     expect(pasteBtn?.disabled).toBe(false)
   })
 
@@ -121,9 +114,7 @@ describe('TerminalContextMenu — callbacks', () => {
   it('calls onCopy when the Copy button is clicked (canCopy=true)', () => {
     const { onCopy } = renderMenu({ canCopy: true })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const copyBtn = menuItem(menu, 'Copy')
     act(() => {
       copyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
@@ -133,9 +124,7 @@ describe('TerminalContextMenu — callbacks', () => {
   it('Copy button has disabled attribute when canCopy=false (browser enforces no-click)', () => {
     renderMenu({ canCopy: false })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const copyBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const copyBtn = menuItem(menu, 'Copy')
     // The button is disabled — onClick should not fire (browser enforces this).
     // In jsdom, disabled buttons don't block click events dispatched via dispatchEvent,
     // but the component marks them disabled so the UX intent is clear. We assert the
@@ -146,9 +135,7 @@ describe('TerminalContextMenu — callbacks', () => {
   it('calls onPaste when the Paste button is clicked (canPaste=true)', () => {
     const { onPaste } = renderMenu({ canPaste: true })
     const menu = document.querySelector('[data-testid="terminal-context-menu"]')
-    const pasteBtn = [...(menu?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Paste'
-    )
+    const pasteBtn = menuItem(menu, 'Paste')
     act(() => {
       pasteBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
@@ -319,9 +306,7 @@ describe('TerminalContextMenu — per-terminal isolation', () => {
 
     // Click the Copy button of the FIRST menu only.
     const menus = [...document.querySelectorAll('[data-testid="terminal-context-menu"]')]
-    const firstMenuCopyBtn = [...(menus[0]?.querySelectorAll('button') ?? [])].find(
-      (b) => b.textContent === 'Copy'
-    )
+    const firstMenuCopyBtn = menuItem(menus[0], 'Copy')
     act(() => {
       firstMenuCopyBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })

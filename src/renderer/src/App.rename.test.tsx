@@ -8,7 +8,7 @@
 // A SIBLING of App.launch.test.tsx (the B-1 guardrail); both use the shared App harness.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { flush, unmountRendered, type RenderResult } from './test/renderComponent'
+import { click, flush, q, unmountRendered, type RenderResult } from './test/renderComponent'
 import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { pointerInput } from './test/pointerInput'
@@ -141,11 +141,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     act(() => pencil.click())
     await flush(3)
 
-    const cancel = [...r.container.querySelectorAll('button')].find(
-      (b) => b.textContent?.trim() === 'Cancel'
-    )
-    expect(cancel).not.toBeUndefined()
-    act(() => cancel?.click())
+    click(q(r, '[data-testid="session-name-cancel"]'))
     await flush(3)
 
     expect(boardStore.getState().sessionNamePrompt).toBeNull()
@@ -207,10 +203,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
 
     // Cancel the rename prompt (a complete no-op — see the case above) before opening create mode:
     // the two prompts share the single-modal z-60 layer and can never co-exist.
-    const cancel = [...r.container.querySelectorAll('button')].find(
-      (b) => b.textContent?.trim() === 'Cancel'
-    )
-    act(() => cancel?.click())
+    click(q(r, '[data-testid="session-name-cancel"]'))
     await flush(3)
     expect(boardStore.getState().sessionNamePrompt).toBeNull()
 

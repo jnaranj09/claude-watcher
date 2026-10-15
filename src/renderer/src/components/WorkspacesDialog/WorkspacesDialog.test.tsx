@@ -368,20 +368,20 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     expect(q(r, '[data-testid="workspace-placeholder"]').textContent).toBe(
       'Select a workspace on the left, or create a new one.'
     )
-    expect(r.container.querySelector('#workspace-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="workspace-name-input"]')).toBeNull()
   })
 
   it('+ New replaces the placeholder with the empty form', () => {
     const { r } = render()
     click(q(r, '[data-testid="workspace-new"]'))
     expect(r.container.querySelector('[data-testid="workspace-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#workspace-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="workspace-name-input"]')).not.toBeNull()
   })
 
   it('picking a row replaces the placeholder with that row', () => {
     const { r } = render()
     click(q(r, '[data-testid="workspace-select-default"]'))
     expect(r.container.querySelector('[data-testid="workspace-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#workspace-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="workspace-name-input"]')).not.toBeNull()
   })
 })

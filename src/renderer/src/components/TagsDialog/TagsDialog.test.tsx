@@ -218,14 +218,14 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     expect(q(r, '[data-testid="tag-placeholder"]').textContent).toBe(
       'Select a tag on the left, or create a new one.'
     )
-    expect(r.container.querySelector('#tag-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="tag-name"]')).toBeNull()
   })
 
   it('+ New replaces the placeholder with the empty form', () => {
     const { r } = render()
     click(q(r, '[data-testid="tag-new"]'))
     expect(r.container.querySelector('[data-testid="tag-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#tag-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="tag-name"]')).not.toBeNull()
   })
 
   it('picking a row replaces the placeholder with that row', () => {
@@ -233,7 +233,7 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     chooseOption(r.container, 'tag-scope-filter', 'all')
     click(q(r, '[data-testid="tag-select-t-deploy"]'))
     expect(r.container.querySelector('[data-testid="tag-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#tag-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="tag-name"]')).not.toBeNull()
   })
 })
 

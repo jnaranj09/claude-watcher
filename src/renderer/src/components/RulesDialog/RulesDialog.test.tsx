@@ -293,14 +293,14 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     expect(q(r, '[data-testid="rule-placeholder"]').textContent).toBe(
       'Select a rule on the left, or create a new one.'
     )
-    expect(r.container.querySelector('#rule-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="rule-name"]')).toBeNull()
   })
 
   it('+ New replaces the placeholder with the empty form', () => {
     const { r } = render()
     click(q(r, '[data-testid="rule-new"]'))
     expect(r.container.querySelector('[data-testid="rule-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#rule-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="rule-name"]')).not.toBeNull()
   })
 
   it('picking a row replaces the placeholder with that row', () => {
@@ -308,7 +308,7 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     chooseOption(r.container, 'rule-scope-filter', 'all')
     click(q(r, '[data-testid="rule-select-ra"]'))
     expect(r.container.querySelector('[data-testid="rule-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#rule-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="rule-name"]')).not.toBeNull()
   })
 })
 

@@ -424,21 +424,21 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     expect(q(r, '[data-testid="template-placeholder"]').textContent).toBe(
       'Select a template on the left, or create a new one.'
     )
-    expect(r.container.querySelector('#template-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).toBeNull()
   })
 
   it('+ New replaces the placeholder with the empty form', () => {
     const { r } = render()
     click(q(r, '[data-testid="template-new"]'))
     expect(r.container.querySelector('[data-testid="template-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#template-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).not.toBeNull()
   })
 
   it('picking a row replaces the placeholder with that row', () => {
     const { r } = render()
     click(q(r, '[data-template-id="a"]'))
     expect(r.container.querySelector('[data-testid="template-placeholder"]')).toBeNull()
-    expect(r.container.querySelector('#template-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).not.toBeNull()
   })
 
   it('a successful delete goes back to the placeholder, not the New form', async () => {
@@ -448,7 +448,7 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     click(q(r, '[data-testid="template-delete"]'))
     await flush()
     expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
-    expect(r.container.querySelector('#template-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).toBeNull()
   })
 
   // Review Focus 1 — a row removed by ANOTHER flow (a workspace cascade, a second window) while it
@@ -456,10 +456,10 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
   it('a selected row that vanishes from the store shows the placeholder, not a New form', () => {
     const { r } = render()
     click(q(r, '[data-template-id="a"]'))
-    expect(r.container.querySelector('#template-name')).not.toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).not.toBeNull()
     act(() => templatesStore.getState().hydrate([]))
     expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
-    expect(r.container.querySelector('#template-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).toBeNull()
   })
 
   it('changing the scope filter goes back to the placeholder', () => {
@@ -467,6 +467,6 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     click(q(r, '[data-testid="template-new"]'))
     chooseOption(r.container, 'template-scope-filter', 'global')
     expect(q(r, '[data-testid="template-placeholder"]')).toBeTruthy()
-    expect(r.container.querySelector('#template-name')).toBeNull()
+    expect(r.container.querySelector('[data-testid="template-name"]')).toBeNull()
   })
 })

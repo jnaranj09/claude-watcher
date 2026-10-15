@@ -183,3 +183,12 @@ export function lastOpenToken(): string {
   const calls = fakes.open.mock.calls
   return (calls[calls.length - 1]?.[1] ?? '') as string
 }
+
+/** The terminal context menu's item named `name`, found by its menuitem role. */
+export function menuItem(
+  menu: Element | null | undefined,
+  name: string
+): HTMLButtonElement | undefined {
+  const items = [...(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])]
+  return items.find((item) => item.textContent === name)
+}
