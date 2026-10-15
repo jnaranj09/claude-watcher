@@ -183,8 +183,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // Story 3.2 (FR-11) — the RAW `claude` spawn config (F3, FROZEN DECISION).
   //
   // STORY 5.5 UPDATE: the descendant-walk rationale below NO LONGER constrains the spawn — the
-  // correlation now matches by SUBTREE ANCESTRY off the PTY leader (pidCorrelation.ts `isAncestorOf`),
-  // which works whatever the spawn shape (in practice `bash -l -c claude` execs the claude ELF, so
+  // correlation now matches by SUBTREE ANCESTRY off the PTY leader (pidCorrelation.ts
+  // `isAncestorOf`), which works whatever the spawn shape (in practice `bash -l -c claude` execs the claude ELF, so
   // the PTY leader IS claude and the tracked session is a deep `npm exec claude` descendant — both
   // are under the leader). We KEEP `$SHELL -l -c claude` purely for the LOGIN-SHELL PATH/rc benefit
   // (the second bullet below); the "claude must stay a child" reasoning is now moot.
@@ -261,8 +261,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     return {
       file: SHELL,
       // Composed in claudeBin.ts, NOT inlined here: this registrar is only reachable through
-      // Electron's ipc, so the quoting of the operator-typed name would otherwise be untestable. Name-sync adds `-n <name>` so
-      // claude runs under the operator's name instead of generating its own title,
+      // Electron's ipc, so the quoting of the operator-typed name would otherwise be untestable.
+      // Name-sync adds `-n <name>` so claude runs under the operator's name instead of generating its own title,
       // `--settings <file>` carries the hook block WITHOUT touching the operator's project, and
       // `--append-system-prompt` injects the deterministic-attention question-format nudge
       // (DA-4; probe-verified GO).
@@ -519,8 +519,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   })
   // shell:open — UNTRUSTED arg; parse-and-throw at THIS boundary. Main resolves the folder from its
   // OWN launch recipe (never from the arg) and answers the companion's id. A refusal THROWS its
-  // code (`terminal_not_found` / `folder_missing`, the pastSessionOpen precedent); the renderer maps
-  // it to copy. The spawn itself rides the renderer's terminal:open for the returned id.
+  // code (`terminal_not_found` / `folder_missing`, the pastSessionOpen precedent); the renderer
+  // maps it to copy. The spawn itself rides the renderer's terminal:open for the returned id.
   ipc.handle(CH.shellOpen, (_event, raw: unknown): ShellOpenResult => {
     const { parentTerminalId } = ShellOpenSchema.parse(raw)
     if (shellCompanions === null) throw new Error('terminal manager not initialized')

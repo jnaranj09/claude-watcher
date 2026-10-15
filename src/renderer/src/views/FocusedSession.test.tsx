@@ -411,16 +411,17 @@ describe('FocusedSession — no reserved strip under the terminal', () => {
 // does no layout, so a computed-height comparison is not available here; the shared token is the
 // thing that makes them provably equal rather than coincidentally close.
 describe('FocusedSession — the rail header and the Board bar end on the same line', () => {
-  const readCss = (rel: string): string =>
+  /** A file read relative to THIS test file, comments kept (not the shared `readCss`). */
+  const readBesideTest = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
   const heightOf = (css: string, selector: RegExp): string | undefined =>
     /(?:^|[^-])height:\s*([^;]+);/.exec(selector.exec(css)?.[1] ?? '')?.[1]?.trim()
 
   it('both bars take their height from --topbar-height, and neither hardcodes one', () => {
-    const bar = heightOf(readCss('./FocusedSession.module.css'), /^\.bar\s*\{([^}]*)/m)
+    const bar = heightOf(readBesideTest('./FocusedSession.module.css'), /^\.bar\s*\{([^}]*)/m)
     const railHeader = heightOf(
-      readCss('../components/attention/AttentionRail.module.css'),
+      readBesideTest('../components/attention/AttentionRail.module.css'),
       /^\.header\s*\{([^}]*)/m
     )
     expect(bar).toBe('var(--topbar-height)')
@@ -467,13 +468,14 @@ describe('FocusedSession — the bar buttons are the shared Button', () => {
 // separate declarations in two different modules make that work, and each looks individually
 // tidy-uppable — which is how a notch quietly gets a wall built back across it.
 describe('FocusedSession — the wall stops at the active tab', () => {
-  const readCss = (rel: string): string =>
+  /** A file read relative to THIS test file, comments kept (not the shared `readCss`). */
+  const readBesideTest = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
   const block = (css: string, selector: RegExp): string => selector.exec(css)?.[1] ?? ''
 
   it('the rail draws a wall, and the tab is wide enough to break it', () => {
-    const rail = readCss('../components/attention/AttentionRail.module.css')
+    const rail = readBesideTest('../components/attention/AttentionRail.module.css')
     // The wall no longer lives on `.rail` itself — it is painted by three tiled layers
     // (`.rail::before`/`.rail::after` above/below the pinned slot, `.pinnedSlot::before` for the
     // slot) so the active tab can be a genuine NOTCH cut out of it (a mask) rather than a
@@ -508,19 +510,19 @@ describe('FocusedSession — the wall stops at the active tab', () => {
     // The tab's fill must be the SAME TOKEN the ground around the terminal paints, not a lookalike:
     // they sit edge to edge through the break, so any drift shows up as a seam.
     expect(active).toMatch(/background:\s*var\(--bg-base\)/)
-    expect(readCss('./FocusedSession.module.css')).toMatch(
+    expect(readBesideTest('./FocusedSession.module.css')).toMatch(
       /\.focused\s*\{[^}]*background:\s*var\(--bg-base\)/s
     )
   })
 
   it('keeps the pinned slot OUT of the scroll container, or the tab cannot reach the wall', () => {
-    const rail = readCss('../components/attention/AttentionRail.module.css')
+    const rail = readBesideTest('../components/attention/AttentionRail.module.css')
     // `.scroll` is `overflow-y: auto`, and CSS forces `overflow-x: visible` to compute to `auto`
     // when the other axis is not visible — so a tab inside it can never overflow sideways. This is
     // the structural half of the notch, and it is invisible from the stylesheet alone.
     expect(block(rail, /^\.scroll\s*\{([^}]*)/m)).toMatch(/overflow-y:\s*auto/)
     expect(rail).toMatch(/^\.pinnedSlot\s*\{/m)
-    const tsx = readCss('../components/attention/AttentionRail.tsx')
+    const tsx = readBesideTest('../components/attention/AttentionRail.tsx')
     const slotAt = tsx.indexOf('styles.pinnedSlot')
     const scrollAt = tsx.indexOf('data-testid="rail-scroll"')
     expect(slotAt).toBeGreaterThan(-1)
@@ -537,14 +539,14 @@ describe('FocusedSession — the wall stops at the active tab', () => {
     // border while the rail had no wall; the wall's return turned it into a duplicate, and the
     // widening is most visible exactly where the eye crosses from the rail into the terminal.
     const railChrome = block(
-      readCss('../components/attention/AttentionRail.module.css'),
+      readBesideTest('../components/attention/AttentionRail.module.css'),
       /^\.rail::before,\s*\n\.rail::after\s*\{([^}]*)/m
     )
     expect(railChrome).toMatch(/border-right:\s*1px solid var\(--border\)/)
 
     // Declaration form, not a bare substring — the bar's own comment explains why it has no
     // border-left, and a naive /border-left/ would match that prose and pass on a real regression.
-    const barBlock = block(readCss('./FocusedSession.module.css'), /^\.bar\s*\{([^}]*)/m)
+    const barBlock = block(readBesideTest('./FocusedSession.module.css'), /^\.bar\s*\{([^}]*)/m)
     expect(barBlock).not.toMatch(/^\s*border-left\s*:/m)
   })
 })
@@ -566,10 +568,11 @@ describe('FocusedSession — the wall stops at the active tab', () => {
 // the starting row it is to "tidy" the flares away now the pinned tab has a mask, which would
 // leave that row's shoulders unpainted for the whole time it exists.
 describe('FocusedSession — the active tab flares outward into the wall', () => {
-  const readCss = (rel: string): string =>
+  /** A file read relative to THIS test file, comments kept (not the shared `readCss`). */
+  const readBesideTest = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
-  const rail = (): string => readCss('../components/attention/AttentionRail.module.css')
+  const rail = (): string => readBesideTest('../components/attention/AttentionRail.module.css')
 
   it('the PINNED tab: paints both shoulders as ring gradients on the slot chrome layer, not corner radii', () => {
     const css = rail()

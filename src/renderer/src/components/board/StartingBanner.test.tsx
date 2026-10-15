@@ -1,7 +1,7 @@
 // Story 5.6 (AC-3) — StartingBanner component tests. jsdom `unit` project.
 //
 // The StartingBanner is a calm-neutral status-line widget that shows a "N starting · click to open"
-// trigger when ≥1 app-launched terminal is not yet represented by a c9watch board card.
+// trigger when ≥1 app-launched terminal is not yet represented by a board card.
 //
 // Assertions:
 //   - Renders NOTHING when there are zero starting terminals.

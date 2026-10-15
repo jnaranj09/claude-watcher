@@ -1,15 +1,7 @@
-// Story 0.3 (Task 6) — the AUTOMATED fixture-test runner for the
-// `no-literal-channels` ESLint rule (AC-4).
-//
-// Story 0.2 authored the rule (`eslint-rules/no-literal-channels.js`) + two
-// fixtures (`eslint-rules/__fixtures__/{bad-literal-channel,good-ch-channel}.ts`)
-// and demonstrated them MANUALLY via `npx eslint`, explicitly deferring the
-// AUTOMATED pass/fail runner to Story 0.3 (now that Vitest is installed). This
-// closes that deferral + the architecture's "fixture-tested" enforcement
-// requirement: it runs ESLint PROGRAMMATICALLY (the flat-config `ESLint` API)
-// over the bad fixture (asserts the rule reports ≥1 violation) and the good
-// fixture (asserts clean). [Source: 0-2 Task 3; deferred-work.md:17;
-// architecture.md#Enforcement ("fixture-tested")]
+// The `no-literal-channels` ESLint rule (`eslint-rules/no-literal-channels.js`), fixture-tested.
+// Runs ESLint PROGRAMMATICALLY (the flat-config `ESLint` API) over the bad fixture
+// (`eslint-rules/__fixtures__/bad-literal-channel.ts`: asserts the rule reports at least one
+// violation) and the good fixture (`good-ch-channel.ts`: asserts clean).
 import { describe, it, expect, beforeAll } from 'vitest'
 import { resolve } from 'node:path'
 import { ESLint } from 'eslint'

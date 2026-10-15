@@ -331,9 +331,8 @@ describe('workspace filtering', () => {
 //
 // Each POSITIVE test below seeds sessions/terminals in TWO workspaces and asserts a
 // selector returns only the queried workspace's slice — so the test would fail (not
-// vacuously pass) if the workspace filter were absent (see the fault-injection evidence
-// in task-9a-report.md). The two NEGATIVE tests assert the opposite for the two
-// selectors that must NEVER be workspace-filtered.
+// vacuously pass) if the workspace filter were absent. The two NEGATIVE tests assert the
+// opposite for the two selectors that must NEVER be workspace-filtered.
 // ===========================================================================
 describe('boardStore — Task 9a: workspace-scoped board/rail selectors', () => {
   it("selectColumn returns only the queried workspace's sessions in that column", () => {

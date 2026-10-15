@@ -1,17 +1,16 @@
-// Story 4.3 (FR-15) → Past sessions (D-5) — StopConfirm (the DELETE-confirm) jsdom unit tests.
+// StopConfirm (the DELETE-confirm) jsdom unit tests.
 //
 // Proves (via jsdom render + a fake window.launch bridge):
-//   (a) Modal renders the D-5 copy: title "Delete session?", the body sentence, button "Delete".
-//   (b) `Cancel` is the FOCUSED element on mount (UX-DR14 default-focused).
+//   (a) Modal renders the copy: title "Delete session?", the body sentence, button "Delete".
+//   (b) `Cancel` is the FOCUSED element on mount (the safe default).
 //   (c) Clicking Cancel calls clearStopConfirm() and does NOT call window.launch.deleteSession.
 //   (d) Clicking Delete calls window.launch.deleteSession(terminalId, sessionId) THEN
 //       clearStopConfirm + showBoard.
-//       *** THIS IS THE LOAD-BEARING F1 ORDERING TEST (orchestrator FROZEN #1) ***
+//       This is the load-bearing ordering test: main must delete before the view leaves.
 //       Non-vacuous: the fault-injected reversed order (view-change-first) FAILS this test.
 //   (e) Role=dialog + aria-modal=true (accessibility).
 //
-// [Source: story 4.3 Task 5; task-10-brief.md (D-5); orchestrator FROZEN #1; UX-DR14;
-//  ../../lib/sessionExit.ts (deleteTerminal owns the F1 ordering now)]
+// lib/sessionExit.ts (deleteTerminal) owns the delete-then-leave ordering.
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act, type JSX } from 'react'

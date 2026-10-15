@@ -1,4 +1,4 @@
-// Deterministic-attention — Task 6: the renderer "seen" effect.
+// useSessionSeen: the renderer "seen" effect.
 //
 // While the operator is LOOKING at a session (focused view's pinned active rail session,
 // window focused) that is `YourTurn`, useSessionSeen tells main via the typed
@@ -11,8 +11,6 @@
 // jsdom's `document.hasFocus()` defaults to FALSE (verified locally) — so every test that
 // wants the "focused" branch must dispatch a `focus` event first; the "does not fire" tests
 // exercise the honest default.
-//
-// [Source: .superpowers/sdd/2026-08-27-deterministic-attention/task-6-brief.md]
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'

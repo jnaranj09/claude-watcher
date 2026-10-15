@@ -15,14 +15,14 @@
 //       path) and leaves stopConfirm null, AND e.preventDefault() fired (window does NOT close).
 //   (b) Ctrl+W on the board (viewMode='board') is a no-op (archiveSession NOT called) but
 //       preventDefault() still fires (the window does NOT close in any case).
-//   (c) Ctrl+W while the Quit-guard is open does NOT archive (single-modal rule UX-DR14).
+//   (c) Ctrl+W while the Quit-guard is open does NOT archive (single-modal rule).
 //   (d) Ctrl+W while a Delete-confirm (stopConfirm) is already open does NOT archive either
 //       (single-modal).
 //   (e) Esc-while-Delete-confirm-open cancels it (clearStopConfirm) and does NOT also call
 //       showBoard (the confirm is the topmost layer; Esc disambiguates).
 //   (f) Esc-with-Delete-confirm-open does NOT call window.quit.cancel.
 //
-// [Source: story 4.3 Task 5; UX-DR14/21; src/renderer/src/App.tsx keydown effect]
+// Code under test: the keydown effect in src/renderer/src/App.tsx.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'

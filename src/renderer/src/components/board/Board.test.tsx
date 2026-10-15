@@ -132,7 +132,7 @@ describe('Board — cold-load skeleton (AC-5)', () => {
 describe('Board — cold-load-complete via watch:status (Story 5.3/6.4 — the engine-started push clears the skeleton)', () => {
   it('pushing a status(false) on a fresh zero-session board clears the skeleton and shows the empty board', () => {
     // The renderer-side proof of the engine-started signal: the Story-6.4 native engine's
-    // startup `CH.watchStatus { reconnecting: false }` (index.ts registerWatchFeed) reaches
+    // startup `CH.watchStatus { reconnecting: false }` (`registerWatchFeed`) reaches
     // the Board's onStatus subscription, calls setReconnecting, and flips coldLoaded:true —
     // even when ZERO deltas ever ship (the normal empty cold start). This is the ONLY
     // skeleton-clear path on a fresh, no-launch start; break the signal and this turns red.
@@ -142,7 +142,7 @@ describe('Board — cold-load-complete via watch:status (Story 5.3/6.4 — the e
     // Before the status push: skeleton is showing (cold-load not done).
     expect(container.querySelector('[data-testid="skeleton-board"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
-    // Push the startup status (mirrors feed.ts emitStatus(false) after list seed).
+    // Push the startup status (main sends it once the engine has started).
     act(() => {
       pushStatus(false)
     })

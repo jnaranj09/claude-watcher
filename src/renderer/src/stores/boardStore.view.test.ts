@@ -220,7 +220,7 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
 
     store.getState().acknowledge('a')
-    // After acknowledge: calm (in-app emphasis cleared even though c9watch still says needs-you).
+    // After acknowledge: calm (in-app emphasis cleared even though the session still says needs-you).
     expect(store.getState().acknowledgedById['a']).toBeDefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
     // The ack stamp is the injected now() (determinism).
@@ -247,12 +247,12 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     store.getState().acknowledge('a')
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm')
 
-    // c9watch reports the session LEFT needs-you (handled) → ack entry cleared.
+    // The session LEFT needs-you (handled) → ack entry cleared.
     store.getState().applyWatchEvent(watchUpdated(2, 'a', 'working', 200))
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('calm') // not needs-you now
 
-    // c9watch reports it RE-ENTERS needs-you → a NEW attention event → re-emphasized.
+    // It RE-ENTERS needs-you → a NEW attention event → re-emphasized.
     store.getState().applyWatchEvent(watchUpdated(3, 'a', 'needs-you', 300))
     expect(selectRailEmphasis(store.getState(), 'a')).toBe('needs-you')
   })
@@ -264,7 +264,6 @@ describe('boardStore — Story 3.4 acknowledge state drives rail + card emphasis
     expect(store.getState().acknowledgedById['a']).toBeDefined()
 
     store.getState().applyWatchEvent(watchRemoved(2, 'a'))
-    expect(store.getState().acknowledgedById['a']).toBeUndefined()
     expect(store.getState().acknowledgedById['a']).toBeUndefined()
   })
 

@@ -562,9 +562,10 @@ that area, never cite it as precedent.
 ## Testing CSS
 
 `vitest.config.ts` sets no `css` option, so a `*.module.css` import returns a string for EVERY key —
-`expect(styles[x]).toBeTruthy()` is vacuous. Read the stylesheet's text and assert on it, through
-`test/cssRule.ts`: `cssRule(file, selector)` for one rule (throws when it is missing), `cssRules`
-for every rule, `readCss` for the whole sheet.
+`expect(styles[x]).toBeTruthy()` is vacuous. Read the stylesheet's text and assert on it. New CSS
+tests read it through `test/cssRule.ts`: `cssRule(file, selector)` for one rule (throws when it is
+missing), `cssRules` for every rule, `readCss` for the whole sheet. Older tests still use
+`readFileSync` plus an inline regex.
 
 ## Don't
 

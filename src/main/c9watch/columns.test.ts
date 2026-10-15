@@ -1,16 +1,14 @@
-// Story 1.2 — pure status→column classifier tests (main-unit / node project).
+// columnForStatus: the pure status -> column classifier. `main-unit` project (node).
 //
-// D1 (CORRECTED 2026-06-18 — the prior inverted mapping is SUPERSEDED; authoritative
-// source c9watch-0.8.1-contract.md §4.3):
-//   `Working`                           → `working`   (`Connecting` → `idle`: fresh spawn)
-//   `NeedsAttention`/`NeedsPermission`  → `needs-you`
-//   `WaitingForInput`                   → `idle`   (a LIVE column — the IDLE bucket)
-//   unknown / brand-new / ''            → `needs-you` (fail-toward-attention; NEVER throws)
+//   `Working`                           -> `working`
+//   `Connecting`, `WaitingForInput`     -> `idle`   (a LIVE column: waiting for the next prompt)
+//   `NeedsAttention`/`NeedsPermission`  -> `needs-you`
+//   `YourTurn`                          -> `needs-you`
+//   unknown / brand-new / ''            -> `needs-you` (fail-toward-attention; NEVER throws)
 //
-// `status` is `z.string()` upstream (not enum-locked) so the classifier accepts ANY
-// string and never throws. There is NO "done" column — an exited session vanishes
-// (D2, handled by the tracker on removal), so the classifier only ever returns a
-// LIVE column. [Source: story 1.2 Task 1/Task 5; D1; contract §4.3]
+// `status` is `z.string()` upstream (not enum-locked), so the classifier accepts ANY string and
+// never throws. There is no "done" column: an exited session is removed by the reducer, so the
+// classifier only ever returns a LIVE column.
 import { describe, it, expect } from 'vitest'
 import { columnForStatus, type Column } from './columns'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
@@ -42,7 +40,7 @@ describe('columnForStatus — pure status→live-column classifier (D1, correcte
   it('maps an UNKNOWN/brand-new status → needs-you (fail-toward-attention, never throws)', () => {
     // status is z.string() upstream — a status we have never seen must classify,
     // not throw, and must surface (needs-you) rather than be buried in working/idle.
-    expect(columnForStatus('SomeBrandNewStatusC9watchAdded')).toBe('needs-you')
+    expect(columnForStatus('SomeBrandNewStatus')).toBe('needs-you')
     expect(columnForStatus('')).toBe('needs-you')
     // case-sensitive: only the exact enum tokens map; lowercased variants are "unknown".
     expect(columnForStatus('working')).toBe('needs-you')

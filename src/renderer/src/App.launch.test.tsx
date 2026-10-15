@@ -413,8 +413,8 @@ describe('App — session-naming: the create-time name prompt', () => {
 // site and asserts the PTY is NOT stopped (window.terminal.stop is never called) on the transition.
 //
 // NON-VACUOUS: against the pre-fix ternary, pressing Esc unmounts FocusedSession → its
-// EmbeddedTerminal cleanup calls window.terminal.stop(terminalId) → this expectation FAILS. With the
-// stacked visibility:hidden fix the terminal stays mounted → stop is never called → it PASSES.
+// EmbeddedTerminal cleanup calls window.terminal.stop(terminalId) → this expectation FAILS. With
+// the stacked visibility:hidden fix the terminal stays mounted → stop is never called → it PASSES.
 describe('App — Story 3.4 B-1: Board↔Focused switch is kept-alive (PTY survives, AC-3 / terminal.md)', () => {
   it('focused → board → focused does NOT stop/dispose the terminal (the live PTY is not killed)', async () => {
     const r = await renderApp()
@@ -465,7 +465,8 @@ describe('App — Story 5.6 silent-kill prevention (AC-2)', () => {
     // EmbeddedTerminal and killing the PTY. After Story 5.6, A is kept alive via launchedTerminals.
     //
     // FAULT-INJECTION EVIDENCE: removing the launchedTerminals union from
-    // selectKeptAliveTerminalIds causes this test to FAIL (A would not be in kept-alive after B takes focus).
+    // selectKeptAliveTerminalIds causes this test to FAIL (A would not be in kept-alive after B
+    // takes focus).
     const r = await renderApp()
 
     // Launch A.
@@ -540,9 +541,9 @@ describe('App — Story 5.6 selectStartingTerminals reflects launched-but-uncorr
 
 // Task 9a fix (review round 1, Finding 3 — highest risk) — a workspace switch must be a PURE
 // show/hide. `selectKeptAliveTerminalIds` proves the SELECTOR body is unfiltered
-// (boardStore.test.ts), but that cannot catch the catastrophic version of the mistake: someone wrapping the
-// `keptAlive.map(...)` in FocusedSession.tsx (or the `App.tsx` mount-gate that keeps FocusedSession
-// alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT the
+// (boardStore.test.ts), but that cannot catch the catastrophic version of the mistake: someone
+// wrapping the `keptAlive.map(...)` in FocusedSession.tsx (or the `App.tsx` mount-gate that keeps
+// FocusedSession alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT the
 // EmbeddedTerminal, which runs its cleanup (term.dispose() + window.terminal.stop(terminalId)) and
 // KILLS the live PTY — losing the operator's session. This mirrors the B-1 regression guard above,
 // just for a WORKSPACE switch instead of a Board↔Focused toggle.

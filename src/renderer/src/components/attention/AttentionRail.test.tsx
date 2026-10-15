@@ -297,7 +297,8 @@ describe('AttentionRail — pinned active row + status sections', () => {
 // being a control entirely: no click, no hover change, no tab stop. The rename pencil beside it
 // stays a real button — it is the one thing on that row that still does something.
 describe('AttentionRail — the active row is NOT a control', () => {
-  const readCss = (rel: string): string =>
+  /** A file read relative to THIS test file, comments kept (not the shared `readCss`). */
+  const readBesideTest = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
   function focusSession(sessionId: string, terminalId: string): void {
@@ -405,14 +406,14 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // stylesheet. Without the `:not(.active)`, the active row lights up under the pointer —
   // feedback promising a press that does nothing.
   it('the hover background rule EXCLUDES the active row', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     expect(css).toMatch(/\.row:not\(\.active\):hover\s*\{/)
     // ...and the unscoped form is gone, or it would re-apply to everything.
     expect(css).not.toMatch(/^\.row:hover\s*\{/m)
   })
 
   it('the active row does not show a pointer cursor', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     expect(css).toMatch(/\.row\.active\s*\{[^}]*cursor:\s*default/s)
   })
 
@@ -421,7 +422,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // applies no :hover and computes no colour, so the wiring is pinned by reading the stylesheet;
   // the DIRECTION (ground darker than rest) is pinned on the values in styles/tokens.test.ts.
   it('resting rows take the rest fill; hover and active take the SAME ground fill', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     expect(css).toMatch(/\.row\s*\{[^}]*background:\s*var\(--bg-row-rest\)/s)
     expect(css).toMatch(/\.row:not\(\.active\):hover\s*\{[^}]*background:\s*var\(--bg-base\)/s)
     expect(css).toMatch(/^\.active\s*\{[^}]*background:\s*var\(--bg-base\)/ms)
@@ -436,7 +437,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // curve into the wall rather than stopping square against it. Pinned on BOTH row kinds because
   // `.startingRow` is defined after `.active` and would otherwise win on source order.
   it('the active row reaches the wall with square right corners — in BOTH row kinds', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     // Both anchored to LINE START: unanchored, `.startingRow.active` also matches inside the
     // `.collapsed .startingRow.active` reset above it, and the test would read that block instead.
     //
@@ -499,7 +500,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // overridden below it, at equal specificity, so source order hands `.row.active` the later
   // values — see the next test.
   it('grows the collapsed square rightward ONTO the wall, and keeps the dot in the column', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
 
     const rule = (selector: RegExp): string => selector.exec(css)?.[1] ?? ''
     const tab = rule(
@@ -549,7 +550,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // lands the left edge on the square's), and the right padding gives it straight back so the dot
   // stays centred over the 44px square.
   it('the PINNED collapsed tab ends short of the wall by --rounded-md, and gives the dot its centring back', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     const pinnedCollapsed = /^\.collapsed \.row\.active\s*\{([^}]*)\}/m.exec(css)?.[1] ?? ''
     expect(pinnedCollapsed, 'the pinned collapsed override must exist').not.toBe('')
     expect(pinnedCollapsed).toMatch(
@@ -571,7 +572,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   // session — so it is the one state allowed to spend size. Sweeping EVERY row rule (rather than
   // naming `.emphasized`) is what makes that hold for a state nobody has written yet.
   it('open rail: 36 rows + 40 active; collapsed: 40 squares + 44 active; only .active takes the larger', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
 
     // A ROW rule is one whose selector names a row class. The lookahead keeps `.rowWrap`,
     // `.rowTools` and `.startingRowName` out — chrome around a row, not the row. (The pencil and
@@ -610,7 +611,7 @@ describe('AttentionRail — the active row is NOT a control', () => {
   })
 
   it('section labels are one style: sentence case, 12 / 600, muted, no rules in the open rail', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     const body = (sel: string): string =>
       new RegExp(`\\n${sel.replace(/[.:]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? ''
     for (const sel of ['.title', '.dividerLabel']) {

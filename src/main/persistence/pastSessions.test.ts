@@ -258,7 +258,7 @@ describe('createPastSessionsStore — no conversation, no record (NEW-5)', () =>
     })
     expect(store.list().map((r) => r.id)).toEqual(['kept'])
   })
-  it('an ENDED record with a missing transcript stays on load — Open says transcript_missing (UX-08)', () => {
+  it('an ENDED record with a missing transcript stays on load (Open reports the missing transcript; see pastSessionOpen.test.ts)', () => {
     const fake = fakeBlob({ version: 1, sessions: [{ ...ROW, transcriptPath: '/t/s1.jsonl' }] })
     const store = createPastSessionsStore({
       blobStore: fake.blobStore,

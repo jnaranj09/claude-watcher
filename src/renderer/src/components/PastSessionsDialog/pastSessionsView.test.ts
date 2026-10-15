@@ -1,4 +1,4 @@
-// Past sessions — the pure helpers behind PastSessionsDialog.tsx. jsdom `unit`.
+// Past sessions — the pure helpers behind PastSessionsPage.tsx. jsdom `unit`.
 import { describe, it, expect } from 'vitest'
 import {
   filterPastByName,

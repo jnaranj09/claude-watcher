@@ -230,7 +230,8 @@ describe('AttentionRail — rename affordance (session-naming A2)', () => {
 describe('collapsed rail geometry (the clipped-square regression)', () => {
   const px = (s: string | undefined): number => Number((s ?? '').replace('px', ''))
 
-  const readCss = (rel: string): string =>
+  /** A file read relative to THIS test file, comments kept (not the shared `readCss`). */
+  const readBesideTest = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
   /** The rail's own right border, which eats into the content box. */
@@ -253,8 +254,8 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
     )
 
   it('seats the row square with room to spare on both sides', () => {
-    const tokens = readCss('../../styles/tokens.css')
-    const rail = readCss('./AttentionRail.module.css')
+    const tokens = readBesideTest('../../styles/tokens.css')
+    const rail = readBesideTest('./AttentionRail.module.css')
 
     const collapsedWidth = px(/--rail-width-collapsed:\s*([\d.]+px)/.exec(tokens)?.[1])
     // The WIDEST collapsed square, whichever rule declares it — not a named selector, so a new
@@ -271,8 +272,8 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
   })
 
   it('leaves a real gutter, not a single spare pixel', () => {
-    const tokens = readCss('../../styles/tokens.css')
-    const rail = readCss('./AttentionRail.module.css')
+    const tokens = readBesideTest('../../styles/tokens.css')
+    const rail = readBesideTest('./AttentionRail.module.css')
 
     const collapsedWidth = px(/--rail-width-collapsed:\s*([\d.]+px)/.exec(tokens)?.[1])
     const squareWidth = widestCollapsedSquare(rail)
@@ -287,7 +288,8 @@ describe('collapsed rail geometry (the clipped-square regression)', () => {
 describe('AttentionRail — tags (T-27, T-28)', () => {
   const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
   const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
-  const readCss = (rel: string): string =>
+  /** A file read relative to THIS test file, comments kept (not the shared `readCss`). */
+  const readBesideTest = (rel: string): string =>
     readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), rel), 'utf8')
 
   /** `tagged` carries prod + deploy (catalog order: deploy, prod); `plain` carries nothing. */
@@ -499,7 +501,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
   })
 
   it('CSS: the tools overlay the row, the untagged toggle hides until hover, tags only PAD the row', () => {
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     expect(/\.rowTools\s*\{([^}]*)\}/.exec(css)?.[1] ?? '').toMatch(/position:\s*absolute/)
     // The reveal is on the WRAPPER (Button takes no className): hidden at rest, shown on hover /
     // focus-within, and held open by `data-open` while the peek is up and focus is in the picker.
@@ -539,7 +541,7 @@ describe('AttentionRail — tags (T-27, T-28)', () => {
     expect(peek?.hasAttribute('data-lit')).toBe(false)
     expect(showAll?.hasAttribute('data-lit')).toBe(false)
     // The rail draws no lit rule of its own any more (comments stripped: they name the token).
-    const css = readCss('./AttentionRail.module.css')
+    const css = readBesideTest('./AttentionRail.module.css')
     const block = (re: RegExp): string => re.exec(css)?.[1] ?? ''
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/--text-on-lit|data-lit/)
     // Each wrapper scopes its own anchor; the ghost names it and stays invisible; the real button is

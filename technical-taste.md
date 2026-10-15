@@ -343,7 +343,7 @@ yet. Prefer turning prose-only rules into sensors.
     near-copies instead of finding the helper (GitClear 2026: duplicated blocks +81%, refactoring
     down to 3.8% of changes). So both halves are needed. _Consensus_, with weak (vendor) evidence.
     Sensors: the primitive-ban guards (one Button, one Popover…); jscpd in `npm run lint` fails over
-    0.5% duplication (0.3% today).
+    0.5% duplication (0.22% today).
 15. **Plain functions and data over classes and inheritance. Explicit over magic. Long, specific
     names.** _Taste_ (Ronacher, Hickey, Carmack). Sensor: prose only. Today there is 1 class in
     non-test `src`.

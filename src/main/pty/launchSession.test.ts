@@ -231,7 +231,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
 
     // The exact binding supersedes the heuristic: the launch is no longer pending...
     expect(svc.isPending('t-1')).toBe(false)
-    // ...so a later c9watch delta for the SAME session (claude runs under our minted id and
+    // ...so a later hook event for the SAME session (claude runs under our minted id and
     // descends from our PTY leader) never re-fires the ancestry onCorrelated push.
     svc.correlateAgainst([session('sess-1', REPORTED_PID)])
     expect(onCorrelated).not.toHaveBeenCalled()

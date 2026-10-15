@@ -1,13 +1,6 @@
-// Workspaces (Task 9b) — the header switcher tests. jsdom `unit` project.
-//
-// NOTE: this repo does NOT install `@testing-library/react` (Story 1.3 —
-// src/renderer/src/test/renderComponent.ts: "avoids pulling RTL just for a handful of
-// presentational components"), and Task 9a's own sibling tests (Board.test.tsx,
-// AttentionRail.test.tsx) confirm that convention is still current today. The task-9 brief's
-// Step 1 test imports `render`/`screen`/`fireEvent`/`waitFor` from `@testing-library/react`,
-// which fails to resolve in this tree — verified with `npx vitest run` before writing this
-// file. Same six cases, same assertions and testids, adapted to the existing
-// `renderComponent` + native-DOM-event harness instead.
+// The header workspace switcher: the trigger, the menu, keyboard and pointer use, and its CSS
+// contracts. jsdom `unit` project. Renders through `renderComponent` and native DOM events (the
+// repo does not install `@testing-library/react`; see src/renderer/src/test/renderComponent.ts).
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
