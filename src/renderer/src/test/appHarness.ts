@@ -6,7 +6,7 @@
 //     resetBoardView()
 //     stubAppBridges({ launch: { rename: renameSpy }, quit: {} })
 //   })
-//   afterEach(() => unmountApp())
+//   afterEach(() => unmountRendered())
 //   const r = await renderApp()
 //
 // The CORE bridges (pty, watch, attention, settings, terminal, launch, templates) are always
@@ -19,7 +19,8 @@ import { act, createElement } from 'react'
 import { vi } from 'vitest'
 import App from '../App'
 import { boardStore } from '../stores/boardStore'
-import { renderComponent, type RenderResult } from './renderComponent'
+import { renderTracked, type RenderResult } from './renderComponent'
+import { stubXtermBrowserApis } from './terminalHarness'
 
 type Bridge = Record<string, unknown>
 
@@ -140,27 +141,7 @@ export function resetBoardView(): void {
 /** Install the fake preload, plus the browser APIs jsdom omits that xterm needs (matchMedia,
  *  ResizeObserver), and clear the hash so no earlier test steers App into the terminal-host view. */
 export function stubAppBridges(overrides: AppBridgeOverrides = {}): void {
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
+  stubXtermBrowserApis()
   const w = window as unknown as Record<string, unknown>
   const core = coreBridges()
   for (const [name, bridge] of Object.entries(core)) {
@@ -175,27 +156,12 @@ export function stubAppBridges(overrides: AppBridgeOverrides = {}): void {
   window.location.hash = ''
 }
 
-let unmountMounted: (() => void) | undefined
-
 /** Mount the real App and settle smokeConfig → the board view (the non-smoke subscriptions mount
- *  here). The returned `unmount` may be called by the test; `unmountApp` then does nothing. */
+ *  here). Unmount in afterEach with `unmountRendered()` (renderComponent.ts). */
 export async function renderApp(): Promise<RenderResult> {
-  const r = renderComponent(createElement(App))
-  let mounted = true
-  const unmount = (): void => {
-    if (!mounted) return
-    mounted = false
-    unmountMounted = undefined
-    r.unmount()
-  }
-  unmountMounted = unmount
+  const r = renderTracked(createElement(App))
   await act(async () => {
     for (let i = 0; i < 3; i++) await Promise.resolve()
   })
-  return { ...r, unmount }
-}
-
-/** afterEach: unmount the App the test rendered, if it is still mounted. */
-export function unmountApp(): void {
-  unmountMounted?.()
+  return r
 }

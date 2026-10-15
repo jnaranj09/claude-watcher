@@ -37,6 +37,28 @@ export function renderComponent(element: ReactElement): RenderResult {
   return { container, root, unmount }
 }
 
+const rendered = new Set<() => void>()
+
+/** `renderComponent`, plus `unmountRendered()` (call it in afterEach) unmounts it — unless the test
+ *  already did: the returned `unmount` runs once, whoever calls it first. */
+export function renderTracked(element: ReactElement): RenderResult {
+  const r = renderComponent(element)
+  let mounted = true
+  const unmount = (): void => {
+    if (!mounted) return
+    mounted = false
+    rendered.delete(unmount)
+    r.unmount()
+  }
+  rendered.add(unmount)
+  return { ...r, unmount }
+}
+
+/** afterEach: unmount everything `renderTracked` rendered that is still mounted. */
+export function unmountRendered(): void {
+  for (const unmount of [...rendered]) unmount()
+}
+
 /** Dispatch a native event inside `act` so React state settles before asserting. */
 export function fireEvent(target: Element | Window | Document, event: Event): void {
   act(() => {

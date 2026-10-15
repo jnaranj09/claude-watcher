@@ -13,7 +13,8 @@
 // and App.launch.test.tsx (the B-1 guardrail).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
+import { unmountRendered } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { WatchEventsPayload } from '../../shared/ipc/contract'
 
@@ -57,7 +58,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  unmountApp()
+  unmountRendered()
   vi.restoreAllMocks()
 })
 

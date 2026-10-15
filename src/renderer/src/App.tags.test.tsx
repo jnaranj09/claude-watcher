@@ -3,8 +3,8 @@
 // bridges, the real App — the shared App harness (test/appHarness.ts).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import type { RenderResult } from './test/renderComponent'
-import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
+import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { tagsStore } from './stores/tagsStore'
 import type { QuitGuardPayload, Tag, WatchEventsPayload } from '../../shared/ipc/contract'
@@ -49,7 +49,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  unmountApp()
+  unmountRendered()
   act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
   vi.restoreAllMocks()
 })

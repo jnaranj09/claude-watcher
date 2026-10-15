@@ -11,8 +11,8 @@
 //     while it is open; ✕ closes it.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import type { RenderResult } from './test/renderComponent'
-import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
+import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { templatesStore } from './stores/templatesStore'
 import type { Template } from '../../shared/ipc/contract'
@@ -59,7 +59,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  unmountApp()
+  unmountRendered()
   act(() => templatesStore.getState().hydrate([]))
   vi.restoreAllMocks()
 })

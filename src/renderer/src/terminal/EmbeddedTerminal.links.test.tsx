@@ -7,25 +7,11 @@
 // genuine xterm option; the web-links addon is faked to capture the handler it was given.
 import type { Terminal as XtermTerminal } from '@xterm/xterm'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderComponent } from '../test/renderComponent'
+import { renderTracked, unmountRendered } from '../test/renderComponent'
+import { capturedTerminals, stubTerminalBridge } from '../test/terminalHarness'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 
-const capturedTerminals: XtermTerminal[] = []
-
-vi.mock('@xterm/xterm', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actual = await vi.importActual<Record<string, any>>('@xterm/xterm')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const OriginalTerminal: new (...args: any[]) => XtermTerminal = actual['Terminal']
-  class TerminalCapture extends OriginalTerminal {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor(...args: any[]) {
-      super(...args)
-      capturedTerminals.push(this as unknown as XtermTerminal)
-    }
-  }
-  return { ...actual, Terminal: TerminalCapture }
-})
+vi.mock('@xterm/xterm', async () => (await import('../test/terminalHarness')).xtermMock())
 
 type LinkActivate = (event: MouseEvent, uri: string) => void
 interface WebLinksOptions {
@@ -52,51 +38,22 @@ vi.mock('@xterm/addon-web-links', () => {
 })
 
 let openExternal: ReturnType<typeof vi.fn<(url: string) => Promise<void>>>
-let cleanup: (() => void) | undefined
 
 beforeEach(() => {
-  capturedTerminals.length = 0
+  stubTerminalBridge()
   webLinksHandlers.length = 0
   webLinksOptions.length = 0
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn(() => () => {})
-  }
   openExternal = vi.fn<(url: string) => Promise<void>>(() => Promise.resolve())
   ;(window as unknown as { links: unknown }).links = { openExternal }
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountRendered()
   vi.restoreAllMocks()
 })
 
 function mount(): { term: XtermTerminal; webLinks: LinkActivate } {
-  cleanup = renderComponent(<EmbeddedTerminal terminalId="t-1" />).unmount
+  renderTracked(<EmbeddedTerminal terminalId="t-1" />)
   const term = capturedTerminals[0]
   const webLinks = webLinksHandlers[0]
   if (term === undefined) throw new Error('no Terminal constructed')

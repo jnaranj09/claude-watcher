@@ -29,62 +29,31 @@
 //     an edited alias is immediately reachable in the box;
 //   - Task 11: the box lists only Global + the ACTIVE workspace's rows.
 //
-// The xterm-capture harness is the one proven in EmbeddedTerminal.clipboard.test.tsx.
+// The xterm-capture harness is test/terminalHarness.ts.
 
-import type { Terminal as XtermTerminal } from '@xterm/xterm'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../test/renderComponent'
+import { renderTracked, unmountRendered, type RenderResult } from '../test/renderComponent'
+import {
+  capturedKeyHandlers,
+  capturedTerminals,
+  deliverPort,
+  lastOpenToken,
+  stubTerminalBridge,
+  type TerminalFakes
+} from '../test/terminalHarness'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
-import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
-import type { TerminalExitEvent } from '../../../shared/ipc/contract'
 import { shortcutsStore } from '../stores/shortcutsStore'
 import { workspacesStore } from '../stores/workspacesStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../shared/schemas/workspace'
 import { settingsStore } from '../stores/settingsStore'
 import { DEFAULT_SETTINGS } from '../../../shared/schemas/settings'
 
-// ── xterm mock — captures instances + attachCustomKeyEventHandler ─────────────
+// ── xterm mock — captures instances + attachCustomKeyEventHandler (test/terminalHarness.ts) ──
 
-const capturedTerminals: XtermTerminal[] = []
-const capturedKeyHandlers: Array<((e: KeyboardEvent) => boolean) | null> = []
-
-vi.mock('@xterm/xterm', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actual = await vi.importActual<Record<string, any>>('@xterm/xterm')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const OriginalTerminal: new (...args: any[]) => XtermTerminal = actual['Terminal']
-  class TerminalCapture extends OriginalTerminal {
-    readonly _captureIndex: number
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor(...args: any[]) {
-      super(...args)
-      this._captureIndex = capturedTerminals.length
-      capturedTerminals.push(this as unknown as XtermTerminal)
-      capturedKeyHandlers.push(null)
-    }
-    override attachCustomKeyEventHandler(handler: (e: KeyboardEvent) => boolean): void {
-      capturedKeyHandlers[this._captureIndex] = handler
-      super.attachCustomKeyEventHandler(handler)
-    }
-  }
-  return { ...actual, Terminal: TerminalCapture }
-})
-
-// ── window.terminal + window.clipboard fakes ─────────────────────────────────
-
-interface TerminalFakes {
-  open: ReturnType<typeof vi.fn>
-  resize: ReturnType<typeof vi.fn>
-  stop: ReturnType<typeof vi.fn>
-  onExit: ReturnType<typeof vi.fn>
-  /** Drive the durable dead-terminal signal (CH.terminalExit) — the same mechanism
-   *  EmbeddedTerminal.test.tsx uses to make a pane genuinely DEAD in a test. */
-  emitExit: (info: TerminalExitEvent) => void
-}
+vi.mock('@xterm/xterm', async () => (await import('../test/terminalHarness')).xtermMock())
 
 let termFakes: TerminalFakes
-let cleanupFn: (() => void) | undefined
 
 const APPROVE = {
   id: 'sc-1',
@@ -96,49 +65,7 @@ const APPROVE = {
 }
 
 beforeEach(() => {
-  capturedTerminals.length = 0
-  capturedKeyHandlers.length = 0
-
-  // xterm jsdom shims.
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout; the byte/fit path is smoke-tested */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-
-  let exitCb: ((info: TerminalExitEvent) => void) | null = null
-  termFakes = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn((cb: (info: TerminalExitEvent) => void) => {
-      exitCb = cb
-      return () => {}
-    }),
-    emitExit: (info) => exitCb?.(info)
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: termFakes.open,
-    resize: termFakes.resize,
-    stop: termFakes.stop,
-    onExit: termFakes.onExit
-  }
+  termFakes = stubTerminalBridge()
   ;(window as unknown as { clipboard: unknown }).clipboard = {
     readText: vi.fn(() => Promise.resolve('')),
     writeText: vi.fn(() => Promise.resolve())
@@ -149,8 +76,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  cleanupFn?.()
-  cleanupFn = undefined
+  unmountRendered()
   shortcutsStore.setState({ shortcuts: [], loaded: false })
   workspacesStore.setState({ activeId: DEFAULT_WORKSPACE_ID, workspaces: [], loaded: false })
   settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS })
@@ -159,29 +85,7 @@ afterEach(() => {
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
 function render(props: { terminalId: string; active?: boolean }): RenderResult {
-  const r = renderComponent(<EmbeddedTerminal {...props} />)
-  cleanupFn = r.unmount
-  return r
-}
-
-/** Deliver the MessagePort to the rendered terminal (simulates the preload forward). */
-function deliverPort(
-  terminalId: string,
-  openToken: string
-): { port1: MessagePort; port2: MessagePort } {
-  const channel = new MessageChannel()
-  const event = new MessageEvent('message', {
-    data: { tag: TERMINAL_PORT_TAG, terminalId, openToken },
-    ports: [channel.port1]
-  })
-  window.dispatchEvent(event)
-  return { port1: channel.port1, port2: channel.port2 }
-}
-
-/** Read the openToken the component passed to the latest window.terminal.open() call. */
-function lastOpenToken(): string {
-  const calls = termFakes.open.mock.calls
-  return (calls[calls.length - 1]?.[1] ?? '') as string
+  return renderTracked(<EmbeddedTerminal {...props} />)
 }
 
 type SpiedKeyboardEvent = KeyboardEvent & {

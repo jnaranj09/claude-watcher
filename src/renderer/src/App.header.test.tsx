@@ -3,8 +3,8 @@
 // Fake window bridges from the shared App harness (test/appHarness.ts), no Electron.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import type { RenderResult } from './test/renderComponent'
-import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
+import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { themeStore } from './stores/themeStore'
 import { THEME_STYLE_ID } from './hooks/useApplyTheme'
 import { DEFAULT_THEME_BUNDLE, type ThemeBundle } from '../../shared/schemas/theme'
@@ -19,7 +19,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  unmountApp()
+  unmountRendered()
   vi.restoreAllMocks()
   // The custom-themes tests install window.themes and drive App's theme:applied listener.
   document.getElementById(THEME_STYLE_ID)?.remove()

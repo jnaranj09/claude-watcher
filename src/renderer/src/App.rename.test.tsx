@@ -8,8 +8,8 @@
 // A SIBLING of App.launch.test.tsx (the B-1 guardrail); both use the shared App harness.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import type { RenderResult } from './test/renderComponent'
-import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
+import { unmountRendered, type RenderResult } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import { pointerInput } from './test/pointerInput'
 import type { WatchEventsPayload } from '../../shared/ipc/contract'
@@ -54,7 +54,7 @@ beforeEach(() => {
 
 let clearInput: (() => void) | undefined
 afterEach(() => {
-  unmountApp()
+  unmountRendered()
   clearInput?.()
   clearInput = undefined
   vi.restoreAllMocks()

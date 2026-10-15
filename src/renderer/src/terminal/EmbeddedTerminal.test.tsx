@@ -27,117 +27,39 @@
 // The byte path itself is also asserted by `npm run smoke`. [Source: story 3.1 Task 4;
 // story 5.1 Task 4; AC-3/4; .claude/rules/terminal.md; src/renderer/src/test/renderComponent.ts]
 //
-// @xterm/xterm mock: vi.mock wraps Terminal to expose .input() for driving onData in tests.
-// vi.importActual is used so the real xterm internals (onData wiring, write, etc.) are
-// preserved — the mock ONLY captures each constructed Terminal instance so tests can call
-// Terminal.input(data) to fire onData callbacks without needing access to the component's ref.
-import type { Terminal as XtermTerminal } from '@xterm/xterm'
+// @xterm/xterm mock (test/terminalHarness.ts): the real xterm, with each constructed Terminal
+// captured so tests can call Terminal.input(data) to fire onData without the component's ref.
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../test/renderComponent'
+import { renderTracked, unmountRendered, type RenderResult } from '../test/renderComponent'
+import {
+  capturedTerminals,
+  deliverPort,
+  lastOpenToken,
+  stubTerminalBridge,
+  type TerminalFakes
+} from '../test/terminalHarness'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 import { settingsStore } from '../stores/settingsStore'
 import { toastStore } from '../stores/toastStore'
 import { DEFAULT_SETTINGS, type SettingsPatch } from '../../../shared/schemas/settings'
-import type { Template, TerminalExitEvent } from '../../../shared/ipc/contract'
+import type { Template } from '../../../shared/ipc/contract'
 import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
 
-// Module-level registry of every Terminal instance created by EmbeddedTerminal.
-// Reset in beforeEach so each test gets a clean slate.
-// NOTE: vi.mock is hoisted to the top of the module by Vitest, which is why the
-// `capturedTerminals` array is declared at module scope (referenced by the mock factory).
-const capturedTerminals: XtermTerminal[] = []
-
-vi.mock('@xterm/xterm', async () => {
-  // Import the REAL module so xterm internals (onData, write, dispose, etc.) all work.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actual = await vi.importActual<Record<string, any>>('@xterm/xterm')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const OriginalTerminal: new (...args: any[]) => XtermTerminal = actual['Terminal']
-  // Wrap Terminal to capture each instance for test inspection.
-  class TerminalCapture extends OriginalTerminal {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor(...args: any[]) {
-      super(...args)
-      // Push into the module-level registry so tests can call .input() to fire onData.
-      capturedTerminals.push(this as unknown as XtermTerminal)
-    }
-  }
-  return { ...actual, Terminal: TerminalCapture }
-})
-
-/** The captured window.terminal fakes — let tests drive onExit + assert open/stop. */
-interface TerminalFakes {
-  open: ReturnType<typeof vi.fn>
-  resize: ReturnType<typeof vi.fn>
-  stop: ReturnType<typeof vi.fn>
-  onExit: ReturnType<typeof vi.fn>
-  emitExit: (info: TerminalExitEvent) => void
-}
+vi.mock('@xterm/xterm', async () => (await import('../test/terminalHarness')).xtermMock())
 
 const here = dirname(fileURLToPath(import.meta.url))
 let fakes: TerminalFakes
-let cleanup: (() => void) | undefined
 
 beforeEach(() => {
-  // Reset the captured-Terminal registry before each test so each test sees only the
-  // Terminal instances created during its own render (not leftovers from prior tests).
-  capturedTerminals.length = 0
-
-  // xterm assumes a real browser: shim matchMedia + ResizeObserver (jsdom omits both).
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout; the byte/fit path is smoke-tested */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-
-  // Every live listener (a card's terminal AND its nested shell each subscribe).
-  const exitCbs = new Set<(info: TerminalExitEvent) => void>()
-  fakes = {
-    // Story 5.1: open is now (terminalId: string) => () => void (NO callback arg).
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn((cb: (info: TerminalExitEvent) => void) => {
-      exitCbs.add(cb)
-      return () => {
-        exitCbs.delete(cb)
-      }
-    }),
-    emitExit: (info) => {
-      for (const cb of [...exitCbs]) cb(info)
-    }
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: fakes.open,
-    resize: fakes.resize,
-    stop: fakes.stop,
-    onExit: fakes.onExit
-  }
+  fakes = stubTerminalBridge()
 })
 
 afterEach(() => {
-  cleanup?.()
-  cleanup = undefined
+  unmountRendered()
 })
 
 function render(props: {
@@ -151,37 +73,7 @@ function render(props: {
   variant?: 'session' | 'shell'
   shell?: { terminalId: string; visible: boolean; takeFocus: boolean }
 }): RenderResult {
-  const r = renderComponent(<EmbeddedTerminal {...props} />)
-  cleanup = r.unmount
-  return r
-}
-
-/**
- * Simulate the preload forwarding a port to the renderer via window.postMessage.
- * Uses a real `new MessageChannel().port1` — jsdom HAS browser MessagePort.
- * Story 5.4: the forward carries the per-open `openToken` (main echoes the one the renderer sent),
- * so a caller must deliver the token the component actually minted (see `lastOpenToken`).
- * Returns { port1 (the one forwarded), port2 (the other end for test assertions) }.
- */
-function deliverPort(
-  terminalId: string,
-  openToken: string
-): { port1: MessagePort; port2: MessagePort } {
-  const channel = new MessageChannel()
-  const event = new MessageEvent('message', {
-    data: { tag: TERMINAL_PORT_TAG, terminalId, openToken },
-    ports: [channel.port1]
-  })
-  window.dispatchEvent(event)
-  return { port1: channel.port1, port2: channel.port2 }
-}
-
-/** The openToken the component passed to the LATEST `window.terminal.open(terminalId, openToken)`
- *  call (Story 5.4 — minted internally per create-effect run; the test can't predict it, so it
- *  reads it back from the open spy, exactly as main echoes the renderer's token in production). */
-function lastOpenToken(): string {
-  const calls = fakes.open.mock.calls
-  return calls[calls.length - 1]?.[1] as string
+  return renderTracked(<EmbeddedTerminal {...props} />)
 }
 
 describe('EmbeddedTerminal — mount + lifecycle wiring (AC-1/2)', () => {
@@ -200,7 +92,6 @@ describe('EmbeddedTerminal — mount + lifecycle wiring (AC-1/2)', () => {
   it('stops the pty on unmount (clean teardown — no orphan from a normal close)', () => {
     const r = render({ terminalId: 't-1' })
     act(() => r.unmount())
-    cleanup = undefined
     // Story 5.6: the cleanup stop now passes the effect's openToken so main can identify
     // a stale StrictMode cleanup-stop. Assert called with the terminalId + a non-empty token.
     expect(fakes.stop).toHaveBeenCalledWith('t-1', expect.stringMatching(/^open-\d+$/))
@@ -306,7 +197,6 @@ describe('EmbeddedTerminal — port delivery via window message (Story 5.1)', ()
     const r = render({ terminalId: 't-1' })
 
     act(() => r.unmount())
-    cleanup = undefined
 
     // The cleanup should have called removeEventListener for 'message'.
     const messageCalls = removeListenerSpy.mock.calls.filter(([type]) => type === 'message')

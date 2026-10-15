@@ -15,60 +15,31 @@
 // (jsdom has it) and inspect postMessage calls. The full byte path is covered by
 // `npm run smoke`. [Source: spec-terminal-clipboard.md §Gate note]
 
-import type { Terminal as XtermTerminal } from '@xterm/xterm'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../test/renderComponent'
+import {
+  renderComponent,
+  renderTracked,
+  unmountRendered,
+  type RenderResult
+} from '../test/renderComponent'
+import {
+  capturedKeyHandlers,
+  capturedTerminals,
+  deliverPort,
+  lastOpenToken,
+  stubTerminalBridge,
+  type TerminalFakes
+} from '../test/terminalHarness'
 import { EmbeddedTerminal } from './EmbeddedTerminal'
 import { toastStore } from '../stores/toastStore'
 import { settingsStore } from '../stores/settingsStore'
-import { TERMINAL_PORT_TAG } from '../../../shared/ipc/contract'
-import type { TerminalExitEvent } from '../../../shared/ipc/contract'
 
-// ── xterm mock — captures instances + attachCustomKeyEventHandler ─────────────
-//
-// We extend the real Terminal (via vi.importActual) to capture:
-//   1. each constructed instance (for calling .input() to fire onData)
-//   2. the custom key handler registered via attachCustomKeyEventHandler
-//
-// vi.mock is hoisted by Vitest; capturedTerminals and capturedKeyHandlers are
-// module-scope so the mock factory can reference them.
+// ── xterm mock — captures instances + attachCustomKeyEventHandler (test/terminalHarness.ts) ──
 
-const capturedTerminals: XtermTerminal[] = []
-// Each element corresponds to a Terminal instance (same index as capturedTerminals).
-const capturedKeyHandlers: Array<((e: KeyboardEvent) => boolean) | null> = []
-
-vi.mock('@xterm/xterm', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actual = await vi.importActual<Record<string, any>>('@xterm/xterm')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const OriginalTerminal: new (...args: any[]) => XtermTerminal = actual['Terminal']
-  class TerminalCapture extends OriginalTerminal {
-    readonly _captureIndex: number
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor(...args: any[]) {
-      super(...args)
-      this._captureIndex = capturedTerminals.length
-      capturedTerminals.push(this as unknown as XtermTerminal)
-      capturedKeyHandlers.push(null)
-    }
-    override attachCustomKeyEventHandler(handler: (e: KeyboardEvent) => boolean): void {
-      capturedKeyHandlers[this._captureIndex] = handler
-      super.attachCustomKeyEventHandler(handler)
-    }
-  }
-  return { ...actual, Terminal: TerminalCapture }
-})
+vi.mock('@xterm/xterm', async () => (await import('../test/terminalHarness')).xtermMock())
 
 // ── window.terminal + window.clipboard fakes ─────────────────────────────────
-
-interface TerminalFakes {
-  open: ReturnType<typeof vi.fn>
-  resize: ReturnType<typeof vi.fn>
-  stop: ReturnType<typeof vi.fn>
-  onExit: ReturnType<typeof vi.fn>
-  emitExit: (info: TerminalExitEvent) => void
-}
 
 interface ClipboardFakes {
   readText: ReturnType<typeof vi.fn>
@@ -77,53 +48,9 @@ interface ClipboardFakes {
 
 let termFakes: TerminalFakes
 let clipFakes: ClipboardFakes
-let cleanupFn: (() => void) | undefined
 
 beforeEach(() => {
-  capturedTerminals.length = 0
-  capturedKeyHandlers.length = 0
-
-  // xterm jsdom shims.
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim — jsdom has no layout; the byte/fit path is smoke-tested */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
-
-  let exitCb: ((info: TerminalExitEvent) => void) | null = null
-  termFakes = {
-    open: vi.fn(() => () => {}),
-    resize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    onExit: vi.fn((cb: (info: TerminalExitEvent) => void) => {
-      exitCb = cb
-      return () => {}
-    }),
-    emitExit: (info) => exitCb?.(info)
-  }
-  ;(window as unknown as { terminal: unknown }).terminal = {
-    open: termFakes.open,
-    resize: termFakes.resize,
-    stop: termFakes.stop,
-    onExit: termFakes.onExit
-  }
-
+  termFakes = stubTerminalBridge()
   clipFakes = {
     readText: vi.fn(() => Promise.resolve('')),
     writeText: vi.fn(() => Promise.resolve())
@@ -135,36 +62,13 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  cleanupFn?.()
-  cleanupFn = undefined
+  unmountRendered()
 })
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
 function render(props: { terminalId: string; active?: boolean }): RenderResult {
-  const r = renderComponent(<EmbeddedTerminal {...props} />)
-  cleanupFn = r.unmount
-  return r
-}
-
-/** Deliver the MessagePort to the rendered terminal (simulates the preload forward). */
-function deliverPort(
-  terminalId: string,
-  openToken: string
-): { port1: MessagePort; port2: MessagePort } {
-  const channel = new MessageChannel()
-  const event = new MessageEvent('message', {
-    data: { tag: TERMINAL_PORT_TAG, terminalId, openToken },
-    ports: [channel.port1]
-  })
-  window.dispatchEvent(event)
-  return { port1: channel.port1, port2: channel.port2 }
-}
-
-/** Read the openToken the component passed to the latest window.terminal.open() call. */
-function lastOpenToken(): string {
-  const calls = termFakes.open.mock.calls
-  return (calls[calls.length - 1]?.[1] ?? '') as string
+  return renderTracked(<EmbeddedTerminal {...props} />)
 }
 
 // ── Ctrl+V takeover ───────────────────────────────────────────────────────────
@@ -303,7 +207,6 @@ describe('EmbeddedTerminal paste suppressor', () => {
     expect(container).not.toBeNull()
 
     act(() => r.unmount())
-    cleanupFn = undefined
 
     // After unmount the suppressor should be gone — a paste event should NOT be prevented.
     const pasteEvent = new Event('paste', { bubbles: true, cancelable: true })
@@ -537,7 +440,6 @@ describe('EmbeddedTerminal — per-terminal isolation (AC-5)', () => {
 
     act(() => rA.unmount())
     act(() => rB.unmount())
-    cleanupFn = undefined // afterEach already sees undefined; this is defensive
   })
 })
 

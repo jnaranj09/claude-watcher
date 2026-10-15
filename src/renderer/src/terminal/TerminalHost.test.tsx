@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../test/renderComponent'
+import { stubXtermBrowserApis } from '../test/terminalHarness'
 import { TerminalHost } from './TerminalHost'
 
 let openCalls: string[]
@@ -16,27 +17,7 @@ let cleanup: (() => void) | undefined
 
 beforeEach(() => {
   // xterm jsdom shims (matchMedia + ResizeObserver) so the children mount without throwing.
-  window.matchMedia = vi.fn().mockImplementation((q: string) => ({
-    matches: false,
-    media: q,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  }))
-  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-    observe(): void {
-      /* no-op shim */
-    }
-    unobserve(): void {
-      /* no-op shim */
-    }
-    disconnect(): void {
-      /* no-op shim */
-    }
-  }
+  stubXtermBrowserApis()
   openCalls = []
   ;(window as unknown as { terminal: unknown }).terminal = {
     open: vi.fn((terminalId: string) => {

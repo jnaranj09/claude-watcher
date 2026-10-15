@@ -26,7 +26,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderApp, resetBoardView, stubAppBridges, unmountApp } from './test/appHarness'
+import { unmountRendered } from './test/renderComponent'
+import { renderApp, resetBoardView, stubAppBridges } from './test/appHarness'
 import { boardStore } from './stores/boardStore'
 import type { QuitGuardPayload } from '../../shared/ipc/contract'
 
@@ -64,7 +65,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  unmountApp()
+  unmountRendered()
   vi.restoreAllMocks()
   act(() => {
     boardStore.setState({ stopConfirm: null, quitGuard: null })
