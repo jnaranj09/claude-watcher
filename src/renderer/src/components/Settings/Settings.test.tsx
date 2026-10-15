@@ -1,4 +1,4 @@
-// Settings — the UI tests (jsdom `unit` project).
+// Settings UI tests, part 1: the panel's shell and controls. jsdom `unit` project.
 //
 // Renders the SettingsPanel against a stubbed window.settings + the singleton settings store.
 // Asserts:
@@ -7,7 +7,8 @@
 //   - NO global-hotkey control (FR-8 row CUT);
 //   - every control persists through window.settings.set;
 //   - every control is labeled (accessibility floor);
-//   - the API block, the Theme group, and the Keyboard chord recorder (moved from Shortcuts).
+//   - the attention reminders, the API block, and the Keyboard chord recorder.
+// The Theme group is in Settings.theme.test.tsx; action feedback in Settings.feedback.test.tsx.
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -16,65 +17,24 @@ import { SettingsPanel } from './Settings'
 import { settingsStore } from '../../stores/settingsStore'
 import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { chooseOption, selectedValue, optionValues, optionLabel } from '../../test/selectHarness'
-import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/schemas/settings'
-import { mergedSettings, stubSettings } from '../../test/settingsBridge'
-import type { ThemeSummary } from '../../../../shared/schemas/theme'
-import { themeStore } from '../../stores/themeStore'
-import { DEFAULT_THEME_BUNDLE } from '../../../../shared/schemas/theme'
+import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
+import { stubSettings } from '../../test/settingsBridge'
+import {
+  openCategory,
+  resetSettingsPanel,
+  stubApi,
+  stubThemes,
+  type,
+  blur
+} from '../../test/settingsPanelHarness'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
-  vi.restoreAllMocks()
-  delete (window as unknown as { serverHealth?: unknown }).serverHealth
-  // Reset the singleton store between tests.
-  act(() => {
-    settingsStore.getState().hydrate(DEFAULT_SETTINGS)
-    themeStore.getState().setBundle(DEFAULT_THEME_BUNDLE)
-  })
+  resetSettingsPanel()
 })
 
-// ── Programmatic API — the window.api + window.clipboard bridges the block reads ──────────────
-interface ApiBridge {
-  getToken(): Promise<{ token: string }>
-  regenerateToken(): Promise<{ token: string }>
-}
-
-/** Stub window.api. `getToken` answers `token`; `regenerateToken` answers 64 `b`s by default. */
-function stubApi(
-  token = 'a'.repeat(64),
-  overrides: Partial<ApiBridge> = {}
-): { regenerate: ReturnType<typeof vi.fn> } {
-  const regenerate = vi.fn(() => Promise.resolve({ token: 'b'.repeat(64) }))
-  const bridge: ApiBridge = {
-    getToken: () => Promise.resolve({ token }),
-    regenerateToken: regenerate,
-    ...overrides
-  }
-  ;(window as unknown as { api: ApiBridge }).api = bridge
-  return { regenerate }
-}
-
-/** Stub window.themes. `list` answers `summaries`; `reload` answers ok on the default id. */
-function stubThemes(summaries: ThemeSummary[] = []): {
-  list: ReturnType<typeof vi.fn>
-  reload: ReturnType<typeof vi.fn>
-  openFolder: ReturnType<typeof vi.fn>
-} {
-  const list = vi.fn(() => Promise.resolve(summaries))
-  const reload = vi.fn(() => Promise.resolve({ ok: true as const, id: 'default' }))
-  const openFolder = vi.fn(() => Promise.resolve())
-  ;(window as unknown as { themes: unknown }).themes = {
-    list,
-    reload,
-    openFolder,
-    onApplied: () => () => {}
-  }
-  return { list, reload, openFolder }
-}
-
-/** Stub window.clipboard — the ONE OS-clipboard seam (env.d.ts: never navigator.clipboard). */
 function stubClipboard(): ReturnType<typeof vi.fn> {
   const writeText = vi.fn(() => Promise.resolve())
   ;(window as unknown as { clipboard: unknown }).clipboard = {
@@ -82,22 +42,6 @@ function stubClipboard(): ReturnType<typeof vi.fn> {
     readText: () => Promise.resolve('')
   }
   return writeText
-}
-
-/** Type into a React-controlled field the way the DOM does, so onChange fires. */
-function type(el: HTMLInputElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
-  act(() => {
-    setter?.call(el, value)
-    el.dispatchEvent(new Event('input', { bubbles: true }))
-  })
-}
-
-/** React 17+ delegates onBlur to the native `focusout` event — a `blur` Event never reaches it. */
-function blur(el: Element): void {
-  act(() => {
-    el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
-  })
 }
 
 describe('SettingsPanel — the controls it offers, no hotkey (AC-4)', () => {
@@ -537,454 +481,12 @@ describe('SettingsPanel — the local API block', () => {
   })
 })
 
-describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
-  const glass: ThemeSummary = { id: 'liquid-glass', name: 'Liquid Glass', colorScheme: 'dark' }
-  const paper: ThemeSummary = { id: 'paper', name: 'Paper', colorScheme: 'light' }
-  const broken: ThemeSummary = {
-    id: 'broken',
-    name: 'broken',
-    colorScheme: 'dark',
-    error: 'theme_css_missing'
-  }
-
-  it('lists themes on open: Default first, then the loadable ones by name; broken ones in the helper line only', async () => {
-    stubSettings()
-    stubApi()
-    const themes = stubThemes([paper, glass, broken])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(themes.list).toHaveBeenCalledTimes(1)
-    expect(optionValues(r.container, 'settings-theme')).toEqual([
-      'default',
-      'liquid-glass',
-      'paper'
-    ])
-    expect(selectedValue(r.container, 'settings-theme')).toBe('default')
-    expect(q(r, '[data-testid="settings-theme-broken"]').textContent).toBe(
-      'Could not load: broken (missing theme.css)'
-    )
-  })
-
-  it('hides the helper line when nothing is broken', async () => {
-    stubSettings()
-    stubApi()
-    stubThemes([paper])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(r.container.querySelector('[data-testid="settings-theme-broken"]')).toBeNull()
-  })
-
-  it('choosing a theme persists { themeId }', async () => {
-    const { setCalls } = stubSettings()
-    stubApi()
-    stubThemes([paper])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    chooseOption(r.container, 'settings-theme', 'paper')
-    expect(setCalls).toEqual([{ themeId: 'paper' }])
-  })
-
-  it('Terminal colours: opens on Follow theme, offers Dark and Light, and persists the pick', async () => {
-    const { setCalls } = stubSettings()
-    stubApi()
-    stubThemes([paper])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(optionValues(r.container, 'settings-terminal-scheme')).toEqual([
-      'theme',
-      'dark',
-      'light'
-    ])
-    expect(selectedValue(r.container, 'settings-terminal-scheme')).toBe('theme')
-    chooseOption(r.container, 'settings-terminal-scheme', 'dark')
-    expect(setCalls).toEqual([{ terminalScheme: 'dark' }])
-  })
-
-  it('Copy/paste menu click: opens on Right-click, offers the modifiers, and persists the pick', async () => {
-    const { setCalls } = stubSettings()
-    stubApi()
-    stubThemes([paper])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'terminal')
-    await flush()
-    expect(optionValues(r.container, 'settings-terminal-menu-trigger')).toEqual([
-      'right-click',
-      'shift-right-click',
-      'ctrl-right-click'
-    ])
-    expect(selectedValue(r.container, 'settings-terminal-menu-trigger')).toBe('right-click')
-    expect(r.container.textContent).toContain('full-screen renderer with mouse support')
-    chooseOption(r.container, 'settings-terminal-menu-trigger', 'shift-right-click')
-    expect(setCalls).toEqual([{ terminalMenuTrigger: 'shift-right-click' }])
-  })
-
-  it('Reload themes reloads, then re-lists', async () => {
-    stubSettings()
-    stubApi()
-    const themes = stubThemes([paper])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    click(q(r, '[data-testid="settings-theme-reload"]'))
-    await flush()
-    expect(themes.reload).toHaveBeenCalledTimes(1)
-    expect(themes.list).toHaveBeenCalledTimes(2)
-  })
-
-  it('Open themes folder asks main', async () => {
-    stubSettings()
-    stubApi()
-    const themes = stubThemes()
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    click(q(r, '[data-testid="settings-theme-open-folder"]'))
-    expect(themes.openFolder).toHaveBeenCalledTimes(1)
-  })
-
-  it('a refused Open themes folder shows mapped copy on the one error line', async () => {
-    stubSettings()
-    stubApi()
-    const themes = stubThemes()
-    themes.openFolder.mockImplementation(() => Promise.reject(new Error('ENOENT: no such file')))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    click(q(r, '[data-testid="settings-theme-open-folder"]'))
-    await flush()
-    const line = q(r, '[data-testid="settings-error"]')
-    expect(line.getAttribute('role')).toBe('alert')
-    expect(line.textContent).toBe('Could not open the themes folder.')
-    expect(r.container.textContent).not.toContain('ENOENT')
-  })
-
-  it('when the chosen theme is not the applied one, the error line names the reason and the picker keeps the choice', async () => {
-    stubSettings()
-    stubApi()
-    stubThemes([broken])
-    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Theme "broken" could not be loaded, using Default — missing theme.css'
-    )
-    expect(selectedValue(r.container, 'settings-theme')).toBe('broken')
-    expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'broken'])
-  })
-
-  // Finding 1(b) end-to-end: a theme whose MANIFEST is fine but whose CSS is broken (here, a
-  // remote url()) must (1) be absent from the picker's loadable options, (2) appear in the
-  // broken-themes line with its reason, and (3) — if it is the CHOSEN theme (e.g. it broke after
-  // it was picked) — the error line names the SAME reason, not just "could not be loaded".
-  it('a CSS-level broken theme (fine manifest, bad CSS) is unpickable, listed broken, and named when chosen', async () => {
-    const remoteCss: ThemeSummary = {
-      id: 'remote-css',
-      name: 'Remote CSS',
-      colorScheme: 'dark',
-      error: 'theme_css_url_invalid'
-    }
-    stubSettings()
-    stubApi()
-    stubThemes([paper, remoteCss])
-    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'remote-css' }))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    // (1) not among the loadable options — only the chosen-but-broken id is pinned in, kept so
-    // the picker never sits on a value it does not offer (design.md).
-    expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'paper', 'remote-css'])
-    // (2) listed in the broken-themes helper line with its reason.
-    expect(q(r, '[data-testid="settings-theme-broken"]').textContent).toBe(
-      'Could not load: remote-css (a disallowed url(), @import, image-set() or escape in the CSS)'
-    )
-    // (3) the chosen-theme error line names the same reason.
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Theme "Remote CSS" could not be loaded, using Default — a disallowed url(), @import, image-set() or escape in the CSS'
-    )
-  })
-
-  it('a reload() that rejects sets mapped copy on the one error line, never the raw error', async () => {
-    stubSettings()
-    stubApi()
-    const themes = stubThemes([paper])
-    themes.reload.mockImplementation(() => Promise.reject(new Error('ECONNREFUSED')))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    click(q(r, '[data-testid="settings-theme-reload"]'))
-    await flush()
-    const line = q(r, '[data-testid="settings-error"]')
-    expect(line.textContent).toBe('Could not reload themes.')
-    expect(r.container.textContent).not.toContain('ECONNREFUSED')
-  })
-
-  // R12 — the theme error is a STANDING condition, not an event: an unrelated flow that clears the
-  // shared line (a good port, the API switched off) must not hide it while the theme is still broken.
-  it('a still-broken theme keeps its error line through an API change that clears the line', async () => {
-    const base: Settings = { ...DEFAULT_SETTINGS, themeId: 'broken', apiEnabled: true }
-    // Main's answer keeps the broken theme chosen (the stub's default answer would reset it).
-    stubSettings((patch) =>
-      Promise.resolve({
-        ...base,
-        apiPort: patch.apiPort ?? base.apiPort,
-        apiEnabled: patch.apiEnabled ?? base.apiEnabled
-      })
-    )
-    stubApi()
-    stubThemes([broken])
-    act(() => settingsStore.getState().hydrate(base))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'api')
-    await flush()
-    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
-    type(port, '9300')
-    blur(port)
-    await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Theme "broken" could not be loaded, using Default — missing theme.css'
-    )
-    click(q(r, '[data-testid="settings-api-enabled"]'))
-    await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
-  })
-
-  it('an API refusal still shows once the theme loads again', async () => {
-    stubSettings()
-    stubApi()
-    stubThemes([broken])
-    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'broken' }))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'api')
-    await flush()
-    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
-    type(port, '80')
-    blur(port)
-    await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
-    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'default' }))
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Port must be between 1024 and 65535.'
-    )
-  })
-
-  // R12 (related) — picking a theme updates the setting at once, and the bundle lands a moment
-  // later: the gap read as "could not be loaded" on every switch.
-  it('no false alarm while a theme switch is in flight; the real outcome shows after', async () => {
-    let answer: (() => void) | undefined
-    stubSettings(
-      (patch) =>
-        new Promise((resolve) => {
-          answer = () => resolve(mergedSettings(patch))
-        })
-    )
-    stubApi()
-    stubThemes([paper])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    chooseOption(r.container, 'settings-theme', 'paper')
-    await flush()
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
-    // Main answered without a paper bundle: the theme really failed, so now it is said.
-    await act(async () => {
-      answer?.()
-      await Promise.resolve()
-    })
-    await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain(
-      'Theme "Paper" could not be loaded'
-    )
-  })
-
-  it('no error line when the chosen theme is the applied one', async () => {
-    stubSettings()
-    stubApi()
-    stubThemes([paper])
-    act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'paper' }))
-    act(() =>
-      themeStore
-        .getState()
-        .setBundle({ ...DEFAULT_THEME_BUNDLE, id: 'paper', name: 'Paper', colorScheme: 'light' })
-    )
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
-  })
-
-  it('shows the transparency hint only while the applied theme sets allowTransparency', async () => {
-    stubSettings()
-    stubApi()
-    stubThemes([glass])
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(r.container.querySelector('[data-testid="settings-theme-transparency"]')).toBeNull()
-    act(() =>
-      themeStore.getState().setBundle({
-        ...DEFAULT_THEME_BUNDLE,
-        id: 'liquid-glass',
-        name: 'Liquid Glass',
-        terminal: { allowTransparency: true }
-      })
-    )
-    expect(q(r, '[data-testid="settings-theme-transparency"]').textContent).toBe(
-      'Transparency applies to terminals opened from now on.'
-    )
-  })
-
-  it('a list that fails shows mapped copy on the one error line and keeps Default selectable', async () => {
-    stubSettings()
-    stubApi()
-    const themes = stubThemes()
-    themes.list.mockImplementation(() => Promise.reject(new Error('boom')))
-    const r = renderComponent(<SettingsPanel />)
-    cleanup = r.unmount
-    openCategory(r, 'appearance')
-    await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Could not read the themes folder.'
-    )
-    expect(optionValues(r.container, 'settings-theme')).toEqual(['default'])
-  })
-  describe('Wallpaper (spec 2026-09-24)', () => {
-    const two: ThemeSummary = {
-      id: 'liquid-glass',
-      name: 'Liquid Glass',
-      colorScheme: 'dark',
-      wallpapers: [
-        { id: 'graphite', name: 'Graphite' },
-        { id: 'aurora', name: 'Aurora gradient' }
-      ]
-    }
-    const applied = {
-      ...DEFAULT_THEME_BUNDLE,
-      id: 'liquid-glass',
-      name: 'Liquid Glass',
-      wallpaperId: 'graphite'
-    }
-    const chooseGlass = (): void =>
-      act(() => {
-        settingsStore.getState().hydrate({
-          ...DEFAULT_SETTINGS,
-          themeId: 'liquid-glass',
-          wallpaperByTheme: { paper: 'x' }
-        })
-        themeStore.getState().setBundle(applied)
-      })
-    const wallpaperSelect = (c: HTMLElement): Element | null =>
-      c.querySelector('[data-testid="settings-wallpaper"]')
-
-    it('shows the applied theme wallpapers, on the applied one', async () => {
-      stubSettings()
-      stubApi()
-      stubThemes([two])
-      chooseGlass()
-      const r = renderComponent(<SettingsPanel />)
-      cleanup = r.unmount
-      openCategory(r, 'appearance')
-      await flush()
-      expect(optionValues(r.container, 'settings-wallpaper')).toEqual(['graphite', 'aurora'])
-      expect(selectedValue(r.container, 'settings-wallpaper')).toBe('graphite')
-    })
-
-    it('picking one persists the WHOLE map with this theme updated', async () => {
-      const { setCalls } = stubSettings()
-      stubApi()
-      stubThemes([two])
-      chooseGlass()
-      const r = renderComponent(<SettingsPanel />)
-      cleanup = r.unmount
-      openCategory(r, 'appearance')
-      await flush()
-      chooseOption(r.container, 'settings-wallpaper', 'aurora')
-      expect(setCalls).toEqual([{ wallpaperByTheme: { paper: 'x', 'liquid-glass': 'aurora' } }])
-    })
-
-    it('is not rendered for a theme with one wallpaper', async () => {
-      stubSettings()
-      stubApi()
-      stubThemes([{ ...two, wallpapers: [{ id: 'graphite', name: 'Graphite' }] }])
-      chooseGlass()
-      const r = renderComponent(<SettingsPanel />)
-      cleanup = r.unmount
-      openCategory(r, 'appearance')
-      await flush()
-      expect(wallpaperSelect(r.container)).toBeNull()
-    })
-
-    it('is not rendered while the chosen theme failed and Default is applied', async () => {
-      stubSettings()
-      stubApi()
-      stubThemes([two])
-      act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'liquid-glass' })) // bundle stays DEFAULT_THEME_BUNDLE
-      const r = renderComponent(<SettingsPanel />)
-      cleanup = r.unmount
-      openCategory(r, 'appearance')
-      await flush()
-      expect(wallpaperSelect(r.container)).toBeNull()
-    })
-
-    it("is not rendered while the applied bundle is ANOTHER theme's (a switch not yet landed)", async () => {
-      stubSettings()
-      stubApi()
-      const paperTwo: ThemeSummary = { ...two, id: 'paper', name: 'Paper' }
-      stubThemes([two, paperTwo])
-      act(() => {
-        settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'paper' })
-        themeStore.getState().setBundle(applied) // still liquid-glass, wallpaperId 'graphite'
-      })
-      const r = renderComponent(<SettingsPanel />)
-      cleanup = r.unmount
-      openCategory(r, 'appearance')
-      await flush()
-      expect(wallpaperSelect(r.container)).toBeNull()
-    })
-
-    it('is not rendered on Default', async () => {
-      stubSettings()
-      stubApi()
-      stubThemes([two])
-      const r = renderComponent(<SettingsPanel />)
-      cleanup = r.unmount
-      openCategory(r, 'appearance')
-      await flush()
-      expect(wallpaperSelect(r.container)).toBeNull()
-    })
-  })
-})
-
 // ── Categories (spec 2026-09-29 §3) ───────────────────────────────────────────────────────────
 // Settings is the two-column shell: a rail of categories, the chosen one's controls on the right.
 function renderPanel(): RenderResult {
   const r = renderComponent(<SettingsPanel onClose={() => {}} />)
   cleanup = r.unmount
   return r
-}
-
-function openCategory(r: RenderResult, id: string): void {
-  click(q(r, `[data-testid="settings-category-${id}"] button`))
 }
 
 describe('Settings in categories (spec 2026-09-29 §3)', () => {
