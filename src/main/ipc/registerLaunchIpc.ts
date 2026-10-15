@@ -195,8 +195,9 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // then-validated correlation walk (an immediate-child walk, since deleted) resolved claude as a
   // CHILD of the node-pty shell leader (the proven live ancestry `claude(664817) → bash(189223)`).
   //   - A DIRECT spawn (`file: 'claude'`) would make claude the PTY LEADER (term.pid == claude), so
-  //     that walk found NO claude CHILD and never resolved (it only inspected children). It would also break on a minimal
-  //     KDE-launched-app PATH where bare `claude` is not resolvable.
+  //     that walk found NO claude CHILD and never resolved (it only inspected children). It
+  //     would also break on a minimal KDE-launched-app PATH where bare `claude` is not
+  //     resolvable.
   //   - `exec claude` REPLACES the shell with claude (same defeat: claude becomes the leader).
   //   - The LOGIN SHELL (`-l`) resolves PATH/rc reliably (KDE app env can have a minimal PATH), and
   //     running `claude` (no exec) keeps it a CHILD — EXACTLY the shape the validated walk expects,

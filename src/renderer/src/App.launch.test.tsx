@@ -316,7 +316,7 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
     expect(r.container.querySelector('[data-testid="board"]')).not.toBeNull()
   })
 
-  // The one AR-12 change: the launch-failure contract itself moved, spec 2026-09-29 §2.2.
+  // The launch-failure contract: spec 2026-09-29 §2.2.
   it('a launch failure keeps the prompt open with mapped copy — stays on the board', async () => {
     launchSpy.mockImplementation(() => Promise.reject(new Error('spawn failed')))
     const r = await renderApp()
@@ -568,8 +568,8 @@ describe('App — Story 5.6 silent-kill prevention (AC-2)', () => {
     // selectKeptAliveTerminalIds (only focusedTerminalId kept it alive), unmounting A's
     // EmbeddedTerminal and killing the PTY. After Story 5.6, A is kept alive via launchedTerminals.
     //
-    // FAULT-INJECTION EVIDENCE: removing the launchedTerminals union from selectKeptAliveTerminalIds
-    // causes this test to FAIL (A would not be in kept-alive after B takes focus).
+    // FAULT-INJECTION EVIDENCE: removing the launchedTerminals union from
+    // selectKeptAliveTerminalIds causes this test to FAIL (A would not be in kept-alive after B takes focus).
     const r = await renderApp()
 
     // Launch A.
@@ -643,8 +643,8 @@ describe('App — Story 5.6 selectStartingTerminals reflects launched-but-uncorr
 })
 
 // Task 9a fix (review round 1, Finding 3 — highest risk) — a workspace switch must be a PURE
-// show/hide. `selectKeptAliveTerminalIds` proves the SELECTOR body is unfiltered (boardStore.test.ts),
-// but that cannot catch the catastrophic version of the mistake: someone wrapping the
+// show/hide. `selectKeptAliveTerminalIds` proves the SELECTOR body is unfiltered
+// (boardStore.test.ts), but that cannot catch the catastrophic version of the mistake: someone wrapping the
 // `keptAlive.map(...)` in FocusedSession.tsx (or the `App.tsx` mount-gate that keeps FocusedSession
 // alive) in a workspace filter to "clean up hidden terminals". That would UNMOUNT the
 // EmbeddedTerminal, which runs its cleanup (term.dispose() + window.terminal.stop(terminalId)) and
@@ -663,7 +663,8 @@ describe("App — Task 9a fix: a workspace switch keeps a HIDDEN workspace's ter
     await flush()
     expect(r.container.querySelector('[data-terminal-id="t-w1"]')).not.toBeNull()
 
-    expect(terminalStopSpy).not.toHaveBeenCalled() // baseline: launching must not have stopped anything
+    // Baseline: launching must not have stopped anything.
+    expect(terminalStopSpy).not.toHaveBeenCalled()
 
     // Switch the ACTIVE workspace to w2, which has no terminal of its own — `focusWorkspace` falls
     // back to the board view (mirrors how Task 9b's switcher will wire setActiveWorkspace +

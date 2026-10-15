@@ -18,7 +18,8 @@
 //   - any OTHER Ctrl+Alt chord is left COMPLETELY untouched — neither preventDefault nor
 //     stopPropagation — so xterm still emits its ESC + control byte to the pty (design §5
 //     hazard 3). This is the guarantee that keeps the namespace cheap for claude;
-//   - the shipped Ctrl+V takeover still wins and still posts \x16;
+//   - (the shipped Ctrl+V takeover, which posts \x16, is tested in
+//     EmbeddedTerminal.clipboard.test.tsx);
 //   - a chord fires safely (no throw) when the port was never delivered;
 //   - a DEAD pane (the pty exited) refuses to open the box on the chord, AND closes a box that
 //     was already open the moment the exit event lands;

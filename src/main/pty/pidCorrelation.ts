@@ -1,9 +1,8 @@
 // Story 0.4 — the OQ-6 pid-correlation probe artifact (the validated helper).
 //
-// ⚠ SPIKE ARTIFACT — NOT WIRED INTO THE LIVE APP. This is the Epic-3 destination
-// file (`src/main/pty/pidCorrelation.ts`, per architecture.md#Directory Structure),
-// authored HERE as the validated probe output. It is NOT imported by any IPC
-// handler, manager, or window in this story. Epic 3's terminal manager adopts it.
+// Born as the Story-0.4 probe output; now wired into the live app. Main imports it:
+// `launchSession.ts` (`correlate`), `registerLaunchIpc.ts` and `claudeSessionFile.ts`
+// (`readStatusFromProc`; `claudeSessionFile.ts` also `isAncestorOf` + `parseStatusField`).
 //
 // ── WHAT OQ-6 IS ─────────────────────────────────────────────────────────────
 // c9watch reports a session `pid` that is a WANDERING claude *thread* id — it
@@ -39,9 +38,10 @@
 // `ptyFactory.createPty(): IPtyLike` / `feed.ts(spawnFn)` seam pattern.
 //
 // ── FAIL-CLOSED + NEVER-LOG-PARSED-VALUE (Critical Guardrails #3, #4) ─────────
-// Every `/proc` miss (missing `Tgid:`, vanished pid, denied read) returns an "unresolved/unmatched" sentinel — NEVER a wrong silent
-// number, NEVER a crash. We NEVER echo the raw `/proc` blob (it can carry
-// cmdline/env/secrets); helpers surface only field path + a typed error.
+// Every `/proc` miss (missing `Tgid:`, vanished pid, denied read) returns an
+// "unresolved/unmatched" result — NEVER a wrong silent number, NEVER a crash. We NEVER
+// echo the raw `/proc` blob (it can carry cmdline/env/secrets); helpers surface only
+// field path + a typed error.
 // [Source: epics.md#Story 0.4; #Verified Facts; architecture.md#Process Patterns;
 //  src/shared/schemas/session.ts:62,65; .claude/rules/zod-boundaries.md]
 
