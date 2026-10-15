@@ -11,9 +11,13 @@ const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceI
 const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
 
 let cleanup: (() => void) | undefined
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
+  vi.useRealTimers()
 })
 
 function render(over: Partial<TagPickerProps> = {}): {
@@ -133,7 +137,7 @@ describe('TagPicker — leaving (spec 2026-10-04 Review Focus 5)', () => {
   it('while leaving, a second outside mousedown does not call onClose again', () => {
     const onClose = vi.fn()
     const anchorRef = { current: document.createElement('div') }
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     const tree = (open: boolean): JSX.Element => (
       <Presence value={open || null}>
@@ -158,7 +162,5 @@ describe('TagPicker — leaving (spec 2026-10-04 Review Focus 5)', () => {
     fireEvent(document.body, new MouseEvent('mousedown', { bubbles: true }))
     expect(onClose).not.toHaveBeenCalled()
     r.unmount()
-    vi.useRealTimers()
-    clearInput()
   })
 })

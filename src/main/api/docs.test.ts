@@ -6,7 +6,7 @@
 //     and nothing is ever joined from the request path, so there is no traversal to attempt.
 //   - a missing dist dir degrades `/docs` to a 503 and leaves `/openapi.json` working.
 import { describe, it, expect, afterEach } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDocsRoutes, resolveSwaggerDistDir } from './docs'
@@ -14,14 +14,21 @@ import { startTestServer, call, makeFakeContext } from './testSupport'
 import type { ApiServer } from './apiServer'
 
 let server: ApiServer | null = null
+const tempDirs: string[] = []
+const tempDir = (prefix: string): string => {
+  const d = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(d)
+  return d
+}
 afterEach(() => {
   server?.close()
   server = null
+  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true })
 })
 
 describe('docs routes', () => {
   it('serves /openapi.json and /docs without a token; /docs loads the three dist files', async () => {
-    const dist = mkdtempSync(join(tmpdir(), 'swagger-'))
+    const dist = tempDir('swagger-')
     writeFileSync(join(dist, 'swagger-ui.css'), 'body{}')
     writeFileSync(join(dist, 'swagger-ui-bundle.js'), '/*b*/')
     writeFileSync(join(dist, 'swagger-ui-standalone-preset.js'), '/*p*/')
@@ -107,7 +114,7 @@ describe('docs routes', () => {
   })
 
   it('logs a CODE, not a path, when an allow-listed file cannot be read', async () => {
-    const empty = mkdtempSync(join(tmpdir(), 'swagger-empty-'))
+    const empty = tempDir('swagger-empty-')
     const lines: string[] = []
     const routes = createDocsRoutes({
       openapi: () => ({}),

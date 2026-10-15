@@ -71,9 +71,13 @@ beforeEach(() => {
   })
 })
 
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
+  vi.useRealTimers()
   vi.restoreAllMocks()
   // Reset boardStore state between tests.
   act(() => {
@@ -442,7 +446,7 @@ describe('StopConfirm — dialog accessibility', () => {
 
 describe('StopConfirm — overlay motion (spec 2026-10-04 §6)', () => {
   it('marks its overlay data-motion=dialog, and data-leaving + inert while leaving', () => {
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     const p = makePayload()
     const tree = (payload: StopConfirmPayload | null): JSX.Element => (
@@ -463,7 +467,5 @@ describe('StopConfirm — overlay motion (spec 2026-10-04 §6)', () => {
     })
     expect(overlay()).toBeNull()
     r.unmount()
-    vi.useRealTimers()
-    clearInput()
   })
 })

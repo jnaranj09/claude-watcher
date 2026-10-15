@@ -209,6 +209,7 @@ describe('findName warnings and worktree labels (CLI)', () => {
       expect(String(run.stdout)).not.toContain('src/locked.ts')
     } finally {
       chmodSync(locked, 0o644)
+      rmSync(locked, { force: true })
     }
   })
 })

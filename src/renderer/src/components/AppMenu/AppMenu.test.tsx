@@ -10,9 +10,13 @@ import { MOTION_EXIT_MS } from '../../styles/motion'
 import { pointerInput } from '../../test/pointerInput'
 
 let cleanup: (() => void) | undefined
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
+  vi.useRealTimers()
 })
 
 function render(props: Partial<AppMenuProps> = {}): RenderResult {
@@ -374,7 +378,7 @@ describe('AppMenu', () => {
 
 describe('AppMenu — overlay motion (spec 2026-10-04 §4)', () => {
   it('a pointer close keeps the open submenu inside the fading menu, then both go', () => {
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     const r = render()
     click(q(r, 'app-menu'))
@@ -389,7 +393,5 @@ describe('AppMenu — overlay motion (spec 2026-10-04 §4)', () => {
     expect(q(r, 'app-menu-list')).toBeNull()
     click(q(r, 'app-menu')) // re-open: no submenu left over
     expect(q(r, 'app-menu-tags-list')).toBeNull()
-    vi.useRealTimers()
-    clearInput()
   })
 })

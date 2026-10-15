@@ -16,9 +16,13 @@ const OPTIONS: SelectOption<'a' | 'b' | 'c'>[] = [
 ]
 
 let cleanup: (() => void) | undefined
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
+  vi.useRealTimers()
 })
 
 function render(
@@ -241,7 +245,7 @@ describe('Select', () => {
 
 describe('Select — the list fades out after a pointer pick (spec 2026-10-04 §4)', () => {
   it('keeps the list leaving for MOTION_EXIT_MS, then removes it', () => {
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     const r = render()
     click(q(r, '[data-testid="letter"]'))
@@ -253,7 +257,5 @@ describe('Select — the list fades out after a pointer pick (spec 2026-10-04 §
       vi.advanceTimersByTime(MOTION_EXIT_MS)
     })
     expect(document.querySelector('[data-popover]')).toBeNull()
-    vi.useRealTimers()
-    clearInput()
   })
 })

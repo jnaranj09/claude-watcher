@@ -6,13 +6,21 @@
 // file that is not exactly that shape is never trusted, (c) no failure path may ever put the
 // token in a log line, and (d) a regenerate that could not be persisted must be reported as a
 // failure rather than handed back as a token that dies with the process.
-import { describe, it, expect, vi } from 'vitest'
-import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createApiTokenStore, API_TOKEN_FILENAME } from './apiToken'
 
-const dir = (): string => mkdtempSync(join(tmpdir(), 'cw-token-'))
+const tempDirs: string[] = []
+const dir = (): string => {
+  const d = mkdtempSync(join(tmpdir(), 'cw-token-'))
+  tempDirs.push(d)
+  return d
+}
+afterEach(() => {
+  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 
 /**
  * A directory path that can never be created or written: its PARENT is a regular file, so

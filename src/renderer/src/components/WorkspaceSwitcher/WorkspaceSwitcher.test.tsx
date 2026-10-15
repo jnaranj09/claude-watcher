@@ -80,9 +80,13 @@ beforeEach(() => {
   } as never
 })
 
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
+  vi.useRealTimers()
   vi.restoreAllMocks()
   // Belt-and-suspenders beyond restoreAllMocks — see the comment above `pristineFocusWorkspace`.
   boardStore.setState({ focusWorkspace: pristineFocusWorkspace })
@@ -666,7 +670,7 @@ describe('WorkspaceSwitcher', () => {
 
 describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
   it('after a pointer close the tab stays tucked until the menu has gone', () => {
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
@@ -680,8 +684,6 @@ describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
     })
     expect(r.container.querySelector('[role="menu"]')).toBeNull()
     expect(tab.hasAttribute('data-tucked')).toBe(false)
-    vi.useRealTimers()
-    clearInput()
   })
 
   // Operator (2026-10-05): with no cards in other workspaces there is no tab to tuck, so the
@@ -702,7 +704,7 @@ describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
   })
 
   it('a pick keeps the rows it showed while the menu fades out', () => {
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     seedNeedsYou('w1', 'b')
     const r = renderSwitcher()
@@ -714,8 +716,6 @@ describe('WorkspaceSwitcher — tuck, then menu (spec 2026-10-04 §5)', () => {
     })
     // Still the row the operator saw, though w1 is now active and no longer an "other".
     expect(r.container.querySelector('[data-testid="workspace-row-w1"]')).not.toBeNull()
-    vi.useRealTimers()
-    clearInput()
   })
 
   it('CSS: the tab tucks on the enter curve, the menu waits for it, keyboard is instant', () => {

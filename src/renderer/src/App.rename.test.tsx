@@ -140,9 +140,12 @@ beforeEach(() => {
   window.location.hash = ''
 })
 
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
   vi.restoreAllMocks()
 })
 
@@ -374,7 +377,7 @@ describe('App — rename an existing session (session-naming A2)', () => {
     const confirm = (): HTMLButtonElement | null =>
       r.container.querySelector<HTMLButtonElement>('[data-testid="session-name-confirm"]')
     expect(confirm()?.textContent).toContain('Renaming…')
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     act(() => boardStore.getState().clearSessionNamePrompt())
     expect(
       r.container
@@ -382,6 +385,5 @@ describe('App — rename an existing session (session-naming A2)', () => {
         ?.hasAttribute('data-leaving')
     ).toBe(true)
     expect(confirm()?.textContent).toContain('Renaming…')
-    clearInput()
   })
 })

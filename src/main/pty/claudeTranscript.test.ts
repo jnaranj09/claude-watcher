@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -64,8 +64,17 @@ describe('createTranscriptLookup', () => {
 })
 
 describe('the real filesystem', () => {
+  const tempDirs: string[] = []
+  const tempDir = (prefix: string): string => {
+    const d = mkdtempSync(join(tmpdir(), prefix))
+    tempDirs.push(d)
+    return d
+  }
+  afterEach(() => {
+    for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  })
   it('fileStateOnDisk: file / missing (ENOENT, ENOTDIR, a folder)', () => {
-    const root = mkdtempSync(join(tmpdir(), 'cw-state-'))
+    const root = tempDir('cw-state-')
     writeFileSync(join(root, 'f'), 'x')
     expect(fileStateOnDisk(join(root, 'f'))).toBe('file')
     expect(fileStateOnDisk(join(root, 'nope'))).toBe('missing')
@@ -74,7 +83,7 @@ describe('the real filesystem', () => {
   })
   // root ignores permissions, so EACCES cannot be provoked there; the skip is reported, not silent.
   it.skipIf(process.getuid?.() === 0)('fileStateOnDisk: unknown (EACCES)', () => {
-    const root = mkdtempSync(join(tmpdir(), 'cw-state-'))
+    const root = tempDir('cw-state-')
     mkdirSync(join(root, 'locked'))
     writeFileSync(join(root, 'locked', 'g'), 'x')
     chmodSync(join(root, 'locked'), 0o000)
@@ -85,7 +94,7 @@ describe('the real filesystem', () => {
     }
   })
   it('the production lookup reads <CLAUDE_CONFIG_DIR>/projects', () => {
-    const config = mkdtempSync(join(tmpdir(), 'cw-config-'))
+    const config = tempDir('cw-config-')
     mkdirSync(join(config, 'projects', '-tmp-x'), { recursive: true })
     writeFileSync(join(config, 'projects', '-tmp-x', `${ID}.jsonl`), '{}\n')
     const has = createTranscriptLookupFromFs({ CLAUDE_CONFIG_DIR: config })

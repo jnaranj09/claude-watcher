@@ -4,10 +4,10 @@
 // (.claude/hooks/spec-copy-table.mjs, PreToolUse on Write/Edit/MultiEdit) blocks the write
 // otherwise (exit 2, reason on stderr).
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 
 const HOOK = resolve(__dirname, '../../.claude/hooks/spec-copy-table.mjs')
 const SPEC = '/repo/docs/superpowers/specs/2026-10-06-thing-design.md'
@@ -27,6 +27,11 @@ const write = (file_path: string, content: string): { status: number | null; std
   run({ tool_name: 'Write', tool_input: { file_path, content } })
 
 describe('spec Copy-table hook', () => {
+  const tempDirs: string[] = []
+  afterEach(() => {
+    for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  })
+
   it('blocks a new spec with no ## Copy table, and says what to add', () => {
     const r = write(SPEC, '# Thing\n\n## Goal\n\nText.\n')
     expect(r.status).toBe(2)
@@ -65,6 +70,7 @@ describe('spec Copy-table hook', () => {
 
   it('checks an Edit against the file it would produce', () => {
     const dir = mkdtempSync(join(tmpdir(), 'spec-hook-'))
+    tempDirs.push(dir)
     const file = join(dir, 'docs/superpowers/specs')
     const path = `${file}/2026-10-07-x-design.md`
     mkdirSync(file, { recursive: true })

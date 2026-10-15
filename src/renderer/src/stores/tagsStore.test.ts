@@ -33,6 +33,7 @@ function stubBridge(overrides: Partial<Bridge> = {}): Bridge {
 }
 
 afterEach(() => {
+  delete (window as unknown as { launch?: unknown }).launch
   tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
   vi.restoreAllMocks()
 })

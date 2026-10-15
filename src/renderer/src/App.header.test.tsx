@@ -6,7 +6,9 @@ import { act } from 'react'
 import { renderComponent, type RenderResult } from './test/renderComponent'
 import App from './App'
 import { boardStore } from './stores/boardStore'
-import type { ThemeBundle } from '../../shared/schemas/theme'
+import { themeStore } from './stores/themeStore'
+import { THEME_STYLE_ID } from './hooks/useApplyTheme'
+import { DEFAULT_THEME_BUNDLE, type ThemeBundle } from '../../shared/schemas/theme'
 import { GLASS_FIXTURE } from '../../__fixtures__/glassSpec'
 
 /** Resolve a microtask/Promise chain inside act() so async effects settle. */
@@ -121,6 +123,11 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   vi.restoreAllMocks()
+  // The custom-themes tests install window.themes and drive App's theme:applied listener.
+  delete (window as unknown as { themes?: unknown }).themes
+  document.getElementById(THEME_STYLE_ID)?.remove()
+  document.documentElement.style.colorScheme = ''
+  act(() => themeStore.getState().setBundle(DEFAULT_THEME_BUNDLE))
 })
 
 async function renderApp(): Promise<RenderResult> {

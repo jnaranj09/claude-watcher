@@ -11,9 +11,13 @@ import { Presence } from '../Presence/Presence'
 import { pointerInput } from '../../test/pointerInput'
 
 let cleanup: (() => void) | undefined
+let clearInput: (() => void) | undefined
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  clearInput?.()
+  clearInput = undefined
+  vi.useRealTimers()
 })
 function render(node: React.ReactNode): RenderResult {
   const r = renderComponent(<>{node}</>)
@@ -170,7 +174,7 @@ describe('Popover.module.css', () => {
 
 describe('Popover.Surface — overlay motion (spec 2026-10-04 §4)', () => {
   it('is marked data-leaving + inert inside a leaving Presence, and not otherwise', () => {
-    const clearInput = pointerInput()
+    clearInput = pointerInput()
     vi.useFakeTimers()
     const tree = (open: boolean): JSX.Element => (
       <Presence value={open || null}>
@@ -190,8 +194,6 @@ describe('Popover.Surface — overlay motion (spec 2026-10-04 §4)', () => {
     expect(surf()?.hasAttribute('data-leaving')).toBe(true)
     expect(surf()?.hasAttribute('inert')).toBe(true)
     r.unmount()
-    vi.useRealTimers()
-    clearInput()
   })
 
   it('CSS: enters from opacity 0 + 4px up, leaves the same way, instant on keyboard and reduced motion', () => {

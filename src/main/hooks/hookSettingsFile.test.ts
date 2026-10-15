@@ -4,8 +4,16 @@
 // LAUNCHED PROJECT's `.claude/settings.local.json`. This module replaced that, so the two
 // things worth guarding are (a) the file still contains a block claude will accept, and
 // (b) writing it can never fail a launch.
-import { describe, it, expect, vi, type Mock } from 'vitest'
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs'
+import { describe, it, expect, vi, afterEach, type Mock } from 'vitest'
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  chmodSync,
+  rmSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -17,7 +25,19 @@ import {
 } from './hookSettingsFile'
 import { HOOK_URL, REGISTERED_EVENTS } from './hookContract'
 
-const freshDir = (): string => mkdtempSync(join(tmpdir(), 'c9-hooksettings-'))
+const tempDirs: string[] = []
+const freshDir = (): string => {
+  const d = mkdtempSync(join(tmpdir(), 'c9-hooksettings-'))
+  tempDirs.push(d)
+  return d
+}
+// Read-only dirs are tracked so the afterEach can make them writable again even when an assertion
+// failed first; a 0o500 dir cannot be removed (or have its parent removed) otherwise.
+const readonlyDirs: string[] = []
+afterEach(() => {
+  for (const d of readonlyDirs.splice(0)) chmodSync(d, 0o700)
+  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
 
 describe('buildHookSettings', () => {
   it('registers EVERY contract event against the loopback listener', () => {
@@ -157,6 +177,7 @@ describe('ensureHookSettingsFile', () => {
       const dir = join(parent, 'readonly')
       mkdirSync(dir)
       chmodSync(dir, 0o500) // r-x: cannot create files inside
+      readonlyDirs.push(dir)
 
       let result: string | null = 'unset'
       expect(() => {
@@ -164,7 +185,6 @@ describe('ensureHookSettingsFile', () => {
       }).not.toThrow()
 
       expect(result).toBeNull()
-      chmodSync(dir, 0o700)
     })
 
     it.skipIf(IS_ROOT)('logs a CODE only — never the path (it leaks the filesystem layout)', () => {
@@ -172,6 +192,7 @@ describe('ensureHookSettingsFile', () => {
       const dir = join(parent, 'readonly2')
       mkdirSync(dir)
       chmodSync(dir, 0o500)
+      readonlyDirs.push(dir)
       const log = vi.fn<(msg: string) => void>()
 
       const result = ensureHookSettingsFile({ dir, log })
@@ -182,7 +203,6 @@ describe('ensureHookSettingsFile', () => {
       expect(msg).toContain('code=')
       expect(msg).not.toContain(dir)
       expect(msg).not.toContain(parent)
-      chmodSync(dir, 0o700)
     })
 
     it('does not throw when no log sink is supplied at all', () => {
@@ -190,9 +210,9 @@ describe('ensureHookSettingsFile', () => {
       const dir = join(parent, 'readonly3')
       mkdirSync(dir)
       chmodSync(dir, 0o500)
+      readonlyDirs.push(dir)
 
       expect(() => ensureHookSettingsFile({ dir })).not.toThrow()
-      chmodSync(dir, 0o700)
     })
   })
 })

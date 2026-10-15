@@ -49,6 +49,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
+  delete (window as unknown as { launch?: unknown }).launch
   vi.restoreAllMocks()
 })
 
