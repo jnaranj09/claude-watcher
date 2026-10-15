@@ -47,8 +47,9 @@ only".
 - Every new test or guard is seen red once, by breaking the code it protects
   (technical-taste §5b-2). Prose only (the `code-reviewer` agent repeats it).
 - Never skip, delete or loosen a test to get green (§5b-3). Lint: `vitest/no-disabled-tests`,
-  `playwright/no-skipped-test`, `.only` fails the run. The one allowed skip is a platform the test
-  cannot run on: `it.skipIf(...)` / `describe.runIf(...)`. Deleting or loosening: prose only.
+  `playwright/no-skipped-test`, `.only` fails the run. The one allowed skip is a platform or
+  privilege level the test cannot run under: `it.skipIf(...)` / `describe.runIf(...)`. Deleting or
+  loosening: prose only.
 - Repetition in a test body is fine. A shared test helper never serves one caller
   (maintainability rule 4). Prose only.
 

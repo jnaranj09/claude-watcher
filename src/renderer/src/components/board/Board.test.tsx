@@ -5,7 +5,7 @@
 // first delta then clears (via a delta OR the engine-started watch:status push);
 // empty-column hints (incl. the calm needs-you hint); empty board headline +
 // `+ New session`; every session → exactly one card (no dup); native fields verbatim;
-// aria-live region present. Uses the existing renderComponent helper (NO RTL).
+// aria-live region present. Uses the existing renderComponent helper.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act } from 'react'
 import { Board } from './Board'

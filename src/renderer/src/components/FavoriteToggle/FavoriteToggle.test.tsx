@@ -62,6 +62,16 @@ describe('FavoriteToggle', () => {
     act(() => b.click())
     expect(onToggle).toHaveBeenCalledTimes(1)
   })
+  it('a click on the pin asks to toggle once', async () => {
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    const { unmount } = renderRtl(<FavoriteToggle {...BASE} onToggle={onToggle} />)
+    const pin = screen.getByRole('button', { name: 'Pin deploy' })
+    expect(pin).toHaveAttribute('aria-pressed', 'false')
+    await user.click(pin)
+    expect(onToggle).toHaveBeenCalledOnce()
+    unmount()
+  })
   it('busy disables it', () => {
     const { b } = render({ busy: true })
     expect(b.disabled).toBe(true)
@@ -113,16 +123,5 @@ describe('FavoriteToggle — never steals focus', () => {
     act(() => r.root.render(<FavoriteToggle {...BASE} favorite={false} busy={false} />))
     expect(document.activeElement).toBe(other)
     other.remove()
-  })
-
-  it('a click on the pin asks to toggle once (Testing Library, user-facing query)', async () => {
-    const onToggle = vi.fn()
-    const user = userEvent.setup()
-    const { unmount } = renderRtl(<FavoriteToggle {...BASE} onToggle={onToggle} />)
-    const pin = screen.getByRole('button', { name: 'Pin deploy' })
-    expect(pin).toHaveAttribute('aria-pressed', 'false')
-    await user.click(pin)
-    expect(onToggle).toHaveBeenCalledOnce()
-    unmount()
   })
 })

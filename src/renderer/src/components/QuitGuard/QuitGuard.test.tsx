@@ -8,7 +8,7 @@
 //   (e) Clicking Quit anyway calls `window.quit.confirm`.
 // Esc → Cancel is App.tsx's global keydown, tested in App.keydown.test.tsx.
 //
-// Uses the renderComponent harness (no RTL — bare react-dom + act).
+// Uses the renderComponent harness.
 // Mirrors Settings.test.tsx's stub pattern.
 // [Source: story 4.2 Task 6.3; UX-DR14; src/renderer/src/components/Settings/Settings.test.tsx]
 

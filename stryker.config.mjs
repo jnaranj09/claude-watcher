@@ -2,7 +2,6 @@
 // (`.claude/rules/release.md` step 0), never in the gate, hooks or CI. A surviving mutant ends as
 // a killing test, an IdeasBoard item, or a one-line reason (e.g. an equivalent mutant).
 // One file: `npm run mutate -- --mutate src/main/c9watch/reducer.ts`.
-/** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   testRunner: 'vitest',
   vitest: { configFile: 'vitest.mutation.config.ts' },

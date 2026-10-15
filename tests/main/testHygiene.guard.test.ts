@@ -16,6 +16,11 @@ import { parseSource } from './sourceScan'
 const ROOT = resolve(__dirname, '../..')
 const MAX_LINES = 1000
 
+/** Lines in a file: a trailing newline ends the last line, it does not start another. */
+export function countLines(text: string): number {
+  return text.split('\n').length - (text.endsWith('\n') ? 1 : 0)
+}
+
 /** Module ids a test may mock: the process edges (pty, fs, Electron, xterm, node built-ins). */
 export function isEdge(id: string): boolean {
   return (
@@ -94,6 +99,10 @@ describe('probes', () => {
       mockTargets(probe("vi.mock('../x')\nvi.doMock('electron')\n// vi.mock('../y')"))
     ).toEqual(['../x', 'electron'])
   })
+  it('countLines does not count the newline that ends the last line', () => {
+    expect(countLines('x\n'.repeat(MAX_LINES))).toBe(MAX_LINES)
+    expect(countLines('x\n'.repeat(MAX_LINES - 1) + 'x')).toBe(MAX_LINES)
+  })
   it('isEdge accepts the process edges only', () => {
     expect(
       ['electron', 'electron-store', 'node-pty', 'fs', 'node:fs', '@xterm/xterm'].every(isEdge)
@@ -138,7 +147,7 @@ describe('test hygiene', () => {
   })
 
   it(`no test file is over ${MAX_LINES} lines`, () => {
-    const big = parsed.filter(({ text }) => text.split('\n').length > MAX_LINES)
+    const big = parsed.filter(({ text }) => countLines(text) > MAX_LINES)
     expect(big.map((p) => p.file)).toEqual([])
   })
 })

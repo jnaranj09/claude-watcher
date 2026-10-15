@@ -5,7 +5,7 @@ terminals for them. v1 (Epics 0–5) done; Epic 6 replaced the external `c9watch
 session engine (several dir/channel names keep the historical `c9watch` prefix).
 
 `IdeasBoard.md` tracks new work. Remove an item when done or discarded. Never implement an item
-right away: validate it with a systematic approach (bmad / superpowers), then implement the same way.
+right away: validate it systematically (bmad / superpowers), then implement it the same way.
 
 **Designing, speccing, planning or choosing without the owner?** Read `technical-taste.md` first:
 how the owner decides, default answers, reversed decisions not to revive, when to stop. A spec

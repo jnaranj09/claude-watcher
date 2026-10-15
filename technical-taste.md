@@ -287,12 +287,13 @@ yet. Prefer turning prose-only rules into sensors.
    (Inozemtseva & Holmes 2014; Google mutation study 2021). Sensor: the `code-reviewer` Step 2.
 3. **Never delete, skip, `.only`, loosen or re-record a test to get green.** Fix the code, or report
    the test's removal as a decision in the commit. Agents are known to "fix" a red test by
-   disabling it. A conditional runtime skip is allowed only for a platform the test cannot run
-   on (`describe.skip` off Linux); a busy port or a missing resource fails the run. _Consensus_
-   (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per project, pinned by
-   `tests/main/vitestConfig.guard.test.ts`) and Playwright (`forbidOnly: true`). A skip is a
-   lint error (`vitest/no-disabled-tests`, `playwright/no-skipped-test`); `skipIf`/`runIf` stay
-   allowed for a platform. Deleting or loosening a test is still prose only.
+   disabling it. A conditional runtime skip is allowed only for a platform or privilege level the
+   test cannot run under (`describe.skip` off Linux); a busy port or a missing resource fails the
+   run. _Consensus_ (Beck, Huntley). Sensor: `.only` fails Vitest (`allowOnly: false` per
+   project, pinned by `tests/main/vitestConfig.guard.test.ts`) and Playwright
+   (`forbidOnly: true`). A skip is a lint error (`vitest/no-disabled-tests`,
+   `playwright/no-skipped-test`); `skipIf`/`runIf` stay
+   allowed for those. Deleting or loosening a test is still prose only.
 4. **Review in a fresh context, aimed at correctness and the spec.** Don't chase every finding
    into extra layers: a reviewer told to find gaps always finds some. Code review mostly transfers
    understanding and catches fewer bugs than people think, so it does not replace tests. _Evidence_
@@ -421,9 +422,10 @@ yet. Prefer turning prose-only rules into sensors.
   own commits, before each release (`release.md` step 0). It removes duplicates (`jscpd`), dead
   code (`knip`; also red in `npm run lint`) and slow tests. It also runs `npm run mutate`
   (StrykerJS) on the core modules; each surviving mutant ends as a killing test, an IdeasBoard
-  item, or a one-line reason. OpenAI calls this "garbage collection" against drift. Steinberger spends about 20% of his time on it.
-  _Consensus_, with correlational evidence: AI adoption raised complexity by about 41% and
-  static-analysis warnings by about 30%, and both stayed high (CMU 2026).
+  item, or a one-line reason. OpenAI calls this "garbage collection" against drift.
+  Steinberger spends about 20% of his time on it. _Consensus_, with correlational evidence: AI
+  adoption raised complexity by about 41% and static-analysis warnings by about 30%, and both
+  stayed high (CMU 2026).
 - **Code is an asset here, not throwaway.** The app has versioned, persisted user data, so the
   "code has under a year of shelf life" view (Yegge) does not apply. _Taste_.
 
