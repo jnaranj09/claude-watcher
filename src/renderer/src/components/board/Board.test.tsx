@@ -23,6 +23,7 @@ import type {
 import { templatesStore } from '../../stores/templatesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { watchUpdated } from '../../../../__fixtures__/watchEvents'
+import { NO_FILTERS } from '../../lib/sessionFilters'
 
 /** The shape the Board needs off `window.watch` (mirrors the preload WatchApi). */
 interface WatchBridge {
@@ -51,7 +52,8 @@ function resetStore(): void {
     epoch: 0,
     coldLoaded: false,
     selectedId: null,
-    searchQuery: ''
+    searchQuery: '',
+    filtersByWorkspace: {}
   })
   // Workspaces (Task 9a fix, review round 1, Finding 2) — reset the active workspace so a test
   // that switches it does not bleed into a later test in this file.
@@ -593,7 +595,12 @@ describe('Board — Task 9a fix: reads the ACTIVE workspace, not a hardcoded one
   })
 })
 
-describe('Board — the tag filter (spec §4.1, §4.3)', () => {
+/** Turn the Default workspace's tag filter on (the filter bar's own write). */
+function filterByProd(): void {
+  act(() => boardStore.getState().setBoardFilters('default', { ...NO_FILTERS, tagIds: ['t-prod'] }))
+}
+
+describe('Board — the filters (spec 2026-10-16)', () => {
   const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
   const cardIds = (container: HTMLElement): string[] =>
     [...container.querySelectorAll('[data-column] [data-session-id]')].map(
@@ -601,10 +608,10 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     )
 
   beforeEach(() => {
-    act(() => tagsStore.setState({ tags: [PROD], loaded: true, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [PROD], loaded: true }))
   })
   afterEach(() => {
-    act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [], loaded: false }))
   })
 
   it('shows only the cards carrying the filtered tag', () => {
@@ -613,7 +620,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
     applyDelta(watchUpdated(1, 'plain', 'working', 101))
     expect(cardIds(container).sort()).toEqual(['plain', 'tagged'])
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     expect(cardIds(container)).toEqual(['tagged'])
   })
 
@@ -633,19 +640,19 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     const { container, unmount } = renderComponent(<Board onOpenPastSessions={vi.fn()} />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'plain', 'working', 100))
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     expect(container.querySelector('[data-testid="empty-board-filtered"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="empty-board-past-sessions"]')).toBeNull()
   })
 
-  it('names the tag when the filter hides every card — and keeps the bar to remove it', () => {
+  it('names the filters when they hide every card — and keeps the bar to remove them', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'plain', 'working', 100))
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     const empty = container.querySelector('[data-testid="empty-board-filtered"]')
-    expect(empty?.textContent).toContain('No sessions tagged prod.')
-    expect(empty?.textContent).toContain('Remove the tag filter to see every session.')
+    expect(empty?.textContent).toContain('No sessions match the filters.')
+    expect(empty?.textContent).toContain('Remove a filter to see every session.')
     expect(container.querySelector('[data-testid="empty-board"]')).toBeNull()
     // The bar starts collapsed: its toggle says a filter is on, and opening it reaches the pill.
     expect(container.querySelector('[data-testid="filter-toggle-count"]')?.textContent).toBe('1')
@@ -657,7 +664,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     act(() => boardStore.getState().setReconnecting(false))
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     expect(container.querySelector('[data-testid="empty-board"]')?.textContent).toContain(
       'No sessions yet.'
     )
@@ -666,9 +673,9 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   })
 
   // Controller ruling (spec §4.3 applies design.md's three-empty-states rule to the board): a
-  // column emptied ONLY by the tag filter must not claim "Nothing waiting. All quiet." — that
+  // column emptied ONLY by the filters must not claim "Nothing waiting. All quiet." — that
   // hint is a true statement about needs-you, and here it would be a false one about the filter.
-  it('a column emptied ONLY by the filter names the tag — not the calm "All quiet." hint', () => {
+  it('a column emptied ONLY by the filters names them — not the calm "All quiet." hint', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
@@ -678,13 +685,13 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
         tagIds: []
       })
     )
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
 
     // Needs-you HAS a session, but not one carrying the filtered tag — the filtered hint.
     const needsYouCol = container.querySelector('[data-column="needs-you"]')
     expect(
       needsYouCol?.querySelector('[data-testid="empty-hint-filtered"]')?.textContent
-    ).toContain('No sessions tagged prod here.')
+    ).toContain('No sessions match the filters here.')
     expect(needsYouCol?.querySelector('[data-testid="empty-hint"]')).toBeNull()
 
     // Idle has NO sessions at all (filtered or not) — the plain, unfiltered hint is unchanged.
@@ -696,17 +703,17 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   })
 
   // Review finding E — the rail's own live region is inert/aria-hidden in board view, so the
-  // Board's column-count announcement is the only in-app live region, and it must follow the tag
-  // filter: a screen-reader user filtering by tag should hear that sessions are hidden, not just a
+  // Board's column-count announcement is the only in-app live region, and it must follow the
+  // filters: a screen-reader user filtering should hear that sessions are hidden, not just a
   // lower count with no explanation.
-  it('the aria-live summary notes how many the tag filter hid', () => {
+  it('the aria-live summary notes how many the filters hid', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
     applyDelta(watchUpdated(1, 'plain', 'working', 101))
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     const live = container.querySelector('[data-testid="live-announcer"]')
-    expect(live?.textContent).toBe('0 need you, 1 working, 0 idle, 1 hidden by the tag filter')
+    expect(live?.textContent).toBe('0 need you, 1 working, 0 idle, 1 hidden by the filters')
   })
 
   it('with no filter, the summary text is unchanged (no trailing clause)', () => {
@@ -720,7 +727,7 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
 
   it('a card draws its tags from the catalog, in TAG-LIST order', () => {
     const DEPLOY: Tag = { id: 't-deploy', name: 'deploy', color: 'amber', workspaceId: null }
-    act(() => tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true }))
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod', 't-deploy'] }))
@@ -731,8 +738,9 @@ describe('Board — the tag filter (spec §4.1, §4.3)', () => {
   })
 })
 
-// The filter bar's search box narrows the board by card NAME, like the tag filter narrows it by
-// tag, and every "why is this empty" sentence has to say which of the two is hiding the cards.
+// The filter bar's search box narrows the board by card NAME, like the filters narrow it by tag,
+// folder and time, and every "why is this empty" sentence has to say which of the two is hiding
+// the cards.
 describe('Board — the search box', () => {
   const PROD: Tag = { id: 't-prod', name: 'prod', color: 'rose', workspaceId: null }
   const cardIds = (container: HTMLElement): string[] =>
@@ -742,10 +750,10 @@ describe('Board — the search box', () => {
   const search = (query: string): void => act(() => boardStore.getState().setSearchQuery(query))
 
   beforeEach(() => {
-    act(() => tagsStore.setState({ tags: [PROD], loaded: true, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [PROD], loaded: true }))
   })
   afterEach(() => {
-    act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [], loaded: false }))
   })
 
   it('shows only the cards whose name matches', () => {
@@ -772,7 +780,7 @@ describe('Board — the search box', () => {
     expect(needsYouCol?.querySelector('[data-testid="empty-hint"]')).toBeNull()
   })
 
-  it('a column emptied by the search AND the tag names both', () => {
+  it('a column emptied by the search AND the filters names both', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(
@@ -781,11 +789,11 @@ describe('Board — the search box', () => {
     applyDelta(
       watchUpdated(1, 'b', 'needs-you', 100, { sessionName: 'Review', status: 'NeedsAttention' })
     )
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     search('deploy')
     const needsYouCol = container.querySelector('[data-column="needs-you"]')
     expect(needsYouCol?.querySelector('[data-testid="empty-hint-filtered"]')?.textContent).toBe(
-      'No sessions tagged prod match “deploy” here.'
+      'No sessions match the filters and “deploy” here.'
     )
   })
 
@@ -802,16 +810,16 @@ describe('Board — the search box', () => {
     )
   })
 
-  it('search and tag hiding every card: the empty board names both', () => {
+  it('search and filters hiding every card: the empty board names both', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount
     applyDelta(watchUpdated(1, 'a', 'working', 100, { sessionName: 'Review', tagIds: ['t-prod'] }))
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     search('zzz')
     const empty = container.querySelector('[data-testid="empty-board-filtered"]')
-    expect(empty?.textContent).toContain('No sessions tagged prod match “zzz”.')
+    expect(empty?.textContent).toContain('No sessions match the filters and “zzz”.')
     expect(empty?.textContent).toContain(
-      'Clear the search or remove the tag filter to see every session.'
+      'Clear the search or remove a filter to see every session.'
     )
   })
 
@@ -832,11 +840,11 @@ describe('Board — the search box', () => {
       watchUpdated(1, 'a', 'working', 100, { sessionName: 'Deploy API', tagIds: ['t-prod'] })
     )
     applyDelta(watchUpdated(1, 'b', 'working', 101, { sessionName: 'Review' }))
-    act(() => tagsStore.getState().setActiveTag('t-prod'))
+    filterByProd()
     search('deploy')
     const live = container.querySelector('[data-testid="live-announcer"]')
     expect(live?.textContent).toBe(
-      '0 need you, 1 working, 0 idle, 1 hidden by the search and the tag filter'
+      '0 need you, 1 working, 0 idle, 1 hidden by the search and the filters'
     )
   })
 })
@@ -851,10 +859,10 @@ describe('Board — the Tags… menu offers only global + the card’s own works
   const OTHER: Tag = { id: 't-other', name: 'other-tag', color: 'rose', workspaceId: 'w2' }
 
   beforeEach(() => {
-    act(() => tagsStore.setState({ tags: [GLOBAL, OWN, OTHER], loaded: true, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [GLOBAL, OWN, OTHER], loaded: true }))
   })
   afterEach(() => {
-    act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+    act(() => tagsStore.setState({ tags: [], loaded: false }))
   })
 
   it('never offers a tag scoped to ANOTHER workspace; offers global + the card’s own', () => {

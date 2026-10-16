@@ -34,10 +34,12 @@ import type { Column, WatchEventsPayload, QuitGuardPayload } from '../../../shar
 // allowed to read the active workspace itself; this keeps the workspace/board coupling in this
 // ONE commented place instead of threading an extra prop through every `Column.tsx` caller.
 import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
-// Tags (Task 9) — the board's tag filter (FilterBar). `effectiveTagFilter` resolves the chosen tag id for a
-// workspace (null when it cannot see it); the workspace-scoped selectors below take that as a
-// SECOND required argument, same as workspaceId (spec §4.1: no denormalized tag index here).
-import { effectiveTagFilter, useTags } from './tagsStore'
+// Session filters (spec 2026-10-16) — the filter bar's tag / folder / time filters live HERE, per
+// workspace (`filtersByWorkspace`). `useBoardFilter` drops the tags a workspace cannot see (read
+// from the tags store) and hands the result to the workspace-scoped selectors below as a SECOND
+// required argument, same as workspaceId (no denormalized tag index here).
+import { useTags } from './tagsStore'
+import { visibleTags } from '../../../shared/tags/tagScope'
 
 /**
  * Past sessions (D-5) — the DELETE confirm's payload (RENDERER VIEW-STATE; not session truth).
@@ -68,6 +70,13 @@ export interface StopConfirmPayload {
 }
 
 import { sortByEnteredColumn } from '../lib/sortByEnteredColumn'
+import {
+  effectiveFilters,
+  matchesFilters,
+  NO_FILTERS,
+  type FilterSubject,
+  type SessionFilters
+} from '../lib/sessionFilters'
 
 /**
  * Session-naming — the NAME PROMPT payload (RENDERER VIEW-STATE; not session truth). Null when no
@@ -344,6 +353,13 @@ export interface BoardState {
    * by a filter the operator cannot see.
    */
   searchQuery: string
+  /**
+   * Session filters (spec 2026-10-16) — the filter bar's choices PER WORKSPACE (RENDERER
+   * VIEW-STATE, never persisted). Switching away keeps them; switching back brings them all back
+   * (tag, folder and time). A workspace absent here has none (`NO_FILTERS`). Tag ids a workspace
+   * can no longer see are dropped at READ time (`useBoardFilter` → `effectiveFilters`), never here.
+   */
+  filtersByWorkspace: Readonly<Record<string, SessionFilters>>
   /** Reduce ONE validated, epoch-framed delta. Discards stale-epoch deltas. */
   applyWatchEvent: (payload: WatchEventsPayload) => void
   /** Consume main's `CH.watchStatus` push — the Story-5.3 COLD-LOAD-COMPLETE signal the
@@ -518,6 +534,10 @@ export interface BoardState {
   closeSettingsDialog: () => void
   /** The filter bar's search box — store the text as typed (the selectors trim it). */
   setSearchQuery: (query: string) => void
+  /** Replace one workspace's filters (the filter bar's every change). */
+  setBoardFilters: (workspaceId: string, filters: SessionFilters) => void
+  /** Drop the filters of workspaces that no longer exist (after a workspace delete). */
+  pruneBoardFilters: (liveWorkspaceIds: readonly string[]) => void
 }
 
 export interface BoardStoreOptions {
@@ -615,6 +635,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // Past sessions — the Past-sessions dialog starts closed.
     // The filter bar's search box starts empty: nothing hidden.
     searchQuery: '',
+    // No workspace has filters until the operator picks one.
+    filtersByWorkspace: {},
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
     shellPanes: {},
@@ -977,6 +999,18 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     },
     setSearchQuery: (query) => {
       if (get().searchQuery !== query) set({ searchQuery: query })
+    },
+    setBoardFilters: (workspaceId, filters) =>
+      set((s) => ({ filtersByWorkspace: { ...s.filtersByWorkspace, [workspaceId]: filters } })),
+    pruneBoardFilters: (liveWorkspaceIds) => {
+      const live = new Set(liveWorkspaceIds)
+      const current = get().filtersByWorkspace
+      if (Object.keys(current).every((id) => live.has(id))) return
+      set({
+        filtersByWorkspace: Object.fromEntries(
+          Object.entries(current).filter(([id]) => live.has(id))
+        )
+      })
     }
   }))
 }
@@ -990,22 +1024,36 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 
 /** What the filter bar narrows the board and the rail by. REQUIRED by every board/rail selector,
  *  like `workspaceId`, so a caller can never forget it; `NO_FILTER` is the explicit "everything".
- *  Alerts never read these selectors, so no filter can ever mute one (spec §4.1).
- *  - `tagId`: the tag filter (`effectiveTagFilter`) — `null` means All tags.
+ *  Alerts never read these selectors, so no filter can ever mute one.
+ *  - `filters`: this workspace's tag / folder / time filters (`useBoardFilter`, tags it cannot see
+ *    already dropped) — matched by the ONE matcher, `matchesFilters`.
  *  - `query`: the search box, as typed — matched against the card NAME only, case-insensitively;
- *    blank hides nothing. (Folder and the rest are future filter TYPES, not search.) */
+ *    blank hides nothing.
+ *  - `now`: the clock the time filters read (injected; state.md). */
 export interface BoardFilter {
-  tagId: string | null
+  filters: SessionFilters
   query: string
+  now: () => number
 }
 
-export const NO_FILTER: BoardFilter = { tagId: null, query: '' }
+export const NO_FILTER: BoardFilter = { filters: NO_FILTERS, query: '', now: () => 0 }
 
 /** Does this card pass the filter bar? */
 function passesFilter(session: BoardSession, filter: BoardFilter): boolean {
-  if (filter.tagId !== null && !session.tagIds.includes(filter.tagId)) return false
+  const subject: FilterSubject = {
+    folder: session.projectPath,
+    tagIds: session.tagIds,
+    launchedAt: session.launchedAt,
+    endedAt: undefined
+  }
+  if (!matchesFilters(subject, filter.filters, filter.now())) return false
   const query = filter.query.trim().toLowerCase()
   return query === '' || session.sessionName.toLowerCase().includes(query)
+}
+
+/** This workspace's stored filters (stable reference; `NO_FILTERS` when it has none). */
+export function selectBoardFilters(state: BoardState, workspaceId: string): SessionFilters {
+  return state.filtersByWorkspace[workspaceId] ?? NO_FILTERS
 }
 
 /** All sessions in a column, SORTED by entered-column time (working desc;
@@ -1317,13 +1365,14 @@ export function useColumnSessions(column: Column): BoardSession[] {
   )
 }
 
-/** The filter bar's current filter for `workspaceId`: the tag it can see (`effectiveTagFilter`,
- *  null when it cannot see the chosen one) plus the search text. The ONE place the board, the
- *  columns and the rail read it, so they can never disagree about what is hidden. */
-export function useBoardFilter(workspaceId: string): BoardFilter {
-  const tagId = useTags((s) => effectiveTagFilter(s, workspaceId))
+/** The filter bar's current filter for `workspaceId`: its stored filters minus the tags it cannot
+ *  see, plus the search text and the clock. The ONE place the board, the columns and the rail read
+ *  it, so they can never disagree about what is hidden. */
+export function useBoardFilter(workspaceId: string, now: () => number = Date.now): BoardFilter {
+  const stored = useBoard((s) => selectBoardFilters(s, workspaceId))
+  const visibleIds = useTags(useShallow((s) => visibleTags(s.tags, workspaceId).map((t) => t.id)))
   const query = useBoard(selectSearchQuery)
-  return { tagId, query }
+  return { filters: effectiveFilters(stored, new Set(visibleIds)), query, now }
 }
 
 // ---------------------------------------------------------------------------

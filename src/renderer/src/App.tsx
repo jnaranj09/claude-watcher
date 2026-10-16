@@ -682,7 +682,7 @@ function App(): React.JSX.Element {
             onManage={handleManageTemplates}
           />
           {/* The ONE header control besides + New session: Settings, Shortcuts, the Tags
-              submenu and Past sessions (last). It filters nothing: the tag filter is the board's
+              submenu and Past sessions (last). It filters nothing: the filters are the board's
               FilterBar. */}
           <AppMenu
             onOpenSettings={handleOpenSettings}

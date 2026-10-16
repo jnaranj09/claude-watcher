@@ -9,6 +9,8 @@ import { renderComponent, type RenderResult } from '../../test/renderComponent'
 import { FilterBar } from '../FilterBar/FilterBar'
 import { TagPicker } from '../TagPicker/TagPicker'
 import { tagsStore } from '../../stores/tagsStore'
+import { boardStore } from '../../stores/boardStore'
+import { NO_FILTERS } from '../../lib/sessionFilters'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { Tag } from '../../../../shared/ipc/contract'
 
@@ -19,7 +21,8 @@ const cleanups: (() => void)[] = []
 afterEach(() => {
   while (cleanups.length > 0) cleanups.pop()?.()
   act(() => {
-    tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: false })
+    boardStore.setState({ filtersByWorkspace: {} })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
   })
 })
@@ -31,7 +34,8 @@ function renderFilterList(): RenderResult {
       activeId: 'default',
       loaded: true
     })
-    tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true, activeTagId: 't-prod' })
+    tagsStore.setState({ tags: [DEPLOY, PROD], loaded: true })
+    boardStore.getState().setBoardFilters('default', { ...NO_FILTERS, tagIds: ['t-prod'] })
   })
   const r = renderComponent(<FilterBar total={5} workspaceTotal={5} onManageTags={vi.fn()} />)
   cleanups.push(r.unmount)
@@ -88,7 +92,11 @@ describe('the filter tag list and the tag picker are ONE design', () => {
   // drifted apart in the first place.
   it('neither caller declares a popup or row look of its own', () => {
     const dir = join(process.cwd(), 'src/renderer/src/components')
-    for (const file of ['FilterBar/FilterBar.module.css', 'TagPicker/TagPicker.module.css']) {
+    for (const file of [
+      'FilterBar/FilterBar.module.css',
+      'FilterChips/FilterChips.module.css',
+      'TagPicker/TagPicker.module.css'
+    ]) {
       if (!existsSync(join(dir, file))) continue // no stylesheet at all declares nothing
       const css = readFileSync(join(dir, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
       expect(css, file).not.toMatch(/(^|[\s,])\.(menu|row|picker|checkbox)\s*[{,:[]/m)

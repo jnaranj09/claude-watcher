@@ -182,7 +182,7 @@ describe('AttentionRail — pinned active row + status sections', () => {
     ).toEqual(['other'])
   })
 
-  // The board's search box narrows the rail's groups like the tag filter does. The pinned row is
+  // The board's search box narrows the rail's groups like the filters do. The pinned row is
   // the terminal you are typing in, so it stays whatever the search says.
   it('the search narrows the status groups, never the pinned row', () => {
     act(() => {

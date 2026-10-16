@@ -255,6 +255,10 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
     const wasActive = workspacesStore.getState().activeId === id
     try {
       await removeWorkspace(id)
+      // Session filters are kept per workspace (view-state): forget the deleted one's.
+      boardStore
+        .getState()
+        .pruneBoardFilters(workspacesStore.getState().workspaces.map((w) => w.id))
       // UX-18: deleting the ACTIVE workspace moves main's pointer to Default, but the focused
       // view can still hold one of the deleted workspace's dead panes (a natural exit removes the
       // session from main, so the delete is allowed while the pane stays mounted). Reconcile the

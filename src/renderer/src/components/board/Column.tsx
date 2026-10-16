@@ -33,6 +33,7 @@ import {
   type BoardSession
 } from '../../stores/boardStore'
 import { hiddenByFilterSentence } from '../../lib/filterCopy'
+import { activeFilterCount } from '../../lib/sessionFilters'
 // Workspaces (Task 9a) — `useColumnSessions` already scopes itself internally; Column still
 // needs the active workspace directly for its OWN `selectColumnCount` call below.
 // Task 12 — also the move-to-workspace target list (`selectWorkspaces`, `useShallow` per the
@@ -223,16 +224,13 @@ export function Column({
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const filter = useBoardFilter(activeWorkspaceId)
-  const tagId = filter.tagId
-  const tagName = useTags((s) =>
-    tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
-  )
+  const filtersOn = activeFilterCount(filter.filters) > 0
   const count = useBoard((s) => selectColumnCount(s, column, activeWorkspaceId, filter))
   // Controller ruling (spec §4.3, design.md three-empty-states) — a column can be empty for two
-  // DIFFERENT reasons under the filter bar: genuinely nothing here, or something here that the tag
-  // or the search hides. The UNFILTERED count tells them apart; only the second one gets its own
-  // sentence (never the calm "Nothing waiting. All quiet." — that is a claim about needs-you that
-  // would be FALSE here).
+  // DIFFERENT reasons under the filter bar: genuinely nothing here, or something here that the
+  // filters or the search hide. The UNFILTERED count tells them apart; only the second one gets its
+  // own sentence (never the calm "Nothing waiting. All quiet." — that is a claim about needs-you
+  // that would be FALSE here).
   const unfilteredCount = useBoard((s) =>
     selectColumnCount(s, column, activeWorkspaceId, NO_FILTER)
   )
@@ -256,10 +254,7 @@ export function Column({
       {count === 0 ? (
         hiddenByFilter ? (
           <p className={styles.emptyHint} data-testid="empty-hint-filtered">
-            {`${hiddenByFilterSentence(
-              tagId !== null ? (tagName ?? 'with this tag') : null,
-              filter.query
-            )} here.`}
+            {`${hiddenByFilterSentence(filtersOn, filter.query)} here.`}
           </p>
         ) : (
           <p className={styles.emptyHint} data-testid="empty-hint">

@@ -27,7 +27,7 @@ beforeEach(() => {
   ;(window as unknown as { pastSessions: unknown }).pastSessions = { list }
   act(() => {
     pastSessionsStore.setState({ sessions: [], loaded: false })
-    tagsStore.setState({ tags: [], loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: true })
     workspacesStore.setState({
       workspaces: [{ id: 'default', name: 'Default', color: 'slate', defaultCwd: null }],
       activeId: 'default',

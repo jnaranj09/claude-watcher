@@ -1,10 +1,9 @@
 // Tags — the renderer PROJECTION of main's tag catalog (state.md: main is truth; this is a hydrated
-// copy, replaced wholesale from every IPC result — no client merge), plus the header tag FILTER.
-// The filter is renderer view-state (spec §4.1): one tag or none, never persisted.
+// copy, replaced wholesale from every IPC result — no client merge). The board's filters live in
+// `boardStore.filtersByWorkspace`, not here.
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import type { Tag, TagSaveRequest } from '../../../shared/ipc/contract'
-import { isTagVisibleIn } from '../../../shared/tags/tagScope'
 import { toast } from './toastStore'
 
 export interface TagsState {
@@ -13,10 +12,7 @@ export interface TagsState {
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
   loadFailed: boolean
-  /** The board's tag filter (FilterBar) — a tag id, or null for no filter. */
-  activeTagId: string | null
   hydrate: (tags: Tag[]) => void
-  setActiveTag: (id: string | null) => void
   markLoadFailed: () => void
   /** Action feedback (spec 2026-09-29 §2.3) — tag toggles sent to main and not answered yet, per
    *  session (tagId → on). VIEW-STATE that expires when main answers: both pickers read
@@ -34,17 +30,7 @@ export function createTagsViewStore(): TagsStoreApi {
     tags: [],
     loaded: false,
     loadFailed: false,
-    activeTagId: null,
-    // A filter on a tag that was just deleted would sit on a value the filter no longer offers.
-    hydrate: (tags) =>
-      set((s) => ({
-        tags,
-        loaded: true,
-        loadFailed: false,
-        activeTagId:
-          s.activeTagId !== null && tags.some((t) => t.id === s.activeTagId) ? s.activeTagId : null
-      })),
-    setActiveTag: (id) => set({ activeTagId: id }),
+    hydrate: (tags) => set({ tags, loaded: true, loadFailed: false }),
     markLoadFailed: () => set({ loadFailed: true }),
     pendingBySession: new Map(),
     setPending: (sessionId, changes) =>
@@ -80,15 +66,6 @@ export const selectTagsLoaded = (s: TagsState): boolean => s.loaded
 /** True only while nothing loaded AND the load failed — the dialog says so instead of "none yet". */
 export const selectTagsLoadFailed = (s: TagsState): boolean => !selectTagsLoaded(s) && s.loadFailed
 
-/** The tag the board and the rail filter on in `workspaceId`: the chosen one when that workspace
- *  can see it, else null. A primitive — safe without useShallow. */
-export function effectiveTagFilter(s: TagsState, workspaceId: string): string | null {
-  const id = s.activeTagId
-  if (id === null) return null
-  const tag = s.tags.find((t) => t.id === id)
-  return tag !== undefined && isTagVisibleIn(tag, workspaceId) ? id : null
-}
-
 /** A card's chips: the catalog rows for `ids` in TAG-LIST order, skipping ids the catalog does not
  *  know. Returns an array → wrap the selector in useShallow at the call site. */
 export function tagsForIds(tags: readonly Tag[], ids: readonly string[]): Tag[] {
@@ -121,17 +98,6 @@ export async function saveTag(req: TagSaveRequest): Promise<Tag> {
 /** Rethrows: `tag_in_use` is operator-facing (the Tags dialog error line). */
 export async function removeTag(id: string): Promise<void> {
   tagsStore.getState().hydrate(await window.tags.remove(id))
-}
-
-export function setTagFilter(id: string | null): void {
-  tagsStore.getState().setActiveTag(id)
-}
-
-/** Spec §4.1 — switching to a workspace that cannot see the chosen tag CLEARS the filter (not just
- *  hides it), so switching back does not bring back a filter nobody chose there. */
-export function resetTagFilterIfHidden(workspaceId: string): void {
-  const s = tagsStore.getState()
-  if (s.activeTagId !== null && effectiveTagFilter(s, workspaceId) === null) s.setActiveTag(null)
 }
 
 /** `base` with a session's pending toggles applied: pending-off dropped, pending-on appended. */

@@ -38,8 +38,8 @@ import {
 // Workspaces (Task 9a) — Board is a component, so it reads the active workspace itself (per
 // task instructions) and passes it into the now-required workspace-scoped selectors below.
 import { useWorkspaces, selectActiveWorkspaceId } from '../../stores/workspacesStore'
-import { useTags } from '../../stores/tagsStore'
 import { clearFilterHint, hiddenByFilterSentence } from '../../lib/filterCopy'
+import { activeFilterCount } from '../../lib/sessionFilters'
 import { useShallow } from 'zustand/react/shallow'
 import type { Column as BoardColumn, Template } from '../../../../shared/ipc/contract'
 import { useAttentionSound } from '../../audio/useAttentionSound'
@@ -121,14 +121,11 @@ export function Board({
   // Workspaces (Task 9a) — the active workspace id, read ONCE here and threaded into every
   // workspace-scoped selector below (selectTotalCount / selectColumnCount / selectStartingTerminals).
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // The filter bar's choice for this workspace: its tag (null = no tag filter, or a tag this
-  // workspace cannot see) and its search text.
+  // The filter bar's choice for this workspace: its tag / folder / time filters (tags it cannot see
+  // already dropped) and the search text.
   const filter = useBoardFilter(activeWorkspaceId)
-  const tagId = filter.tagId
+  const filtersOn = activeFilterCount(filter.filters) > 0
   const searching = filter.query.trim() !== ''
-  const tagName = useTags((s) =>
-    tagId === null ? null : (s.tags.find((t) => t.id === tagId)?.name ?? null)
-  )
   const coldLoaded = useBoard(selectColdLoaded)
   const total = useBoard((s) => selectTotalCount(s, activeWorkspaceId, filter))
   // "Is the workspace empty" must not follow the filter: a filtered-out board is not an empty one.
@@ -191,16 +188,12 @@ export function Board({
   // count changes (the string is derived, never persisted).
   //
   // Review finding E — in board view the rail's own live region is inert/aria-hidden, so this is
-  // the ONLY in-app live region; it must follow the filter bar — its tag and its search (never an
-  // alert: notifier, badge, sound and the rail announcement stay unfiltered by design). With nothing
-  // hidden the string is BYTE-IDENTICAL to before the filter existed.
+  // the ONLY in-app live region; it must follow the filter bar — its filters and its search (never
+  // an alert: notifier, badge, sound and the rail announcement stay unfiltered by design). With
+  // nothing hidden the string is BYTE-IDENTICAL to before the filter existed.
   const hiddenByFilter = workspaceTotal - total
   const hiddenBy =
-    searching && tagId !== null
-      ? 'the search and the tag filter'
-      : searching
-        ? 'the search'
-        : 'the tag filter'
+    searching && filtersOn ? 'the search and the filters' : searching ? 'the search' : 'the filters'
   const announcement = `${needsYouCount} need you, ${workingCount} working, ${idleCount} idle${
     hiddenByFilter > 0 ? `, ${hiddenByFilter} hidden by ${hiddenBy}` : ''
   }`
@@ -274,17 +267,14 @@ export function Board({
           </div>
         </div>
       ) : total === 0 ? (
-        // The workspace HAS sessions and the filter bar (its tag, its search, or both) hides them
-        // all. A different sentence from "No sessions yet." (design.md: three nothings, three
+        // The workspace HAS sessions and the filter bar (its filters, its search, or both) hides
+        // them all. A different sentence from "No sessions yet." (design.md: three nothings, three
         // answers) — otherwise the operator goes looking for sessions that are only filtered out.
         <div className={styles.emptyBoard} data-testid="empty-board-filtered">
           <p className={styles.emptyBoardHeadline}>
-            {`${hiddenByFilterSentence(
-              tagId !== null ? (tagName ?? 'with this tag') : null,
-              filter.query
-            )}.`}
+            {`${hiddenByFilterSentence(filtersOn, filter.query)}.`}
           </p>
-          <p className={styles.emptyBoardLine}>{clearFilterHint(tagId !== null, filter.query)}</p>
+          <p className={styles.emptyBoardLine}>{clearFilterHint(filtersOn, filter.query)}</p>
         </div>
       ) : (
         // The live three-column grid: slots are left flank (working) · center hero

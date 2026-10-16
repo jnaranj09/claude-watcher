@@ -18,7 +18,7 @@ let cleanup: (() => void) | undefined
 beforeEach(() => {
   act(() => {
     workspacesStore.setState({ workspaces: WS, activeId: 'w1', loaded: true })
-    tagsStore.setState({ tags: [], loaded: true, loadFailed: false, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: true, loadFailed: false })
     rulesStore.setState({ rules: [], brokenIds: [], loaded: true, loadFailed: false })
   })
 })

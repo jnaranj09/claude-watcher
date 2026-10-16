@@ -242,9 +242,6 @@
     }
   },
   "src/renderer/src/components/FilterBar/FilterBar.test.tsx": {
-    "jest-dom/prefer-focus": {
-      "count": 3
-    },
     "jest-dom/prefer-to-have-attribute": {
       "count": 1
     },
@@ -252,7 +249,7 @@
       "count": 1
     },
     "vitest/no-conditional-in-test": {
-      "count": 2
+      "count": 1
     }
   },
   "src/renderer/src/components/Icon/LucideIcon.test.tsx": {

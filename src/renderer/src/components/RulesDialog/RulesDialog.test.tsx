@@ -55,7 +55,7 @@ beforeEach(() => {
   ;(window as unknown as { rules: unknown }).rules = { list: vi.fn(), save, remove, move }
   act(() => {
     workspacesStore.setState({ workspaces: WS, activeId: 'default', loaded: true })
-    tagsStore.setState({ tags: TAGS, loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: TAGS, loaded: true })
     templatesStore.getState().hydrate([])
     rulesStore.getState().hydrate({ rules: [R_A, R_B, R_C], brokenIds: ['rc'] })
   })
@@ -66,7 +66,7 @@ afterEach(() => {
   cleanup = undefined
   act(() => {
     rulesStore.setState({ rules: [], brokenIds: [], loaded: false })
-    tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: false })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
   })
   vi.restoreAllMocks()

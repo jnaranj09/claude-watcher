@@ -25,7 +25,6 @@ const BUDGET: Record<string, number> = {
   'renderer/src/SmokeCockpit.tsx': 4,
   'renderer/src/audio/attentionSound.ts': 2,
   'renderer/src/components/AppMenu/AppMenu.tsx': 1,
-  'renderer/src/components/FilterBar/FilterBar.tsx': 1,
   'renderer/src/components/NewSessionMenu/NewSessionButton.tsx': 1,
   'renderer/src/components/NewSessionMenu/NewSessionMenu.tsx': 2,
   'renderer/src/components/ScopeFilter/ScopeFilter.tsx': 2,

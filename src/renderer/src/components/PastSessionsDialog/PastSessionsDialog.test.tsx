@@ -52,7 +52,7 @@ beforeEach(() => {
   }
   act(() => {
     workspacesStore.setState({ workspaces: WS, activeId: 'w1', loaded: true })
-    tagsStore.setState({ tags: [PROD], loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: [PROD], loaded: true })
     pastSessionsStore.setState({ sessions: [], loaded: false })
     boardStore.setState({ viewMode: 'board', focusedTerminalId: null, launchedTerminals: {} })
   })
@@ -63,7 +63,7 @@ afterEach(() => {
   cleanup = undefined
   act(() => {
     pastSessionsStore.setState({ sessions: [], loaded: false })
-    tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: false })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
   })
   vi.restoreAllMocks()

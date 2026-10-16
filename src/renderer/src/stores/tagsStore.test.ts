@@ -1,13 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   createTagsViewStore,
-  effectiveTagFilter,
   loadTags,
   removeTag,
-  resetTagFilterIfHidden,
   saveTag,
   setSessionTags,
-  setTagFilter,
   tagsForIds,
   tagsStore
 } from './tagsStore'
@@ -34,53 +31,23 @@ function stubBridge(overrides: Partial<Bridge> = {}): Bridge {
 
 afterEach(() => {
   delete (window as unknown as { launch?: unknown }).launch
-  tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+  tagsStore.setState({ tags: [], loaded: false })
   vi.restoreAllMocks()
 })
 
 describe('tagsStore — projection', () => {
-  it('starts empty and unfiltered; hydrate REPLACES the list and marks it loaded', () => {
+  it('starts empty; hydrate REPLACES the list and marks it loaded', () => {
     const s = createTagsViewStore()
-    expect(s.getState()).toMatchObject({ tags: [], loaded: false, activeTagId: null })
+    expect(s.getState()).toMatchObject({ tags: [], loaded: false })
     s.getState().hydrate([GLOBAL])
     s.getState().hydrate([IN_A])
     expect(s.getState().tags).toEqual([IN_A])
     expect(s.getState().loaded).toBe(true)
   })
 
-  it('hydrate drops a filter whose tag is gone (a control never sits on a value it does not offer)', () => {
-    const s = createTagsViewStore()
-    s.getState().hydrate([GLOBAL, IN_A])
-    s.getState().setActiveTag('a')
-    s.getState().hydrate([GLOBAL])
-    expect(s.getState().activeTagId).toBeNull()
-  })
-
   it('tagsForIds returns catalog rows in TAG-LIST order, skipping unknown ids', () => {
     expect(tagsForIds([GLOBAL, IN_A], ['a', 'ghost', 'g']).map((t) => t.id)).toEqual(['g', 'a'])
     expect(tagsForIds([GLOBAL, IN_A], [])).toEqual([])
-  })
-})
-
-describe('tagsStore — the filter (spec §4.1)', () => {
-  it('effectiveTagFilter is the chosen tag only where that workspace can see it', () => {
-    const s = createTagsViewStore()
-    s.getState().hydrate([GLOBAL, IN_A])
-    s.getState().setActiveTag('a')
-    expect(effectiveTagFilter(s.getState(), 'wa')).toBe('a')
-    expect(effectiveTagFilter(s.getState(), 'wb')).toBeNull()
-    s.getState().setActiveTag(null)
-    expect(effectiveTagFilter(s.getState(), 'wa')).toBeNull()
-  })
-
-  it('resetTagFilterIfHidden clears a filter the new workspace cannot see, and keeps a visible one', () => {
-    tagsStore.getState().hydrate([GLOBAL, IN_A])
-    setTagFilter('g')
-    resetTagFilterIfHidden('wb')
-    expect(tagsStore.getState().activeTagId).toBe('g')
-    setTagFilter('a')
-    resetTagFilterIfHidden('wb')
-    expect(tagsStore.getState().activeTagId).toBeNull()
   })
 })
 

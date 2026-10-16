@@ -18,7 +18,7 @@ beforeEach(() => {
   act(() => {
     templatesStore.setState({ templates: [], loaded: false, loadFailed: true })
     shortcutsStore.setState({ shortcuts: [], loaded: false, loadFailed: true })
-    tagsStore.setState({ tags: [], loaded: false, loadFailed: true, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: false, loadFailed: true })
     rulesStore.setState({ rules: [], brokenIds: [], loaded: false, loadFailed: true })
     workspacesStore.setState({
       workspaces: [],

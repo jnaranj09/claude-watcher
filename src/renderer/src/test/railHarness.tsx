@@ -28,7 +28,7 @@ export function resetRailStores(): void {
     searchQuery: ''
   })
   workspacesStore.setState({ activeId: 'default' })
-  tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+  tagsStore.setState({ tags: [], loaded: false })
   settingsStore.getState().hydrate(DEFAULT_SETTINGS)
   stubSettings()
 }

@@ -41,7 +41,7 @@ beforeEach(() => {
   }
   act(() => {
     workspacesStore.setState({ workspaces: WS, activeId: 'w1', loaded: true })
-    tagsStore.setState({ tags: [], loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: true })
     pastSessionsStore.setState({ sessions: [], loaded: true })
     templatesStore.setState({ templates: [TPL], loaded: true, loadFailed: false })
   })

@@ -24,7 +24,7 @@ beforeEach(() => {
     return d.promise
   })
   ;(window as unknown as { launch: unknown }).launch = { setTags }
-  tagsStore.setState({ tags: [A, B], loaded: true, activeTagId: null, pendingBySession: new Map() })
+  tagsStore.setState({ tags: [A, B], loaded: true, pendingBySession: new Map() })
   toastStore.setState({ toasts: [] })
 })
 async function settle(): Promise<void> {

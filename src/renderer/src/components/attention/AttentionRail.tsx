@@ -549,9 +549,9 @@ function RailSection(props: {
 }): JSX.Element | null {
   const { column, collapsed, showAllTags, onActivate, onRename, onSetTags, onManageTags } = props
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
-  // Sections follow the board's filter bar — its tag AND its search box. The PINNED row does not (it
-  // is the terminal you are typing in), and neither does the needs-you announcement (alerts ignore
-  // the filter).
+  // Sections follow the board's filter bar — its filters AND its search box. The PINNED row does
+  // not (it is the terminal you are typing in), and neither does the needs-you announcement
+  // (alerts ignore the filter).
   const filter = useBoardFilter(activeWorkspaceId)
   const ids = useBoard(
     useShallow((s: BoardState) => selectRailSection(s, column, activeWorkspaceId, filter))

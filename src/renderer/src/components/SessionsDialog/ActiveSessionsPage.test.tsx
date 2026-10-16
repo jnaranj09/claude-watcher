@@ -57,7 +57,7 @@ beforeEach(() => {
   }
   act(() => {
     workspacesStore.setState({ workspaces: WS, activeId: 'w1', loaded: true })
-    tagsStore.setState({ tags: [], loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: true })
     boardStore.setState({
       sessionsById: SESSIONS,
       terminalIdBySessionId: { a: 'ta', b: 'tb', c: 'tc', d: 'td' },

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
+  clearFilterHint,
   folderName,
+  hiddenByFilterSentence,
   formatDay,
   removeFilterLabel,
   timePickRowLabel,
@@ -38,5 +40,18 @@ describe('filter pill copy', () => {
 
   it('× says which filter it removes', () => {
     expect(removeFilterLabel('folder')).toBe('Remove the folder filter')
+  })
+})
+
+describe('board empty sentences', () => {
+  it('name what hides the cards', () => {
+    expect(hiddenByFilterSentence(true, '')).toBe('No sessions match the filters')
+    expect(hiddenByFilterSentence(false, ' dep ')).toBe('No sessions match “dep”')
+    expect(hiddenByFilterSentence(true, 'dep')).toBe('No sessions match the filters and “dep”')
+    expect(clearFilterHint(true, '')).toBe('Remove a filter to see every session.')
+    expect(clearFilterHint(false, 'x')).toBe('Clear the search to see every session.')
+    expect(clearFilterHint(true, 'x')).toBe(
+      'Clear the search or remove a filter to see every session.'
+    )
   })
 })

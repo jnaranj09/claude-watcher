@@ -37,7 +37,7 @@ beforeEach(() => {
   }
   act(() => {
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: true })
-    tagsStore.setState({ tags: [], loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: true })
     templatesStore.getState().hydrate([])
     rulesStore.getState().hydrate({ rules: [R_A, R_B], brokenIds: [] })
   })

@@ -64,9 +64,8 @@ export interface TagMenuRowProps {
   tag: Pick<Tag, 'id' | 'name' | 'color'>
   /** Carries the tag now: the row is outlined and shows the ✓. */
   checked: boolean
-  /** `menuitemcheckbox` in the filter (several tags), `checkbox` in the picker. `menuitemradio`
-   *  stays for the board's one-tag filter until it renders FilterChips. */
-  role: 'menuitemradio' | 'menuitemcheckbox' | 'checkbox'
+  /** `menuitemcheckbox` in the filter (several tags), `checkbox` in the picker. */
+  role: 'menuitemcheckbox' | 'checkbox'
   testId: string
   onClick: () => void
 }

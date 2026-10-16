@@ -39,7 +39,7 @@ beforeEach(() => {
   ;(window as unknown as { tags: unknown }).tags = { list: vi.fn(), save, remove }
   act(() => {
     workspacesStore.setState({ workspaces: WS, activeId: 'default', loaded: true })
-    tagsStore.setState({ tags: [DEPLOY, OPS], loaded: true, activeTagId: null })
+    tagsStore.setState({ tags: [DEPLOY, OPS], loaded: true })
   })
 })
 
@@ -47,7 +47,7 @@ afterEach(() => {
   cleanup?.()
   cleanup = undefined
   act(() => {
-    tagsStore.setState({ tags: [], loaded: false, activeTagId: null })
+    tagsStore.setState({ tags: [], loaded: false })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
     rulesStore.setState({ rules: [], brokenIds: [], loaded: false })
   })
@@ -184,8 +184,7 @@ describe('TagsDialog', () => {
           { id: 't-acme', name: 'acme', color: 'blue', workspaceId: null },
           { id: 't-acme-prod', name: 'acme/prod', color: 'blue', workspaceId: null }
         ],
-        loaded: true,
-        activeTagId: null
+        loaded: true
       })
     })
     const { r } = render()

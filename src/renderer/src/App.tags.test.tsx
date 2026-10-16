@@ -32,7 +32,7 @@ beforeEach(() => {
 
 afterEach(() => {
   unmountRendered()
-  act(() => tagsStore.setState({ tags: [], loaded: false, activeTagId: null }))
+  act(() => tagsStore.setState({ tags: [], loaded: false }))
   vi.restoreAllMocks()
 })
 
@@ -53,6 +53,7 @@ describe('App — tags', () => {
     act(() => boardStore.getState().applyWatchEvent(watchUpdated(0, 's1', 'working', 100)))
     click(q(r, '[data-testid="filter-toggle"]'))
     click(q(r, '[data-testid="filter-add"]'))
+    click(q(r, '[data-testid="filter-type-tag"]'))
     expect(r.container.querySelector('[data-testid="filter-tag-row-t-deploy"]')).not.toBeNull()
   })
 

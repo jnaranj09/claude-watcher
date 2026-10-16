@@ -20,8 +20,11 @@ import {
   selectSessionsDialog,
   selectSearchQuery,
   selectShellPane,
-  NO_FILTER
+  selectBoardFilters,
+  NO_FILTER,
+  type BoardFilter
 } from './boardStore'
+import { NO_FILTERS, type SessionFilters } from '../lib/sessionFilters'
 import type { Column, WatchEventsPayload } from '../../../shared/ipc/contract'
 import { watchRemoved, watchUpdated } from '../../../__fixtures__/watchEvents'
 import { FIXED_NOW, makeClock } from '../test/boardStoreFixtures'
@@ -456,6 +459,11 @@ describe('session templates — view-state', () => {
   })
 })
 
+/** A board filter with only these tags on and this search text. */
+function byTag(tagIds: string[], query = ''): BoardFilter {
+  return { filters: { ...NO_FILTERS, tagIds }, query, now: () => 0 }
+}
+
 describe('tag filtering (spec §4.1)', () => {
   function seeded(): ReturnType<typeof createBoardStore> {
     const store = createBoardStore({ now: () => 1 })
@@ -472,28 +480,28 @@ describe('tag filtering (spec §4.1)', () => {
     return store
   }
 
-  it('null shows every card; a tag id shows only the cards carrying it', () => {
+  it('no tag shows every card; a tag id shows only the cards carrying it', () => {
     const s = seeded().getState()
     expect(
       selectColumn(s, 'working', 'default', NO_FILTER)
         .map((c) => c.id)
         .sort()
     ).toEqual(['plain-card', 'prod-card'])
-    expect(
-      selectColumn(s, 'working', 'default', { tagId: 't-prod', query: '' }).map((c) => c.id)
-    ).toEqual(['prod-card'])
-    expect(selectColumnCount(s, 'needs-you', 'default', { tagId: 't-prod', query: '' })).toBe(1)
+    expect(selectColumn(s, 'working', 'default', byTag(['t-prod'])).map((c) => c.id)).toEqual([
+      'prod-card'
+    ])
+    expect(selectColumnCount(s, 'needs-you', 'default', byTag(['t-prod']))).toBe(1)
     expect(selectTotalCount(s, 'default', NO_FILTER)).toBe(4)
-    expect(selectTotalCount(s, 'default', { tagId: 't-prod', query: '' })).toBe(2)
-    expect(selectRailSection(s, 'needs-you', 'default', { tagId: 't-prod', query: '' })).toEqual([
+    expect(selectTotalCount(s, 'default', byTag(['t-prod']))).toBe(2)
+    expect(selectRailSection(s, 'needs-you', 'default', byTag(['t-prod']))).toEqual([
       'prod-waiting'
     ])
   })
 
   it('the switcher counts ignore the filter — alerts never go through the board selectors (W-3)', () => {
     // Drift guard for W-3: selectNeedsYouCountByWorkspace feeds the switcher badge and the OS
-    // notifier, both of which must fire regardless of the header tag filter. It takes no tagId
-    // argument at all — this proves a tag filter can never mute an alert.
+    // notifier, both of which must fire regardless of the board filters. It takes no filter
+    // argument at all — this proves a filter can never mute an alert.
     expect(selectNeedsYouCountByWorkspace(seeded().getState())).toEqual({ default: 2 })
   })
 })
@@ -521,7 +529,7 @@ describe('search — the filter bar narrows the board by card NAME', () => {
 
   it('matches the card name case-insensitively, anywhere in it — board and rail alike', () => {
     const s = seeded().getState()
-    const f = { tagId: null, query: 'DEPLOY' }
+    const f = byTag([], 'DEPLOY')
     expect(
       selectColumn(s, 'working', 'default', f)
         .map((c) => c.id)
@@ -534,22 +542,22 @@ describe('search — the filter bar narrows the board by card NAME', () => {
 
   it('a blank query hides nothing, and spaces around the query are ignored', () => {
     const s = seeded().getState()
-    expect(selectTotalCount(s, 'default', { tagId: null, query: '   ' })).toBe(4)
-    expect(selectTotalCount(s, 'default', { tagId: null, query: '  review ' })).toBe(1)
+    expect(selectTotalCount(s, 'default', byTag([], '   '))).toBe(4)
+    expect(selectTotalCount(s, 'default', byTag([], '  review '))).toBe(1)
   })
 
-  it('search and the tag filter combine: a card must pass both', () => {
+  it('search and the filters combine: a card must pass both', () => {
     const s = seeded().getState()
     expect(
-      selectColumn(s, 'working', 'default', { tagId: 't-prod', query: 'deploy' }).map((c) => c.id)
+      selectColumn(s, 'working', 'default', byTag(['t-prod'], 'deploy')).map((c) => c.id)
     ).toEqual(['a'])
   })
 
-  // The folder is a FILTER's job in a later release, not the search box's.
+  // The folder is the Folder filter's job, not the search box's.
   it('matches the name only, never the folder', () => {
     const store = seeded()
     store.getState().applyWatchEvent(card('e', 'Other', { projectPath: '/srv/deploy' }))
-    expect(selectTotalCount(store.getState(), 'default', { tagId: null, query: 'deploy' })).toBe(3)
+    expect(selectTotalCount(store.getState(), 'default', byTag([], 'deploy'))).toBe(3)
   })
 
   it('holds the search text as view-state, verbatim, and starts empty', () => {
@@ -561,6 +569,62 @@ describe('search — the filter bar narrows the board by card NAME', () => {
 
   it('NO_FILTER hides nothing', () => {
     expect(selectTotalCount(seeded().getState(), 'default', NO_FILTER)).toBe(4)
+  })
+})
+
+describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
+  const API = { ...NO_FILTERS, tagIds: ['t-api'] }
+  const LATE = { ...NO_FILTERS, launched: { kind: 'preset', range: 'today' } as const }
+
+  it('each workspace keeps its own filters; switching back finds them all', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().setBoardFilters('w1', { ...API, folders: ['/p/a'], launched: LATE.launched })
+    store.getState().setBoardFilters('w2', LATE)
+    expect(selectBoardFilters(store.getState(), 'w1')).toEqual({
+      ...API,
+      folders: ['/p/a'],
+      launched: LATE.launched
+    })
+    expect(selectBoardFilters(store.getState(), 'w2')).toEqual(LATE)
+    expect(selectBoardFilters(store.getState(), 'w3')).toBe(NO_FILTERS)
+  })
+
+  it('pruneBoardFilters drops a deleted workspace', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().setBoardFilters('gone', API)
+    store.getState().pruneBoardFilters(['default'])
+    expect(selectBoardFilters(store.getState(), 'gone')).toBe(NO_FILTERS)
+  })
+
+  it('selectors narrow by folder, tags (any of) and launch time', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store
+      .getState()
+      .applyWatchEvent(watchUpdated(1, 'a', 'idle', 100, { tagIds: ['t-api'], launchedAt: 5_000 }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 100, { tagIds: ['t-web'] }))
+    const filter = (filters: SessionFilters): BoardFilter => ({
+      filters,
+      query: '',
+      now: () => 10_000
+    })
+    expect(
+      selectColumn(
+        store.getState(),
+        'idle',
+        'default',
+        filter({ ...NO_FILTERS, tagIds: ['t-api', 't-web'] })
+      ).map((s) => s.id)
+    ).toEqual(expect.arrayContaining(['a', 'b']))
+    expect(
+      selectTotalCount(store.getState(), 'default', filter({ ...NO_FILTERS, folders: ['/p/b'] }))
+    ).toBe(1)
+    expect(
+      selectTotalCount(
+        store.getState(),
+        'default',
+        filter({ ...NO_FILTERS, launched: { kind: 'preset', range: '7d' } })
+      )
+    ).toBe(1)
   })
 })
 

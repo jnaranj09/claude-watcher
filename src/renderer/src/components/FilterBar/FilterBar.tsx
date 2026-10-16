@@ -4,59 +4,46 @@
 //
 //   - the CONTROLS row, always drawn: the search box, the `Filter` button, and the count on the
 //     right. The count lives here so it shows whenever something is hidden, by either control.
-//   - the CHIP row, drawn while the `Filter` button is pressed: the active filter as a removable pill
-//     (`Tag is <chip> ×`), or `+ Add filter` while none is on. Tag is the only filter type today,
-//     so `+ Add filter` opens the tag list DIRECTLY; a type step (`Tag ▸`) belongs here only once a
-//     second filter type exists.
+//   - the CHIP row, drawn while the `Filter` button is pressed: `FilterChips` (spec 2026-10-16),
+//     the one chip row the Sessions dialog's pages also render, offering tag, folder and launch
+//     time here. The lists, pills, calendar and their keys all live there.
 //
 // The button is LIT while the chip row is open (like the rail's open tag toggles), and while it is
-// closed with a filter on, because the pill is then out of sight while cards are still hidden. With
-// a filter on it also carries the count. The search is not counted on it: the box already shows
-// what it holds. Open/closed is local view-state, never persisted.
+// closed with a filter on, because the pills are then out of sight while cards are still hidden.
+// With filters on it also carries how many TYPES are on (`activeFilterCount`). The search is not
+// counted on it: the box already shows what it holds. Open/closed is local view-state, never
+// persisted. The button shows whenever the workspace has sessions: folder and time need no tag.
 //
-// The tag choice is renderer view-state in tagsStore (one tag at a time, never persisted), offered
-// from exactly what the ACTIVE workspace can see (T-11), and it CLEARS when the operator switches to
-// a workspace that cannot see it (spec §4.1). The search text is view-state in boardStore and is
-// matched against the card NAME only (folder and the rest are future filter types). Both narrow the
-// board and the rail; alerts ignore them.
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type JSX,
-  type KeyboardEvent
-} from 'react'
+// The filters are kept PER WORKSPACE in `boardStore.filtersByWorkspace` (view-state, never
+// persisted): switching away keeps them, switching back brings them all back. Tags are offered
+// from exactly what the ACTIVE workspace can see (T-11), and a stored tag it cannot see is dropped
+// at read time (`useBoardFilter`). The search text is ONE global box in boardStore, matched against
+// the card NAME only. Both narrow the board and the rail; alerts ignore them.
+import { useCallback, useId, useState, type JSX, type KeyboardEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import {
-  effectiveTagFilter,
-  resetTagFilterIfHidden,
-  setTagFilter,
-  useTags,
-  type TagsState
-} from '../../stores/tagsStore'
-import { boardStore, selectSearchQuery, useBoard } from '../../stores/boardStore'
+import { useTags, type TagsState } from '../../stores/tagsStore'
+import { boardStore, selectSearchQuery, useBoard, useBoardFilter } from '../../stores/boardStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
+import { activeFilterCount, type FilterType } from '../../lib/sessionFilters'
 import { Button } from '../Button/Button'
-import { TagChip } from '../TagChip/TagChip'
-import { Popover } from '../Popover/Popover'
-import { PlusIcon } from '../Icon/MenuIcons'
-import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
+import { FilterChips } from '../FilterChips/FilterChips'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './FilterBar.module.css'
-import { Presence } from '../Presence/Presence'
 
 export interface FilterBarProps {
   /** Sessions the board shows under the current filter and search. */
   total: number
   /** Sessions in the active workspace, unfiltered. 0 ⇒ nothing to filter, so no bar. */
   workspaceTotal: number
-  /** Opens the Tags dialog: the list's `Create tags` row while no tag exists yet. Omitted ⇒ with no
-   *  tag to offer, no `Filter` button (a control that opens onto nothing is not rendered). */
+  /** Opens the Tags dialog: the tag list's `Create tags` row while no tag exists yet. */
   onManageTags?: () => void
+  /** The clock the time filters read (state.md: inject now()). */
+  now?: () => number
 }
+
+/** The types the board offers, in pill order (Ended is Past's only). */
+const BOARD_TYPES: readonly FilterType[] = ['tag', 'folder', 'launched']
 
 function countText(total: number, workspaceTotal: number, filtered: boolean): string {
   if (!filtered) return workspaceTotal === 1 ? '1 session' : `${workspaceTotal} sessions`
@@ -95,65 +82,33 @@ function SearchIcon(): JSX.Element {
 export function FilterBar({
   total,
   workspaceTotal,
-  onManageTags
+  onManageTags,
+  now = Date.now
 }: FilterBarProps): JSX.Element | null {
   const [expanded, setExpanded] = useState(false)
   const chipRowId = useId()
-  const [open, setOpen] = useState(false)
-  const anchorRef = useRef<HTMLDivElement | null>(null)
-  // The ONE list trigger on screen: `+ Add filter` with no filter on, the pill's button with one on.
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
-  // Bumped when the list closes by a choice, Escape or ×. The trigger may then be a DIFFERENT
-  // element (the pill replaces `+ Add filter`), so focus moves in an effect, after the render that
-  // drew it.
-  const [refocusTick, setRefocusTick] = useState(0)
   const query = useBoard(selectSearchQuery)
   const activeWorkspaceId = useWorkspaces(selectActiveWorkspaceId)
+  const filter = useBoardFilter(activeWorkspaceId, now)
   const visible = useTags(useShallow((s: TagsState) => visibleTags(s.tags, activeWorkspaceId)))
-  const activeTagId = useTags((s) => effectiveTagFilter(s, activeWorkspaceId))
-  const active = visible.find((t) => t.id === activeTagId) ?? null
   // Global first, then this workspace's own — the order spec §4.3 lists them in.
   const ordered = [
     ...visible.filter((t) => t.workspaceId === null),
     ...visible.filter((t) => t.workspaceId !== null)
   ]
-
-  // Spec §4.1 — a workspace switch (or a catalog change) that hides the chosen tag clears it.
-  useEffect(() => {
-    resetTagFilterIfHidden(activeWorkspaceId)
-  }, [activeWorkspaceId, visible])
-
-  useEffect(() => {
-    if (!open) return
-    const onMouseDown = (e: MouseEvent): void => {
-      if (anchorRef.current?.contains(e.target as Node) === true) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [open])
-
-  useEffect(() => {
-    if (refocusTick > 0) triggerRef.current?.focus()
-  }, [refocusTick])
-
-  const closeAndRefocus = useCallback((): void => {
-    setOpen(false)
-    setRefocusTick((n) => n + 1)
-  }, [])
-
-  // Escape peels ONE layer: it closes the list and must not also reach an Escape handler above it.
-  const handleMenuKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>): void => {
-      if (e.key !== 'Escape') return
-      e.stopPropagation()
-      closeAndRefocus()
-    },
-    [closeAndRefocus]
+  // The folders this workspace's cards run in (never another workspace's).
+  const folders = useBoard(
+    useShallow((s) => [
+      ...new Set(
+        Object.values(s.sessionsById)
+          .filter((x) => x.workspaceId === activeWorkspaceId)
+          .map((x) => x.projectPath)
+      )
+    ])
   )
 
-  // The same for the search box: Escape clears the text and stops there. An empty box has nothing
-  // to peel, so its Escape passes through (Focused → Board still works from inside it).
+  // The search box: Escape clears the text and stops there. An empty box has nothing to peel, so
+  // its Escape passes through (Focused → Board still works from inside it).
   const handleSearchKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>): void => {
       if (e.key !== 'Escape' || query === '') return
@@ -163,32 +118,10 @@ export function FilterBar({
     [query]
   )
 
-  function pick(id: string): void {
-    setTagFilter(id)
-    closeAndRefocus()
-  }
-
-  function remove(): void {
-    setTagFilter(null)
-    closeAndRefocus()
-  }
-
-  function createTags(): void {
-    setOpen(false)
-    onManageTags?.()
-  }
-
-  // Closing the chip row takes an open tag list with it: the list hangs off a control that is going away.
-  function toggleExpanded(): void {
-    setExpanded((v) => !v)
-    setOpen(false)
-  }
-
   if (workspaceTotal === 0) return null
 
-  // No tag to offer and no way to make one: the `Filter` button would open onto nothing.
-  const canFilter = visible.length > 0 || onManageTags !== undefined
-  const filterOn = active !== null
+  const count = activeFilterCount(filter.filters)
+  const filterOn = count > 0
   const searching = query.trim() !== ''
   const lit = expanded || filterOn
 
@@ -213,26 +146,24 @@ export function FilterBar({
             onKeyDown={handleSearchKeyDown}
           />
         </div>
-        {canFilter && (
-          <Button
-            variant="secondary"
-            lit={lit}
-            testId="filter-toggle"
-            aria-expanded={expanded}
-            aria-controls={chipRowId}
-            title={expanded ? 'Hide filters' : 'Show filters'}
-            aria-label={filterOn ? 'Filter, 1 on' : 'Filter'}
-            onClick={toggleExpanded}
-          >
-            <FilterLinesIcon />
-            Filter
-            {filterOn && (
-              <span className={styles.toggleCount} data-testid="filter-toggle-count">
-                1
-              </span>
-            )}
-          </Button>
-        )}
+        <Button
+          variant="secondary"
+          lit={lit}
+          testId="filter-toggle"
+          aria-expanded={expanded}
+          aria-controls={chipRowId}
+          title={expanded ? 'Hide filters' : 'Show filters'}
+          aria-label={filterOn ? `Filter, ${count} on` : 'Filter'}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <FilterLinesIcon />
+          Filter
+          {filterOn && (
+            <span className={styles.toggleCount} data-testid="filter-toggle-count">
+              {count}
+            </span>
+          )}
+        </Button>
         <span
           className={styles.count}
           data-testid="filter-count"
@@ -242,87 +173,18 @@ export function FilterBar({
           {countText(total, workspaceTotal, filterOn || searching)}
         </span>
       </div>
-      {canFilter && expanded && (
-        <div id={chipRowId} className={styles.chipRow}>
-          <div className={styles.anchor} ref={anchorRef}>
-            {active === null ? (
-              <button
-                type="button"
-                ref={triggerRef}
-                className={styles.add}
-                data-testid="filter-add"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                onClick={() => setOpen((v) => !v)}
-              >
-                + Add filter
-              </button>
-            ) : (
-              <span className={styles.pill} data-testid="filter-pill-tag">
-                <button
-                  type="button"
-                  ref={triggerRef}
-                  className={styles.pillEdit}
-                  data-testid="filter-pill-tag-edit"
-                  aria-haspopup="menu"
-                  aria-expanded={open}
-                  aria-label={`Tag filter: ${active.name}. Change it`}
-                  onClick={() => setOpen((v) => !v)}
-                >
-                  <span className={styles.pillKey}>Tag is</span>
-                  <TagChip tag={active} />
-                </button>
-                <button
-                  type="button"
-                  className={styles.pillRemove}
-                  data-testid="filter-pill-tag-remove"
-                  aria-label="Remove the tag filter"
-                  title="Remove the tag filter"
-                  onClick={remove}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            <Presence value={open || null}>
-              {() => (
-                <TagMenu
-                  align="start"
-                  role="menu"
-                  ariaLabel="Filter by tag"
-                  onKeyDown={handleMenuKeyDown}
-                >
-                  {ordered.length === 0 ? (
-                    <>
-                      <TagMenuNote testId="filter-no-tags">No tags yet</TagMenuNote>
-                      <Popover.QuietItem
-                        role="menuitem"
-                        testId="filter-create-tags"
-                        onClick={createTags}
-                      >
-                        <Popover.ItemIcon>
-                          <PlusIcon />
-                        </Popover.ItemIcon>
-                        Create tags
-                      </Popover.QuietItem>
-                    </>
-                  ) : (
-                    ordered.map((t) => (
-                      <TagMenuRow
-                        key={t.id}
-                        tag={t}
-                        checked={t.id === activeTagId}
-                        role="menuitemradio"
-                        testId={`filter-tag-row-${t.id}`}
-                        onClick={() => pick(t.id)}
-                      />
-                    ))
-                  )}
-                </TagMenu>
-              )}
-            </Presence>
-          </div>
-        </div>
+      {expanded && (
+        <FilterChips
+          id={chipRowId}
+          filters={filter.filters}
+          onChange={(next) => boardStore.getState().setBoardFilters(activeWorkspaceId, next)}
+          types={BOARD_TYPES}
+          tags={ordered}
+          folders={folders}
+          now={now}
+          testIdPrefix="filter"
+          {...(onManageTags !== undefined ? { onManageTags } : {})}
+        />
       )}
     </div>
   )
