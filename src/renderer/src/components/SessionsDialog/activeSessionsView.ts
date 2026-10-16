@@ -1,6 +1,7 @@
 // The Active sessions page's rules, pure (spec 2026-10-03 D): which live sessions a scope, a
-// search and the rail's filters (spec 2026-10-16) show and in what order, how long each has been in its status, and what a bulk Archive /
-// Delete says afterwards. Kept out of the component so each is tested without rendering.
+// search and the rail's filters (spec 2026-10-16) show and in what order, how long each has been
+// in its status, and what a bulk Archive / Delete says afterwards. Kept out of the component so
+// each is tested without rendering.
 import type { Column } from '../../../../shared/ipc/contract'
 import type { ExitOutcome, ExitVerb } from '../../lib/sessionExit'
 import { matchesFilters, type SessionFilters } from '../../lib/sessionFilters'
@@ -85,7 +86,6 @@ export function exitResultCopy(
 /** StopConfirm's consequence sentence, beside an armed Delete (the dialog cannot open StopConfirm:
  *  no modal over a dialog). */
 export function deleteConsequence(count: number): string {
-  return count === 1
-    ? "The session is stopped and nothing is kept in Past sessions. Claude's own files are not touched."
-    : "The sessions are stopped and nothing is kept in Past sessions. Claude's own files are not touched."
+  const who = count === 1 ? 'The session is' : 'The sessions are'
+  return `${who} stopped and nothing is kept in Past sessions. Claude's own files are not touched.`
 }

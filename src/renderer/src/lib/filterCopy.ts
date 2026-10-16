@@ -38,7 +38,7 @@ export const FILTER_TYPE_LABEL: Readonly<Record<FilterType, string>> = {
 
 const DAY_FORMAT: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
 
-/** `Wed, Oct 14` in en-US — the operator's own locale. */
+/** The day in the operator's locale (`Wed, Oct 14` in en-US). */
 export function formatDay(day: string): string {
   return new Date(dayWindow(day).start).toLocaleDateString(undefined, DAY_FORMAT)
 }

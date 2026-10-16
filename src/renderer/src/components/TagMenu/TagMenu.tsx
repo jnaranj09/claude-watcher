@@ -1,6 +1,5 @@
-// TagMenu — the ONE drawing of a tag list popup (2026-09-29): the filter's tag list (FilterChips,
-// and the board's FilterBar until it renders FilterChips) and the TagPicker (a board card's
-// `Tags…`, the rail peek's `+ tag`). They were two looks — chips on the filter, bare names beside
+// TagMenu — the ONE drawing of a tag list popup (2026-09-29): the filter's tag list (FilterChips)
+// and the TagPicker (a board card's `Tags…`, the rail peek's `+ tag`). They were two looks — chips on the filter, bare names beside
 // native checkboxes on the picker, which the desktop theme painted white — and the operator liked
 // the filter's. Both callers render these parts, so the look lives in Popover (spec 2026-10-01);
 // `TagMenu.test.tsx` fails if a caller grows its own.
