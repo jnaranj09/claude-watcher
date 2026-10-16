@@ -49,7 +49,10 @@ export const EnrichedSessionUpdatedSchema = z.object({
   tagIds: z.array(z.string().min(1)),
   pendingToolName: z.string().optional(),
   /** Name-sync (D-11) — present and true only while a rename waits for the next prompt. */
-  nameSyncPending: z.boolean().optional()
+  nameSyncPending: z.boolean().optional(),
+  /** Session filters (spec 2026-10-16) — epoch millis the launch was registered; absent for a
+   *  session with no launch record. The board's Launched filter reads it. */
+  launchedAt: z.number().int().nonnegative().optional()
 })
 
 /**

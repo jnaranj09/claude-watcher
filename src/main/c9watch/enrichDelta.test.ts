@@ -195,6 +195,15 @@ describe('enrichDelta — tags ride the enriched delta (spec §3)', () => {
     const out2 = enrichDelta(bare, tracker, new Map([[quiet.id, quiet]]))
     expect(out2?.event).not.toHaveProperty('nameSyncPending')
   })
+
+  it('carries launchedAt when the stored session has one, and omits it otherwise', () => {
+    const launched: Session = { ...session, launchedAt: 1_700_000_000_000 }
+    const out = enrichDelta(bare, tracker, new Map([[launched.id, launched]]))
+    expect(out?.event).toMatchObject({ type: 'session.updated', launchedAt: 1_700_000_000_000 })
+
+    const out2 = enrichDelta(bare, tracker, new Map([[session.id, session]]))
+    expect(out2?.event).not.toHaveProperty('launchedAt')
+  })
 })
 
 describe('enrichDelta — fail-closed when the tracker has no column (Tasks 7.3/7.4)', () => {

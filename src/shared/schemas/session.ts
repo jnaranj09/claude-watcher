@@ -86,8 +86,9 @@ export const SessionSchema = z
      *  force every Session literal to carry it, and the wire spreads it only when true. */
     nameSyncPending: z.boolean().optional(),
     /** Past sessions — epoch millis the launch recipe was registered (stamped by the launch
-     *  service, copied onto the card at synthesis). Never shipped to the renderer; read by the
-     *  archive record. Optional: an older stored session has none. */
+     *  service, copied onto the card at synthesis). Read by the archive record, and shipped on
+     *  the watch delta for the board's Launched filter (spec 2026-10-16). Optional: an older
+     *  stored session has none. */
     launchedAt: z.number().int().nonnegative().optional(),
     // --- full shape (safe to mark optional) ---
     firstPrompt: z.string().optional(),

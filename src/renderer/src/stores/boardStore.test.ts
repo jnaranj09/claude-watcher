@@ -280,3 +280,13 @@ describe('boardStore — the PINNED hero column (Needs-you always holds the cent
     expect(actionNames).toContain('applyWatchEvent')
   })
 })
+
+describe('boardStore — launchedAt projection', () => {
+  it('copies launchedAt from the delta onto the card, and leaves it absent when the delta has none', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'idle', 100, { launchedAt: 42 }))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 100))
+    expect(store.getState().sessionsById['a']?.launchedAt).toBe(42)
+    expect(store.getState().sessionsById['b']).not.toHaveProperty('launchedAt')
+  })
+})

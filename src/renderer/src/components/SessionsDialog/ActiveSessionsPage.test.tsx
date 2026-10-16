@@ -266,9 +266,7 @@ describe('Sessions → Active — details', () => {
   it('the row opens read-only details: Name, Folder, Workspace, Tags, Status, Launched', () => {
     act(() =>
       boardStore.setState({
-        launchedTerminals: {
-          tb: { terminalId: 'tb', launchedAt: 1_000, label: 'b', workspaceId: 'w1' }
-        }
+        sessionsById: { ...SESSIONS, b: { ...SESSIONS.b, launchedAt: 1_000 } }
       })
     )
     const r = render()
@@ -282,7 +280,7 @@ describe('Sessions → Active — details', () => {
       q(r, '[data-testid="active-session-form-status"] [data-testid="status-label"]')?.textContent
     ).toBe('Needs you')
     expect(q(r, '[data-testid="active-session-form-launched"]')).not.toBeNull()
-    openRow(r, 'c') // no registry entry → no Launched row
+    openRow(r, 'c') // no launchedAt on the card → no Launched row
     expect(q(r, '[data-testid="active-session-form-launched"]')).toBeNull()
   })
 

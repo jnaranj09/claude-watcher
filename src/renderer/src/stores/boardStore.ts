@@ -166,6 +166,9 @@ export interface BoardSession {
   tagIds: string[]
   /** Name-sync — a rename waiting for the next prompt; read off the delta, absent = false. */
   nameSyncPending?: boolean
+  /** Session filters — epoch millis of the launch, read off the delta (session truth). The store
+   *  never writes it. Absent = unknown. */
+  launchedAt?: number
 }
 
 /** The two columns that were ever HERO-ELIGIBLE. Idle is NEVER the hero (FROZEN-1 / AC-2) —
@@ -641,7 +644,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           ...(event.pendingToolName !== undefined
             ? { pendingToolName: event.pendingToolName }
             : {}),
-          ...(event.nameSyncPending === true ? { nameSyncPending: true } : {})
+          ...(event.nameSyncPending === true ? { nameSyncPending: true } : {}),
+          ...(event.launchedAt !== undefined ? { launchedAt: event.launchedAt } : {})
         }
         const sessionsById = { ...state.sessionsById, [event.id]: next }
         // Story 3.4 (FR-16 / AC-4) — reconcile the ack state with c9watch truth: when a session

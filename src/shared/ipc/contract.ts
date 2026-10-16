@@ -397,6 +397,9 @@ export type SessionUpdatedEvent = {
   /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt (the card
    *  draws the ⟳ mark). Absent = false. */
   nameSyncPending?: boolean
+  /** Session filters — epoch millis of the launch (main's `Session.launchedAt`). Absent = unknown;
+   *  the Launched filter then hides the card. */
+  launchedAt?: number
 }
 
 /**

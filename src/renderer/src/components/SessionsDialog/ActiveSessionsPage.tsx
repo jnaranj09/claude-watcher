@@ -287,10 +287,7 @@ function ActiveSessionDetails({
   const tags = useTags(selectTags)
   const shownTags = tagsForIds(tags, session.tagIds)
   const workspace = workspaces.find((w) => w.id === session.workspaceId) ?? null
-  const launchedAt = useBoard((s) => {
-    const terminalId = s.terminalIdBySessionId[session.id]
-    return terminalId === undefined ? undefined : s.launchedTerminals[terminalId]?.launchedAt
-  })
+  const launchedAt = session.launchedAt
   return (
     <>
       <ManageDialog.Label>Name</ManageDialog.Label>

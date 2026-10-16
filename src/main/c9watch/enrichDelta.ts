@@ -61,7 +61,8 @@ export function enrichDelta(
     workspaceId: session?.workspaceId,
     tagIds: session?.tagIds,
     ...(session?.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {}),
-    ...(session?.nameSyncPending === true ? { nameSyncPending: true } : {})
+    ...(session?.nameSyncPending === true ? { nameSyncPending: true } : {}),
+    ...(session?.launchedAt !== undefined ? { launchedAt: session.launchedAt } : {})
   }
 
   const result = EnrichedSessionUpdatedSchema.safeParse(candidate)
@@ -87,7 +88,8 @@ export function enrichDelta(
     workspaceId: d.workspaceId,
     tagIds: d.tagIds,
     ...(d.pendingToolName !== undefined ? { pendingToolName: d.pendingToolName } : {}),
-    ...(d.nameSyncPending === true ? { nameSyncPending: true } : {})
+    ...(d.nameSyncPending === true ? { nameSyncPending: true } : {}),
+    ...(d.launchedAt !== undefined ? { launchedAt: d.launchedAt } : {})
   }
   return { epoch, event: validated }
 }
