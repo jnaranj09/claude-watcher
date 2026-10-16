@@ -333,7 +333,10 @@ variant="inline">` + magnifier `icon`. Escape with text clears and stops; empty 
   (the row is a stacking context, each list positioned), never pushing them down. A popup under a
   trigger (the type menu, a pill's list, the Calendar) lines up with the trigger's left edge, or
   with its right edge when `trigger.left + SUBMENU_ROOM` passes the window (`popupAlign`, the
-  submenu's flip rule, measured as it opens), so it stays inside the window.
+  submenu's flip rule, measured as it opens), so it stays inside the window. Every popup the row
+  opens is at most `FILTER_LIST_MAX` wide (`SUBMENU_ROOM` minus the submenu gap; the chip row sets
+  `--popover-max-width`), so a value list always fits the room the flip reserves. A folder row's
+  parent path gives way first, then the name ends in `…`; the row's `title` is the full path.
 - **Per workspace:** `boardStore.filtersByWorkspace` — switching away keeps a workspace's filters,
   switching back restores them all. Not persisted. Tags a workspace cannot see drop out at read
   time (`useBoardFilter` → `effectiveFilters`). Search stays ONE global box.
@@ -500,7 +503,8 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   one is a `Button` (the Calendar's month arrows).
 - **Hand-made menu/list popup → `components/Popover`** (spec
   `2026-10-01-popover-standard-design.md`). Parts: `Surface` (box, never scrolls), `List` (only
-  scrolling part, `--popover-max-height` on the caller's wrapper), `Item`, `CompactItem`,
+  scrolling part, `--popover-max-height` on the caller's wrapper; `--popover-max-width` caps the
+  Surface the same way), `Item`, `CompactItem`,
   `QuietItem`, `ItemIcon`, `ItemEnd`, `Divider`, `Note`, and `Submenu` (a row whose list opens
   beside it; the only part that also behaves: hover / click / ArrowRight / ArrowLeft). Draws only — roles, keys, open/close,
   position stay with the caller; no `className`. Row states read from ARIA (`aria-selected`,

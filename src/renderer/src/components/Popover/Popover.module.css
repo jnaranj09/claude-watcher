@@ -8,6 +8,8 @@
 .surface {
   position: relative;
   box-sizing: border-box;
+  /* A caller's cap on the box (a custom property inherits into its submenus): FilterChips. */
+  max-width: var(--popover-max-width, none);
   display: flex;
   flex-direction: column;
   gap: var(--gap-row);

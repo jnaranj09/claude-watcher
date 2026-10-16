@@ -328,9 +328,10 @@ export function FilterChips({
           role="menuitemcheckbox"
           aria-checked={checked}
           testId={tid(`folder-row-${path}`)}
+          title={path}
           onClick={() => toggleFolder(path)}
         >
-          {folderName(path)}
+          <span className={styles.folderName}>{folderName(path)}</span>
           {parent !== '' && <span className={styles.path}>{parent}</span>}
           {checked && <Check />}
         </Popover.Item>

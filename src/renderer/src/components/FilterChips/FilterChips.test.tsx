@@ -96,6 +96,11 @@ describe('FilterChips — adding', () => {
     await userEvent.click(screen.getByRole('button', { name: /Folder filter/ }))
     const rows = screen.getAllByRole('menuitemcheckbox').map((r) => r.textContent)
     expect(rows).toEqual(['api/home/u✓', 'infra/home/u✓'])
+    // The row is capped (FILTER_LIST_MAX) and its path ends in `…`: the full path is its title.
+    expect(screen.getAllByRole('menuitemcheckbox').map((r) => r.getAttribute('title'))).toEqual([
+      '/home/u/api',
+      '/home/u/infra'
+    ])
   })
 
   it('a type that is on leaves the type menu', async () => {

@@ -17,6 +17,10 @@
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--rounded-lg);
+  /* Every popup this row opens (the type menu, its value lists, a pill's list, the Calendar) is at
+   * most FILTER_LIST_MAX wide (submenuSide.ts, pinned by its test), so a value list always fits in
+   * the SUBMENU_ROOM the flip rule reserves. */
+  --popover-max-width: 308px;
 }
 
 /* The rail variant wraps pills onto new lines (the Sessions pages' rail is narrow). */
@@ -151,8 +155,19 @@
   left: auto;
 }
 
-/* A folder row's parent path: mono, quieter, on a raised panel so --text-secondary (never muted). */
+/* A folder row's name: whole while its parent path can give way (it never shrinks; any shrink
+ * would end it in `…`), capped at the row so a name too long for the list still ends in `…`. */
+.folderName {
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A folder row's parent path: mono, quieter, on a raised panel so --text-secondary (never muted).
+ * It gives way first under the list's cap (FILTER_LIST_MAX); the row's `title` is the full path. */
 .path {
+  min-width: 0;
   max-width: 220px;
   font-family: var(--font-mono);
   font-size: var(--font-size-label);
