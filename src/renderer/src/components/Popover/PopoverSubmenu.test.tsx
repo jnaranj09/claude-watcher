@@ -1,7 +1,7 @@
 // Popover.Submenu — the ONE "row that opens a list beside it" (AppMenu's Tags / Sessions, the filter
 // bar's type menu). jsdom `unit` project.
 import { afterEach, describe, it, expect, vi, type Mock } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
 import { Popover } from './Popover'
@@ -43,15 +43,18 @@ function setup(
 }
 
 describe('Popover.Submenu', () => {
-  it('hover and click OPEN (never toggle)', async () => {
+  it('hover OPENS and does not toggle', async () => {
     const { onOpen } = setup(false, 'right')
     const row = screen.getByRole('menuitem', { name: /Folder/ })
     await userEvent.hover(row)
     expect(onOpen).toHaveBeenCalledOnce()
-    // userEvent.click re-enters the row first, so the click adds at least one more open.
-    await userEvent.click(row)
-    expect(onOpen.mock.calls.length).toBeGreaterThan(1)
     expect(row).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('a click with no pointer entry still OPENS', () => {
+    const { onOpen } = setup(false, 'right')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Folder/ }))
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
   it('ArrowRight opens from the keyboard; ArrowLeft in the list goes back', async () => {

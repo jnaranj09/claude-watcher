@@ -390,6 +390,9 @@ describe('AppMenu', () => {
     expect(subRule(".submenuWrap[data-side='left']")).toMatch(
       /right:\s*calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/
     )
+    expect(subRule(".submenuWrap[data-side='right']")).toMatch(
+      /left:\s*calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/
+    )
     expect(subRule('.subAnchor')).toMatch(/position:\s*relative/)
   })
 })
