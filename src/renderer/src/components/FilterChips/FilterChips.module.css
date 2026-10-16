@@ -24,10 +24,21 @@
   flex-wrap: wrap;
 }
 
-/* One per pill and one for `+ Add filter`: its list opens under it. */
+/* One per pill and one for `+ Add filter`: its list opens under it. A crowded row SHRINKS its pills
+ * (their text ends in an ellipsis; the full value is in the accessible name and the folder pill's
+ * `title`) so every pill, its ×, and `+ Add filter` stay inside the row and the window. */
 .anchor {
   position: relative;
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* `+ Add filter` never shrinks: it is the way to the next filter. Nor does the Tag pill: its chips
+ * already fold into `+N` inside a capped slot (`.pillTags`), and squeezing it cut the `+N`. */
+.anchor:has(> .add),
+.anchor:has(> .pill[data-filter-pill='tag']) {
+  flex-shrink: 0;
 }
 
 /* `+ Add filter` — dashed, so it reads as "add one", not as a filter that is already on. */
@@ -55,6 +66,7 @@
 .pill {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
   height: 26px;
   border: 1px solid var(--border-strong);
   border-radius: var(--rounded-full);
@@ -84,11 +96,15 @@
 }
 
 .pillKey {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pillRemove {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   width: 26px;
@@ -142,6 +158,12 @@
   color: var(--text-primary);
   font-size: var(--font-size-label);
   line-height: 1;
+}
+
+/* The Tag pill's `Tag is any of` stays whole: when the rail is too narrow for the pill, only the
+ * chips' slot gives way, and TagChipRow folds more of them into `+N`. */
+.pillKey:has(+ .pillTags) {
+  flex-shrink: 0;
 }
 
 /* The Tag pill's chips: one line, `+N` for what does not fit (TagChipRow measures this slot). */
