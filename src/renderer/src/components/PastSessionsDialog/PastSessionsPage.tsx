@@ -19,9 +19,9 @@ import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { folderName } from '../../lib/filterCopy'
-import { effectiveFilters, type FilterType } from '../../lib/sessionFilters'
+import { effectiveFilters, type FilterType, type SessionFilters } from '../../lib/sessionFilters'
 import { RailFilter } from '../SessionsDialog/RailFilter'
-import { railTags, useScopedFilters } from '../SessionsDialog/railFilters'
+import { railTags, type ScopedFilters } from '../SessionsDialog/railFilters'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
@@ -53,8 +53,9 @@ export function PastSessionsPage({
   scope,
   setScope,
   pages,
+  filters: memory,
   now
-}: DialogPageProps & { now: () => number }): JSX.Element {
+}: DialogPageProps & { filters: ScopedFilters; now: () => number }): JSX.Element {
   const dialog = useManageDialogContext()
   const sessions = usePastSessions(selectPastSessions)
   const loaded = usePastSessions(selectPastSessionsLoaded)
@@ -109,9 +110,10 @@ export function PastSessionsPage({
   // Past offers no Global or `(no workspace)`: every record has a workspace. The dialog already
   // resets those on the way in (scopeOnPage); the narrowing keeps the type honest.
   const pastScope: PastScope = scope === 'global' || scope === 'orphans' ? 'all' : scope
-  // The rail's filters (spec 2026-10-16), per scope while the dialog is open; a tag this scope
-  // cannot see drops out at read time.
-  const [filters, setFilters] = useScopedFilters(pastScope)
+  // The rail's filters (spec 2026-10-16), per scope while the dialog is open (the dialog holds
+  // them); a tag this scope cannot see drops out at read time.
+  const filters = memory.read('past', pastScope)
+  const setFilters = (next: SessionFilters): void => memory.write('past', pastScope, next)
   const offeredTags = railTags(tags, pastScope)
   const shown = effectiveFilters(filters, new Set(offeredTags.map((t) => t.id)))
   const scoped = filterPastByScope(sessions, pastScope)

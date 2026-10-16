@@ -1,7 +1,8 @@
 // The Sessions dialog's rail filter (spec 2026-10-16 §3): the page's search box and the board's
 // `Filter` button (`FilterToggle`) on one line, and the shared chip row (`FilterChips`, wrapping)
-// under it while the button is pressed. Filters live per SCOPE while the dialog is open
-// (`useScopedFilters`, railFilters.ts) and are gone when it closes: view-state, never persisted.
+// under it while the button is pressed. Filters live per page and SCOPE while the dialog is open
+// (`useScopedFilters`, railFilters.ts, held by SessionsDialog so a page switch keeps them) and are
+// gone when it closes: view-state, never persisted.
 //
 // The chip row's lists float over the rail's rows and the form beside it (FilterChips' own
 // positioning and z-index). Nothing above them in the dialog clips: the rail (`.list`), the column

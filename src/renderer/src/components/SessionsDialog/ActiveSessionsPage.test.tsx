@@ -434,4 +434,28 @@ describe('Sessions → Active — rail filter', () => {
     chooseOption(r.container, 'active-session-scope-filter', 'ws:w1')
     expect(names(r)).toEqual(['name-a'])
   })
+  it('a deleted tag leaves the filter: the rows come back and the count goes down', () => {
+    act(() => {
+      tagsStore.setState({ tags: [{ id: 't1', name: 'api', color: 'blue', workspaceId: null }] })
+      boardStore.setState({ sessionsById: { ...SESSIONS, a: { ...SESSIONS.a, tagIds: ['t1'] } } })
+    })
+    const r = render()
+    click(q(r, '[data-testid="active-filter-toggle"]'))
+    click(q(r, '[data-testid="active-filter-add"]'))
+    click(q(r, '[data-testid="active-filter-type-tag"]'))
+    click(q(r, '[data-testid="active-filter-tag-row-t1"]'))
+    expect(names(r)).toEqual(['name-a'])
+
+    act(() => tagsStore.setState({ tags: [] }))
+    expect(names(r)).toEqual(['name-b', 'name-c', 'name-a'])
+    expect(q(r, '[data-testid="active-filter-toggle"]')?.getAttribute('aria-label')).toBe('Filter')
+  })
+
+  it('offers Tag, Folder and Launched, never Ended', () => {
+    const r = render()
+    click(q(r, '[data-testid="active-filter-toggle"]'))
+    click(q(r, '[data-testid="active-filter-add"]'))
+    expect(q(r, '[data-testid="active-filter-type-launched"]')).not.toBeNull()
+    expect(q(r, '[data-testid="active-filter-type-ended"]')).toBeNull()
+  })
 })

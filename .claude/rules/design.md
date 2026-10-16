@@ -81,8 +81,9 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
   `pages | rail | form`, or `pages | form` with no list. Text rows, a `nav` with
   `aria-current="page"`; its rows ARE rail rows, so the current page has the one selected look
   (above), the same as a Settings category. Never tabs, never a second dialog. The dialog owns the
-  scope (it survives a page switch) and the shell state; each page renders `Header` + `Columns`
-  (page column first) + `Message` and takes `DialogPageProps`. A page switch closes what was open.
+  scope and Active's and Past's filters (both survive a page switch) and the shell state; each
+  page renders `Header` + `Columns` (page column first) + `Message` and takes `DialogPageProps`.
+  A page switch closes what was open.
 - No exceptions: a surface that "needs" a table or card is a design question.
 
 ## Dialog rules
@@ -140,8 +141,9 @@ title.
 - **Active / Past rail filter** (`SessionsDialog/RailFilter.tsx`): the page's search (`TextInput
   variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` button
   (`FilterToggle`) on one line, `FilterChips` (wrapping, `data-wrap`) under it;
-  Past adds `Ended`. Filters per scope while the dialog is open (`railFilters.ts`
-  `useScopedFilters`; tags offered by `railTags`), never persisted.
+  Past adds `Ended`. Filters per page and scope while the dialog is open (`railFilters.ts`
+  `useScopedFilters`, held by `SessionsDialog` so a page switch keeps them; tags offered by
+  `railTags`), never persisted.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
 - `+ New` at rail bottom (`ManageDialog.ListBottom`, `margin-top: auto`).
 - Options pass a `WorkspaceLabel` as `display`: the OPEN list shows each name in its tint; the closed

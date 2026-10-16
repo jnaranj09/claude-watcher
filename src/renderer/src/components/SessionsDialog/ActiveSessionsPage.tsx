@@ -11,7 +11,12 @@ import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { exitSessions, type ExitVerb } from '../../lib/sessionExit'
 import type { Workspace } from '../../../../shared/ipc/contract'
 import { openFromNotification } from '../../lib/openFromNotification'
-import { effectiveFilters, NO_FILTERS, type FilterType } from '../../lib/sessionFilters'
+import {
+  effectiveFilters,
+  NO_FILTERS,
+  type FilterType,
+  type SessionFilters
+} from '../../lib/sessionFilters'
 import { selectSessionsById, useBoard, type BoardSession } from '../../stores/boardStore'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
@@ -36,7 +41,7 @@ import {
   statusAge
 } from './activeSessionsView'
 import { RailFilter } from './RailFilter'
-import { railTags, useScopedFilters } from './railFilters'
+import { railTags, type ScopedFilters } from './railFilters'
 import styles from './SessionsDialog.module.css'
 
 /** The types the Active page offers, in pill order (Ended is Past's only). */
@@ -46,8 +51,9 @@ export function ActiveSessionsPage({
   scope,
   setScope,
   pages,
+  filters: memory,
   now
-}: DialogPageProps & { now: () => number }): JSX.Element {
+}: DialogPageProps & { filters: ScopedFilters; now: () => number }): JSX.Element {
   const dialog = useManageDialogContext()
   const sessionsById = useBoard(selectSessionsById)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
@@ -67,9 +73,10 @@ export function ActiveSessionsPage({
 
   // The dialog resets Global / `(no workspace)` on the way in (scopeOnPage); this keeps the type honest.
   const activeScope: PastScope = scope === 'global' || scope === 'orphans' ? 'all' : scope
-  // The rail's filters (spec 2026-10-16), per scope while the dialog is open; a tag this scope
-  // cannot see drops out at read time.
-  const [filters, setFilters] = useScopedFilters(activeScope)
+  // The rail's filters (spec 2026-10-16), per scope while the dialog is open (the dialog holds
+  // them); a tag this scope cannot see drops out at read time.
+  const filters = memory.read('active', activeScope)
+  const setFilters = (next: SessionFilters): void => memory.write('active', activeScope, next)
   const offeredTags = railTags(tags, activeScope)
   const shown = effectiveFilters(filters, new Set(offeredTags.map((t) => t.id)))
   const sessions = Object.values(sessionsById)
