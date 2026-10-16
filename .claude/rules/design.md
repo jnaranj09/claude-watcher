@@ -328,7 +328,9 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
   on the left. A pill reopens its values under itself; `×` removes the type. Tag and folder rows
   are `menuitemcheckbox` and the list stays open while picking; the Launched / Ended rows
   (`On a day` / `Since a day` included) are `menuitemradio`, and a preset or a calendar day
-  closes.
+  closes. Opened from a KEY (Enter / Space on `+ Add filter` or a pill), the list focuses its
+  first row, like the submenu's ArrowRight; a pointer open leaves focus on the trigger. Tag counts
+  as on only through a tag the surface offers (a gone id neither draws a pill nor hides Tag).
 - Pills: `Tag is <chips>` / `Tag is any of <chips>` (`TagChipRow`, `+N` past its capped slot),
   `Folder is <name>` / `Folder is any of <names>` (`title` = full paths), `Launched today` …
   `Launched since <date>`. A crowded row shrinks the folder and time pills (text ends in `…`);

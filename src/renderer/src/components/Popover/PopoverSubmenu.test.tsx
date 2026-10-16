@@ -3,14 +3,19 @@
 import { afterEach, describe, it, expect, vi, type Mock } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { createRef } from 'react'
+import { createRef, type JSX } from 'react'
 import { Popover } from './Popover'
+import { Presence } from '../Presence/Presence'
+import { pointerInput } from '../../test/pointerInput'
 
 // No RTL auto-cleanup in this project (test/setup.ts): unmount what each test rendered.
 let unmount: (() => void) | undefined
+let clearInput: (() => void) | undefined
 afterEach(() => {
   unmount?.()
   unmount = undefined
+  clearInput?.()
+  clearInput = undefined
 })
 
 function setup(
@@ -90,6 +95,39 @@ describe('Popover.Submenu', () => {
       </div>
     ))
     expect(screen.getByRole('menuitemcheckbox', { name: 'api' })).toHaveFocus()
+  })
+
+  it('inside a leaving Presence its list wrapper is marked data-leaving and inert', () => {
+    clearInput = pointerInput()
+    const tree = (shown: boolean): JSX.Element => (
+      <Presence value={shown || null}>
+        {() => (
+          <div role="menu" aria-label="Root">
+            <Popover.Submenu
+              label="Folder"
+              icon={<span />}
+              side="right"
+              open
+              focusRequest={0}
+              triggerRef={createRef()}
+              onOpen={vi.fn()}
+              onOpenFromKey={vi.fn()}
+              onBack={vi.fn()}
+              testId="sub"
+              listTestId="sub-list"
+            >
+              <Popover.Item role="menuitem">One</Popover.Item>
+            </Popover.Submenu>
+          </div>
+        )}
+      </Presence>
+    )
+    const r = render(tree(true))
+    unmount = r.unmount
+    expect(screen.getByTestId('sub-list-wrap')).not.toHaveAttribute('data-leaving')
+    r.rerender(tree(false))
+    expect(screen.getByTestId('sub-list-wrap')).toHaveAttribute('data-leaving')
+    expect(screen.getByTestId('sub-list-wrap')).toHaveAttribute('inert')
   })
 
   it('marks which side it opens on, for the stylesheet', () => {

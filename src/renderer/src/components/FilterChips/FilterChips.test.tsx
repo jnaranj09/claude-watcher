@@ -5,6 +5,10 @@ import userEvent from '@testing-library/user-event'
 import { useState, type JSX } from 'react'
 import { FilterChips, type FilterChipsProps } from './FilterChips'
 import { SUBMENU_ROOM } from './submenuSide'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { Popover } from '../Popover/Popover'
+import { CalendarIcon } from '../Icon/MenuIcons'
+import { cssRule } from '../../test/cssRule'
 import { NO_FILTERS, type SessionFilters } from '../../lib/sessionFilters'
 import type { Tag } from '../../../../shared/ipc/contract'
 
@@ -138,6 +142,19 @@ describe('FilterChips — adding', () => {
     await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
   })
 
+  it('the On a day and Since a day rows carry the calendar icon', async () => {
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    await userEvent.hover(screen.getByRole('menuitem', { name: /Launched/ }))
+    const icon = renderToStaticMarkup(
+      <Popover.ItemIcon>
+        <CalendarIcon />
+      </Popover.ItemIcon>
+    )
+    expect(screen.getByRole('menuitemradio', { name: 'On a day' })).toContainHTML(icon)
+    expect(screen.getByRole('menuitemradio', { name: 'Since a day' })).toContainHTML(icon)
+  })
+
   it('Ended is offered only when the surface lists it', async () => {
     render(<Harness types={['tag', 'folder', 'launched', 'ended']} />)
     await userEvent.click(addFilter())
@@ -247,6 +264,15 @@ describe('FilterChips — popups stay inside the window', () => {
     expect(popup('filter-folder-list')).toHaveAttribute('data-align', 'end')
   })
 
+  it('CSS: a list marked data-align=end hangs from the trigger right edge', () => {
+    const body = cssRule(
+      'components/FilterChips/FilterChips.module.css',
+      ".menuWrap:has(> [data-align='end'])"
+    )
+    expect(body).toMatch(/(^|;)\s*right:\s*0;/)
+    expect(body).toMatch(/(^|;)\s*left:\s*auto;/)
+  })
+
   it('the tag list under its pill near the right edge lines up with the pill right edge', async () => {
     triggersAt(950)
     render(<Harness start={{ ...NO_FILTERS, tagIds: ['t-api'] }} />)
@@ -272,6 +298,12 @@ describe('FilterChips — pills', () => {
     expect(screen.getByText('Tag is')).toBeVisible()
     expect(screen.queryByText('Tag is any of')).not.toBeInTheDocument()
     expect(screen.getAllByTestId('tag-chip')).toHaveLength(1)
+  })
+
+  it('a gone tag id does not hide Tag from the type menu', async () => {
+    render(<Harness tags={[API]} start={{ ...NO_FILTERS, tagIds: ['t-gone'] }} />)
+    await userEvent.click(addFilter())
+    expect(screen.getByRole('menuitem', { name: /Tag/ })).toBeVisible()
   })
 
   it('a tag pill whose tags are all gone is not drawn', () => {
@@ -361,10 +393,60 @@ describe('FilterChips — keyboard', () => {
     expect(addFilter()).toHaveFocus()
   })
 
-  it('ArrowRight opens a type and Space toggles a value', async () => {
+  it('Enter on + Add filter focuses the first type row', async () => {
+    render(<Harness />)
+    addFilter().focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('menuitem', { name: /Tag/ })).toHaveFocus()
+  })
+
+  it('Space on + Add filter focuses the first type row too', async () => {
+    render(<Harness />)
+    addFilter().focus()
+    await userEvent.keyboard(' ')
+    expect(screen.getByRole('menuitem', { name: /Tag/ })).toHaveFocus()
+  })
+
+  it('a pointer open of + Add filter leaves the focus on the button', async () => {
     render(<Harness />)
     await userEvent.click(addFilter())
-    screen.getByRole('menuitem', { name: /Tag/ }).focus()
+    expect(screen.getByRole('menu', { name: 'Add a filter' })).toBeVisible()
+    expect(addFilter()).toHaveFocus()
+  })
+
+  it('Enter on a pill focuses the first row of its list', async () => {
+    render(<Harness start={{ ...NO_FILTERS, folders: ['/home/u/infra'] }} />)
+    screen.getByRole('button', { name: /Folder filter/ }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('menuitemcheckbox', { name: /^api/ })).toHaveFocus()
+  })
+
+  it('Space on a time pill focuses its first row', async () => {
+    render(<Harness start={{ ...NO_FILTERS, launched: { kind: 'preset', range: '7d' } }} />)
+    screen.getByRole('button', { name: /Launched filter/ }).focus()
+    await userEvent.keyboard(' ')
+    expect(screen.getByRole('menuitemradio', { name: 'Today' })).toHaveFocus()
+  })
+
+  it('Enter on a tag pill focuses the first tag row', async () => {
+    render(<Harness start={{ ...NO_FILTERS, tagIds: ['t-web'] }} />)
+    screen.getByRole('button', { name: /Tag filter/ }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('menuitemcheckbox', { name: /api/ })).toHaveFocus()
+  })
+
+  it('a pointer open of a pill leaves the focus on the pill', async () => {
+    render(<Harness start={{ ...NO_FILTERS, folders: ['/home/u/infra'] }} />)
+    const pill = screen.getByRole('button', { name: /Folder filter/ })
+    await userEvent.click(pill)
+    expect(screen.getByRole('menu', { name: 'Folder' })).toBeVisible()
+    expect(pill).toHaveFocus()
+  })
+
+  it('ArrowRight opens a type and Space toggles a value', async () => {
+    render(<Harness />)
+    addFilter().focus()
+    await userEvent.keyboard('{Enter}')
     await userEvent.keyboard('{ArrowRight}')
     expect(screen.getByRole('menuitemcheckbox', { name: /api/ })).toHaveFocus()
     await userEvent.keyboard(' ')

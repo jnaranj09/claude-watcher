@@ -80,6 +80,7 @@ export function PopoverSubmenu({
         <div
           className={styles.submenuWrap}
           data-side={side}
+          data-testid={`${listTestId}-wrap`}
           ref={listRef}
           {...leavingProps(leaving)}
         >

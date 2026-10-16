@@ -10,6 +10,10 @@
 // open there (mockup step 2): the next pick lands in the same list. The `On a day` / `Since a day`
 // rows swap their list for the Calendar, drawn under the trigger that opened the list.
 //
+// A KEY open (Enter or Space on `+ Add filter` or a pill: a click with `detail` 0) puts focus on
+// the first row of what opened, as `Popover.Submenu`'s ArrowRight does; a pointer open leaves focus
+// on the trigger.
+//
 // Every popup floats over what is below (the operator: "show over them, never push the board
 // columns down"): the row is a stacking context above the board, each popup is positioned.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from 'react'
@@ -152,6 +156,12 @@ export function FilterChips({
     ended: endedRowRef
   }
 
+  // Tag is ON only through a tag this surface still offers: a gone id draws no pill, so it must not
+  // take Tag out of the type menu either.
+  const knownTagIds = new Set(tags.map((t) => t.id))
+  const typeOn = (f: SessionFilters, t: FilterType): boolean =>
+    t === 'tag' ? f.tagIds.some((tagId) => knownTagIds.has(tagId)) : isTypeOn(f, t)
+
   const anyOpen = open !== null
   useEffect(() => {
     if (!anyOpen) return
@@ -211,7 +221,7 @@ export function FilterChips({
   /** After a single pick: back to `+ Add filter` if it opened the list and is still drawn,
    *  else to the pill of the type just set. */
   function triggerAfter(next: SessionFilters, from: Origin, type: FilterType): string {
-    if (from === 'add' && types.some((t) => !isTypeOn(next, t))) return 'add'
+    if (from === 'add' && types.some((t) => !typeOn(next, t))) return 'add'
     return `pill-${type}`
   }
 
@@ -236,7 +246,7 @@ export function FilterChips({
       // The list moves under the pill this pick draws: draw it now, so it can be measured.
       flushSync(() => onChange(next))
     }
-    if (isTypeOn(next, type)) {
+    if (typeOn(next, type)) {
       const align =
         open?.at === 'pill'
           ? open.align
@@ -328,9 +338,20 @@ export function FilterChips({
     ))
   }
 
+  /** Every folder the list shows, in list order: the surface's, plus any picked one. */
+  function folderList(): string[] {
+    return [...new Set([...folders, ...filters.folders])].sort(byFolderName)
+  }
+
+  /** The `data-filter-focus` key of the first row in `type`'s list (a pill's key open). */
+  function firstRowKey(type: FilterType): string {
+    if (type === 'tag') return `tag-row-${tags[0]?.id ?? ''}`
+    if (type === 'folder') return `folder-row-${folderList()[0] ?? ''}`
+    return `${type}-row-${PRESETS[0] ?? 'today'}`
+  }
+
   function folderRows(): ReactNode {
-    const all = [...new Set([...folders, ...filters.folders])].sort(byFolderName)
-    return all.map((path) => {
+    return folderList().map((path) => {
       const checked = filters.folders.includes(path)
       const parent = parentPath(path)
       return (
@@ -477,13 +498,14 @@ export function FilterChips({
             aria-expanded={listOpen || cal !== null}
             aria-label={content.label}
             {...(content.title !== undefined ? { title: content.title } : {})}
-            onClick={(e) =>
-              setOpen(
-                listOpen || cal !== null
-                  ? null
-                  : { at: 'pill', type, align: alignUnder(e.currentTarget) }
-              )
-            }
+            onClick={(e) => {
+              if (listOpen || cal !== null) {
+                setOpen(null)
+                return
+              }
+              setOpen({ at: 'pill', type, align: alignUnder(e.currentTarget) })
+              if (e.detail === 0) refocusOn(firstRowKey(type))
+            }}
           >
             {content.body}
           </button>
@@ -534,7 +556,7 @@ export function FilterChips({
 
   // ---- + Add filter -------------------------------------------------------------------------
 
-  const offTypes = types.filter((t) => !isTypeOn(filters, t))
+  const offTypes = types.filter((t) => !typeOn(filters, t))
   const addCal = open?.at === 'calendar' && open.from === 'add' ? open : null
   const addOpen = open?.at === 'add' || addCal !== null
 
@@ -548,13 +570,15 @@ export function FilterChips({
           data-filter-focus="add"
           aria-haspopup="menu"
           aria-expanded={addOpen}
-          onClick={(e) =>
-            setOpen(
-              addOpen
-                ? null
-                : { at: 'add', sub: null, focus: 0, align: alignUnder(e.currentTarget) }
-            )
-          }
+          onClick={(e) => {
+            if (addOpen) {
+              setOpen(null)
+              return
+            }
+            setOpen({ at: 'add', sub: null, focus: 0, align: alignUnder(e.currentTarget) })
+            const first = offTypes[0]
+            if (e.detail === 0 && first !== undefined) refocusOn(`type-${first}`)
+          }}
         >
           + Add filter
         </button>
@@ -611,7 +635,7 @@ export function FilterChips({
       {...(wrap ? { 'data-wrap': '' } : {})}
       onKeyDown={handleKeyDown}
     >
-      {types.filter((t) => isTypeOn(filters, t)).map(renderPill)}
+      {types.filter((t) => typeOn(filters, t)).map(renderPill)}
       {offTypes.length > 0 && renderAdd()}
     </div>
   )
