@@ -624,6 +624,21 @@ describe('Board — the filters (spec 2026-10-16)', () => {
     expect(cardIds(container)).toEqual(['tagged'])
   })
 
+  // A deleted tag drops out of the stored filter at READ time (effectiveFilters): the cards it hid
+  // come back at once, with no write to the store.
+  it('when the filtered tag is deleted, every card comes back', () => {
+    const { container, unmount } = renderComponent(<Board />)
+    cleanup = unmount
+    applyDelta(watchUpdated(1, 'tagged', 'working', 100, { tagIds: ['t-prod'] }))
+    applyDelta(watchUpdated(1, 'plain', 'needs-you', 101))
+    applyDelta(watchUpdated(1, 'other', 'working', 102))
+    filterByProd()
+    expect(cardIds(container)).toEqual(['tagged'])
+    act(() => tagsStore.getState().hydrate([]))
+    expect(cardIds(container).sort()).toEqual(['other', 'plain', 'tagged'])
+    expect(document.querySelector('[data-testid="empty-board-filtered"]')).toBeNull()
+  })
+
   it('carries the filter bar ABOVE the columns once the workspace has sessions', () => {
     const { container, unmount } = renderComponent(<Board />)
     cleanup = unmount

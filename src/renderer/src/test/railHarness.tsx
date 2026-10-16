@@ -25,7 +25,8 @@ export function resetRailStores(): void {
     acknowledgedById: {},
     terminalIdBySessionId: {},
     launchedTerminals: {},
-    searchQuery: ''
+    searchQuery: '',
+    filtersByWorkspace: {}
   })
   workspacesStore.setState({ activeId: 'default' })
   tagsStore.setState({ tags: [], loaded: false })

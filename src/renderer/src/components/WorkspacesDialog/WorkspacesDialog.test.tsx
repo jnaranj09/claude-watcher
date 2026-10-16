@@ -8,7 +8,8 @@ import { act } from 'react'
 import { click, flush, q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { WorkspacesDialog } from './WorkspacesDialog'
 import { workspacesStore } from '../../stores/workspacesStore'
-import { boardStore } from '../../stores/boardStore'
+import { boardStore, selectBoardFilters } from '../../stores/boardStore'
+import { NO_FILTERS } from '../../lib/sessionFilters'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 import { WORKSPACE_COLORS } from '../../../../shared/schemas/workspace'
 
@@ -54,7 +55,10 @@ beforeEach(() => {
 afterEach(() => {
   cleanup?.()
   cleanup = undefined
-  act(() => workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false }))
+  act(() => {
+    workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
+    boardStore.setState({ filtersByWorkspace: {} })
+  })
   vi.restoreAllMocks()
 })
 
@@ -160,6 +164,23 @@ describe('WorkspacesDialog', () => {
     expect(tagsList).toHaveBeenCalledTimes(1)
     expect(rulesList).toHaveBeenCalledTimes(1)
     expect(q(r, '[data-testid="workspaces-success"]').textContent).toBe('Workspace deleted.')
+  })
+
+  // Session filters are view-state kept per workspace: a deleted workspace's entry must go, and
+  // the surviving workspaces keep theirs.
+  it('a committed delete drops the deleted workspace’s board filters, and keeps the others', async () => {
+    const TAGGED = { ...NO_FILTERS, tagIds: ['t-x'] }
+    act(() => {
+      boardStore.getState().setBoardFilters('w1', TAGGED)
+      boardStore.getState().setBoardFilters('default', TAGGED)
+    })
+    const { r } = render()
+    click(q(r, '[data-testid="workspace-select-w1"]'))
+    click(q(r, '[data-testid="workspace-delete-w1"]'))
+    click(q(r, '[data-testid="workspace-delete-confirm"]'))
+    await flush()
+    expect(Object.keys(boardStore.getState().filtersByWorkspace)).toEqual(['default'])
+    expect(selectBoardFilters(boardStore.getState(), 'default')).toBe(TAGGED)
   })
 
   // The other half of the same rule: a REFUSED delete cascaded nothing in main, so re-reading

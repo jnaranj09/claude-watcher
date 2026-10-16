@@ -45,6 +45,10 @@ const q = (r: RenderResult, testId: string): HTMLElement | null =>
   r.container.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
 const click = (el: Element | null): void => act(() => (el as HTMLElement | null)?.click())
 const menu = (r: RenderResult): Element | null => r.container.querySelector('[role="menu"]')
+const tagRowIds = (r: RenderResult): (string | null)[] =>
+  [...r.container.querySelectorAll('[data-testid^="filter-tag-row-"]')].map((el) =>
+    el.getAttribute('data-testid')
+  )
 const checkboxRowIds = (r: RenderResult): (string | null)[] =>
   [...r.container.querySelectorAll('[role="menuitemcheckbox"]')].map((el) =>
     el.getAttribute('data-testid')
@@ -203,6 +207,22 @@ describe('FilterBar', () => {
     expect(q(r, 'filter-count')?.textContent).toBe('1 session')
   })
 
+  it('the tag list offers global tags first, then this workspace’s own, never another’s', () => {
+    const r = renderOpen()
+    click(q(r, 'filter-add'))
+    click(q(r, 'filter-type-tag'))
+    expect(tagRowIds(r)).toEqual(['filter-tag-row-t-deploy', 'filter-tag-row-t-prod'])
+    click(q(r, 'filter-add'))
+    act(() => workspacesStore.setState({ activeId: 'wa' }))
+    click(q(r, 'filter-add'))
+    click(q(r, 'filter-type-tag'))
+    expect(tagRowIds(r)).toEqual([
+      'filter-tag-row-t-deploy',
+      'filter-tag-row-t-prod',
+      'filter-tag-row-t-ops'
+    ])
+  })
+
   it('a filter set here is kept per workspace: switching away hides it, switching back restores it', () => {
     act(() =>
       boardStore.getState().setBoardFilters('default', {
@@ -253,6 +273,7 @@ describe('FilterBar', () => {
     expect(q(r, 'filter-no-tags')?.textContent).toBe('No tags yet')
     click(q(r, 'filter-create-tags'))
     expect(onManageTags).toHaveBeenCalledTimes(1)
+    expect(menu(r)).toBeNull()
   })
 
   // Folder and time need no tag, so the button shows even with no tag and no way to make one.
