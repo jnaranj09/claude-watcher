@@ -102,9 +102,3 @@ export function isAlreadyOpenError(err: unknown): boolean {
 export function pastSessionsCapNote(max: number): string {
   return `Keeps the ${max} most recent sessions`
 }
-
-export function folderBasename(cwd: string): string {
-  const trimmed = cwd.replace(/\/+$/, '')
-  if (trimmed.length === 0) return '/'
-  return trimmed.slice(trimmed.lastIndexOf('/') + 1)
-}

@@ -3,12 +3,12 @@ import { describe, it, expect } from 'vitest'
 import {
   filterPastByName,
   filterPastByScope,
-  folderBasename,
   pastSessionErrorMessage,
   pastSessionsEmptyCopy,
   relativeEnded,
   resumeByIdErrorMessage
 } from './pastSessionsView'
+import { folderName } from '../../lib/filterCopy'
 import type { PastSession } from '../../../../shared/ipc/contract'
 
 const row = (id: string, name: string, workspaceId = 'w1'): PastSession => ({
@@ -81,10 +81,10 @@ describe('pastSessionsView', () => {
     ).toBe('That folder no longer exists')
   })
 
-  it('folderBasename', () => {
-    expect(folderBasename('/home/op/work/api')).toBe('api')
-    expect(folderBasename('/home/op/work/api/')).toBe('api')
-    expect(folderBasename('/')).toBe('/')
+  it('folderName', () => {
+    expect(folderName('/home/op/work/api')).toBe('api')
+    expect(folderName('/home/op/work/api/')).toBe('api')
+    expect(folderName('/')).toBe('/')
   })
 })
 

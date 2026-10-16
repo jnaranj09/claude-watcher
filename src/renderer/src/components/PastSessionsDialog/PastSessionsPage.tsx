@@ -16,6 +16,7 @@ import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
+import { folderName } from '../../lib/filterCopy'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
@@ -30,7 +31,6 @@ import {
 import {
   filterPastByName,
   filterPastByScope,
-  folderBasename,
   isAlreadyOpenError,
   pastSessionErrorMessage,
   pastSessionsCapNote,
@@ -185,7 +185,7 @@ export function PastSessionsPage({
                     {s.name}
                   </span>
                   <span className={styles.rowMeta}>
-                    <span data-testid="past-session-folder">{folderBasename(s.cwd)}</span>
+                    <span data-testid="past-session-folder">{folderName(s.cwd)}</span>
                     {' · '}
                     <span data-testid="past-session-ended">{relativeEnded(s.endedAt, now())}</span>
                   </span>

@@ -196,7 +196,7 @@ describe('PastSessionsDialog', () => {
     )
   })
 
-  it('a row draws the folder basename, the relative end and only SURVIVING tag chips', async () => {
+  it('a row draws the folder name, the relative end and only SURVIVING tag chips', async () => {
     const onClose = vi.fn()
     const r = renderComponent(
       <SessionsDialog
