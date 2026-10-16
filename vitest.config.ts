@@ -1,5 +1,5 @@
-// The unit/integration gate the Stop hook runs (`vitest run`). Four projects, so each test runs in
-// the cheapest environment that can run it:
+// The unit/integration gate the Stop hook runs (`vitest run`). One project per environment, so each
+// test runs in the cheapest environment that can run it:
 //   - `unit`        jsdom — renderer code: components, hooks, stores, lib, renderer guards.
 //   - `shared-node` node  — `src/shared/**`, `tests/unit/**`, `src/__fixtures__/**`: no DOM, and
 //                   jsdom setup costs ~0.35 s per file.
