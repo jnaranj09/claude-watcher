@@ -69,14 +69,29 @@ export interface TagMenuRowProps {
   /** `menuitemcheckbox` in the filter (several tags), `checkbox` in the picker. */
   role: 'menuitemcheckbox' | 'checkbox'
   testId: string
+  /** FilterChips' focus hook (`data-filter-focus`): where focus returns after a pick. */
+  focusKey?: string | undefined
   onClick: () => void
 }
 
 /** One tag: its chip, and a ✓ at the right edge while it is on. A menu row, not a Button
  *  (design.md: menu / list rows keep their own rules). */
-export function TagMenuRow({ tag, checked, role, testId, onClick }: TagMenuRowProps): JSX.Element {
+export function TagMenuRow({
+  tag,
+  checked,
+  role,
+  testId,
+  focusKey,
+  onClick
+}: TagMenuRowProps): JSX.Element {
   return (
-    <Popover.Item role={role} aria-checked={checked} testId={testId} onClick={onClick}>
+    <Popover.Item
+      role={role}
+      aria-checked={checked}
+      testId={testId}
+      {...(focusKey !== undefined ? { 'data-filter-focus': focusKey } : {})}
+      onClick={onClick}
+    >
       <TagChip tag={tag} />
       {checked && (
         <Popover.ItemEnd>

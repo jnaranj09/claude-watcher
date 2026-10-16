@@ -1,13 +1,7 @@
 // submenuSide — which side the filter's type submenu opens on (spec 2026-10-16 §3).
 import { describe, it, expect } from 'vitest'
 import { cssRule } from '../../test/cssRule'
-import {
-  FILTER_LIST_MAX,
-  popupAlign,
-  SUBMENU_GAP,
-  submenuSide,
-  SUBMENU_ROOM
-} from './submenuSide'
+import { FILTER_LIST_MAX, popupAlign, SUBMENU_GAP, submenuSide, SUBMENU_ROOM } from './submenuSide'
 
 describe('submenuSide', () => {
   it('opens right while there is room, left at the window edge', () => {
@@ -34,11 +28,12 @@ describe('FILTER_LIST_MAX — every value list fits in SUBMENU_ROOM', () => {
 
   it('the gap is the submenu offset Popover draws (--space-2 + --space-1)', () => {
     const offset = /calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/
-    expect(cssRule('components/Popover/Popover.module.css', ".submenuWrap[data-side='right']")).toMatch(
-      offset
-    )
+    expect(
+      cssRule('components/Popover/Popover.module.css', ".submenuWrap[data-side='right']")
+    ).toMatch(offset)
     const tokens = cssRule('styles/tokens.css', ':root')
-    const px = (name: string): number => Number(new RegExp(`--${name}: (\\d+)px;`).exec(tokens)?.[1])
+    const px = (name: string): number =>
+      Number(new RegExp(`--${name}: (\\d+)px;`).exec(tokens)?.[1])
     expect(px('space-2') + px('space-1')).toBe(SUBMENU_GAP)
   })
 

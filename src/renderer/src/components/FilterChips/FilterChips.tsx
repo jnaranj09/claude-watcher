@@ -135,8 +135,9 @@ export function FilterChips({
   const [side, setSide] = useState<'left' | 'right'>('right')
   // Bumped when a list closes or changes layer. The element to focus may be drawn by the SAME
   // render (a pill that replaced `+ Add filter`, a row in the list that replaced the type menu),
-  // so focus moves in an effect, by test id, after that render.
-  const [refocus, setRefocus] = useState<{ testId: string; n: number } | null>(null)
+  // so focus moves in an effect, after that render: to the element whose `data-filter-focus` is
+  // `key`, or to a type menu row (`type-<type>`) through its ref.
+  const [refocus, setRefocus] = useState<{ key: string; n: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   // The type menu's box, as state (a callback ref): measured when a submenu opens.
   const [typeMenu, setTypeMenu] = useState<HTMLDivElement | null>(null)
@@ -164,11 +165,21 @@ export function FilterChips({
 
   useEffect(() => {
     if (refocus === null) return
+    const typeRow = {
+      'type-tag': tagRowRef,
+      'type-folder': folderRowRef,
+      'type-launched': launchedRowRef,
+      'type-ended': endedRowRef
+    }[refocus.key]
+    if (typeRow !== undefined) {
+      typeRow.current?.focus()
+      return
+    }
     const target = [
-      ...(rootRef.current?.querySelectorAll<HTMLElement>('[data-testid]') ?? [])
+      ...(rootRef.current?.querySelectorAll<HTMLElement>('[data-filter-focus]') ?? [])
     ].find(
-      // A leaving (inert) copy of a list may still hold a row with the same id.
-      (el) => el.dataset.testid === refocus.testId && el.closest('[inert]') === null
+      // A leaving (inert) copy of a list may still hold a row with the same key.
+      (el) => el.dataset.filterFocus === refocus.key && el.closest('[inert]') === null
     )
     target?.focus()
   }, [refocus])
@@ -187,20 +198,21 @@ export function FilterChips({
     return popupAlign(trigger.getBoundingClientRect().left, window.innerWidth)
   }
 
-  function refocusOn(testId: string): void {
-    setRefocus((r) => ({ testId, n: (r?.n ?? 0) + 1 }))
+  /** Focus `key` (a `data-filter-focus` value, or `type-<type>`) after the next render. */
+  function refocusOn(key: string): void {
+    setRefocus((r) => ({ key, n: (r?.n ?? 0) + 1 }))
   }
 
-  function closeTo(testId: string): void {
+  function closeTo(key: string): void {
     setOpen(null)
-    refocusOn(testId)
+    refocusOn(key)
   }
 
   /** After a single pick: back to `+ Add filter` if it opened the list and is still drawn,
    *  else to the pill of the type just set. */
   function triggerAfter(next: SessionFilters, from: Origin, type: FilterType): string {
-    if (from === 'add' && types.some((t) => !isTypeOn(next, t))) return tid('add')
-    return tid(`pill-${type}-edit`)
+    if (from === 'add' && types.some((t) => !isTypeOn(next, t))) return 'add'
+    return `pill-${type}`
   }
 
   /** Open type `t`'s values beside the type menu. They hang off the MENU's right edge (wider than
@@ -217,7 +229,7 @@ export function FilterChips({
   }
 
   /** A multi pick (tag, folder): the list stays open, under the pill from now on. */
-  function multiPick(type: 'tag' | 'folder', next: SessionFilters, rowTestId: string): void {
+  function multiPick(type: 'tag' | 'folder', next: SessionFilters, rowKey: string): void {
     if (open?.at === 'pill') {
       onChange(next)
     } else {
@@ -228,27 +240,25 @@ export function FilterChips({
       const align =
         open?.at === 'pill'
           ? open.align
-          : alignUnder(
-              rootRef.current?.querySelector(`[data-testid="${tid(`pill-${type}-edit`)}"]`)
-            )
+          : alignUnder(rootRef.current?.querySelector(`[data-filter-pill="${type}"]`))
       setOpen({ at: 'pill', type, align })
-      refocusOn(rowTestId)
+      refocusOn(rowKey)
     } else {
       // The last value went off: the pill, and the list under it, are gone.
-      closeTo(tid('add'))
+      closeTo('add')
     }
   }
 
   function toggleTag(tagId: string): void {
     const on = filters.tagIds.includes(tagId)
     const tagIds = on ? filters.tagIds.filter((x) => x !== tagId) : [...filters.tagIds, tagId]
-    multiPick('tag', { ...filters, tagIds }, tid(`tag-row-${tagId}`))
+    multiPick('tag', { ...filters, tagIds }, `tag-row-${tagId}`)
   }
 
   function toggleFolder(path: string): void {
     const on = filters.folders.includes(path)
     const chosen = on ? filters.folders.filter((x) => x !== path) : [...filters.folders, path]
-    multiPick('folder', { ...filters, folders: chosen }, tid(`folder-row-${path}`))
+    multiPick('folder', { ...filters, folders: chosen }, `folder-row-${path}`)
   }
 
   function setTime(type: TimeType, pick: TimePick, from: Origin): void {
@@ -259,7 +269,7 @@ export function FilterChips({
 
   function remove(type: FilterType): void {
     onChange(clearType(filters, type))
-    closeTo(tid('add'))
+    closeTo('add')
   }
 
   function createTags(): void {
@@ -278,12 +288,12 @@ export function FilterChips({
           ? { at: 'add', sub: open.type, focus: 0, align: open.align }
           : { at: 'pill', type: open.type, align: open.align }
       )
-      refocusOn(tid(`${open.type}-row-${open.mode}`))
+      refocusOn(`${open.type}-row-${open.mode}`)
     } else if (open.at === 'add' && open.sub !== null) {
       setOpen({ at: 'add', sub: null, focus: 0, align: open.align })
-      refocusOn(tid(`type-${open.sub}`))
+      refocusOn(`type-${open.sub}`)
     } else {
-      closeTo(open.at === 'add' ? tid('add') : tid(`pill-${open.type}-edit`))
+      closeTo(open.at === 'add' ? 'add' : `pill-${open.type}`)
     }
   }
 
@@ -312,6 +322,7 @@ export function FilterChips({
         checked={filters.tagIds.includes(t.id)}
         role="menuitemcheckbox"
         testId={tid(`tag-row-${t.id}`)}
+        focusKey={`tag-row-${t.id}`}
         onClick={() => toggleTag(t.id)}
       />
     ))
@@ -328,6 +339,7 @@ export function FilterChips({
           role="menuitemcheckbox"
           aria-checked={checked}
           testId={tid(`folder-row-${path}`)}
+          data-filter-focus={`folder-row-${path}`}
           title={path}
           onClick={() => toggleFolder(path)}
         >
@@ -351,6 +363,7 @@ export function FilterChips({
               role="menuitemradio"
               aria-checked={checked}
               testId={tid(`${type}-row-${range}`)}
+              data-filter-focus={`${type}-row-${range}`}
               onClick={() => setTime(type, { kind: 'preset', range }, from)}
             >
               {TIME_RANGE_LABEL[range]}
@@ -365,6 +378,7 @@ export function FilterChips({
             role="menuitemradio"
             aria-checked={pick?.kind === mode}
             testId={tid(`${type}-row-${mode}`)}
+            data-filter-focus={`${type}-row-${mode}`}
             onClick={() =>
               setOpen({ at: 'calendar', type, mode, from, align: open?.align ?? 'start' })
             }
@@ -458,6 +472,7 @@ export function FilterChips({
             type="button"
             className={styles.pillEdit}
             data-testid={tid(`pill-${type}-edit`)}
+            data-filter-focus={`pill-${type}`}
             aria-haspopup="menu"
             aria-expanded={listOpen || cal !== null}
             aria-label={content.label}
@@ -530,6 +545,7 @@ export function FilterChips({
           type="button"
           className={styles.add}
           data-testid={tid('add')}
+          data-filter-focus="add"
           aria-haspopup="menu"
           aria-expanded={addOpen}
           onClick={(e) =>
@@ -567,7 +583,7 @@ export function FilterChips({
                       onOpenFromKey={() => openSub(t, true)}
                       onBack={() => {
                         setOpen({ at: 'add', sub: null, focus: 0, align: open?.align ?? 'start' })
-                        refocusOn(tid(`type-${t}`))
+                        refocusOn(`type-${t}`)
                       }}
                       testId={tid(`type-${t}`)}
                       listTestId={tid(`${t}-list`)}

@@ -271,8 +271,9 @@ A label beside its control (a checkbox's text, a swatch beside its radio) is the
 one above it. The exception is a Settings row: its label and control sit at the row's two edges.
 
 4. **Same kind, same size.** Settings rows share one `min-height` (a 36px field Select/TextInput
-   - insets), so a switch row matches a dropdown row. Every rail search is
-     `<TextInput variant="inline">`. Every menu and list row is 36px, 13 / 500
+   - insets), so a switch row matches a dropdown row. A rail search is
+     `<TextInput variant="inline">`; a search beside a `Filter` button (the board, the Active /
+     Past rail) is `variant="toolbar"` (32px, the button's height). Every menu and list row is 36px, 13 / 500
      (`Popover` `.item`); a Manage rail row is 44px, 13 / 500 (`.rowSelect`), room for a second
      line (Shortcuts, Workspaces) — its hover is the whole row, pin and checkbox included; compact and quiet popover rows keep their own size. Open-rail
      rows 36, active row 40; collapsed rail 40 / 44 squares.
@@ -312,7 +313,7 @@ The ONE place the board is filtered/searched; above the columns, never in the he
   `3 shown · 2 hidden`). CHIP row (boxed; a pill per filter type that is on, then
   `+ Add filter`) only while `Filter` is pressed. Not persisted.
 - **Search matches card NAME only**, case-insensitive substring, trimmed. `<TextInput
-variant="inline">` + magnifier `icon`. Escape with text clears and stops; empty passes through.
+variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty passes through.
   `boardStore.searchQuery`, not persisted, survives workspace switch.
 - Filters + search narrow board, column counts and rail status groups through ONE `BoardFilter`
   (`useBoardFilter`). Pinned rail row, notifier, badge, sound ignore both.
