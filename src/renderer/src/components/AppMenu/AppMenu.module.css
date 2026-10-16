@@ -20,24 +20,3 @@
   min-width: 180px;
   white-space: nowrap;
 }
-
-.subAnchor {
-  position: relative;
-}
-
-/* The submenu opens to the LEFT of its row, level with it — to the right is off the window. Its
- * top edge sits one menu-padding above the row, so its first item lines up with `Tags`. */
-.submenuWrap {
-  position: absolute;
-  z-index: 50;
-  top: calc(-1 * var(--space-2) - 1px);
-  right: calc(100% + var(--space-2) + var(--space-1));
-  min-width: 180px;
-  white-space: nowrap;
-}
-
-/* The submenu chevron, at the row's right edge, points LEFT: the way the submenu opens. */
-.chevron {
-  padding-left: var(--gap-page);
-  color: var(--text-secondary);
-}

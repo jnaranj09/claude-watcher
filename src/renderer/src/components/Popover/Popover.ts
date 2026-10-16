@@ -13,6 +13,7 @@ import {
   PopoverQuietItem,
   PopoverSurface
 } from './PopoverParts'
+import { PopoverSubmenu } from './PopoverSubmenu'
 
 export const Popover = {
   Surface: PopoverSurface,
@@ -23,6 +24,8 @@ export const Popover = {
   ItemIcon: PopoverItemIcon,
   ItemEnd: PopoverItemEnd,
   Divider: PopoverDivider,
-  Note: PopoverNote
+  Note: PopoverNote,
+  Submenu: PopoverSubmenu
 }
 export type { PopoverItemProps, PopoverListProps, PopoverSurfaceProps } from './PopoverParts'
+export type { PopoverSubmenuProps } from './PopoverSubmenu'

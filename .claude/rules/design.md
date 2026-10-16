@@ -332,7 +332,7 @@ Only header control besides `+ New session`; filters nothing.
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /
   `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
   14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
-- Submenus are ONE `Submenu` (AppMenu.tsx): open LEFT, level with their row; hover opens, click
+- Submenus are `Popover.Submenu` (side `left`): open LEFT, level with their row; hover opens, click
   OPENS (never toggles); ArrowRight opens on the first row, ArrowLeft back; ONE open at a time.
 - Escape peels one layer (submenu, then menu), listens on the whole menu; closed → passes through.
 - Every row opens a dialog under the single-modal rule (`settingsDialogOpen`, `sessionsDialog`,

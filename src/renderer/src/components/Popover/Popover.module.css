@@ -204,3 +204,31 @@
   color: var(--text-secondary);
   font-size: var(--font-size-meta);
 }
+
+/* Popover.Submenu — the row is the anchor; the list sits level with it, one menu-padding up, so
+ * its first item lines up with the row. */
+.subAnchor {
+  position: relative;
+}
+
+.submenuWrap {
+  position: absolute;
+  z-index: 50;
+  top: calc(-1 * var(--space-2) - 1px);
+  min-width: 180px;
+  white-space: nowrap;
+}
+
+.submenuWrap[data-side='left'] {
+  right: calc(100% + var(--space-2) + var(--space-1));
+}
+
+.submenuWrap[data-side='right'] {
+  left: calc(100% + var(--space-2) + var(--space-1));
+}
+
+/* The submenu chevron, at the row's right edge. */
+.chevron {
+  padding-left: var(--gap-page);
+  color: var(--text-secondary);
+}

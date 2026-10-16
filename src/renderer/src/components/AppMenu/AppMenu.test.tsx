@@ -381,11 +381,16 @@ describe('AppMenu', () => {
     expect(menu).toMatch(/position:\s*absolute/)
     expect(menu).toMatch(/top:\s*calc\(100% \+ var\(--space-1\)\)/)
     expect(menu).toMatch(/right:\s*0/)
-    const sub = rule('.submenuWrap')
+    // The submenu's placement moved to Popover.Submenu (side `left` is AppMenu's).
+    const subRule = (selector: string): string =>
+      cssRule('components/Popover/Popover.module.css', selector)
+    const sub = subRule('.submenuWrap')
     expect(sub).toMatch(/position:\s*absolute/)
     expect(sub).toMatch(/top:\s*calc\(-1 \* var\(--space-2\) - 1px\)/)
-    expect(sub).toMatch(/right:\s*calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/)
-    expect(rule('.subAnchor')).toMatch(/position:\s*relative/)
+    expect(subRule(".submenuWrap[data-side='left']")).toMatch(
+      /right:\s*calc\(100% \+ var\(--space-2\) \+ var\(--space-1\)\)/
+    )
+    expect(subRule('.subAnchor')).toMatch(/position:\s*relative/)
   })
 })
 

@@ -2,22 +2,15 @@
 // `Settings`, `Shortcuts`, `Tags ›` (Manage tags / Manage rules) and `Sessions ›` (spec
 // 2026-10-03 A: Active sessions / Past sessions / Templates / Import session) — ALWAYS the last
 // row, in the slot `Past sessions` held, with its clock. Every row has an icon and no `…`
-// (design.md, "Menu rows"). Both submenus are ONE `Submenu`: they open to the LEFT
-// (the menu sits at the window's right edge), hover opens, click OPENS (never toggles), ArrowRight
-// opens on the first row, ArrowLeft goes back, and only one is open at a time.
+// (design.md, "Menu rows"). Both submenus are
+// `Popover.Submenu` (side `left`): they open to the LEFT (the menu sits at the window's right
+// edge), hover opens, click OPENS (never toggles), ArrowRight opens on the first row, ArrowLeft
+// goes back, and only one is open at a time.
 //
 // Escape peels ONE layer: the open submenu first, then the menu, and never the app's own Escape
 // (Focused → Board) while either is open. It listens on the whole anchor, so it also works while
 // focus is still on the ☰ button, where a mouse click leaves it.
-import {
-  useEffect,
-  useRef,
-  useState,
-  type JSX,
-  type KeyboardEvent,
-  type ReactNode,
-  type RefObject
-} from 'react'
+import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import type { SessionsPage } from '../../stores/boardStore'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import {
@@ -69,85 +62,6 @@ const SESSIONS_ROWS: readonly { page: SessionsPage; label: string; icon: JSX.Ele
   { page: 'templates', label: 'Templates', icon: <TemplateIcon /> },
   { page: 'import', label: 'Import session', icon: <ImportIcon /> }
 ]
-
-interface SubmenuProps {
-  id: SubmenuId
-  label: string
-  icon: ReactNode
-  open: boolean
-  /** Grows (> 0) each time ArrowRight opened THIS submenu: its first row then takes focus. */
-  focusRequest: number
-  triggerRef: RefObject<HTMLButtonElement | null>
-  onOpen: () => void
-  onOpenFromKey: () => void
-  onBack: () => void
-  children: ReactNode
-}
-
-/** A menu row that opens a submenu to its LEFT — Tags and Sessions share this one. */
-function Submenu({
-  id,
-  label,
-  icon,
-  open,
-  focusRequest,
-  triggerRef,
-  onOpen,
-  onOpenFromKey,
-  onBack,
-  children
-}: SubmenuProps): JSX.Element {
-  const listRef = useRef<HTMLDivElement | null>(null)
-  // Focus follows the KEY that opened it, once the render that draws the list is done. A hover
-  // open never changes `focusRequest`, so it never pulls focus in.
-  useEffect(() => {
-    if (focusRequest > 0) listRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
-  }, [focusRequest])
-  return (
-    <div className={styles.subAnchor}>
-      <Popover.Item
-        role="menuitem"
-        buttonRef={triggerRef}
-        testId={`app-menu-${id}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        // OPEN, never toggle: a mouse points at the row (opening it) before it clicks.
-        onClick={onOpen}
-        onMouseEnter={onOpen}
-        onKeyDown={(e) => {
-          if (e.key !== 'ArrowRight') return
-          e.preventDefault()
-          onOpenFromKey()
-        }}
-      >
-        <Popover.ItemIcon>{icon}</Popover.ItemIcon>
-        {label}
-        {/* Forward, like every submenu marker; the submenu still opens to the LEFT. */}
-        <Popover.ItemEnd>
-          <span className={styles.chevron} aria-hidden="true">
-            ›
-          </span>
-        </Popover.ItemEnd>
-      </Popover.Item>
-      {open && (
-        <div className={styles.submenuWrap} ref={listRef}>
-          <Popover.Surface
-            role="menu"
-            aria-label={label}
-            testId={`app-menu-${id}-list`}
-            onKeyDown={(e) => {
-              if (e.key !== 'ArrowLeft') return
-              e.preventDefault()
-              onBack()
-            }}
-          >
-            {children}
-          </Popover.Surface>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function AppMenu({
   onOpenSettings,
@@ -263,8 +177,10 @@ export function AppMenu({
                 </Popover.ItemIcon>
                 Shortcuts
               </Popover.Item>
-              <Submenu
-                id="tags"
+              <Popover.Submenu
+                side="left"
+                testId="app-menu-tags"
+                listTestId="app-menu-tags-list"
                 label="Tags"
                 icon={<TagGlyphIcon size={14} />}
                 open={submenu === 'tags'}
@@ -296,10 +212,12 @@ export function AppMenu({
                     Manage rules
                   </Popover.Item>
                 )}
-              </Submenu>
+              </Popover.Submenu>
               {onOpenSessions !== undefined && (
-                <Submenu
-                  id="sessions"
+                <Popover.Submenu
+                  side="left"
+                  testId="app-menu-sessions"
+                  listTestId="app-menu-sessions-list"
                   label="Sessions"
                   icon={<ClockIcon />}
                   open={submenu === 'sessions'}
@@ -320,7 +238,7 @@ export function AppMenu({
                       {row.label}
                     </Popover.Item>
                   ))}
-                </Submenu>
+                </Popover.Submenu>
               )}
             </Popover.Surface>
           </div>
