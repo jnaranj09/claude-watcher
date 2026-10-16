@@ -1,12 +1,14 @@
-// TagMenu — the ONE drawing of a tag list popup (2026-09-29): the board filter's tag list and the
-// TagPicker (a board card's `Tags…`, the rail peek's `+ tag`). They were two looks — chips on the
-// filter, bare names beside native checkboxes on the picker, which the desktop theme painted white
-// — and the operator liked the filter's. Both callers render these parts, so the look lives in
-// Popover (spec 2026-10-01); `TagMenu.test.tsx` fails if a caller grows its own.
+// TagMenu — the ONE drawing of a tag list popup (2026-09-29): the filter's tag list (FilterChips,
+// and the board's FilterBar until it renders FilterChips) and the TagPicker (a board card's
+// `Tags…`, the rail peek's `+ tag`). They were two looks — chips on the filter, bare names beside
+// native checkboxes on the picker, which the desktop theme painted white — and the operator liked
+// the filter's. Both callers render these parts, so the look lives in Popover (spec 2026-10-01);
+// `TagMenu.test.tsx` fails if a caller grows its own.
 //
 // It draws, it does not behave: the roles, the keys and the closing stay with each caller (the
-// filter is a single-choice `menu`, the picker a checkbox `group`). Themes reach both through
-// `[data-popover]` / `[data-popover-item]` (Popover), so a theme cannot style one and miss the other.
+// filter is a multi-choice `menu` in FilterChips, the picker a checkbox `group`). Themes reach both
+// through `[data-popover]` / `[data-popover-item]` (Popover), so a theme cannot style one and miss
+// the other.
 import type { JSX, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
 import { Popover } from '../Popover/Popover'
@@ -62,8 +64,9 @@ export interface TagMenuRowProps {
   tag: Pick<Tag, 'id' | 'name' | 'color'>
   /** Carries the tag now: the row is outlined and shows the ✓. */
   checked: boolean
-  /** `menuitemradio` in the filter (one tag at a time), `checkbox` in the picker (any number). */
-  role: 'menuitemradio' | 'checkbox'
+  /** `menuitemcheckbox` in the filter (several tags), `checkbox` in the picker. `menuitemradio`
+   *  stays for the board's one-tag filter until it renders FilterChips. */
+  role: 'menuitemradio' | 'menuitemcheckbox' | 'checkbox'
   testId: string
   onClick: () => void
 }

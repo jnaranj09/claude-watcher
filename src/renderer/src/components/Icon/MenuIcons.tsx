@@ -110,6 +110,16 @@ export function PlusIcon(): JSX.Element {
   )
 }
 
+/** Launched / Ended — a calendar page. */
+export function CalendarIcon(): JSX.Element {
+  return (
+    <LineIcon>
+      <rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.75" />
+      <path d="M2.25 6.75h11.5M5.5 1.75v3M10.5 1.75v3" />
+    </LineIcon>
+  )
+}
+
 /** Pick a folder — a folder. */
 export function FolderIcon(): JSX.Element {
   return (

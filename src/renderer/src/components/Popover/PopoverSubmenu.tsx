@@ -43,9 +43,12 @@ export function PopoverSubmenu({
   const leaving = useLeaving()
   const listRef = useRef<HTMLDivElement | null>(null)
   // Focus follows the KEY that opened it, once the render that draws the list is done. A hover
-  // open never changes `focusRequest`, so it never pulls focus in.
+  // open never changes `focusRequest`, so it never pulls focus in. The first row of ANY menu role:
+  // the filter's value rows are `menuitemcheckbox` / `menuitemradio`.
   useEffect(() => {
-    if (focusRequest > 0) listRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    if (focusRequest > 0) {
+      listRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()
+    }
   }, [focusRequest])
   return (
     <div className={styles.subAnchor}>

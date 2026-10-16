@@ -67,6 +67,31 @@ describe('Popover.Submenu', () => {
     expect(onBack).toHaveBeenCalledOnce()
   })
 
+  it('a key open focuses the first row, whatever its menu role (checkbox and radio rows too)', () => {
+    ;({ unmount } = render(
+      <div role="menu" aria-label="Root">
+        <Popover.Submenu
+          label="Tag"
+          icon={<span />}
+          side="right"
+          open
+          focusRequest={1}
+          triggerRef={createRef()}
+          onOpen={vi.fn()}
+          onOpenFromKey={vi.fn()}
+          onBack={vi.fn()}
+          testId="sub"
+          listTestId="sub-list"
+        >
+          <Popover.Item role="menuitemcheckbox" aria-checked={false}>
+            api
+          </Popover.Item>
+        </Popover.Submenu>
+      </div>
+    ))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'api' })).toHaveFocus()
+  })
+
   it('marks which side it opens on, for the stylesheet', () => {
     setup(true, 'left')
     expect(screen.getByTestId('sub-list')).toHaveAttribute('data-side', 'left')

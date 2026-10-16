@@ -1,0 +1,145 @@
+/* FilterChips — the chip row (one pill per filter that is on, `+ Add filter`) and where its lists
+ * sit. The lists' look is Popover's; only their placement lives here. Every list FLOATS over what
+ * is below (the board's columns, the rail's rows): it never pushes them down. */
+
+/* The chip row: the boxed bar the filter pills live in. A stacking context above the column grid
+ * (which paints after it), so an open list is never covered, by the grid or by a later pill. */
+.chipRow {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: var(--inset-compact-y) var(--inset-item-x);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-lg);
+}
+
+/* The rail variant wraps pills onto new lines (the Sessions pages' rail is narrow). */
+.chipRow[data-wrap] {
+  flex-wrap: wrap;
+}
+
+/* One per pill and one for `+ Add filter`: its list opens under it. */
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* `+ Add filter` — dashed, so it reads as "add one", not as a filter that is already on. */
+.add {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 var(--inset-item-x);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--rounded-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  cursor: pointer;
+}
+
+.add:hover {
+  color: var(--text-primary);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
+/* A filter that is on: `<Type> is <values>` (click to change) + × (remove), one rounded pill. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-full);
+  background: var(--bg-surface-raised);
+}
+
+.pillEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--inset-compact-x) 0 var(--inset-item-x);
+  border: 0;
+  border-radius: var(--rounded-full) 0 0 var(--rounded-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-label);
+  cursor: pointer;
+}
+
+.pillEdit:hover {
+  color: var(--text-primary);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
+.pillKey {
+  white-space: nowrap;
+}
+
+.pillRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0 var(--rounded-full) var(--rounded-full) 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pillRemove:hover {
+  color: var(--text-primary);
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
+.add:focus-visible,
+.pillEdit:focus-visible,
+.pillRemove:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* The type menu and a pill's folder / time list, under their trigger. The tag list under its
+ * pill is TagMenu's; the Calendar places itself the same way. The cap reaches the type menu's
+ * submenus too (a custom property inherits). */
+.menuWrap {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + var(--gap-inline));
+  left: 0;
+  min-width: 180px;
+  white-space: nowrap;
+  --popover-max-height: 340px;
+}
+
+/* A folder row's parent path: mono, quieter, on a raised panel so --text-secondary (never muted). */
+.path {
+  max-width: 220px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.check {
+  color: var(--text-primary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+}
