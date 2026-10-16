@@ -12,15 +12,7 @@
 //
 // Every popup floats over what is below (the operator: "show over them, never push the board
 // columns down"): the row is a stacking context above the board, each popup is positioned.
-import {
-  createRef,
-  useEffect,
-  useRef,
-  useState,
-  type JSX,
-  type KeyboardEvent,
-  type ReactNode
-} from 'react'
+import { useEffect, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from 'react'
 import type { Tag } from '../../../../shared/ipc/contract'
 import {
   clearType,
@@ -43,7 +35,7 @@ import { CalendarIcon, FolderIcon, PlusIcon } from '../Icon/MenuIcons'
 import { Popover } from '../Popover/Popover'
 import { Presence } from '../Presence/Presence'
 import { leavingProps } from '../Presence/leaving'
-import { TagChip } from '../TagChip/TagChip'
+import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
 import { submenuSide } from './submenuSide'
@@ -138,13 +130,18 @@ export function FilterChips({
   // so focus moves in an effect, by test id, after that render.
   const [refocus, setRefocus] = useState<{ testId: string; n: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const addAnchorRef = useRef<HTMLSpanElement | null>(null)
-  const [typeRefs] = useState(() => ({
-    tag: createRef<HTMLButtonElement>(),
-    folder: createRef<HTMLButtonElement>(),
-    launched: createRef<HTMLButtonElement>(),
-    ended: createRef<HTMLButtonElement>()
-  }))
+  // The type menu's box, as state (a callback ref): measured when a submenu opens.
+  const [typeMenu, setTypeMenu] = useState<HTMLDivElement | null>(null)
+  const tagRowRef = useRef<HTMLButtonElement | null>(null)
+  const folderRowRef = useRef<HTMLButtonElement | null>(null)
+  const launchedRowRef = useRef<HTMLButtonElement | null>(null)
+  const endedRowRef = useRef<HTMLButtonElement | null>(null)
+  const typeRefs = {
+    tag: tagRowRef,
+    folder: folderRowRef,
+    launched: launchedRowRef,
+    ended: endedRowRef
+  }
 
   const anyOpen = open !== null
   useEffect(() => {
@@ -191,10 +188,16 @@ export function FilterChips({
     return tid(`pill-${type}-edit`)
   }
 
-  function openAdd(): void {
-    const right = addAnchorRef.current?.getBoundingClientRect().right ?? 0
+  /** Open type `t`'s values beside the type menu. They hang off the MENU's right edge (wider than
+   *  the `+ Add filter` button), so that edge picks the side, measured now that the menu is drawn. */
+  function openSub(t: FilterType, fromKey: boolean): void {
+    const right = typeMenu?.getBoundingClientRect().right ?? 0
     setSide(submenuSide(right, window.innerWidth))
-    setOpen({ at: 'add', sub: null, focus: 0 })
+    setOpen((o) => ({
+      at: 'add',
+      sub: t,
+      focus: fromKey ? (o?.at === 'add' ? o.focus : 0) + 1 : 0
+    }))
   }
 
   /** A multi pick (tag, folder): the list stays open, under the pill from now on. */
@@ -331,7 +334,8 @@ export function FilterChips({
         {DAY_MODES.map((mode) => (
           <Popover.Item
             key={mode}
-            role="menuitem"
+            role="menuitemradio"
+            aria-checked={pick?.kind === mode}
             testId={tid(`${type}-row-${mode}`)}
             onClick={() => setOpen({ at: 'calendar', type, mode, from })}
           >
@@ -375,16 +379,16 @@ export function FilterChips({
   ): { body: ReactNode; label: string; title?: string } | null {
     const word = FILTER_TYPE_LABEL[type]
     if (type === 'tag') {
+      // Only the tags this surface still knows: a gone id draws no chip and is not counted.
       const picked = tags.filter((t) => filters.tagIds.includes(t.id))
+      if (picked.length === 0) return null
       return {
         body: (
           <>
-            <span className={styles.pillKey}>
-              {filters.tagIds.length > 1 ? 'Tag is any of' : 'Tag is'}
+            <span className={styles.pillKey}>{picked.length > 1 ? 'Tag is any of' : 'Tag is'}</span>
+            <span className={styles.pillTags}>
+              <TagChipRow tags={picked} testId={tid('pill-tag-chips')} />
             </span>
-            {picked.map((t) => (
-              <TagChip key={t.id} tag={t} />
-            ))}
           </>
         ),
         label: `${word} filter: ${picked.map((t) => t.name).join(', ')}. Change it`
@@ -482,21 +486,26 @@ export function FilterChips({
 
   function renderAdd(): JSX.Element {
     return (
-      <span className={styles.anchor} ref={addAnchorRef}>
+      <span className={styles.anchor}>
         <button
           type="button"
           className={styles.add}
           data-testid={tid('add')}
           aria-haspopup="menu"
           aria-expanded={addOpen}
-          onClick={() => (addOpen ? setOpen(null) : openAdd())}
+          onClick={() => setOpen(addOpen ? null : { at: 'add', sub: null, focus: 0 })}
         >
           + Add filter
         </button>
         <Presence value={open?.at === 'add' || null}>
           {(_, leaving) => (
             <div className={styles.menuWrap} {...leavingProps(leaving)}>
-              <Popover.Surface role="menu" aria-label="Add a filter" testId={tid('type-menu')}>
+              <Popover.Surface
+                role="menu"
+                aria-label="Add a filter"
+                testId={tid('type-menu')}
+                surfaceRef={setTypeMenu}
+              >
                 {offTypes.map((t) => {
                   const subOpen = open?.at === 'add' && open.sub === t
                   return (
@@ -508,14 +517,8 @@ export function FilterChips({
                       open={subOpen}
                       focusRequest={subOpen ? open.focus : 0}
                       triggerRef={typeRefs[t]}
-                      onOpen={() => setOpen({ at: 'add', sub: t, focus: 0 })}
-                      onOpenFromKey={() =>
-                        setOpen((o) => ({
-                          at: 'add',
-                          sub: t,
-                          focus: (o?.at === 'add' ? o.focus : 0) + 1
-                        }))
-                      }
+                      onOpen={() => openSub(t, false)}
+                      onOpenFromKey={() => openSub(t, true)}
                       onBack={() => {
                         setOpen({ at: 'add', sub: null, focus: 0 })
                         refocusOn(tid(`type-${t}`))

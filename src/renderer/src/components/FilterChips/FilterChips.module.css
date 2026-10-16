@@ -143,3 +143,10 @@
   font-size: var(--font-size-label);
   line-height: 1;
 }
+
+/* The Tag pill's chips: one line, `+N` for what does not fit (TagChipRow measures this slot). */
+.pillTags {
+  display: flex;
+  min-width: 0;
+  max-width: 240px;
+}

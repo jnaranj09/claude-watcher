@@ -126,7 +126,7 @@ describe('FilterChips — adding', () => {
     render(<Harness />)
     await userEvent.click(addFilter())
     await userEvent.hover(screen.getByRole('menuitem', { name: /Launched/ }))
-    await userEvent.click(screen.getByRole('menuitem', { name: 'On a day' }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'On a day' }))
     await userEvent.click(screen.getByRole('button', { name: longDay(14) }))
     expect(screen.getByText(`Launched on ${shortDay(14)}`)).toBeVisible()
     await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
@@ -139,11 +139,63 @@ describe('FilterChips — adding', () => {
   })
 })
 
+describe('FilterChips — submenu side', () => {
+  const width = window.innerWidth
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.innerWidth = width
+  })
+
+  /** The type menu's right edge at `right`; the `+ Add filter` button far narrower, at 120. */
+  function layout(right: number): void {
+    window.innerWidth = 1280
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      const r = this.dataset.testid === 'filter-type-menu' ? right : 120
+      return { right: r, left: 0, top: 0, bottom: 0, width: r, height: 0, x: 0, y: 0 } as DOMRect
+    })
+  }
+
+  it('opens right while the type menu leaves room for the values', async () => {
+    layout(400)
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    await userEvent.hover(screen.getByRole('menuitem', { name: /Folder/ }))
+    expect(screen.getByTestId('filter-folder-list')).toHaveAttribute('data-side', 'right')
+  })
+
+  it('opens left when the type menu is near the window edge, though the button is not', async () => {
+    layout(1100)
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    await userEvent.hover(screen.getByRole('menuitem', { name: /Folder/ }))
+    expect(screen.getByTestId('filter-folder-list')).toHaveAttribute('data-side', 'left')
+  })
+})
+
 describe('FilterChips — pills', () => {
-  it('several tags read "any of" and show a chip per tag; a deleted tag shows no chip', () => {
-    render(<Harness tags={[API]} start={{ ...NO_FILTERS, tagIds: ['t-api', 't-gone'] }} />)
+  it('several tags read "any of" and show one chip row (+N overflow) in tag-list order', () => {
+    render(<Harness start={{ ...NO_FILTERS, tagIds: ['t-web', 't-api'] }} />)
     expect(screen.getByText('Tag is any of')).toBeVisible()
-    expect(screen.getByText('api')).toBeVisible()
+    const row = screen.getByTestId('filter-pill-tag-chips')
+    expect(
+      within(row)
+        .getAllByTestId('tag-chip')
+        .map((c) => c.textContent)
+    ).toEqual(['api', 'web'])
+  })
+
+  it('a deleted tag shows no chip and does not count toward "any of"', () => {
+    render(<Harness tags={[API]} start={{ ...NO_FILTERS, tagIds: ['t-api', 't-gone'] }} />)
+    expect(screen.getByText('Tag is')).toBeVisible()
+    expect(screen.queryByText('Tag is any of')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('tag-chip')).toHaveLength(1)
+  })
+
+  it('a tag pill whose tags are all gone is not drawn', () => {
+    render(<Harness tags={[API]} start={{ ...NO_FILTERS, tagIds: ['t-gone'] }} />)
+    expect(screen.queryByTestId('filter-pill-tag')).not.toBeInTheDocument()
   })
 
   it('names the values in the pill button and keeps types order', () => {
@@ -185,8 +237,9 @@ describe('FilterChips — pills', () => {
       />
     )
     await userEvent.click(screen.getByRole('button', { name: /Launched filter/ }))
-    const since = screen.getByRole('menuitem', { name: `Since ${shortDay(12)}` })
-    expect(screen.getByRole('menuitem', { name: 'On a day' })).toBeVisible()
+    const since = screen.getByRole('menuitemradio', { name: `Since ${shortDay(12)}` })
+    expect(since).toBeChecked()
+    expect(screen.getByRole('menuitemradio', { name: 'On a day' })).not.toBeChecked()
     await userEvent.click(since)
     expect(screen.getByRole('button', { name: longDay(12) })).toHaveAttribute(
       'aria-pressed',
@@ -248,14 +301,14 @@ describe('FilterChips — keyboard', () => {
     await userEvent.keyboard('{Enter}')
     screen.getByRole('menuitem', { name: /Launched/ }).focus()
     await userEvent.keyboard('{ArrowRight}')
-    screen.getByRole('menuitem', { name: 'On a day' }).focus()
+    screen.getByRole('menuitemradio', { name: 'On a day' }).focus()
     await userEvent.keyboard('{Enter}')
     expect(screen.getByRole('grid')).toBeVisible()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('grid')).not.toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'On a day' })).toHaveFocus()
+    expect(screen.getByRole('menuitemradio', { name: 'On a day' })).toHaveFocus()
     await userEvent.keyboard('{Escape}')
-    expect(screen.queryByRole('menuitem', { name: 'On a day' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitemradio', { name: 'On a day' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Launched/ })).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
