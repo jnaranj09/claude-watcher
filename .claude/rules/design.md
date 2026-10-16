@@ -137,8 +137,9 @@ title.
   being edited by mistake. (`+ New session` popover merges global + active, unchanged.)
 - **Flat list in every scope, no section headers.**
 - Scope change closes what was open. A save that moves a row re-points the filter to its scope.
-- **Active / Past rail filter** (`SessionsDialog/RailFilter.tsx`): the page's search + the same
-  `Filter` button (`FilterToggle`) on one line, `FilterChips` (wrapping, `data-wrap`) under it;
+- **Active / Past rail filter** (`SessionsDialog/RailFilter.tsx`): the page's search (`TextInput
+  variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` button
+  (`FilterToggle`) on one line, `FilterChips` (wrapping, `data-wrap`) under it;
   Past adds `Ended`. Filters per scope while the dialog is open (`railFilters.ts`
   `useScopedFilters`; tags offered by `railTags`), never persisted.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
@@ -329,12 +330,15 @@ variant="inline">` + magnifier `icon`. Escape with text clears and stops; empty 
   `Folder is <name>` / `Folder is any of <names>` (`title` = full paths), `Launched today` …
   `Launched since <date>`. A crowded row shrinks the folder and time pills (text ends in `…`);
   the Tag pill and `+ Add filter` never shrink. Every list floats over the columns / rail rows
-  (the row is a stacking context, each list positioned), never pushing them down.
+  (the row is a stacking context, each list positioned), never pushing them down. A popup under a
+  trigger (the type menu, a pill's list, the Calendar) lines up with the trigger's left edge, or
+  with its right edge when `trigger.left + SUBMENU_ROOM` passes the window (`popupAlign`, the
+  submenu's flip rule, measured as it opens), so it stays inside the window.
 - **Per workspace:** `boardStore.filtersByWorkspace` — switching away keeps a workspace's filters,
   switching back restores them all. Not persisted. Tags a workspace cannot see drop out at read
   time (`useBoardFilter` → `effectiveFilters`). Search stays ONE global box.
 - `Filter` = `components/FilterBar/FilterToggle.tsx` (board and rail): `<Button variant="secondary"
-  lit>`, word + 16px filter-list icon, 32px (same as the board search box — pinned by test),
+  lit>`, word + 16px filter-list icon, 32px (same as the search box beside it — pinned by test),
   titled `Show filters`/`Hide filters`. No chevron. LIT while chip row open AND while closed with
   a filter on. Count = number of filter TYPES on (`Filter, 2 on`). Search never counted.
 - Spacing: `--gap-group` (12px) under header, `--gap-page` (16px) above columns (`FilterBar` `.bar`,
