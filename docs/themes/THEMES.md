@@ -391,6 +391,9 @@ What you can target:
   - `[data-count="total|working|needs-you"]` — every count badge: the workspace switcher, its
     tab and menu rows, the column headers, the Filter count.
   - `[data-session-count]` — the Filter bar's count of sessions shown.
+  - `[data-filter-chips]` — the boxed row of filter pills (the board's filter bar and the Active /
+    Past rail of the Sessions dialog; `[data-wrap]` on the rail, where pills wrap);
+    `[data-filter-pill="tag|folder|launched|ended"]` — one filter that is on.
   - `[data-app-title]` — the `Claude Watcher` brand in the header.
   - `[data-workspace-switcher]` — the switcher button; `[data-workspace-tab]` — the elsewhere tab
     beside it (rendered whenever other workspaces hold at least one session card, unlike `[data-tucked]`).

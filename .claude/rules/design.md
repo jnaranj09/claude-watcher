@@ -137,6 +137,10 @@ title.
   being edited by mistake. (`+ New session` popover merges global + active, unchanged.)
 - **Flat list in every scope, no section headers.**
 - Scope change closes what was open. A save that moves a row re-points the filter to its scope.
+- **Active / Past rail filter** (`SessionsDialog/RailFilter.tsx`): the page's search + the same
+  `Filter` button (`FilterToggle`) on one line, `FilterChips` (wrapping, `data-wrap`) under it;
+  Past adds `Ended`. Filters per scope while the dialog is open (`railFilters.ts`
+  `useScopedFilters`; tags offered by `railTags`), never persisted.
 - Three empty states, three sentences: nothing at all / nothing in this scope / no search matches.
 - `+ New` at rail bottom (`ManageDialog.ListBottom`, `margin-top: auto`).
 - Options pass a `WorkspaceLabel` as `display`: the OPEN list shows each name in its tint; the closed
@@ -186,7 +190,7 @@ Tags dialog rail uses `TagPathLabel` instead.
   checkbox `group`).
 - **Every tag list popup is `components/TagMenu/TagMenu.tsx`** (filter + `TagPicker`): chip per
   row, `✓` at right when on, no native checkbox. Drawn with `Popover`. Filter = `menu`
-  (`menuitemradio`), picker = `group` (`role="checkbox"`).
+  (`menuitemcheckbox`, several tags), picker = `group` (`role="checkbox"`).
 - Rail row name reserves `--rail-tools-width` while tools show.
 - Tags dialog rail: `TagPathLabel` (`acme/` secondary, `prod` primary, indent `depth ×
 --space-3`, accessible name = full name). Display only.
@@ -304,24 +308,45 @@ one above it. The exception is a Settings row: its label and control sit at the 
 The ONE place the board is filtered/searched; above the columns, never in the header.
 
 - CONTROLS row always drawn, no box: search, `Filter` button, count (`5 sessions` /
-  `3 shown · 2 hidden`). CHIP row (boxed; `Tag is <chip>` with `×`, or `+ Add filter`) only while
-  `Filter` is pressed. Not persisted.
+  `3 shown · 2 hidden`). CHIP row (boxed; a pill per filter type that is on, then
+  `+ Add filter`) only while `Filter` is pressed. Not persisted.
 - **Search matches card NAME only**, case-insensitive substring, trimmed. `<TextInput
 variant="inline">` + magnifier `icon`. Escape with text clears and stops; empty passes through.
   `boardStore.searchQuery`, not persisted, survives workspace switch.
-- Tag + search narrow board, column counts and rail status groups through ONE `BoardFilter`
+- Filters + search narrow board, column counts and rail status groups through ONE `BoardFilter`
   (`useBoardFilter`). Pinned rail row, notifier, badge, sound ignore both.
-- `Filter` = `<Button variant="secondary" lit>`, word + 16px filter-list icon, 32px (same as search
-  box — pinned by test), titled `Show filters`/`Hide filters`. No chevron. LIT while chip row open
-  AND while closed with a filter on (then also shows count: `Filter, 1 on`). Search never counted.
+- **Filter types:** Tag (several, any of), Folder (several, any of; the workspace's own folders),
+  Launched (Today / Last 7 days / Last 30 days / On a day / Since a day). AND across types. The chip
+  row is `components/FilterChips/FilterChips.tsx`, the ONE chip row (board and the Sessions pages'
+  rail). `+ Add filter` opens a type menu (types already on are not offered); each row is a
+  `Popover.Submenu` whose values open beside it, on the right unless they would leave the window
+  (`submenuSide`: the TYPE MENU's right edge + `SUBMENU_ROOM`, measured when a submenu opens), then
+  on the left. A pill reopens its values under itself; `×` removes the type. Tag and folder rows
+  are `menuitemcheckbox` and the list stays open while picking; the Launched / Ended rows
+  (`On a day` / `Since a day` included) are `menuitemradio`, and a preset or a calendar day
+  closes.
+- Pills: `Tag is <chips>` / `Tag is any of <chips>` (`TagChipRow`, `+N` past its capped slot),
+  `Folder is <name>` / `Folder is any of <names>` (`title` = full paths), `Launched today` …
+  `Launched since <date>`. A crowded row shrinks the folder and time pills (text ends in `…`);
+  the Tag pill and `+ Add filter` never shrink. Every list floats over the columns / rail rows
+  (the row is a stacking context, each list positioned), never pushing them down.
+- **Per workspace:** `boardStore.filtersByWorkspace` — switching away keeps a workspace's filters,
+  switching back restores them all. Not persisted. Tags a workspace cannot see drop out at read
+  time (`useBoardFilter` → `effectiveFilters`). Search stays ONE global box.
+- `Filter` = `components/FilterBar/FilterToggle.tsx` (board and rail): `<Button variant="secondary"
+  lit>`, word + 16px filter-list icon, 32px (same as the board search box — pinned by test),
+  titled `Show filters`/`Hide filters`. No chevron. LIT while chip row open AND while closed with
+  a filter on. Count = number of filter TYPES on (`Filter, 2 on`). Search never counted.
 - Spacing: `--gap-group` (12px) under header, `--gap-page` (16px) above columns (`FilterBar` `.bar`,
   `Board.module.css` `.filterSlot`). Never a negative margin on the grid (covers the bar's clicks).
-- Empty sentences name what hides cards (`lib/filterCopy.ts`): `No sessions tagged prod match “dep”
-here.` aria-live too.
-- Tag is the only filter type: `+ Add filter` opens the tag list directly. One tag at a time
-  (`+ Add filter` not rendered while on).
-- Drawn only when the workspace has sessions (stays when filter hides all). No tag: list offers
-  `Create tags`; no tag AND no Tags dialog → no `Filter` button.
+- Empty sentences name what hides cards (`lib/filterCopy.ts`): `No sessions match the filters and
+  “dep”` (or `the filters` / `“dep”` alone), with a hint naming the way back. aria-live too.
+- Drawn only when the workspace has sessions (stays when filter hides all); the `Filter` button
+  shows whenever it is drawn (folder and time need no tag). No tag: the Tag list offers
+  `Create tags` when a Tags dialog exists.
+- **Calendar** (`components/Calendar/`): Popover.Surface, under the trigger that opened the list;
+  Monday first; today outlined; the pick LIT; a since-range tinted `--bg-hover`; future days off;
+  12 months back; hint `Pick one day.` / `From the picked day up to today.`
 - `Sort` / `⋯` not built (IdeasBoard) — not rendered.
 
 ## Header ☰ menu (`components/AppMenu/AppMenu.tsx`)
@@ -332,8 +357,10 @@ Only header control besides `+ New session`; filters nothing.
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /
   `Import session`) ALWAYS LAST. New rows go before it. Icons: one line set (16 grid, 1.5 stroke,
   14px) in a fixed-width slot; `›` at right; submenus still open LEFT.
-- Submenus are `Popover.Submenu` (side `left`): open LEFT, level with their row; hover opens, click
-  OPENS (never toggles); ArrowRight opens on the first row, ArrowLeft back; ONE open at a time.
+- Submenus are `Popover.Submenu` (`components/Popover/PopoverSubmenu.tsx`, side `left` here; the
+  filter's type menu is its other caller): open LEFT, level with their row; hover opens, click
+  OPENS (never toggles); ArrowRight opens and focuses the first row (of any `menuitem*` role),
+  ArrowLeft back; ONE open at a time.
 - Escape peels one layer (submenu, then menu), listens on the whole menu; closed → passes through.
 - Every row opens a dialog under the single-modal rule (`settingsDialogOpen`, `sessionsDialog`,
   `tagsDialog` in `boardStore` join `isModalOpen()`).
@@ -460,11 +487,18 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   `ghost xs icon` with `aria-pressed`; its filled pin IS the on look, never `lit`. **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.
   Workspace switcher is NOT a Button (compound pill, matches `md` height); its menu lists only the
-  OTHER workspaces (none → just `Manage workspaces`). Dashed pills and menu rows are Popover rows.
+  OTHER workspaces (none → just `Manage workspaces`). Menu rows are Popover rows.
+  The guard bans a module's BUTTON-LOOK classes, not a raw `<button>`: a part of a compound control
+  that is not a free-standing button stays a raw `<button className>` with its own class (the
+  `Select` trigger, Popover rows, the `FilterChips` pill halves and the dashed `+ Add filter` /
+  rail `+ tag` pills, `TagChip` /
+  `TagIndicator`, and the Calendar's day cells, dense grid cells). A free-standing button inside
+  one is a `Button` (the Calendar's month arrows).
 - **Hand-made menu/list popup → `components/Popover`** (spec
   `2026-10-01-popover-standard-design.md`). Parts: `Surface` (box, never scrolls), `List` (only
   scrolling part, `--popover-max-height` on the caller's wrapper), `Item`, `CompactItem`,
-  `QuietItem`, `ItemIcon`, `ItemEnd`, `Divider`, `Note`. Draws only — roles, keys, open/close,
+  `QuietItem`, `ItemIcon`, `ItemEnd`, `Divider`, `Note`, and `Submenu` (a row whose list opens
+  beside it; the only part that also behaves: hover / click / ArrowRight / ArrowLeft). Draws only — roles, keys, open/close,
   position stay with the caller; no `className`. Row states read from ARIA (`aria-selected`,
   `aria-checked`, `aria-expanded`) + `active` (`data-active`). `tone` → WorkspaceTint +
   `data-tone`. Themes target `[data-popover]`, `[data-popover-list]`, `[data-popover-item]`

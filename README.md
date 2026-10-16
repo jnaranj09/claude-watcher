@@ -194,8 +194,11 @@ remove tags on their own when a session launches, changes column, or sits in a c
 while — matched by tag, template, folder or name, and run top to bottom.
 
 Above the columns, the search box narrows the board to cards whose name matches, and the
-**Filter** button shows one tag filter at a time. Both narrow the board and the column counts;
-notifications, the badge and the sound ignore them.
+**Filter** button opens a row of filters: by tag, by folder and by launch time (today, the last 7
+or 30 days, or a day picked on a calendar). Each workspace keeps its own filters while the app
+runs. Both narrow the board and the column counts; notifications, the badge and the sound ignore
+them. The Active and Past pages of **☰ → Sessions** have the same **Filter** button (Past also
+filters by end time).
 
 ## Themes
 

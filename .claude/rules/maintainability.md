@@ -251,7 +251,7 @@ Landed walks today:
   that carries `data-popover` or `data-toast`, also carries `data-overlay`. A `Popover.Surface`
   passes, since the part stamps its own root. An element whose `role` comes from an expression,
   that is not a `Popover.Surface` and carries no `data-overlay`, goes on an allow-list naming the
-  roles it can take (`Callout`: `alert` or `status`; the `TagMenu` item: `menuitemradio` or
+  roles it can take (`Callout`: `alert` or `status`; the `TagMenu` item: `menuitemcheckbox` or
   `checkbox`). It must go red when the stamp is removed from any of today's roots: the
   ManageDialog shell, `SessionNameDialog`, `QuitGuard`, `StopConfirm`, `Popover.Surface` and the
   `Toaster` toast.
