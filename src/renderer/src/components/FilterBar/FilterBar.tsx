@@ -8,11 +8,9 @@
 //     the one chip row the Sessions dialog's pages also render, offering tag, folder and launch
 //     time here. The lists, pills, calendar and their keys all live there.
 //
-// The button is LIT while the chip row is open (like the rail's open tag toggles), and while it is
-// closed with a filter on, because the pills are then out of sight while cards are still hidden.
-// With filters on it also carries how many TYPES are on (`activeFilterCount`). The search is not
-// counted on it: the box already shows what it holds. Open/closed is local view-state, never
-// persisted. The button shows whenever the workspace has sessions: folder and time need no tag.
+// The `Filter` button is `FilterToggle`, the one the Sessions dialog's rail also draws (lit, count,
+// `Filter, N on`). Open/closed is local view-state, never persisted. The button shows whenever
+// the workspace has sessions: folder and time need no tag.
 //
 // The filters are kept PER WORKSPACE in `boardStore.filtersByWorkspace` (view-state, never
 // persisted): switching away keeps them, switching back brings them all back. Tags are offered
@@ -26,9 +24,9 @@ import { boardStore, selectSearchQuery, useBoard, useBoardFilter } from '../../s
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { activeFilterCount, type FilterType } from '../../lib/sessionFilters'
-import { Button } from '../Button/Button'
 import { FilterChips } from '../FilterChips/FilterChips'
 import { TextInput } from '../TextInput/TextInput'
+import { FilterToggle } from './FilterToggle'
 import styles from './FilterBar.module.css'
 
 export interface FilterBarProps {
@@ -52,21 +50,6 @@ function countText(total: number, workspaceTotal: number, filtered: boolean): st
 
 function setSearch(query: string): void {
   boardStore.getState().setSearchQuery(query)
-}
-
-/** The button's icon: three lines getting shorter (the "filter list" mark), drawn on the ☰ icon's
- *  grid and stroke so the two header-sized buttons match. */
-function FilterLinesIcon(): JSX.Element {
-  return (
-    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path
-        d="M2.5 4h11M4.5 8h7M6.5 12h3"
-        stroke="currentColor"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
-    </svg>
-  )
 }
 
 /** The search box's magnifier, on the same 16-unit grid and stroke, drawn at 14px. */
@@ -123,7 +106,6 @@ export function FilterBar({
   const count = activeFilterCount(filter.filters)
   const filterOn = count > 0
   const searching = query.trim() !== ''
-  const lit = expanded || filterOn
 
   return (
     <div
@@ -146,24 +128,13 @@ export function FilterBar({
             onKeyDown={handleSearchKeyDown}
           />
         </div>
-        <Button
-          variant="secondary"
-          lit={lit}
+        <FilterToggle
+          expanded={expanded}
+          count={count}
+          controls={chipRowId}
+          onToggle={() => setExpanded((v) => !v)}
           testId="filter-toggle"
-          aria-expanded={expanded}
-          aria-controls={chipRowId}
-          title={expanded ? 'Hide filters' : 'Show filters'}
-          aria-label={filterOn ? `Filter, ${count} on` : 'Filter'}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          <FilterLinesIcon />
-          Filter
-          {filterOn && (
-            <span className={styles.toggleCount} data-testid="filter-toggle-count">
-              {count}
-            </span>
-          )}
-        </Button>
+        />
         <span
           className={styles.count}
           data-testid="filter-count"

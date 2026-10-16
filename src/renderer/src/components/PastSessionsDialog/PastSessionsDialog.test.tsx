@@ -179,7 +179,7 @@ describe('PastSessionsDialog', () => {
     expect(rows(r)).toEqual(['billing api'])
     type(q(r, '[data-testid="past-session-search"]') as HTMLInputElement, 'zzz')
     expect(q(r, '[data-testid="past-sessions-empty"]')?.textContent).toBe(
-      'No past sessions match “zzz”.'
+      'No past sessions match your search or filters.'
     )
     chooseOption(r.container, 'past-session-scope-filter', 'ws:default')
     type(q(r, '[data-testid="past-session-search"]') as HTMLInputElement, '')
@@ -477,5 +477,20 @@ describe('nothing open → placeholder (spec 2026-09-29)', () => {
     act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
     expect(q(r, '[data-testid="past-session-placeholder"]')).toBeNull()
     expect(q(r, '[data-testid="past-session-open"]')).not.toBeNull()
+  })
+})
+
+describe('Sessions → Past — rail filter', () => {
+  it('offers Ended and narrows by folder', async () => {
+    const { r } = render()
+    await flush()
+    chooseOption(r.container, 'past-session-scope-filter', 'all')
+    const click = (sel: string): void => act(() => q(r, sel)?.click())
+    click('[data-testid="past-filter-toggle"]')
+    click('[data-testid="past-filter-add"]')
+    expect(q(r, '[data-testid="past-filter-type-ended"]')).not.toBeNull()
+    click('[data-testid="past-filter-type-folder"]')
+    click('[data-testid="past-filter-folder-row-/home/op/deploy"]')
+    expect(rows(r)).toEqual(['deploy'])
   })
 })

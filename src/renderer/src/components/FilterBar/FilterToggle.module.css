@@ -1,0 +1,5 @@
+/* The `Filter` button is `Button` (secondary, `lit` while the chip row is open or a filter is on):
+ * the toolbar's 32px height. Only the count inside it is styled here. */
+.count {
+  font-weight: 700;
+}

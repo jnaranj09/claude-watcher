@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { BoardSession } from '../../stores/boardStore'
+import { NO_FILTERS } from '../../lib/sessionFilters'
 import {
   activeEmptyCopy,
   activeRows,
@@ -36,7 +37,7 @@ describe('activeRows (spec 2026-10-03 D)', () => {
   ]
 
   it('orders Needs you → Working → Idle, oldest first inside each', () => {
-    expect(activeRows(all, 'ws:w1', '').map((r) => r.id)).toEqual([
+    expect(activeRows(all, 'ws:w1', '', NO_FILTERS, 0).map((r) => r.id)).toEqual([
       'need-old',
       'need-new',
       'work-old',
@@ -46,12 +47,37 @@ describe('activeRows (spec 2026-10-03 D)', () => {
   })
 
   it('a workspace scope keeps its own sessions; All keeps every one', () => {
-    expect(activeRows(all, 'ws:w2', '').map((r) => r.id)).toEqual(['other'])
-    expect(activeRows(all, 'all', '')).toHaveLength(6)
+    expect(activeRows(all, 'ws:w2', '', NO_FILTERS, 0).map((r) => r.id)).toEqual(['other'])
+    expect(activeRows(all, 'all', '', NO_FILTERS, 0)).toHaveLength(6)
   })
 
   it('the search matches the NAME, trimmed and case-insensitive', () => {
-    expect(activeRows(all, 'all', '  WORK ').map((r) => r.id)).toEqual(['work-old', 'work-new'])
+    expect(activeRows(all, 'all', '  WORK ', NO_FILTERS, 0).map((r) => r.id)).toEqual([
+      'work-old',
+      'work-new'
+    ])
+  })
+
+  it('filters narrow the rows: folder, tags any-of, launch time', () => {
+    const rows = [
+      { ...s('a', 'idle', 1), tagIds: ['t1'], launchedAt: 5_000 },
+      { ...s('b', 'idle', 2), tagIds: ['t2'] }
+    ]
+    expect(
+      activeRows(rows, 'all', '', { ...NO_FILTERS, folders: ['/p/b'] }, 10_000).map((r) => r.id)
+    ).toEqual(['b'])
+    expect(
+      activeRows(rows, 'all', '', { ...NO_FILTERS, tagIds: ['t1', 't2'] }, 10_000)
+    ).toHaveLength(2)
+    expect(
+      activeRows(
+        rows,
+        'all',
+        '',
+        { ...NO_FILTERS, launched: { kind: 'preset', range: '7d' } },
+        10_000
+      ).map((r) => r.id)
+    ).toEqual(['a'])
   })
 })
 
@@ -59,7 +85,7 @@ describe('activeEmptyCopy', () => {
   it('three nothings, three sentences', () => {
     expect(activeEmptyCopy(0, 0)).toBe('No sessions are running.')
     expect(activeEmptyCopy(4, 0)).toBe('No sessions are running in this workspace.')
-    expect(activeEmptyCopy(4, 2)).toBe('No sessions match your search.')
+    expect(activeEmptyCopy(4, 2)).toBe('No sessions match your search or filters.')
   })
 })
 

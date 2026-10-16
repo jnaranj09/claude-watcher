@@ -3,13 +3,15 @@
 // "Bulk and per row. That's the whole point" (owner): a checkbox per row and `Select all` for the
 // bulk bar, the row itself for the details column — two separate controls. The list is LIVE (the
 // same watch deltas as the board): an ended session leaves it and its check; a new one arrives
-// unchecked. Main stays the source of truth; this page never writes session state.
+// unchecked. Main stays the source of truth; this page never writes session state. The rail's
+// search and `Filter` (tag, folder, launched; RailFilter, spec 2026-10-16) narrow the list.
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { exitSessions, type ExitVerb } from '../../lib/sessionExit'
 import type { Workspace } from '../../../../shared/ipc/contract'
 import { openFromNotification } from '../../lib/openFromNotification'
+import { effectiveFilters, NO_FILTERS, type FilterType } from '../../lib/sessionFilters'
 import { selectSessionsById, useBoard, type BoardSession } from '../../stores/boardStore'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
@@ -32,7 +34,12 @@ import {
   exitResultCopy,
   statusAge
 } from './activeSessionsView'
+import { RailFilter } from './RailFilter'
+import { railTags, useScopedFilters } from './railFilters'
 import styles from './SessionsDialog.module.css'
+
+/** The types the Active page offers, in pill order (Ended is Past's only). */
+const ACTIVE_TYPES: readonly FilterType[] = ['tag', 'folder', 'launched']
 
 export function ActiveSessionsPage({
   scope,
@@ -43,6 +50,7 @@ export function ActiveSessionsPage({
   const dialog = useManageDialogContext()
   const sessionsById = useBoard(selectSessionsById)
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
+  const tags = useTags(selectTags)
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set())
   const searchRef = useRef<HTMLInputElement | null>(null)
@@ -58,9 +66,15 @@ export function ActiveSessionsPage({
 
   // The dialog resets Global / `(no workspace)` on the way in (scopeOnPage); this keeps the type honest.
   const activeScope: PastScope = scope === 'global' || scope === 'orphans' ? 'all' : scope
+  // The rail's filters (spec 2026-10-16), per scope while the dialog is open; a tag this scope
+  // cannot see drops out at read time.
+  const [filters, setFilters] = useScopedFilters(activeScope)
+  const offeredTags = railTags(tags, activeScope)
+  const shown = effectiveFilters(filters, new Set(offeredTags.map((t) => t.id)))
   const sessions = Object.values(sessionsById)
-  const inScope = activeRows(sessions, activeScope, '')
-  const listed = activeRows(sessions, activeScope, query)
+  const inScope = activeRows(sessions, activeScope, '', NO_FILTERS, now())
+  const listed = activeRows(sessions, activeScope, query, shown, now())
+  const folders = [...new Set(inScope.map((s) => s.projectPath))]
   // Only what is live, visible and checked counts — an ended session has left `listed`.
   const checkedRows = listed.filter((s) => checked.has(s.id))
   const allChecked = listed.length > 0 && checkedRows.length === listed.length
@@ -153,14 +167,25 @@ export function ActiveSessionsPage({
       <ManageDialog.Columns>
         {pages}
         <ManageDialog.List size="wide">
-          <TextInput
-            inputRef={searchRef}
-            variant="inline"
-            testId="active-session-search"
-            ariaLabel="Search active sessions"
-            placeholder="Search"
-            value={query}
-            onChange={setQuery}
+          <RailFilter
+            search={
+              <TextInput
+                inputRef={searchRef}
+                variant="inline"
+                testId="active-session-search"
+                ariaLabel="Search active sessions"
+                placeholder="Search"
+                value={query}
+                onChange={setQuery}
+              />
+            }
+            filters={shown}
+            onChange={setFilters}
+            types={ACTIVE_TYPES}
+            tags={offeredTags}
+            folders={folders}
+            now={now}
+            testIdPrefix="active-filter"
           />
           {listed.length > 0 && (
             <span className={styles.selectAll}>

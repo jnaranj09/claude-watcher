@@ -1,6 +1,7 @@
 // Past sessions — the pure helpers behind PastSessionsPage.tsx. jsdom `unit`.
 import { describe, it, expect } from 'vitest'
 import {
+  filterPastByFilters,
   filterPastByName,
   filterPastByScope,
   pastSessionErrorMessage,
@@ -9,6 +10,7 @@ import {
   resumeByIdErrorMessage
 } from './pastSessionsView'
 import { folderName } from '../../lib/filterCopy'
+import { NO_FILTERS } from '../../lib/sessionFilters'
 import type { PastSession } from '../../../../shared/ipc/contract'
 
 const row = (id: string, name: string, workspaceId = 'w1'): PastSession => ({
@@ -36,9 +38,22 @@ describe('pastSessionsView', () => {
   })
 
   it('three empty states, three sentences', () => {
-    expect(pastSessionsEmptyCopy(0, 0, '')).toBe('No past sessions yet.')
-    expect(pastSessionsEmptyCopy(3, 0, '')).toBe('No past sessions in this workspace.')
-    expect(pastSessionsEmptyCopy(3, 2, ' dep ')).toBe('No past sessions match “dep”.')
+    expect(pastSessionsEmptyCopy(0, 0)).toBe('No past sessions yet.')
+    expect(pastSessionsEmptyCopy(3, 0)).toBe('No past sessions in this workspace.')
+    expect(pastSessionsEmptyCopy(3, 2)).toBe('No past sessions match your search or filters.')
+  })
+
+  it('filterPastByFilters reads cwd, tags, launchedAt and endedAt', () => {
+    const rows = [
+      { ...row('a', 'A'), cwd: '/p/a', endedAt: new Date(2026, 9, 15, 12).getTime() },
+      { ...row('b', 'B'), cwd: '/p/b', endedAt: new Date(2026, 9, 1, 12).getTime() }
+    ]
+    const now = new Date(2026, 9, 16, 15).getTime()
+    const ended = { kind: 'since', day: '2026-10-12' } as const
+    expect(filterPastByFilters(rows, { ...NO_FILTERS, ended }, now).map((r) => r.id)).toEqual(['a'])
+    expect(
+      filterPastByFilters(rows, { ...NO_FILTERS, folders: ['/p/b'] }, now).map((r) => r.id)
+    ).toEqual(['b'])
   })
 
   it('relative ended time', () => {

@@ -121,7 +121,7 @@ describe('Sessions → Active', () => {
       search?.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(q(r, '[data-testid="active-sessions-empty"]')?.textContent).toBe(
-      'No sessions match your search.'
+      'No sessions match your search or filters.'
     )
     act(() => boardStore.setState({ sessionsById: { d: SESSIONS.d } }))
     act(() => {
@@ -396,5 +396,33 @@ describe('Sessions → Active — the arm and the visible rows (final review 2, 
     click(q(r, '[data-testid="active-bulk-archive"]'))
     await flush(6)
     expect(archive.mock.calls.map((c) => c[0])).toEqual(['tb'])
+  })
+})
+
+describe('Sessions → Active — rail filter', () => {
+  function filterByFolderA(r: RenderResult): void {
+    click(q(r, '[data-testid="active-filter-toggle"]'))
+    click(q(r, '[data-testid="active-filter-add"]'))
+    click(q(r, '[data-testid="active-filter-type-folder"]'))
+    click(q(r, '[data-testid="active-filter-folder-row-/home/op/a"]'))
+  }
+
+  it('the rail Filter narrows the list by folder', () => {
+    const r = render()
+    filterByFolderA(r)
+    expect(names(r)).toEqual(['name-a'])
+    expect(q(r, '[data-testid="active-filter-toggle"]')?.getAttribute('aria-label')).toBe(
+      'Filter, 1 on'
+    )
+  })
+
+  it('filters are kept per scope while the dialog is open', () => {
+    const r = render()
+    filterByFolderA(r)
+    chooseOption(r.container, 'active-session-scope-filter', 'all')
+    expect(q(r, '[data-testid="active-filter-toggle"]')?.getAttribute('aria-label')).toBe('Filter')
+    expect(names(r)).toEqual(['name-d', 'name-b', 'name-c', 'name-a'])
+    chooseOption(r.container, 'active-session-scope-filter', 'ws:w1')
+    expect(names(r)).toEqual(['name-a'])
   })
 })

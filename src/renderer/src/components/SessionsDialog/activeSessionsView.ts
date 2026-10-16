@@ -1,8 +1,9 @@
-// The Active sessions page's rules, pure (spec 2026-10-03 D): which live sessions a scope and a
-// search show and in what order, how long each has been in its status, and what a bulk Archive /
+// The Active sessions page's rules, pure (spec 2026-10-03 D): which live sessions a scope, a
+// search and the rail's filters (spec 2026-10-16) show and in what order, how long each has been in its status, and what a bulk Archive /
 // Delete says afterwards. Kept out of the component so each is tested without rendering.
 import type { Column } from '../../../../shared/ipc/contract'
 import type { ExitOutcome, ExitVerb } from '../../lib/sessionExit'
+import { matchesFilters, type SessionFilters } from '../../lib/sessionFilters'
 import type { BoardSession } from '../../stores/boardStore'
 import type { PastScope } from '../PastSessionsDialog/pastSessionsView'
 import { scopeWorkspaceId } from '../ScopeFilter/scope'
@@ -13,13 +14,22 @@ const COLUMN_RANK: Record<Column, number> = { 'needs-you': 0, working: 1, idle: 
 export function activeRows(
   sessions: readonly BoardSession[],
   scope: PastScope,
-  query: string
+  query: string,
+  filters: SessionFilters,
+  now: number
 ): BoardSession[] {
   const workspaceId = scopeWorkspaceId(scope)
   const q = query.trim().toLocaleLowerCase()
   return sessions
     .filter((s) => workspaceId === null || s.workspaceId === workspaceId)
     .filter((s) => q.length === 0 || s.sessionName.toLocaleLowerCase().includes(q))
+    .filter((s) =>
+      matchesFilters(
+        { folder: s.projectPath, tagIds: s.tagIds, launchedAt: s.launchedAt, endedAt: undefined },
+        filters,
+        now
+      )
+    )
     .sort(
       (a, b) =>
         COLUMN_RANK[a.column] - COLUMN_RANK[b.column] || a.enteredColumnAt - b.enteredColumnAt
@@ -30,7 +40,7 @@ export function activeRows(
 export function activeEmptyCopy(total: number, inScope: number): string {
   if (total === 0) return 'No sessions are running.'
   if (inScope === 0) return 'No sessions are running in this workspace.'
-  return 'No sessions match your search.'
+  return 'No sessions match your search or filters.'
 }
 
 /** Time in the current status, short — the row's `Needs you · 4m`. */

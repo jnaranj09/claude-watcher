@@ -1,9 +1,10 @@
-// Past sessions (D-6) — the Past PAGE of the Sessions dialog (spec 2026-10-03 E), on ManageDialog: a header scope
-// filter (`All sessions` · each workspace — no Global, no orphans: every record has a workspace
-// and the delete cascade keeps it so), a search box over the NAME, a FLAT list newest first, a
-// READ-ONLY form, and a [Forget] [Open] footer. Importing a session the app did not
-// launch is the dialog's Import page. No `+ New` (there is nothing to create) and no
-// RowActions. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
+// Past sessions (D-6) — the Past PAGE of the Sessions dialog (spec 2026-10-03 E), on
+// ManageDialog: a header scope filter (`All sessions` · each workspace — no Global, no orphans:
+// every record has a workspace and the delete cascade keeps it so), a search box over the NAME
+// with the rail's `Filter` beside it (tag, folder, launched, ended; RailFilter, spec 2026-10-16),
+// a FLAT list newest first, a READ-ONLY form, and a [Forget] [Open] footer. Importing a session
+// the app did not launch is the dialog's Import page. No `+ New` (there is nothing to create) and
+// no RowActions. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
 // guard. Never logs a record value.
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -17,6 +18,9 @@ import { TagChipRow } from '../TagChip/TagChipRow'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { folderName } from '../../lib/filterCopy'
+import { effectiveFilters, type FilterType } from '../../lib/sessionFilters'
+import { RailFilter } from '../SessionsDialog/RailFilter'
+import { railTags, useScopedFilters } from '../SessionsDialog/railFilters'
 import { selectTags, tagsForIds, useTags } from '../../stores/tagsStore'
 import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import {
@@ -29,6 +33,7 @@ import {
   usePastSessions
 } from '../../stores/pastSessionsStore'
 import {
+  filterPastByFilters,
   filterPastByName,
   filterPastByScope,
   isAlreadyOpenError,
@@ -39,6 +44,9 @@ import {
   type PastScope
 } from './pastSessionsView'
 import styles from './PastSessionsDialog.module.css'
+
+/** The types the Past page offers, in pill order: the board's, plus Ended. */
+const PAST_TYPES: readonly FilterType[] = ['tag', 'folder', 'launched', 'ended']
 
 export function PastSessionsPage({
   scope,
@@ -100,8 +108,14 @@ export function PastSessionsPage({
   // Past offers no Global or `(no workspace)`: every record has a workspace. The dialog already
   // resets those on the way in (scopeOnPage); the narrowing keeps the type honest.
   const pastScope: PastScope = scope === 'global' || scope === 'orphans' ? 'all' : scope
+  // The rail's filters (spec 2026-10-16), per scope while the dialog is open; a tag this scope
+  // cannot see drops out at read time.
+  const [filters, setFilters] = useScopedFilters(pastScope)
+  const offeredTags = railTags(tags, pastScope)
+  const shown = effectiveFilters(filters, new Set(offeredTags.map((t) => t.id)))
   const scoped = filterPastByScope(sessions, pastScope)
-  const listed = filterPastByName(scoped, query)
+  const listed = filterPastByFilters(filterPastByName(scoped, query), shown, now())
+  const folders = [...new Set(scoped.map((s) => s.cwd))]
   const selected = sessions.find((s) => s.id === dialog.state.selectedId) ?? null
 
   function changeScope(next: ScopeFilterValue): void {
@@ -163,14 +177,25 @@ export function PastSessionsPage({
       <ManageDialog.Columns>
         {pages}
         <ManageDialog.List size="wide">
-          <TextInput
-            inputRef={searchRef}
-            variant="inline"
-            testId="past-session-search"
-            ariaLabel="Search past sessions"
-            placeholder="Search"
-            value={query}
-            onChange={setQuery}
+          <RailFilter
+            search={
+              <TextInput
+                inputRef={searchRef}
+                variant="inline"
+                testId="past-session-search"
+                ariaLabel="Search past sessions"
+                placeholder="Search"
+                value={query}
+                onChange={setQuery}
+              />
+            }
+            filters={shown}
+            onChange={setFilters}
+            types={PAST_TYPES}
+            tags={offeredTags}
+            folders={folders}
+            now={now}
+            testIdPrefix="past-filter"
           />
           <ManageDialog.Rows>
             {listed.map((s) => (
@@ -206,7 +231,7 @@ export function PastSessionsPage({
             )}
             {loaded && !loading && !loadFailed && listed.length === 0 && (
               <p className={styles.empty} data-testid="past-sessions-empty">
-                {pastSessionsEmptyCopy(sessions.length, scoped.length, query)}
+                {pastSessionsEmptyCopy(sessions.length, scoped.length)}
               </p>
             )}
           </ManageDialog.Rows>

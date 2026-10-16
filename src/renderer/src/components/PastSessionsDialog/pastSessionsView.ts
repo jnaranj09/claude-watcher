@@ -1,7 +1,9 @@
-// Past sessions — PURE helpers behind PastSessionsDialog.tsx: the scope + name filters, the three
-// empty sentences, the relative time and the error copy. No React, no store.
+// Past sessions — PURE helpers behind PastSessionsPage.tsx: the scope, name and session filters
+// (spec 2026-10-16), the three empty sentences, the relative time and the error copy. No React,
+// no store.
 import { formatVersion, MIN_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
 import type { PastSession } from '../../../../shared/ipc/contract'
+import { matchesFilters, type SessionFilters } from '../../lib/sessionFilters'
 
 /** The two ScopeFilter values this dialog offers: every record has a workspace, so there is no
  *  `global`, and the workspace-delete cascade makes `orphans` unreachable. */
@@ -20,12 +22,28 @@ export function filterPastByName(rows: PastSession[], query: string): PastSessio
   return rows.filter((r) => r.name.toLocaleLowerCase().includes(q))
 }
 
+/** The session filters (spec 2026-10-16) over the history: folder = `cwd`. */
+export function filterPastByFilters(
+  rows: PastSession[],
+  filters: SessionFilters,
+  now: number
+): PastSession[] {
+  return rows.filter((r) =>
+    matchesFilters(
+      { folder: r.cwd, tagIds: r.tagIds, launchedAt: r.launchedAt, endedAt: r.endedAt },
+      filters,
+      now
+    )
+  )
+}
+
 /** Three different nothings, three different sentences (design.md "Scoped lists"): no history at
- *  all, none in the picked workspace, or none matching the search box. */
-export function pastSessionsEmptyCopy(total: number, scoped: number, query: string): string {
+ *  all, none in the picked workspace, or none matching the search box and the filters. The third
+ *  names no query: a filter alone can empty the list. */
+export function pastSessionsEmptyCopy(total: number, scoped: number): string {
   if (total === 0) return 'No past sessions yet.'
   if (scoped === 0) return 'No past sessions in this workspace.'
-  return `No past sessions match “${query.trim()}”.`
+  return 'No past sessions match your search or filters.'
 }
 
 export function relativeEnded(endedAt: number, now: number): string {
