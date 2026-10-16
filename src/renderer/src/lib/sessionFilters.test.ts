@@ -101,11 +101,11 @@ describe('day windows', () => {
     expect(dayKey(new Date(2026, 0, 5, 23, 30).getTime())).toBe('2026-01-05')
   })
 
-  it('a day window spans local midnight to the next local midnight, even across a clock change', () => {
-    // Whatever the test machine's zone, the window is built from calendar fields, never + 24 h.
-    const { start, end } = dayWindow('2026-10-25')
-    expect(start).toBe(new Date(2026, 9, 25).getTime())
-    expect(end).toBe(new Date(2026, 9, 26).getTime())
+  it('a day window spans local midnight to the next local midnight', () => {
+    // The clock-change days are pinned in sessionFilters.zone.test.ts (a fixed zone).
+    const { start, end } = dayWindow('2026-10-14')
+    expect(start).toBe(new Date(2026, 9, 14).getTime())
+    expect(end).toBe(new Date(2026, 9, 15).getTime())
   })
 
   it('a malformed day matches nothing', () => {

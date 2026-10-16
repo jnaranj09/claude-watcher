@@ -96,8 +96,9 @@ the migrated code.
 
 **Where a planned guard lives.** Vitest runs `src/**` and `tests/unit/**` (`*.test.tsx` too), split
 by environment: `src/shared/**`, `src/__fixtures__/**` and `tests/unit/**` run under node (the
-`shared-node` project), `src/main/**` and `tests/main/**` under node (the `main-unit` project), and
-the rest of `src/**` under jsdom (the `unit` project). A planned guard test goes under `tests/main/`
+`shared-node` project), `src/main/**` and `tests/main/**` under node (the `main-unit` project),
+`src/**/*.zone.test.ts` under node in Europe/Berlin (the `zone-berlin` project), and the rest of
+`src/**` under jsdom (the `unit` project). A planned guard test goes under `tests/main/`
 or `tests/unit/` (node, named `*.test.ts`), or under `src/renderer/**` (jsdom) when it needs the
 DOM. A `*.test.tsx` under `tests/unit/` would run under jsdom; under `tests/main/` it matches no
 project and never runs. Never put one beside a harness in `tests/drive/`, `tests/e2e/` or

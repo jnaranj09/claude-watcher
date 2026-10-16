@@ -57,6 +57,9 @@ only".
 
 - `unit` (jsdom, renderer), `shared-node` and `main-unit` (node). Where a file goes:
   maintainability.md "Where a planned guard lives".
+- A test that needs a clock-change zone is named `*.zone.test.ts`: it runs in the `zone-berlin`
+  project (node, `forks`, TZ Europe/Berlin). Setting TZ inside a test does nothing: every worker
+  thread shares the runner's zone. Guard: `tests/main/vitestConfig.guard.test.ts`.
 - e2e only for what crosses processes (pty, IPC, app lifecycle), always through
   `tests/e2e/fixtures.ts`. Use web-first assertions. Lint: `playwright/*`.
 - Mutation testing (`npm run mutate`, StrykerJS) runs in the release clean-up pass (`release.md`
