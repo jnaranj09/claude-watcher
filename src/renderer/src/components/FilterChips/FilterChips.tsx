@@ -13,6 +13,7 @@
 // Every popup floats over what is below (the operator: "show over them, never push the board
 // columns down"): the row is a stacking context above the board, each popup is positioned.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import type { Tag } from '../../../../shared/ipc/contract'
 import {
   clearType,
@@ -38,7 +39,7 @@ import { leavingProps } from '../Presence/leaving'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
-import { submenuSide } from './submenuSide'
+import { popupAlign, submenuSide, type PopupAlign } from './submenuSide'
 import styles from './FilterChips.module.css'
 
 export interface FilterChipsProps {
@@ -64,13 +65,20 @@ export interface FilterChipsProps {
 
 type TimeType = 'launched' | 'ended'
 type Origin = 'add' | 'pill'
-type CalendarOpen = { at: 'calendar'; type: TimeType; mode: 'on' | 'since'; from: Origin }
+type CalendarOpen = {
+  at: 'calendar'
+  type: TimeType
+  mode: 'on' | 'since'
+  from: Origin
+  align: PopupAlign
+}
 /** What is open: nothing, the type menu (with one submenu, `focus` grows when a KEY opened it),
- *  a pill's list, or the calendar that replaced a time list. */
+ *  a pill's list, or the calendar that replaced a time list. `align` is the trigger edge the
+ *  popup lines up with, measured as it opens (`popupAlign`), so it never leaves the window. */
 type Open =
   | null
-  | { at: 'add'; sub: FilterType | null; focus: number }
-  | { at: 'pill'; type: FilterType }
+  | { at: 'add'; sub: FilterType | null; focus: number; align: PopupAlign }
+  | { at: 'pill'; type: FilterType; align: PopupAlign }
   | CalendarOpen
 
 const PRESETS: readonly TimeRange[] = ['today', '7d', '30d']
@@ -172,6 +180,13 @@ export function FilterChips({
     rootRef.current?.querySelector<HTMLElement>('[role="grid"] button[tabindex="0"]')?.focus()
   }, [calendarKey])
 
+  /** The edge a popup under `trigger` lines up with: its left edge while the widest list fits
+   *  in the window, else its right edge. */
+  function alignUnder(trigger: Element | null | undefined): PopupAlign {
+    if (trigger === null || trigger === undefined) return 'start'
+    return popupAlign(trigger.getBoundingClientRect().left, window.innerWidth)
+  }
+
   function refocusOn(testId: string): void {
     setRefocus((r) => ({ testId, n: (r?.n ?? 0) + 1 }))
   }
@@ -196,15 +211,27 @@ export function FilterChips({
     setOpen((o) => ({
       at: 'add',
       sub: t,
-      focus: fromKey ? (o?.at === 'add' ? o.focus : 0) + 1 : 0
+      focus: fromKey ? (o?.at === 'add' ? o.focus : 0) + 1 : 0,
+      align: o?.at === 'add' ? o.align : 'start'
     }))
   }
 
   /** A multi pick (tag, folder): the list stays open, under the pill from now on. */
   function multiPick(type: 'tag' | 'folder', next: SessionFilters, rowTestId: string): void {
-    onChange(next)
+    if (open?.at === 'pill') {
+      onChange(next)
+    } else {
+      // The list moves under the pill this pick draws: draw it now, so it can be measured.
+      flushSync(() => onChange(next))
+    }
     if (isTypeOn(next, type)) {
-      setOpen({ at: 'pill', type })
+      const align =
+        open?.at === 'pill'
+          ? open.align
+          : alignUnder(
+              rootRef.current?.querySelector(`[data-testid="${tid(`pill-${type}-edit`)}"]`)
+            )
+      setOpen({ at: 'pill', type, align })
       refocusOn(rowTestId)
     } else {
       // The last value went off: the pill, and the list under it, are gone.
@@ -248,12 +275,12 @@ export function FilterChips({
     if (open.at === 'calendar') {
       setOpen(
         open.from === 'add'
-          ? { at: 'add', sub: open.type, focus: 0 }
-          : { at: 'pill', type: open.type }
+          ? { at: 'add', sub: open.type, focus: 0, align: open.align }
+          : { at: 'pill', type: open.type, align: open.align }
       )
       refocusOn(tid(`${open.type}-row-${open.mode}`))
     } else if (open.at === 'add' && open.sub !== null) {
-      setOpen({ at: 'add', sub: null, focus: 0 })
+      setOpen({ at: 'add', sub: null, focus: 0, align: open.align })
       refocusOn(tid(`type-${open.sub}`))
     } else {
       closeTo(open.at === 'add' ? tid('add') : tid(`pill-${open.type}-edit`))
@@ -337,7 +364,9 @@ export function FilterChips({
             role="menuitemradio"
             aria-checked={pick?.kind === mode}
             testId={tid(`${type}-row-${mode}`)}
-            onClick={() => setOpen({ at: 'calendar', type, mode, from })}
+            onClick={() =>
+              setOpen({ at: 'calendar', type, mode, from, align: open?.align ?? 'start' })
+            }
           >
             <Popover.ItemIcon>
               <CalendarIcon />
@@ -367,6 +396,7 @@ export function FilterChips({
         onPick={(day) => setTime(o.type, { kind: o.mode, day }, o.from)}
         ariaLabel={`${FILTER_TYPE_LABEL[o.type]} ${o.mode === 'on' ? 'on a day' : 'since a day'}`}
         testId={tid('calendar')}
+        align={o.align}
       />
     )
   }
@@ -417,7 +447,8 @@ export function FilterChips({
   function renderPill(type: FilterType): JSX.Element | null {
     const content = pillContent(type)
     if (content === null) return null
-    const listOpen = open?.at === 'pill' && open.type === type
+    const list = open?.at === 'pill' && open.type === type ? open : null
+    const listOpen = list !== null
     const cal = open?.at === 'calendar' && open.from === 'pill' && open.type === type ? open : null
     return (
       <span key={type} className={styles.anchor}>
@@ -430,7 +461,13 @@ export function FilterChips({
             aria-expanded={listOpen || cal !== null}
             aria-label={content.label}
             {...(content.title !== undefined ? { title: content.title } : {})}
-            onClick={() => setOpen(listOpen || cal !== null ? null : { at: 'pill', type })}
+            onClick={(e) =>
+              setOpen(
+                listOpen || cal !== null
+                  ? null
+                  : { at: 'pill', type, align: alignUnder(e.currentTarget) }
+              )
+            }
           >
             {content.body}
           </button>
@@ -445,11 +482,11 @@ export function FilterChips({
             ×
           </button>
         </span>
-        <Presence value={listOpen || null}>
-          {(_, leaving) =>
+        <Presence value={list}>
+          {(l, leaving) =>
             type === 'tag' ? (
               <TagMenu
-                align="start"
+                align={l.align}
                 role="menu"
                 ariaLabel={FILTER_TYPE_LABEL.tag}
                 testId={tid('tag-list')}
@@ -459,6 +496,7 @@ export function FilterChips({
             ) : (
               <div className={styles.menuWrap} {...leavingProps(leaving)}>
                 <Popover.Surface
+                  data-align={l.align}
                   role="menu"
                   aria-label={FILTER_TYPE_LABEL[type]}
                   testId={tid(`${type}-list`)}
@@ -493,14 +531,21 @@ export function FilterChips({
           data-testid={tid('add')}
           aria-haspopup="menu"
           aria-expanded={addOpen}
-          onClick={() => setOpen(addOpen ? null : { at: 'add', sub: null, focus: 0 })}
+          onClick={(e) =>
+            setOpen(
+              addOpen
+                ? null
+                : { at: 'add', sub: null, focus: 0, align: alignUnder(e.currentTarget) }
+            )
+          }
         >
           + Add filter
         </button>
-        <Presence value={open?.at === 'add' || null}>
-          {(_, leaving) => (
+        <Presence value={open?.at === 'add' ? open : null}>
+          {(a, leaving) => (
             <div className={styles.menuWrap} {...leavingProps(leaving)}>
               <Popover.Surface
+                data-align={a.align}
                 role="menu"
                 aria-label="Add a filter"
                 testId={tid('type-menu')}
@@ -520,7 +565,7 @@ export function FilterChips({
                       onOpen={() => openSub(t, false)}
                       onOpenFromKey={() => openSub(t, true)}
                       onBack={() => {
-                        setOpen({ at: 'add', sub: null, focus: 0 })
+                        setOpen({ at: 'add', sub: null, focus: 0, align: open?.align ?? 'start' })
                         refocusOn(tid(`type-${t}`))
                       }}
                       testId={tid(`type-${t}`)}

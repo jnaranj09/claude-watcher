@@ -4,6 +4,7 @@ import { render as rtlRender, screen, waitFor, within } from '@testing-library/r
 import userEvent from '@testing-library/user-event'
 import { useState, type JSX } from 'react'
 import { FilterChips, type FilterChipsProps } from './FilterChips'
+import { SUBMENU_ROOM } from './submenuSide'
 import { NO_FILTERS, type SessionFilters } from '../../lib/sessionFilters'
 import type { Tag } from '../../../../shared/ipc/contract'
 
@@ -171,6 +172,81 @@ describe('FilterChips — submenu side', () => {
     await userEvent.click(addFilter())
     await userEvent.hover(screen.getByRole('menuitem', { name: /Folder/ }))
     expect(screen.getByTestId('filter-folder-list')).toHaveAttribute('data-side', 'left')
+  })
+})
+
+describe('FilterChips — popups stay inside the window', () => {
+  const width = window.innerWidth
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.innerWidth = width
+  })
+
+  /** Every trigger's left edge at `left` in a 1000px window. */
+  function triggersAt(left: number): void {
+    window.innerWidth = 1000
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left,
+      right: left + 90,
+      top: 0,
+      bottom: 0,
+      width: 90,
+      height: 0,
+      x: left,
+      y: 0
+    } as DOMRect)
+  }
+
+  const popup = (testId: string): HTMLElement => screen.getByTestId(testId)
+
+  it('the type menu lines up with the trigger left edge while the widest list fits', async () => {
+    triggersAt(100)
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    expect(popup('filter-type-menu')).toHaveAttribute('data-align', 'start')
+  })
+
+  it('near the right edge the type menu and its calendar line up with the trigger right edge', async () => {
+    triggersAt(1000 - SUBMENU_ROOM + 1)
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    expect(popup('filter-type-menu')).toHaveAttribute('data-align', 'end')
+    await userEvent.click(screen.getByRole('menuitem', { name: /Launched/ }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'On a day' }))
+    expect(popup('filter-calendar')).toHaveAttribute('data-align', 'end')
+  })
+
+  it('a pill near the right edge opens its list from its right edge', async () => {
+    triggersAt(950)
+    render(<Harness start={{ ...NO_FILTERS, folders: ['/home/u/api'] }} />)
+    await userEvent.click(screen.getByTestId('filter-pill-folder-edit'))
+    expect(popup('filter-folder-list')).toHaveAttribute('data-align', 'end')
+  })
+
+  it('a pill list and its calendar keep the start edge with room', async () => {
+    triggersAt(100)
+    render(<Harness start={{ ...NO_FILTERS, launched: { kind: 'preset', range: 'today' } }} />)
+    await userEvent.click(screen.getByTestId('filter-pill-launched-edit'))
+    expect(popup('filter-launched-list')).toHaveAttribute('data-align', 'start')
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'On a day' }))
+    expect(popup('filter-calendar')).toHaveAttribute('data-align', 'start')
+  })
+
+  it('a first pick from the type menu moves the list under the new pill, measured there', async () => {
+    triggersAt(950)
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    await userEvent.click(screen.getByRole('menuitem', { name: /Folder/ }))
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: /^api/ }))
+    expect(screen.getByTestId('filter-pill-folder')).toBeInTheDocument()
+    expect(popup('filter-folder-list')).toHaveAttribute('data-align', 'end')
+  })
+
+  it('the tag list under its pill near the right edge lines up with the pill right edge', async () => {
+    triggersAt(950)
+    render(<Harness start={{ ...NO_FILTERS, tagIds: ['t-api'] }} />)
+    await userEvent.click(screen.getByTestId('filter-pill-tag-edit'))
+    expect(popup('filter-tag-list')).toHaveAttribute('data-align', 'end')
   })
 })
 

@@ -7,6 +7,13 @@
   width: 264px;
 }
 
+/* Near the window's right edge it hangs from its trigger's right edge instead (FilterChips stamps
+ * `data-align` on the Surface, the box tests and themes see). */
+.wrap:has(> [data-align='end']) {
+  right: 0;
+  left: auto;
+}
+
 .head {
   display: flex;
   align-items: center;

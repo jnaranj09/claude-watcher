@@ -30,6 +30,7 @@ function setup(value: string | null = null, mode: 'on' | 'since' = 'on'): Return
       onPick={onPick}
       ariaLabel="Launched on a day"
       testId="cal"
+      align="start"
     />
   ))
   return onPick

@@ -28,6 +28,8 @@ export interface CalendarProps {
   onPick: (day: string) => void
   ariaLabel: string
   testId: string
+  /** The trigger edge it lines up with: `end` near the window's right edge (FilterChips). */
+  align: 'start' | 'end'
 }
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
@@ -54,7 +56,8 @@ export function Calendar({
   now,
   onPick,
   ariaLabel,
-  testId
+  testId,
+  align
 }: CalendarProps): JSX.Element {
   const leaving = useLeaving()
   const today = dayKey(now())
@@ -109,7 +112,7 @@ export function Calendar({
 
   return (
     <div className={styles.wrap} {...leavingProps(leaving)}>
-      <Popover.Surface aria-label={ariaLabel} testId={testId}>
+      <Popover.Surface aria-label={ariaLabel} testId={testId} data-align={align}>
         <div className={styles.head}>
           <Button
             variant="ghost"

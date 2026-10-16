@@ -17,8 +17,9 @@ import styles from './TagMenu.module.css'
 import { leavingProps, useLeaving } from '../Presence/leaving'
 
 export interface TagMenuProps {
-  /** Which edge of the anchor it lines up with: the filter opens under its pill (`start`), the
-   *  picker under a button at a card's or rail row's right edge (`end`). */
+  /** Which edge of the anchor it lines up with: the filter opens under its pill (`start`, or
+   *  `end` near the window's right edge), the picker under a button at a card's or rail row's
+   *  right edge (`end`). */
   align: 'start' | 'end'
   role: 'menu' | 'group'
   ariaLabel: string
@@ -47,6 +48,7 @@ export function TagMenu({
       {...leavingProps(leaving)}
     >
       <Popover.Surface
+        data-align={align}
         role={role}
         aria-label={ariaLabel}
         testId={testId}

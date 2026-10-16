@@ -144,6 +144,13 @@
   --popover-max-height: 340px;
 }
 
+/* Near the window's right edge (`popupAlign`, stamped as `data-align` on the Surface) a list hangs
+ * from its trigger's right edge, so it stays inside the window. */
+.menuWrap:has(> [data-align='end']) {
+  right: 0;
+  left: auto;
+}
+
 /* A folder row's parent path: mono, quieter, on a raised panel so --text-secondary (never muted). */
 .path {
   max-width: 220px;
