@@ -15,6 +15,7 @@ import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { TagChipRow } from '../TagChip/TagChipRow'
+import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import { folderName } from '../../lib/filterCopy'
@@ -181,7 +182,8 @@ export function PastSessionsPage({
             search={
               <TextInput
                 inputRef={searchRef}
-                variant="inline"
+                variant="toolbar"
+                icon={<SearchIcon />}
                 testId="past-session-search"
                 ariaLabel="Search past sessions"
                 placeholder="Search"

@@ -1,6 +1,7 @@
 // The menu row icons: ONE line set (16 grid, 1.5 stroke, 14px, round caps), inline like PinIcon —
 // no icon dependency, `currentColor` follows the text ramp. Decorative: every row names itself.
 // Every action row in a menu carries one of these in `Popover.ItemIcon` (design.md, "Menu rows").
+// The search boxes' magnifier (`SearchIcon`) is drawn from the same set.
 import type { JSX, ReactNode } from 'react'
 
 function LineIcon({ children }: { children: ReactNode }): JSX.Element {
@@ -125,6 +126,16 @@ export function FolderIcon(): JSX.Element {
   return (
     <LineIcon>
       <path d="M1.5 4a1 1 0 0 1 1-1h3.4l1.6 1.6h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />
+    </LineIcon>
+  )
+}
+
+/** The search box's magnifier: the board's filter bar and the Sessions pages' rail. */
+export function SearchIcon(): JSX.Element {
+  return (
+    <LineIcon>
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="M10.5 10.5L14 14" />
     </LineIcon>
   )
 }

@@ -38,10 +38,10 @@ export interface TextInputProps {
   menuItem?: boolean | undefined
   /** `field` fills a form row; `inline` is compact chrome (a dialog header) — Select's two variants,
    *  and the same two boxes, so a text field and a dropdown standing side by side match. `toolbar` is
-   *  the board filter bar's 32px row (the search box beside the `Filter` button); a dropdown that
-   *  joins that row needs the same size in Select. */
+   *  the 32px search box beside a `Filter` button (the board filter bar, the Sessions pages'
+   *  rail); a dropdown that joins that row needs the same size in Select. */
   variant?: 'field' | 'inline' | 'toolbar' | undefined
-  /** A leading glyph drawn inside the box (the board search's magnifier). Decorative only: the
+  /** A leading glyph drawn inside the box (the search boxes' magnifier). Decorative only: the
    *  field is still named by `id` or `ariaLabel`. */
   icon?: ReactNode
   /** Keys the caller handles itself (the board search clears on Escape). */

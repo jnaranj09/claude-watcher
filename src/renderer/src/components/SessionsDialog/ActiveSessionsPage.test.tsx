@@ -112,6 +112,15 @@ describe('Sessions → Active', () => {
     expect(q(r, '[data-testid="active-session-scope-filter-option-global"]')).toBeNull()
   })
 
+  // Mockup b3DDC: the rail's search and the `Filter` button beside it are one 32px line, the board's
+  // filter bar look (TextInput `toolbar` + magnifier). jsdom has no layout: read the class.
+  it('the rail search is the toolbar box with the magnifier, the Filter button height', () => {
+    const r = render()
+    const search = q<HTMLInputElement>(r, '[data-testid="active-session-search"]')
+    expect(search?.className).toMatch(/toolbar/)
+    expect(search?.parentElement?.querySelector('svg')).not.toBeNull()
+  })
+
   it('three empty sentences: none at all, none in this workspace, no search match', () => {
     const r = render()
     const search = q<HTMLInputElement>(r, '[data-testid="active-session-search"]')

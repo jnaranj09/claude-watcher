@@ -39,9 +39,9 @@
   font-size: var(--font-size-label);
 }
 
-/* The board filter bar's row (FilterBar): 32px, the height of the `Filter` button beside it, with
-   `.input`'s body-size text. No Select counterpart yet — a dropdown that joins that row (a future
-   Sort) needs the same size there. */
+/* The search box beside a `Filter` button (FilterBar, the Sessions pages' RailFilter): 32px, the
+   height of that button, with `.input`'s body-size text. No Select counterpart yet — a dropdown
+   that joins that row (a future Sort) needs the same size there. */
 .toolbar {
   height: 32px;
   padding-block: 0;

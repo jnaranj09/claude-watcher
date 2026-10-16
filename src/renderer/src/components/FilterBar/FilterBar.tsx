@@ -25,6 +25,7 @@ import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesS
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { activeFilterCount, type FilterType } from '../../lib/sessionFilters'
 import { FilterChips } from '../FilterChips/FilterChips'
+import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import { FilterToggle } from './FilterToggle'
 import styles from './FilterBar.module.css'
@@ -50,16 +51,6 @@ function countText(total: number, workspaceTotal: number, filtered: boolean): st
 
 function setSearch(query: string): void {
   boardStore.getState().setSearchQuery(query)
-}
-
-/** The search box's magnifier, on the same 16-unit grid and stroke, drawn at 14px. */
-function SearchIcon(): JSX.Element {
-  return (
-    <svg width={14} height={14} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth={1.5} />
-      <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
-    </svg>
-  )
 }
 
 export function FilterBar({

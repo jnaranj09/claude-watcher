@@ -186,6 +186,16 @@ describe('PastSessionsDialog', () => {
     expect(rows(r)).toEqual(['deploy'])
   })
 
+  // Mockup b3DDC: the rail's search and the `Filter` button beside it are one 32px line, the board's
+  // filter bar look (TextInput `toolbar` + magnifier). jsdom has no layout: read the class.
+  it('the rail search is the toolbar box with the magnifier, the Filter button height', async () => {
+    const { r } = render()
+    await flush()
+    const search = q(r, '[data-testid="past-session-search"]')
+    expect(search?.className).toMatch(/toolbar/)
+    expect(search?.parentElement?.querySelector('svg')).not.toBeNull()
+  })
+
   it('a workspace with no history says so, not "no matches"', async () => {
     list.mockReturnValueOnce(Promise.resolve([B]))
     const { r } = render()

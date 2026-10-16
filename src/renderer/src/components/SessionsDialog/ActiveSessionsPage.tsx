@@ -24,6 +24,7 @@ import type { ScopeFilterValue } from '../ScopeFilter/scope'
 import { StatusDot } from '../StatusDot/StatusDot'
 import { statusLabel } from '../StatusDot/statusLabel'
 import { TagChipRow } from '../TagChip/TagChipRow'
+import { SearchIcon } from '../Icon/MenuIcons'
 import { TextInput } from '../TextInput/TextInput'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import pastStyles from '../PastSessionsDialog/PastSessionsDialog.module.css'
@@ -171,7 +172,8 @@ export function ActiveSessionsPage({
             search={
               <TextInput
                 inputRef={searchRef}
-                variant="inline"
+                variant="toolbar"
+                icon={<SearchIcon />}
                 testId="active-session-search"
                 ariaLabel="Search active sessions"
                 placeholder="Search"
