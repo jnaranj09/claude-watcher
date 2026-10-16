@@ -204,6 +204,19 @@ describe('enrichDelta — tags ride the enriched delta (spec §3)', () => {
     const out2 = enrichDelta(bare, tracker, new Map([[session.id, session]]))
     expect(out2?.event).not.toHaveProperty('launchedAt')
   })
+
+  it.each([
+    ['a negative', -1],
+    ['a fractional', 1.5]
+  ])('drops a delta whose launchedAt is %s number, logging path + code only', (_label, bad) => {
+    const log = vi.fn()
+    const broken: Session = { ...session, launchedAt: bad }
+    const out = enrichDelta(bare, tracker, new Map([[broken.id, broken]]), log)
+    expect(out).toBeNull()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log.mock.calls[0]?.[0]).toMatchObject({ path: 'launchedAt' })
+    expect(Object.keys(log.mock.calls[0]?.[0] ?? {}).sort()).toEqual(['code', 'path'])
+  })
 })
 
 describe('enrichDelta — fail-closed when the tracker has no column (Tasks 7.3/7.4)', () => {
