@@ -1,0 +1,88 @@
+/* The Calendar's own layout; the box is Popover.Surface's. */
+.wrap {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + var(--gap-inline));
+  left: 0;
+  width: 264px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  padding: var(--inset-compact-y) var(--inset-compact-x);
+}
+
+.title {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+  padding: 0 var(--inset-compact-x);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--gap-row);
+}
+
+.weekday {
+  text-align: center;
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+}
+
+.day {
+  width: 100%;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-label);
+  cursor: pointer;
+}
+
+.day:hover:not(:disabled) {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
+.day[aria-current='date'] {
+  border-color: var(--text-secondary);
+}
+
+.day[data-in-range] {
+  background-color: var(--bg-hover);
+}
+
+.day[aria-pressed='true'] {
+  background-color: var(--text-primary);
+  color: var(--text-on-lit);
+  font-weight: 700;
+}
+
+.day:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.pad {
+  height: 30px;
+}
+
+.hint {
+  margin: 0;
+  padding: var(--inset-compact-y) var(--inset-compact-x);
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
+}
