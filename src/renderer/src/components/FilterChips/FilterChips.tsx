@@ -1,9 +1,10 @@
 // FilterChips (spec 2026-10-16 §3) — the ONE chip row: the board's filter bar and the Sessions
-// dialog's Active / Past rails all render it. Controlled: the caller owns `filters` (the board
-// per workspace in boardStore, the pages per scope in local state) and gets every change through
-// `onChange`. One pill per type that is on, in `types` order; `+ Add filter` opens a type menu
-// whose rows open their values beside them (`Popover.Submenu`); a pill opens the same values under
-// itself. Multi-pick lists (tags, folders) stay open; single picks (a preset, a calendar day) close.
+// dialog's Active / Past rails all render it. Controlled: the caller owns `filters` (the board per
+// workspace in boardStore, the rails per page and scope in SessionsDialog) and gets every change
+// through `onChange`. One pill per type that is on, in `types` order; `+ Add filter` opens a type
+// menu whose rows open their values beside them (`Popover.Submenu`); a pill opens the same values
+// under itself. Multi-pick lists (tags, folders) stay open; single picks (a preset, a calendar day)
+// close.
 //
 // A multi pick made from the type menu turns that type ON, which takes its row out of the type
 // menu (a type that is on is not offered twice). So the list moves under the new pill and stays
@@ -18,6 +19,7 @@
 // columns down"): the row is a stacking context above the board, each popup is positioned.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
+import { useShallow } from 'zustand/react/shallow'
 import type { Tag } from '../../../../shared/ipc/contract'
 import {
   clearType,
@@ -38,8 +40,11 @@ import {
 import { Calendar } from '../Calendar/Calendar'
 import { CalendarIcon, FolderIcon, PlusIcon } from '../Icon/MenuIcons'
 import { Popover } from '../Popover/Popover'
+import { moveMenuRow } from '../Popover/menuArrows'
 import { Presence } from '../Presence/Presence'
 import { leavingProps } from '../Presence/leaving'
+import { ScopeMarker } from '../ScopeFilter/ScopeMarker'
+import { selectWorkspaces, useWorkspaces } from '../../stores/workspacesStore'
 import { TagChipRow } from '../TagChip/TagChipRow'
 import { TagGlyphIcon } from '../TagIndicator/TagGlyphIcon'
 import { TagMenu, TagMenuNote, TagMenuRow } from '../TagMenu/TagMenu'
@@ -159,6 +164,11 @@ export function FilterChips({
   // Tag is ON only through a tag this surface still offers: a gone id draws no pill, so it must not
   // take Tag out of the type menu either.
   const knownTagIds = new Set(tags.map((t) => t.id))
+  // Two offered tags with one name (a global `api` and a workspace's own, or two workspaces' under
+  // `All sessions`) would draw two identical rows: each of them also says where it lives.
+  const workspaces = useWorkspaces(useShallow(selectWorkspaces))
+  const nameCount = new Map<string, number>()
+  for (const t of tags) nameCount.set(t.name, (nameCount.get(t.name) ?? 0) + 1)
   const typeOn = (f: SessionFilters, t: FilterType): boolean =>
     t === 'tag' ? f.tagIds.some((tagId) => knownTagIds.has(tagId)) : isTypeOn(f, t)
 
@@ -226,7 +236,8 @@ export function FilterChips({
   }
 
   /** Open type `t`'s values beside the type menu. They hang off the MENU's right edge (wider than
-   *  the `+ Add filter` button), so that edge picks the side, measured now that the menu is drawn. */
+   *  the `+ Add filter` button), so that edge picks the side, measured now that the menu is
+   *  drawn. */
   function openSub(t: FilterType, fromKey: boolean): void {
     const right = typeMenu?.getBoundingClientRect().right ?? 0
     setSide(submenuSide(right, window.innerWidth))
@@ -287,9 +298,11 @@ export function FilterChips({
     onManageTags?.()
   }
 
-  // Escape peels ONE layer (calendar → its list → the type row → closed) and never reaches an
-  // Escape handler above it while something is open.
+  // ArrowDown / ArrowUp move between the rows of the menu that has focus. Escape peels ONE layer
+  // (calendar → its list → the type row → closed) and never reaches an Escape handler above it
+  // while something is open.
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
+    if (moveMenuRow(e)) return
     if (e.key !== 'Escape' || open === null) return
     e.stopPropagation()
     if (open.at === 'calendar') {
@@ -333,6 +346,11 @@ export function FilterChips({
         role="menuitemcheckbox"
         testId={tid(`tag-row-${t.id}`)}
         focusKey={`tag-row-${t.id}`}
+        where={
+          (nameCount.get(t.name) ?? 0) > 1 ? (
+            <ScopeMarker workspaceId={t.workspaceId} workspaces={workspaces} />
+          ) : undefined
+        }
         onClick={() => toggleTag(t.id)}
       />
     ))

@@ -294,6 +294,34 @@ describe('AppMenu', () => {
     expect(labels(subMenu(r))).toEqual(['Manage tags'])
   })
 
+  it('ArrowDown / ArrowUp move between the rows of one menu level and stop at the ends', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    act(() => q(r, 'app-menu-settings')?.focus())
+    key(q(r, 'app-menu-settings'), 'ArrowDown')
+    expect(q(r, 'app-menu-shortcuts')).toHaveFocus()
+    key(q(r, 'app-menu-shortcuts'), 'ArrowUp')
+    key(q(r, 'app-menu-settings'), 'ArrowUp')
+    expect(q(r, 'app-menu-settings')).toHaveFocus()
+
+    key(q(r, 'app-menu-tags'), 'ArrowRight')
+    expect(q(r, 'tags-menu-manage-tags')).toHaveFocus()
+    key(q(r, 'tags-menu-manage-tags'), 'ArrowDown')
+    expect(q(r, 'tags-menu-manage-rules')).toHaveFocus()
+    key(q(r, 'tags-menu-manage-rules'), 'ArrowDown')
+    expect(q(r, 'tags-menu-manage-rules')).toHaveFocus()
+  })
+
+  it('ArrowDown on a row whose submenu is open skips the submenu: the next row of its own menu', () => {
+    const r = render()
+    click(q(r, 'app-menu'))
+    click(q(r, 'app-menu-tags'))
+    expect(subMenu(r)).not.toBeNull()
+    act(() => q(r, 'app-menu-tags')?.focus())
+    key(q(r, 'app-menu-tags'), 'ArrowDown')
+    expect(q(r, 'app-menu-sessions')).toHaveFocus()
+  })
+
   it('ArrowRight on Tags opens the submenu on its first row; ArrowLeft goes back to Tags', () => {
     const r = render()
     click(q(r, 'app-menu'))

@@ -1,8 +1,8 @@
 // TagMenu — the ONE drawing of a tag list popup (2026-09-29): the filter's tag list (FilterChips)
-// and the TagPicker (a board card's `Tags…`, the rail peek's `+ tag`). They were two looks — chips on the filter, bare names beside
-// native checkboxes on the picker, which the desktop theme painted white — and the operator liked
-// the filter's. Both callers render these parts, so the look lives in Popover (spec 2026-10-01);
-// `TagMenu.test.tsx` fails if a caller grows its own.
+// and the TagPicker (a board card's `Tags…`, the rail peek's `+ tag`). They were two looks — chips
+// on the filter, bare names beside native checkboxes on the picker, which the desktop theme painted
+// white — and the operator liked the filter's. Both callers render these parts, so the look lives
+// in Popover (spec 2026-10-01); `TagMenu.test.tsx` fails if a caller grows its own.
 //
 // It draws, it does not behave: the roles, the keys and the closing stay with each caller (the
 // filter is a multi-choice `menu` in FilterChips, the picker a checkbox `group`). Themes reach both
@@ -70,6 +70,9 @@ export interface TagMenuRowProps {
   testId: string
   /** FilterChips' focus hook (`data-filter-focus`): where focus returns after a pick. */
   focusKey?: string | undefined
+  /** Where the tag lives (FilterChips' `ScopeMarker`), drawn after the chip: only while another
+   *  offered tag has the same name, so the two rows do not look the same. */
+  where?: ReactNode
   onClick: () => void
 }
 
@@ -81,6 +84,7 @@ export function TagMenuRow({
   role,
   testId,
   focusKey,
+  where,
   onClick
 }: TagMenuRowProps): JSX.Element {
   return (
@@ -92,6 +96,7 @@ export function TagMenuRow({
       onClick={onClick}
     >
       <TagChip tag={tag} />
+      {where}
       {checked && (
         <Popover.ItemEnd>
           <span className={styles.check} data-testid="tag-menu-check" aria-hidden="true">

@@ -1,8 +1,9 @@
 // Sessions (spec 2026-10-03 B) — ONE Manage dialog for everything about sessions, its pages in a
-// page column on the left (Active · Past · Templates · Import). The page is the store's view-state (`boardStore.sessionsDialog`, never
-// persisted): App hands it in and takes page changes back. This dialog owns the shell state, the
-// scope and Active's and Past's filters, so a page switch closes what was open (the search lives in
-// the page and goes with it) but KEEPS the scope and each page's filters. UX-DR14: App guards every opener and closes it on the quit guard.
+// page column on the left (Active · Past · Templates · Import). The page is the store's view-state
+// (`boardStore.sessionsDialog`, never persisted): App hands it in and takes page changes back. This
+// dialog owns the shell state, the scope and Active's and Past's filters, so a page switch closes
+// what was open (the search lives in the page and goes with it) but KEEPS the scope and each page's
+// filters. UX-DR14: App guards every opener and closes it on the quit guard.
 import { useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { SessionsPage } from '../../stores/boardStore'

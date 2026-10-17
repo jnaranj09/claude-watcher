@@ -329,8 +329,11 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
   are `menuitemcheckbox` and the list stays open while picking; the Launched / Ended rows
   (`On a day` / `Since a day` included) are `menuitemradio`, and a preset or a calendar day
   closes. Opened from a KEY (Enter / Space on `+ Add filter` or a pill), the list focuses its
-  first row, like the submenu's ArrowRight; a pointer open leaves focus on the trigger. Tag counts
-  as on only through a tag the surface offers (a gone id neither draws a pill nor hides Tag).
+  first row, like the submenu's ArrowRight; a pointer open leaves focus on the trigger.
+  ArrowDown / ArrowUp move between the rows of the focused menu (`Popover/menuArrows.ts`,
+  `moveMenuRow`). Tag counts as on only through a tag the surface offers (a gone id neither
+  draws a pill nor hides Tag). Two offered tags with the same name each show a `ScopeMarker`
+  after the chip (`Global` or the workspace); a tag with its own name shows none.
 - Pills: `Tag is <chips>` / `Tag is any of <chips>` (`TagChipRow`, `+N` past its capped slot),
   `Folder is <name>` / `Folder is any of <names>` (`title` = full paths), `Launched today` …
   `Launched since <date>`. A crowded row shrinks the folder and time pills (text ends in `…`);
@@ -372,7 +375,8 @@ Only header control besides `+ New session`; filters nothing.
 - Submenus are `Popover.Submenu` (`components/Popover/PopoverSubmenu.tsx`, side `left` here; the
   filter's type menu is its other caller): open LEFT, level with their row; hover opens, click
   OPENS (never toggles); ArrowRight opens and focuses the first row (of any `menuitem*` role),
-  ArrowLeft back; ONE open at a time.
+  ArrowLeft back; ONE open at a time. ArrowDown / ArrowUp move between the rows of the menu level
+  that has focus and stop at its ends (`moveMenuRow`, called from the anchor's keydown).
 - Escape peels one layer (submenu, then menu), listens on the whole menu; closed → passes through.
 - Every row opens a dialog under the single-modal rule (`settingsDialogOpen`, `sessionsDialog`,
   `tagsDialog` in `boardStore` join `isModalOpen()`).
@@ -511,9 +515,10 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   scrolling part, `--popover-max-height` on the caller's wrapper; `--popover-max-width` caps the
   Surface the same way), `Item`, `CompactItem`,
   `QuietItem`, `ItemIcon`, `ItemEnd`, `Divider`, `Note`, and `Submenu` (a row whose list opens
-  beside it; the only part that also behaves: hover / click / ArrowRight / ArrowLeft). Draws only — roles, keys, open/close,
-  position stay with the caller; no `className`. Row states read from ARIA (`aria-selected`,
-  `aria-checked`, `aria-expanded`) + `active` (`data-active`). `tone` → WorkspaceTint +
+  beside it; the only part that also behaves: hover / click / ArrowRight / ArrowLeft). Draws only —
+  roles, keys, open/close, position stay with the caller (`moveMenuRow` is the shared ArrowDown /
+  ArrowUp helper a caller's keydown calls); no `className`. Row states read from ARIA
+  (`aria-selected`, `aria-checked`, `aria-expanded`) + `active` (`data-active`). `tone` → WorkspaceTint +
   `data-tone`. Themes target `[data-popover]`, `[data-popover-list]`, `[data-popover-item]`
   (+ `[data-density='compact']`, `[data-quiet]`, `[data-tone]`), `[data-popover-divider]`.
   `Popover.guard.test.ts` fails on a raw `role="menu"`/`listbox`/`option` or a `--shadow-pop` box

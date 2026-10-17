@@ -2,7 +2,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render as rtlRender, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState, type JSX } from 'react'
+import { act, useState, type JSX } from 'react'
 import { FilterChips, type FilterChipsProps } from './FilterChips'
 import { SUBMENU_ROOM } from './submenuSide'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -11,6 +11,7 @@ import { CalendarIcon } from '../Icon/MenuIcons'
 import { cssRule } from '../../test/cssRule'
 import { NO_FILTERS, type SessionFilters } from '../../lib/sessionFilters'
 import type { Tag } from '../../../../shared/ipc/contract'
+import { workspacesStore } from '../../stores/workspacesStore'
 
 // No RTL auto-cleanup in this project (test/setup.ts): unmount what each test rendered.
 const mounted: (() => void)[] = []
@@ -443,6 +444,49 @@ describe('FilterChips — keyboard', () => {
     expect(pill).toHaveFocus()
   })
 
+  it('ArrowDown / ArrowUp move between the type rows and stop at the ends', async () => {
+    render(<Harness />)
+    addFilter().focus()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: /Folder/ })).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: /Launched/ })).toHaveFocus()
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}')
+    expect(screen.getByRole('menuitem', { name: /Tag/ })).toHaveFocus()
+  })
+
+  it('the arrows stay inside an open submenu, never back on the type rows', async () => {
+    render(<Harness />)
+    addFilter().focus()
+    await userEvent.keyboard('{Enter}{ArrowRight}')
+    expect(screen.getByRole('menuitemcheckbox', { name: /api/ })).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    expect(screen.getByRole('menuitemcheckbox', { name: /web/ })).toHaveFocus()
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    expect(screen.getByRole('menuitemcheckbox', { name: /api/ })).toHaveFocus()
+  })
+
+  it('ArrowDown on a type row whose list is open goes to the next type row', async () => {
+    render(<Harness />)
+    await userEvent.click(addFilter())
+    await userEvent.hover(screen.getByRole('menuitem', { name: /Tag/ }))
+    expect(screen.getByRole('menuitemcheckbox', { name: /api/ })).toBeVisible()
+    screen.getByRole('menuitem', { name: /Tag/ }).focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: /Folder/ })).toHaveFocus()
+  })
+
+  it('a time list moves past its divider onto the day rows', async () => {
+    render(<Harness start={{ ...NO_FILTERS, launched: { kind: 'preset', range: '7d' } }} />)
+    screen.getByRole('button', { name: /Launched filter/ }).focus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
+    const rows = screen.getAllByRole('menuitemradio')
+    expect(rows).toHaveLength(5)
+    expect(rows[3]).toHaveFocus()
+  })
+
   it('ArrowRight opens a type and Space toggles a value', async () => {
     render(<Harness />)
     addFilter().focus()
@@ -503,5 +547,24 @@ describe('FilterChips — no tags yet', () => {
     expect(screen.getByText('No tags yet')).toBeVisible()
     await userEvent.click(screen.getByRole('menuitem', { name: 'Create tags' }))
     expect(onManageTags).toHaveBeenCalledOnce()
+  })
+})
+
+describe('FilterChips — two tags with one name', () => {
+  afterEach(() => act(() => workspacesStore.setState({ workspaces: [] })))
+
+  it('each of them says where it lives; a tag with its own name does not', async () => {
+    act(() =>
+      workspacesStore.setState({
+        workspaces: [{ id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }]
+      })
+    )
+    const opsApi: Tag = { id: 't-ops-api', name: 'api', color: 'rose', workspaceId: 'w1' }
+    render(<Harness tags={[API, WEB, opsApi]} />)
+    await userEvent.click(addFilter())
+    await userEvent.click(screen.getByRole('menuitem', { name: /Tag/ }))
+    expect(screen.getByTestId('filter-tag-row-t-api')).toHaveTextContent('apiGlobal')
+    expect(screen.getByTestId('filter-tag-row-t-ops-api')).toHaveTextContent('apiOps')
+    expect(screen.getByTestId('filter-tag-row-t-web')).toHaveTextContent(/^web$/)
   })
 })

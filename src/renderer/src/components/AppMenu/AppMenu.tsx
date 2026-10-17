@@ -5,7 +5,8 @@
 // (design.md, "Menu rows"). Both submenus are
 // `Popover.Submenu` (side `left`): they open to the LEFT (the menu sits at the window's right
 // edge), hover opens, click OPENS (never toggles), ArrowRight opens on the first row, ArrowLeft
-// goes back, and only one is open at a time.
+// goes back, and only one is open at a time. ArrowDown / ArrowUp move between the rows of the menu
+// (or submenu) that has focus.
 //
 // Escape peels ONE layer: the open submenu first, then the menu, and never the app's own Escape
 // (Focused → Board) while either is open. It listens on the whole anchor, so it also works while
@@ -25,6 +26,7 @@ import {
 } from '../Icon/MenuIcons'
 import { Button } from '../Button/Button'
 import { Popover } from '../Popover/Popover'
+import { moveMenuRow } from '../Popover/menuArrows'
 import { Presence } from '../Presence/Presence'
 import styles from './AppMenu.module.css'
 import { leavingProps } from '../Presence/leaving'
@@ -122,6 +124,7 @@ export function AppMenu({
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
+    if (moveMenuRow(e)) return
     if (e.key !== 'Escape' || !open) return
     e.stopPropagation()
     if (submenu !== null) {
