@@ -1,7 +1,8 @@
 // ArrowDown / ArrowUp move focus between the rows of ONE menu (spec 2026-10-16 §3: "arrows move
 // rows"). The caller's keydown handler on the anchor calls it, so a menu and the submenu nested
 // inside it each keep their own rows: a row belongs to the nearest `role="menu"` around it. It
-// stops at the first and last row, like `+ New session`'s menu. A leaving (inert) copy is skipped.
+// stops at the first and last row, like `+ New session`'s menu. Any other target (a calendar day,
+// a text box) keeps its arrows.
 import type { KeyboardEvent } from 'react'
 
 const ROW = '[role^="menuitem"]'
@@ -14,7 +15,7 @@ export function moveMenuRow(e: KeyboardEvent<HTMLElement>): boolean {
   if (menu === null) return false
   e.preventDefault()
   const rows = [...menu.querySelectorAll<HTMLElement>(ROW)].filter(
-    (row) => row.closest('[role="menu"]') === menu && row.closest('[inert]') === null
+    (row) => row.closest('[role="menu"]') === menu
   )
   const next = rows[rows.indexOf(e.target) + (e.key === 'ArrowDown' ? 1 : -1)]
   next?.focus()

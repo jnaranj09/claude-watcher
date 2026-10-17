@@ -497,6 +497,19 @@ describe('FilterChips — keyboard', () => {
     expect(screen.getByText('Tag is')).toBeVisible()
   })
 
+  it('the arrows in the calendar move its day, not a menu row', async () => {
+    render(<Harness />)
+    addFilter().focus()
+    await userEvent.keyboard('{Enter}')
+    screen.getByRole('menuitem', { name: /Launched/ }).focus()
+    await userEvent.keyboard('{ArrowRight}')
+    screen.getByRole('menuitemradio', { name: 'On a day' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('button', { name: longDay(16) })).toHaveFocus()
+    await userEvent.keyboard('{ArrowUp}{ArrowLeft}')
+    expect(screen.getByRole('button', { name: longDay(8) })).toHaveFocus()
+  })
+
   it('Escape from the calendar goes back to its list, then to the type row, then closes', async () => {
     const outer = vi.fn()
     render(

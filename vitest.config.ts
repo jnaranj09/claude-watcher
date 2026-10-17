@@ -15,7 +15,8 @@
 // `restoreMocks`: every vi.spyOn is restored after each test, so a spy cannot leak.
 // `allowOnly: false` in EACH project (same reason): a `.only` fails the run, locally too
 // (technical-taste §5b-3). `tests/main/vitestConfig.guard.test.ts` fails when a project drops
-// `pool`, `restoreMocks` or `allowOnly`, or when `zone-berlin` loses its forks pool or its TZ.
+// `pool`, `restoreMocks` or `allowOnly`, when `zone-berlin` loses its forks pool, its TZ or its
+// `ZONE_TESTS` glob, when another project stops skipping that glob, or when no zone test exists.
 import { defineConfig } from 'vitest/config'
 
 // Built with a fixed zone; see `zone-berlin` above. Any folder: the guard pins this glob.

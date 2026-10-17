@@ -333,7 +333,8 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
   ArrowDown / ArrowUp move between the rows of the focused menu (`Popover/menuArrows.ts`,
   `moveMenuRow`). Tag counts as on only through a tag the surface offers (a gone id neither
   draws a pill nor hides Tag). Two offered tags with the same name each show a `ScopeMarker`
-  after the chip (`Global` or the workspace); a tag with its own name shows none.
+  after the chip (`Global`, the workspace, or `(no workspace)` when it is gone); a tag with its
+  own name shows none.
 - Pills: `Tag is <chips>` / `Tag is any of <chips>` (`TagChipRow`, `+N` past its capped slot),
   `Folder is <name>` / `Folder is any of <names>` (`title` = full paths), `Launched today` …
   `Launched since <date>`. A crowded row shrinks the folder and time pills (text ends in `…`);

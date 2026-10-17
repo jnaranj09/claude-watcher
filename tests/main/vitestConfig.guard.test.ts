@@ -42,14 +42,13 @@ describe('vitest.config.ts', () => {
 
   it('zone-berlin runs every *.zone.test.ts and no other project does', () => {
     expect(ZONE_TESTS).toBe('**/*.zone.test.ts')
-    const globs = projects
-      .filter((p) => typeof p === 'object' && !(p instanceof Promise))
-      .map((p) => {
-        const test = typeof p === 'object' && !(p instanceof Promise) ? p.test : undefined
-        return test?.name === ZONE_PROJECT
-          ? { name: test.name, include: test.include }
-          : { name: test?.name, skips: test?.exclude?.includes(ZONE_TESTS) }
-      })
+    // Every entry is mapped: a path or a function has no `test`, so it fails the `skips` check.
+    const globs = projects.map((p) => {
+      const test = typeof p === 'object' && !(p instanceof Promise) ? p.test : undefined
+      return test?.name === ZONE_PROJECT
+        ? { name: test.name, include: test.include }
+        : { name: test?.name, skips: test?.exclude?.includes(ZONE_TESTS) }
+    })
     expect(globs).toEqual(
       globs.map((g) =>
         g.name === ZONE_PROJECT
