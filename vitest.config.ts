@@ -18,8 +18,8 @@
 // `pool`, `restoreMocks` or `allowOnly`, or when `zone-berlin` loses its forks pool or its TZ.
 import { defineConfig } from 'vitest/config'
 
-// Built with a fixed zone; see `zone-berlin` above.
-const ZONE_TESTS = 'src/**/*.zone.test.ts'
+// Built with a fixed zone; see `zone-berlin` above. Any folder: the guard pins this glob.
+export const ZONE_TESTS = '**/*.zone.test.ts'
 
 const NODE_SHARED = [
   'src/shared/**/*.test.ts',

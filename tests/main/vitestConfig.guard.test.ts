@@ -3,8 +3,12 @@
 // taste §5b-3), `restoreMocks: true` (a spy cannot leak into the next test) and `pool: 'threads'`.
 // A new project that forgets one would silently drop it for its files. The one `forks` project is
 // `zone-berlin`: a zone only takes effect per process, so it must keep both `forks` and its TZ.
+// It runs `*.zone.test.ts` from any folder and every other project skips them: a narrower glob or a
+// missing exclude would run a clock-change test in the runner's zone, where it passes vacuously.
 import { describe, it, expect } from 'vitest'
-import config from '../../vitest.config'
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import config, { ZONE_TESTS } from '../../vitest.config'
 
 const ZONE_PROJECT = 'zone-berlin'
 
@@ -34,5 +38,40 @@ describe('vitest.config.ts', () => {
       (p) => typeof p === 'object' && !(p instanceof Promise) && p.test?.name === ZONE_PROJECT
     )
     expect(zone).toMatchObject({ test: { pool: 'forks', env: { TZ: 'Europe/Berlin' } } })
+  })
+
+  it('zone-berlin runs every *.zone.test.ts and no other project does', () => {
+    expect(ZONE_TESTS).toBe('**/*.zone.test.ts')
+    const globs = projects
+      .filter((p) => typeof p === 'object' && !(p instanceof Promise))
+      .map((p) => {
+        const test = typeof p === 'object' && !(p instanceof Promise) ? p.test : undefined
+        return test?.name === ZONE_PROJECT
+          ? { name: test.name, include: test.include }
+          : { name: test?.name, skips: test?.exclude?.includes(ZONE_TESTS) }
+      })
+    expect(globs).toEqual(
+      globs.map((g) =>
+        g.name === ZONE_PROJECT
+          ? { name: g.name, include: [ZONE_TESTS] }
+          : { name: g.name, skips: true }
+      )
+    )
+  })
+
+  // Non-vacuity: the zone project has files to run.
+  it('finds at least one *.zone.test.ts', () => {
+    const root = join(__dirname, '..', '..')
+    const found: string[] = []
+    const walk = (dir: string): void => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === 'node_modules' || e.name.startsWith('.')) continue
+        const p = join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (e.name.endsWith('.zone.test.ts')) found.push(p)
+      }
+    }
+    for (const top of ['src', 'tests']) walk(join(root, top))
+    expect(found.length).toBeGreaterThan(0)
   })
 })
