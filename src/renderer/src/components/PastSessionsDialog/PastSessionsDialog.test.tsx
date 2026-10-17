@@ -503,4 +503,20 @@ describe('Sessions → Past — rail filter', () => {
     click('[data-testid="past-filter-folder-row-/home/op/deploy"]')
     expect(rows(r)).toEqual(['deploy'])
   })
+
+  it('a deleted tag leaves the filter: the rows come back and the count goes down', async () => {
+    const { r } = render()
+    await flush()
+    chooseOption(r.container, 'past-session-scope-filter', 'all')
+    const click = (sel: string): void => act(() => q(r, sel)?.click())
+    click('[data-testid="past-filter-toggle"]')
+    click('[data-testid="past-filter-add"]')
+    click('[data-testid="past-filter-type-tag"]')
+    click('[data-testid="past-filter-tag-row-t-prod"]')
+    expect(rows(r)).toEqual(['billing api'])
+
+    act(() => tagsStore.setState({ tags: [] }))
+    expect([...rows(r)].sort()).toEqual(['billing api', 'deploy'])
+    expect(q(r, '[data-testid="past-filter-toggle"]')?.getAttribute('aria-label')).toBe('Filter')
+  })
 })
