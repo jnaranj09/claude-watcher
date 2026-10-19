@@ -19,8 +19,8 @@ import { z } from 'zod'
  *
  * `hook_event_name` is the lifecycle event name string — NOT enum-locked (a new event
  * must pass through, not fail closed, so the hookStatus mapper returns null for unknown
- * events). `.passthrough()` so additional payload fields (cwd, last_assistant_message,
- * prompt, tool_input) are absorbed without being validated or logged.
+ * events). `.passthrough()` so additional payload fields (e.g. `prompt`) are absorbed without
+ * being validated or logged.
  *
  * IMPORTANT: `.passthrough()` only absorbs UNKNOWN keys. The declared keys are still
  * strictly validated — blank session_id or missing hook_event_name will fail closed.
@@ -74,9 +74,16 @@ export const HookEventSchema = z
     // claude's structure to change, and a shape drift must never fail the event closed
     // (the reader narrows it defensively instead). SENSITIVE — the entries carry the
     // operator's COMMAND LINES; never log this value. [backgroundTasks.ts]
-    background_tasks: z.unknown().optional()
+    background_tasks: z.unknown().optional(),
+    // `PreToolUse`: the tool call's input (`{ command }` for Bash, `{ file_path }` for Read, …,
+    // probe claude 2.1.303). Promoted from passthrough for the card's one-line detail. Left as
+    // `unknown` for the same reason as `background_tasks`: claude's shape to change, and a drift
+    // must never fail the event closed. SENSITIVE — command lines, file contents, prompts; never
+    // log this value. Read only by `toolDetail.ts`, which narrows each known tool with its own
+    // schema. [hooks/toolDetail.ts]
+    tool_input: z.unknown().optional()
   })
-  .passthrough() // absorbs remaining prompt/tool_input fields without validating
+  .passthrough() // absorbs remaining fields (e.g. prompt) without validating
 
 /**
  * The hook event type — INFERRED from the schema (one source of truth, never a

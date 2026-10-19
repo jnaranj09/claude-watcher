@@ -240,3 +240,28 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
     expect(serialized).not.toContain('secret-session-id-that-must-not-leak')
   })
 })
+
+describe('HookEventSchema — tool_input (needs-you detail)', () => {
+  it('an object tool_input parses and keeps the same value', () => {
+    const input = { command: 'ls -la', description: 'list' }
+    const r = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: input
+    })
+    expect(r.success).toBe(true)
+    expect(r.data?.tool_input).toEqual(input)
+  })
+
+  it('a string tool_input parses too: a shape drift never fails the event closed', () => {
+    const r = HookEventSchema.safeParse({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: 'not an object'
+    })
+    expect(r.success).toBe(true)
+    expect(r.data?.tool_input).toBe('not an object')
+  })
+})

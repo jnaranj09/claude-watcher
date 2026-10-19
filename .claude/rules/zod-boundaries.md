@@ -17,7 +17,8 @@ export const HookEventSchema = z
     hook_event_name: z.string(), // NOT enum-locked
     notification_type: z.string().optional(),
     tool_name: z.string().optional(),
-    last_assistant_message: z.string().optional() // SENSITIVE — never log
+    last_assistant_message: z.string().optional(), // SENSITIVE — never log
+    tool_input: z.unknown().optional() // SENSITIVE — never log; read only by toolDetail.ts
   })
   .passthrough() // claude additions pass; known-key malformations fail closed
 
