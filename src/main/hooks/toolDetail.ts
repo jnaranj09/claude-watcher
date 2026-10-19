@@ -1,7 +1,8 @@
 // Needs-you detail — one short line that says what a waiting tool wants to do.
 //
 // `hookStatus` calls this on `PreToolUse` with the event's `tool_input`; the reducer keeps the
-// result beside the tool name and the card draws it under the name (`pendingToolDetail`). Only
+// result beside the tool name; the card draws it under the name and the OS notification puts it
+// on its second body line (`pendingToolDetail`). Only
 // the tools below get a line: an unknown input shape (MCP tools included) has no safe one-line
 // form, so it gets `null` and the card shows the name alone, as before.
 //

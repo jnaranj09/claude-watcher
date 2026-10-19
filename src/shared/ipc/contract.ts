@@ -367,7 +367,7 @@ export type SmokeReport = Record<string, unknown>
  *     (AC-8 / parse-once). Read from the reducer's already-parsed `Session` in
  *     main; never re-validated in the renderer.
  *   - `pendingToolDetail?` — the needs-you detail line under `pendingToolName`, from the
- *     same `Session`. Card only (the attention event below never carries it).
+ *     same `Session`.
  * The frozen union is unchanged: this adds fields to a MEMBER, it does not add or
  * remove a `type` discriminant (same precedent as Story 1.2 adding `attention.raised`
  * as a third `event` value). [Source: story 1.4 Task 1 / AC-1 / AC-7 / FROZEN-2;
@@ -397,7 +397,7 @@ export type SessionUpdatedEvent = {
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
   /** Needs-you detail — one line saying what the waiting tool wants to do (`hooks/toolDetail.ts`),
-   *  present only with `pendingToolName`. Card only: never on `AttentionRaisedEvent`. */
+   *  present only with `pendingToolName`. Never on the API wire or a Past sessions record. */
   pendingToolDetail?: string
   /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt (the card
    *  draws the ⟳ mark). Absent = false. */
@@ -450,6 +450,9 @@ export type AttentionRaisedEvent = {
   status: string
   /** The pending tool awaiting the human, when c9watch reports one. */
   pendingToolName?: string
+  /** What that tool wants to do, one line (needs-you detail) — the OS notification's second body
+   *  line (owner, 2026-10-19). */
+  pendingToolDetail?: string
   /** Event time in epoch millis (coerced from the c9watch ISO-8601 timestamp). */
   timestamp: number
 }

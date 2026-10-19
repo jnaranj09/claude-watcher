@@ -89,7 +89,7 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
   const tracked = new Map<string, TrackedColumn>()
 
   /** Build the frozen `attention.raised` from the already-validated Session (D3).
-   *  pendingToolName is included ONLY when present (it is optional on both the
+   *  pendingToolName / pendingToolDetail are included ONLY when present (optional on both the
    *  Session and the union — never synthesize one). timestamp = injected now(),
    *  NOT a re-parsed c9watch time. Shape is EXACTLY the frozen union; no extra
    *  fields (privacy — no firstPrompt/latestMessage/pendingToolInput leak). */
@@ -104,7 +104,12 @@ export function createAttentionTracker(options: AttentionTrackerOptions = {}): A
       projectPath: session.projectPath,
       status: session.status,
       timestamp: at,
-      ...(session.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {})
+      ...(session.pendingToolName !== undefined
+        ? { pendingToolName: session.pendingToolName }
+        : {}),
+      ...(session.pendingToolDetail !== undefined
+        ? { pendingToolDetail: session.pendingToolDetail }
+        : {})
     }
   }
 

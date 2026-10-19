@@ -48,7 +48,7 @@ export const EnrichedSessionUpdatedSchema = z.object({
    *  shape), which is exactly the half-formed delta this guard exists to drop. */
   tagIds: z.array(z.string().min(1)),
   pendingToolName: z.string().optional(),
-  /** Needs-you detail — one line saying what the waiting tool wants to do; card only. */
+  /** Needs-you detail — one line saying what the waiting tool wants to do. */
   pendingToolDetail: z.string().optional(),
   /** Name-sync (D-11) — present and true only while a rename waits for the next prompt. */
   nameSyncPending: z.boolean().optional(),

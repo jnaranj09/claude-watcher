@@ -12,11 +12,13 @@
 // the whole Epic-2 fan-out. This module adds NO second/event-level debounce or cooldown.
 //
 // PRIVACY (AC-3 / AC-7 / Critical Guardrail #6): the notification BODY carries `projectPath`
-// + `pendingToolName` VERBATIM over the OS — that is the contract, BY DESIGN. But:
+// + `pendingToolName` VERBATIM over the OS — that is the contract, BY DESIGN — and, on a second
+// line, `pendingToolDetail` (what the tool wants to do; owner decision 2026-10-19, which reverses
+// "card only": the operator accepts that a command line shows on the lock screen). But:
 //   - the body NEVER reaches for `pendingToolInput`/`firstPrompt`/`latestMessage` — those are
 //     not on the frozen `AttentionRaisedEvent` shape and must never be read here;
 //   - any LOG on the notify path logs the `id` (an opaque UUID) + a code ONLY — NEVER
-//     `sessionName`/`projectPath`/`pendingToolName`/any session value.
+//     `sessionName`/`projectPath`/`pendingToolName`/`pendingToolDetail`/any session value.
 //
 // never-crash (PRECEDENCE #2 / AC-7): a notifier failure (libnotify unavailable,
 // `Notification.isSupported()` false, a throwing factory) is caught and degraded — one failed
@@ -140,7 +142,8 @@ function titleForStatus(sessionName: string, status: string): string {
 }
 
 /** Attention reminders — what one reminder needs. The SAME privacy surface as the first alert
- *  (sessionName, projectPath, status, pendingToolName) plus how long the session has waited. It
+ *  (sessionName, projectPath, status, pendingToolName, pendingToolDetail) plus how long the
+ *  session has waited. It
  *  never crosses IPC, so it is not on the frozen contract. */
 export interface ReminderInput {
   id: string
@@ -148,20 +151,29 @@ export interface ReminderInput {
   projectPath: string
   status: string
   pendingToolName?: string
+  /** What that tool wants to do, one line — the body's second line. */
+  pendingToolDetail?: string
   /** Milliseconds since the session became blocked (the start of the reminder series). */
   waitedMs: number
 }
 
-/** The body both alerts share: projectPath, plus the pending tool VERBATIM when non-empty. */
+/** The body's first line both alerts share: projectPath, plus the pending tool VERBATIM when
+ *  non-empty. */
 function bodyFor(projectPath: string, pendingToolName: string | undefined): string {
   return pendingToolName ? `${projectPath} · ${pendingToolName}` : projectPath
+}
+
+/** What the tool wants to do goes on its own line under the first, when non-empty. */
+function withDetail(firstLine: string, pendingToolDetail: string | undefined): string {
+  return pendingToolDetail ? `${firstLine}\n${pendingToolDetail}` : firstLine
 }
 
 /**
  * Build the notification CONTENT from the frozen `AttentionRaisedEvent` (AC-3). Read ONLY
  * the union's fields — title names the session + what happened (per `status`, see
  * `titleForStatus`), body is `projectPath` + (when present) `pendingToolName` VERBATIM
- * (UX-DR22: never re-label a status word). NEVER reach for
+ * (UX-DR22: never re-label a status word), then `pendingToolDetail` on a second line. NEVER
+ * reach for
  * `pendingToolInput`/`firstPrompt`/`latestMessage` — they are not on the shape (privacy).
  * Exported for the content/privacy unit test.
  */
@@ -173,7 +185,10 @@ export function buildNotificationContent(raised: AttentionRaisedEvent): {
   // Body = projectPath, plus the pending tool name verbatim when c9watch reported one.
   // (Status words are shown verbatim, never re-labeled — UX-DR22.) `bodyFor` guards on a
   // NON-EMPTY value: an empty string would otherwise leave a dangling "· " tail.
-  return { title, body: bodyFor(raised.projectPath, raised.pendingToolName) }
+  return {
+    title,
+    body: withDetail(bodyFor(raised.projectPath, raised.pendingToolName), raised.pendingToolDetail)
+  }
 }
 
 /**
@@ -185,7 +200,10 @@ export function buildReminderContent(input: ReminderInput): { title: string; bod
   const minutes = Math.round(input.waitedMs / 60_000)
   return {
     title: titleForStatus(input.sessionName, input.status),
-    body: `${bodyFor(input.projectPath, input.pendingToolName)} · waiting ${minutes} min`
+    body: withDetail(
+      `${bodyFor(input.projectPath, input.pendingToolName)} · waiting ${minutes} min`,
+      input.pendingToolDetail
+    )
   }
 }
 

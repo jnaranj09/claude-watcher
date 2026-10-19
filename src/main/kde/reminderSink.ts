@@ -49,7 +49,12 @@ export function createReminderSink(
       projectPath: session.projectPath,
       status: session.status,
       waitedMs,
-      ...(session.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {})
+      ...(session.pendingToolName !== undefined
+        ? { pendingToolName: session.pendingToolName }
+        : {}),
+      ...(session.pendingToolDetail !== undefined
+        ? { pendingToolDetail: session.pendingToolDetail }
+        : {})
     })
     if (options.isDestroyed()) return
     // Validate AT SOURCE before send (renderer-facing push). PATH + CODE only on a miss.

@@ -65,8 +65,8 @@ export const SessionSchema = z
     pid: z.number().int().nonnegative(), // wandering thread id, NOT identity; int>=0 (Decision 4)
     pendingToolName: z.string().optional(), // may be absent/empty
     /** Needs-you detail — one line saying what the waiting tool wants to do (`hooks/toolDetail.ts`),
-     *  set and cleared with `pendingToolName`. Card only: never on the API wire, a Past sessions
-     *  record or an attention event (it can hold a command line). */
+     *  set and cleared with `pendingToolName`. Shown on the card and in the OS notification;
+     *  never on the API wire or a Past sessions record (it can hold a command line). */
     pendingToolDetail: z.string().optional(),
     sessionName: z.string(),
     /** Workspaces — the workspace this card belongs to. Session TRUTH, main-owned: stamped at

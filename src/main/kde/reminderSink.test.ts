@@ -43,7 +43,11 @@ function setup(overrides: {
 describe('createReminderSink — the extracted production remind callback (F1)', () => {
   it('a launched session: notifier.remind is called with the ReminderInput, and send gets { id }', () => {
     const { sink, remindCalls, sendCalls } = setup({})
-    const session = launchedSession(ID, { status: 'NeedsPermission', pendingToolName: 'Bash' })
+    const session = launchedSession(ID, {
+      status: 'NeedsPermission',
+      pendingToolName: 'Bash',
+      pendingToolDetail: 'ls -la'
+    })
 
     sink(session, { waitedMs: 120_000 })
 
@@ -54,7 +58,8 @@ describe('createReminderSink — the extracted production remind callback (F1)',
         projectPath: session.projectPath,
         status: session.status,
         waitedMs: 120_000,
-        pendingToolName: 'Bash'
+        pendingToolName: 'Bash',
+        pendingToolDetail: 'ls -la'
       }
     ])
     expect(sendCalls).toEqual([{ id: ID }])
@@ -68,6 +73,7 @@ describe('createReminderSink — the extracted production remind callback (F1)',
 
     expect(remindCalls).toHaveLength(1)
     expect(remindCalls[0]).not.toHaveProperty('pendingToolName')
+    expect(remindCalls[0]).not.toHaveProperty('pendingToolDetail')
   })
 
   it('an external (non-launched) session: neither notifier.remind nor send is called', () => {

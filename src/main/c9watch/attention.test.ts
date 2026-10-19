@@ -350,13 +350,22 @@ describe('attention tracker — privacy (never leak a session value)', () => {
     )
     h.tool(id, 'Bash', './deploy.sh staging')
     h.hook(id, 'NeedsPermission')
-    // The card itself holds the detail — the event built from it must not.
-    expect(h.reducer.snapshotMap().get(id)?.pendingToolDetail).toBe('./deploy.sh staging')
     expect(h.attention).toHaveLength(1)
     const keys = Object.keys(h.attention[0]!).sort()
+    // The detail rides the alert (owner, 2026-10-19: it shows in the OS notification body).
     expect(keys).toEqual(
-      ['id', 'pendingToolName', 'projectPath', 'sessionName', 'status', 'timestamp', 'type'].sort()
+      [
+        'id',
+        'pendingToolDetail',
+        'pendingToolName',
+        'projectPath',
+        'sessionName',
+        'status',
+        'timestamp',
+        'type'
+      ].sort()
     )
+    expect(h.attention[0]?.pendingToolDetail).toBe('./deploy.sh staging')
     // explicitly assert NO session-body fields leaked through. Widen the known
     // AttentionRaisedEvent to Record<string, unknown> so the `in` operator can probe
     // for keys the compile-time type EXCLUDES (a safe known→wider cast, test-only).
@@ -364,7 +373,6 @@ describe('attention tracker — privacy (never leak a session value)', () => {
     expect('firstPrompt' in ev).toBe(false)
     expect('latestMessage' in ev).toBe(false)
     expect('pendingToolInput' in ev).toBe(false)
-    expect('pendingToolDetail' in ev).toBe(false)
     expect('pid' in ev).toBe(false)
   })
 })

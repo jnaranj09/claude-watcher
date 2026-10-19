@@ -44,7 +44,8 @@ function raised(over: Partial<AttentionRaisedEvent> = {}): AttentionRaisedEvent 
     projectPath: over.projectPath ?? '/home/u/projects/webapp',
     status: over.status ?? 'NeedsPermission',
     timestamp: over.timestamp ?? FIXED_NOW,
-    ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
+    ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {}),
+    ...(over.pendingToolDetail !== undefined ? { pendingToolDetail: over.pendingToolDetail } : {})
   }
   return base
 }
@@ -133,6 +134,15 @@ describe('attention notifier — content shape, verbatim status words (AC-3)', (
     expect(opts?.body).not.toContain('·')
   })
 
+  // Needs-you detail (owner, 2026-10-19: reverses "card only"): what the tool wants to do rides a
+  // second line of the body, under `<path> · <tool>`.
+  it('the body puts the pending tool detail on a second line', () => {
+    const c = buildNotificationContent(
+      raised({ projectPath: '/p', pendingToolName: 'Bash', pendingToolDetail: 'kubectl apply' })
+    )
+    expect(c.body).toBe('/p · Bash\nkubectl apply')
+  })
+
   it('buildNotificationContent is a pure helper producing the same shape', () => {
     const c = buildNotificationContent(
       raised({ sessionName: 's', projectPath: '/p', pendingToolName: 'Bash' })
@@ -192,13 +202,11 @@ describe('attention notifier — PRIVACY: never leaks pendingToolInput/firstProm
     const ev = {
       ...raised({ pendingToolName: 'NeedsPermission' }),
       pendingToolInput: SECRET_TOOL_INPUT,
-      pendingToolDetail: SECRET_TOOL_INPUT,
       firstPrompt: SECRET_FIRST_PROMPT,
       latestMessage: SECRET_LATEST_MESSAGE
     } as AttentionRaisedEvent
     notifier.notify(ev)
     const opts = fake.last()
-    // Card only: the body stays `<path> · <tool name>`, even when the session has a detail.
     expect(opts?.body).toBe(`${ev.projectPath} · NeedsPermission`)
     const content = `${opts?.title ?? ''}\n${opts?.body ?? ''}`
     expect(content).not.toContain(SECRET_TOOL_INPUT)
@@ -290,7 +298,8 @@ function reminder(over: Partial<ReminderInput> = {}): ReminderInput {
     projectPath: over.projectPath ?? '/home/u/projects/webapp',
     status: over.status ?? 'NeedsPermission',
     waitedMs: over.waitedMs ?? 6 * MIN,
-    ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {})
+    ...(over.pendingToolName !== undefined ? { pendingToolName: over.pendingToolName } : {}),
+    ...(over.pendingToolDetail !== undefined ? { pendingToolDetail: over.pendingToolDetail } : {})
   }
 }
 
@@ -312,6 +321,12 @@ describe('buildReminderContent — the first alert again, plus how long it has w
     expect(buildReminderContent(reminder({ pendingToolName: 'Bash' })).body).toBe(
       '/home/u/projects/webapp · Bash · waiting 6 min'
     )
+  })
+
+  it('the pending tool detail rides a second line, after the minutes', () => {
+    expect(
+      buildReminderContent(reminder({ pendingToolName: 'Bash', pendingToolDetail: 'ls -la' })).body
+    ).toBe('/home/u/projects/webapp · Bash · waiting 6 min\nls -la')
   })
 
   it('an empty pendingToolName leaves no dangling separator', () => {
