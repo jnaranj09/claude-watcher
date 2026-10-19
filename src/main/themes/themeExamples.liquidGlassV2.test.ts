@@ -167,8 +167,7 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
       "button[data-variant='primary'][style*='--glass-light']:not(:disabled)::before",
       "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::before",
       "button[data-variant='primary'][style*='--glass-light']:not(:disabled)::after",
-      "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after",
-      "[data-toast][style*='--glass-light']::after"
+      "button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([data-lit])::after"
     ]) {
       expect(sels, want).toContain(want)
     }
@@ -188,13 +187,30 @@ describe('liquid-glass v2 (spec 2026-10-08)', () => {
         .map((x) => x.body)
         .join('\n')
     expect(find('[data-popover-item]:not(:disabled)')).toMatch(
-      /--row-light:\s*var\(--glass-light,\s*135deg\)/
+      /--rim-light:\s*var\(--glass-light,\s*135deg\)/
     )
     expect(find('[data-popover-item]:not(:disabled)::before')).toMatch(
-      /box-shadow:\s*inset calc\(-5\.66px \* cos\(var\(--row-light\)\)\)/
+      /box-shadow:\s*inset calc\(-5\.66px \* cos\(var\(--rim-light\)\)\)/
     )
     const rim = find('[data-popover-item]:not(:disabled)::after')
-    for (const side of ['t', 'r', 'b', 'l']) expect(rim).toContain(`var(--row-lit-${side})`)
+    for (const side of ['t', 'r', 'b', 'l']) expect(rim).toContain(`var(--rim-lit-${side})`)
+  })
+  // Owner, 2026-10-19: a toast looks like the buttons and columns — the row's rim and glow, lit by
+  // --glass-light. Its ::before is the blur (painted over the toast's own shadows), so rim AND glow
+  // are on ::after.
+  it('liquid-glass: a toast takes the popover row rim and glow from --glass-light', () => {
+    const css = liquidGlassRules()
+    const find = (sel: string): string =>
+      css
+        .filter((x) => x.selectors.includes(sel))
+        .map((x) => x.body)
+        .join('\n')
+    expect(find('[data-toast]')).toMatch(/--rim-light:\s*var\(--glass-light,\s*135deg\)/)
+    const rim = find('[data-toast]::after')
+    expect(rim).toMatch(/box-shadow:\s*inset calc\(-8\.5px \* cos\(var\(--rim-light\)\)\)/)
+    expect(find('[data-toast]')).not.toContain('inset')
+    for (const side of ['t', 'r', 'b', 'l']) expect(rim).toContain(`var(--rim-lit-${side})`)
+    expect(rim).not.toContain('mask')
   })
   // Drive 2026-10-08: the field hook is on the icon wrapper, which had no radius, so the WebGL rim
   // was square while the input still painted its own rounded box on top.

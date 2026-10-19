@@ -629,16 +629,21 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::after {
    `::after` is a 1px border ON the row's border, one alpha per side from its `lit`; `::before` is
    the glow, one blurred inset pushed toward the light. The button ring above (lines fading out on
    the sides) left a row's left edge dark where the WebGL one is a full line. `--glass-light` (the
-   pointer's angle, set on the hovered row) moves both; at rest the light is top-left (135deg). */
-[data-popover-item]:not(:disabled) {
-  --row-light: var(--glass-light, 135deg);
-  --row-lit-t: calc(max(sin(var(--row-light)), 0) + 0.35 * max(-1 * sin(var(--row-light)), 0));
-  --row-lit-r: calc(max(cos(var(--row-light)), 0) + 0.35 * max(-1 * cos(var(--row-light)), 0));
-  --row-lit-b: calc(max(-1 * sin(var(--row-light)), 0) + 0.35 * max(sin(var(--row-light)), 0));
-  --row-lit-l: calc(max(-1 * cos(var(--row-light)), 0) + 0.35 * max(cos(var(--row-light)), 0));
+   pointer's angle, set on the hovered row) moves both; at rest the light is top-left (135deg).
+   A TOAST takes the same rim and glow (owner, 2026-10-19: toasts must look like the buttons and
+   columns — the left and top glow, the same border, the light following the pointer). Its
+   `::before` is its blur layer, so its glow is on its `::after` (below). */
+[data-popover-item]:not(:disabled),
+[data-toast] {
+  --rim-light: var(--glass-light, 135deg);
+  --rim-lit-t: calc(max(sin(var(--rim-light)), 0) + 0.35 * max(-1 * sin(var(--rim-light)), 0));
+  --rim-lit-r: calc(max(cos(var(--rim-light)), 0) + 0.35 * max(-1 * cos(var(--rim-light)), 0));
+  --rim-lit-b: calc(max(-1 * sin(var(--rim-light)), 0) + 0.35 * max(sin(var(--rim-light)), 0));
+  --rim-lit-l: calc(max(-1 * cos(var(--rim-light)), 0) + 0.35 * max(cos(var(--rim-light)), 0));
 }
 [data-popover-item]:not(:disabled)::before,
-[data-popover-item]:not(:disabled)::after {
+[data-popover-item]:not(:disabled)::after,
+[data-toast]::after {
   content: '';
   position: absolute;
   inset: -1px;
@@ -646,15 +651,16 @@ button[data-variant='secondary']:not(:disabled):not([data-lit])::after {
   pointer-events: none;
 }
 [data-popover-item]:not(:disabled)::before {
-  box-shadow: inset calc(-5.66px * cos(var(--row-light))) calc(5.66px * sin(var(--row-light)))
+  box-shadow: inset calc(-5.66px * cos(var(--rim-light))) calc(5.66px * sin(var(--rim-light)))
     7px -3px rgba(255, 255, 255, 0.12);
 }
-[data-popover-item]:not(:disabled)::after {
+[data-popover-item]:not(:disabled)::after,
+[data-toast]::after {
   border: 1px solid;
-  border-color: rgb(255 255 255 / calc(0.02 + 0.38 * var(--row-lit-t)))
-    rgb(255 255 255 / calc(0.03 + 0.24 * var(--row-lit-r)))
-    rgb(255 255 255 / calc(0.02 + 0.33 * var(--row-lit-b)))
-    rgb(255 255 255 / calc(0.03 + 0.24 * var(--row-lit-l)));
+  border-color: rgb(255 255 255 / calc(0.02 + 0.38 * var(--rim-lit-t)))
+    rgb(255 255 255 / calc(0.03 + 0.24 * var(--rim-lit-r)))
+    rgb(255 255 255 / calc(0.02 + 0.33 * var(--rim-lit-b)))
+    rgb(255 255 255 / calc(0.03 + 0.24 * var(--rim-lit-l)));
 }
 /* THE SHEEN and THE TEXT'S LIGHT (operator, 2026-10-05, from a glass button reference). The sheen:
    a soft light filling in from the top-left corner and a weaker one at the bottom-right, eased out
@@ -854,51 +860,27 @@ section[data-column]::after,
 
 /* A TOAST had no rule at all: it kept the token's `--bg-surface-raised` (white 10%) and read as a
    flat grey slab over the glass (operator, 2026-10-01). It takes the popover's material — the
-   faint white fill, the faint border, the directional rim — but it is a CONTAINER, not a leaf:
-   its action (`Resume`, `Open`) is a primary Button, and every enabled primary button blurs
-   from itself. So the toast blurs from a `::before` layer, like the ☰ menu that holds a submenu,
-   or the action's blur would read only what the toast painted. `position: relative` anchors the
-   layer (the toast is not positioned); `isolation` keeps its `z-index: -1` inside the toast. */
+   faint white fill — but it is a CONTAINER, not a leaf: its action (`Resume`, `Open`) is a
+   primary Button, and every enabled primary button blurs from itself. So the toast blurs from a
+   `::before` layer, like the ☰ menu that holds a submenu, or the action's blur would read only
+   what the toast painted. `position: relative` anchors the layers (the toast is not positioned);
+   `isolation` keeps the blur's `z-index: -1` inside the toast. Its rim and glow are a popover
+   row's WebGL-style ones (above), both on `::after`: an inset shadow on the toast itself is
+   painted UNDER the `::before` blur and never shows. No visible border of its own, and the
+   buttons' soft dark shadow. */
 [data-toast] {
   position: relative;
   isolation: isolate;
   border-radius: var(--rounded-lg);
   background-color: var(--glass-fill);
-  /* THE CONTROL EDGE, the buttons' standard (operator, 2026-10-06: "only the corners look bright …
-     it doesn't look like the standard of the buttons"). The directional rim's two 1px-offset inset
-     lines and the 6% border all landed on the curve, so every corner read brighter than the
-     straight edges. No visible border, the buttons' soft dark shadow, and the lit ring below. */
   border-color: transparent;
   box-shadow:
     1px 1px 1px rgba(0, 0, 0, 0.5),
     var(--shadow-pop);
 }
-/* The ring: the buttons' two lines — the top one lit at the LEFT (with its top-left glint) and
-   dimming to 45% toward the right, the bottom one lit at the RIGHT and dimming toward the left.
-   ONE layer, because `::before` is the blur: the button splits the lines over two pseudos, each
-   with its own left/right mask. Here the left/right fade goes in the BACKGROUND, one layer per
-   half (top half fades right, bottom half fades left), and the mask carries what both lines
-   share: the top-down / bottom-up fade on the rounded sides and the 1px ring. Same values as the
-   button, so the light falls the same way. Blurred 0.3px: a 1px rounded edge shows no pixel steps
-   at 1x. */
 [data-toast]::after {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  filter: blur(0.3px);
-  background:
-    radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.2), transparent 20px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16)) top / 100% 50%
-      no-repeat,
-    linear-gradient(to left, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16)) bottom / 100% 50%
-      no-repeat;
-  mask:
-    linear-gradient(#000, transparent 40%, transparent 60%, #000) intersect,
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
+  box-shadow: inset calc(-8.5px * cos(var(--rim-light))) calc(8.5px * sin(var(--rim-light)))
+    12px -4px rgba(255, 255, 255, 0.12);
 }
 [data-toast]::before {
   content: '';
@@ -1118,8 +1100,9 @@ section[data-column='idle']::after {
 /* THE MOVING LIGHT ON OVERLAY GLASS (owner, 2026-10-08): the board's light follows the pointer
    (WebGL); overlays are CSS, so the app writes `--glass-light: <deg>` (GL angle, 135 = top-left)
    on the ONE overlay surface under the pointer — a popover row, an overlay button or a toast — and
-   these rules move that element's rim with it: the corner glint goes to the pointer's side, and
-   the lines dim away from / toward the light as the resting rim does at 135deg. Only where the
+   these rules move an overlay button's rim with it (a row's and a toast's rim read `--rim-light`
+   instead): the corner glint goes to the pointer's side, and the lines dim away from / toward the
+   light as the resting rim does at 135deg. Only where the
    property is set, so the resting look is unchanged. Declared on the lit element itself: a
    variable defined on :root would freeze the angle there. */
 [style*='--glass-light'] {
@@ -1148,18 +1131,6 @@ button[data-variant='secondary'][style*='--glass-light']:not(:disabled):not([dat
     linear-gradient(var(--glass-light-toward), #000, rgba(0, 0, 0, 0.45)) intersect,
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
-}
-[data-toast][style*='--glass-light']::after {
-  background:
-    radial-gradient(
-      circle at var(--glass-light-x) var(--glass-light-y),
-      rgba(255, 255, 255, 0.2),
-      transparent 20px
-    ),
-    linear-gradient(var(--glass-light-away), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
-      top / 100% 50% no-repeat,
-    linear-gradient(var(--glass-light-toward), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.16))
-      bottom / 100% 50% no-repeat;
 }
 
 /* The workspace switcher keeps its WORKSPACE TINT while the WebGL glass is on (owner, 2026-10-08):

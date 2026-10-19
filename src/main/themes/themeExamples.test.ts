@@ -382,22 +382,16 @@ describe('docs/themes/examples', () => {
         .join('\n')
     const toast = bodyOf('[data-toast]')
     expect(toast).toMatch(/background(-color)?:\s*var\(--glass-fill\);/)
-    // The CONTROL EDGE, not the directional rim (operator, 2026-10-06: "only the corners look
-    // bright … it doesn't look like the standard of the buttons"): the rim's two offset inset lines
-    // and the 6% border overlapped on the curve. No visible border, the buttons' soft dark shadow,
-    // and ONE even ring on `::after` (`::before` is the blur layer).
+    // No visible border and no directional rim (operator, 2026-10-06: "only the corners look
+    // bright"): the rim's offset inset lines and the 6% border overlapped on the curve. The ring is
+    // the popover row's per-side border on `::after` (owner, 2026-10-19; `::before` is the blur),
+    // pinned in themeExamples.liquidGlassV2.test.ts, then the buttons' soft dark shadow.
     expect(toast).toMatch(/border-color:\s*transparent;/)
-    expect(toast).toMatch(/box-shadow:\s*1px 1px 1px rgba\(0, 0, 0, 0\.5\),\s*var\(--shadow-pop\);/)
+    expect(toast).toMatch(/1px 1px 1px rgba\(0, 0, 0, 0\.5\),\s*var\(--shadow-pop\);/)
     expect(toast).not.toContain('--glass-rim')
     const ring = bodyOf('[data-toast]::after')
     expect(ring).toMatch(/inset:\s*-1px;/)
-    expect(ring).toMatch(/padding:\s*1px;/)
     expect(ring).toMatch(/border-radius:\s*inherit;/)
-    expect(ring).toMatch(/content-box exclude/)
-    // Directional like the button: the top line lit at the left, the bottom line at the right.
-    expect(ring).toMatch(/linear-gradient\(to right, rgba\(255, 255, 255, 0\.35\)[^)]*\)\) top/)
-    expect(ring).toMatch(/linear-gradient\(to left, rgba\(255, 255, 255, 0\.35\)[^)]*\)\) bottom/)
-    expect(ring).toMatch(/radial-gradient\(circle at 0 0/)
     expect(toast).toMatch(/position:\s*relative;/)
     expect(toast).toMatch(/isolation:\s*isolate;/)
     expect(toast).not.toMatch(/backdrop-filter/)
