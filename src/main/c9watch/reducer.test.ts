@@ -156,6 +156,103 @@ describe('reducer — applyHookStatus (hooks own every status transition)', () =
     expect(r.snapshotMap().get(id)?.pendingToolName).toBeUndefined()
   })
 
+  // Needs-you detail: the one-line detail follows the tool name — set with it, cleared with it.
+  describe('pendingToolDetail follows pendingToolName', () => {
+    const bash = {
+      kind: 'status',
+      status: 'Working',
+      toolName: 'Bash',
+      toolDetail: 'ls',
+      fromTool: true
+    } as const
+
+    it('a permission prompt shows the last PreToolUse detail; leaving it clears both', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d1-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, bash)
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
+      r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Bash')
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBe('ls')
+      r.applyHookStatus(id, { kind: 'status', status: 'Working' })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBeUndefined()
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
+    })
+
+    it('a PermissionRequest for the same tool keeps the PreToolUse detail', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d2-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, bash)
+      r.applyHookStatus(id, {
+        kind: 'status',
+        status: 'NeedsPermission',
+        toolName: 'Bash',
+        opensPrompt: true
+      })
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBe('ls')
+    })
+
+    it('a later PreToolUse with no detail clears the old one', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d3-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, bash)
+      r.applyHookStatus(id, {
+        kind: 'status',
+        status: 'Working',
+        toolName: 'mcp__x__y',
+        fromTool: true
+      })
+      r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBe('mcp__x__y')
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
+    })
+
+    it('a PermissionRequest for a different tool drops the detail', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d4-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, bash)
+      r.applyHookStatus(id, {
+        kind: 'status',
+        status: 'NeedsPermission',
+        toolName: 'Write',
+        opensPrompt: true
+      })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Write')
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
+    })
+
+    it('AskUserQuestion shows its own detail', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d5-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, {
+        kind: 'status',
+        status: 'NeedsAttention',
+        toolName: 'AskUserQuestion',
+        toolDetail: 'Deploy now?',
+        fromTool: true,
+        opensPrompt: true
+      })
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBe('Deploy now?')
+    })
+
+    it('a removed session forgets the detail', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d6-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, bash)
+      r.applyHookStatus(id, { kind: 'removed' })
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBeUndefined()
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
+    })
+  })
+
   // R20: a parallel subagent keeps firing tool events while the prompt is open; they must not
   // move the card out of needs-you. A non-tool status (a prompt, a Stop) still does.
   it('a tool event never pulls a card out of NeedsPermission; a non-tool status does', () => {

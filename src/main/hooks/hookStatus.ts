@@ -26,6 +26,7 @@ import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import { hasRunningBackgroundWork } from './backgroundTasks'
+import { toolDetail } from './toolDetail'
 
 /**
  * `Notification` types for a dialog that waits on the operator with no hook to say it closed:
@@ -100,8 +101,9 @@ function toolCall(evt: HookEvent): { toolUseId?: string; agentId?: string } {
  * - anything else → `null` (future events ignored, never fail-closed on an unknown name).
  *   `SessionStart` is one: claude never sends it to an http hook (ST-7)
  *
- * This is a PURE function: no side-effects, no I/O, no logging (the event fields
- * are SENSITIVE — never log `evt` or any field), deterministic.
+ * This is a PURE function: no side-effects, no I/O, deterministic. Its only log is
+ * `toolDetail`'s value-free `code=tool_detail_shape` (the event fields are SENSITIVE — never
+ * log `evt` or any field).
  */
 export function hookStatus(evt: HookEvent): HookStatusChange | null {
   switch (evt.hook_event_name) {
@@ -142,10 +144,16 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
       // AskUserQuestion is a deterministic "blocking on a structured question" signal, and the
       // question is a prompt its own PostToolUse closes (ST-1).
       const asks = evt.tool_name === 'AskUserQuestion'
+      // The one-line "what it wants to do" the card draws under the tool name (needs-you
+      // detail). `cwd` is the folder claude was launched in (probe 2.1.303), so a path inside it
+      // reads relative to the card's project path.
+      const detail =
+        evt.tool_name === undefined ? null : toolDetail(evt.tool_name, evt.tool_input, evt.cwd)
       return {
         kind: 'status',
         status: asks ? 'NeedsAttention' : 'Working',
         ...(evt.tool_name === undefined ? {} : { toolName: evt.tool_name }),
+        ...(detail === null ? {} : { toolDetail: detail }),
         fromTool: true,
         ...toolCall(evt),
         ...(asks ? { opensPrompt: true } : {})

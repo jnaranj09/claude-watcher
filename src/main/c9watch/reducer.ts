@@ -36,6 +36,9 @@ export type HookStatusChange =
       /** `PreToolUse` only: the tool claude is about to run. The reducer remembers the last one,
        *  because the `Notification(permission_prompt)` that follows does not name it (R14). */
       toolName?: string
+      /** `PreToolUse` only: one line saying what the tool wants to do (`hooks/toolDetail.ts`),
+       *  absent when the tool has none. Kept beside `toolName` for the same permission prompt. */
+      toolDetail?: string
       /** A `PreToolUse` / `PostToolUse` status, or an MCP server's input form opening or being
        *  answered from inside its tool call (ST-6). It never pulls a card OUT of `NeedsPermission`:
        *  a parallel subagent's tool events would otherwise clear a prompt that is still open
@@ -228,8 +231,10 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   const log = options.log ?? defaultLog
 
   const map = new Map<string, Session>()
-  // The tool of each session's last PreToolUse — what a following permission prompt is for.
-  const lastToolName = new Map<string, string>()
+  // The tool of each session's last PreToolUse — what a following permission prompt is for —
+  // and its one-line detail. A PermissionRequest names a tool but carries no input: it keeps the
+  // detail only when it names the same tool, so name and detail always describe one call.
+  const lastTool = new Map<string, { name: string; detail?: string }>()
   // ST-1 — per session: each agent's last PreToolUse (key: `agent_id`, '' = the main agent), and
   // the tool calls whose prompt is open (id → tool name). A prompt closes when its own tool call
   // finishes.
@@ -265,7 +270,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     if (change.kind === 'removed') {
       // SessionEnd / stop / exit: remove the session from the map and emit session.removed.
       map.delete(id)
-      lastToolName.delete(id)
+      lastTool.delete(id)
       lastPreTool.delete(id)
       openPrompts.delete(id)
       lastApplied = now()
@@ -274,7 +279,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
 
     // kind === 'status': hooks own the status — update it, keep the other fields.
     if (change.fromKey === true && questionOpen(id)) return []
-    if (change.toolName !== undefined) lastToolName.set(id, change.toolName)
+    if (change.toolName !== undefined) lastTool.set(id, nextLastTool(id, change, change.toolName))
     const closedLastPrompt = trackPrompts(id, change)
     if (change.fromTool === true && stored.status === 'NeedsPermission' && !closedLastPrompt) {
       return []
@@ -282,19 +287,38 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     // `pendingToolName` names the tool the card WAITS on, so it lives only as long as the wait:
     // the last PreToolUse's tool for a permission prompt, AskUserQuestion for its own question,
     // and nothing for any other status (R14 — nothing set it before, so every permission alert
-    // said "wants permission" without saying for what).
-    const pendingToolName =
+    // said "wants permission" without saying for what). `pendingToolDetail` follows the name.
+    const waitsOnQuestion = change.status === 'NeedsAttention' && change.fromTool === true
+    const pending =
       change.status === 'NeedsPermission'
-        ? lastToolName.get(id)
-        : change.status === 'NeedsAttention' && change.fromTool === true
-          ? change.toolName
+        ? lastTool.get(id)
+        : waitsOnQuestion && change.toolName !== undefined
+          ? { name: change.toolName, detail: change.toolDetail }
           : undefined
     const updated: Session = { ...stored, status: change.status }
-    if (pendingToolName === undefined) delete updated.pendingToolName
-    else updated.pendingToolName = pendingToolName
+    if (pending === undefined) delete updated.pendingToolName
+    else updated.pendingToolName = pending.name
+    if (pending?.detail === undefined) delete updated.pendingToolDetail
+    else updated.pendingToolDetail = pending.detail
     map.set(id, updated)
     lastApplied = now()
     return [frame(toUpdated(updated))]
+  }
+
+  /** The new last tool for a change that names one. A PreToolUse brings its own detail (none
+   *  clears the old one); a PermissionRequest keeps the old detail only for the same tool. */
+  function nextLastTool(
+    id: string,
+    change: HookStatusChange & { kind: 'status' },
+    name: string
+  ): { name: string; detail?: string } {
+    const detail =
+      change.fromTool === true
+        ? change.toolDetail
+        : lastTool.get(id)?.name === name
+          ? lastTool.get(id)?.detail
+          : undefined
+    return detail === undefined ? { name } : { name, detail }
   }
 
   /**

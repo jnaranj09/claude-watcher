@@ -66,6 +66,47 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     })
   })
 
+  // Needs-you detail: PreToolUse carries a one-line summary of its input; the reducer keeps it
+  // beside the tool name. PermissionRequest carries no tool_input, so it never sets one.
+  it('PreToolUse(Bash) with tool_input carries its one-line detail', () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: { command: 'ls -la' },
+          cwd: '/w'
+        })
+      )
+    ).toEqual({
+      kind: 'status',
+      status: 'Working',
+      toolName: 'Bash',
+      fromTool: true,
+      toolDetail: 'ls -la'
+    })
+  })
+
+  it('PreToolUse of a tool with no summary carries no toolDetail key', () => {
+    const r = hookStatus(
+      evt({ hook_event_name: 'PreToolUse', tool_name: 'mcp__x__y', tool_input: { a: 1 } })
+    )
+    expect(r).not.toBeNull()
+    expect('toolDetail' in (r ?? {})).toBe(false)
+  })
+
+  it('PermissionRequest carries no toolDetail key', () => {
+    const r = hookStatus(
+      evt({
+        hook_event_name: 'PermissionRequest',
+        tool_name: 'Bash',
+        tool_input: { command: 'ls' }
+      })
+    )
+    expect(r).not.toBeNull()
+    expect('toolDetail' in (r ?? {})).toBe(false)
+  })
+
   it('PostToolUse → Working, as a tool event that ends its call', () => {
     expect(hookStatus(evt({ hook_event_name: 'PostToolUse', tool_name: 'Bash' }))).toEqual({
       kind: 'status',
