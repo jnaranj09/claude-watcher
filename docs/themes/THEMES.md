@@ -397,8 +397,9 @@ What you can target:
   - `[data-app-title]` — the `Claude Watcher` brand in the header.
   - `[data-workspace-switcher]` — the switcher button; `[data-workspace-tab]` — the elsewhere tab
     beside it (rendered whenever other workspaces hold at least one session card, unlike `[data-tucked]`).
-  - `[data-card-title]`, `[data-card-path]`, `[data-pending-tool]`, `[data-card-meta]` — a session
-    card's name, folder path, pending tool name and pid / tasks line.
+  - `[data-card-title]`, `[data-card-path]`, `[data-pending-tool]`, `[data-pending-tool-detail]`,
+    `[data-card-meta]` — a session card's name, folder path, pending tool name, what that tool
+    wants to do (one line, only while the card waits on a known tool) and pid / tasks line.
   - `[data-session-id][data-status]` — a session's card and rail row, with its status;
     `[data-selected]` — the selected card (set only while selected) and, in Manage dialogs, a
     rail page row or a list row (set always, `"true"` or `"false"`).

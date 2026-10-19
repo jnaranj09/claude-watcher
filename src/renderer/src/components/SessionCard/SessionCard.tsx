@@ -171,6 +171,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     status,
     accent,
     pendingToolName,
+    pendingToolDetail,
     pid,
     tasks,
     cost,
@@ -644,6 +645,17 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
       {pendingToolName !== undefined && (
         <span className={styles.pendingToolName} data-testid="pending-tool" data-pending-tool="">
           {pendingToolName}
+        </span>
+      )}
+
+      {pendingToolDetail !== undefined && (
+        <span
+          className={styles.pendingToolDetail}
+          data-testid="pending-tool-detail"
+          data-pending-tool-detail=""
+          title={pendingToolDetail}
+        >
+          {pendingToolDetail}
         </span>
       )}
 

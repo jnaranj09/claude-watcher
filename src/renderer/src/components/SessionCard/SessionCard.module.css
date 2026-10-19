@@ -239,9 +239,10 @@
   color: var(--text-secondary);
 }
 
-/* projectPath / pendingToolName / pid — MONO (verbatim machine data). */
+/* projectPath / pendingToolName / pendingToolDetail / pid — MONO (verbatim machine data). */
 .projectPath,
-.pendingToolName {
+.pendingToolName,
+.pendingToolDetail {
   font-family: var(--font-mono);
   font-size: var(--font-size-mono);
   font-weight: var(--font-weight-mono);
@@ -261,6 +262,12 @@
 /* pendingToolName — the "what it's blocked on"; gold (a genuine needs-you signal). */
 .pendingToolName {
   color: var(--needs-you);
+}
+
+/* pendingToolDetail — what that tool wants to do (one line, full text in `title`). Secondary, not
+ * gold: the tool name above stays the loudest thing on the card. */
+.pendingToolDetail {
+  color: var(--text-secondary);
 }
 
 /* Muted footer — `pid · tasks · cost` (meta ramp); pid value in mono. */

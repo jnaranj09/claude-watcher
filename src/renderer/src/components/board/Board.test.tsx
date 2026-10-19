@@ -309,6 +309,7 @@ describe('Board — live three columns, one card per session, verbatim fields (A
       watchUpdated(1, 'n', 'needs-you', 200, {
         status: 'NeedsAttention',
         pendingToolName: 'Bash',
+        pendingToolDetail: 'ls -la',
         pid: 7
       })
     )
@@ -331,6 +332,9 @@ describe('Board — live three columns, one card per session, verbatim fields (A
     // pendingToolName shows on the needs-you card (verbatim, when present).
     const needsYouCol = container.querySelector('[data-column="needs-you"]')
     expect(needsYouCol?.querySelector('[data-testid="pending-tool"]')?.textContent).toBe('Bash')
+    expect(needsYouCol?.querySelector('[data-testid="pending-tool-detail"]')?.textContent).toBe(
+      'ls -la'
+    )
   })
 
   it('an aria-live region is present at board level (AC-9)', () => {

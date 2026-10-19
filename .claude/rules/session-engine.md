@@ -112,7 +112,9 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   `PreToolUse(AskUserQuestion)` opens its own. Any non-tool status but `NeedsPermission` closes every
   open prompt (a denied one sends no tool event). Enter/`1`/`2` in that terminal → `Working` (R4,
   `code=permission_answered_key`), except while an AskUserQuestion prompt is open (ST-2: Enter may
-  answer question 1 only; its PostToolUse is the way out; one with no `tool_use_id` keeps R4). `pendingToolName` set only while waiting (R14).
+  answer question 1 only; its PostToolUse is the way out; one with no `tool_use_id` keeps R4). `pendingToolName` and `pendingToolDetail` set only while waiting (R14); the detail is one line
+  from `hooks/toolDetail.ts`, follows the name, and is card-only (never on the API, Past sessions,
+  attention events or the OS notification).
   `PermissionRequest` (dialog open, 6 s before its `Notification`) → `NeedsPermission`, except
   AskUserQuestion (ST-5). An API error ends the turn
   with `StopFailure` and no `Stop` → `YourTurn` (ST-3). A dialog waiting on the operator
