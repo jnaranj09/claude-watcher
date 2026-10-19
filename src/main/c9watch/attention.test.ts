@@ -59,8 +59,9 @@ function harness(opts: { now?: () => number; debounceMs?: number } = {}): {
   launch(session: Parameters<Reducer['upsertLaunched']>[0]): void
   launchAll(): void
   hook(id: string, status: string): void
-  /** A PreToolUse for `toolName` (Working, from a tool) — what names a later permission prompt. */
-  tool(id: string, toolName: string): void
+  /** A PreToolUse for `toolName` (Working, from a tool) — what names a later permission prompt;
+   *  `toolDetail` is its one-line detail, when the test needs one. */
+  tool(id: string, toolName: string, toolDetail?: string): void
   remove(id: string): void
 } {
   const now = opts.now ?? (() => FIXED_NOW)
@@ -92,9 +93,15 @@ function harness(opts: { now?: () => number; debounceMs?: number } = {}): {
     hook(id, status): void {
       route(reducer.applyHookStatus(id, { kind: 'status', status }))
     },
-    tool(id, toolName): void {
+    tool(id, toolName, toolDetail): void {
       route(
-        reducer.applyHookStatus(id, { kind: 'status', status: 'Working', toolName, fromTool: true })
+        reducer.applyHookStatus(id, {
+          kind: 'status',
+          status: 'Working',
+          toolName,
+          fromTool: true,
+          ...(toolDetail === undefined ? {} : { toolDetail })
+        })
       )
     },
     remove(id): void {
@@ -337,11 +344,14 @@ describe('attention tracker — privacy (never leak a session value)', () => {
         pendingToolName: 'Bash',
         firstPrompt: 'the-secret-first-prompt',
         latestMessage: 'the-secret-latest-message',
-        pendingToolInput: 'Allow running: ./deploy.sh staging'
+        pendingToolInput: 'Allow running: ./deploy.sh staging',
+        pendingToolDetail: 'kubectl apply'
       })
     )
-    h.tool(id, 'Bash')
+    h.tool(id, 'Bash', './deploy.sh staging')
     h.hook(id, 'NeedsPermission')
+    // The card itself holds the detail — the event built from it must not.
+    expect(h.reducer.snapshotMap().get(id)?.pendingToolDetail).toBe('./deploy.sh staging')
     expect(h.attention).toHaveLength(1)
     const keys = Object.keys(h.attention[0]!).sort()
     expect(keys).toEqual(
@@ -354,6 +364,7 @@ describe('attention tracker — privacy (never leak a session value)', () => {
     expect('firstPrompt' in ev).toBe(false)
     expect('latestMessage' in ev).toBe(false)
     expect('pendingToolInput' in ev).toBe(false)
+    expect('pendingToolDetail' in ev).toBe(false)
     expect('pid' in ev).toBe(false)
   })
 })

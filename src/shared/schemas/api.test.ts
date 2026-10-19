@@ -52,6 +52,7 @@ describe('ApiSessionSchema', () => {
   it('is strict: content fields never leak through', () => {
     expect(ApiSessionSchema.safeParse({ ...SESSION, latestMessage: 'x' }).success).toBe(false)
     expect(ApiSessionSchema.safeParse({ ...SESSION, pendingToolInput: 'x' }).success).toBe(false)
+    expect(ApiSessionSchema.safeParse({ ...SESSION, pendingToolDetail: 'x' }).success).toBe(false)
   })
   it('column is one of the board columns', () => {
     expect(ApiSessionSchema.safeParse({ ...SESSION, column: 'nope' }).success).toBe(false)

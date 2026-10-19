@@ -12,7 +12,7 @@
 // than ship it.
 //
 // never-log-the-parsed-value: a ZodError stringifies its INPUT, which is a c9watch
-// session delta carrying sessionName/projectPath/pendingToolName. So callers log the
+// session delta carrying sessionName/projectPath/pendingToolName/pendingToolDetail. So callers log the
 // issue PATH + CODE only — never `error`, never the raw delta. This module exposes a
 // `safeParse`; the caller (main/index.ts) reads `issues[0].path`/`.code` and logs those.
 // [Source: story 1.4 Task 1.2; .claude/rules/zod-boundaries.md]
@@ -48,6 +48,8 @@ export const EnrichedSessionUpdatedSchema = z.object({
    *  shape), which is exactly the half-formed delta this guard exists to drop. */
   tagIds: z.array(z.string().min(1)),
   pendingToolName: z.string().optional(),
+  /** Needs-you detail — one line saying what the waiting tool wants to do; card only. */
+  pendingToolDetail: z.string().optional(),
   /** Name-sync (D-11) — present and true only while a rename waits for the next prompt. */
   nameSyncPending: z.boolean().optional(),
   /** Session filters (spec 2026-10-16) — epoch millis the launch was registered; absent for a

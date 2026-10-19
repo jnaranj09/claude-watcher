@@ -5,7 +5,7 @@
 //
 //   - `session.updated` → enrich with the tracker's `column`/`enteredColumnAt` (the
 //     tracker has ALREADY processed this delta — see the ordering note at the call
-//     site in index.ts) PLUS the native `pid`/`pendingToolName` read from the reducer's
+//     site in index.ts) PLUS the native `pid`/`pendingToolName`/`pendingToolDetail` read from the reducer's
 //     already-parsed `Session` map (parse-once; NOT re-validated). The enriched member
 //     is then asserted with `EnrichedSessionUpdatedSchema`. On a failure (e.g. the
 //     tracker has no column for this id) it FAILS CLOSED: log by PATH + CODE only and
@@ -14,7 +14,7 @@
 //     frozen members are not widened).
 //
 // never-log-the-parsed-value: only the Zod issue path + code are logged — never the
-// delta/value (which carries sessionName/projectPath/pendingToolName).
+// delta/value (which carries sessionName/projectPath/pendingToolName/pendingToolDetail).
 import { EnrichedSessionUpdatedSchema } from '../../shared/schemas/watchDelta'
 import type {
   ReducerWatchEventsPayload,
@@ -61,6 +61,9 @@ export function enrichDelta(
     workspaceId: session?.workspaceId,
     tagIds: session?.tagIds,
     ...(session?.pendingToolName !== undefined ? { pendingToolName: session.pendingToolName } : {}),
+    ...(session?.pendingToolDetail !== undefined
+      ? { pendingToolDetail: session.pendingToolDetail }
+      : {}),
     ...(session?.nameSyncPending === true ? { nameSyncPending: true } : {}),
     ...(session?.launchedAt !== undefined ? { launchedAt: session.launchedAt } : {})
   }
@@ -88,6 +91,7 @@ export function enrichDelta(
     workspaceId: d.workspaceId,
     tagIds: d.tagIds,
     ...(d.pendingToolName !== undefined ? { pendingToolName: d.pendingToolName } : {}),
+    ...(d.pendingToolDetail !== undefined ? { pendingToolDetail: d.pendingToolDetail } : {}),
     ...(d.nameSyncPending === true ? { nameSyncPending: true } : {}),
     ...(d.launchedAt !== undefined ? { launchedAt: d.launchedAt } : {})
   }

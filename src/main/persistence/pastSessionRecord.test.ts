@@ -14,7 +14,8 @@ const session: Session = {
   templateId: 'tpl',
   launchedAt: 100,
   latestMessage: 'never copied',
-  pendingToolInput: 'never copied'
+  pendingToolInput: 'never copied',
+  pendingToolDetail: 'never copied'
 }
 
 describe('buildPastSessionRecord', () => {

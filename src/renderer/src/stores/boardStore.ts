@@ -163,6 +163,8 @@ export interface BoardSession {
   status: string
   /** What the session is blocked on, when c9watch reports one. */
   pendingToolName?: string
+  /** One line saying what the waiting tool wants to do (needs-you detail). */
+  pendingToolDetail?: string
   pid: number
   /** Board column placement (computed in main by the Story-1.2 tracker). */
   column: Column
@@ -665,6 +667,9 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           tagIds: event.tagIds,
           ...(event.pendingToolName !== undefined
             ? { pendingToolName: event.pendingToolName }
+            : {}),
+          ...(event.pendingToolDetail !== undefined
+            ? { pendingToolDetail: event.pendingToolDetail }
             : {}),
           ...(event.nameSyncPending === true ? { nameSyncPending: true } : {}),
           ...(event.launchedAt !== undefined ? { launchedAt: event.launchedAt } : {})

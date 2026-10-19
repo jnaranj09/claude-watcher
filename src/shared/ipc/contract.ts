@@ -366,6 +366,8 @@ export type SmokeReport = Record<string, unknown>
  *     PURELY from the validated delta — the renderer never re-parses c9watch JSON
  *     (AC-8 / parse-once). Read from the reducer's already-parsed `Session` in
  *     main; never re-validated in the renderer.
+ *   - `pendingToolDetail?` — the needs-you detail line under `pendingToolName`, from the
+ *     same `Session`. Card only (the attention event below never carries it).
  * The frozen union is unchanged: this adds fields to a MEMBER, it does not add or
  * remove a `type` discriminant (same precedent as Story 1.2 adding `attention.raised`
  * as a third `event` value). [Source: story 1.4 Task 1 / AC-1 / AC-7 / FROZEN-2;
@@ -394,6 +396,9 @@ export type SessionUpdatedEvent = {
   tagIds: string[]
   /** What the session is blocked on, when c9watch reports one (AC-1). */
   pendingToolName?: string
+  /** Needs-you detail — one line saying what the waiting tool wants to do (`hooks/toolDetail.ts`),
+   *  present only with `pendingToolName`. Card only: never on `AttentionRaisedEvent`. */
+  pendingToolDetail?: string
   /** Name-sync (D-11) — true while an in-app rename waits for claude's next prompt (the card
    *  draws the ⟳ mark). Absent = false. */
   nameSyncPending?: boolean

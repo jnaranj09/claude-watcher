@@ -192,11 +192,14 @@ describe('attention notifier — PRIVACY: never leaks pendingToolInput/firstProm
     const ev = {
       ...raised({ pendingToolName: 'NeedsPermission' }),
       pendingToolInput: SECRET_TOOL_INPUT,
+      pendingToolDetail: SECRET_TOOL_INPUT,
       firstPrompt: SECRET_FIRST_PROMPT,
       latestMessage: SECRET_LATEST_MESSAGE
     } as AttentionRaisedEvent
     notifier.notify(ev)
     const opts = fake.last()
+    // Card only: the body stays `<path> · <tool name>`, even when the session has a detail.
+    expect(opts?.body).toBe(`${ev.projectPath} · NeedsPermission`)
     const content = `${opts?.title ?? ''}\n${opts?.body ?? ''}`
     expect(content).not.toContain(SECRET_TOOL_INPUT)
     expect(content).not.toContain(SECRET_FIRST_PROMPT)

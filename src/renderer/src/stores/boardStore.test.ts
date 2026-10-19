@@ -46,6 +46,20 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
     expect(selectTotalCount(store.getState(), 'default', NO_FILTER)).toBe(1)
   })
 
+  it('a session.updated carries pendingToolDetail; a later update without it removes it', () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(
+      watchUpdated(1, 'a', 'needs-you', 100, {
+        status: 'NeedsPermission',
+        pendingToolName: 'Bash',
+        pendingToolDetail: 'kubectl apply -f prod.yaml'
+      })
+    )
+    expect(store.getState().sessionsById['a']?.pendingToolDetail).toBe('kubectl apply -f prod.yaml')
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 200, { status: 'Working' }))
+    expect(store.getState().sessionsById['a']).not.toHaveProperty('pendingToolDetail')
+  })
+
   it('coldLoaded flips true on the FIRST delta (epoch ≥ 1)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     expect(selectColdLoaded(store.getState())).toBe(false)

@@ -84,6 +84,33 @@ describe('enrichDelta — session.updated is enriched + validated at source (AC-
     expect(noTool?.event.type === 'session.updated' && noTool.event.column).toBe('idle')
   })
 
+  it('includes pendingToolDetail when the session has one, omits it otherwise', () => {
+    const { reducer, tracker } = seedWired()
+    reducer.applyHookStatus(DASHBOARD_ID, {
+      kind: 'status',
+      status: 'Working',
+      toolName: 'Bash',
+      toolDetail: 'ls',
+      fromTool: true
+    })
+    reducer.applyHookStatus(DASHBOARD_ID, { kind: 'status', status: 'NeedsPermission' })
+    const withDetail = enrichDelta(
+      reducerUpdated(DASHBOARD_ID, { epoch: reducer.epoch(), status: 'NeedsPermission' }),
+      tracker,
+      reducer.snapshotMap()
+    )
+    expect(withDetail).not.toBeNull()
+    expect(withDetail?.event).toHaveProperty('pendingToolDetail', 'ls')
+
+    const noDetail = enrichDelta(
+      reducerUpdated(REPORTS_ID, { epoch: reducer.epoch(), status: 'WaitingForInput' }),
+      tracker,
+      reducer.snapshotMap()
+    )
+    expect(noDetail).not.toBeNull()
+    expect(noDetail?.event).not.toHaveProperty('pendingToolDetail')
+  })
+
   it('passes a session.removed through UNCHANGED (no enrichment of the frozen member)', () => {
     const { reducer, tracker } = seedWired()
     const bare = {

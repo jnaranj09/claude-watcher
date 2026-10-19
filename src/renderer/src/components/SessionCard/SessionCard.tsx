@@ -67,6 +67,8 @@ export interface SessionCardProps {
   accent: CardAccent
   /** What the session is blocked on, when present — MONO. */
   pendingToolName?: string
+  /** What that tool wants to do, one line under it (needs-you detail) — MONO. */
+  pendingToolDetail?: string
   /** Process id — MONO in the footer. */
   pid: number
   /** Task count, footer (omitted when undefined). */

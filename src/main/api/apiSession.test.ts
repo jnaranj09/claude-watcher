@@ -25,12 +25,13 @@ const session: Session = {
   tagIds: ['t1'],
   templateId: null,
   pendingToolInput: 'secret',
+  pendingToolDetail: 'secret detail',
   latestMessage: 'secret too'
 }
 const source = { columnOf: () => 'working' as const, enteredColumnAt: () => 42 }
 
 describe('projectApiSession', () => {
-  it('projects state only: no pendingToolInput, no latestMessage, no pid', () => {
+  it('projects state only: no pendingToolInput, no pendingToolDetail, no latestMessage, no pid', () => {
     expect(projectApiSession(session, source)).toEqual({
       id: 's1',
       sessionName: 'HT-1',

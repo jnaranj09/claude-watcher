@@ -152,6 +152,9 @@ function EmphasizedSessionCard(props: {
       {...(session.pendingToolName !== undefined
         ? { pendingToolName: session.pendingToolName }
         : {})}
+      {...(session.pendingToolDetail !== undefined
+        ? { pendingToolDetail: session.pendingToolDetail }
+        : {})}
       {...(session.nameSyncPending === true ? { nameSyncPending: true } : {})}
       {...(onActivateCard ? { onActivate: () => onActivateCard(session.id) } : {})}
       {...(onRenameCard ? { onRename: () => onRenameCard(session.id) } : {})}
