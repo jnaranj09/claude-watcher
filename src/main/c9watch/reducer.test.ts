@@ -225,6 +225,51 @@ describe('reducer — applyHookStatus (hooks own every status transition)', () =
       expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
     })
 
+    it('a same-name PreToolUse with no detail clears the old one', () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d7-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, bash)
+      r.applyHookStatus(id, { kind: 'status', status: 'Working', toolName: 'Bash', fromTool: true })
+      r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Bash')
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBeUndefined()
+    })
+
+    it("a PermissionRequest takes its own agent's detail, not another agent's same-name call", () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d8-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, { ...bash, toolDetail: 'rm -rf build', agentId: 'a' })
+      r.applyHookStatus(id, { ...bash, toolDetail: 'ls', agentId: 'b' })
+      r.applyHookStatus(id, {
+        kind: 'status',
+        status: 'NeedsPermission',
+        toolName: 'Bash',
+        agentId: 'a',
+        opensPrompt: true
+      })
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBe('rm -rf build')
+    })
+
+    it("the prompt's Notification keeps the waiting call, not a parallel agent's later one", () => {
+      const r = createReducer({ now: () => FIXED_NOW })
+      const id = 'hook00d9-0000-4000-8000-000000000001'
+      r.upsertLaunched(launchedSession(id))
+      r.applyHookStatus(id, { ...bash, toolDetail: 'rm -rf build' })
+      r.applyHookStatus(id, {
+        kind: 'status',
+        status: 'NeedsPermission',
+        toolName: 'Bash',
+        opensPrompt: true
+      })
+      // A subagent's auto-allowed call: R20 keeps the card, but it is the session's last tool now.
+      r.applyHookStatus(id, { ...bash, toolName: 'Grep', toolDetail: 'TODO', agentId: 'b' })
+      r.applyHookStatus(id, { kind: 'status', status: 'NeedsPermission' })
+      expect(r.snapshotMap().get(id)?.pendingToolName).toBe('Bash')
+      expect(r.snapshotMap().get(id)?.pendingToolDetail).toBe('rm -rf build')
+    })
+
     it('AskUserQuestion shows its own detail', () => {
       const r = createReducer({ now: () => FIXED_NOW })
       const id = 'hook00d5-0000-4000-8000-000000000001'

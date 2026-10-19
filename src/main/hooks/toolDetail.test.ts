@@ -73,6 +73,14 @@ describe('toolDetail — no detail', () => {
     expect(log).not.toHaveBeenCalled()
   })
 
+  it('a tool named like an Object member is unknown: null, no log', () => {
+    const log = vi.fn()
+    for (const t of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(toolDetail(t, { a: 1 }, P, log)).toBeNull()
+    }
+    expect(log).not.toHaveBeenCalled()
+  })
+
   it('caps at 200 characters after the trim', () => {
     expect(toolDetail('Bash', { command: `  ${'x'.repeat(500)}  ` }, P)).toBe(
       'x'.repeat(TOOL_DETAIL_MAX)

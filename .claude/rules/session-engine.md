@@ -114,7 +114,9 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   `code=permission_answered_key`), except while an AskUserQuestion prompt is open (ST-2: Enter may
   answer question 1 only; its PostToolUse is the way out; one with no `tool_use_id` keeps R4). `pendingToolName` and `pendingToolDetail` set only while waiting (R14); the detail is one line
   from `hooks/toolDetail.ts`, follows the name, and is card-only (never on the API, Past sessions,
-  attention events or the OS notification).
+  attention events or the OS notification). A `PermissionRequest` takes the detail of its own
+  `agent_id`'s last `PreToolUse` (same tool only); the `Notification` that follows a card already in
+  `NeedsPermission` keeps the call it shows, never a parallel agent's later one.
   `PermissionRequest` (dialog open, 6 s before its `Notification`) → `NeedsPermission`, except
   AskUserQuestion (ST-5). An API error ends the turn
   with `StopFailure` and no `Stop` → `YourTurn` (ST-3). A dialog waiting on the operator

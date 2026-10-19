@@ -87,6 +87,19 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     })
   })
 
+  it("PreToolUse reads a path relative to the event's cwd", () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Read',
+          tool_input: { file_path: '/w/app/src/a.ts' },
+          cwd: '/w/app'
+        })
+      )
+    ).toMatchObject({ toolDetail: 'src/a.ts' })
+  })
+
   it('PreToolUse of a tool with no summary carries no toolDetail key', () => {
     const r = hookStatus(
       evt({ hook_event_name: 'PreToolUse', tool_name: 'mcp__x__y', tool_input: { a: 1 } })

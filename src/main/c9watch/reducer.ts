@@ -232,9 +232,11 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
 
   const map = new Map<string, Session>()
   // The tool of each session's last PreToolUse — what a following permission prompt is for —
-  // and its one-line detail. A PermissionRequest names a tool but carries no input: it keeps the
-  // detail only when it names the same tool, so name and detail always describe one call.
+  // and its one-line detail. A PermissionRequest names a tool but carries no input: it takes the
+  // detail of ITS agent's last PreToolUse (`agentTool`, key `agent_id`, '' = the main agent), and
+  // only when the tool names match, so name and detail always describe one call.
   const lastTool = new Map<string, { name: string; detail?: string }>()
+  const agentTool = new Map<string, Map<string, { name: string; detail?: string }>>()
   // ST-1 — per session: each agent's last PreToolUse (key: `agent_id`, '' = the main agent), and
   // the tool calls whose prompt is open (id → tool name). A prompt closes when its own tool call
   // finishes.
@@ -271,6 +273,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       // SessionEnd / stop / exit: remove the session from the map and emit session.removed.
       map.delete(id)
       lastTool.delete(id)
+      agentTool.delete(id)
       lastPreTool.delete(id)
       openPrompts.delete(id)
       lastApplied = now()
@@ -279,7 +282,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
 
     // kind === 'status': hooks own the status — update it, keep the other fields.
     if (change.fromKey === true && questionOpen(id)) return []
-    if (change.toolName !== undefined) lastTool.set(id, nextLastTool(id, change, change.toolName))
+    if (change.toolName !== undefined) rememberTool(id, change, change.toolName)
     const closedLastPrompt = trackPrompts(id, change)
     if (change.fromTool === true && stored.status === 'NeedsPermission' && !closedLastPrompt) {
       return []
@@ -288,10 +291,15 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     // the last PreToolUse's tool for a permission prompt, AskUserQuestion for its own question,
     // and nothing for any other status (R14 — nothing set it before, so every permission alert
     // said "wants permission" without saying for what). `pendingToolDetail` follows the name.
+    // The `Notification` 6 s after a `PermissionRequest` names no tool: a card already waiting
+    // keeps the call it waits on, never a parallel agent's later PreToolUse.
     const waitsOnQuestion = change.status === 'NeedsAttention' && change.fromTool === true
+    const keepsWait = change.toolName === undefined && stored.status === 'NeedsPermission'
     const pending =
       change.status === 'NeedsPermission'
-        ? lastTool.get(id)
+        ? keepsWait
+          ? (waitedOn(stored) ?? lastTool.get(id))
+          : lastTool.get(id)
         : waitsOnQuestion && change.toolName !== undefined
           ? { name: change.toolName, detail: change.toolDetail }
           : undefined
@@ -305,20 +313,31 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     return [frame(toUpdated(updated))]
   }
 
-  /** The new last tool for a change that names one. A PreToolUse brings its own detail (none
-   *  clears the old one); a PermissionRequest keeps the old detail only for the same tool. */
-  function nextLastTool(
+  /** Remember the tool a change names. A PreToolUse brings its own detail (none clears the old
+   *  one) and is also its agent's last call; a PermissionRequest takes its agent's last detail,
+   *  only for the same tool. */
+  function rememberTool(
     id: string,
     change: HookStatusChange & { kind: 'status' },
     name: string
-  ): { name: string; detail?: string } {
+  ): void {
+    const byAgent = agentTool.get(id) ?? new Map<string, { name: string; detail?: string }>()
+    agentTool.set(id, byAgent)
+    const agent = change.agentId ?? ''
+    const prev = byAgent.get(agent)
     const detail =
-      change.fromTool === true
-        ? change.toolDetail
-        : lastTool.get(id)?.name === name
-          ? lastTool.get(id)?.detail
-          : undefined
-    return detail === undefined ? { name } : { name, detail }
+      change.fromTool === true ? change.toolDetail : prev?.name === name ? prev.detail : undefined
+    const tool = detail === undefined ? { name } : { name, detail }
+    if (change.fromTool === true) byAgent.set(agent, tool)
+    lastTool.set(id, tool)
+  }
+
+  /** The call a waiting card already shows, or undefined when it shows none. */
+  function waitedOn(stored: Session): { name: string; detail?: string } | undefined {
+    if (stored.pendingToolName === undefined) return undefined
+    return stored.pendingToolDetail === undefined
+      ? { name: stored.pendingToolName }
+      : { name: stored.pendingToolName, detail: stored.pendingToolDetail }
   }
 
   /**

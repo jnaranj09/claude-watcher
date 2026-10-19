@@ -35,7 +35,7 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
     expect(result.data.cwd).toBe('/home/user/project')
   })
 
-  it('passes through unknown fields (e.g. prompt, tool_input) without failing', () => {
+  it('passes through unknown fields (e.g. prompt) and an unvalidated tool_input without failing', () => {
     const result = HookEventSchema.safeParse({
       session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
       hook_event_name: 'Stop',
@@ -43,7 +43,7 @@ describe('HookEventSchema — fail-closed Zod boundary', () => {
       prompt: 'user prompt text — also secret',
       tool_input: { some: 'object' }
     })
-    // .passthrough() means unknown keys are preserved, not rejected
+    // .passthrough() keeps unknown keys (prompt); tool_input is `unknown`, so any value passes
     expect(result.success).toBe(true)
   })
 

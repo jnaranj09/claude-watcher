@@ -10,8 +10,8 @@
 //     the transcript-filename uuid) + `cwd` + `transcript_path`,
 //   - `Notification` carries `notification_type` (`permission_prompt` is the needs-you
 //     driver; `idle_prompt` is a ~60s debounce and is ignored — Stop owns idle),
-//   - `PreToolUse` carries `tool_name` (+ a `tool_input` payload — SENSITIVE, absorbed
-//     by `.passthrough()`, never validated or logged),
+//   - `PreToolUse` carries `tool_name` (+ a `tool_input` payload — SENSITIVE, declared as
+//     `unknown` so it is never validated, read only by `hooks/toolDetail.ts`, never logged),
 //   - `Stop` carries `last_assistant_message` (SENSITIVE — the trailing-'?' question
 //     heuristic reads it; it must NEVER be logged),
 //   - `SessionEnd` carries a `reason`.

@@ -129,9 +129,9 @@ describe('fail-closed hook-feed replay against the real HookEventSchema boundary
     expect(events[0]?.tool_name).toBeUndefined()
   })
 
-  it('passthrough absorbs the sensitive extras without validating them', () => {
-    // prompt / tool_input / message / reason ride `.passthrough()` — they must
-    // survive the parse (fail-OPEN on additions) but are NEVER declared or logged.
+  it('the sensitive extras survive the parse without being validated', () => {
+    // `prompt` / `message` ride `.passthrough()`; `tool_input` is declared as `unknown`. Either
+    // way they must survive the parse (fail-OPEN on additions) and are NEVER validated or logged.
     const events = ingestBodies(fakeHookBodies, () => {})
     const sent = (i: number): Record<string, unknown> =>
       JSON.parse(fakeHookBodies[i] as string) as Record<string, unknown>
