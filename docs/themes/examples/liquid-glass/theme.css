@@ -70,7 +70,7 @@ body {
      it showed the dimmed board and read too dark (operator, 2026-09-25). It carries light of its
      own — a 5% fill, and `brightness(120%)` on its backdrop (7% / 135% read too bright), which lifts the scrim off the area
      under the panel only; the board around it stays dimmed. */
-  /* Smoked like the rest (2026-10-01); the `brightness` on its backdrop still lifts the scrim.
+  /* Smoked like the rest (2026-10-01); its own lift over the backdrop still lifts the scrim (below).
      NEUTRAL, not blue-grey: `16, 18, 24` read blue next to the neutral terminal over Warm smoke.
      The header's brightness (operator, 2026-10-20: Settings and Goals "look too dark"): the
      header's own 38% fill, and a backdrop lifted 175%: midway between the old look and the header's
@@ -79,11 +79,12 @@ body {
      A WHITE LAYER over the blur, not `brightness()` in the filter (operator, 2026-10-20: Goals over
      a terminal showed soft squares the ☰ menu does not). The blur works on the scrim-dimmed
      backdrop, a narrow band of dark greys (14 shades under Goals against 59 under the ☰ menu), and
-     `brightness(175%)` multiplied each step between them into a visible patch. A 9% white layer
-     lifts by about the same amount (mean 43 against 38 on the drive) without growing the steps.
+     `brightness(175%)` multiplied each step between them into a visible patch. A white layer lifts
+     the panel without growing the steps: 7% (mean grey 34 on the drive, the header 48); 9% matched
+     the old lift and read too white (operator, same day).
      Noise would hide them better (Acrylic), but this glass carries no grain (above). */
   --glass-fill-modal: rgba(14, 14, 16, 0.38);
-  --glass-lift-modal: rgba(255, 255, 255, 0.09);
+  --glass-lift-modal: rgba(255, 255, 255, 0.07);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
      a film. Brighter than before (0.3 / 0.08 against 0.2 / 0.06): with the fill at 3% the rim is

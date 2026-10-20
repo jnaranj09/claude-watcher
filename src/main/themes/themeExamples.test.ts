@@ -184,8 +184,9 @@ describe('docs/themes/examples', () => {
       ])
     )
   })
-  // A modal panel reads as bright as the header (operator, 2026-10-20: Settings and Goals looked
-  // too dark over the scrim): the header's own fill alpha, and a 9% white layer over its blur.
+  // A modal panel is lifted toward the header (operator, 2026-10-20: Settings and Goals looked
+  // too dark over the scrim): the header's own fill alpha, and a 7% white layer over its blur
+  // (9% read too white).
   // Not `brightness()` in the filter: over the scrim-dimmed backdrop it multiplied the few grey
   // steps the blur leaves into visible squares (Goals over a terminal, same day).
   it('liquid-glass modal panels take the header fill and a white lift, no brightness filter', () => {
@@ -193,7 +194,7 @@ describe('docs/themes/examples', () => {
     const value = (name: string): string | undefined =>
       new RegExp(`^\\s*--${name}:\\s*([^;]+);`, 'm').exec(css)?.[1]
     expect(value('glass-fill-modal')).toBe(value('glass-fill'))
-    expect(value('glass-lift-modal')).toBe('rgba(255, 255, 255, 0.09)')
+    expect(value('glass-lift-modal')).toBe('rgba(255, 255, 255, 0.07)')
     expect(value('glass-filter-modal')).toBeUndefined()
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
