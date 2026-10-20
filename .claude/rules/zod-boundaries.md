@@ -34,15 +34,15 @@ onHookEvent(r.data)
 
 Every EXTERNAL input is validated at exactly ONE boundary that fails closed:
 
-| Boundary                                         | On bad input                                                                                                    |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| hook POST (`127.0.0.1:9279`)                     | 400 + drop + log path; other sessions continue (`hookEvent.ts`, `hookServer.ts`)                                |
-| bridge mod report (`/mod/report`, same listener) | `.strict()`; 400 + drop + log path; no live session → 409, mod resends (`modReport.ts`, `mods/sessionSetup.ts`) |
-| persisted file read                              | back up the bad file, start fresh (file history: `index.corrupt-<ts>.json`, `fileHistory.ts`)                   |
-| `~/.claude/sessions/<pid>.json` (rebind)         | drop quietly, NO log (has cwd + name); fall back to cwd heuristic (`pty/claudeSessionFile.ts`)                  |
-| same, running-elsewhere scan                     | skip quietly; answer one boolean; fail OPEN on unlistable dir (`pty/runningElsewhere.ts`)                       |
-| renderer → main IPC arg                          | `Schema.parse(raw)` → throw typed error                                                                         |
-| main → renderer delta                            | validate at source before sending                                                                               |
+| Boundary                                         | On bad input                                                                                                                                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hook POST (`127.0.0.1:9279`)                     | 400 + drop + log path; other sessions continue (`hookEvent.ts`, `hookServer.ts`)                                                                                        |
+| bridge mod report (`/mod/report`, same listener) | `.strict()`; 400 + drop + log path; no live session → 409, mod resends (`modReport.ts`, `mods/sessionSetup.ts`)                                                         |
+| persisted file read                              | back up the bad file, start fresh (file history: `index.corrupt-<ts>.json`; an unreadable one moves to `index.unread-<ts>.json` before the next save, `fileHistory.ts`) |
+| `~/.claude/sessions/<pid>.json` (rebind)         | drop quietly, NO log (has cwd + name); fall back to cwd heuristic (`pty/claudeSessionFile.ts`)                                                                          |
+| same, running-elsewhere scan                     | skip quietly; answer one boolean; fail OPEN on unlistable dir (`pty/runningElsewhere.ts`)                                                                               |
+| renderer → main IPC arg                          | `Schema.parse(raw)` → throw typed error                                                                                                                                 |
+| main → renderer delta                            | validate at source before sending                                                                                                                                       |
 
 Other external input: the transcript tail (`transcriptEntry.ts`).
 

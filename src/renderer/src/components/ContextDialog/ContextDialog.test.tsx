@@ -203,6 +203,20 @@ describe('ContextDialog — a ready report', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('That file no longer exists.')
   })
 
+  it('a file that is not an absolute .md file is listed with no Open or History action', async () => {
+    await open({
+      state: 'ready',
+      report: modReportFixture({
+        instructionFiles: [
+          { path: '/work/app/CLAUDE.md', kind: 'project' },
+          { path: '/work/app/run.sh', kind: 'project', parent: '/work/app/CLAUDE.md' }
+        ]
+      })
+    })
+    expect(within(fileRow('run.sh')).queryAllByRole('button')).toEqual([])
+    expect(within(fileRow('CLAUDE.md')).getAllByRole('button')).toHaveLength(2)
+  })
+
   it('an unknown kind shows as claude sent it', async () => {
     await open({
       state: 'ready',
@@ -318,6 +332,50 @@ describe('ContextDialog — History', () => {
     ).toBeVisible()
   })
 
+  it('a new report that reorders the files keeps History on the same file', async () => {
+    const bridge = await open()
+    await userEvent.click(within(fileRow('rules.md')).getByRole('button', { name: 'History' }))
+    const [user, project, rules] = modReportFixture().instructionFiles
+    bridge.getSetup.mockResolvedValue({
+      state: 'ready',
+      report: modReportFixture({ instructionFiles: [rules!, user!, project!] })
+    })
+    await act(async () => {
+      bridge.fire(SID)
+      await Promise.resolve()
+    })
+    expect(within(screen.getByTestId('context-history')).getByText('rules.md')).toBeVisible()
+    expect(bridge.listHistory).toHaveBeenLastCalledWith(SID, 0)
+  })
+
+  it('a new report without the file closes History back to the list', async () => {
+    const bridge = await open()
+    await userEvent.click(within(fileRow('rules.md')).getByRole('button', { name: 'History' }))
+    const [user, project] = modReportFixture().instructionFiles
+    bridge.getSetup.mockResolvedValue({
+      state: 'ready',
+      report: modReportFixture({ instructionFiles: [user!, project!] })
+    })
+    await act(async () => {
+      bridge.fire(SID)
+      await Promise.resolve()
+    })
+    expect(screen.queryByTestId('context-history')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('context-file')).toHaveLength(2)
+  })
+
+  it('a restore reloads the versions, so the kept copy of the file shows', async () => {
+    const bridge = await openHistory()
+    const kept: FileVersion = { ...V2, id: 'v3', seenAt: NOW, size: 10 }
+    await userEvent.click((await screen.findAllByRole('radio'))[0]!)
+    bridge.listHistory.mockResolvedValue({ versions: [kept, V2, V1], tooLarge: false })
+    await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
+    expect(await screen.findByRole('radio', { name: 'just now, 10 B' })).toBeVisible()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('status')).toHaveTextContent('Restored CLAUDE.md.')
+  })
+
   it('the back button returns to the file list', async () => {
     await openHistory()
     await userEvent.click(screen.getByRole('button', { name: 'Instructions' }))
@@ -418,6 +476,22 @@ describe('ContextDialog — waiting and unavailable', () => {
     bridge.getSetup.mockClear()
     act(() => bridge.fire('other'))
     expect(bridge.getSetup).not.toHaveBeenCalled()
+  })
+})
+
+describe('ContextDialog — the session ends', () => {
+  it('says the session has ended once its card leaves the board', async () => {
+    await open()
+    act(() => boardStore.setState({ terminalIdBySessionId: {} }))
+    expect(screen.getByTestId('context-placeholder')).toHaveTextContent('This session has ended.')
+  })
+
+  it('still says waiting before the terminal is bound to a session', async () => {
+    boardStore.setState({ terminalIdBySessionId: {} })
+    await open()
+    expect(screen.getByTestId('context-placeholder')).toHaveTextContent(
+      'Waiting for Claude to report its setup.'
+    )
   })
 })
 

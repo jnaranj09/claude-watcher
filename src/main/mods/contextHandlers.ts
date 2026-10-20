@@ -1,7 +1,8 @@
 // Context's IPC handler bodies (spec 2026-10-18 §4), out of the registrar so they test in node
 // (the pastSessionOpen.ts precedent). Each argument is UNTRUSTED: parsed here, and it never
 // becomes a path. A file is a session id + an index into that session's report; a version is
-// a history id whose path a live report must still name. A refusal is a code the renderer maps
+// a history id whose path a live report must still name. Only an absolute `.md` path is opened
+// or written (`isInstructionPath`). A refusal is a code the renderer maps
 // to copy (`registerContextIpc` throws it). Never logs a path.
 //
 // Restore is the one write to an operator's file (spec Decisions; technical-taste §12): it keeps
@@ -11,6 +12,7 @@ import { basename, dirname } from 'node:path'
 import { stat, writeFile } from 'node:fs/promises'
 import {
   FileRefSchema,
+  isInstructionPath,
   SessionSetupGetSchema,
   VersionRefSchema,
   type ContextRefusalCode,
@@ -59,18 +61,20 @@ export function createContextHandlers(deps: {
   /** `shell.openPath`: '' on success, an error string otherwise. */
   openPath: (path: string) => Promise<string>
 }): ContextHandlers {
-  /** The path at `fileIndex` of the session's ready report, or null. */
+  /** The path at `fileIndex` of the session's ready report, or null (also for a path that is
+   *  not an instruction file: `isInstructionPath`). */
   function fileAt(raw: unknown): string | null {
     const { sessionId, fileIndex } = FileRefSchema.parse(raw)
     const s = deps.setup.get(sessionId)
     if (s.state !== 'ready') return null
-    return s.report.instructionFiles[fileIndex]?.path ?? null
+    const path = s.report.instructionFiles[fileIndex]?.path
+    return path !== undefined && isInstructionPath(path) ? path : null
   }
 
-  /** A version whose path a live report still names, or null. */
+  /** A version of an instruction file whose path a live report still names, or null. */
   function liveVersion(raw: unknown): FileVersion | null {
     const v = deps.history.get(VersionRefSchema.parse(raw).versionId)
-    return v !== null && deps.setup.reportsPath(v.path) ? v : null
+    return v !== null && isInstructionPath(v.path) && deps.setup.reportsPath(v.path) ? v : null
   }
 
   return {

@@ -1,7 +1,8 @@
 // One instruction file's History (spec 2026-10-18 §5): its versions newest first (a radio group:
 // one is compared at a time), the diff of the picked one against the file now, and `Restore this
 // version`, which arms in place (`ManageDialog.Delete`'s two presses: a restore overwrites the
-// file, after main keeps what is there now). Results go to the dialog's one message slot.
+// file, after main keeps what is there now). Results go to the dialog's one message slot. A
+// restore reloads the versions: main kept the file as it was, and that copy is now the newest.
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Radio } from '../Radio/Radio'
@@ -30,6 +31,8 @@ export function ContextHistory({
   const [lines, setLines] = useState<DiffLine[] | null>(null)
   // The versions' age is read once, when the history opens (it is not a clock).
   const [now] = useState(() => Date.now())
+  // Bumped by a restore, so the list loads again.
+  const [loads, setLoads] = useState(0)
 
   useEffect(() => {
     let live = true
@@ -44,7 +47,7 @@ export function ContextHistory({
     return () => {
       live = false
     }
-  }, [sessionId, fileIndex, name, actions])
+  }, [sessionId, fileIndex, name, actions, loads])
 
   // The pick a diff answer belongs to: an answer for an earlier pick that lands late is dropped,
   // or its diff would show under the version Restore would write.
@@ -70,6 +73,11 @@ export function ContextHistory({
     try {
       const { fileName } = await window.context.restore(picked)
       actions.disarm()
+      // The file now matches the picked version: nothing is picked in the new list.
+      pickRef.current = null
+      setPicked(null)
+      setLines(null)
+      setLoads((n) => n + 1)
       actions.showSuccess(CONTEXT_COPY.restored(fileName))
     } catch (err) {
       actions.setError(contextErrorCopy('restore', err, name))

@@ -286,3 +286,79 @@ describe('restore', () => {
     })
   })
 })
+
+describe('a path that is not an absolute .md file', () => {
+  const forged = (path: string): SessionSetupState => ({
+    state: 'ready',
+    report: modReportFixture({ instructionFiles: [{ path, kind: 'project' }] })
+  })
+
+  it.each(['/work/app/run.sh', 'CLAUDE.md', '/work/app/CLAUDE.md.sh'])(
+    'Open refuses %s with file_missing and opens nothing',
+    async (path) => {
+      const { handlers, openPath, fs } = world({ states: { [SID]: forged(path) }, disk: { [path]: 'x' } })
+      expect(await handlers.open({ sessionId: SID, fileIndex: 0 })).toEqual({
+        ok: false,
+        code: 'file_missing'
+      })
+      expect(openPath).not.toHaveBeenCalled()
+      expect(fs.calls).toEqual([])
+    }
+  )
+
+  it('Restore refuses a version of such a path with version_not_found and writes nothing', async () => {
+    const sh: FileVersion = { ...V, id: 'v9', path: '/work/app/run.sh' }
+    const { handlers, fs, history } = world({
+      states: { [SID]: forged(sh.path) },
+      versions: [sh],
+      contents: { v9: 'x' },
+      disk: { [sh.path]: 'y' }
+    })
+    expect(await handlers.restore({ versionId: 'v9' })).toEqual({
+      ok: false,
+      code: 'version_not_found'
+    })
+    expect(fs.writes).toEqual([])
+    expect(history.committed).toEqual([])
+  })
+
+  it('a path ending in upper-case .MD is an instruction file', async () => {
+    const { handlers, openPath } = world({
+      states: { [SID]: forged('/work/app/NOTES.MD') },
+      disk: { '/work/app/NOTES.MD': 'x' }
+    })
+    expect(await handlers.open({ sessionId: SID, fileIndex: 0 })).toEqual({ ok: true, value: null })
+    expect(openPath).toHaveBeenCalledWith('/work/app/NOTES.MD')
+  })
+})
+
+describe('forged arguments', () => {
+  it.each([
+    ['a missing session id', {}],
+    ['an empty session id', { sessionId: '' }],
+    ['a number', { sessionId: 1 }],
+    ['an extra key', { sessionId: SID, path: FILE }]
+  ])('get throws on %s', (_name, arg) => {
+    const { handlers } = world()
+    expect(() => handlers.get(arg)).toThrow()
+  })
+
+  it.each([
+    ['a missing version id', {}],
+    ['an empty version id', { versionId: '' }],
+    ['an extra key', { versionId: 'v1', path: FILE }]
+  ])('diff and restore throw on %s and touch no file', async (_name, arg) => {
+    const { handlers, fs } = world()
+    await expect(handlers.diff(arg)).rejects.toThrow()
+    await expect(handlers.restore(arg)).rejects.toThrow()
+    expect(fs.calls).toEqual([])
+  })
+
+  it.each([
+    ['a fractional index', { sessionId: SID, fileIndex: 1.5 }],
+    ['an extra key', { sessionId: SID, fileIndex: 1, path: FILE }]
+  ])('list throws on %s', (_name, arg) => {
+    const { handlers } = world()
+    expect(() => handlers.list(arg)).toThrow()
+  })
+})

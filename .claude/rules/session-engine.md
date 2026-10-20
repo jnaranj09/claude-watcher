@@ -41,7 +41,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   watcher-bridge`, not `claude-…`: a reserved prefix) only reads and reports paths + counts and
   never changes claude; Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
   versions, and Restore is the one operator-started write to an operator file (technical-taste
-  §5). `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
+  §5). Only an absolute `.md` path is opened, versioned or restored (`isInstructionPath`): a
+  report may name any file; the rest are listed only. `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
   required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
   exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503

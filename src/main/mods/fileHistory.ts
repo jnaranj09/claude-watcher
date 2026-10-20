@@ -5,7 +5,10 @@
 //
 // - Retention: the newest FILE_HISTORY_MAX_VERSIONS per file; over FILE_HISTORY_MAX_TOTAL_BYTES the
 //   oldest version of the largest history goes first. A file's newest version is never dropped.
-// - A file over FILE_HISTORY_MAX_FILE_BYTES is listed (`tooLarge`) but not snapshotted.
+// - A file over FILE_HISTORY_MAX_FILE_BYTES is listed (`tooLarge`) but not snapshotted. Only an
+//   absolute `.md` path is snapshotted (`isInstructionPath`); a report may name any file.
+// - An index it could not read is moved aside (`index.unread-<now>.json`) before the first save
+//   writes a new one; if it cannot be moved, the history stays in memory and the index is kept.
 // - One operation at a time (a serial queue): two sessions reporting the same file together must
 //   add one version, not two.
 // - Never throws to its caller and never logs a path (it names the operator's folders): a failed
@@ -13,6 +16,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { isInstructionPath } from '../../shared/schemas/contextIpc'
 import {
   FILE_HISTORY_FILE_VERSION,
   FileHistoryIndexSchema,
@@ -72,6 +76,8 @@ export function createFileHistory(deps: {
   const blobPath = (hash: string): string => join(deps.dir, 'blobs', hash)
   let versions: FileVersion[] = []
   const large = new Set<string>()
+  /** The index on disk could not be read: it is moved aside before anything overwrites it. */
+  let unread = false
 
   let queue: Promise<unknown> = load()
   /** Run `fn` after every earlier operation. Each step catches its own failures; an unexpected
@@ -89,6 +95,7 @@ export function createFileHistory(deps: {
     } catch {
       deps.log(`${LOG} code=file_history_read_failed`)
       deps.report('read_failed')
+      unread = true
       return
     }
     if (raw === null) return
@@ -185,6 +192,17 @@ export function createFileHistory(deps: {
   }
 
   async function persist(): Promise<boolean> {
+    if (unread) {
+      try {
+        await deps.fs.renameStoreFile(indexPath, join(deps.dir, `index.unread-${deps.now()}.json`))
+        unread = false
+      } catch {
+        // The old index may still hold the history: keep it, and keep this run in memory.
+        deps.log(`${LOG} code=file_history_backup_failed`)
+        deps.report('backup_failed')
+        return true
+      }
+    }
     try {
       const index = { version: FILE_HISTORY_FILE_VERSION, versions }
       await deps.fs.writeStoreFile(indexPath, Buffer.from(JSON.stringify(index)))
@@ -213,7 +231,7 @@ export function createFileHistory(deps: {
   return {
     snapshot(paths) {
       return serial(async () => {
-        for (const path of paths) {
+        for (const path of paths.filter(isInstructionPath)) {
           const r = await take(path)
           if (r === 'too_large') deps.log(`${LOG} code=file_history_too_large`)
           else if (r === 'unread') deps.log(`${LOG} code=file_history_read_failed`)

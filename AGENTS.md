@@ -116,7 +116,7 @@ trustworthy and have been removed; a manual repro with real `Codex` is the relia
 - **Hooks own every status transition:** Codex lifecycle hooks POST to
   `127.0.0.1:9279`. **ZERO FOOTPRINT — the app writes into NO project and NO user settings
   file** (one operator-started exception: Context's Restore writes back an instruction file a
-  live session loaded, after keeping its current copy). `hookSettingsFile.ts` writes the hook block into the app's OWN data dir
+  live session loaded, only a `.md` file, after keeping its current copy). `hookSettingsFile.ts` writes the hook block into the app's OWN data dir
   (`app.getPath('userData')`) and `composeClaudeCommand` hands it to each spawn as
   `--settings <path>`, so the hooks scope to EXACTLY the sessions the app launches and a
   plain `Codex` in the same folder stays silent. Probe-verified on Codex 2.1.245:

@@ -2,6 +2,7 @@
 // unavailable reasons). Copy maps from a CODE, never from an error's text (design.md Feedback).
 import { formatVersion, MIN_MOD_CLAUDE_VERSION } from '../../../../shared/launch/claudeVersion'
 import type { ContextRefusalCode, ModSkipReason } from '../../../../shared/ipc/contract'
+import { CONTEXT_REFUSAL_CODES } from '../../../../shared/schemas/contextIpc'
 import { BRIDGE_MOD_FAILED_COPY, STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 export type ContextCategoryId =
@@ -28,6 +29,7 @@ export const FIRST_CONTEXT_CATEGORY: ContextCategoryId = 'instructions'
 
 export const CONTEXT_COPY = {
   waiting: 'Waiting for Claude to report its setup.',
+  ended: 'This session has ended.',
   loadFailed: 'Could not load this session’s context.',
   openInEditor: 'Open in editor',
   history: 'History',
@@ -51,15 +53,7 @@ export const UNAVAILABLE_COPY: Record<ModSkipReason, string> = {
 /** The refusal's code inside Electron's wrapped rejection, or null. */
 export function contextRefusal(err: unknown): ContextRefusalCode | null {
   const text = err instanceof Error ? err.message : ''
-  const codes: readonly ContextRefusalCode[] = [
-    'file_missing',
-    'file_open_failed',
-    'file_restore_failed',
-    'file_too_large',
-    'version_not_found',
-    'store_write_failed'
-  ]
-  return codes.find((c) => text.includes(c)) ?? null
+  return CONTEXT_REFUSAL_CODES.find((c) => text.includes(c)) ?? null
 }
 
 const SHARED: Partial<Record<ContextRefusalCode, string>> = {

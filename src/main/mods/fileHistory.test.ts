@@ -177,13 +177,13 @@ describe('createFileHistory', () => {
 
   it('skips a folder, a dangling symlink and an unreadable file, and still keeps a good one', async () => {
     const w = world({
-      '/p/dir': 'not_file',
+      '/p/dir.md': 'not_file',
       '/p/dangling.md': 'missing',
       '/p/locked.md': 'unreadable',
       '/p/good.md': 'ok'
     })
     const h = createFileHistory(w.deps)
-    await h.snapshot(['/p/dir', '/p/dangling.md', '/p/locked.md', '/p/good.md'])
+    await h.snapshot(['/p/dir.md', '/p/dangling.md', '/p/locked.md', '/p/good.md'])
     expect(h.list('/p/good.md')).toHaveLength(1)
     expect(w.log.mock.calls.map(([l]) => l)).toEqual([
       '[claude-watcher][mods] code=file_history_read_failed',
@@ -220,13 +220,47 @@ describe('createFileHistory', () => {
 
   it('logs no path', async () => {
     const w = world({
-      '/p/dir': 'not_file',
+      '/p/dir.md': 'not_file',
       '/p/huge.md': 'x'.repeat(FILE_HISTORY_MAX_FILE_BYTES + 1)
     })
     w.store.set(`${DIR}/index.json`, 'not json')
     const h = createFileHistory(w.deps)
-    await h.snapshot(['/p/dir', '/p/huge.md'])
+    await h.snapshot(['/p/dir.md', '/p/huge.md'])
     for (const [line] of w.log.mock.calls) expect(line).not.toContain('/p/')
+  })
+
+  it('snapshots only absolute .md paths', async () => {
+    const w = world({ '/p/run.sh': 'a', 'rel.md': 'b', '/p/NOTES.MD': 'c' })
+    const h = createFileHistory(w.deps)
+    await h.snapshot(['/p/run.sh', 'rel.md', '/p/NOTES.MD'])
+    expect(h.list('/p/run.sh')).toEqual([])
+    expect(h.list('rel.md')).toEqual([])
+    expect(h.list('/p/NOTES.MD')).toHaveLength(1)
+  })
+
+  it('after an index it could not read, backs it up before the first save writes a new one', async () => {
+    const w = world({ '/p/CLAUDE.md': 'one' })
+    w.store.set(`${DIR}/index.json`, 'old index')
+    const read = w.fs.readStoreFile.bind(w.fs)
+    w.fs.readStoreFile = (path) =>
+      path.endsWith('index.json') ? Promise.reject(new Error('EIO')) : read(path)
+    const h = createFileHistory(w.deps)
+    await h.snapshot(['/p/CLAUDE.md'])
+    expect(w.renames).toEqual([[`${DIR}/index.json`, `${DIR}/index.unread-1000.json`]])
+    expect(w.store.get(`${DIR}/index.unread-1000.json`)).toBe('old index')
+    expect(h.list('/p/CLAUDE.md')).toHaveLength(1)
+  })
+
+  it('after an index it could not read and could not back up, keeps the history in memory and never writes the index', async () => {
+    const w = world({ '/p/CLAUDE.md': 'one' })
+    w.store.set(`${DIR}/index.json`, 'old index')
+    w.fs.readStoreFile = () => Promise.reject(new Error('EIO'))
+    w.fs.renameStoreFile = () => Promise.reject(new Error('EACCES'))
+    const h = createFileHistory(w.deps)
+    await h.snapshot(['/p/CLAUDE.md'])
+    expect(w.store.get(`${DIR}/index.json`)).toBe('old index')
+    expect(w.report).toHaveBeenCalledWith('backup_failed')
+    expect(h.list('/p/CLAUDE.md')).toHaveLength(1)
   })
 
   it('get and content answer by version id; an unknown id is null', async () => {

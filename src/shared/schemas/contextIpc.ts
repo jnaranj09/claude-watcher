@@ -15,6 +15,12 @@ export type SessionSetupState =
 
 export type DiffLine = { op: 'same' | 'add' | 'del'; text: string }
 
+/** A path Context opens, keeps versions of and restores: absolute, ending in `.md`. A report can
+ *  name any file (an `@` import of a script, or a report another local process forged); any other
+ *  path is listed only, so the app never opens or writes it. */
+export const isInstructionPath = (path: string): boolean =>
+  /^(\/|[A-Za-z]:[\\/])/.test(path) && /\.md$/i.test(path)
+
 /** The refusals Context's handlers return; the renderer maps each to copy. */
 export const CONTEXT_REFUSAL_CODES = [
   'file_missing',

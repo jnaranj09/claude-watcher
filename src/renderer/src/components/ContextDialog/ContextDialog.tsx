@@ -53,6 +53,11 @@ export function ContextDialog({
     (s) => Object.entries(s.terminalIdBySessionId).find(([, t]) => t === terminalId)?.[0] ?? null
   )
   const [setup, setSetup] = useState<SessionSetupState | null>(null)
+  // The terminal was bound to a session once: a later null means its card left the board (the
+  // session ended), not a launch still waiting for its id.
+  const [bound, setBound] = useState(false)
+  if (sessionId !== null && !bound) setBound(true)
+  const ended = bound && sessionId === null
   const dialog = useManageDialog({
     title: CONTEXT_TERMS.label,
     testIdPrefix: 'context',
@@ -135,9 +140,11 @@ export function ContextDialog({
             </ManageDialog.Pane>
           ) : (
             <ManageDialog.Placeholder testId="context-placeholder">
-              {setup?.state === 'unavailable'
-                ? UNAVAILABLE_COPY[setup.reason]
-                : CONTEXT_COPY.waiting}
+              {ended
+                ? CONTEXT_COPY.ended
+                : setup?.state === 'unavailable'
+                  ? UNAVAILABLE_COPY[setup.reason]
+                  : CONTEXT_COPY.waiting}
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>

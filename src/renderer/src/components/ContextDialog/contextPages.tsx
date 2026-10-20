@@ -1,10 +1,12 @@
 // Context's right-column pages (spec 2026-10-18 §5). Each page is a list of read-only rows in the
 // Settings pane's row look (label left, details and actions right). Skills and agents have no
 // path in the engine's data, so they have no open action. Instructions opens a file's History in
-// place of the list.
+// place of the list, held by the file's PATH (a new report may list the files in another order);
+// a file that is not an absolute `.md` path (`isInstructionPath`) is listed with no action.
 import { useState, type JSX, type ReactNode } from 'react'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { ModReport } from '../../../../shared/ipc/contract'
+import { isInstructionPath } from '../../../../shared/schemas/contextIpc'
 import {
   CONTEXT_COPY,
   contextErrorCopy,
@@ -61,16 +63,17 @@ function InstructionsPage({
   sessionId: string
 }): JSX.Element {
   const { actions } = useManageDialogContext()
-  const [historyOf, setHistoryOf] = useState<number | null>(null)
+  const [historyOf, setHistoryOf] = useState<string | null>(null)
   const tokensByPath = new Map(report.memoryFiles.map((m) => [m.path, m.tokens]))
 
-  const file = historyOf === null ? undefined : report.instructionFiles[historyOf]
-  if (historyOf !== null && file !== undefined) {
+  // Main resolves a file by its index in the report it holds now, the one this list shows.
+  const historyIndex = report.instructionFiles.findIndex((f) => f.path === historyOf)
+  if (historyOf !== null && historyIndex !== -1) {
     return (
       <ContextHistory
         sessionId={sessionId}
-        fileIndex={historyOf}
-        name={fileName(file.path)}
+        fileIndex={historyIndex}
+        name={fileName(historyOf)}
         onBack={() => setHistoryOf(null)}
       />
     )
@@ -92,30 +95,34 @@ function InstructionsPage({
               tokens === undefined ? null : CONTEXT_COPY.tokens(tokens)
             ]}
           >
-            <ManageDialog.GhostButton
-              testId="context-file-open"
-              size="sm"
-              onClick={() => {
-                actions.setError(null)
-                window.context
-                  .open(sessionId, i)
-                  .catch((err: unknown) =>
-                    actions.setError(contextErrorCopy('open', err, fileName(f.path)))
-                  )
-              }}
-            >
-              {CONTEXT_COPY.openInEditor}
-            </ManageDialog.GhostButton>
-            <ManageDialog.GhostButton
-              testId="context-file-history"
-              size="sm"
-              onClick={() => {
-                actions.setError(null)
-                setHistoryOf(i)
-              }}
-            >
-              {CONTEXT_COPY.history}
-            </ManageDialog.GhostButton>
+            {isInstructionPath(f.path) ? (
+              <>
+                <ManageDialog.GhostButton
+                  testId="context-file-open"
+                  size="sm"
+                  onClick={() => {
+                    actions.setError(null)
+                    window.context
+                      .open(sessionId, i)
+                      .catch((err: unknown) =>
+                        actions.setError(contextErrorCopy('open', err, fileName(f.path)))
+                      )
+                  }}
+                >
+                  {CONTEXT_COPY.openInEditor}
+                </ManageDialog.GhostButton>
+                <ManageDialog.GhostButton
+                  testId="context-file-history"
+                  size="sm"
+                  onClick={() => {
+                    actions.setError(null)
+                    setHistoryOf(f.path)
+                  }}
+                >
+                  {CONTEXT_COPY.history}
+                </ManageDialog.GhostButton>
+              </>
+            ) : undefined}
           </Row>
         )
       })}
