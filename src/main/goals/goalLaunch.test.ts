@@ -10,8 +10,11 @@ import {
   goalSpawnExtras,
   startGoalSessions,
   type GoalLaunch,
+  type GoalMcpSpawn,
+  type GoalSpawnDeps,
   type StartGoalSessionsDeps
 } from './goalLaunch'
+import { createGoalTokens, type GoalTokens } from './mcp/goalTokens'
 
 function seed(): { store: GoalsStore; goalId: string; t1: string; t2: string; t3: string } {
   let n = 0
@@ -44,6 +47,9 @@ function deps(
     ...over
   }
 }
+
+/** No MCP at all (the tool's own tests below wire it). */
+const noMcp = (store: GoalsStore): GoalSpawnDeps => ({ store, mcp: null })
 
 const req = (over: Partial<GoalsStartRequest>): GoalsStartRequest => ({
   workspaceId: 'w1',
@@ -195,7 +201,7 @@ describe('goalSpawnExtras', () => {
   it('links the tasks to the minted session id at spawn', () => {
     const { store, t1, t2 } = seed()
     const extras = goalSpawnExtras(
-      store,
+      noMcp(store),
       'sess-1',
       { kind: 'worker', taskIds: [t1, t2], markDone: true },
       false,
@@ -217,7 +223,7 @@ describe('goalSpawnExtras', () => {
     const { store, t1, t3 } = seed()
     store.linkMany([t3], 'sess-old')
     store.linkMany([t1], 'sess-old')
-    const extras = goalSpawnExtras(store, 'sess-old', null, true, null)
+    const extras = goalSpawnExtras(noMcp(store), 'sess-old', null, true, null)
     expect(extras.appendPrompt).toBe(
       [
         'This session works on goal "Ship v2". Its tasks:',
@@ -231,16 +237,18 @@ describe('goalSpawnExtras', () => {
     const { store, goalId, t1 } = seed()
     store.linkMany([t1], 'sess-1')
     const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
-    expect(goalSpawnExtras(store, 'sess-unlinked', null, true, null)).toEqual(none)
-    expect(goalSpawnExtras(store, 'sess-1', null, false, null)).toEqual(none)
-    expect(goalSpawnExtras(store, 'sess-p', { kind: 'planner', goalId }, false, null)).toEqual(none)
+    expect(goalSpawnExtras(noMcp(store), 'sess-unlinked', null, true, null)).toEqual(none)
+    expect(goalSpawnExtras(noMcp(store), 'sess-1', null, false, null)).toEqual(none)
+    expect(
+      goalSpawnExtras(noMcp(store), 'sess-p', { kind: 'planner', goalId }, false, null)
+    ).toEqual(none)
   })
 
   it('tasks of more than one goal get the tasks-only head', () => {
     const { store, t1 } = seed()
     const loose = store.saveTask({ workspaceId: 'w1', goalId: null, title: 'Loose' }).saved.id
     const extras = goalSpawnExtras(
-      store,
+      noMcp(store),
       'sess-1',
       { kind: 'worker', taskIds: [t1, loose], markDone: false },
       false,
@@ -253,30 +261,15 @@ describe('goalSpawnExtras', () => {
     )
   })
 
-  it('with no MCP tool yet, markDone adds no mark_task_done line and no MCP flags', () => {
-    // No MCP server is served in this task, so no session gets the tool and no block names it.
-    // The MCP task adds the real SEC-6 branch (hook port not ours → no tool, no line) and its test.
-    const { store, t1 } = seed()
-    const extras = goalSpawnExtras(
-      store,
-      'sess-1',
-      { kind: 'worker', taskIds: [t1], markDone: true },
-      false,
-      null
-    )
-    expect(extras.appendPrompt).not.toContain('mark_task_done')
-    expect(extras.mcpConfigPath).toBeNull()
-  })
-
   // A dead-pane Reopen re-spawns the same recipe with a NEW id: only work still open and still
   // linked to the id it replaces comes along.
   const worker = (taskIds: string[]): GoalLaunch => ({ kind: 'worker', taskIds, markDone: true })
 
   it('a Reopen after a task was closed does not list or re-link it', () => {
     const { store, t1, t2 } = seed()
-    goalSpawnExtras(store, 'sess-1', worker([t1, t2]), false, null)
+    goalSpawnExtras(noMcp(store), 'sess-1', worker([t1, t2]), false, null)
     store.setTaskStatus(t1, 'done', 'operator')
-    const extras = goalSpawnExtras(store, 'sess-2', worker([t1, t2]), false, 'sess-1')
+    const extras = goalSpawnExtras(noMcp(store), 'sess-2', worker([t1, t2]), false, 'sess-1')
     expect(store.tasksForSession('sess-2').map((t) => t.id)).toEqual([t2])
     expect(extras.appendPrompt).toBe(
       ['This session works on goal "Ship v2". Its tasks:', `- [${t2}] Cut the release`].join('\n')
@@ -285,18 +278,20 @@ describe('goalSpawnExtras', () => {
 
   it('a Reopen after the operator unlinked a task does not re-link it', () => {
     const { store, t1, t2 } = seed()
-    goalSpawnExtras(store, 'sess-1', worker([t1, t2]), false, null)
+    goalSpawnExtras(noMcp(store), 'sess-1', worker([t1, t2]), false, null)
     store.unlink(t2, 'sess-1')
-    const extras = goalSpawnExtras(store, 'sess-2', worker([t1, t2]), false, 'sess-1')
+    const extras = goalSpawnExtras(noMcp(store), 'sess-2', worker([t1, t2]), false, 'sess-1')
     expect(store.tasksForSession('sess-2').map((t) => t.id)).toEqual([t1])
     expect(extras.appendPrompt).not.toContain(t2)
   })
 
   it('a Reopen with nothing left open gets no block', () => {
     const { store, t1 } = seed()
-    goalSpawnExtras(store, 'sess-1', worker([t1]), false, null)
+    goalSpawnExtras(noMcp(store), 'sess-1', worker([t1]), false, null)
     store.setTaskStatus(t1, 'done', 'operator')
-    expect(goalSpawnExtras(store, 'sess-2', worker([t1]), false, 'sess-1').appendPrompt).toBeNull()
+    expect(
+      goalSpawnExtras(noMcp(store), 'sess-2', worker([t1]), false, 'sess-1').appendPrompt
+    ).toBeNull()
     expect(store.tasksForSession('sess-2')).toEqual([])
   })
 
@@ -305,15 +300,151 @@ describe('goalSpawnExtras', () => {
     store.linkMany([t1, t2], 'sess-old')
     store.setTaskStatus(t1, 'done', 'operator')
     store.setTaskStatus(t2, 'done', 'session')
-    expect(goalSpawnExtras(store, 'sess-old', null, true, null).appendPrompt).toBeNull()
+    expect(goalSpawnExtras(noMcp(store), 'sess-old', null, true, null).appendPrompt).toBeNull()
   })
 
   it('a resume lists only the open tasks of the session', () => {
     const { store, t1, t2 } = seed()
     store.linkMany([t1, t2], 'sess-old')
     store.setTaskStatus(t1, 'done', 'operator')
-    const block = goalSpawnExtras(store, 'sess-old', null, true, null).appendPrompt
+    const block = goalSpawnExtras(noMcp(store), 'sess-old', null, true, null).appendPrompt
     expect(block).toContain(t2)
     expect(block).not.toContain(t1)
+  })
+})
+
+describe('goalSpawnExtras — mark_task_done over MCP', () => {
+  const URL = 'http://127.0.0.1:29279/mcp/goals'
+  function mcp(over: Partial<GoalMcpSpawn> = {}): GoalMcpSpawn & {
+    tokens: GoalTokens
+    written: { sessionId: string; token: string; url: string }[]
+  } {
+    const written: { sessionId: string; token: string; url: string }[] = []
+    return {
+      written,
+      hookListening: () => true,
+      configs: {
+        write: (sessionId, token, url) => {
+          written.push({ sessionId, token, url })
+          return `/cfg/${sessionId}.json`
+        },
+        remove: () => {}
+      },
+      url: URL,
+      pastTasksMarkDone: () => false,
+      log: () => {},
+      ...over,
+      tokens: createGoalTokens()
+    }
+  }
+  const worker = (taskIds: string[], markDone = true): GoalLaunch => ({
+    kind: 'worker',
+    taskIds,
+    markDone
+  })
+
+  it('hook port ours + worker + markDone: the line, the config file and the one allowed tool', () => {
+    const { store, t1 } = seed()
+    const m = mcp()
+    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    expect(extras.appendPrompt).toContain(
+      'When you finish a task, call the mark_task_done tool with its id.'
+    )
+    expect(extras.mcpConfigPath).toBe('/cfg/sess-1.json')
+    expect(extras.allowedTools).toBe('mcp__claude-watcher__mark_task_done')
+    expect(m.written).toHaveLength(1)
+    expect(m.written[0]?.url).toBe(URL)
+    expect(m.tokens.resolve(m.written[0]?.token ?? '')).toEqual({
+      sessionId: 'sess-1',
+      workspaceId: 'w1',
+      mode: 'worker'
+    })
+  })
+
+  it('hook port NOT ours (SEC-6): no line, both MCP fields null, no token', () => {
+    const { store, t1 } = seed()
+    const lines: string[] = []
+    const m = mcp({ hookListening: () => false, log: (l) => lines.push(l) })
+    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    expect(extras.appendPrompt).toContain(t1)
+    expect(extras.appendPrompt).not.toContain('mark_task_done')
+    expect(extras.mcpConfigPath).toBeNull()
+    expect(extras.allowedTools).toBeNull()
+    expect(m.written).toEqual([])
+    expect(m.tokens.markDoneFor('sess-1')).toBe(false)
+    expect(lines).toEqual(['[claude-watcher][goals] code=mcp_hook_port_not_ours'])
+  })
+
+  it('markDone off: no line, no MCP fields, no token', () => {
+    const { store, t1 } = seed()
+    const m = mcp()
+    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1], false), false, null)
+    expect(extras.appendPrompt).not.toContain('mark_task_done')
+    expect([extras.mcpConfigPath, extras.allowedTools]).toEqual([null, null])
+    expect(m.written).toEqual([])
+  })
+
+  it('a config file the disk refuses: no line, no flags, and the minted token is revoked', () => {
+    const { store, t1 } = seed()
+    let token = ''
+    const m = mcp({
+      configs: {
+        write: (_s, t) => {
+          token = t
+          return null
+        },
+        remove: () => {}
+      }
+    })
+    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    expect(extras.appendPrompt).not.toContain('mark_task_done')
+    expect([extras.mcpConfigPath, extras.allowedTools]).toEqual([null, null])
+    expect(m.tokens.resolve(token)).toBeNull()
+  })
+
+  it("a Reopen of the same terminal keeps the operator's choice and mints for the new id", () => {
+    const { store, t1 } = seed()
+    const m = mcp()
+    goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    m.tokens.revoke('sess-1') // the first session exited
+    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-2', worker([t1]), false, 'sess-1')
+    expect(extras.mcpConfigPath).toBe('/cfg/sess-2.json')
+    expect(m.tokens.resolve(m.written[1]?.token ?? '')).toMatchObject({ sessionId: 'sess-2' })
+    expect(m.tokens.resolve(m.written[0]?.token ?? '')).toBeNull()
+  })
+
+  it('a resume in the same run gets the tool back with a fresh token', () => {
+    const { store, t1 } = seed()
+    const m = mcp()
+    goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    m.tokens.revoke('sess-1') // archived
+    const extras = goalSpawnExtras({ store, mcp: m }, 'sess-1', null, true, null)
+    expect(extras.appendPrompt).toContain('mark_task_done')
+    expect(m.written[1]?.token).not.toBe(m.written[0]?.token)
+    expect(m.tokens.resolve(m.written[1]?.token ?? '')).toMatchObject({ sessionId: 'sess-1' })
+  })
+
+  it('a resume after a restart asks the past-session flag', () => {
+    const { store, t1 } = seed()
+    store.linkMany([t1], 'sess-old')
+    const without = goalSpawnExtras({ store, mcp: mcp() }, 'sess-old', null, true, null)
+    const flagged = goalSpawnExtras(
+      { store, mcp: mcp({ pastTasksMarkDone: (id) => id === 'sess-old' }) },
+      'sess-old',
+      null,
+      true,
+      null
+    )
+    expect(without.mcpConfigPath).toBeNull()
+    expect(flagged.mcpConfigPath).toBe('/cfg/sess-old.json')
+  })
+
+  it('a planner and a session with no open task get no token', () => {
+    const { store, goalId, t1 } = seed()
+    const m = mcp()
+    goalSpawnExtras({ store, mcp: m }, 'sess-p', { kind: 'planner', goalId }, false, null)
+    store.setTaskStatus(t1, 'done', 'operator')
+    goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
+    expect(m.written).toEqual([])
   })
 })

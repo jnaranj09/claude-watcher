@@ -8,7 +8,9 @@
 //
 // `goalSpawnExtras` runs inside every actual spawn of such a session (`rawClaudeSpawn`): it links
 // the tasks to the freshly minted session id and writes the prompt block from main's own records.
-// Never logs a title, a name or a path (`code=` only).
+// With "Claude can mark tasks done" on, it also mints the session's MCP token and writes its
+// `--mcp-config` file (`mcp/`), so the session gets `mark_task_done`.
+// Never logs a title, a name, a path or a token (`code=` only).
 import type { GoalsStartRequest, Task } from '../../shared/schemas/goal'
 import { LAUNCH_CANCELLED } from '../../shared/schemas/goal'
 import { SessionNameSchema } from '../../shared/schemas/launch'
@@ -17,6 +19,9 @@ import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
 import { LAUNCH_FOLDER_MISSING, type LaunchRequest } from '../pty/launchSession'
 import { requireClaudeVersion } from '../pty/inAppLaunch'
 import { buildWorkerPrompt, taskSessionName } from './goalPrompt'
+import type { GoalTokens } from './mcp/goalTokens'
+import { MCP_SERVER_NAME, type McpConfigs } from './mcp/mcpConfigFile'
+import { MARK_TASK_DONE } from './mcp/mcpTools'
 
 /** What a launch from goals carries on its durable recipe (`LaunchOverride.goalLaunch`). */
 export type GoalLaunch =
@@ -31,6 +36,31 @@ export interface GoalSpawnExtras {
 }
 
 const NO_EXTRAS: GoalSpawnExtras = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
+
+/** The `--allowedTools` value: claude names an MCP tool `mcp__<server>__<tool>`, and pre-allowing
+ *  it means the session never stops on a permission prompt for it (probed, claude 2.1.304). */
+const MARK_TASK_DONE_ALLOWED = `mcp__${MCP_SERVER_NAME}__${MARK_TASK_DONE}`
+
+/** What a spawn needs to hand a session `mark_task_done`. */
+export interface GoalMcpSpawn {
+  /** SEC-6: only while THIS process holds the hook port, which serves the endpoint. */
+  hookListening(): boolean
+  tokens: Pick<GoalTokens, 'mint' | 'revoke' | 'markDoneFor'>
+  configs: Pick<McpConfigs, 'write' | 'remove'>
+  /** `GOALS_MCP_URL`. */
+  url: string
+  /** A resume after a restart: whether the session's past-session record says the operator chose
+   *  "Claude can mark tasks done" (tokens are memory-only, so this run cannot know). */
+  pastTasksMarkDone(sessionId: string): boolean
+  /** Code-only log sink. */
+  log(message: string): void
+}
+
+export interface GoalSpawnDeps {
+  store: GoalsStore
+  /** null = no session gets the tool (tests of the block alone). */
+  mcp: GoalMcpSpawn | null
+}
 
 function openTasks(tasks: readonly Task[]): Task[] {
   return tasks.filter((t) => t.status === 'open')
@@ -53,16 +83,20 @@ function sharedGoalName(store: GoalsStore, tasks: readonly Task[]): string | nul
  *   block comes back from the links that still name it.
  * - A fresh launch with no goal launch has a new id and no links: nothing.
  * - A planner gets nothing yet: its prompt names its tools, so it comes with them.
- * The block lists OPEN tasks only; none left, no block. The mark-done line needs the MCP tool,
- * which no session gets yet, so it is always left out and both MCP fields are null.
+ * The block lists OPEN tasks only; none left, no block.
+ * The mark-done line, `--mcp-config` and `--allowedTools` come together or not at all: only when
+ * the operator chose it (the goal launch's `markDone`; on a resume, this run's memory of the
+ * session or else its past-session record), the hook port is ours (SEC-6), and the config file
+ * was written. Each such spawn mints a fresh token, replacing any the session had.
  */
 export function goalSpawnExtras(
-  store: GoalsStore,
+  deps: GoalSpawnDeps,
   sessionId: string,
   goalLaunch: GoalLaunch | null,
   resume: boolean,
   previousSessionId: string | null
 ): GoalSpawnExtras {
+  const { store, mcp } = deps
   if (goalLaunch?.kind === 'planner') return NO_EXTRAS
   if (goalLaunch === null && !resume) return NO_EXTRAS
   if (goalLaunch !== null) {
@@ -73,16 +107,41 @@ export function goalSpawnExtras(
     store.linkMany(carried, sessionId)
   }
   const tasks = openTasks(store.tasksForSession(sessionId))
-  if (tasks.length === 0) return NO_EXTRAS
+  const first = tasks[0]
+  if (first === undefined) return NO_EXTRAS
+  const markDone =
+    goalLaunch !== null
+      ? goalLaunch.markDone
+      : mcp !== null && (mcp.tokens.markDoneFor(sessionId) || mcp.pastTasksMarkDone(sessionId))
+  // A launch's tasks all share one workspace (`startGoalSessions` checks it); the grant names it.
+  const mcpConfigPath = markDone ? grantMarkDone(mcp, sessionId, first.workspaceId) : null
   return {
     appendPrompt: buildWorkerPrompt({
       goalName: sharedGoalName(store, tasks),
       tasks: tasks.map((t) => ({ id: t.id, title: t.title })),
-      markDone: false
+      markDone: mcpConfigPath !== null
     }),
-    mcpConfigPath: null,
-    allowedTools: null
+    mcpConfigPath,
+    allowedTools: mcpConfigPath === null ? null : MARK_TASK_DONE_ALLOWED
   }
+}
+
+/** Mint the session's worker token and write its config; the config path, or null when the
+ *  session must go without the tool (no MCP, hook port not ours, a refused write). */
+function grantMarkDone(
+  mcp: GoalMcpSpawn | null,
+  sessionId: string,
+  workspaceId: string
+): string | null {
+  if (mcp === null) return null
+  if (!mcp.hookListening()) {
+    mcp.log('[claude-watcher][goals] code=mcp_hook_port_not_ours')
+    return null
+  }
+  const token = mcp.tokens.mint({ sessionId, workspaceId, mode: 'worker' })
+  const path = mcp.configs.write(sessionId, token, mcp.url)
+  if (path === null) mcp.tokens.revoke(sessionId) // `write` logged the code
+  return path
 }
 
 export interface StartGoalSessionsDeps {

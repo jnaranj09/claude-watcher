@@ -69,6 +69,13 @@ export const REGISTERED_EVENTS: readonly string[] = [
 /** The bridge mod POSTs its report here, on the hook listener (spec 2026-10-18 §2). */
 export const MOD_REPORT_PATH = '/mod/report'
 
+/** The goals MCP endpoint (`mark_task_done`), on the hook listener behind a per-launch bearer token
+ *  (spec 2026-10-19 goals; `goals/mcp/mcpEndpoint.ts`). */
+export const GOALS_MCP_PATH = '/mcp/goals'
+
+/** The URL a session's `--mcp-config` file names (`goals/mcp/mcpConfigFile.ts`). */
+export const GOALS_MCP_URL = `http://${HOST}:${PORT}${GOALS_MCP_PATH}`
+
 /**
  * Maximum accepted HTTP request body size in bytes.
  * Most hook payloads are compact JSON, but a `PostToolUse` carries the tool's whole input and

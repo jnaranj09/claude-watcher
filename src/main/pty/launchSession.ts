@@ -173,7 +173,8 @@ export interface LaunchServiceOptions {
    *  read off the same override so a Reopen keeps it. `previousSessionId` is the override's
    *  `lastSessionId` before this mint (null on the first spawn), so a Reopen carries over only
    *  the work still linked to the session it replaces. The factory links the tasks to `sessionId`
-   *  and adds their prompt block (`goalSpawnExtras`, goals/goalLaunch.ts). */
+   *  and adds their prompt block, plus `mark_task_done` when the operator chose it
+   *  (`goalSpawnExtras`, goals/goalLaunch.ts). */
   spawn: (
     sessionId: string,
     displayName: string,

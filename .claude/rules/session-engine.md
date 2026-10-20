@@ -50,11 +50,31 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   carries over only the tasks still open and still linked to the replaced id (closed or unlinked
   work never comes back). The block, appended to `--append-system-prompt` after
   `QUESTION_FORMAT_PROMPT`, lists open tasks only; none left, no block. A resume with no
-  `goalLaunch` rebuilds it from the links that still name the id. `composeClaudeCommand` takes
-  `--mcp-config` / `--allowedTools` after it; both are null until the MCP tool exists.
+  `goalLaunch` rebuilds it from the links that still name the id.
   `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
   `task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
   `folder_missing`, a bad name on any group).
+- **`mark_task_done` over MCP (goals):** served on the hook listener at `GOALS_MCP_PATH`
+  (`/mcp/goals`; no third listener), Streamable HTTP, stateless, POST only (GET 405), behind the
+  same Origin 403 and body cap plus a per-launch bearer token: a miss is 401 before the body is
+  read. The line in the block, `--mcp-config <file>` and `--allowedTools` (the one tool
+  `mcp__claude-watcher__mark_task_done`) come together or not at all: the operator's choice
+  (`goalLaunch.markDone`; on a resume, `tokens.markDoneFor` from this run, else the past-session
+  flag, `false` until a record carries it), AND the hook port is ours (SEC-6, else
+  `code=mcp_hook_port_not_ours`), AND the config file was written. Tokens (`goals/mcp/goalTokens.ts`)
+  are memory only, sha256 + `timingSafeEqual`, one per session, fresh on every spawn; the file
+  (`<userData>/mcp/<random>.json`, folder 0700, file 0600) holds the token in `headers`, so argv
+  holds only its path. `/clear` moves the task links, the token and the file
+  (`window/cardState.ts`); a removed card revokes the token and deletes the file (links stay); a
+  start deletes files a previous run left. Authority is the task's CURRENT `sessionIds` holding
+  the caller, in the grant's workspace (`task_not_linked`, `task_not_found`; already done = ok).
+  Logs: `route=mcp method=<served method|other> code=` only. Probed on claude 2.1.304 (a stub
+  server, then the real app in the drive profile): it POSTs `server/discover` first (answered
+  -32601; it falls back), then `initialize` with protocolVersion `2025-11-25`,
+  `notifications/initialized` (202), a GET (405), `tools/list`, `tools/call`; every request carries
+  the `headers` bearer and no `Origin`. The tool needs permission (`-p --permission-mode default`
+  denies it without `--allowedTools`); with the flag, an interactive session in manual mode calls
+  it with no prompt. Re-probe after an upgrade if the tool stops showing.
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
   required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
   exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503

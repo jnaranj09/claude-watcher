@@ -47,6 +47,11 @@ import { createGoalsStore, type GoalsStore } from './persistence/goals'
 import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
 import { goalSpawnExtras } from './goals/goalLaunch'
+import { createGoalTokens } from './goals/mcp/goalTokens'
+import { createMcpConfigs } from './goals/mcp/mcpConfigFile'
+import { createMcpTools } from './goals/mcp/mcpTools'
+import { createMcpEndpoint } from './goals/mcp/mcpEndpoint'
+import { GOALS_MCP_URL } from './hooks/hookContract'
 import type { TagRuleRef } from './persistence/tags'
 import type { RulesEngine } from './rules/rulesEngine'
 import type { RulesSnapshot } from './rules/evaluateRules'
@@ -567,6 +572,18 @@ const sessionSetup = createSessionSetup({
 /** Context's file history; null until app-ready (it lives in userData). */
 let fileHistory: FileHistory | null = null
 
+// Goals: `mark_task_done` over MCP on the hook listener (spec 2026-10-19). Tokens are memory only;
+// config files live in userData and go with their session (window/cardState.ts).
+const goalMcp = (() => {
+  const tokens = createGoalTokens()
+  const log = (line: string): void => console.warn(line)
+  return {
+    tokens,
+    configs: createMcpConfigs({ dir: () => app.getPath('userData'), log }),
+    endpoint: createMcpEndpoint({ tokens, tools: createMcpTools(requireGoalsStore), log })
+  }
+})()
+
 const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   smoke: SMOKE,
   reducers,
@@ -589,7 +606,9 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   getPastSessionsStore: () => pastSessionsStore,
   requireWorkspacesStore,
   rulesSnapshot,
-  apiLog
+  apiLog,
+  getGoalsStore: () => goalsStore,
+  goalMcp
 })
 
 // Story 3.5 (SM-2) — the ONE app-global telemetry store. Append-only JSONL in userData
@@ -941,6 +960,8 @@ app
       for (const win of BrowserWindow.getAllWindows()) sendGoalsChanged(win.webContents, view)
     })
     registerGoalsIpc()
+    // Every token in a file the last run left died with it.
+    goalMcp.configs.clearStale()
 
     try {
       shortcutsStore = SMOKE
@@ -1044,7 +1065,25 @@ app
         onSkip: (sessionId, reason) => sessionSetup.markUnavailable(sessionId, reason)
       },
       goalSpawnExtras: (sessionId, goalLaunch, resume, previousSessionId) =>
-        goalSpawnExtras(requireGoalsStore(), sessionId, goalLaunch, resume, previousSessionId),
+        goalSpawnExtras(
+          {
+            store: requireGoalsStore(),
+            mcp: {
+              hookListening: () => serverHealth.hookListening(),
+              tokens: goalMcp.tokens,
+              configs: goalMcp.configs,
+              url: GOALS_MCP_URL,
+              // No past-session record carries the choice yet: a resume after a restart starts
+              // without the tool (a resume in the same run asks `tokens.markDoneFor`).
+              pastTasksMarkDone: () => false,
+              log: (line) => console.warn(line)
+            }
+          },
+          sessionId,
+          goalLaunch,
+          resume,
+          previousSessionId
+        ),
       isSessionLive,
       getTerminalManager: () => terminalManager,
       getPastSessionsStore: () => pastSessionsStore,

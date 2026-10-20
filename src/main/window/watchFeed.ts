@@ -60,6 +60,10 @@ import type { LaunchService } from '../pty/launchSession'
 import type { LaunchedSet } from '../pty/launchedSet'
 import type { SessionSetup } from '../mods/sessionSetup'
 import { dropCardState, moveCardState } from './cardState'
+import type { GoalsStore } from '../persistence/goals'
+import type { GoalTokens } from '../goals/mcp/goalTokens'
+import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
+import type { McpEndpoint } from '../goals/mcp/mcpEndpoint'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
 import type { ProcessSessionSource } from '../pty/claudeSessionFile'
@@ -170,6 +174,10 @@ export interface WatchFeedDeps {
   requireWorkspacesStore: () => WorkspacesStore
   rulesSnapshot: () => RulesSnapshot
   apiLog: (message: string) => void
+  /** Goals (spec 2026-10-19): the task links, MCP tokens and config files that follow a card, and
+   *  the MCP endpoint each window's hook listener serves (app-global). */
+  getGoalsStore: () => GoalsStore | null
+  goalMcp: { tokens: GoalTokens; configs: McpConfigs; endpoint: McpEndpoint }
 }
 
 export interface WatchFeed {
@@ -200,7 +208,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     getPastSessionsStore,
     requireWorkspacesStore,
     rulesSnapshot,
-    apiLog
+    apiLog,
+    getGoalsStore,
+    goalMcp
   } = deps
 
   // Transcript watchers — per-window handles, disposed in teardownWatchFeed so no fs watch
@@ -478,6 +488,15 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     // by the hook server's response builder.
     const pendingTitles = createPendingTitles()
 
+    /** What follows a card on `/clear` and goes with it (cardState.ts). */
+    const cardStateDeps = (): Parameters<typeof moveCardState>[0] => ({
+      pendingTitles,
+      sessionSetup,
+      goals: getGoalsStore(),
+      tokens: goalMcp.tokens,
+      mcpConfigs: goalMcp.configs
+    })
+
     /** D-3 — the ONE removal chokepoint for this window. Reads the card BEFORE the reducer drops
      *  it, then hands the reason → history decision to the PURE, unit-tested
      *  `applyRemovalReason` (pastSessionRecord.ts): `archive` snapshots it into the past-sessions
@@ -488,8 +507,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
       const stored = reducer.snapshotMap().get(sessionId)
       applyRemovalReason(reason, sessionId, stored, getPastSessionsStore(), Date.now())
-      // A removed card can have no pending rename to push, and no setup to show.
-      dropCardState({ pendingTitles, sessionSetup }, sessionId)
+      // A removed card can have no pending rename to push, no setup to show, and no live MCP token.
+      dropCardState(cardStateDeps(), sessionId)
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
     }
 
@@ -709,8 +728,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       launchService.rebind(terminalId, newSessionId)
       // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
       // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
-      // Context's setup follows the card too; the mod's next report arrives under the new id.
-      moveCardState({ pendingTitles, sessionSetup }, oldSessionId, newSessionId)
+      // Context's setup follows the card too; the mod's next report arrives under the new id. So do
+      // its goal task links and its MCP token (the same claude keeps its loaded config).
+      moveCardState(cardStateDeps(), oldSessionId, newSessionId)
       sendLaunchCorrelated(wc, terminalId, newSessionId)
       // R8 — tell an API stream on the OLD id where the card went, BEFORE its removal: the stream
       // ends on `session.rebound {newId}` and never reports the rebind as `session.removed`. The new
@@ -874,6 +894,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       },
       // The bridge mod's report (spec 2026-10-18 §2); an unknown id is dropped there.
       onModReport: (report) => sessionSetup.accept(report),
+      // The goals MCP endpoint (`mark_task_done`), behind each launch's bearer token.
+      mcp: { ...goalMcp.endpoint, log: (line) => console.warn(line) },
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),

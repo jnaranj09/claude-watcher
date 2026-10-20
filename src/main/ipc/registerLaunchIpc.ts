@@ -142,8 +142,9 @@ export interface LaunchIpcDeps {
     /** The spawn went without the mod; Context says why. */
     onSkip: (sessionId: string, reason: ModSkipReason) => void
   }
-  /** Goals: what one spawn of `sessionId` adds (its tasks' prompt block). Read at spawn time;
-   *  links the tasks to the minted id (goals/goalLaunch.ts). `previousSessionId` = the id the
+  /** Goals: what one spawn of `sessionId` adds (its tasks' prompt block, and the MCP config and
+   *  allowed tool for `mark_task_done`). Read at spawn time; links the tasks to the minted id
+   *  (goals/goalLaunch.ts). `previousSessionId` = the id the
    *  terminal's last spawn minted, null on its first. */
   goalSpawnExtras: (
     sessionId: string,
@@ -298,7 +299,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     })
 
     // Goals: a session started from tasks gets them as context (its tasks are linked to THIS
-    // minted id first). Nothing for any other launch.
+    // minted id first), and `mark_task_done` when the operator chose it. Nothing for any other
+    // launch.
     const goal = goalSpawnExtras(sessionId, goalLaunch, resume, previousSessionId)
 
     return {
