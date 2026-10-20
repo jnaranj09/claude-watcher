@@ -39,3 +39,34 @@ export function bridgeModSpawn(
     env: { CLAUDE_WATCHER_MOD_URL: `http://127.0.0.1:${input.hookPort}${MOD_REPORT_PATH}` }
   }
 }
+
+/** The spawn's wiring, as one tested seam (the `hookSettingsPathIfListening` precedent): read the
+ *  bind at spawn time, put the report URL in `env` only when the mod runs, tell `onSkip` why when
+ *  it does not. Returns the `--plugin-dir` folder, or null. A URL sent while another process holds
+ *  the port would hand it the operator's file paths (SEC-6). */
+export function applyBridgeMod(deps: {
+  sessionId: string
+  env: Record<string, string>
+  listening: () => boolean
+  installedDir: () => string | null
+  version: () => ClaudeVersion | null
+  hookPort: number
+  onSkip: (sessionId: string, reason: ModSkipReason) => void
+  log: (line: string) => void
+}): string | null {
+  const mod = bridgeModSpawn(
+    {
+      version: deps.version(),
+      listening: deps.listening(),
+      installedDir: deps.installedDir(),
+      hookPort: deps.hookPort
+    },
+    deps.log
+  )
+  if ('skip' in mod) {
+    deps.onSkip(deps.sessionId, mod.skip)
+    return null
+  }
+  deps.env.CLAUDE_WATCHER_MOD_URL = mod.env.CLAUDE_WATCHER_MOD_URL
+  return mod.pluginDir
+}

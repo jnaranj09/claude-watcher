@@ -38,9 +38,11 @@ export interface HookServerOptions {
    *  pending. Wired to `pendingTitles.take` in main. Optional: when absent the server keeps
    *  its historical always-empty-200 behaviour, so every existing test stays valid. */
   takePendingTitle?: (sessionId: string) => string | null
-  /** The bridge mod's report (spec 2026-10-18 §2), schema-parsed. Absent: `/mod/report` is
-   *  parsed and answered like any path, and nothing receives it. */
-  onModReport?: (report: ModReport) => void
+  /** The bridge mod's report (spec 2026-10-18 §2), schema-parsed; false when it was dropped (no
+   *  live session has its id), answered 409 so the mod does not count it as sent and tries again
+   *  after the next turn (a report can race a `/clear` adoption). Absent: `/mod/report` is parsed
+   *  and answered 200, and nothing receives it. */
+  onModReport?: (report: ModReport) => boolean
 }
 
 export interface HookServer {
@@ -127,12 +129,13 @@ export function createHookServer(options: HookServerOptions): HookServer {
           res.writeHead(400).end()
           return
         }
+        let kept = true
         try {
-          onModReport?.(report.data)
+          kept = onModReport?.(report.data) ?? true
         } catch {
           log({ path: '(mod_report)', code: 'mod_report_handler_error' })
         }
-        res.writeHead(200).end()
+        res.writeHead(kept ? 200 : 409).end()
         return
       }
 

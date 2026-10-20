@@ -256,11 +256,11 @@ describe('hookServer â€” the bridge mod report at /mod/report (spec 2026-10-18 Â
 
   function start(): Promise<{
     onHookEvent: ReturnType<typeof vi.fn<(evt: HookEvent) => void>>
-    onModReport: ReturnType<typeof vi.fn<(r: ModReport) => void>>
+    onModReport: ReturnType<typeof vi.fn<(r: ModReport) => boolean>>
     log: ReturnType<typeof vi.fn<(err: BoundaryErrorRecord) => void>>
   }> {
     const onHookEvent = vi.fn<(evt: HookEvent) => void>()
-    const onModReport = vi.fn<(r: ModReport) => void>()
+    const onModReport = vi.fn<(r: ModReport) => boolean>(() => true)
     const log = vi.fn<(err: BoundaryErrorRecord) => void>()
     return new Promise((resolve) => {
       const s = createHookServer({
@@ -283,6 +283,14 @@ describe('hookServer â€” the bridge mod report at /mod/report (spec 2026-10-18 Â
     expect(status).toBe(200)
     expect(onModReport).toHaveBeenCalledWith(modReportFixture())
     expect(onHookEvent).not.toHaveBeenCalled()
+  })
+
+  it('a report the setup drops (unknown session) is 409, so the mod sends it again', async () => {
+    const { onModReport } = await start()
+    onModReport.mockReturnValue(false)
+    expect(await post(`${srv!.base}${MOD_REPORT_PATH}`, JSON.stringify(modReportFixture()))).toBe(
+      409
+    )
   })
 
   it('a hook body at / is still a hook', async () => {

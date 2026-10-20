@@ -1,7 +1,7 @@
 // What each live session loaded, as its bridge mod last reported it (spec 2026-10-18 §2). Main
 // keeps the latest report per session in memory only: it dies with the session (`forget`) and
-// follows a `/clear` rebind (`rebind`). A report for an id the app did not launch is dropped,
-// like an unknown-id hook (`hook_unknown_id`): never synthesize truth. Never logs a value — the
+// follows a `/clear` rebind (`rebind`). A report for an id no board shows is dropped (never
+// synthesize truth); the hook server answers it 409 so the mod tries again. Never logs a value — the
 // report's paths name the operator's folders.
 import type { ModReport } from '../../shared/schemas/modReport'
 import type { ModSkipReason, SessionSetupState } from '../../shared/schemas/contextIpc'
@@ -19,7 +19,7 @@ export interface SessionSetup {
 }
 
 export function createSessionSetup(deps: {
-  /** The launched set: the same gate as `hook_unknown_id`. */
+  /** A session some window's board shows now (index.ts `isSessionLive`). */
   isKnown: (sessionId: string) => boolean
   /** Fires once per accepted report (Context's push, the file history). */
   onChange: (sessionId: string, report: ModReport) => void

@@ -92,7 +92,9 @@ export function createContextHandlers(deps: {
       if (!now.ok) return refuse(now.reason === 'too_large' ? 'file_too_large' : 'file_missing')
       const before = await deps.history.content(v.id)
       if (before === null) return refuse('version_not_found')
-      return { ok: true, value: { lines: lineDiff(before, now.data.toString('utf8')) } }
+      // Too many changed lines: the diff gives up rather than load main (myersDiff.ts).
+      const lines = lineDiff(before, now.data.toString('utf8'))
+      return lines === null ? refuse('file_too_large') : { ok: true, value: { lines } }
     },
 
     async open(raw) {

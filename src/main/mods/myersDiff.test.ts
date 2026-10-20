@@ -1,6 +1,6 @@
 // The line diff behind Context's History (spec 2026-10-18 §3): built in-house, Myers O(ND).
 import { describe, it, expect } from 'vitest'
-import { lineDiff } from './myersDiff'
+import { lineDiff, MAX_DIFF_EDITS } from './myersDiff'
 
 describe('lineDiff', () => {
   it('marks every line same for equal texts', () => {
@@ -50,9 +50,28 @@ describe('lineDiff', () => {
     const started = performance.now()
     const out = lineDiff(before.join('\n'), after.join('\n'))
     expect(performance.now() - started).toBeLessThan(200)
-    expect(out.filter((l) => l.op !== 'same')).toEqual([
+    expect(out?.filter((l) => l.op !== 'same')).toEqual([
       { op: 'del', text: 'line 1000' },
       { op: 'add', text: 'changed' }
     ])
+  })
+
+  it('gives up (null) on a 20000-line text that changed everywhere, fast and without a big heap', () => {
+    const before = Array.from({ length: 20000 }, (_, i) => `a ${i}`).join('\n')
+    const after = Array.from({ length: 20000 }, (_, i) => `b ${i}`).join('\n')
+    const heap = process.memoryUsage().heapUsed
+    const started = performance.now()
+    expect(lineDiff(before, after)).toBeNull()
+    expect(performance.now() - started).toBeLessThan(2000)
+    expect(process.memoryUsage().heapUsed - heap).toBeLessThan(200 * 1024 * 1024)
+  })
+
+  it('still diffs a change just under the edit cap', () => {
+    const n = MAX_DIFF_EDITS / 2 - 1
+    const before = Array.from({ length: n }, (_, i) => `a ${i}`).join('\n')
+    const after = Array.from({ length: n }, (_, i) => `b ${i}`).join('\n')
+    const out = lineDiff(before, after)
+    expect(out?.filter((l) => l.op === 'del')).toHaveLength(n)
+    expect(out?.filter((l) => l.op === 'add')).toHaveLength(n)
   })
 })

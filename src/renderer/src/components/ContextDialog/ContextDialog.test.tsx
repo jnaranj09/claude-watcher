@@ -243,6 +243,30 @@ describe('ContextDialog — History', () => {
     ])
   })
 
+  it('a slow diff for an earlier pick never shows under the version picked after it', async () => {
+    const bridge = await openHistory()
+    let finishFirst: (r: FileHistoryDiffResult) => void = () => {}
+    bridge.diff.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = resolve
+        })
+    )
+    bridge.diff.mockImplementationOnce(() =>
+      Promise.resolve({ lines: [{ op: 'add', text: 'second' }] })
+    )
+    const radios = await screen.findAllByRole('radio')
+    await userEvent.click(radios[1]!)
+    await userEvent.click(radios[0]!)
+    await screen.findByText('second', { exact: false })
+    await act(async () => {
+      finishFirst({ lines: [{ op: 'add', text: 'first' }] })
+      await Promise.resolve()
+    })
+    expect(screen.queryByText('first', { exact: false })).not.toBeInTheDocument()
+    expect(screen.getByText('second', { exact: false })).toBeVisible()
+  })
+
   it('a too-large diff says so', async () => {
     const bridge = await openHistory()
     bridge.diff.mockRejectedValue(wrapped('file_too_large'))
@@ -371,6 +395,21 @@ describe('ContextDialog — waiting and unavailable', () => {
       bridge.fire(SID)
       await Promise.resolve()
     })
+    expect(screen.getAllByTestId('context-file')).toHaveLength(3)
+  })
+
+  it('follows the terminal when a /clear re-keys its session', async () => {
+    const NEW = 'bbbbbbbb-0000-4000-8000-0000000000bb'
+    const bridge = await open({ state: 'waiting' })
+    bridge.getSetup.mockResolvedValue({
+      state: 'ready',
+      report: modReportFixture({ sessionId: NEW })
+    })
+    await act(async () => {
+      boardStore.setState({ terminalIdBySessionId: { [NEW]: TERMINAL } })
+      await Promise.resolve()
+    })
+    expect(bridge.getSetup).toHaveBeenLastCalledWith(NEW)
     expect(screen.getAllByTestId('context-file')).toHaveLength(3)
   })
 

@@ -59,6 +59,7 @@ import type { RemovalReason } from '../pty/launchRemoval'
 import type { LaunchService } from '../pty/launchSession'
 import type { LaunchedSet } from '../pty/launchedSet'
 import type { SessionSetup } from '../mods/sessionSetup'
+import { dropCardState, moveCardState } from './cardState'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
 import type { ProcessSessionSource } from '../pty/claudeSessionFile'
@@ -488,8 +489,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       const stored = reducer.snapshotMap().get(sessionId)
       applyRemovalReason(reason, sessionId, stored, getPastSessionsStore(), Date.now())
       // A removed card can have no pending rename to push, and no setup to show.
-      pendingTitles.forget(sessionId)
-      sessionSetup.forget(sessionId)
+      dropCardState({ pendingTitles, sessionSetup }, sessionId)
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
     }
 
@@ -708,9 +708,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       launchService.rebind(terminalId, newSessionId)
       // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
       // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
-      pendingTitles.rebind(oldSessionId, newSessionId)
-      // Context follows the card too; the mod's next report arrives under the new id.
-      sessionSetup.rebind(oldSessionId, newSessionId)
+      // Context's setup follows the card too; the mod's next report arrives under the new id.
+      moveCardState({ pendingTitles, sessionSetup }, oldSessionId, newSessionId)
       sendLaunchCorrelated(wc, terminalId, newSessionId)
       // R8 — tell an API stream on the OLD id where the card went, BEFORE its removal: the stream
       // ends on `session.rebound {newId}` and never reports the rebind as `session.removed`. The new
@@ -873,9 +872,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         return name
       },
       // The bridge mod's report (spec 2026-10-18 §2); an unknown id is dropped there.
-      onModReport: (report) => {
-        sessionSetup.accept(report)
-      },
+      onModReport: (report) => sessionSetup.accept(report),
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),

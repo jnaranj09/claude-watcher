@@ -1,7 +1,7 @@
 // The spawn's one decision about the bridge mod: pass `--plugin-dir` and the report URL, or say
 // why not. Every "not" is fail open: the launch goes on without the mod (spec 2026-10-18 §1.1).
 import { describe, it, expect, vi } from 'vitest'
-import { bridgeModSpawn } from './bridgeModSpawn'
+import { applyBridgeMod, bridgeModSpawn } from './bridgeModSpawn'
 import { MIN_MOD_CLAUDE_VERSION } from '../../shared/launch/claudeVersion'
 
 const DIR = '/data/mods/watcher-bridge'
@@ -51,5 +51,37 @@ describe('bridgeModSpawn', () => {
       'pluginDir',
       DIR
     )
+  })
+})
+
+describe('applyBridgeMod (the spawn wiring)', () => {
+  function deps(listening: boolean): Parameters<typeof applyBridgeMod>[0] & {
+    env: Record<string, string>
+    onSkip: ReturnType<typeof vi.fn<(id: string, reason: string) => void>>
+  } {
+    return {
+      sessionId: 'sid',
+      env: { PATH: '/bin' },
+      listening: () => listening,
+      installedDir: () => DIR,
+      version: () => ({ major: 9, minor: 0, patch: 0 }),
+      hookPort: 19279,
+      onSkip: vi.fn<(id: string, reason: string) => void>(),
+      log: () => {}
+    }
+  }
+
+  it('sets the report URL in the env and returns the mod folder when the mod can run', () => {
+    const d = deps(true)
+    expect(applyBridgeMod(d)).toBe(DIR)
+    expect(d.env.CLAUDE_WATCHER_MOD_URL).toBe('http://127.0.0.1:19279/mod/report')
+    expect(d.onSkip).not.toHaveBeenCalled()
+  })
+
+  it('reads the port bind at spawn time: not bound → no URL in the env, no folder, onSkip', () => {
+    const d = deps(false)
+    expect(applyBridgeMod(d)).toBeNull()
+    expect(d.env).not.toHaveProperty('CLAUDE_WATCHER_MOD_URL')
+    expect(d.onSkip).toHaveBeenCalledWith('sid', 'listener_down')
   })
 })

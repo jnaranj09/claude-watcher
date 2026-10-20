@@ -63,7 +63,7 @@ import { buildPtyEnv } from '../pty/ptyEnv'
 // exactly the sessions it spawns. (This replaced the retired registerHooks merger.)
 import { ensureHookSettingsFile, hookSettingsPathIfListening } from '../hooks/hookSettingsFile'
 import type { ServerHealthState } from '../serverHealth'
-import { bridgeModSpawn } from '../mods/bridgeModSpawn'
+import { applyBridgeMod } from '../mods/bridgeModSpawn'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
@@ -272,17 +272,16 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
 
     // The bridge mod: `--plugin-dir` plus the report URL in the env, or a reason Context shows.
     // FAIL OPEN: a skip launches the session exactly as before the mod existed.
-    const mod = bridgeModSpawn(
-      {
-        version: bridgeMod.claudeVersion(),
-        listening: serverHealth.hookListening(),
-        installedDir: bridgeMod.installedDir(),
-        hookPort: bridgeMod.hookPort
-      },
-      (line) => console.warn(line)
-    )
-    if ('pluginDir' in mod) env.CLAUDE_WATCHER_MOD_URL = mod.env.CLAUDE_WATCHER_MOD_URL
-    else bridgeMod.onSkip(sessionId, mod.skip)
+    const pluginDir = applyBridgeMod({
+      sessionId,
+      env,
+      listening: () => serverHealth.hookListening(),
+      installedDir: bridgeMod.installedDir,
+      version: bridgeMod.claudeVersion,
+      hookPort: bridgeMod.hookPort,
+      onSkip: bridgeMod.onSkip,
+      log: (line) => console.warn(line)
+    })
 
     return {
       file: SHELL,
@@ -300,7 +299,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           sessionId,
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
-          pluginDir: 'pluginDir' in mod ? mod.pluginDir : null,
+          pluginDir,
           appendSystemPrompt: QUESTION_FORMAT_PROMPT,
           model: flags.model,
           permissionMode: flags.permissionMode,

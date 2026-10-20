@@ -144,6 +144,13 @@ describe('diff', () => {
     expect(await handlers.diff({ versionId: 'v1' })).toEqual({ ok: false, code: 'file_too_large' })
   })
 
+  it('refuses file_too_large when the two texts differ in too many lines to compare', async () => {
+    const many = (tag: string): string =>
+      Array.from({ length: 3000 }, (_, i) => `${tag} ${i}`).join('\n')
+    const { handlers } = world({ contents: { v1: many('a') }, disk: { [FILE]: many('b') } })
+    expect(await handlers.diff({ versionId: 'v1' })).toEqual({ ok: false, code: 'file_too_large' })
+  })
+
   it('refuses version_not_found for an unknown id', async () => {
     const { handlers, fs } = world()
     expect(await handlers.diff({ versionId: 'nope' })).toEqual({
@@ -237,6 +244,16 @@ describe('restore', () => {
     expect(await handlers.restore({ versionId: 'v1' })).toEqual({
       ok: false,
       code: 'file_too_large'
+    })
+    expect(fs.writes).toEqual([])
+  })
+
+  it('refuses file_restore_failed when the current file cannot be read to keep, and writes nothing', async () => {
+    const { handlers, fs, history } = world()
+    history.commitCurrent = () => Promise.resolve('unreadable')
+    expect(await handlers.restore({ versionId: 'v1' })).toEqual({
+      ok: false,
+      code: 'file_restore_failed'
     })
     expect(fs.writes).toEqual([])
   })

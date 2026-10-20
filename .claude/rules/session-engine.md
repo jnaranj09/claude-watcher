@@ -35,7 +35,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `code=mod_skipped_version`). A skip is fail open and marks the session `unavailable`
   (`sessionSetup.markUnavailable`). The report follows `/clear` (`sessionSetup.rebind`; the mod
   sends again from `prompt.context` + `turn.complete`, since `session.start` does not refire) and
-  is dropped with the session (`forget`, beside `pendingTitles.forget`). The mod (`src/mod/
+  is dropped with the session (`window/cardState.ts` moves and drops it beside the pending
+  rename). Only a live session's report is kept (`isSessionLive`); a dropped one is answered 409,
+  so the mod sends it again after the next turn. The mod (`src/mod/
   watcher-bridge`, not `claude-…`: a reserved prefix) only reads and reports paths + counts and
   never changes claude; Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
   versions, and Restore is the one operator-started write to an operator file (technical-taste

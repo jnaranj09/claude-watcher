@@ -4,60 +4,64 @@
 
 import type { DiffLine } from '../../shared/schemas/contextIpc'
 
+/** More edits than this and the diff gives up (null): its memory grows with the edits squared,
+ *  and it runs on the main process. Context then says the file is too large to compare. */
+export const MAX_DIFF_EDITS = 2000
+
 const lines = (text: string): string[] => (text === '' ? [] : text.split('\n'))
 
-export function lineDiff(before: string, after: string): DiffLine[] {
+/** The diff, or null when the two texts differ by more than MAX_DIFF_EDITS lines. */
+export function lineDiff(before: string, after: string): DiffLine[] | null {
   const a = lines(before)
   const b = lines(after)
   const n = a.length
   const m = b.length
-  const max = n + m
-  const offset = max + 1
-  // v[k + offset] = the furthest x on diagonal k; one copy per step d for the walk back.
-  const v = new Array<number>(2 * max + 3).fill(0)
-  const trace: number[][] = []
-  let found = n === 0 && m === 0
-  for (let d = 0; d <= max && !found; d++) {
-    trace.push([...v])
+  // trace[d][k + d] = the furthest x on diagonal k after d edits (only k in -d..d is kept).
+  const trace: Int32Array[] = []
+  const at = (d: number, k: number): number => (d < 0 ? 0 : (trace[d]?.[k + d] ?? 0))
+  let done = n === 0 && m === 0
+  for (let d = 0; !done; d++) {
+    if (d > MAX_DIFF_EDITS) return null
+    const row = new Int32Array(2 * d + 1)
     for (let k = -d; k <= d; k += 2) {
-      const down = k === -d || (k !== d && at(v, k - 1 + offset) < at(v, k + 1 + offset))
-      let x = down ? at(v, k + 1 + offset) : at(v, k - 1 + offset) + 1
+      const down = k === -d || (k !== d && at(d - 1, k - 1) < at(d - 1, k + 1))
+      let x = d === 0 ? 0 : down ? at(d - 1, k + 1) : at(d - 1, k - 1) + 1
       let y = x - k
       while (x < n && y < m && a[x] === b[y]) {
         x++
         y++
       }
-      v[k + offset] = x
-      if (x >= n && y >= m) {
-        found = true
-        break
-      }
+      row[k + d] = x
+      if (x >= n && y >= m) done = true
     }
+    trace.push(row)
   }
   // Walk back from (n, m) through the saved rows, collecting moves in reverse.
   const out: DiffLine[] = []
   let x = n
   let y = m
-  for (let d = trace.length - 1; d >= 0; d--) {
-    const row = trace[d] ?? []
+  for (let d = trace.length - 1; d > 0; d--) {
     const k = x - y
-    const down = k === -d || (k !== d && at(row, k - 1 + offset) < at(row, k + 1 + offset))
+    const down = k === -d || (k !== d && at(d - 1, k - 1) < at(d - 1, k + 1))
     const prevK = down ? k + 1 : k - 1
-    const prevX = at(row, prevK + offset)
+    const prevX = at(d - 1, prevK)
     const prevY = prevX - prevK
-    while (x > prevX && y > prevY) {
+    const startX = down ? prevX : prevX + 1
+    const startY = startX - k
+    while (x > startX && y > startY) {
       out.push({ op: 'same', text: a[x - 1] ?? '' })
       x--
       y--
     }
-    if (d > 0) {
-      if (down) out.push({ op: 'add', text: b[y - 1] ?? '' })
-      else out.push({ op: 'del', text: a[x - 1] ?? '' })
-    }
+    if (down) out.push({ op: 'add', text: b[prevY] ?? '' })
+    else out.push({ op: 'del', text: a[prevX] ?? '' })
     x = prevX
     y = prevY
   }
+  while (x > 0 && y > 0) {
+    out.push({ op: 'same', text: a[x - 1] ?? '' })
+    x--
+    y--
+  }
   return out.reverse()
 }
-
-const at = (row: readonly number[], i: number): number => row[i] ?? 0

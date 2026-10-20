@@ -2,7 +2,7 @@
 // one is compared at a time), the diff of the picked one against the file now, and `Restore this
 // version`, which arms in place (`ManageDialog.Delete`'s two presses: a restore overwrites the
 // file, after main keeps what is there now). Results go to the dialog's one message slot.
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Radio } from '../Radio/Radio'
 import { relativeEnded } from '../PastSessionsDialog/pastSessionsView'
@@ -46,15 +46,23 @@ export function ContextHistory({
     }
   }, [sessionId, fileIndex, name, actions])
 
+  // The pick a diff answer belongs to: an answer for an earlier pick that lands late is dropped,
+  // or its diff would show under the version Restore would write.
+  const pickRef = useRef<string | null>(null)
   function pick(versionId: string): void {
+    pickRef.current = versionId
     setPicked(versionId)
     setLines(null)
     actions.disarm()
     actions.setError(null)
     window.context
       .diff(versionId)
-      .then((d) => setLines(d.lines))
-      .catch((err: unknown) => actions.setError(contextErrorCopy('diff', err, name)))
+      .then((d) => {
+        if (pickRef.current === versionId) setLines(d.lines)
+      })
+      .catch((err: unknown) => {
+        if (pickRef.current === versionId) actions.setError(contextErrorCopy('diff', err, name))
+      })
   }
 
   const restore = useAsyncAction(async (): Promise<void> => {

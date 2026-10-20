@@ -51,6 +51,13 @@ describe('createSessionSetup', () => {
     expect(s.get(ID).state).toBe('ready')
   })
 
+  it('an unavailable mark does not hide a report already in', () => {
+    const { s } = setup()
+    s.accept(modReportFixture())
+    s.markUnavailable(ID, 'listener_down')
+    expect(s.get(ID).state).toBe('ready')
+  })
+
   it('rebind moves the setup to the new id (a /clear), and the old id reads waiting', () => {
     const NEW = 'bbbbbbbb-0000-4000-8000-0000000000bb'
     const { s } = setup(new Set([ID, NEW]))

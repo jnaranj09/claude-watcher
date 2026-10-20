@@ -541,7 +541,8 @@ function ruleLookups(): Pick<RulesStoreOptions, 'lookupTag' | 'lookupTemplate'> 
 // The bridge mod's latest report per live session (spec 2026-10-18 §2). App-global: Context asks
 // by session id; each window's hook listener feeds it.
 const sessionSetup = createSessionSetup({
-  isKnown: (id) => launchedSet.has(id),
+  // A session on a board now: a removed or rebound-away id is not (the launched set never shrinks).
+  isKnown: isSessionLive,
   // Each report snapshots the files it names and tells an open Context to ask again.
   onChange: (sessionId, report) => {
     fileHistory
