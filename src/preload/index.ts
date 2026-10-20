@@ -65,7 +65,11 @@ import type {
   ServerHealth,
   StorageHealth,
   ShellOpenRequest,
-  ShellOpenResult
+  ShellOpenResult,
+  SessionSetupState,
+  FileHistoryListResult,
+  FileHistoryDiffResult,
+  FileHistoryRestoreResult
 } from '../shared/ipc/contract'
 
 // Story 0.1 minimal typed bridge for the single-PTY smoke.
@@ -659,6 +663,35 @@ const storageHealthApi = {
 
 export type StorageHealthApi = typeof storageHealthApi
 
+// Context (spec 2026-10-18 §4) — what a session's claude loaded, and its instruction files'
+// history. The renderer sends a session id + file index or a version id, never a path. A refusal
+// rejects with its code (contextCopy.ts maps it). CH.* consts only.
+const contextApi = {
+  getSetup(sessionId: string): Promise<SessionSetupState> {
+    return ipcRenderer.invoke(CH.sessionSetupGet, { sessionId })
+  },
+  /** A report landed for `sessionId`: ask `getSetup` again. Returns unsubscribe. */
+  onSetupChanged(cb: (sessionId: string) => void): () => void {
+    const listener = (_evt: unknown, msg: { sessionId: string }): void => cb(msg.sessionId)
+    ipcRenderer.on(CH.sessionSetupChanged, listener)
+    return () => ipcRenderer.removeListener(CH.sessionSetupChanged, listener)
+  },
+  listHistory(sessionId: string, fileIndex: number): Promise<FileHistoryListResult> {
+    return ipcRenderer.invoke(CH.fileHistoryList, { sessionId, fileIndex })
+  },
+  diff(versionId: string): Promise<FileHistoryDiffResult> {
+    return ipcRenderer.invoke(CH.fileHistoryDiff, { versionId })
+  },
+  open(sessionId: string, fileIndex: number): Promise<void> {
+    return ipcRenderer.invoke(CH.fileOpen, { sessionId, fileIndex })
+  },
+  restore(versionId: string): Promise<FileHistoryRestoreResult> {
+    return ipcRenderer.invoke(CH.fileHistoryRestore, { versionId })
+  }
+}
+
+export type ContextApi = typeof contextApi
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('pty', ptyApi)
@@ -699,6 +732,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('serverHealth', serverHealthApi)
     // Storage health — unreadable / unwritable store files (storage-health:get / :changed).
     contextBridge.exposeInMainWorld('storageHealth', storageHealthApi)
+    // Context — a session's loaded setup and its file history (session-setup:* / file-history:*).
+    contextBridge.exposeInMainWorld('context', contextApi)
   } catch (error) {
     console.error(error)
   }
@@ -749,4 +784,6 @@ if (process.contextIsolated) {
   window.serverHealth = serverHealthApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.storageHealth is in index.d.ts
   window.storageHealth = storageHealthApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.context is in index.d.ts
+  window.context = contextApi
 }

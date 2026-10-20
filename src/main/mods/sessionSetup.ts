@@ -4,12 +4,7 @@
 // like an unknown-id hook (`hook_unknown_id`): never synthesize truth. Never logs a value — the
 // report's paths name the operator's folders.
 import type { ModReport } from '../../shared/schemas/modReport'
-import type { ModSkipReason } from './bridgeModSpawn'
-
-export type SessionSetupState =
-  | { state: 'ready'; report: ModReport }
-  | { state: 'waiting' }
-  | { state: 'unavailable'; reason: ModSkipReason }
+import type { ModSkipReason, SessionSetupState } from '../../shared/schemas/contextIpc'
 
 export interface SessionSetup {
   /** Keep the report when its session is known; false (and one `code=`) when it is not. */
@@ -17,6 +12,8 @@ export interface SessionSetup {
   /** The spawn went without the mod; a later report still wins. */
   markUnavailable(sessionId: string, reason: ModSkipReason): void
   get(sessionId: string): SessionSetupState
+  /** Some live session's report names this path: the one gate restore writes through. */
+  reportsPath(path: string): boolean
   rebind(oldId: string, newId: string): void
   forget(sessionId: string): void
 }
@@ -46,6 +43,13 @@ export function createSessionSetup(deps: {
     },
     get(sessionId) {
       return states.get(sessionId) ?? { state: 'waiting' }
+    },
+    reportsPath(path) {
+      for (const s of states.values()) {
+        if (s.state === 'ready' && s.report.instructionFiles.some((f) => f.path === path))
+          return true
+      }
+      return false
     },
     rebind(oldId, newId) {
       const s = states.get(oldId)

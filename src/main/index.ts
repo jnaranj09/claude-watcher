@@ -74,6 +74,8 @@ import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { bridgeModSourceDir, installBridgeMod, nodeBridgeModFs } from './mods/bridgeModInstall'
 import { createSessionSetup } from './mods/sessionSetup'
+import { createContextHandlers, nodeContextFs } from './mods/contextHandlers'
+import { pushSessionSetupChanged, registerContextIpc } from './ipc/registerContextIpc'
 import {
   createFileHistory,
   FILE_HISTORY_DIR,
@@ -540,11 +542,12 @@ function ruleLookups(): Pick<RulesStoreOptions, 'lookupTag' | 'lookupTemplate'> 
 // by session id; each window's hook listener feeds it.
 const sessionSetup = createSessionSetup({
   isKnown: (id) => launchedSet.has(id),
-  // Each report snapshots the instruction files it names (spec 2026-10-18 §3).
-  onChange: (_sessionId, report) => {
+  // Each report snapshots the files it names and tells an open Context to ask again.
+  onChange: (sessionId, report) => {
     fileHistory
       ?.snapshot(report.instructionFiles.map((f) => f.path))
       .catch(() => console.warn('[claude-watcher][mods] code=file_history_failed'))
+    pushSessionSetupChanged(sessionId)
   },
   log: (line) => console.warn(line)
 })
@@ -740,6 +743,15 @@ app
       report: storageHealth.reporterFor('file_history'),
       log: (line) => console.warn(line)
     })
+    registerContextIpc(
+      ipc,
+      createContextHandlers({
+        setup: sessionSetup,
+        history: fileHistory,
+        fs: nodeContextFs,
+        openPath: (path) => shell.openPath(path)
+      })
+    )
     // Set app user model id for windows. CANONICAL appId = `com.claudewatcher.app` (Story 2.3
     // AC-6): must match `electron-builder.yml` (`appId`) + the `.desktop` file's
     // `StartupWMClass`/filename so the tray + notification OS identity is consistent. [FROZEN #5;

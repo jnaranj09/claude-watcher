@@ -103,4 +103,14 @@ describe('createSessionSetup', () => {
     s.accept(modReportFixture())
     for (const [line] of log.mock.calls) expect(line).not.toContain('/work/app')
   })
+
+  it('reportsPath is true only for a path some ready report names', () => {
+    const { s } = setup()
+    expect(s.reportsPath('/work/app/CLAUDE.md')).toBe(false)
+    s.accept(modReportFixture())
+    expect(s.reportsPath('/work/app/CLAUDE.md')).toBe(true)
+    expect(s.reportsPath('/etc/passwd')).toBe(false)
+    s.forget(ID)
+    expect(s.reportsPath('/work/app/CLAUDE.md')).toBe(false)
+  })
 })

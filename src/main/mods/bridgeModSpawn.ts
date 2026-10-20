@@ -5,8 +5,7 @@
 import { MOD_REPORT_PATH } from '../hooks/hookContract'
 import { compareVersions } from '../pty/claudeVersion'
 import { MIN_MOD_CLAUDE_VERSION, type ClaudeVersion } from '../../shared/launch/claudeVersion'
-
-export type ModSkipReason = 'claude_too_old' | 'mod_not_installed' | 'listener_down'
+import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 
 export interface BridgeModSpawnInput {
   /** The last version the launch gate parsed; null when unknown. */

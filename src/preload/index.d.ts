@@ -19,7 +19,8 @@ import type {
   ThemesApi,
   LinksApi,
   ServerHealthApi,
-  StorageHealthApi
+  StorageHealthApi,
+  ContextApi
 } from './index'
 
 declare global {
@@ -66,5 +67,7 @@ declare global {
     serverHealth: ServerHealthApi
     // Storage health — unreadable / unwritable store files (get / onChanged via CH.storageHealth*).
     storageHealth: StorageHealthApi
+    // Context — a session's loaded setup and its file history (CH.sessionSetup* / CH.fileHistory*).
+    context: ContextApi
   }
 }

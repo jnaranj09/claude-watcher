@@ -2,7 +2,7 @@
 // in-house instead of a dependency (technical-taste §5 "few dependencies"). Pure. An empty text
 // has no lines; a trailing newline is one more (empty) line, so it shows as one line change.
 
-export type DiffLine = { op: 'same' | 'add' | 'del'; text: string }
+import type { DiffLine } from '../../shared/schemas/contextIpc'
 
 const lines = (text: string): string[] => (text === '' ? [] : text.split('\n'))
 

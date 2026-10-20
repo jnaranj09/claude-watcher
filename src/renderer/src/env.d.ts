@@ -47,7 +47,11 @@ import type {
   ThemeApplyResult,
   ServerHealth,
   StorageHealth,
-  ShellOpenResult
+  ShellOpenResult,
+  SessionSetupState,
+  FileHistoryListResult,
+  FileHistoryDiffResult,
+  FileHistoryRestoreResult
 } from '../../shared/ipc/contract'
 
 declare global {
@@ -253,6 +257,16 @@ declare global {
     storageHealth: {
       get(): Promise<StorageHealth>
       onChanged(cb: (health: StorageHealth) => void): () => void
+    }
+    // Context — mirrors src/preload/index.ts `contextApi`. MAIN resolves every path from its own
+    // records; the renderer sends a session id + file index or a version id.
+    context: {
+      getSetup(sessionId: string): Promise<SessionSetupState>
+      onSetupChanged(cb: (sessionId: string) => void): () => void
+      listHistory(sessionId: string, fileIndex: number): Promise<FileHistoryListResult>
+      diff(versionId: string): Promise<FileHistoryDiffResult>
+      open(sessionId: string, fileIndex: number): Promise<void>
+      restore(versionId: string): Promise<FileHistoryRestoreResult>
     }
   }
 }

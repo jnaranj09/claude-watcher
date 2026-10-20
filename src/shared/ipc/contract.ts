@@ -14,6 +14,8 @@ import type { Template } from '../schemas/template'
 import type { Tag } from '../schemas/tag'
 import type { Rule } from '../schemas/rule'
 import type { Shortcut } from '../schemas/shortcut'
+import type { FileVersion } from '../schemas/fileHistory'
+import type { DiffLine } from '../schemas/contextIpc'
 import type {
   Workspace,
   WorkspaceSaveRequest,
@@ -270,7 +272,18 @@ export const CH = {
   // `storage-health:get` → StorageHealth (asked on mount); `storage-health:changed` is the push on
   // every new problem, validated at source (StorageHealthSchema).
   storageHealthGet: 'storage-health:get',
-  storageHealth: 'storage-health:changed'
+  storageHealth: 'storage-health:changed',
+
+  // Context (spec 2026-10-18 §4) — what a session's claude loaded, from its bridge mod report,
+  // and the file history of its instruction files. Args are UNTRUSTED and never a path: a session
+  // id + a file index, or a version id (schemas/contextIpc.ts). `session-setup:changed` is the
+  // main → renderer push `{ sessionId }` when a report lands; the renderer asks again.
+  sessionSetupGet: 'session-setup:get',
+  sessionSetupChanged: 'session-setup:changed',
+  fileHistoryList: 'file-history:list',
+  fileHistoryDiff: 'file-history:diff',
+  fileHistoryRestore: 'file-history:restore',
+  fileOpen: 'file:open'
 } as const
 
 /** The union of every valid channel name. [Source: architecture.md#Canonical Recipes] */
@@ -605,6 +618,23 @@ export type {
   StorageProblemCode,
   StoreName
 } from '../schemas/storageHealth'
+
+// Context — the bridge mod report, the setup state and the file history (schema-inferred).
+export type { ModReport } from '../schemas/modReport'
+export type {
+  ContextRefusalCode,
+  DiffLine,
+  FileRef,
+  ModSkipReason,
+  SessionSetupChanged,
+  SessionSetupGetRequest,
+  SessionSetupState,
+  VersionRef
+} from '../schemas/contextIpc'
+export type { FileVersion } from '../schemas/fileHistory'
+export type FileHistoryListResult = { versions: FileVersion[]; tooLarge: boolean }
+export type FileHistoryDiffResult = { lines: DiffLine[] }
+export type FileHistoryRestoreResult = { fileName: string }
 
 // Custom themes — the theme seam's payload types (schema-inferred; never a hand-written copy).
 export type { ThemeSummary, ThemeBundle, ThemeApplyResult } from '../schemas/theme'
