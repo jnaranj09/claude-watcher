@@ -141,7 +141,7 @@ describe('docs/themes/examples', () => {
   // `--glass-filter`; three recipes (a smoky black header, milky dialogs under a sheen, black
   // popovers) read as three materials side by side (2026-09-23). The ONE exception is a MODAL
   // panel: it sits over the scrim and read too dark through 3% glass (2026-09-25), so it takes the
-  // brighter `--glass-fill-modal` / `--glass-filter-modal` pair — and nothing else does.
+  // brighter `--glass-fill-modal` / `--glass-lift-modal` pair — and nothing else does.
   it('liquid-glass paints every surface with the one --glass-fill and the one blur', () => {
     const rules = liquidGlassRules()
     const fillOf = (sel: string): string =>
@@ -162,12 +162,13 @@ describe('docs/themes/examples', () => {
     ]
     for (const sel of MODAL_PANELS) {
       expect(fillOf(sel), sel).toMatch(/background(-color)?:\s*var\(--glass-fill-modal\);/)
+      expect(fillOf(`${sel}::before`), sel).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
       expect(fillOf(`${sel}::before`), sel).toMatch(
-        /backdrop-filter:\s*var\(--glass-filter-modal\);/
+        /background(-color)?:\s*var\(--glass-lift-modal\);/
       )
     }
     const modalUsers = rules
-      .filter((r) => /var\(--glass-(fill|filter)-modal\)/.test(r.body))
+      .filter((r) => /var\(--glass-(fill|lift)-modal\)/.test(r.body))
       .flatMap((r) => r.selectors)
     expect(new Set(modalUsers)).toEqual(
       new Set([...MODAL_PANELS, ...MODAL_PANELS.map((sel) => `${sel}::before`)])
@@ -176,7 +177,6 @@ describe('docs/themes/examples', () => {
     expect(new Set(filters.map((m) => m[1]))).toEqual(
       new Set([
         'var(--glass-filter)',
-        'var(--glass-filter-modal)',
         'none',
         'blur(12px)',
         // A popover reads the glass-on exposure when set, else the one blur.
@@ -185,14 +185,16 @@ describe('docs/themes/examples', () => {
     )
   })
   // A modal panel reads as bright as the header (operator, 2026-10-20: Settings and Goals looked
-  // too dark over the scrim): the header's own fill alpha, and its backdrop lifted well past the
-  // scrim (175%; at 55% / 120% the panels measured half the header's luminance, 230%+ too bright).
-  it('liquid-glass modal panels take the header fill and a 175% backdrop lift', () => {
+  // too dark over the scrim): the header's own fill alpha, and a 9% white layer over its blur.
+  // Not `brightness()` in the filter: over the scrim-dimmed backdrop it multiplied the few grey
+  // steps the blur leaves into visible squares (Goals over a terminal, same day).
+  it('liquid-glass modal panels take the header fill and a white lift, no brightness filter', () => {
     const css = readFileSync(resolve(examples, 'liquid-glass/theme.css'), 'utf8')
     const value = (name: string): string | undefined =>
       new RegExp(`^\\s*--${name}:\\s*([^;]+);`, 'm').exec(css)?.[1]
     expect(value('glass-fill-modal')).toBe(value('glass-fill'))
-    expect(value('glass-filter-modal')).toBe('var(--glass-filter) brightness(175%)')
+    expect(value('glass-lift-modal')).toBe('rgba(255, 255, 255, 0.09)')
+    expect(value('glass-filter-modal')).toBeUndefined()
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
   // blurs only what that element painted, never the page — the header's border and a dialog's
