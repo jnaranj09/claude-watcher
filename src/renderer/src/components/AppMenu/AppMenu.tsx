@@ -1,4 +1,4 @@
-// The header ☰ MENU (2026-09-14): the ONE header control besides `+ New session`. Rows:
+// The header ☰ MENU (2026-09-14): the header's last control, after `+ New session` and `Goals`. Rows:
 // `Settings`, `Shortcuts`, `Tags ›` (Manage tags / Manage rules) and `Sessions ›` (spec
 // 2026-10-03 A: Active sessions / Past sessions / Templates / Import session) — ALWAYS the last
 // row, in the slot `Past sessions` held, with its clock. Every row has an icon and no `…`

@@ -50,8 +50,9 @@ export function ManageDialogProvider({
 }
 
 export interface ManageDialogFrameProps {
-  /** `wide` fits a form with long rows (Rules: trigger, conditions, actions). */
-  size?: 'standard' | 'wide'
+  /** `wide` fits a form with long rows (Rules: trigger, conditions, actions). `full` is a sheet:
+   *  the window's width and height less a gutter on each side (Goals). */
+  size?: 'standard' | 'wide' | 'full'
   children: ReactNode
 }
 
@@ -84,7 +85,11 @@ export function ManageDialogFrame({
       onKeyDown={handleKeyDown}
     >
       <div
-        className={cx(styles.panel, size === 'wide' && styles.panelWide)}
+        className={cx(
+          styles.panel,
+          size === 'wide' && styles.panelWide,
+          size === 'full' && styles.panelFull
+        )}
         data-manage-panel=""
         data-testid={`${meta.testIdPrefix}-panel`}
       >
@@ -705,13 +710,20 @@ export function ManageDialogListNote({
   )
 }
 
-/** `+ New` — opens the empty New form (`startNew`), in the rail's bottom slot. */
-export function ManageDialogNew({ testId }: { testId: string }): JSX.Element {
+/** `+ New` — opens the empty New form (`startNew`), in the rail's bottom slot. `label` names what
+ *  it creates when the dialog has more than one kind of row (Goals: `+ New goal`). */
+export function ManageDialogNew({
+  testId,
+  label = '+ New'
+}: {
+  testId: string
+  label?: string
+}): JSX.Element {
   const { actions } = useManageDialogContext()
   return (
     <ManageDialogListBottom>
       <Button variant="secondary" testId={testId} onClick={() => actions.startNew()}>
-        + New
+        {label}
       </Button>
     </ManageDialogListBottom>
   )

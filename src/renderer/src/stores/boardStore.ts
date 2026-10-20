@@ -338,6 +338,11 @@ export interface BoardState {
    */
   workspacesDialogOpen: boolean
   /**
+   * Goals (spec 2026-10-19) — whether the Goals sheet is open (RENDERER VIEW-STATE).
+   * [state.md: modal open/closed = renderer view-state]
+   */
+  goalsDialogOpen: boolean
+  /**
    * Tags (spec 2026-10-03 C) — the Tags dialog's page (Tags · Rules) while open, else null
    * (RENDERER VIEW-STATE). [state.md: modal open/closed = renderer view-state]
    */
@@ -532,6 +537,10 @@ export interface BoardState {
    * Workspaces — close the Manage-workspaces dialog. No-op if already closed.
    */
   closeWorkspacesDialog: () => void
+  /** Goals — open the Goals sheet. No-op if already open. */
+  openGoalsDialog: () => void
+  /** Goals — close the Goals sheet. No-op if already closed. */
+  closeGoalsDialog: () => void
   /** Tags — open the dialog on `page`, or switch to it while open. Same page: no-op. */
   openTagsDialog: (page: TagsDialogPage) => void
   /** Tags — close the dialog. No-op if already closed. */
@@ -637,6 +646,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     shortcutsDialogOpen: false,
     // Workspaces — the Manage-workspaces dialog starts closed.
     workspacesDialogOpen: false,
+    goalsDialogOpen: false,
     // Tags — the Manage-tags dialog starts closed.
     tagsDialog: null,
     // Rules — the Manage-rules dialog starts closed.
@@ -998,6 +1008,13 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       if (get().workspacesDialogOpen) set({ workspacesDialogOpen: false })
     },
 
+    openGoalsDialog: () => {
+      if (!get().goalsDialogOpen) set({ goalsDialogOpen: true })
+    },
+    closeGoalsDialog: () => {
+      if (get().goalsDialogOpen) set({ goalsDialogOpen: false })
+    },
+
     openTagsDialog: (page) => {
       if (get().tagsDialog !== page) set({ tagsDialog: page })
     },
@@ -1215,6 +1232,7 @@ export const selectShortcutsDialogOpen = (state: BoardState): boolean => state.s
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectWorkspacesDialogOpen = (state: BoardState): boolean => state.workspacesDialogOpen
+export const selectGoalsDialogOpen = (state: BoardState): boolean => state.goalsDialogOpen
 
 /** Tags — the open page (Tags · Rules), or null while the dialog is closed (RENDERER VIEW-STATE). */
 export const selectTagsDialog = (state: BoardState): TagsDialogPage | null => state.tagsDialog

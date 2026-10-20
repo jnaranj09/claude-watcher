@@ -1,5 +1,5 @@
-// The header ☰ menu — App-level wiring (2026-09-14): it is the ONE header control besides
-// `+ New session`, and its Settings and Past sessions rows open their dialogs under the
+// The header ☰ menu — App-level wiring (2026-09-14): it is the header control after
+// `+ New session` and `Goals`, and its Settings and Past sessions rows open their dialogs under the
 // single-modal rule (UX-DR14). FAKE window bridges, the real App — the same harness as
 // App.tags.test.tsx.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -52,7 +52,7 @@ function openSettings(r: RenderResult): void {
 }
 
 describe('App — the header ☰ menu', () => {
-  it('is the one header control after + New session: no ⚙, ⌨ or tag icon', async () => {
+  it('is the last header control, after + New session and Goals: no ⚙, ⌨ or tag icon', async () => {
     const r = await renderApp()
     const header = q(r, '[data-testid="app-header"]')
     for (const gone of ['settings-open', 'open-shortcuts', 'tags-menu']) {

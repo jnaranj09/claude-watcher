@@ -17,6 +17,8 @@ import { SmokeCockpit } from './SmokeCockpit'
 // Session templates — the header `+ New session` popover (folder / templates / Manage templates,
 // which opens the Sessions dialog's Templates page). See NewSessionButton.tsx / TemplatesPage.tsx.
 import { NewSessionButton } from './components/NewSessionMenu/NewSessionButton'
+import { Button } from './components/Button/Button'
+import { GOAL_TERMS } from './copy/terms'
 import { Presence } from './components/Presence/Presence'
 // Phrase shortcuts — the Manage-shortcuts modal (☰ menu → Shortcuts) + the startup shortcuts load.
 import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
@@ -24,6 +26,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 // `onManage` to the Manage-workspaces modal below.
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
+import { GoalsDialog } from './components/GoalsDialog/GoalsDialog'
 // The header ☰ menu — Settings, Shortcuts, and the Tags submenu (Manage tags / Manage rules).
 import { AppMenu } from './components/AppMenu/AppMenu'
 // Tags — the Manage-tags modal.
@@ -63,6 +66,7 @@ import {
   selectSessionsDialog,
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
+  selectGoalsDialogOpen,
   selectTagsDialog,
   selectSettingsDialogOpen,
   selectContextDialogTerminalId
@@ -186,6 +190,7 @@ function App(): React.JSX.Element {
   const shortcutsDialogOpen = useBoard(selectShortcutsDialogOpen)
   // Workspaces — whether the Manage-workspaces dialog is open.
   const workspacesDialogOpen = useBoard(selectWorkspacesDialogOpen)
+  const goalsDialogOpen = useBoard(selectGoalsDialogOpen)
   // Tags — the Tags dialog's open page (Tags · Rules), or null.
   const tagsDialog = useBoard(selectTagsDialog)
   // Settings — whether the Settings dialog is open.
@@ -275,6 +280,7 @@ function App(): React.JSX.Element {
       boardStore.getState().closeSessionsDialog()
       boardStore.getState().closeShortcutsDialog()
       boardStore.getState().closeWorkspacesDialog()
+      boardStore.getState().closeGoalsDialog()
       boardStore.getState().closeTagsDialog()
       boardStore.getState().closeSettingsDialog()
       // R9 — the Delete confirm too: a Delete confirmed under the guard would act on a session
@@ -360,6 +366,12 @@ function App(): React.JSX.Element {
   const handleManageWorkspaces = useCallback((): void => {
     if (isModalOpen()) return
     boardStore.getState().openWorkspacesDialog()
+  }, [])
+
+  // Goals — the header's Goals button. Same single-modal guard as every opener.
+  const handleOpenGoals = useCallback((): void => {
+    if (isModalOpen()) return
+    boardStore.getState().openGoalsDialog()
   }, [])
 
   // Tags — "Manage tags" from the ☰ menu's Tags submenu (and a card's or rail row's Create tags).
@@ -562,6 +574,7 @@ function App(): React.JSX.Element {
           boardStore.getState().closeSessionsDialog()
           boardStore.getState().closeShortcutsDialog()
           boardStore.getState().closeWorkspacesDialog()
+          boardStore.getState().closeGoalsDialog()
           boardStore.getState().closeTagsDialog()
           boardStore.getState().closeSettingsDialog()
           return
@@ -638,7 +651,7 @@ function App(): React.JSX.Element {
   // (an explicit close) rather than rely on an incidental unmount.
   const hasFocusableTerminal = focusedTerminalId !== null || keptAliveTerminalIds.length > 0
   const showFocused = viewMode === 'focused' && focusedTerminalId !== null
-  // Session-naming / session templates / workspaces: while the name prompt OR the Manage-
+  // Session-naming / session templates / workspaces / goals: while the name prompt OR the Manage-
   // templates/Manage-shortcuts/Manage-workspaces dialog is open, everything behind it is INERT
   // (UX-DR14 — "a modal is open", not just the name prompt). Without this, Tab walks out of the
   // dialog into the header "+ New session" button and on into the live xterm textarea — so
@@ -650,6 +663,7 @@ function App(): React.JSX.Element {
     sessionsDialog !== null ||
     shortcutsDialogOpen ||
     workspacesDialogOpen ||
+    goalsDialogOpen ||
     tagsDialog !== null ||
     settingsDialogOpen ||
     contextDialogTerminalId !== null ||
@@ -685,7 +699,11 @@ function App(): React.JSX.Element {
             onPickTemplate={handleTemplateSession}
             onManage={handleManageTemplates}
           />
-          {/* The ONE header control besides + New session: Settings, Shortcuts, the Tags
+          {/* Goals opens the planning sheet over the current view (spec 2026-10-19-goals). */}
+          <Button variant="secondary" testId="header-goals" onClick={handleOpenGoals}>
+            {GOAL_TERMS.label}
+          </Button>
+          {/* The header control after + New session and Goals: Settings, Shortcuts, the Tags
               submenu and Past sessions (last). It filters nothing: the filters are the board's
               FilterBar. */}
           <AppMenu
@@ -777,6 +795,11 @@ function App(): React.JSX.Element {
       </Presence>
       {/* Tags (spec 2026-10-03 C) — Tags · Rules as pages of one dialog (same z-60 layer and
           single-modal rule). */}
+      {/* Goals (spec 2026-10-19-goals) — the planning sheet (same z-60 layer and single-modal
+          rule). */}
+      <Presence value={goalsDialogOpen || null}>
+        {() => <GoalsDialog onClose={() => boardStore.getState().closeGoalsDialog()} />}
+      </Presence>
       <Presence value={tagsDialog}>
         {(page) => (
           <TagsDialog

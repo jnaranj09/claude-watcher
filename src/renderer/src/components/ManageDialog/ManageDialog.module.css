@@ -42,6 +42,23 @@
   max-width: 1040px;
   gap: var(--gap-section);
 }
+/* Goals: a sheet over the board, the window less a page gutter on each side. The height is the
+   cap the panel already has, so the sheet and any other panel clip the window alike; the rail's
+   480px row cap gives way so the rows fill the sheet, and the columns take the height the header
+   and the message slot leave. */
+.panelFull {
+  box-sizing: border-box;
+  width: calc(100vw - 2 * var(--gap-page));
+  max-width: none;
+  height: calc(100vh - 2 * var(--space-6));
+}
+.panelFull .rows {
+  max-height: none;
+}
+.panelFull .columns {
+  flex: 1;
+  min-height: 0;
+}
 
 .header {
   display: flex;

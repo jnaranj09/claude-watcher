@@ -121,6 +121,18 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.panel')).toMatch(/max-height:\s*calc\(100vh/)
   })
 
+  // The Goals sheet: a page on top of the board, the window less a gutter each side. Its height is
+  // the SAME cap `.panel` has (so the two cannot drift); the rail's 480px row cap gives way and the
+  // columns fill the sheet (a short form no longer leaves the panel's bottom empty).
+  it('.panelFull is the window less a page gutter each side, as tall as the cap', () => {
+    const cap = /max-height:\s*(calc\(100vh[^;]*\));/.exec(ruleBody(css, '.panel'))?.[1]
+    expect(cap).toBeDefined()
+    expect(ruleBody(css, '.panelFull')).toContain(`height: ${cap}`)
+    expect(ruleBody(css, '.panelFull')).toMatch(/width:\s*calc\(100vw - 2 \* var\(--gap-page\)\)/)
+    expect(ruleBody(css, '.panelFull .rows')).toMatch(/max-height:\s*none/)
+    expect(ruleBody(css, '.panelFull .columns')).toMatch(/flex:\s*1;/)
+  })
+
   it('a rail row is 44px, 13 / 500 — taller than a menu row, room for a second line', () => {
     expect(ruleBody(css, '.rowSelect')).toMatch(/min-height: 44px;/)
     expect(ruleBody(css, '.rowSelect')).toMatch(/font-size: var\(--font-size-body\);/)

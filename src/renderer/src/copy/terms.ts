@@ -29,3 +29,14 @@ export const CONTEXT_TERMS = {
   label: 'Context',
   open: 'See what Claude loaded for this session'
 } as const
+
+/** Goals and tasks, planned in the header's Goals sheet (spec 2026-10-19-goals). */
+export const GOAL_TERMS = {
+  label: 'Goals',
+  newGoal: '+ New goal',
+  newTask: '+ New task',
+  loose: 'Loose tasks',
+  placeholder: 'Select a goal on the left, or create a new one.',
+  saveGoalFailed: 'Could not save goal.',
+  saveTaskFailed: 'Could not save task.'
+} as const

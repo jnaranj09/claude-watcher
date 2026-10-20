@@ -367,7 +367,8 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
 
 ## Header ☰ menu (`components/AppMenu/AppMenu.tsx`)
 
-Only header control besides `+ New session`; filters nothing.
+The header holds `+ New session`, `Goals` (opens the Goals sheet, `ManageDialog.Frame size="full"`:
+the window less a page gutter each side) and this ☰ menu, last. The menu filters nothing.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /

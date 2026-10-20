@@ -1,0 +1,119 @@
+/* Goals — what is the Goals sheet's own: the rail row's two lines, the progress bar, the folder
+   line and the task rows. The shell, rail, form, footer and every button are
+   ManageDialog.module.css (.claude/rules/design.md). */
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+.rowName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-label);
+}
+
+/* The bar: a --border track, a --text-primary fill (the lit look, like a ticked Checkbox), and the
+   count in mono beside it. No colour of its own: a theme that restyles the tokens restyles it. */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+.track {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  box-sizing: border-box;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--rounded-sm);
+  background: var(--border);
+}
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--text-primary);
+}
+.count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-secondary);
+}
+
+.folderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.path {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+}
+.taskRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+}
+.task {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+/* The whole title toggles the checkbox, like a labelled Checkbox. */
+.taskLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+  cursor: pointer;
+  border-radius: var(--rounded-sm);
+}
+/* The shared row hover (ManageDialog `.row`): the whole title line, checkbox included. */
+.taskLabel:hover {
+  background: var(--bg-hover);
+}
+.taskTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task[data-done='true'] .taskTitle {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+.doneBy {
+  flex: none;
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
+
+/* The rail's one sentence when the startup load failed. --text-secondary on the raised panel
+   (never --text-muted: 2.54:1 there). */
+.loadFailed {
+  margin: var(--inset-compact-x);
+  color: var(--text-secondary);
+  font-size: var(--font-size-label);
+}

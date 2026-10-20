@@ -4,6 +4,7 @@ import { boardStore } from '../stores/boardStore'
 import { dialogOpenIn, isModalOpen } from './modals'
 
 afterEach(() => {
+  boardStore.getState().closeGoalsDialog()
   boardStore.getState().closeSessionsDialog()
   boardStore.getState().closeTagsDialog()
 })
@@ -27,6 +28,16 @@ describe('modals — the Tags dialog', () => {
       expect(dialogOpenIn(boardStore.getState())).toBe(true)
     }
     boardStore.getState().closeTagsDialog()
+    expect(dialogOpenIn(boardStore.getState())).toBe(false)
+  })
+})
+
+describe('modals — the Goals sheet', () => {
+  it('goalsDialogOpen counts as a dialog', () => {
+    boardStore.getState().openGoalsDialog()
+    expect(dialogOpenIn(boardStore.getState())).toBe(true)
+    expect(isModalOpen()).toBe(true)
+    boardStore.getState().closeGoalsDialog()
     expect(dialogOpenIn(boardStore.getState())).toBe(false)
   })
 })

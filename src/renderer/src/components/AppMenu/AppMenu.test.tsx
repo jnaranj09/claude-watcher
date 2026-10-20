@@ -1,4 +1,4 @@
-// The header ☰ menu (2026-09-14): the ONE header control besides + New session. Settings,
+// The header ☰ menu (2026-09-14): the header's last control, after + New session and Goals. Settings,
 // Shortcuts, a Tags › submenu holding Manage tags / Manage rules, and a Sessions › submenu —
 // ALWAYS the last row (spec 2026-10-03 A). jsdom `unit`.
 import { describe, it, expect, vi, afterEach } from 'vitest'
