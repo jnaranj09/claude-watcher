@@ -63,6 +63,8 @@ import { buildPtyEnv } from '../pty/ptyEnv'
 // exactly the sessions it spawns. (This replaced the retired registerHooks merger.)
 import { ensureHookSettingsFile, hookSettingsPathIfListening } from '../hooks/hookSettingsFile'
 import type { ServerHealthState } from '../serverHealth'
+import { bridgeModSpawn, type ModSkipReason } from '../mods/bridgeModSpawn'
+import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
 import type { TrustedIpc } from './trustedIpc'
 
@@ -129,6 +131,14 @@ export interface LaunchIpcDeps {
   /** Resume by id — folder + title from claude's transcript (fails closed). */
   readTranscriptInfo: ReadTranscriptInfo
   claudeVersionAllowsLaunch: () => boolean
+  /** The bridge mod (spec 2026-10-18 §1.1): read at spawn time. */
+  bridgeMod: {
+    installedDir: () => string | null
+    claudeVersion: () => ClaudeVersion | null
+    hookPort: number
+    /** The spawn went without the mod; Context says why. */
+    onSkip: (sessionId: string, reason: ModSkipReason) => void
+  }
   isSessionLive: (sessionId: string) => boolean
   getTerminalManager: () => TerminalManager | null
   getPastSessionsStore: () => PastSessionsStore | null
@@ -162,6 +172,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     hasTranscript,
     readTranscriptInfo,
     claudeVersionAllowsLaunch,
+    bridgeMod,
     isSessionLive,
     getTerminalManager,
     getPastSessionsStore,
@@ -258,6 +269,20 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     const childPath = prependToPath(claude.dir, env.PATH)
     if (childPath !== undefined) env.PATH = childPath
 
+    // The bridge mod: `--plugin-dir` plus the report URL in the env, or a reason Context shows.
+    // FAIL OPEN: a skip launches the session exactly as before the mod existed.
+    const mod = bridgeModSpawn(
+      {
+        version: bridgeMod.claudeVersion(),
+        listening: serverHealth.hookListening(),
+        installedDir: bridgeMod.installedDir(),
+        hookPort: bridgeMod.hookPort
+      },
+      (line) => console.warn(line)
+    )
+    if ('pluginDir' in mod) env.CLAUDE_WATCHER_MOD_URL = mod.env.CLAUDE_WATCHER_MOD_URL
+    else bridgeMod.onSkip(sessionId, mod.skip)
+
     return {
       file: SHELL,
       // Composed in claudeBin.ts, NOT inlined here: this registrar is only reachable through
@@ -274,6 +299,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           sessionId,
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
+          pluginDir: 'pluginDir' in mod ? mod.pluginDir : null,
           appendSystemPrompt: QUESTION_FORMAT_PROMPT,
           model: flags.model,
           permissionMode: flags.permissionMode,

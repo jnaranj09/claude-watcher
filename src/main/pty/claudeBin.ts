@@ -173,6 +173,11 @@ export interface ClaudeCommandSpec {
    *  2.1.284): `--resume <id> -n <name>` is accepted, keeps the id, and applies the name
    *  (sessions/<pid>.json, the transcript's custom-title, the terminal title). */
   resume: boolean
+  /** The bridge mod's folder (`mods/bridgeModSpawn.ts`): `--plugin-dir <dir>` right after
+   *  `--settings`, on both forms. REQUIRED-and-nullable so every caller decides; `null` composes
+   *  byte-identically to before. Probe 2026-10-19 (claude 2.1.304): loads with no consent screen,
+   *  new and `--resume`. */
+  pluginDir: string | null
 }
 
 function flagArg(flag: string, value: string | null): string {
@@ -248,6 +253,7 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
       `${shellQuote(spec.claudeCommand)} --resume ${shellQuote(spec.sessionId)}` +
       flagArg('-n', spec.displayName) +
       flagArg('--settings', spec.hookSettingsPath) +
+      flagArg('--plugin-dir', spec.pluginDir) +
       flagArg('--append-system-prompt', spec.appendSystemPrompt)
     )
   }
@@ -259,6 +265,7 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
     `${shellQuote(spec.claudeCommand)} --session-id ${shellQuote(spec.sessionId)}` +
     flagArg('-n', spec.displayName) +
     flagArg('--settings', spec.hookSettingsPath) +
+    flagArg('--plugin-dir', spec.pluginDir) +
     flagArg('--append-system-prompt', spec.appendSystemPrompt) +
     flagArg('--model', spec.model) +
     flagArg('--permission-mode', spec.permissionMode) +

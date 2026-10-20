@@ -66,6 +66,9 @@ export const REGISTERED_EVENTS: readonly string[] = [
 // removed with the c9watch CLI — hooks are the ONLY status source now, so there is
 // no competing poll to outrank.
 
+/** The bridge mod POSTs its report here, on the hook listener (spec 2026-10-18 §2). */
+export const MOD_REPORT_PATH = '/mod/report'
+
 /**
  * Maximum accepted HTTP request body size in bytes.
  * Most hook payloads are compact JSON, but a `PostToolUse` carries the tool's whole input and

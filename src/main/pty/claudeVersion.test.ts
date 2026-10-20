@@ -205,4 +205,29 @@ describe('createClaudeVersionGate', () => {
       expect(String(line)).not.toContain('/home/op')
     }
   })
+
+  describe('lastVersion (the bridge mod floor reads it)', () => {
+    it('is null before any probe', () => {
+      const { g } = gate(NEW)
+      expect(g.lastVersion()).toBeNull()
+    })
+
+    it('is the parsed version after an ok probe', () => {
+      const { g } = gate(NEW)
+      g.allowsInteractiveLaunch()
+      expect(g.lastVersion()).toEqual(v(2, 1, 300))
+    })
+
+    it('is the parsed version after a too-old probe', () => {
+      const { g } = gate(OLD)
+      g.allowsInteractiveLaunch()
+      expect(g.lastVersion()).toEqual(v(2, 1, 100))
+    })
+
+    it('is null after an unparsable probe', () => {
+      const { g } = gate('not a version')
+      g.allowsInteractiveLaunch()
+      expect(g.lastVersion()).toBeNull()
+    })
+  })
 })

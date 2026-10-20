@@ -120,6 +120,9 @@ export interface ClaudeVersionGateHandle {
   /** `POST /v1/sessions`: the caller gets its own 503. A non-ok verdict younger than
    *  `API_VERSION_REFUSAL_TTL_MS` is reused instead of re-probing. */
   allowsApiLaunch(): boolean
+  /** The version the last probe parsed (ok or too old), or null before a probe and after an
+   *  unreadable one. The bridge mod's floor reads it (`mods/bridgeModSpawn.ts`). */
+  lastVersion(): ClaudeVersion | null
 }
 
 /**
@@ -129,9 +132,11 @@ export interface ClaudeVersionGateHandle {
 export function createClaudeVersionGate(deps: ClaudeVersionGateDeps): ClaudeVersionGateHandle {
   let okCached = false
   let lastNonOk: { gate: VersionGate; at: number } | null = null
+  let lastVersion: ClaudeVersion | null = null
 
   function probe(): VersionGate {
     const gate = gateClaudeVersion(deps.readRaw())
+    lastVersion = gate.kind === 'unknown' ? null : gate.version
     if (gate.kind === 'ok') {
       okCached = true
       lastNonOk = null
@@ -158,6 +163,7 @@ export function createClaudeVersionGate(deps: ClaudeVersionGateDeps): ClaudeVers
           ? lastNonOk.gate
           : probe()
       return fresh.kind !== 'tooOld'
-    }
+    },
+    lastVersion: () => lastVersion
   }
 }

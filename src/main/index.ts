@@ -936,6 +936,12 @@ app
       hasTranscript,
       readTranscriptInfo,
       claudeVersionAllowsLaunch,
+      bridgeMod: {
+        installedDir: () => null,
+        claudeVersion: () => claudeVersionGate.lastVersion(),
+        hookPort: PROFILE.hookPort,
+        onSkip: () => {}
+      },
       isSessionLive,
       getTerminalManager: () => terminalManager,
       getPastSessionsStore: () => pastSessionsStore,

@@ -209,6 +209,7 @@ describe('composeClaudeCommand', () => {
       effort: null,
       initialPrompt: null,
       resume: false,
+      pluginDir: null,
       ...overrides
     }
   }
@@ -292,6 +293,30 @@ describe('composeClaudeCommand', () => {
     it('an empty prompt appends nothing', () => {
       expect(composeClaudeCommand(spec({ initialPrompt: '' }))).toBe(
         `'${BIN}' --session-id '${SID}' -n 'x'`
+      )
+    })
+  })
+
+  describe('the bridge mod (--plugin-dir)', () => {
+    it('puts a quoted --plugin-dir right after --settings on a new session', () => {
+      expect(
+        composeClaudeCommand(spec({ hookSettingsPath: '/h/hooks.json', pluginDir: '/m/a b' }))
+      ).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --settings '/h/hooks.json' --plugin-dir '/m/a b'`
+      )
+    })
+
+    it('puts a quoted --plugin-dir right after --settings on the --resume form', () => {
+      expect(
+        composeClaudeCommand(
+          spec({ resume: true, hookSettingsPath: '/h/hooks.json', pluginDir: '/m/a b' })
+        )
+      ).toBe(`'${BIN}' --resume '${SID}' -n 'x' --settings '/h/hooks.json' --plugin-dir '/m/a b'`)
+    })
+
+    it('composes byte-identically to before when pluginDir is null', () => {
+      expect(composeClaudeCommand(spec({ hookSettingsPath: '/h/hooks.json' }))).toBe(
+        `'${BIN}' --session-id '${SID}' -n 'x' --settings '/h/hooks.json'`
       )
     })
   })
@@ -414,6 +439,26 @@ describe('composeClaudeCommand', () => {
         .filter((l) => l !== '')
 
       expect(argv).toEqual(['--session-id', SID, '-n', 'x', '--', prompt])
+    })
+
+    it('hands claude a --plugin-dir holding an apostrophe as ONE argument, right after --settings', () => {
+      const cmd = composeClaudeCommand(
+        spec({ claudeCommand: stub, hookSettingsPath: '/h/hooks.json', pluginDir: "/m/it's mod" })
+      )
+      const argv = execFileSync('/bin/sh', ['-l', '-c', cmd], { encoding: 'utf8' })
+        .split('\n')
+        .filter((l) => l !== '')
+
+      expect(argv).toEqual([
+        '--session-id',
+        SID,
+        '-n',
+        'x',
+        '--settings',
+        '/h/hooks.json',
+        '--plugin-dir',
+        "/m/it's mod"
+      ])
     })
 
     describe('the --resume form (past sessions, D-1)', () => {
