@@ -158,12 +158,11 @@ describe('SessionCard — one anatomy, two live presentations (AC-4, AC-8; watch
     expect(onActivate).toHaveBeenCalledTimes(2)
   })
 
-  it('renders the footer tasks/cost only when provided', () => {
+  it('renders the footer cost only when provided', () => {
     const { container, unmount } = renderComponent(
-      <SessionCard {...baseProps({ tasks: 3, cost: '$0.12' })} />
+      <SessionCard {...baseProps({ cost: '$0.12' })} />
     )
     cleanup = unmount
-    expect(container.querySelector('[data-testid="tasks"]')?.textContent).toBe('3 tasks')
     expect(container.querySelector('[data-testid="cost"]')?.textContent).toBe('$0.12')
   })
 

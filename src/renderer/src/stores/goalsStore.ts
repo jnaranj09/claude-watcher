@@ -4,6 +4,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
+import { GOAL_TERMS } from '../copy/terms'
 import type {
   Goal,
   GoalSaveRequest,
@@ -68,6 +69,35 @@ export const selectTasksForSession =
   (sessionId: string) =>
   (s: GoalsState): Task[] =>
     s.tasks.filter((t) => t.sessionIds.includes(sessionId))
+
+/** What a session card shows about its linked tasks (spec 2026-10-19 Decisions D). */
+export interface GoalLine {
+  /** The goal of the oldest linked task that has one; `GOAL_TERMS.loose` when all are loose. */
+  name: string
+  /** How many OTHER goals the linked tasks span. */
+  extraGoals: number
+  /** Every linked task, open and done, loose included. */
+  taskCount: number
+}
+
+/** Undefined when nothing is linked (the card draws no line). Pure: the card's selector. */
+export function goalLineFor(s: GoalsState, sessionId: string): GoalLine | undefined {
+  const linked = s.tasks.filter((t) => t.sessionIds.includes(sessionId))
+  if (linked.length === 0) return undefined
+  const names = new Map(s.goals.map((g) => [g.id, g.name]))
+  const goalIds: string[] = []
+  for (const t of [...linked].sort((a, b) => a.createdAt - b.createdAt)) {
+    if (t.goalId !== null && names.has(t.goalId) && !goalIds.includes(t.goalId)) {
+      goalIds.push(t.goalId)
+    }
+  }
+  const first = goalIds[0]
+  return {
+    name: first === undefined ? GOAL_TERMS.loose : (names.get(first) ?? GOAL_TERMS.loose),
+    extraGoals: Math.max(goalIds.length - 1, 0),
+    taskCount: linked.length
+  }
+}
 
 /** Done of all. A goal with no tasks is 0/0 — an empty bar, never 100%. */
 export function progressOf(tasks: readonly Task[]): { done: number; total: number } {

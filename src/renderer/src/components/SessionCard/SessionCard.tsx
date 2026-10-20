@@ -71,8 +71,9 @@ export interface SessionCardProps {
   pendingToolDetail?: string
   /** Process id — MONO in the footer. */
   pid: number
-  /** Task count, footer (omitted when undefined). */
-  tasks?: number
+  /** The goal line under the detail (omitted = not rendered): the first goal, `+N` more goals,
+   *  and every linked task. */
+  goal?: { name: string; extraGoals: number; taskCount: number }
   /** Cost string, footer (omitted when undefined). */
   cost?: string
   /** Activation callback (click / Enter). Wired by Story 1.4. */
@@ -173,7 +174,7 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
     pendingToolName,
     pendingToolDetail,
     pid,
-    tasks,
+    goal,
     cost,
     onActivate,
     onRename,
@@ -659,18 +660,22 @@ export function SessionCard(props: SessionCardProps): JSX.Element {
         </span>
       )}
 
+      {goal !== undefined && (
+        <span className={styles.goalLine} data-testid="goal-line">
+          <span className={styles.goalName} data-testid="goal-name" title={goal.name}>
+            {goal.name}
+          </span>
+          <span className={styles.goalRest}>
+            {goal.extraGoals > 0 ? ` +${goal.extraGoals}` : ''} · {goal.taskCount}{' '}
+            {goal.taskCount === 1 ? 'task' : 'tasks'}
+          </span>
+        </span>
+      )}
+
       <div className={styles.footer} data-testid="footer" data-card-meta="">
         <span className={styles.pid} data-testid="pid">
           {pid}
         </span>
-        {tasks !== undefined && (
-          <>
-            <span className={styles.sep} aria-hidden>
-              ·
-            </span>
-            <span data-testid="tasks">{tasks} tasks</span>
-          </>
-        )}
         {cost !== undefined && (
           <>
             <span className={styles.sep} aria-hidden>

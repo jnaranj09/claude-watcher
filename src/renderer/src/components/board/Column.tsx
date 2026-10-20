@@ -43,6 +43,7 @@ import {
   selectActiveWorkspaceId,
   selectWorkspaces
 } from '../../stores/workspacesStore'
+import { goalLineFor, useGoals } from '../../stores/goalsStore'
 import { tagsForIds, useTags, type TagsState } from '../../stores/tagsStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { useShallow } from 'zustand/react/shallow'
@@ -136,6 +137,8 @@ function EmphasizedSessionCard(props: {
   const availableTags = useTags(
     useShallow((s: TagsState) => visibleTags(s.tags, session.workspaceId))
   )
+  // Derived in a selector (state.md); undefined (no linked task) draws no line.
+  const goal = useGoals((s) => goalLineFor(s, session.id))
   return (
     <SessionCard
       variant={variant}
@@ -149,6 +152,7 @@ function EmphasizedSessionCard(props: {
       selected={selected}
       emphasized={emphasized}
       tags={tags}
+      {...(goal ? { goal } : {})}
       {...(session.pendingToolName !== undefined
         ? { pendingToolName: session.pendingToolName }
         : {})}

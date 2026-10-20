@@ -164,4 +164,45 @@ describe('goalsStore', () => {
         .map((t) => t.id)
     ).toEqual(['t1'])
   })
+  describe('goalLineFor', () => {
+    const line = (sessionId: string): ReturnType<typeof m.goalLineFor> =>
+      m.goalLineFor(m.goalsStore.getState(), sessionId)
+
+    it('is undefined when no task is linked', () => {
+      m.goalsStore.setState({ goals: [goal()], tasks: [task()] })
+      expect(line('s1')).toBeUndefined()
+    })
+
+    it('names the goal of the oldest linked task and counts the other goals', () => {
+      m.goalsStore.setState({
+        goals: [goal(), goal({ id: 'g2', name: 'Docs' })],
+        tasks: [
+          task({ id: 't2', goalId: 'g2', createdAt: 5, sessionIds: ['s1'] }),
+          task({ id: 't1', goalId: 'g1', createdAt: 2, sessionIds: ['s1'] }),
+          task({ id: 't3', goalId: 'g2', createdAt: 9, sessionIds: ['s1'] })
+        ]
+      })
+      expect(line('s1')).toEqual({ name: 'Ship', extraGoals: 1, taskCount: 3 })
+    })
+
+    it('names a loose-only card with the Loose tasks term', () => {
+      m.goalsStore.setState({
+        goals: [goal()],
+        tasks: [task({ goalId: null, sessionIds: ['s1'] })]
+      })
+      expect(line('s1')).toEqual({ name: 'Loose tasks', extraGoals: 0, taskCount: 1 })
+    })
+
+    it('counts every linked task, done ones too', () => {
+      m.goalsStore.setState({
+        goals: [goal()],
+        tasks: [
+          task({ id: 't1', status: 'done', sessionIds: ['s1'] }),
+          task({ id: 't2', goalId: null, sessionIds: ['s1'] }),
+          task({ id: 't3', sessionIds: ['s2'] })
+        ]
+      })
+      expect(line('s1')).toEqual({ name: 'Ship', extraGoals: 0, taskCount: 2 })
+    })
+  })
 })
