@@ -3,8 +3,8 @@
 // workspace in boardStore, the rails per page and scope in SessionsDialog) and gets every change
 // through `onChange`. One pill per type that is on, in `types` order; `+ Add filter` opens a type
 // menu whose rows open their values beside them (`Popover.Submenu`); a pill opens the same values
-// under itself. Multi-pick lists (tags, folders, goals) stay open; single picks (a preset, a calendar day)
-// close.
+// under itself. Multi-pick lists (tags, folders, goals) stay open; single picks (a preset, a calendar
+// day) close.
 //
 // A multi pick made from the type menu turns that type ON, which takes its row out of the type
 // menu (a type that is on is not offered twice). So the list moves under the new pill and stays
@@ -56,8 +56,8 @@ export interface FilterChipsProps {
   id: string
   filters: SessionFilters
   onChange: (next: SessionFilters) => void
-  /** Which types this surface offers, in pill order: board/Active ['tag','folder','launched'],
-   *  Past ['tag','folder','launched','ended']. */
+  /** Which types this surface offers, in pill order: board ['tag','folder','goal','launched'],
+   *  Active ['tag','folder','launched'], Past ['tag','folder','launched','ended']. */
   types: readonly FilterType[]
   /** Tags offered, in list order (global first, then the workspace's own). */
   tags: readonly Tag[]

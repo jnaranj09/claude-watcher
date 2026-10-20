@@ -5,8 +5,8 @@
 //   - the CONTROLS row, always drawn: the search box, the `Filter` button, and the count on the
 //     right. The count lives here so it shows whenever something is hidden, by either control.
 //   - the CHIP row, drawn while the `Filter` button is pressed: `FilterChips` (spec 2026-10-16),
-//     the one chip row the Sessions dialog's pages also render, offering tag, folder, goal and launch
-//     time here. The lists, pills, calendar and their keys all live there.
+//     the one chip row the Sessions dialog's pages also render, offering tag, folder, goal and
+//     launch time here. The lists, pills, calendar and their keys all live there.
 //
 // The `Filter` button is `FilterToggle`, the one the Sessions dialog's rail also draws (lit, count,
 // `Filter, N on`). Open/closed is local view-state, never persisted. The button shows whenever

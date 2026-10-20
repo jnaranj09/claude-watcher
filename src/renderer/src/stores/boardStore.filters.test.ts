@@ -1,7 +1,7 @@
 // boardStore tests, part 3: rail sections, workspace scoping, and the filters and dialog flags
 // (templates, tags, search, Tags and Sessions dialogs, card shell panes). jsdom `unit` project.
 // Deltas come from `watchUpdated`; time is an INJECTED now().
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { goalsStore } from './goalsStore'
 import {
@@ -593,6 +593,15 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     expect(selectBoardFilters(store.getState(), 'w3')).toBe(NO_FILTERS)
   })
 
+  // The hook reads the MODULE stores: put them back whatever the test did.
+  let unmountHook: (() => void) | undefined
+  afterEach(() => {
+    unmountHook?.()
+    unmountHook = undefined
+    act(() => boardStore.getState().setBoardFilters('default', NO_FILTERS))
+    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [] }))
+  })
+
   it('a deleted goal drops out of the filter at read time', () => {
     const goal = { id: 'g-1', workspaceId: 'default', name: 'Ship', defaultCwd: null, createdAt: 1 }
     const task = {
@@ -606,10 +615,9 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       doneAt: null,
       doneBy: null
     }
-    const store = createBoardStore({ now: makeClock().now })
-    store.getState().setBoardFilters('default', { ...NO_FILTERS, goalIds: ['g-1'] })
     act(() => goalsStore.getState().hydrate({ goals: [goal], tasks: [task], proposals: [] }))
     const hook = renderHook(() => useBoardFilter('default'))
+    unmountHook = hook.unmount
     expect(hook.result.current.goalIdsBySession.get('s1')).toEqual(['g-1'])
     // useBoardFilter reads the module board store; mirror the filter there.
     act(() => boardStore.getState().setBoardFilters('default', { ...NO_FILTERS, goalIds: ['g-1'] }))
@@ -619,9 +627,6 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     hook.rerender()
     expect(hook.result.current.filters.goalIds).toEqual([])
     expect(hook.result.current.goalIdsBySession.size).toBe(0)
-    hook.unmount()
-    act(() => boardStore.getState().setBoardFilters('default', NO_FILTERS))
-    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [] }))
   })
 
   it('selectors keep only the cards linked to a picked goal', () => {

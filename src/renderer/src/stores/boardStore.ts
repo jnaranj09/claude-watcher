@@ -41,10 +41,11 @@ import type {
 // allowed to read the active workspace itself; this keeps the workspace/board coupling in this
 // ONE commented place instead of threading an extra prop through every `Column.tsx` caller.
 import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
-// Session filters (spec 2026-10-16) — the filter bar's tag / folder / goal / time filters live HERE, per
-// workspace (`filtersByWorkspace`). `useBoardFilter` drops the tags a workspace cannot see (read
-// from the tags store) and hands the result to the workspace-scoped selectors below as a SECOND
-// required argument, same as workspaceId (no denormalized tag index here).
+// Session filters (spec 2026-10-16) — the filter bar's tag / folder / goal / time filters live
+// HERE, per workspace (`filtersByWorkspace`). `useBoardFilter` drops the tags a workspace cannot
+// see (read from the tags store) and the goals that no longer exist, and
+// hands the result to the workspace-scoped selectors below as a SECOND required argument, same as
+// workspaceId (no denormalized tag index here).
 import { useTags } from './tagsStore'
 import { useGoals } from './goalsStore'
 import { visibleTags } from '../../../shared/tags/tagScope'
@@ -1070,8 +1071,8 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 /** What the filter bar narrows the board and the rail by. REQUIRED by every board/rail selector,
  *  like `workspaceId`, so a caller can never forget it; `NO_FILTER` is the explicit "everything".
  *  Alerts never read these selectors, so no filter can ever mute one.
- *  - `filters`: this workspace's tag / folder / goal / time filters (`useBoardFilter`, tags it cannot see
- *    already dropped) — matched by the ONE matcher, `matchesFilters`.
+ *  - `filters`: this workspace's tag / folder / goal / time filters (`useBoardFilter`, tags it
+ *    cannot see and gone goals already dropped) — matched by the ONE matcher, `matchesFilters`.
  *  - `goalIdsBySession`: the goal ids of each session's linked tasks, built once per render from
  *    `goalsStore` (`useBoardFilter`) and passed in: this store never reads another one.
  *  - `query`: the search box, as typed — matched against the card NAME only, case-insensitively;
@@ -1442,8 +1443,8 @@ export function useColumnSessions(column: Column): BoardSession[] {
 }
 
 /** The filter bar's current filter for `workspaceId`: its stored filters minus the tags it cannot
- *  see and the goals that no longer exist, plus the search text and the clock. The ONE place the board, the columns and the rail read
- *  it, so they can never disagree about what is hidden. */
+ *  see and the goals that no longer exist, plus the search text and the clock. The ONE place the
+ *  board, the columns and the rail read it, so they can never disagree about what is hidden. */
 export function useBoardFilter(workspaceId: string, now: () => number = Date.now): BoardFilter {
   const stored = useBoard((s) => selectBoardFilters(s, workspaceId))
   const visibleIds = useTags(useShallow((s) => visibleTags(s.tags, workspaceId).map((t) => t.id)))
