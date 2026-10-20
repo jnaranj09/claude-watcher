@@ -71,9 +71,13 @@ body {
      own — a 5% fill, and `brightness(120%)` on its backdrop (7% / 135% read too bright), which lifts the scrim off the area
      under the panel only; the board around it stays dimmed. */
   /* Smoked like the rest (2026-10-01); the `brightness` on its backdrop still lifts the scrim.
-     NEUTRAL, not blue-grey: `16, 18, 24` read blue next to the neutral terminal over Warm smoke. */
-  --glass-fill-modal: rgba(14, 14, 16, 0.55);
-  --glass-filter-modal: var(--glass-filter) brightness(120%);
+     NEUTRAL, not blue-grey: `16, 18, 24` read blue next to the neutral terminal over Warm smoke.
+     The header's brightness (operator, 2026-10-20: Settings and Goals "look too dark"): the
+     header's own 38% fill, and a backdrop lifted 175%: midway between the old look and the header's
+     level (at 55% / 120% the panels measured 23 and 21 mean luminance against the header's 46;
+     280% and 230% read too bright). */
+  --glass-fill-modal: rgba(14, 14, 16, 0.38);
+  --glass-filter-modal: var(--glass-filter) brightness(175%);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
      a film. Brighter than before (0.3 / 0.08 against 0.2 / 0.06): with the fill at 3% the rim is

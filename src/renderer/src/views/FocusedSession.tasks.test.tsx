@@ -1,6 +1,9 @@
 // The focused view's Tasks panel (spec 2026-10-19 E): when it shows, and that the terminal frames
 // stay mounted around it. Its own file: Testing Library queries, like FocusedSession.context.test.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { act } from 'react'
 import { render, screen, type RenderResult } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -104,6 +107,22 @@ describe('FocusedSession — the Tasks panel', () => {
     expect(screen.getByTestId('session-tasks')).toHaveStyle({ width: '280px' })
     await user.dblClick(line)
     expect(screen.getByTestId('session-tasks')).toHaveStyle({ width: '260px' })
+  })
+
+  // A theme insets the terminal frame its own way (Paper 20px, Default 12px). With the panel open
+  // the frame goes flush right, so the 12px drag line alone is the gap and its grip is centred in
+  // every theme; the rule must out-rank a theme's `[data-focused-frames] > *`.
+  it('with the panel open the frame goes flush right, so the drag line alone is the gap', async () => {
+    const user = userEvent.setup()
+    open([])
+    expect(screen.getByTestId('focused-body')).not.toHaveAttribute('data-tasks-open')
+    await user.click(screen.getByRole('button', { name: 'Tasks' }))
+    expect(screen.getByTestId('focused-body')).toHaveAttribute('data-tasks-open')
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), './FocusedSession.module.css'),
+      'utf8'
+    )
+    expect(css).toMatch(/\.body\[data-tasks-open\] \.terminalWrap > \*\s*\{\s*right:\s*0;/)
   })
 
   it('the toggle hides a panel that opened for linked tasks, and shows it again', async () => {

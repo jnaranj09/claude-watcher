@@ -97,14 +97,12 @@
   min-width: 0;
 }
 
-/* The task panel's drag line (a vertical SplitDivider) sits in the gap between the terminal frame
-   and the panel. `.terminalWrap > *` insets the frame 12px (--space-3) from the wrap's edge, so the
-   line is pulled that far left over the wrap (--inset-card is the same 12px step): the 12px strip
-   then fills the frame-to-panel gap exactly and its grip is centred in it. */
-.tasksDivider {
-  display: flex;
-  margin-left: calc(-1 * var(--inset-card));
-  z-index: 1;
+/* With the task panel open, its drag line (a vertical SplitDivider, 12px) IS the gap between the
+   terminal frame and the panel: the frame's right edge goes flush to the terminal region's edge,
+   so the line's grip sits midway whatever inset a theme gives the frame (Paper uses 20px, Default
+   12px). Specific enough to win over a theme's `[data-focused-frames] > *` inset. */
+.body[data-tasks-open] .terminalWrap > * {
+  right: 0;
 }
 
 /* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned

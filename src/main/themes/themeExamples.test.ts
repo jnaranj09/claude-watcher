@@ -184,6 +184,16 @@ describe('docs/themes/examples', () => {
       ])
     )
   })
+  // A modal panel reads as bright as the header (operator, 2026-10-20: Settings and Goals looked
+  // too dark over the scrim): the header's own fill alpha, and its backdrop lifted well past the
+  // scrim (175%; at 55% / 120% the panels measured half the header's luminance, 230%+ too bright).
+  it('liquid-glass modal panels take the header fill and a 175% backdrop lift', () => {
+    const css = readFileSync(resolve(examples, 'liquid-glass/theme.css'), 'utf8')
+    const value = (name: string): string | undefined =>
+      new RegExp(`^\\s*--${name}:\\s*([^;]+);`, 'm').exec(css)?.[1]
+    expect(value('glass-fill-modal')).toBe(value('glass-fill'))
+    expect(value('glass-filter-modal')).toBe('var(--glass-filter) brightness(175%)')
+  })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it
   // blurs only what that element painted, never the page — the header's border and a dialog's
   // buttons showed through the menus and dropdowns sharp. So a CONTAINER blurs from a `::before`

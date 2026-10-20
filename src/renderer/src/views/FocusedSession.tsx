@@ -360,7 +360,11 @@ export function FocusedSession({
             Delete
           </Button>
         </div>
-        <div className={styles.body}>
+        <div
+          className={styles.body}
+          data-testid="focused-body"
+          data-tasks-open={tasksVisible || undefined}
+        >
           <div className={styles.terminalWrap} data-focused-frames="">
             {keptAlive.map((terminalId) => {
               const isFocused = terminalId === focusedTerminalId
@@ -393,18 +397,14 @@ export function FocusedSession({
           </div>
           {tasksVisible && (
             <>
-              {/* Pulled left over the terminal region's padding, so its grip sits midway between
-                  the terminal frame and the panel. */}
-              <span className={styles.tasksDivider}>
-                <SplitDivider
-                  orientation="vertical"
-                  {...tasksDividerHandlers(tasksWidth)}
-                  onDrag={setTasksWidth}
-                  onCommit={setTasksWidth}
-                  ariaLabel={GOAL_TERMS.resizeTasks}
-                  testId="session-tasks-divider"
-                />
-              </span>
+              <SplitDivider
+                orientation="vertical"
+                {...tasksDividerHandlers(tasksWidth)}
+                onDrag={setTasksWidth}
+                onCommit={setTasksWidth}
+                ariaLabel={GOAL_TERMS.resizeTasks}
+                testId="session-tasks-divider"
+              />
               <SessionTasks
                 sessionId={focusedSession.id}
                 workspaceId={focusedSession.workspaceId}
