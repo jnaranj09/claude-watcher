@@ -1,7 +1,7 @@
 // Hook-status feature — the localhost HTTP listener that receives Claude Code hook POSTs.
 //
-// Binds to 127.0.0.1 only (never 0.0.0.0). Every inbound POST is validated at the
-// fail-closed HookEventSchema boundary. On bad input: respond 400 + log PATH + CODE
+// Binds to 127.0.0.1 only (never 0.0.0.0). Every inbound POST is validated at a fail-closed
+// boundary: HookEventSchema, or ModReportSchema on `/mod/report`. On bad input: respond 400 + log PATH + CODE
 // only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
 //
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.

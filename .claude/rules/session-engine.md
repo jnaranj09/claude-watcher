@@ -27,6 +27,19 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
   too). Caches only the OK verdict. **Fails OPEN** on unreadable version (a false block bricks a
   working install). Bump the floor only after re-verifying the three flags. API create: 503
   `claude_version`, refusal reused 30 s (`createClaudeVersionGate`).
+- **Bridge mod (spec 2026-10-18):** `composeClaudeCommand` adds `--plugin-dir <userData>/mods/
+watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
+  `CLAUDE_WATCHER_MOD_URL=http://127.0.0.1:<hookPort>/mod/report`, only when `bridgeModSpawn`
+  allows it: hook port bound, install at start worked, claude ≥ `MIN_MOD_CLAUDE_VERSION` (2.1.304,
+  probed; its own floor, so `MIN_CLAUDE_VERSION` does not move; unknown version → no mod,
+  `code=mod_skipped_version`). A skip is fail open and marks the session `unavailable`
+  (`sessionSetup.markUnavailable`). The report follows `/clear` (`sessionSetup.rebind`; the mod
+  sends again from `prompt.context` + `turn.complete`, since `session.start` does not refire) and
+  is dropped with the session (`forget`, beside `pendingTitles.forget`). The mod (`src/mod/
+  watcher-bridge`, not `claude-…`: a reserved prefix) only reads and reports paths + counts and
+  never changes claude; Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
+  versions, and Restore is the one operator-started write to an operator file (technical-taste
+  §5). `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
   required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
   exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503

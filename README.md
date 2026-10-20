@@ -98,6 +98,19 @@ claude, and the app has no menu bar to eat one. The app's own keys work only whe
 
 No key archives or deletes a session; that is always a button.
 
+## Context: what a session loaded
+
+The **Context** button above a focused session shows what Claude loaded for it: instruction
+files (CLAUDE.md, rules, `@` imports, memory) with their tier and token cost, plus skills,
+agents, MCP servers, commands, hooks and plugins. Each instruction file opens in your editor, and
+its **History** keeps its last versions: compare one with the file now, or restore it (the file
+as it is now is kept first, so a restore can be undone).
+
+The app learns this from a small Claude Code mod it passes to the sessions it launches
+(`--plugin-dir`, from the app's own data folder). The mod only reads and reports file paths and
+counts; it changes nothing in the session. It needs Claude Code 2.1.304 or newer; on an older
+claude the session runs as before and Context says why it is empty.
+
 ## Ending a session, and Past sessions
 
 Every card, and the bar above a focused session, carries two buttons:
