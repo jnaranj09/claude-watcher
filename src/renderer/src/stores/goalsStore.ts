@@ -89,7 +89,7 @@ export const selectTasksForSession =
 
 /** What a session card shows about its linked tasks (spec 2026-10-19 Decisions D). */
 export interface GoalLine {
-  /** The goal of the oldest linked task that has one; `GOAL_TERMS.loose` when all are loose. */
+  /** The goal of the oldest linked task that has one; `GOAL_TERMS.daily` when all are loose. */
   name: string
   /** How many OTHER goals the linked tasks span. */
   extraGoals: number
@@ -110,7 +110,7 @@ export function goalLineFor(s: GoalsState, sessionId: string): GoalLine | undefi
   }
   const first = goalIds[0]
   return {
-    name: first === undefined ? GOAL_TERMS.loose : (names.get(first) ?? GOAL_TERMS.loose),
+    name: first === undefined ? GOAL_TERMS.daily : (names.get(first) ?? GOAL_TERMS.daily),
     extraGoals: Math.max(goalIds.length - 1, 0),
     taskCount: linked.length
   }

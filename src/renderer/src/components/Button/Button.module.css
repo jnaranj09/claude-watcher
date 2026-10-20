@@ -67,6 +67,66 @@
 .xs.icon {
   width: 20px;
 }
+/* ── reveal: an icon button that shows its name on hover or keyboard focus ─────────────────── */
+/* At rest it is the icon square of its size: the icon box is the height minus the 1px border on
+   each side, and the text track is closed. On hover or focus-visible the track opens (0fr → 1fr)
+   and the text fades in, so the button grows to the right by exactly the text's width. Opened
+   from the keyboard it is instant (design.md motion); under reduced motion nothing moves. */
+.reveal {
+  padding: 0;
+  gap: 0;
+}
+.revealIcon {
+  flex: none;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+}
+.sm .revealIcon {
+  width: 26px;
+}
+.xs .revealIcon {
+  width: 18px;
+}
+.revealTrack {
+  display: grid;
+  grid-template-columns: 0fr;
+  transition: grid-template-columns 150ms var(--motion-ease-exit);
+}
+.revealClip {
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 150ms var(--motion-ease-exit);
+}
+.revealText {
+  display: block;
+  white-space: nowrap;
+  padding-right: var(--inset-compact-x);
+}
+.reveal:hover .revealTrack,
+.reveal:focus-visible .revealTrack {
+  grid-template-columns: 1fr;
+  transition-timing-function: var(--motion-ease-enter);
+}
+.reveal:hover .revealClip,
+.reveal:focus-visible .revealClip {
+  opacity: 1;
+  transition-timing-function: var(--motion-ease-enter);
+}
+.reveal:focus-visible:not(:hover) .revealTrack,
+.reveal:focus-visible:not(:hover) .revealClip {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .revealTrack,
+  .revealClip {
+    transition: none;
+  }
+}
+
 /* A round icon (`icon="round"`): the same square, as a circle. */
 .round {
   border-radius: 50%;

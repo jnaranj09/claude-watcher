@@ -145,7 +145,7 @@
   width: 132px;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-row);
+  gap: var(--gap-row-filled);
   border-right: 1px solid var(--border);
   padding-right: var(--gap-page);
 }
@@ -163,10 +163,13 @@
 .listWide {
   width: 300px;
 }
+/* Rail rows are filled boxes once selected or hovered (a tinted row always is), so every rail
+   takes the filled-row gap: one rhythm in every dialog, and a selected box never touches the row
+   under it. */
 .rows {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-row);
+  gap: var(--gap-row-filled);
   flex: 1;
   overflow-y: auto;
   max-height: 480px;
@@ -217,10 +220,6 @@
 }
 /* A workspace row (`tint`): the row is its workspace's colour (WorkspaceTint). The fill IS the
    colour, so hover and selected move to the BORDER. */
-/* Tinted rows are filled boxes: 2px between them reads as one block, so they get a real gap. */
-.rows:has(> .row[data-tone]) {
-  gap: var(--gap-row-filled);
-}
 .row[data-tone] {
   background: var(--ws-fill, transparent);
   border-color: var(--ws-border, transparent);

@@ -33,10 +33,14 @@
   white-space: nowrap;
 }
 
+/* The tasks body under its head (the `Tasks` label and the progress bar): head → body is
+   --gap-section (design.md "header → body"); the form's own --gap-field already sits above it.
+   Inside, the rows, `+ New task` and the start bar are different regions: --gap-group apart. */
 .tasks {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-field);
+  gap: var(--gap-group);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
 }
 /* Where a done task's select box would be: the Checkbox's 14px square, empty. */
 .checkBlank {
@@ -50,18 +54,23 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-row);
+  /* Filled boxes (TaskRow): the filled-row gap, as in the focused task panel. */
+  gap: var(--gap-row-filled);
+}
+/* A goal with no tasks yet draws no empty list: `+ New task` is the first thing under the bar. */
+.taskRows:empty {
+  display: none;
 }
 /* `Start session` under the task list: a different region, so behind a divider with
    --gap-section each side (design.md rule 7, as ManageDialog's .listBottomDivided), laid out like
    the Active sessions page's bulk bar (count on its own line, then controls). The list's own
-   --gap-field already sits above it. */
+   --gap-group already sits above it. */
 .startBar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--gap-field) var(--gap-inline);
-  margin-top: calc(var(--gap-section) - var(--gap-field));
+  margin-top: calc(var(--gap-section) - var(--gap-group));
   border-top: 1px solid var(--border);
   padding-top: var(--gap-section);
 }

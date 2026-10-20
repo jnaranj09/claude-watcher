@@ -31,6 +31,11 @@ export interface ButtonProps extends Omit<
    *  toast's ✕): another shape, never another variant, so it keeps its variant's look in every
    *  theme. Themes reach it through `data-shape="round"`. */
   icon?: boolean | 'round' | undefined
+  /** An icon button that shows its NAME on hover or keyboard focus: `children` is the icon, and
+   *  this text slides out to its right (the focused bar's actions, the header's Goals). The text is
+   *  always in the button, so it is the accessible name; no `aria-label` is needed. Not with
+   *  `icon` (that square has no room for text) or `feedback`. */
+  reveal?: string | undefined
   /** `danger` only: the armed second-press state — solid red, `Confirm delete`. */
   armed?: boolean | undefined
   /** A toggle that is ON (the Filter button while its row is open, an open rail peek):
@@ -60,6 +65,7 @@ export function Button({
   variant = 'secondary',
   size = 'md',
   icon = false,
+  reveal,
   armed = false,
   lit = false,
   type = 'button',
@@ -77,30 +83,44 @@ export function Button({
     styles[variant],
     size === 'sm' ? styles.sm : size === 'xs' ? styles.xs : null,
     icon !== false ? styles.icon : null,
-    icon === 'round' ? styles.round : null
+    icon === 'round' ? styles.round : null,
+    reveal !== undefined ? styles.reveal : null
   ]
     .filter(Boolean)
     .join(' ')
   const hasFeedback = feedback !== undefined
-  // Both layers ALWAYS, while a result exists: the cell is max(label, result) from the first paint.
-  const label = hasFeedback ? (
-    <span className={styles.swap}>
-      <span
-        className={feedbackShown ? styles.swapHidden : undefined}
-        aria-hidden={feedbackShown ? true : undefined}
-      >
-        {children}
+  const label =
+    reveal !== undefined ? (
+      <>
+        <span className={styles.revealIcon}>{children}</span>
+        {/* A grid track that opens from 0fr to 1fr: the button grows to the text's own width
+            without measuring it. */}
+        <span className={styles.revealTrack}>
+          <span className={styles.revealClip}>
+            <span className={styles.revealText}>{reveal}</span>
+          </span>
+        </span>
+      </>
+    ) : hasFeedback ? (
+      // Both layers ALWAYS, while a result exists: the cell is max(label, result) from the first
+      // paint.
+      <span className={styles.swap}>
+        <span
+          className={feedbackShown ? styles.swapHidden : undefined}
+          aria-hidden={feedbackShown ? true : undefined}
+        >
+          {children}
+        </span>
+        <span
+          className={feedbackShown ? undefined : styles.swapHidden}
+          aria-hidden={feedbackShown ? undefined : true}
+        >
+          {feedback}
+        </span>
       </span>
-      <span
-        className={feedbackShown ? undefined : styles.swapHidden}
-        aria-hidden={feedbackShown ? undefined : true}
-      >
-        {feedback}
-      </span>
-    </span>
-  ) : (
-    children
-  )
+    ) : (
+      children
+    )
   // The WebGL glass draws enabled primary/secondary buttons (spec 2026-10-08 C). Lit and
   // disabled keep their own look; ghost/danger are not glass.
   const glass =

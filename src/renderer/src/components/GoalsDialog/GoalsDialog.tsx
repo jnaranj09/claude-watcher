@@ -1,8 +1,10 @@
 // Goals — the sheet where goals and tasks are planned by hand (spec 2026-10-19-goals, "Plan by
 // hand") or with a planner session (`Plan with Claude`, whose proposal shows under the goal's
 // tasks: ProposalPanel), on the shared ManageDialog shell at its `drop` size: a sheet that drops
-// from under the app header over the board or the terminal view, 75% of the body each way. Rail = `Loose tasks` first, then this workspace's
-// goals, each with `done/total` and a bar; right column = the goal's form and its tasks.
+// from under the app header over the board or the terminal view, 75% of the body each way. Rail =
+// `Daily tasks` first (the tasks with no goal; open on every open of the sheet, and where a deleted
+// goal leaves the sheet, so the right column is never empty), then this workspace's goals, each with
+// `done/total` and a bar; right column = the selected row's tasks (a goal's inside its form).
 //
 // Main owns the records (goalsStore is a projection); this file sends ids and intents and draws
 // what main answers. Every refusal reaches the ONE message slot through `goalErrorCopy`.
@@ -42,8 +44,8 @@ function proposalKey(p: Proposal): string {
   return `${p.plannerSessionId}:${JSON.stringify(p.groups)}`
 }
 
-/** The `Loose tasks` rail row's id. Goal ids are minted uuids, so it cannot collide with one. */
-const LOOSE_ID = 'loose'
+/** The `Daily tasks` rail row's id. Goal ids are minted uuids, so it cannot collide with one. */
+const DAILY_ID = 'daily'
 
 function GoalRowText({ goal }: { goal: Goal }): JSX.Element {
   const { done, total } = progressOf(useGoals(selectTasksOfGoal(goal.id)))
@@ -57,12 +59,12 @@ function GoalRowText({ goal }: { goal: Goal }): JSX.Element {
   )
 }
 
-function LooseRowText({ workspaceId }: { workspaceId: string }): JSX.Element {
+function DailyRowText({ workspaceId }: { workspaceId: string }): JSX.Element {
   const { done, total } = progressOf(useGoals(selectLooseTasks(workspaceId)))
   return (
     <span className={styles.rowText}>
-      <span className={styles.rowName}>{GOAL_TERMS.loose}</span>
-      <GoalProgress name={GOAL_TERMS.loose} done={done} total={total} />
+      <span className={styles.rowName}>{GOAL_TERMS.daily}</span>
+      <GoalProgress name={GOAL_TERMS.daily} done={done} total={total} />
     </span>
   )
 }
@@ -225,9 +227,15 @@ function GoalForm({
 export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
   const workspaceId = useWorkspaces(selectActiveWorkspaceId)
   const goals = useGoals(selectGoalsIn(workspaceId))
-  const loose: Task[] = useGoals(selectLooseTasks(workspaceId))
+  const daily: Task[] = useGoals(selectLooseTasks(workspaceId))
+  const { done: dailyDone, total: dailyTotal } = progressOf(daily)
   const loadFailed = useGoals(selectGoalsLoadFailed)
-  const dialog = useManageDialog({ title: GOAL_TERMS.label, testIdPrefix: 'goals', onClose })
+  const dialog = useManageDialog({
+    title: GOAL_TERMS.label,
+    testIdPrefix: 'goals',
+    onClose,
+    initialSelectedId: DAILY_ID
+  })
   const { closeRef } = dialog.meta
   const [deleteBusy, setDeleteBusy] = useState(false)
 
@@ -238,14 +246,13 @@ export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
   }, [closeRef])
 
   const selected = goals.find((g) => g.id === dialog.state.selectedId) ?? null
-  const looseOpen = dialog.state.selectedId === LOOSE_ID
   const formOpen = dialog.state.creating || selected !== null
 
   async function commitDelete(id: string): Promise<void> {
     setDeleteBusy(true)
     try {
       await removeGoal(id)
-      dialog.actions.select(null)
+      dialog.actions.select(DAILY_ID)
       dialog.actions.showSuccess('Goal deleted.')
     } catch (err) {
       dialog.actions.setError(goalErrorCopy(err, GOAL_TERMS.saveGoalFailed))
@@ -262,11 +269,11 @@ export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
           <ManageDialog.List size="wide">
             <ManageDialog.Rows>
               <ManageDialog.Row
-                id={LOOSE_ID}
-                testId="goal-row-loose"
-                selectTestId="goal-select-loose"
+                id={DAILY_ID}
+                testId="goal-row-daily"
+                selectTestId="goal-select-daily"
               >
-                <LooseRowText workspaceId={workspaceId} />
+                <DailyRowText workspaceId={workspaceId} />
               </ManageDialog.Row>
               {goals.map((g) => (
                 <ManageDialog.Row
@@ -300,14 +307,14 @@ export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
                 if (selected !== null) void commitDelete(selected.id)
               }}
             />
-          ) : looseOpen ? (
-            <ManageDialog.Pane testId="goal-loose-pane">
-              <TaskList tasks={loose} workspaceId={workspaceId} goalId={null} />
-            </ManageDialog.Pane>
           ) : (
-            <ManageDialog.Placeholder testId="goals-placeholder">
-              {GOAL_TERMS.placeholder}
-            </ManageDialog.Placeholder>
+            // Daily tasks: every other selection is a goal (its form above), and a goal that is
+            // gone (deleted elsewhere) falls back here too, never to an empty column.
+            <ManageDialog.Pane testId="goal-daily-pane">
+              <ManageDialog.Label>{GOAL_TERMS.tasks}</ManageDialog.Label>
+              <GoalProgress name={GOAL_TERMS.daily} done={dailyDone} total={dailyTotal} />
+              <TaskList tasks={daily} workspaceId={workspaceId} goalId={null} />
+            </ManageDialog.Pane>
           )}
         </ManageDialog.Columns>
         <ManageDialog.Message testId="goals-error" />

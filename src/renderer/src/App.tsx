@@ -710,15 +710,13 @@ function App(): React.JSX.Element {
         </div>
         <div className={styles.headerActions}>
           {/* Goals opens and closes the planning sheet under the header (spec 2026-10-19-goals): an
-              icon button, named for screen readers and on hover, lit while the sheet is open. */}
+              icon button whose name slides out on hover or focus, lit while the sheet is open. */}
           <Button
             variant="secondary"
-            icon
+            reveal={GOAL_TERMS.label}
             lit={goalsDialogOpen}
             testId="header-goals"
-            aria-label={GOAL_TERMS.label}
             aria-expanded={goalsDialogOpen}
-            title={GOAL_TERMS.label}
             onClick={handleToggleGoals}
           >
             <LucideIcon name="circle-check-big" />

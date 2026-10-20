@@ -26,10 +26,9 @@ describe('App — the Goals button', () => {
       .map((b) => b.getAttribute('data-testid') ?? '')
     const wanted = ['header-goals', 'header-new-session', 'app-menu']
     expect(ids.filter((id) => wanted.includes(id))).toEqual(wanted)
-    // An icon: no visible text, named for screen readers and on hover.
-    expect(screen.getByTestId('header-goals')).toHaveTextContent('')
+    // An icon whose name slides out on hover or focus: the name is the button's own text.
+    expect(screen.getByTestId('header-goals')).toHaveTextContent('Goals')
     expect(screen.getByTestId('header-goals')).toHaveAccessibleName('Goals')
-    expect(screen.getByTestId('header-goals')).toHaveAttribute('title', 'Goals')
   })
 
   it('clicking it opens the sheet; Escape closes it', async () => {

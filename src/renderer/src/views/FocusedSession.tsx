@@ -28,6 +28,8 @@ import { AttentionRail } from '../components/attention/AttentionRail'
 import { NameSyncMark } from '../components/SessionCard/SessionCard'
 import { StatusDot, type DotStatus } from '../components/StatusDot/StatusDot'
 import { Button } from '../components/Button/Button'
+import { LucideIcon } from '../components/Icon/LucideIcon'
+import { ArchiveIcon } from '../components/Icon/MenuIcons'
 import type { Column } from '../../../shared/ipc/contract'
 import { archiveTerminal, sessionIdForTerminal } from '../lib/sessionExit'
 import { useAsyncAction } from '../hooks/useAsyncAction'
@@ -302,10 +304,11 @@ export function FocusedSession({
               if (focusedTerminalId !== null)
                 boardStore.getState().openContextDialog(focusedTerminalId)
             }}
+            reveal={CONTEXT_TERMS.label}
             title={CONTEXT_TERMS.open}
             aria-haspopup="dialog"
           >
-            {CONTEXT_TERMS.label}
+            <LucideIcon name="book-open" />
           </Button>
           {/* Card shell pane — a plain $SHELL in this card's folder, under claude. LIT while the
               pane is open (the Filter button's toggle look). Main resolves the folder. */}
@@ -316,10 +319,11 @@ export function FocusedSession({
             lit={shellVisible}
             busy={shell.busy}
             onClick={() => void shell.run()}
+            reveal={SHELL_TERMS.label}
             title={shellVisible ? SHELL_TERMS.hide : SHELL_TERMS.open}
             aria-pressed={shellVisible}
           >
-            <span aria-hidden>{'>_'}</span> {SHELL_TERMS.label}
+            <LucideIcon name="terminal" />
           </Button>
           {/* Tasks (spec 2026-10-19 E) — the panel beside the terminal; LIT while it shows. */}
           <Button
@@ -330,8 +334,9 @@ export function FocusedSession({
             disabled={focusedSession === null}
             onClick={() => setTasksPanel((p) => ({ ...p, open: !p.open }))}
             aria-pressed={tasksVisible}
+            reveal={GOAL_TERMS.tasks}
           >
-            {GOAL_TERMS.tasks}
+            <LucideIcon name="list-checks" />
           </Button>
           {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions. The
               button is the ONLY path: Ctrl+W archives nothing (R27 — it is claude's delete-word,
@@ -344,8 +349,9 @@ export function FocusedSession({
             onClick={() => void archive.run()}
             aria-label="Archive this session"
             title="Archive — keeps it in Past sessions"
+            reveal="Archive"
           >
-            Archive
+            <ArchiveIcon />
           </Button>
           {/* Past sessions (D-5) — Delete: opens the confirm (UX-DR14: the one exit that is NOT
               reversible needs a confirm; danger styling is on the confirm's Delete button, and
@@ -356,8 +362,9 @@ export function FocusedSession({
             testId="focused-delete"
             onClick={handleDelete}
             aria-label="Delete this session"
+            reveal="Delete"
           >
-            Delete
+            <LucideIcon name="trash-2" />
           </Button>
         </div>
         <div

@@ -185,12 +185,12 @@ describe('goalsStore', () => {
       expect(line('s1')).toEqual({ name: 'Ship', extraGoals: 1, taskCount: 3 })
     })
 
-    it('names a loose-only card with the Loose tasks term', () => {
+    it('names a loose-only card with the Daily tasks term', () => {
       m.goalsStore.setState({
         goals: [goal()],
         tasks: [task({ goalId: null, sessionIds: ['s1'] })]
       })
-      expect(line('s1')).toEqual({ name: 'Loose tasks', extraGoals: 0, taskCount: 1 })
+      expect(line('s1')).toEqual({ name: 'Daily tasks', extraGoals: 0, taskCount: 1 })
     })
 
     it('counts every linked task, done ones too', () => {

@@ -22,7 +22,15 @@
 
 import type { JSX } from 'react'
 
-export type LucideIconName = 'layers' | 'rotate-ccw' | 'arrow-up-right' | 'circle-check-big'
+export type LucideIconName =
+  | 'layers'
+  | 'rotate-ccw'
+  | 'arrow-up-right'
+  | 'circle-check-big'
+  | 'book-open'
+  | 'terminal'
+  | 'list-checks'
+  | 'trash-2'
 
 const PATHS: Readonly<Record<LucideIconName, JSX.Element>> = {
   layers: (
@@ -48,6 +56,36 @@ const PATHS: Readonly<Record<LucideIconName, JSX.Element>> = {
     <>
       <path d="M21.801 10A10 10 0 1 1 17 3.335" />
       <path d="m9 11 3 3L22 4" />
+    </>
+  ),
+  'book-open': (
+    <>
+      <path d="M12 7v14" />
+      <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
+    </>
+  ),
+  terminal: (
+    <>
+      <path d="m4 17 6-6-6-6" />
+      <path d="M12 19h8" />
+    </>
+  ),
+  'list-checks': (
+    <>
+      <path d="m3 17 2 2 4-4" />
+      <path d="m3 7 2 2 4-4" />
+      <path d="M13 6h8" />
+      <path d="M13 12h8" />
+      <path d="M13 18h8" />
+    </>
+  ),
+  'trash-2': (
+    <>
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </>
   )
 }

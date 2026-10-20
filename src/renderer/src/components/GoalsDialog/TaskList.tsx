@@ -111,7 +111,6 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
             trailing={
               <Button
                 variant="ghost"
-                size="xs"
                 icon
                 testId={`task-remove-${task.id}`}
                 aria-label={`Remove ${task.title}`}

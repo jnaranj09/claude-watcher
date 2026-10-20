@@ -57,7 +57,7 @@ function groupsFor(
   if (loose.length > 0) {
     groups.push({
       key: 'loose',
-      name: GOAL_TERMS.loose,
+      name: GOAL_TERMS.daily,
       linked: loose,
       all: s.tasks.filter((t) => t.workspaceId === workspaceId && t.goalId === null)
     })
@@ -207,7 +207,6 @@ export function SessionTasks({
                       trailing={
                         <Button
                           variant="ghost"
-                          size="xs"
                           icon
                           busy={unlink.busy}
                           testId={`session-tasks-unlink-${task.id}`}

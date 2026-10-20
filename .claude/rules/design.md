@@ -139,7 +139,7 @@ title.
 - **Flat list in every scope, no section headers.**
 - Scope change closes what was open. A save that moves a row re-points the filter to its scope.
 - **Active / Past rail filter** (`SessionsDialog/RailFilter.tsx`): the page's search (`TextInput
-  variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` button
+variant="toolbar"` + magnifier, 32px like the board's) + the same `Filter` button
   (`FilterToggle`) on one line, `FilterChips` (wrapping, `data-wrap`) under it;
   Past adds `Ended`. Filters per page and scope while the dialog is open (`railFilters.ts`
   `useScopedFilters`, held by `SessionsDialog` so a page switch keeps them; tags offered by
@@ -221,7 +221,7 @@ sections clearly apart. Every `gap`/`padding`/`margin` in a component stylesheet
 | -------------------------------------- | --------- | ----------------------------------------------- |
 | `--gap-stack`                          | 2px       | title over subtitle in one row                  |
 | `--gap-row`                            | 4px       | rows of one list / menu                         |
-| `--gap-row-filled`                     | 8px       | rows that are filled boxes (tinted)             |
+| `--gap-row-filled`                     | 8px       | filled-box rows: every Manage rail, task boxes  |
 | `--gap-inline-tight`                   | 4px       | icon + text, small tool clusters                |
 | `--gap-inline`                         | 8px       | controls side by side, button rows              |
 | `--gap-group`                          | 12px      | groups in a menu, rail, pane; cards in a column |
@@ -350,13 +350,13 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
   switching back restores them all. Not persisted. Tags a workspace cannot see drop out at read
   time (`useBoardFilter` → `effectiveFilters`). Search stays ONE global box.
 - `Filter` = `components/FilterBar/FilterToggle.tsx` (board and rail): `<Button variant="secondary"
-  lit>`, word + 16px filter-list icon, 32px (same as the search box beside it — pinned by test),
+lit>`, word + 16px filter-list icon, 32px (same as the search box beside it — pinned by test),
   titled `Show filters`/`Hide filters`. No chevron. LIT while chip row open AND while closed with
   a filter on. Count = number of filter TYPES on (`Filter, 2 on`). Search never counted.
 - Spacing: `--gap-group` (12px) under header, `--gap-page` (16px) above columns (`FilterBar` `.bar`,
   `Board.module.css` `.filterSlot`). Never a negative margin on the grid (covers the bar's clicks).
 - Empty sentences name what hides cards (`lib/filterCopy.ts`): `No sessions match the filters and
-  “dep”` (or `the filters` / `“dep”` alone), with a hint naming the way back. aria-live too.
+“dep”` (or `the filters` / `“dep”` alone), with a hint naming the way back. aria-live too.
 - Drawn only when the workspace has sessions (stays when filter hides all); the `Filter` button
   shows whenever it is drawn (folder and time need no tag). No tag: the Tag list offers
   `Create tags` when a Tags dialog exists.
@@ -367,10 +367,14 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
 
 ## Header ☰ menu (`components/AppMenu/AppMenu.tsx`)
 
-The header holds the `Goals` icon button (lucide `circle-check-big`, named `Goals` by `aria-label` and
-`title`, lit while the sheet is open; it opens AND closes the Goals sheet,
+The header holds the `Goals` icon button (lucide `circle-check-big`, a Button `reveal`: its name
+`Goals` slides out on hover or focus, lit while the sheet is open; it opens AND closes the Goals sheet,
 `ManageDialog.Frame size="drop"`: rendered inside `<main>`, it floats a page gutter under the header
 (never touching it), centred, 75% of the body each way (goals rail 2fr : tasks 3fr), and the header stays in view — only its other controls go inert), `+ New session` and this ☰ menu, last. The menu filters nothing.
+The Goals sheet's rail starts with `Daily tasks` (the tasks with no goal): it is open on every open
+of the sheet and where a deleted goal leaves it, so the sheet has no placeholder (like Settings,
+which opens on its first category). Every task, in the sheet and in the focused task panel, is the
+one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕), `--gap-section` under the `Tasks` head.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /
@@ -502,7 +506,9 @@ Reopen the app to try again.`); each dialog says `Could not load <x>.`
   (fixed heights): `md` 32px, `sm` 28px, `xs` 20px; `icon` = square, `icon="round"` = circle
   (`data-shape="round"`): a standalone icon control (dialog ✕, rail « / tag toggle, toast ✕) is a
   ROUND `secondary` — the ☰'s look as a circle in every theme; `ghost` stays for icons inside a
-  card or row. `lit` = toggle ON
+  card or row. `reveal="<name>"` = an icon button whose name slides out to the right of the icon on
+  hover or keyboard focus (the focused bar's Context / Shell / Tasks / Archive / Delete, the
+  header's Goals); the name is the button's text, so it needs no `aria-label`. `lit` = toggle ON
   (`data-lit` present only when on — test `hasAttribute`). The favorite pin (`FavoriteToggle`) is
   `ghost xs icon` with `aria-pressed`; its filled pin IS the on look, never `lit`. **No `className`** — layout goes on a
   wrapper. Refs via `buttonRef`. `Button.test.tsx` fails on any other button class.

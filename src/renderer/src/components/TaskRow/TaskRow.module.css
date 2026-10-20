@@ -1,7 +1,23 @@
+/* One task: a darker box on the raised panel, the look of a selected Settings rail row
+   (ManageDialog `.row[data-selected]`: --bg-surface, a --border-strong edge, --rounded-md). The
+   box is the row's own, so the Goals sheet and the focused view's task panel draw it the same way.
+   44px tall like a Manage rail row, so `Done` is a full 32px button. The right inset is the compact
+   one: the row ends in a button that brings its own room. */
 .row {
   display: flex;
   align-items: center;
   gap: var(--gap-inline);
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--inset-compact-y) var(--inset-compact-x) var(--inset-compact-y) var(--inset-item-x);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  font-size: var(--font-size-body);
+}
+/* With a leading control the title toggles it, so the whole box takes the shared row hover. */
+.row:has(> .label):hover {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 /* A title without a leading control: it just fills the row. */
 .text {
@@ -15,13 +31,8 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--gap-field);
+  gap: var(--gap-inline);
   cursor: pointer;
-  border-radius: var(--rounded-sm);
-}
-/* The shared row hover (ManageDialog `.row`): the whole title line, its control included. */
-.label:hover {
-  background: var(--bg-hover);
 }
 .title {
   min-width: 0;
@@ -37,4 +48,11 @@
   flex: none;
   font-size: var(--font-size-meta);
   color: var(--text-secondary);
+}
+/* The row's actions (`Done` / `Undo` and the caller's trailing ✕) sit together at the end. */
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline-tight);
 }

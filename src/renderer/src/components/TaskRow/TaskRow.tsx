@@ -1,7 +1,8 @@
-// One task as a row: the title (done = secondary + line-through), the `Closed by a session`
+// One task as a boxed row: the title (done = secondary + line-through), the `Closed by a session`
 // marker when a session closed it, and its `Done` / `Undo` button. Drawn once for the Goals sheet
 // and the focused view's task panel (same meaning, same look); each passes its own `leading`
-// control (the sheet's select box) and trailing action.
+// control (the sheet's select box) and trailing action (an `md` ghost icon button, the height of
+// `Done`).
 import type { JSX, ReactNode } from 'react'
 import type { Task } from '../../../../shared/schemas/goal'
 import { Button } from '../Button/Button'
@@ -49,17 +50,18 @@ export function TaskRow({
           Closed by a session
         </span>
       )}
-      <Button
-        variant="secondary"
-        size="xs"
-        testId={`task-done-${task.id}`}
-        aria-label={`${done ? UNDO : DONE} ${task.title}`}
-        busy={busy}
-        onClick={() => onToggle(!done)}
-      >
-        {done ? UNDO : DONE}
-      </Button>
-      {trailing}
+      <span className={styles.actions}>
+        <Button
+          variant="secondary"
+          testId={`task-done-${task.id}`}
+          aria-label={`${done ? UNDO : DONE} ${task.title}`}
+          busy={busy}
+          onClick={() => onToggle(!done)}
+        >
+          {done ? UNDO : DONE}
+        </Button>
+        {trailing}
+      </span>
     </li>
   )
 }

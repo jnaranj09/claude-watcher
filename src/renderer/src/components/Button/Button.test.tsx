@@ -137,6 +137,17 @@ describe('Button', () => {
     expect(button(r).nextElementSibling).toBeNull()
   })
 
+  it('reveal draws the icon, then its name, which names the button', () => {
+    const r = renderComponent(
+      <Button testId="btn" reveal="Archive">
+        <svg aria-hidden="true" />
+      </Button>
+    )
+    cleanup = r.unmount
+    expect(button(r)).toHaveAccessibleName('Archive')
+    expect(button(r)).toHaveTextContent('Archive')
+  })
+
   it('busy disables the button and sets aria-busy; not busy sets neither', () => {
     const on = button(render({ busy: true }))
     expect(on.disabled).toBe(true)
@@ -279,6 +290,18 @@ describe('Button owns every button style', () => {
 
   // jsdom has no layout: read the stylesheet. A round icon is a CIRCLE, and it is still an icon:
   // the square's width per size comes from `.icon`, the shape only rounds it.
+  it('opens the reveal name on hover and on keyboard focus', () => {
+    expect(cssRule('components/Button/Button.module.css', '.revealTrack')).toMatch(
+      /grid-template-columns: 0fr;/
+    )
+    expect(
+      cssRule(
+        'components/Button/Button.module.css',
+        '.reveal:hover .revealTrack,\n.reveal:focus-visible .revealTrack'
+      )
+    ).toMatch(/grid-template-columns: 1fr;/)
+  })
+
   it('rounds a round icon into a circle', () => {
     expect(cssRule('components/Button/Button.module.css', '.round')).toMatch(/border-radius: 50%;/)
   })

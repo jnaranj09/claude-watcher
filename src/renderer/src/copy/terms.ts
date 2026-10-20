@@ -37,8 +37,9 @@ export const GOAL_TERMS = {
   filterLabel: 'Goal',
   newGoal: '+ New goal',
   newTask: '+ New task',
-  loose: 'Loose tasks',
-  placeholder: 'Select a goal on the left, or create a new one.',
+  /** The tasks with no goal (the code calls them loose): the sheet's first rail row, open on
+   *  every open of the sheet, and their group in the focused view's task panel. */
+  daily: 'Daily tasks',
   saveGoalFailed: 'Could not save goal.',
   saveTaskFailed: 'Could not save task.',
   /** The focused view's task panel: its bar toggle and the menu that links a task to the session. */

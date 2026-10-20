@@ -157,10 +157,10 @@ describe('SessionTasks', () => {
     expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeInTheDocument()
   })
 
-  it('a loose task is grouped under Loose tasks, with its own progress', () => {
+  it('a loose task is grouped under Daily tasks, with its own progress', () => {
     open({ goals: [], tasks: [task({ goalId: null })], proposals: [] })
-    expect(screen.getByText('Loose tasks')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Loose tasks')
+    expect(screen.getByText('Daily tasks')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Daily tasks')
   })
 
   it('opened with nothing linked it says so', () => {

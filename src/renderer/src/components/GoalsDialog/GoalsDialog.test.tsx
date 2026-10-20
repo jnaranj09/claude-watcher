@@ -124,11 +124,10 @@ function open(initial: GoalsView = { goals: [], tasks: [], proposals: [] }): voi
 }
 
 describe('GoalsDialog', () => {
-  it('opens on the placeholder sentence', () => {
+  it('opens on Daily tasks, every time', () => {
     open()
-    expect(screen.getByTestId('goals-placeholder')).toHaveTextContent(
-      'Select a goal on the left, or create a new one.'
-    )
+    expect(screen.getByTestId('goal-select-daily')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('goal-daily-pane')).toBeInTheDocument()
   })
 
   it('+ New goal opens the goal form; Save creates the goal and selects it', async () => {
@@ -159,14 +158,15 @@ describe('GoalsDialog', () => {
     expect(within(row).getByRole('progressbar')).toHaveAccessibleName('Progress of Ship v2')
   })
 
-  it('a Loose tasks row lists tasks without a goal', async () => {
+  it('the Daily tasks row lists tasks without a goal', async () => {
     const user = userEvent.setup()
     open({
       goals: [goal()],
       tasks: [task(), task({ id: 't9', goalId: null, title: 'Water the plants' })],
       proposals: []
     })
-    await user.click(screen.getByRole('button', { name: /Loose tasks/ }))
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('button', { name: /Daily tasks/ }))
     expect(screen.getByRole('button', { name: 'Done Water the plants' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Done Write the spec' })).not.toBeInTheDocument()
   })
@@ -215,7 +215,7 @@ describe('GoalsDialog', () => {
     expect(bridge.deleteGoal).not.toHaveBeenCalled()
     await user.click(screen.getByTestId('goal-delete-confirm'))
     expect(bridge.deleteGoal).toHaveBeenCalledWith('g1')
-    expect(screen.getByTestId('goals-placeholder')).toBeInTheDocument()
+    expect(screen.getByTestId('goal-select-daily')).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByTestId('goal-row-g1')).not.toBeInTheDocument()
   })
 
@@ -271,7 +271,7 @@ describe('GoalsDialog', () => {
   it('the switch turned off sends markDone false; loose tasks send no goal', async () => {
     const user = userEvent.setup()
     open({ goals: [], tasks: [task({ id: 't9', goalId: null, title: 'Water' })], proposals: [] })
-    await user.click(screen.getByRole('button', { name: /Loose tasks/ }))
+    await user.click(screen.getByRole('button', { name: /Daily tasks/ }))
     await user.click(screen.getByRole('checkbox', { name: 'Select Water' }))
     await user.click(screen.getByRole('switch', { name: 'Claude can mark tasks done' }))
     await user.click(screen.getByRole('button', { name: 'Start session' }))

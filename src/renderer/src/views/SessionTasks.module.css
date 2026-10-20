@@ -65,16 +65,8 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  /* Filled boxes: 2px between them reads as one block. */
+  /* Filled boxes (TaskRow): their own edges separate them, so the filled-row gap. */
   gap: var(--gap-row-filled);
-}
-/* Each task is a darker box on the raised panel, the look of a selected Settings rail row
-   (ManageDialog `.row[data-selected]`): --bg-surface, a --border-strong edge, --rounded-md. */
-.rows > li {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--rounded-md);
-  padding: var(--inset-item-y) var(--inset-item-x);
 }
 .empty {
   margin: 0;
