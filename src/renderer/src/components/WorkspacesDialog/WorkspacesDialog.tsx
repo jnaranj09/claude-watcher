@@ -41,6 +41,7 @@ import { ManageDialog, useManageDialog, useManageDialogContext } from '../Manage
 import { TextInput } from '../TextInput/TextInput'
 import { Radio } from '../Radio/Radio'
 import { Callout } from '../Callout/Callout'
+import { FOLDER_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import styles from './WorkspacesDialog.module.css'
 
@@ -180,7 +181,7 @@ function WorkspaceForm({
         ))}
       </div>
 
-      <ManageDialog.Label>Default folder</ManageDialog.Label>
+      <ManageDialog.Label>{FOLDER_TERMS.label}</ManageDialog.Label>
       <div className={styles.folderRow}>
         <span className={styles.path} data-testid="workspace-default-cwd">
           {defaultCwd ?? 'None'}
@@ -190,7 +191,7 @@ function WorkspaceForm({
           busy={browse.busy}
           onClick={() => void browse.run()}
         >
-          Choose…
+          {FOLDER_TERMS.choose}
         </ManageDialog.GhostButton>
         {/* R26 — the way back to None. Not rendered while there is nothing to clear. */}
         {defaultCwd !== null && (
@@ -198,7 +199,7 @@ function WorkspaceForm({
             testId="workspace-clear-folder"
             onClick={() => changeFolder(null)}
           >
-            Clear
+            {FOLDER_TERMS.clear}
           </ManageDialog.GhostButton>
         )}
       </div>

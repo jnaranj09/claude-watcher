@@ -7,7 +7,7 @@
 // what main answers. Every refusal reaches the ONE message slot through `goalErrorCopy`.
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { GOAL_NAME_MAX, type Goal, type Task } from '../../../../shared/schemas/goal'
-import { GOAL_TERMS } from '../../copy/terms'
+import { FOLDER_TERMS, GOAL_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { goalErrorCopy } from '../../lib/goalCopy'
 import {
@@ -140,7 +140,7 @@ function GoalForm({
 
       {goal !== null && (
         <>
-          <ManageDialog.Label>Default folder</ManageDialog.Label>
+          <ManageDialog.Label>{FOLDER_TERMS.label}</ManageDialog.Label>
           <div className={styles.folderRow}>
             <span className={styles.path} data-testid="goal-default-cwd">
               {goal.defaultCwd ?? 'None'}
@@ -150,7 +150,7 @@ function GoalForm({
               busy={browse.busy}
               onClick={() => void browse.run()}
             >
-              Choose…
+              {FOLDER_TERMS.choose}
             </ManageDialog.GhostButton>
             {/* The way back to None. Not rendered while there is nothing to clear. */}
             {goal.defaultCwd !== null && (
@@ -159,7 +159,7 @@ function GoalForm({
                 busy={clear.busy}
                 onClick={() => void clear.run()}
               >
-                Clear
+                {FOLDER_TERMS.clear}
               </ManageDialog.GhostButton>
             )}
           </div>

@@ -5,6 +5,7 @@ import { act } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GoalsDialog } from './GoalsDialog'
+import { deferred } from '../../test/deferred'
 import { goalsStore } from '../../stores/goalsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
@@ -47,5 +48,46 @@ describe('GoalsDialog — feedback', () => {
     await user.click(screen.getByTestId('goal-submit'))
     expect(screen.getByTestId('goals-error')).toHaveTextContent(STORE_WRITE_FAILED_COPY)
     expect(screen.queryByTestId('goals-success')).not.toBeInTheDocument()
+  })
+
+  it('a failed task add shows the error, and the retry clears it before trying', async () => {
+    const user = userEvent.setup()
+    const task = {
+      id: 't-new',
+      workspaceId: 'w1',
+      goalId: 'g1',
+      title: 'Cut the tag',
+      status: 'open',
+      sessionIds: [],
+      createdAt: 1,
+      doneAt: null,
+      doneBy: null
+    }
+    const goal = { id: 'g1', workspaceId: 'w1', name: 'Ship v2', defaultCwd: null, createdAt: 1 }
+    const retry = deferred<unknown>()
+    const saveTask = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("Error invoking remote method 'goals:save-task': Error: store_write_failed")
+      )
+      .mockReturnValueOnce(retry.promise)
+    ;(window as unknown as { goals: unknown }).goals = {
+      saveTask,
+      onChanged: vi.fn(() => () => {})
+    }
+    act(() => goalsStore.setState({ goals: [goal], tasks: [] }))
+    unmount = render(<GoalsDialog onClose={() => {}} />).unmount
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.type(screen.getByRole('textbox', { name: '+ New task' }), 'Cut the tag{Enter}')
+    expect(screen.getByTestId('goals-error')).toHaveTextContent(STORE_WRITE_FAILED_COPY)
+    await user.keyboard('{Enter}')
+    // The retry is still in flight: the old error is already gone.
+    expect(saveTask).toHaveBeenCalledTimes(2)
+    expect(screen.queryByTestId('goals-error')).not.toBeInTheDocument()
+    await act(async () => {
+      retry.resolve({ saved: task, goals: [goal], tasks: [task], proposals: [] })
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('checkbox', { name: 'Cut the tag' })).toBeInTheDocument()
   })
 })

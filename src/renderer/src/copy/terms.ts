@@ -40,3 +40,10 @@ export const GOAL_TERMS = {
   saveGoalFailed: 'Could not save goal.',
   saveTaskFailed: 'Could not save task.'
 } as const
+
+/** A default folder on a workspace or a goal: the field's label and its two controls. */
+export const FOLDER_TERMS = {
+  label: 'Default folder',
+  choose: 'Choose…',
+  clear: 'Clear'
+} as const
