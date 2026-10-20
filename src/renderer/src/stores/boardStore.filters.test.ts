@@ -580,6 +580,15 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
   const API = { ...NO_FILTERS, tagIds: ['t-api'] }
   const LATE = { ...NO_FILTERS, launched: { kind: 'preset', range: 'today' } as const }
 
+  // The hook reads the MODULE stores: put them back whatever the test did.
+  let unmountHook: (() => void) | undefined
+  afterEach(() => {
+    unmountHook?.()
+    unmountHook = undefined
+    act(() => boardStore.getState().setBoardFilters('default', NO_FILTERS))
+    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [] }))
+  })
+
   it('each workspace keeps its own filters; switching back finds them all', () => {
     const store = createBoardStore({ now: makeClock().now })
     store.getState().setBoardFilters('w1', { ...API, folders: ['/p/a'], launched: LATE.launched })
@@ -591,15 +600,6 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     })
     expect(selectBoardFilters(store.getState(), 'w2')).toEqual(LATE)
     expect(selectBoardFilters(store.getState(), 'w3')).toBe(NO_FILTERS)
-  })
-
-  // The hook reads the MODULE stores: put them back whatever the test did.
-  let unmountHook: (() => void) | undefined
-  afterEach(() => {
-    unmountHook?.()
-    unmountHook = undefined
-    act(() => boardStore.getState().setBoardFilters('default', NO_FILTERS))
-    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [] }))
   })
 
   it('a deleted goal drops out of the filter at read time', () => {
