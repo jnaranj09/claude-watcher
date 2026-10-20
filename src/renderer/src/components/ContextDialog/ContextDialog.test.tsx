@@ -1,0 +1,398 @@
+// Context (spec 2026-10-18 §5): what a session's claude loaded, per its bridge mod report, with the
+// file history of its instruction files. jsdom `unit` project; `window.context` is stubbed.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act } from 'react'
+import { render, screen, within, type RenderResult } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ContextDialog } from './ContextDialog'
+import { boardStore } from '../../stores/boardStore'
+import { modReportFixture, MOD_REPORT_SESSION_ID as SID } from '../../../../__fixtures__/modReport'
+import type {
+  FileHistoryDiffResult,
+  FileHistoryListResult,
+  FileVersion,
+  SessionSetupState
+} from '../../../../shared/ipc/contract'
+import { cssRule } from '../../test/cssRule'
+
+const TERMINAL = 'term-1'
+const NOW = 1_000_000_000
+const V2: FileVersion = {
+  id: 'v2',
+  path: '/work/app/CLAUDE.md',
+  hash: 'b'.repeat(64),
+  size: 2048,
+  seenAt: NOW - 60_000
+}
+const V1: FileVersion = {
+  id: 'v1',
+  path: '/work/app/CLAUDE.md',
+  hash: 'a'.repeat(64),
+  size: 1024,
+  seenAt: NOW - 3_600_000
+}
+
+type Bridge = {
+  getSetup: ReturnType<typeof vi.fn<(id: string) => Promise<SessionSetupState>>>
+  onSetupChanged: ReturnType<typeof vi.fn<(cb: (id: string) => void) => () => void>>
+  listHistory: ReturnType<typeof vi.fn<(id: string, i: number) => Promise<FileHistoryListResult>>>
+  diff: ReturnType<typeof vi.fn<(v: string) => Promise<FileHistoryDiffResult>>>
+  open: ReturnType<typeof vi.fn<(id: string, i: number) => Promise<void>>>
+  restore: ReturnType<typeof vi.fn<(v: string) => Promise<{ fileName: string }>>>
+  fire: (id: string) => void
+}
+
+function stubContext(state: SessionSetupState): Bridge {
+  let listener: ((id: string) => void) | null = null
+  const bridge: Bridge = {
+    getSetup: vi.fn(() => Promise.resolve(state)),
+    onSetupChanged: vi.fn((cb) => {
+      listener = cb
+      return () => {
+        listener = null
+      }
+    }),
+    listHistory: vi.fn(() => Promise.resolve({ versions: [V2, V1], tooLarge: false })),
+    diff: vi.fn(() =>
+      Promise.resolve({
+        lines: [
+          { op: 'same', text: '# app' },
+          { op: 'del', text: 'old rule' },
+          { op: 'add', text: 'new rule' }
+        ]
+      })
+    ),
+    open: vi.fn(() => Promise.resolve()),
+    restore: vi.fn(() => Promise.resolve({ fileName: 'CLAUDE.md' })),
+    fire: (id) => listener?.(id)
+  }
+  ;(window as unknown as { context: unknown }).context = bridge
+  return bridge
+}
+
+const wrapped = (code: string): Error =>
+  new Error(`Error invoking remote method 'file-history:restore': Error: ${code}`)
+
+let rendered: RenderResult | undefined
+const onClose = vi.fn()
+beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW)
+  boardStore.setState({ terminalIdBySessionId: { [SID]: TERMINAL } })
+})
+afterEach(() => {
+  rendered?.unmount()
+  rendered = undefined
+  delete (window as unknown as { context?: unknown }).context
+})
+
+async function open(
+  state: SessionSetupState = { state: 'ready', report: modReportFixture() }
+): Promise<Bridge> {
+  const bridge = stubContext(state)
+  rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
+  await act(async () => {
+    await Promise.resolve()
+  })
+  return bridge
+}
+
+const rail = (): HTMLElement[] =>
+  within(screen.getByTestId('context-panel'))
+    .getAllByRole('button')
+    .filter((b) => b.dataset.testid?.startsWith('context-category-') === true)
+
+const fileRow = (name: string): HTMLElement => {
+  const row = screen
+    .getAllByTestId('context-file')
+    .find((r) => within(r).queryByText(name) !== null)
+  if (row === undefined) throw new Error(`no row for ${name}`)
+  return row
+}
+
+describe('ContextDialog — a ready report', () => {
+  it('is titled Context', async () => {
+    await open()
+    expect(screen.getByRole('dialog', { name: 'Context' })).toBeVisible()
+  })
+
+  it('lists the seven categories in order, Instructions first and selected', async () => {
+    await open()
+    expect(rail().map((b) => b.dataset.testid)).toEqual([
+      'context-category-instructions',
+      'context-category-skills',
+      'context-category-agents',
+      'context-category-mcp',
+      'context-category-commands',
+      'context-category-hooks',
+      'context-category-plugins'
+    ])
+    expect(rail().map((b) => within(b).getByTestId('context-category-label').textContent)).toEqual([
+      'Instructions',
+      'Skills',
+      'Agents',
+      'MCP servers',
+      'Commands',
+      'Hooks',
+      'Plugins'
+    ])
+    expect(screen.getByTestId('context-category-instructions')).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+  })
+
+  it('shows each category’s total tokens where the report has them', async () => {
+    await open()
+    const tokens = (id: string): string | null =>
+      within(screen.getByTestId(`context-category-${id}`)).queryByTestId('context-category-tokens')
+        ?.textContent ?? null
+    expect(tokens('instructions')).toBe('1,200 tokens')
+    expect(tokens('skills')).toBe('90 tokens')
+    expect(tokens('agents')).toBe('300 tokens')
+    expect(tokens('mcp')).toBe('900 tokens')
+    expect(tokens('commands')).toBe('300 tokens')
+    expect(tokens('hooks')).toBeNull()
+    expect(tokens('plugins')).toBeNull()
+  })
+
+  it('lists instruction files in report order with name, tier and import parent', async () => {
+    await open()
+    const rows = screen.getAllByTestId('context-file')
+    expect(rows.map((r) => within(r).getByTestId('context-file-name').textContent)).toEqual([
+      'CLAUDE.md',
+      'CLAUDE.md',
+      'rules.md'
+    ])
+    expect(within(rows[0]!).getByText('User')).toBeVisible()
+    expect(within(rows[1]!).getByText('Project')).toBeVisible()
+    expect(within(rows[2]!).getByText('imported by CLAUDE.md')).toBeVisible()
+  })
+
+  it('shows tokens joined from the memory files by path, and none when absent', async () => {
+    await open()
+    const rows = screen.getAllByTestId('context-file')
+    expect(within(rows[1]!).getByText('1,200 tokens')).toBeVisible()
+    expect(within(rows[0]!).queryByText(/tokens/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the full path in the name’s title', async () => {
+    await open()
+    expect(
+      within(screen.getAllByTestId('context-file')[2]!).getByTestId('context-file-name')
+    ).toHaveAttribute('title', '/work/app/docs/rules.md')
+  })
+
+  it('Open in editor asks main by session id and file index, never a path', async () => {
+    const bridge = await open()
+    await userEvent.click(
+      within(screen.getAllByTestId('context-file')[1]!).getByRole('button', {
+        name: 'Open in editor'
+      })
+    )
+    expect(bridge.open).toHaveBeenCalledWith(SID, 1)
+  })
+
+  it('a refused Open says the file no longer exists', async () => {
+    const bridge = await open()
+    bridge.open.mockRejectedValue(wrapped('file_missing'))
+    await userEvent.click(
+      within(screen.getAllByTestId('context-file')[1]!).getByRole('button', {
+        name: 'Open in editor'
+      })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('That file no longer exists.')
+  })
+
+  it('an unknown kind shows as claude sent it', async () => {
+    await open({
+      state: 'ready',
+      report: modReportFixture({ instructionFiles: [{ path: '/a/X.md', kind: 'someNewTier' }] })
+    })
+    expect(within(fileRow('X.md')).getByText('someNewTier')).toBeVisible()
+  })
+})
+
+describe('ContextDialog — History', () => {
+  async function openHistory(): Promise<Bridge> {
+    const bridge = await open()
+    await userEvent.click(
+      within(screen.getAllByTestId('context-file')[1]!).getByRole('button', { name: 'History' })
+    )
+    return bridge
+  }
+
+  it('lists versions newest first by time and size', async () => {
+    const bridge = await openHistory()
+    expect(bridge.listHistory).toHaveBeenCalledWith(SID, 1)
+    const radios = await screen.findAllByRole('radio')
+    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
+      '1 min ago, 2 KB',
+      '1 h ago, 1 KB'
+    ])
+  })
+
+  it('selecting a version shows its diff against the file now, marked', async () => {
+    const bridge = await openHistory()
+    await userEvent.click((await screen.findAllByRole('radio'))[1]!)
+    expect(bridge.diff).toHaveBeenCalledWith('v1')
+    const lines = await screen.findAllByTestId('context-diff-line')
+    expect(lines.map((l) => [l.dataset.op, l.textContent])).toEqual([
+      ['same', ' # app'],
+      ['del', '-old rule'],
+      ['add', '+new rule']
+    ])
+  })
+
+  it('a too-large diff says so', async () => {
+    const bridge = await openHistory()
+    bridge.diff.mockRejectedValue(wrapped('file_too_large'))
+    await userEvent.click((await screen.findAllByRole('radio'))[0]!)
+    expect(await screen.findByRole('alert')).toHaveTextContent('That file is too large to compare.')
+  })
+
+  it('Restore this version arms in place, Escape disarms without closing', async () => {
+    const bridge = await openHistory()
+    await userEvent.click((await screen.findAllByRole('radio'))[0]!)
+    await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
+    expect(screen.getByRole('button', { name: 'Confirm restore' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Restore this version' })).toBeVisible()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(bridge.restore).not.toHaveBeenCalled()
+  })
+
+  it('Confirm restore restores the version and says so', async () => {
+    const bridge = await openHistory()
+    await userEvent.click((await screen.findAllByRole('radio'))[0]!)
+    await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
+    expect(bridge.restore).toHaveBeenCalledWith('v2')
+    expect(await screen.findByRole('status')).toHaveTextContent('Restored CLAUDE.md.')
+  })
+
+  it.each([
+    ['file_restore_failed', 'Could not restore CLAUDE.md.'],
+    ['version_not_found', 'That version is no longer in the history.'],
+    ['store_write_failed', 'Could not save to disk, so nothing changed.']
+  ])('a refused restore (%s) shows its copy', async (code, copy) => {
+    const bridge = await openHistory()
+    bridge.restore.mockRejectedValue(wrapped(code))
+    await userEvent.click((await screen.findAllByRole('radio'))[0]!)
+    await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy)
+  })
+
+  it('a file over the size cap says no versions are kept', async () => {
+    const bridge = await open()
+    bridge.listHistory.mockResolvedValue({ versions: [], tooLarge: true })
+    await userEvent.click(
+      within(screen.getAllByTestId('context-file')[1]!).getByRole('button', { name: 'History' })
+    )
+    expect(
+      await screen.findByText('This file is over 1 MB, so no versions are kept.')
+    ).toBeVisible()
+  })
+
+  it('the back button returns to the file list', async () => {
+    await openHistory()
+    await userEvent.click(screen.getByRole('button', { name: 'Instructions' }))
+    expect(screen.getAllByTestId('context-file')).toHaveLength(3)
+  })
+})
+
+describe('ContextDialog — the other pages', () => {
+  const page = async (id: string): Promise<HTMLElement> => {
+    await userEvent.click(screen.getByTestId(`context-category-${id}`))
+    return screen.getByTestId(`context-pane-${id}`)
+  }
+
+  it('Skills shows name, source, plugin name and tokens, with no open action', async () => {
+    await open()
+    const pane = await page('skills')
+    expect(within(pane).getByText('tdd')).toBeVisible()
+    expect(within(pane).getByText('plugin · superpowers')).toBeVisible()
+    expect(within(pane).getByText('userSettings')).toBeVisible()
+    expect(within(pane).queryByRole('button', { name: 'Open in editor' })).not.toBeInTheDocument()
+  })
+
+  it('Agents shows type, source and tokens', async () => {
+    await open()
+    const pane = await page('agents')
+    expect(within(pane).getByText('Explore')).toBeVisible()
+    expect(within(pane).getByText('built-in')).toBeVisible()
+  })
+
+  it('MCP servers shows tools and loaded counts', async () => {
+    await open()
+    const pane = await page('mcp')
+    expect(within(pane).getByText('jira')).toBeVisible()
+    expect(within(pane).getByText('4 tools · 2 loaded')).toBeVisible()
+  })
+
+  it('Commands shows the total', async () => {
+    await open()
+    expect(within(await page('commands')).getByText('12 commands')).toBeVisible()
+  })
+
+  it('Hooks and Plugins show names and sources', async () => {
+    await open()
+    expect(within(await page('hooks')).getByText('Stop')).toBeVisible()
+    expect(
+      within(await page('plugins')).getByText('superpowers@claude-plugins-official')
+    ).toBeVisible()
+  })
+
+  it('a page with nothing says so', async () => {
+    await open({ state: 'ready', report: modReportFixture({ skills: null }) })
+    expect(within(await page('skills')).getByText('Claude listed no skills.')).toBeVisible()
+  })
+})
+
+describe('ContextDialog — waiting and unavailable', () => {
+  it('waiting shows the placeholder sentence', async () => {
+    await open({ state: 'waiting' })
+    expect(screen.getByText('Waiting for Claude to report its setup.')).toBeVisible()
+  })
+
+  it.each([
+    ['claude_too_old', 'Update claude to 2.1.304 or newer to see its context.'],
+    ['mod_not_installed', 'The app could not set up its Claude mod. Reopen the app to try again.'],
+    ['listener_down', 'Status is off for this session, so Claude cannot report its context.']
+  ] as const)('unavailable %s shows its copy', async (reason, copy) => {
+    await open({ state: 'unavailable', reason })
+    expect(screen.getByText(copy)).toBeVisible()
+  })
+
+  it('a setup push for this session moves waiting to the Instructions page', async () => {
+    const bridge = await open({ state: 'waiting' })
+    bridge.getSetup.mockResolvedValue({ state: 'ready', report: modReportFixture() })
+    await act(async () => {
+      bridge.fire(SID)
+      await Promise.resolve()
+    })
+    expect(screen.getAllByTestId('context-file')).toHaveLength(3)
+  })
+
+  it('a push for another session asks nothing', async () => {
+    const bridge = await open({ state: 'waiting' })
+    bridge.getSetup.mockClear()
+    act(() => bridge.fire('other'))
+    expect(bridge.getSetup).not.toHaveBeenCalled()
+  })
+})
+
+describe('ContextDialog — styles', () => {
+  const CSS = 'components/ContextDialog/ContextDialog.module.css'
+
+  it('marks added and removed diff lines with the success and danger fills', () => {
+    expect(cssRule(CSS, ".line[data-op='add']")).toMatch(/background:\s*var\(--success-fill\)/)
+    expect(cssRule(CSS, ".line[data-op='del']")).toMatch(/background:\s*var\(--danger-fill\)/)
+  })
+
+  it('truncates a long file name', () => {
+    const name = cssRule(CSS, '.name')
+    expect(name).toMatch(/text-overflow:\s*ellipsis/)
+    expect(name).toMatch(/white-space:\s*nowrap/)
+  })
+})

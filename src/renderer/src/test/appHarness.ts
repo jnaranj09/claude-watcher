@@ -128,6 +128,7 @@ export function resetBoardView(): void {
     sessionsDialog: null,
     tagsDialog: null,
     settingsDialogOpen: false,
+    contextDialogTerminalId: null,
     shortcutsDialogOpen: false,
     workspacesDialogOpen: false,
     quitGuard: null,

@@ -48,7 +48,7 @@ import {
 import { acknowledgeSession } from '../utils/acknowledgeSession'
 import { isInsideTerminal } from '../lib/terminalFocus'
 import styles from './FocusedSession.module.css'
-import { SHELL_TERMS } from '../copy/terms'
+import { CONTEXT_TERMS, SHELL_TERMS } from '../copy/terms'
 
 /**
  * Story 4.3 (FR-15) — resolve a human-readable name for the focused terminal.
@@ -264,6 +264,21 @@ export function FocusedSession({
               Esc to return
             </span>
           )}
+          {/* Context (spec 2026-10-18 §5) — what claude loaded for this session, from the bridge
+              mod's report. The dialog follows the terminal, so a `/clear` keeps it on the card. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="focused-context"
+            onClick={() => {
+              if (focusedTerminalId !== null)
+                boardStore.getState().openContextDialog(focusedTerminalId)
+            }}
+            title={CONTEXT_TERMS.open}
+            aria-haspopup="dialog"
+          >
+            {CONTEXT_TERMS.label}
+          </Button>
           {/* Card shell pane — a plain $SHELL in this card's folder, under claude. LIT while the
               pane is open (the Filter button's toggle look). Main resolves the folder. */}
           <Button

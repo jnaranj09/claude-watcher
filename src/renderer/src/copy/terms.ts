@@ -22,3 +22,10 @@ export const FAVORITE_TERMS = {
   marker: 'Pinned',
   updateFailed: 'Could not update pin.'
 } as const
+
+/** What a session's claude loaded, per its bridge mod (spec 2026-10-18 §5): the focused header's
+ *  button and the dialog's title. */
+export const CONTEXT_TERMS = {
+  label: 'Context',
+  open: 'See what Claude loaded for this session'
+} as const

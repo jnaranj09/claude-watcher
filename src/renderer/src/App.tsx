@@ -37,6 +37,7 @@ import type { Template } from '../../shared/ipc/contract'
 // Story 2.4 — the minimal Settings surface (☰ menu → Settings; the `#terminals` proof view keeps
 // its own ⚙ gear) + the startup settings load.
 import { Settings, SettingsPanel } from './components/Settings/Settings'
+import { ContextDialog } from './components/ContextDialog/ContextDialog'
 // Story 3.1 (FR-10) — the minimal embedded-terminal host. Reachable via the URL hash
 // (`#terminals` → 1; `#terminals=N` → N for the NFR-5 many-terminals manual check) so it does
 // NOT alter the default board view or the Story-0.1 smoke path.
@@ -63,7 +64,8 @@ import {
   selectShortcutsDialogOpen,
   selectWorkspacesDialogOpen,
   selectTagsDialog,
-  selectSettingsDialogOpen
+  selectSettingsDialogOpen,
+  selectContextDialogTerminalId
 } from './stores/boardStore'
 // Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; shown when boardStore.quitGuard
 // is non-null). Imported here and rendered over the board/focused view when the guard is active.
@@ -188,6 +190,7 @@ function App(): React.JSX.Element {
   const tagsDialog = useBoard(selectTagsDialog)
   // Settings — whether the Settings dialog is open.
   const settingsDialogOpen = useBoard(selectSettingsDialogOpen)
+  const contextDialogTerminalId = useBoard(selectContextDialogTerminalId)
   // Story 3.4 (FR-16 / B-1 fix) — the kept-alive terminal set. Used to decide whether to KEEP the
   // FocusedSession (and its EmbeddedTerminals) MOUNTED while on the Board: if any app-launched
   // terminal exists, the focused view stays mounted-but-hidden so a Board↔Focused switch NEVER
@@ -649,6 +652,7 @@ function App(): React.JSX.Element {
     workspacesDialogOpen ||
     tagsDialog !== null ||
     settingsDialogOpen ||
+    contextDialogTerminalId !== null ||
     // R9 — the Delete confirm and the Quit guard are modals too: Shift+Tab out of the confirm
     // reached the live terminal behind it.
     stopConfirm !== null ||
@@ -785,6 +789,16 @@ function App(): React.JSX.Element {
       {/* Settings — the Settings dialog (☰ menu → Settings; same single-modal rule). */}
       <Presence value={settingsDialogOpen || null}>
         {() => <SettingsPanel onClose={() => boardStore.getState().closeSettingsDialog()} />}
+      </Presence>
+      {/* Context (spec 2026-10-18 §5) — what claude loaded for the focused session (same z-60
+          layer and single-modal rule). */}
+      <Presence value={contextDialogTerminalId}>
+        {(terminalId) => (
+          <ContextDialog
+            terminalId={terminalId}
+            onClose={() => boardStore.getState().closeContextDialog()}
+          />
+        )}
       </Presence>
       {/* Sessions (spec 2026-10-03 B) — Past / Templates as pages of one dialog (same z-60 layer and
           single-modal rule). A page row hands its page to the store. */}

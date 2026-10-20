@@ -1,0 +1,126 @@
+/* Context — what is the dialog's own inside the ManageDialog shell (spec 2026-10-18 §5). The rows
+   are the Settings pane's row look (a line between rows, label left, actions right); the overlay,
+   panel, rail and scroll region are ManageDialog.module.css. Tokens only — NO new colours. */
+
+/* A rail row: the category, then its tokens on a second line (a Manage rail row has room). */
+.railLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  min-width: 0;
+}
+
+.railTokens {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-page);
+  padding: var(--inset-card) 0;
+  border-top: 1px solid var(--border);
+}
+
+.row:first-of-type {
+  border-top: none;
+}
+
+/* Name over details; a long name truncates and keeps its full path in `title`. */
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Text on a raised panel is --text-secondary, never --text-muted (design.md). */
+.details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-inline-tight);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.details > span + span::before {
+  content: '· ';
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--gap-inline);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* History: back + file name, the versions, the diff, the footer — blocks a section apart. */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+  min-width: 0;
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+
+.versions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+}
+
+.version {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* The diff: one line per row, its mark first; added and removed lines carry the success and
+   danger FILLS (text stays primary: a --danger text colour is the Callout's alone). */
+.diff {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--inset-compact-y) var(--inset-compact-x);
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.line {
+  white-space: pre;
+}
+
+.line[data-op='add'] {
+  background: var(--success-fill);
+}
+
+.line[data-op='del'] {
+  background: var(--danger-fill);
+}

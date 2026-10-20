@@ -349,6 +349,12 @@ export interface BoardState {
    */
   settingsDialogOpen: boolean
   /**
+   * Context (spec 2026-10-18 §5) — the TERMINAL whose session's setup the Context dialog shows,
+   * else null (RENDERER VIEW-STATE). A terminal, not a session id: a `/clear` re-keys the session,
+   * and the dialog follows the terminal to its new id.
+   */
+  contextDialogTerminalId: string | null
+  /**
    * The filter bar's search box — the text VERBATIM, as typed (RENDERER VIEW-STATE, never
    * persisted). `useBoardFilter` hands it to the board and rail selectors, which match it against
    * the card NAME only. It survives a workspace switch: the box shows it, so nothing is hidden
@@ -534,6 +540,8 @@ export interface BoardState {
   openSettingsDialog: () => void
   /** Settings — close the Settings dialog. No-op if already closed. */
   closeSettingsDialog: () => void
+  openContextDialog: (terminalId: string) => void
+  closeContextDialog: () => void
   /** The filter bar's search box — store the text as typed (the selectors trim it). */
   setSearchQuery: (query: string) => void
   /** Replace one workspace's filters (the filter bar's every change). */
@@ -634,6 +642,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // Rules — the Manage-rules dialog starts closed.
     // Settings — the Settings dialog starts closed.
     settingsDialogOpen: false,
+    contextDialogTerminalId: null,
     // Past sessions — the Past-sessions dialog starts closed.
     // The filter bar's search box starts empty: nothing hidden.
     searchQuery: '',
@@ -1002,6 +1011,12 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     closeSettingsDialog: () => {
       if (get().settingsDialogOpen) set({ settingsDialogOpen: false })
     },
+    openContextDialog: (terminalId) => {
+      if (get().contextDialogTerminalId !== terminalId) set({ contextDialogTerminalId: terminalId })
+    },
+    closeContextDialog: () => {
+      if (get().contextDialogTerminalId !== null) set({ contextDialogTerminalId: null })
+    },
     setSearchQuery: (query) => {
       if (get().searchQuery !== query) set({ searchQuery: query })
     },
@@ -1209,6 +1224,8 @@ export const selectTagsDialog = (state: BoardState): TagsDialogPage | null => st
  * [state.md: modal open/closed = renderer view-state]
  */
 export const selectSettingsDialogOpen = (state: BoardState): boolean => state.settingsDialogOpen
+export const selectContextDialogTerminalId = (state: BoardState): string | null =>
+  state.contextDialogTerminalId
 
 /** The filter bar's search text, as typed (a primitive). */
 export const selectSearchQuery = (state: BoardState): string => state.searchQuery

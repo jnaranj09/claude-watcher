@@ -1,0 +1,148 @@
+// Context (spec 2026-10-18 §5): what a session's claude loaded, from its bridge mod report, on
+// the Settings pattern — one ManageDialog, the categories as rail rows, a Pane on the right. The
+// dialog follows a TERMINAL (boardStore.contextDialogTerminalId), so a `/clear` that re-keys the
+// session keeps it open on the new id. Main pushes `session-setup:changed` when a report lands;
+// the dialog asks again. The renderer never holds a path it sends back: a file is its index.
+import { useEffect, useState, type JSX } from 'react'
+import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
+import { useBoard } from '../../stores/boardStore'
+import type { ModReport, SessionSetupState } from '../../../../shared/ipc/contract'
+import { CONTEXT_TERMS } from '../../copy/terms'
+import {
+  CONTEXT_CATEGORIES,
+  CONTEXT_COPY,
+  FIRST_CONTEXT_CATEGORY,
+  UNAVAILABLE_COPY,
+  type ContextCategoryId
+} from './contextCopy'
+import { ContextPage } from './contextPages'
+import styles from './ContextDialog.module.css'
+
+const isCategory = (id: string | null): id is ContextCategoryId =>
+  CONTEXT_CATEGORIES.some((c) => c.id === id)
+
+/** Each category's total tokens, where the report has them. */
+function categoryTokens(report: ModReport, id: ContextCategoryId): number | null {
+  const sum = (rows: readonly { tokens: number }[]): number =>
+    rows.reduce((total, r) => total + r.tokens, 0)
+  switch (id) {
+    case 'instructions':
+      return sum(report.memoryFiles)
+    case 'skills':
+      return report.skills === null ? null : sum(report.skills)
+    case 'agents':
+      return sum(report.agents)
+    case 'mcp':
+      return sum(report.mcpServers)
+    case 'commands':
+      return report.slashCommands?.tokens ?? null
+    case 'hooks':
+    case 'plugins':
+      return null
+  }
+}
+
+export function ContextDialog({
+  terminalId,
+  onClose
+}: {
+  terminalId: string
+  onClose: () => void
+}): JSX.Element {
+  const sessionId = useBoard(
+    (s) => Object.entries(s.terminalIdBySessionId).find(([, t]) => t === terminalId)?.[0] ?? null
+  )
+  const [setup, setSetup] = useState<SessionSetupState | null>(null)
+  const dialog = useManageDialog({
+    title: CONTEXT_TERMS.label,
+    testIdPrefix: 'context',
+    onClose,
+    initialSelectedId: FIRST_CONTEXT_CATEGORY
+  })
+  const { setError } = dialog.actions
+
+  useEffect(() => {
+    if (sessionId === null) return
+    let live = true
+    const load = (): void => {
+      window.context
+        .getSetup(sessionId)
+        .then((next) => {
+          if (live) setSetup(next)
+        })
+        .catch(() => {
+          if (live) setError(CONTEXT_COPY.loadFailed)
+        })
+    }
+    load()
+    const off = window.context.onSetupChanged((id) => {
+      if (id === sessionId) load()
+    })
+    return () => {
+      live = false
+      off()
+    }
+  }, [sessionId, setError])
+
+  const selected = dialog.state.selectedId
+  const category = isCategory(selected) ? selected : FIRST_CONTEXT_CATEGORY
+  const report = setup?.state === 'ready' ? setup.report : null
+
+  return (
+    <ManageDialog.Provider {...dialog}>
+      <ManageDialog.Frame>
+        <ManageDialog.Header />
+        <ManageDialog.Columns>
+          <ManageDialog.List>
+            <ManageDialog.Rows>
+              {CONTEXT_CATEGORIES.map((c) => {
+                const tokens = report === null ? null : categoryTokens(report, c.id)
+                return (
+                  <ManageDialog.Row
+                    key={c.id}
+                    id={c.id}
+                    testId={`context-row-${c.id}`}
+                    selectTestId={`context-category-${c.id}`}
+                  >
+                    <span className={styles.railLabel}>
+                      <span data-testid="context-category-label">{c.label}</span>
+                      {tokens !== null ? (
+                        <span className={styles.railTokens} data-testid="context-category-tokens">
+                          {CONTEXT_COPY.tokens(tokens)}
+                        </span>
+                      ) : (
+                        report !== null && (
+                          // Same kind, same size: a row with no tokens keeps the second line.
+                          <span className={styles.railTokens} aria-hidden>
+                            {'\u00a0'}
+                          </span>
+                        )
+                      )}
+                    </span>
+                  </ManageDialog.Row>
+                )
+              })}
+            </ManageDialog.Rows>
+          </ManageDialog.List>
+          {report !== null && sessionId !== null ? (
+            <ManageDialog.Pane testId={`context-pane-${category}`}>
+              <ContextPage
+                key={category}
+                category={category}
+                report={report}
+                sessionId={sessionId}
+              />
+            </ManageDialog.Pane>
+          ) : (
+            <ManageDialog.Placeholder testId="context-placeholder">
+              {setup?.state === 'unavailable'
+                ? UNAVAILABLE_COPY[setup.reason]
+                : CONTEXT_COPY.waiting}
+            </ManageDialog.Placeholder>
+          )}
+        </ManageDialog.Columns>
+        <ManageDialog.Message testId="context-error" />
+      </ManageDialog.Frame>
+    </ManageDialog.Provider>
+  )
+}
