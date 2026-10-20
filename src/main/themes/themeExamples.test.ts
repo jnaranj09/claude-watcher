@@ -103,11 +103,12 @@ describe('docs/themes/examples', () => {
   })
   // LIQUID glass carries no grain: a noise tile is the acrylic (frosted) recipe and read matte.
   // The material is the lit rim instead. The ground is the chosen WALLPAPER (spec 2026-09-24):
-  // the app inlines exactly one as --theme-wallpaper and body is its only consumer; the theme CSS
-  // references no asset of its own.
+  // the app inlines exactly one as --theme-wallpaper; body and the modal panels (which blur it in
+  // place of the terminal, 2026-10-20) are its only consumers; the theme CSS references no asset
+  // of its own.
   // The one other url() is `url(#cw-text-refraction)`: an SVG filter the app ships in index.html,
   // a reference into the page, never a file.
-  it('liquid-glass has no grain, no sheen, and one image: the chosen wallpaper on body only', () => {
+  it('liquid-glass has no grain, no sheen, and one image: the chosen wallpaper on body and modals', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
     if (r.ok) {
@@ -119,7 +120,10 @@ describe('docs/themes/examples', () => {
       const users = liquidGlassRules().filter((rule) =>
         rule.body.includes('var(--theme-wallpaper)')
       )
-      expect(users.map((rule) => rule.selectors)).toEqual([['body']])
+      expect(users.map((rule) => rule.selectors)).toEqual([
+        ['body'],
+        ["[role='dialog'][aria-modal='true'] > *", "[data-testid='settings-panel']"]
+      ])
       expect(r.bundle.css).toContain('--glass-rim:')
       expect(r.bundle.css).toContain('--glass-fill:')
       expect(r.bundle.css).not.toContain('--glass-sheen')
@@ -161,7 +165,9 @@ describe('docs/themes/examples', () => {
       "[data-testid='settings-panel']"
     ]
     for (const sel of MODAL_PANELS) {
-      expect(fillOf(sel), sel).toMatch(/background(-color)?:\s*var\(--glass-fill-modal\);/)
+      expect(fillOf(sel), sel).toMatch(
+        /background:\s*linear-gradient\(var\(--glass-fill-modal\), var\(--glass-fill-modal\)\),\s*var\(--theme-wallpaper\) center \/ cover fixed no-repeat;/
+      )
       expect(fillOf(`${sel}::before`), sel).toMatch(/backdrop-filter:\s*var\(--glass-filter\);/)
       expect(fillOf(`${sel}::before`), sel).toMatch(
         /background(-color)?:\s*var\(--glass-lift-modal\);/
@@ -185,8 +191,8 @@ describe('docs/themes/examples', () => {
     )
   })
   // A modal panel is lifted toward the header (operator, 2026-10-20: Settings and Goals looked
-  // too dark over the scrim): the header's own fill alpha, and a 7% white layer over its blur
-  // (9% read too white).
+  // too dark over the scrim): the header's own fill alpha over the wallpaper, and a 4% white
+  // layer over its blur (9% read too white, 7% grey over the terminal).
   // Not `brightness()` in the filter: over the scrim-dimmed backdrop it multiplied the few grey
   // steps the blur leaves into visible squares (Goals over a terminal, same day).
   it('liquid-glass modal panels take the header fill and a white lift, no brightness filter', () => {
@@ -194,7 +200,7 @@ describe('docs/themes/examples', () => {
     const value = (name: string): string | undefined =>
       new RegExp(`^\\s*--${name}:\\s*([^;]+);`, 'm').exec(css)?.[1]
     expect(value('glass-fill-modal')).toBe(value('glass-fill'))
-    expect(value('glass-lift-modal')).toBe('rgba(255, 255, 255, 0.07)')
+    expect(value('glass-lift-modal')).toBe('rgba(255, 255, 255, 0.04)')
     expect(value('glass-filter-modal')).toBeUndefined()
   })
   // An element with its own `backdrop-filter` is a BACKDROP ROOT: a blurred element inside it

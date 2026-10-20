@@ -80,11 +80,17 @@ body {
      a terminal showed soft squares the ☰ menu does not). The blur works on the scrim-dimmed
      backdrop, a narrow band of dark greys (14 shades under Goals against 59 under the ☰ menu), and
      `brightness(175%)` multiplied each step between them into a visible patch. A white layer lifts
-     the panel without growing the steps: 7% (mean grey 34 on the drive, the header 48); 9% matched
-     the old lift and read too white (operator, same day).
-     Noise would hide them better (Acrylic), but this glass carries no grain (above). */
+     the panel without growing the steps (9% read too white, 7% read grey).
+     The WALLPAPER under the panel, not the terminal (operator, same day: the panel was grey next to
+     the header's blue). The header's WebGL glass sees only the wallpaper; a modal over a focused
+     session sees the near-black terminal frame, which no `saturate()` can colour (250% left it
+     grey on Bridge). So the panel paints the wallpaper itself (fixed, aligned with body's) under
+     its fill, and its blur reads that: the header's colour, and a smooth ground with no squares.
+     The terminal no longer shows through a modal. 4% white over it (picked on the drive against
+     0% and a 20% fill). Noise would also hide the squares (Acrylic), but this glass carries no
+     grain (above). */
   --glass-fill-modal: rgba(14, 14, 16, 0.38);
-  --glass-lift-modal: rgba(255, 255, 255, 0.07);
+  --glass-lift-modal: rgba(255, 255, 255, 0.04);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
      a film. Brighter than before (0.3 / 0.08 against 0.2 / 0.06): with the fill at 3% the rim is
@@ -150,10 +156,13 @@ body {
    replaces the token's `--bg-surface-raised` (white 10%): that, under the sheen the `::before`
    layer used to carry, is what made a dialog milky next to the header. The scrim behind a modal
    already darkens the board — too much through 3% glass, so a modal panel takes the brighter
-   `--glass-fill-modal` / `--glass-lift-modal` pair (see `:root`). */
+   `--glass-fill-modal` / `--glass-lift-modal` pair, over the wallpaper it paints itself (see
+   `:root`). */
 [role='dialog'][aria-modal='true'] > *,
 [data-testid='settings-panel'] {
-  background-color: var(--glass-fill-modal);
+  background:
+    linear-gradient(var(--glass-fill-modal), var(--glass-fill-modal)),
+    var(--theme-wallpaper) center / cover fixed no-repeat;
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--shadow-dialog);
 }
