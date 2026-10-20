@@ -193,13 +193,26 @@ export function FocusedSession({
     await archiveTerminal(focusedTerminalId)
   })
 
-  // Tasks beside the terminal (spec 2026-10-19 E): shown while the session has linked tasks, or
-  // once the operator opens it. View-state only, not persisted.
-  const [tasksOpen, setTasksOpen] = useState(false)
+  // Tasks beside the terminal (spec 2026-10-19 E): a real open/closed state per focused session.
+  // Moving focus to a session starts it open when that session has linked tasks, closed when not;
+  // after that only the toggle changes it (a last unlink does not close it, a link does not open
+  // it). Local view-state, not persisted; reset in render the moment the focused session changes.
+  const focusedSessionId = focusedSession?.id ?? null
   const hasLinkedTasks =
-    useGoals((s) => (focusedSession === null ? [] : selectTasksForSession(focusedSession.id)(s)))
+    useGoals((s) => (focusedSessionId === null ? [] : selectTasksForSession(focusedSessionId)(s)))
       .length > 0
-  const tasksVisible = focusedSession !== null && (tasksOpen || hasLinkedTasks)
+  const [tasksPanel, setTasksPanel] = useState<{ sessionId: string | null; open: boolean }>({
+    sessionId: null,
+    open: false
+  })
+  if (tasksPanel.sessionId !== focusedSessionId) {
+    setTasksPanel({
+      sessionId: focusedSessionId,
+      open: focusedSessionId !== null && hasLinkedTasks
+    })
+  }
+  const tasksVisible =
+    focusedSession !== null && tasksPanel.sessionId === focusedSessionId && tasksPanel.open
 
   // Card shell pane — every card's pane state (same reference until a pane changes).
   const shellPanes = useBoard((s) => s.shellPanes)
@@ -309,7 +322,8 @@ export function FocusedSession({
             size="sm"
             testId="focused-tasks"
             lit={tasksVisible}
-            onClick={() => setTasksOpen((v) => !v)}
+            disabled={focusedSession === null}
+            onClick={() => setTasksPanel((p) => ({ ...p, open: !p.open }))}
             aria-pressed={tasksVisible}
           >
             {GOAL_TERMS.tasks}

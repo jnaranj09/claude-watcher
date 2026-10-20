@@ -142,6 +142,7 @@ export function SessionTasks({
             buttonRef={buttonRef}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
+            busy={link.busy}
             onClick={() => setMenuOpen((v) => !v)}
           >
             {GOAL_TERMS.linkTask}
@@ -193,11 +194,13 @@ export function SessionTasks({
                       key={task.id}
                       task={task}
                       onToggle={(d) => void tick.run(task, d)}
+                      busy={tick.busy}
                       trailing={
                         <Button
                           variant="ghost"
                           size="xs"
                           icon
+                          busy={unlink.busy}
                           testId={`session-tasks-unlink-${task.id}`}
                           aria-label={`Unlink ${task.title}`}
                           onClick={() => void unlink.run(task)}

@@ -155,4 +155,32 @@ describe('SessionTasks', () => {
       'No tasks linked to this session.'
     )
   })
+
+  it('a tick, a link and an unlink disable their control while main answers', async () => {
+    const user = userEvent.setup()
+    open({
+      goals: [goal()],
+      tasks: [task(), task({ id: 't2', title: 'Free one', sessionIds: [] })],
+      proposals: []
+    })
+    let release: (v: GoalsView) => void = () => {}
+    const pending = (): Promise<GoalsView> => new Promise((r) => (release = r))
+    bridge.setTaskStatus!.mockImplementationOnce(pending)
+    await user.click(screen.getByRole('checkbox', { name: 'Write the spec' }))
+    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).toBeDisabled()
+    await act(async () => release(view))
+    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).toBeEnabled()
+
+    bridge.unlinkTask!.mockImplementationOnce(pending)
+    await user.click(screen.getByRole('button', { name: 'Unlink Write the spec' }))
+    expect(screen.getByRole('button', { name: 'Unlink Write the spec' })).toBeDisabled()
+    await act(async () => release(view))
+
+    bridge.linkTask!.mockImplementationOnce(pending)
+    await user.click(screen.getByRole('button', { name: 'Link task' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Free one' }))
+    expect(screen.getByRole('button', { name: 'Link task' })).toBeDisabled()
+    await act(async () => release(view))
+    expect(bridge.linkTask).toHaveBeenCalledTimes(1)
+  })
 })

@@ -34,6 +34,10 @@
   background-color: var(--text-primary);
   border-color: var(--text-primary);
 }
+.square:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .square:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;

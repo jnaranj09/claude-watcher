@@ -9,11 +9,14 @@ import styles from './TaskRow.module.css'
 export function TaskRow({
   task,
   onToggle,
+  busy = false,
   trailing
 }: {
   task: Task
   /** Gets the NEW done value. */
   onToggle: (done: boolean) => void
+  /** Its change is in flight: the checkbox is disabled until main answers. */
+  busy?: boolean
   trailing?: ReactNode
 }): JSX.Element {
   return (
@@ -24,6 +27,7 @@ export function TaskRow({
           testId={`task-check-${task.id}`}
           checked={task.status === 'done'}
           onChange={onToggle}
+          disabled={busy}
         />
         <span className={styles.title} title={task.title}>
           {task.title}

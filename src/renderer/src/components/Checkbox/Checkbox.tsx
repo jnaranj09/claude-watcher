@@ -11,6 +11,8 @@ interface CheckboxBase {
   onChange: (checked: boolean) => void
   /** Some, not all, of what it selects is selected: draws a dash. */
   indeterminate?: boolean
+  /** The change is in flight: the box takes no further clicks. */
+  disabled?: boolean
   testId?: string
 }
 /** Visible text (drawn `--gap-field` after the box, and a click on it toggles), or, for a box
@@ -22,6 +24,7 @@ export function Checkbox({
   checked,
   onChange,
   indeterminate = false,
+  disabled = false,
   testId,
   label,
   ariaLabel
@@ -41,6 +44,7 @@ export function Checkbox({
         data-testid={testId}
         aria-label={ariaLabel}
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
       />
       <svg className={styles.mark} viewBox="0 0 16 16" aria-hidden="true">

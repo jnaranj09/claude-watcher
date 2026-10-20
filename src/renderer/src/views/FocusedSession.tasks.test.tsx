@@ -89,4 +89,68 @@ describe('FocusedSession — the Tasks panel', () => {
     expect(screen.getByTestId('embedded-terminal')).toBe(frame)
     expect(frame).not.toContainElement(screen.getByTestId('session-tasks'))
   })
+
+  it('the toggle hides a panel that opened for linked tasks, and shows it again', async () => {
+    const user = userEvent.setup()
+    open([linked])
+    const toggle = screen.getByRole('button', { name: 'Tasks' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await user.click(toggle)
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+    expect(toggle).not.toHaveAttribute('data-lit')
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await user.click(toggle)
+    expect(screen.getByTestId('session-tasks')).toBeInTheDocument()
+    expect(toggle).toHaveAttribute('data-lit')
+  })
+
+  it('unlinking the last task keeps the panel: the none-linked note and Link task', async () => {
+    const user = userEvent.setup()
+    ;(window as unknown as { goals: unknown }).goals = {
+      onChanged: vi.fn(() => () => {}),
+      unlinkTask: vi.fn(() => {
+        const tasks = [{ ...linked, sessionIds: [] }]
+        return Promise.resolve({ goals: [], tasks, proposals: [] })
+      })
+    }
+    act(() => goalsStore.setState({ goals: [], tasks: [linked], loaded: true, loadFailed: false }))
+    rendered = render(<FocusedSession onBack={() => {}} onNewSession={() => {}} />)
+    await user.click(screen.getByRole('button', { name: 'Unlink Write the spec' }))
+    expect(screen.getByTestId('session-tasks')).toHaveTextContent(
+      'No tasks linked to this session.'
+    )
+    expect(screen.getByRole('button', { name: 'Link task' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveAttribute('data-lit')
+  })
+
+  it('linking a task while the panel is closed does not open it', () => {
+    open([{ ...linked, sessionIds: [] }])
+    act(() => goalsStore.setState({ tasks: [linked] }))
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+  })
+
+  it('the toggle is disabled when the focused terminal has no session', () => {
+    boardStore.setState({
+      sessionsById: {},
+      terminalIdBySessionId: {},
+      launchedTerminals: {}
+    })
+    boardStore.getState().openLaunchedTerminal('launch-x', 'x', 'default')
+    act(() => goalsStore.setState({ goals: [], tasks: [], loaded: true, loadFailed: false }))
+    rendered = render(<FocusedSession onBack={() => {}} onNewSession={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Tasks' })).toBeDisabled()
+  })
+
+  it('moving focus to another session resets the panel to that session', async () => {
+    const user = userEvent.setup()
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
+    boardStore.getState().addCorrelation('b', 'launch-b')
+    open([])
+    await user.click(screen.getByRole('button', { name: 'Tasks' }))
+    expect(screen.getByTestId('session-tasks')).toBeInTheDocument()
+    act(() => boardStore.getState().switchTerminal('launch-b'))
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+    act(() => boardStore.getState().switchTerminal('launch-a'))
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+  })
 })
