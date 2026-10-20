@@ -1,6 +1,7 @@
 // Pure text for a session started from goal tasks (spec 2026-10-19 goals, Claude integration).
 // Main builds it from its own records on the launch path; the renderer and the API never supply
-// any of these strings.
+// any of these strings. Titles and names are schema-checked (goal.ts: no control characters, length
+// caps), so each task stays on one line. Shell quoting happens at spawn (claudeBin), not here.
 import type { TaskStatus } from '../../shared/schemas/goal'
 import { SESSION_NAME_MAX_LENGTH } from '../../shared/schemas/launch'
 
@@ -58,7 +59,8 @@ export function taskSessionName(titles: readonly string[]): string {
   // Do not keep the high half of a surrogate pair (an emoji) alone at the cut.
   const code = first.charCodeAt(cut - 1)
   if (code >= 0xd800 && code <= 0xdbff) cut -= 1
-  return first.slice(0, cut) + ELLIPSIS + suffix
+  // No space before the …: a cut after a word reads "foo …", not "foo…".
+  return first.slice(0, cut).trimEnd() + ELLIPSIS + suffix
 }
 
 /** The non-blank parts of a system prompt, joined by a blank line; null when none is left. */
