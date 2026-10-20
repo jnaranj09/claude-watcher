@@ -2,6 +2,8 @@
 // (templates, tags, search, Tags and Sessions dialogs, card shell panes). jsdom `unit` project.
 // Deltas come from `watchUpdated`; time is an INJECTED now().
 import { describe, it, expect, vi } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { goalsStore } from './goalsStore'
 import {
   createBoardStore,
   selectColumn,
@@ -21,6 +23,8 @@ import {
   selectSearchQuery,
   selectShellPane,
   selectBoardFilters,
+  boardStore,
+  useBoardFilter,
   NO_FILTER,
   type BoardFilter
 } from './boardStore'
@@ -461,7 +465,7 @@ describe('session templates — view-state', () => {
 
 /** A board filter with only these tags on and this search text. */
 function byTag(tagIds: string[], query = ''): BoardFilter {
-  return { filters: { ...NO_FILTERS, tagIds }, query, now: () => 0 }
+  return { ...NO_FILTER, filters: { ...NO_FILTERS, tagIds }, query }
 }
 
 describe('tag filtering (spec §4.1)', () => {
@@ -589,6 +593,51 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     expect(selectBoardFilters(store.getState(), 'w3')).toBe(NO_FILTERS)
   })
 
+  it('a deleted goal drops out of the filter at read time', () => {
+    const goal = { id: 'g-1', workspaceId: 'default', name: 'Ship', defaultCwd: null, createdAt: 1 }
+    const task = {
+      id: 'k-1',
+      workspaceId: 'default',
+      goalId: 'g-1',
+      title: 'T',
+      status: 'open' as const,
+      sessionIds: ['s1'],
+      createdAt: 1,
+      doneAt: null,
+      doneBy: null
+    }
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().setBoardFilters('default', { ...NO_FILTERS, goalIds: ['g-1'] })
+    act(() => goalsStore.getState().hydrate({ goals: [goal], tasks: [task], proposals: [] }))
+    const hook = renderHook(() => useBoardFilter('default'))
+    expect(hook.result.current.goalIdsBySession.get('s1')).toEqual(['g-1'])
+    // useBoardFilter reads the module board store; mirror the filter there.
+    act(() => boardStore.getState().setBoardFilters('default', { ...NO_FILTERS, goalIds: ['g-1'] }))
+    hook.rerender()
+    expect(hook.result.current.filters.goalIds).toEqual(['g-1'])
+    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [task], proposals: [] }))
+    hook.rerender()
+    expect(hook.result.current.filters.goalIds).toEqual([])
+    expect(hook.result.current.goalIdsBySession.size).toBe(0)
+    hook.unmount()
+    act(() => boardStore.getState().setBoardFilters('default', NO_FILTERS))
+    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [] }))
+  })
+
+  it('selectors keep only the cards linked to a picked goal', () => {
+    const store = createBoardStore({ now: makeClock().now })
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'idle', 100))
+    store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 200))
+    const filter: BoardFilter = {
+      ...NO_FILTER,
+      filters: { ...NO_FILTERS, goalIds: ['g-1'] },
+      goalIdsBySession: new Map([['a', ['g-1']]])
+    }
+    expect(selectColumn(store.getState(), 'idle', 'default', filter).map((s) => s.id)).toEqual([
+      'a'
+    ])
+  })
+
   it('pruneBoardFilters drops a deleted workspace', () => {
     const store = createBoardStore({ now: makeClock().now })
     store.getState().setBoardFilters('gone', API)
@@ -603,8 +652,8 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       .applyWatchEvent(watchUpdated(1, 'a', 'idle', 100, { tagIds: ['t-api'], launchedAt: 5_000 }))
     store.getState().applyWatchEvent(watchUpdated(1, 'b', 'idle', 100, { tagIds: ['t-web'] }))
     const filter = (filters: SessionFilters): BoardFilter => ({
+      ...NO_FILTER,
       filters,
-      query: '',
       now: () => 10_000
     })
     expect(

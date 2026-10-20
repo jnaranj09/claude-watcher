@@ -29,16 +29,24 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
-import type { Column, WatchEventsPayload, QuitGuardPayload } from '../../../shared/ipc/contract'
+import { useMemo } from 'react'
+import type {
+  Column,
+  Goal,
+  Task,
+  WatchEventsPayload,
+  QuitGuardPayload
+} from '../../../shared/ipc/contract'
 // Workspaces (Task 9a) — `useColumnSessions` is a REACT HOOK (not a pure selector), so it is
 // allowed to read the active workspace itself; this keeps the workspace/board coupling in this
 // ONE commented place instead of threading an extra prop through every `Column.tsx` caller.
 import { useWorkspaces, selectActiveWorkspaceId } from './workspacesStore'
-// Session filters (spec 2026-10-16) — the filter bar's tag / folder / time filters live HERE, per
+// Session filters (spec 2026-10-16) — the filter bar's tag / folder / goal / time filters live HERE, per
 // workspace (`filtersByWorkspace`). `useBoardFilter` drops the tags a workspace cannot see (read
 // from the tags store) and hands the result to the workspace-scoped selectors below as a SECOND
 // required argument, same as workspaceId (no denormalized tag index here).
 import { useTags } from './tagsStore'
+import { useGoals } from './goalsStore'
 import { visibleTags } from '../../../shared/tags/tagScope'
 
 /**
@@ -1062,30 +1070,58 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
 /** What the filter bar narrows the board and the rail by. REQUIRED by every board/rail selector,
  *  like `workspaceId`, so a caller can never forget it; `NO_FILTER` is the explicit "everything".
  *  Alerts never read these selectors, so no filter can ever mute one.
- *  - `filters`: this workspace's tag / folder / time filters (`useBoardFilter`, tags it cannot see
+ *  - `filters`: this workspace's tag / folder / goal / time filters (`useBoardFilter`, tags it cannot see
  *    already dropped) — matched by the ONE matcher, `matchesFilters`.
+ *  - `goalIdsBySession`: the goal ids of each session's linked tasks, built once per render from
+ *    `goalsStore` (`useBoardFilter`) and passed in: this store never reads another one.
  *  - `query`: the search box, as typed — matched against the card NAME only, case-insensitively;
  *    blank hides nothing.
  *  - `now`: the clock the time filters read (injected; state.md). */
 export interface BoardFilter {
   filters: SessionFilters
+  goalIdsBySession: ReadonlyMap<string, readonly string[]>
   query: string
   now: () => number
 }
 
-export const NO_FILTER: BoardFilter = { filters: NO_FILTERS, query: '', now: () => 0 }
+export const NO_FILTER: BoardFilter = {
+  filters: NO_FILTERS,
+  goalIdsBySession: new Map(),
+  query: '',
+  now: () => 0
+}
 
 /** Does this card pass the filter bar? */
 function passesFilter(session: BoardSession, filter: BoardFilter): boolean {
   const subject: FilterSubject = {
     folder: session.projectPath,
     tagIds: session.tagIds,
+    goalIds: filter.goalIdsBySession.get(session.id) ?? [],
     launchedAt: session.launchedAt,
     endedAt: undefined
   }
   if (!matchesFilters(subject, filter.filters, filter.now())) return false
   const query = filter.query.trim().toLowerCase()
   return query === '' || session.sessionName.toLowerCase().includes(query)
+}
+
+/** Each session's goals: the goals of the tasks linked to it (loose tasks and gone goals add
+ *  none). Pure: `useBoardFilter` builds it once per render. */
+export function goalIdsBySessionOf(
+  goals: readonly Goal[],
+  tasks: readonly Task[]
+): Map<string, readonly string[]> {
+  const live = new Set(goals.map((g) => g.id))
+  const out = new Map<string, string[]>()
+  for (const t of tasks) {
+    if (t.goalId === null || !live.has(t.goalId)) continue
+    for (const sessionId of t.sessionIds) {
+      const ids = out.get(sessionId) ?? []
+      if (!ids.includes(t.goalId)) ids.push(t.goalId)
+      out.set(sessionId, ids)
+    }
+  }
+  return out
 }
 
 /** This workspace's stored filters (stable reference; `NO_FILTERS` when it has none). */
@@ -1406,13 +1442,22 @@ export function useColumnSessions(column: Column): BoardSession[] {
 }
 
 /** The filter bar's current filter for `workspaceId`: its stored filters minus the tags it cannot
- *  see, plus the search text and the clock. The ONE place the board, the columns and the rail read
+ *  see and the goals that no longer exist, plus the search text and the clock. The ONE place the board, the columns and the rail read
  *  it, so they can never disagree about what is hidden. */
 export function useBoardFilter(workspaceId: string, now: () => number = Date.now): BoardFilter {
   const stored = useBoard((s) => selectBoardFilters(s, workspaceId))
   const visibleIds = useTags(useShallow((s) => visibleTags(s.tags, workspaceId).map((t) => t.id)))
   const query = useBoard(selectSearchQuery)
-  return { filters: effectiveFilters(stored, new Set(visibleIds)), query, now }
+  const goals = useGoals((s) => s.goals)
+  const tasks = useGoals((s) => s.tasks)
+  const goalIdsBySession = useMemo(() => goalIdsBySessionOf(goals, tasks), [goals, tasks])
+  const liveGoalIds = useMemo(() => new Set(goals.map((g) => g.id)), [goals])
+  return {
+    filters: effectiveFilters(stored, new Set(visibleIds), liveGoalIds),
+    goalIdsBySession,
+    query,
+    now
+  }
 }
 
 // ---------------------------------------------------------------------------

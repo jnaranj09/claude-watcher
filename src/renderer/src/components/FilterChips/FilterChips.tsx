@@ -3,7 +3,7 @@
 // workspace in boardStore, the rails per page and scope in SessionsDialog) and gets every change
 // through `onChange`. One pill per type that is on, in `types` order; `+ Add filter` opens a type
 // menu whose rows open their values beside them (`Popover.Submenu`); a pill opens the same values
-// under itself. Multi-pick lists (tags, folders) stay open; single picks (a preset, a calendar day)
+// under itself. Multi-pick lists (tags, folders, goals) stay open; single picks (a preset, a calendar day)
 // close.
 //
 // A multi pick made from the type menu turns that type ON, which takes its row out of the type
@@ -38,7 +38,7 @@ import {
   timePillText
 } from '../../lib/filterCopy'
 import { Calendar } from '../Calendar/Calendar'
-import { CalendarIcon, FolderIcon, PlusIcon } from '../Icon/MenuIcons'
+import { CalendarIcon, FolderIcon, GoalIcon, PlusIcon } from '../Icon/MenuIcons'
 import { Popover } from '../Popover/Popover'
 import { moveMenuRow } from '../Popover/menuArrows'
 import { Presence } from '../Presence/Presence'
@@ -63,6 +63,8 @@ export interface FilterChipsProps {
   tags: readonly Tag[]
   /** Distinct folders of the surface's rows (unsorted is fine; sorted inside). */
   folders: readonly string[]
+  /** Goals offered (the board's workspace's, in creation order). Omitted ⇒ none. */
+  goals?: readonly { id: string; name: string }[]
   /** The `Create tags` row while no tag exists. Omitted ⇒ no such row. */
   onManageTags?: () => void
   now: () => number
@@ -113,6 +115,7 @@ function parentPath(path: string): string {
 function typeIcon(type: FilterType): JSX.Element {
   if (type === 'tag') return <TagGlyphIcon size={14} />
   if (type === 'folder') return <FolderIcon />
+  if (type === 'goal') return <GoalIcon />
   return <CalendarIcon />
 }
 
@@ -134,6 +137,7 @@ export function FilterChips({
   types,
   tags,
   folders,
+  goals = [],
   onManageTags,
   now,
   testIdPrefix,
@@ -154,9 +158,11 @@ export function FilterChips({
   const folderRowRef = useRef<HTMLButtonElement | null>(null)
   const launchedRowRef = useRef<HTMLButtonElement | null>(null)
   const endedRowRef = useRef<HTMLButtonElement | null>(null)
+  const goalRowRef = useRef<HTMLButtonElement | null>(null)
   const typeRefs = {
     tag: tagRowRef,
     folder: folderRowRef,
+    goal: goalRowRef,
     launched: launchedRowRef,
     ended: endedRowRef
   }
@@ -169,8 +175,13 @@ export function FilterChips({
   const workspaces = useWorkspaces(useShallow(selectWorkspaces))
   const nameCount = new Map<string, number>()
   for (const t of tags) nameCount.set(t.name, (nameCount.get(t.name) ?? 0) + 1)
-  const typeOn = (f: SessionFilters, t: FilterType): boolean =>
-    t === 'tag' ? f.tagIds.some((tagId) => knownTagIds.has(tagId)) : isTypeOn(f, t)
+  // Goal likewise: only through a goal still offered.
+  const knownGoalIds = new Set(goals.map((g) => g.id))
+  const typeOn = (f: SessionFilters, t: FilterType): boolean => {
+    if (t === 'tag') return f.tagIds.some((tagId) => knownTagIds.has(tagId))
+    if (t === 'goal') return f.goalIds.some((goalId) => knownGoalIds.has(goalId))
+    return isTypeOn(f, t)
+  }
 
   const anyOpen = open !== null
   useEffect(() => {
@@ -188,6 +199,7 @@ export function FilterChips({
     const typeRow = {
       'type-tag': tagRowRef,
       'type-folder': folderRowRef,
+      'type-goal': goalRowRef,
       'type-launched': launchedRowRef,
       'type-ended': endedRowRef
     }[refocus.key]
@@ -250,7 +262,7 @@ export function FilterChips({
   }
 
   /** A multi pick (tag, folder): the list stays open, under the pill from now on. */
-  function multiPick(type: 'tag' | 'folder', next: SessionFilters, rowKey: string): void {
+  function multiPick(type: 'tag' | 'folder' | 'goal', next: SessionFilters, rowKey: string): void {
     if (open?.at === 'pill') {
       onChange(next)
     } else {
@@ -280,6 +292,12 @@ export function FilterChips({
     const on = filters.folders.includes(path)
     const chosen = on ? filters.folders.filter((x) => x !== path) : [...filters.folders, path]
     multiPick('folder', { ...filters, folders: chosen }, `folder-row-${path}`)
+  }
+
+  function toggleGoal(goalId: string): void {
+    const on = filters.goalIds.includes(goalId)
+    const goalIds = on ? filters.goalIds.filter((x) => x !== goalId) : [...filters.goalIds, goalId]
+    multiPick('goal', { ...filters, goalIds }, `goal-row-${goalId}`)
   }
 
   function setTime(type: TimeType, pick: TimePick, from: Origin): void {
@@ -365,6 +383,7 @@ export function FilterChips({
   function firstRowKey(type: FilterType): string {
     if (type === 'tag') return `tag-row-${tags[0]?.id ?? ''}`
     if (type === 'folder') return `folder-row-${folderList()[0] ?? ''}`
+    if (type === 'goal') return `goal-row-${goals[0]?.id ?? ''}`
     return `${type}-row-${PRESETS[0] ?? 'today'}`
   }
 
@@ -384,6 +403,26 @@ export function FilterChips({
         >
           <span className={styles.folderName}>{folderName(path)}</span>
           {parent !== '' && <span className={styles.path}>{parent}</span>}
+          {checked && <Check />}
+        </Popover.Item>
+      )
+    })
+  }
+
+  function goalRows(): ReactNode {
+    if (goals.length === 0) return <TagMenuNote testId={tid('no-goals')}>No goals yet</TagMenuNote>
+    return goals.map((g) => {
+      const checked = filters.goalIds.includes(g.id)
+      return (
+        <Popover.Item
+          key={g.id}
+          role="menuitemcheckbox"
+          aria-checked={checked}
+          testId={tid(`goal-row-${g.id}`)}
+          data-filter-focus={`goal-row-${g.id}`}
+          onClick={() => toggleGoal(g.id)}
+        >
+          {g.name}
           {checked && <Check />}
         </Popover.Item>
       )
@@ -437,6 +476,7 @@ export function FilterChips({
   function submenuValues(type: FilterType): ReactNode {
     if (type === 'tag') return <Popover.List>{tagRows()}</Popover.List>
     if (type === 'folder') return <Popover.List>{folderRows()}</Popover.List>
+    if (type === 'goal') return <Popover.List>{goalRows()}</Popover.List>
     return timeRows(type, 'add')
   }
 
@@ -486,6 +526,20 @@ export function FilterChips({
         body: <span className={styles.pillKey}>{text}</span>,
         label: `${word} filter: ${names}. Change it`,
         title: paths.join('\n')
+      }
+    }
+    if (type === 'goal') {
+      // Only the goals this surface still offers: a gone id draws no name and is not counted.
+      const picked = goals.filter((g) => filters.goalIds.includes(g.id))
+      if (picked.length === 0) return null
+      const names = picked.map((g) => g.name).join(', ')
+      return {
+        body: (
+          <span className={styles.pillKey}>
+            {picked.length > 1 ? `${word} is any of ${names}` : `${word} is ${names}`}
+          </span>
+        ),
+        label: `${word} filter: ${names}. Change it`
       }
     }
     const pick = filters[type]
@@ -557,8 +611,8 @@ export function FilterChips({
                   aria-label={FILTER_TYPE_LABEL[type]}
                   testId={tid(`${type}-list`)}
                 >
-                  {type === 'folder' ? (
-                    <Popover.List>{folderRows()}</Popover.List>
+                  {type === 'folder' || type === 'goal' ? (
+                    <Popover.List>{type === 'folder' ? folderRows() : goalRows()}</Popover.List>
                   ) : (
                     timeRows(type, 'pill')
                   )}

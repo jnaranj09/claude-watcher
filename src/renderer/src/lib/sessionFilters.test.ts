@@ -34,6 +34,16 @@ describe('matchesFilters', () => {
     expect(matchesFilters(row(), f({ tagIds: ['t-web'] }), NOW)).toBe(false)
   })
 
+  it('a goal filter keeps cards linked to any picked goal', () => {
+    const linked = row({ goalIds: ['g-1'] })
+    expect(matchesFilters(linked, f({ goalIds: ['g-2', 'g-1'] }), NOW)).toBe(true)
+    expect(matchesFilters(linked, f({ goalIds: ['g-2'] }), NOW)).toBe(false)
+    expect(matchesFilters(row({ goalIds: [] }), f({ goalIds: ['g-1'] }), NOW)).toBe(false)
+    // A surface that gives no goal ids matches nothing while a goal filter is on.
+    expect(matchesFilters(row(), f({ goalIds: ['g-1'] }), NOW)).toBe(false)
+    expect(matchesFilters(row(), NO_FILTERS, NOW)).toBe(true)
+  })
+
   it('folders match ANY of the picked paths, exactly', () => {
     expect(matchesFilters(row(), f({ folders: ['/x', '/home/u/api'] }), NOW)).toBe(true)
     expect(matchesFilters(row(), f({ folders: ['/home/u'] }), NOW)).toBe(false)
@@ -120,6 +130,12 @@ describe('helpers', () => {
     expect(activeFilterCount(NO_FILTERS)).toBe(0)
   })
 
+  it('activeFilterCount counts goal as one type', () => {
+    expect(activeFilterCount(f({ goalIds: ['g-1', 'g-2'], tagIds: ['a'] }))).toBe(2)
+    expect(isTypeOn(f({ goalIds: ['g-1'] }), 'goal')).toBe(true)
+    expect(clearType(f({ goalIds: ['g-1'] }), 'goal')).toEqual(NO_FILTERS)
+  })
+
   it('isTypeOn and clearType work per type', () => {
     const on = f({ tagIds: ['a'], ended: { kind: 'preset', range: 'today' } })
     expect(isTypeOn(on, 'tag')).toBe(true)
@@ -130,7 +146,10 @@ describe('helpers', () => {
   it('effectiveFilters drops tags the surface cannot see, and keeps the same object when nothing drops', () => {
     const stored = f({ tagIds: ['a', 'gone'] })
     expect(effectiveFilters(stored, new Set(['a'])).tagIds).toEqual(['a'])
-    const clean = f({ tagIds: ['a'] })
-    expect(effectiveFilters(clean, new Set(['a']))).toBe(clean)
+    const clean = f({ tagIds: ['a'], goalIds: ['g'] })
+    expect(effectiveFilters(clean, new Set(['a']), new Set(['g']))).toBe(clean)
+    expect(
+      effectiveFilters(f({ goalIds: ['g', 'gone'] }), new Set(), new Set(['g'])).goalIds
+    ).toEqual(['g'])
   })
 })

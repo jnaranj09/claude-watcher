@@ -4,6 +4,7 @@
 // empty one. The pills, the day rows, the type names and the remove labels follow.
 
 import type { FilterType, TimePick, TimeRange } from './sessionFilters'
+import { GOAL_TERMS } from '../copy/terms'
 import { dayWindow } from './sessionFilters'
 
 /** `No sessions match the filters and “dep”` — names what hides the cards: the filters, the
@@ -32,6 +33,7 @@ export const TIME_RANGE_LABEL: Readonly<Record<TimeRange, string>> = {
 export const FILTER_TYPE_LABEL: Readonly<Record<FilterType, string>> = {
   tag: 'Tag',
   folder: 'Folder',
+  goal: GOAL_TERMS.filterLabel,
   launched: 'Launched',
   ended: 'Ended'
 }

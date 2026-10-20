@@ -43,6 +43,7 @@ function Harness(
       types={p.types ?? ['tag', 'folder', 'launched']}
       tags={p.tags ?? [API, WEB]}
       folders={p.folders ?? ['/home/u/infra', '/home/u/api']}
+      goals={p.goals ?? []}
       now={NOW}
       testIdPrefix="filter"
       {...(p.onManageTags ? { onManageTags: p.onManageTags } : {})}
@@ -80,6 +81,31 @@ describe('FilterChips — adding', () => {
       expect.stringContaining('Folder'),
       expect.stringContaining('Launched')
     ])
+  })
+
+  it('+ Add filter offers Goal on the board and not on Past sessions', async () => {
+    const goals = [{ id: 'g-1', name: 'Ship v2' }]
+    const board = render(<Harness types={['tag', 'folder', 'goal', 'launched']} goals={goals} />)
+    await userEvent.click(addFilter())
+    expect(screen.getByRole('menuitem', { name: /Goal/ })).toBeVisible()
+    board.unmount()
+    render(<Harness types={['tag', 'folder', 'launched', 'ended']} goals={goals} />)
+    await userEvent.click(addFilter())
+    expect(screen.queryByRole('menuitem', { name: /Goal/ })).not.toBeInTheDocument()
+  })
+
+  it('picking goals draws a Goal is pill, then "any of"', async () => {
+    const goals = [
+      { id: 'g-1', name: 'Ship v2' },
+      { id: 'g-2', name: 'Cleanup' }
+    ]
+    render(<Harness types={['goal']} goals={goals} />)
+    await userEvent.click(addFilter())
+    await userEvent.hover(screen.getByRole('menuitem', { name: /Goal/ }))
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: /Ship v2/ }))
+    expect(screen.getByText('Goal is Ship v2')).toBeVisible()
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: /Cleanup/ }))
+    expect(screen.getByText('Goal is any of Ship v2, Cleanup')).toBeVisible()
   })
 
   it('picking a folder shows the pill at once and keeps the list open; a second pick reads "any of"', async () => {
@@ -317,6 +343,7 @@ describe('FilterChips — pills', () => {
       <Harness
         start={{
           tagIds: ['t-web', 't-api'],
+          goalIds: [],
           folders: [],
           launched: { kind: 'preset', range: 'today' },
           ended: null

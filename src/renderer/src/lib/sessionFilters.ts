@@ -11,13 +11,15 @@ export type TimePick =
   | { kind: 'on'; day: string }
   | { kind: 'since'; day: string }
 
-export type FilterType = 'tag' | 'folder' | 'launched' | 'ended'
+export type FilterType = 'tag' | 'folder' | 'goal' | 'launched' | 'ended'
 
 export interface SessionFilters {
   /** Any of these tag ids; [] = off. */
   tagIds: readonly string[]
   /** Any of these exact folder paths; [] = off. */
   folders: readonly string[]
+  /** Any of these goal ids (a card linked, by a task, to any of them); [] = off. Board only. */
+  goalIds: readonly string[]
   launched: TimePick | null
   /** Offered on Past only. */
   ended: TimePick | null
@@ -27,11 +29,20 @@ export interface SessionFilters {
 export interface FilterSubject {
   folder: string
   tagIds: readonly string[]
+  /** The goals this row's linked tasks belong to. Absent (a surface with no goal filter) = the
+   *  row matches nothing while a goal filter is on. */
+  goalIds?: readonly string[]
   launchedAt: number | undefined
   endedAt: number | undefined
 }
 
-export const NO_FILTERS: SessionFilters = { tagIds: [], folders: [], launched: null, ended: null }
+export const NO_FILTERS: SessionFilters = {
+  tagIds: [],
+  folders: [],
+  goalIds: [],
+  launched: null,
+  ended: null
+}
 
 const DAY_MS = 86_400_000
 const DAY_KEY = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -88,6 +99,9 @@ function matchesTime(at: number | undefined, pick: TimePick | null, now: number)
 export function matchesFilters(row: FilterSubject, f: SessionFilters, now: number): boolean {
   if (f.tagIds.length > 0 && !f.tagIds.some((id) => row.tagIds.includes(id))) return false
   if (f.folders.length > 0 && !f.folders.includes(row.folder)) return false
+  if (f.goalIds.length > 0 && !f.goalIds.some((id) => row.goalIds?.includes(id) === true)) {
+    return false
+  }
   return matchesTime(row.launchedAt, f.launched, now) && matchesTime(row.endedAt, f.ended, now)
 }
 
@@ -97,6 +111,8 @@ export function isTypeOn(f: SessionFilters, type: FilterType): boolean {
       return f.tagIds.length > 0
     case 'folder':
       return f.folders.length > 0
+    case 'goal':
+      return f.goalIds.length > 0
     case 'launched':
       return f.launched !== null
     case 'ended':
@@ -110,7 +126,8 @@ export function isTypeOn(f: SessionFilters, type: FilterType): boolean {
 
 /** The number on the `Filter` button: how many TYPES are on (search is never counted). */
 export function activeFilterCount(f: SessionFilters): number {
-  return (['tag', 'folder', 'launched', 'ended'] as const).filter((t) => isTypeOn(f, t)).length
+  return (['tag', 'folder', 'goal', 'launched', 'ended'] as const).filter((t) => isTypeOn(f, t))
+    .length
 }
 
 export function clearType(f: SessionFilters, type: FilterType): SessionFilters {
@@ -119,6 +136,8 @@ export function clearType(f: SessionFilters, type: FilterType): SessionFilters {
       return { ...f, tagIds: [] }
     case 'folder':
       return { ...f, folders: [] }
+    case 'goal':
+      return { ...f, goalIds: [] }
     case 'launched':
       return { ...f, launched: null }
     case 'ended':
@@ -130,12 +149,18 @@ export function clearType(f: SessionFilters, type: FilterType): SessionFilters {
   }
 }
 
-/** `f` without the tag ids this surface cannot see (deleted, or out of its workspace / scope).
- *  A derived READ: nothing is written back. Returns `f` itself when nothing drops. */
+/** `f` without the tag ids this surface cannot see (deleted, or out of its workspace / scope) and
+ *  the goal ids that no longer exist. A derived READ: nothing is written back. Returns `f` itself
+ *  when nothing drops. A surface with no goal filter (the Sessions dialog) omits the goal ids: none
+ *  are live there, so none are kept. */
 export function effectiveFilters(
   f: SessionFilters,
-  visibleTagIds: ReadonlySet<string>
+  visibleTagIds: ReadonlySet<string>,
+  liveGoalIds: ReadonlySet<string> = new Set()
 ): SessionFilters {
-  const kept = f.tagIds.filter((id) => visibleTagIds.has(id))
-  return kept.length === f.tagIds.length ? f : { ...f, tagIds: kept }
+  const tagIds = f.tagIds.filter((id) => visibleTagIds.has(id))
+  const goalIds = f.goalIds.filter((id) => liveGoalIds.has(id))
+  return tagIds.length === f.tagIds.length && goalIds.length === f.goalIds.length
+    ? f
+    : { ...f, tagIds, goalIds }
 }

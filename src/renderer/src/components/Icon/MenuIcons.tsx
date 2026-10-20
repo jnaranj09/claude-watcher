@@ -130,6 +130,15 @@ export function FolderIcon(): JSX.Element {
   )
 }
 
+/** The filter bar's Goal row — a flag. */
+export function GoalIcon(): JSX.Element {
+  return (
+    <LineIcon>
+      <path d="M3.5 14V2.5M3.5 3h8l-1.6 2.6L11.5 8h-8" />
+    </LineIcon>
+  )
+}
+
 /** The search box's magnifier: the board's filter bar and the Sessions pages' rail. */
 export function SearchIcon(): JSX.Element {
   return (

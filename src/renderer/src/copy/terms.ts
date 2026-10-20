@@ -33,6 +33,8 @@ export const CONTEXT_TERMS = {
 /** Goals and tasks, planned in the header's Goals sheet (spec 2026-10-19-goals). */
 export const GOAL_TERMS = {
   label: 'Goals',
+  /** The filter bar's type row and the pill's first word. */
+  filterLabel: 'Goal',
   newGoal: '+ New goal',
   newTask: '+ New task',
   loose: 'Loose tasks',

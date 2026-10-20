@@ -5,7 +5,7 @@
 //   - the CONTROLS row, always drawn: the search box, the `Filter` button, and the count on the
 //     right. The count lives here so it shows whenever something is hidden, by either control.
 //   - the CHIP row, drawn while the `Filter` button is pressed: `FilterChips` (spec 2026-10-16),
-//     the one chip row the Sessions dialog's pages also render, offering tag, folder and launch
+//     the one chip row the Sessions dialog's pages also render, offering tag, folder, goal and launch
 //     time here. The lists, pills, calendar and their keys all live there.
 //
 // The `Filter` button is `FilterToggle`, the one the Sessions dialog's rail also draws (lit, count,
@@ -22,6 +22,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useTags, type TagsState } from '../../stores/tagsStore'
 import { boardStore, selectSearchQuery, useBoard, useBoardFilter } from '../../stores/boardStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
+import { selectGoalsIn, useGoals } from '../../stores/goalsStore'
 import { visibleTags } from '../../../../shared/tags/tagScope'
 import { activeFilterCount, type FilterType } from '../../lib/sessionFilters'
 import { FilterChips } from '../FilterChips/FilterChips'
@@ -42,7 +43,7 @@ export interface FilterBarProps {
 }
 
 /** The types the board offers, in pill order (Ended is Past's only). */
-const BOARD_TYPES: readonly FilterType[] = ['tag', 'folder', 'launched']
+const BOARD_TYPES: readonly FilterType[] = ['tag', 'folder', 'goal', 'launched']
 
 function countText(total: number, workspaceTotal: number, filtered: boolean): string {
   if (!filtered) return workspaceTotal === 1 ? '1 session' : `${workspaceTotal} sessions`
@@ -70,6 +71,7 @@ export function FilterBar({
     ...visible.filter((t) => t.workspaceId === null),
     ...visible.filter((t) => t.workspaceId !== null)
   ]
+  const goals = useGoals(selectGoalsIn(activeWorkspaceId))
   // The folders this workspace's cards run in (never another workspace's).
   const folders = useBoard(
     useShallow((s) => [
@@ -143,6 +145,7 @@ export function FilterBar({
           types={BOARD_TYPES}
           tags={ordered}
           folders={folders}
+          goals={goals}
           now={now}
           testIdPrefix="filter"
           {...(onManageTags !== undefined ? { onManageTags } : {})}
