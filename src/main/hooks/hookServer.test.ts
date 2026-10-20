@@ -10,7 +10,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createHookServer, type HookServer } from './hookServer'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
-import { MAX_BODY_BYTES } from './hookContract'
+import { MAX_BODY_BYTES, MOD_REPORT_PATH } from './hookContract'
+import type { ModReport } from '../../shared/schemas/modReport'
+import { modReportFixture } from '../../__fixtures__/modReport'
 import { createServer, request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
@@ -29,7 +31,7 @@ function send(
     }
     if (body !== undefined) headers['content-length'] = Buffer.byteLength(body)
     const req = httpRequest(
-      { hostname: u.hostname, port: Number(u.port), path: u.pathname, method, headers },
+      { hostname: u.hostname, port: Number(u.port), path: u.pathname + u.search, method, headers },
       (res) => resolve(res.statusCode ?? 0)
     )
     req.on('error', reject)
@@ -242,5 +244,110 @@ describe('hookServer — EADDRINUSE tolerance (real createHookServer on a used p
     // Cleanup — no crash
     srv2.close()
     await new Promise<void>((resolve) => blocker.close(() => resolve()))
+  })
+})
+
+describe('hookServer — the bridge mod report at /mod/report (spec 2026-10-18 §2)', () => {
+  let srv: { close: () => void; base: string } | null = null
+  afterEach(() => {
+    srv?.close()
+    srv = null
+  })
+
+  function start(): Promise<{
+    onHookEvent: ReturnType<typeof vi.fn<(evt: HookEvent) => void>>
+    onModReport: ReturnType<typeof vi.fn<(r: ModReport) => void>>
+    log: ReturnType<typeof vi.fn<(err: BoundaryErrorRecord) => void>>
+  }> {
+    const onHookEvent = vi.fn<(evt: HookEvent) => void>()
+    const onModReport = vi.fn<(r: ModReport) => void>()
+    const log = vi.fn<(err: BoundaryErrorRecord) => void>()
+    return new Promise((resolve) => {
+      const s = createHookServer({
+        onHookEvent,
+        onModReport,
+        log,
+        port: 0,
+        host: '127.0.0.1',
+        onListening: (port) => {
+          srv = { close: () => s.close(), base: `http://127.0.0.1:${port}` }
+          resolve({ onHookEvent, onModReport, log })
+        }
+      })
+    })
+  }
+
+  it('a valid report goes to onModReport, never to onHookEvent; 200', async () => {
+    const { onHookEvent, onModReport } = await start()
+    const status = await post(`${srv!.base}${MOD_REPORT_PATH}`, JSON.stringify(modReportFixture()))
+    expect(status).toBe(200)
+    expect(onModReport).toHaveBeenCalledWith(modReportFixture())
+    expect(onHookEvent).not.toHaveBeenCalled()
+  })
+
+  it('a hook body at / is still a hook', async () => {
+    const { onHookEvent, onModReport } = await start()
+    const body = JSON.stringify({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Stop'
+    })
+    expect(await post(`${srv!.base}/`, body)).toBe(200)
+    expect(onHookEvent).toHaveBeenCalledTimes(1)
+    expect(onModReport).not.toHaveBeenCalled()
+  })
+
+  it('a report with an Origin header is refused 403 before the body is read', async () => {
+    const { onModReport, log } = await start()
+    const status = await send(
+      `${srv!.base}${MOD_REPORT_PATH}`,
+      'POST',
+      JSON.stringify(modReportFixture()),
+      {
+        origin: 'https://evil.example'
+      }
+    )
+    expect(status).toBe(403)
+    expect(onModReport).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith({ path: '(request)', code: 'origin_rejected' })
+  })
+
+  it('an invalid report is 400 with path + code only, never a value', async () => {
+    const { onModReport, onHookEvent, log } = await start()
+    const bad = { ...modReportFixture(), env: { SECRET: '/work/app' } }
+    expect(await post(`${srv!.base}${MOD_REPORT_PATH}`, JSON.stringify(bad))).toBe(400)
+    expect(onModReport).not.toHaveBeenCalled()
+    expect(onHookEvent).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(log.mock.calls)).not.toContain('/work/app')
+    expect(JSON.stringify(log.mock.calls)).not.toContain('SECRET')
+  })
+
+  it('a hook body sent to /mod/report is 400, not a hook', async () => {
+    const { onHookEvent } = await start()
+    const body = JSON.stringify({
+      session_id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      hook_event_name: 'Stop'
+    })
+    expect(await post(`${srv!.base}${MOD_REPORT_PATH}`, body)).toBe(400)
+    expect(onHookEvent).not.toHaveBeenCalled()
+  })
+
+  it('a report over the body cap is 400', async () => {
+    const { onModReport } = await start()
+    const huge = JSON.stringify(
+      modReportFixture({
+        instructionFiles: [{ path: 'x'.repeat(MAX_BODY_BYTES + 1), kind: 'user' }]
+      })
+    )
+    expect(await post(`${srv!.base}${MOD_REPORT_PATH}`, huge)).toBe(400)
+    expect(onModReport).not.toHaveBeenCalled()
+  })
+
+  it('a query string does not change the route', async () => {
+    const { onModReport } = await start()
+    expect(
+      await post(`${srv!.base}${MOD_REPORT_PATH}?x=1`, JSON.stringify(modReportFixture()))
+    ).toBe(200)
+    expect(onModReport).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,0 +1,60 @@
+// What each live session loaded, as its bridge mod last reported it (spec 2026-10-18 §2). Main
+// keeps the latest report per session in memory only: it dies with the session (`forget`) and
+// follows a `/clear` rebind (`rebind`). A report for an id the app did not launch is dropped,
+// like an unknown-id hook (`hook_unknown_id`): never synthesize truth. Never logs a value — the
+// report's paths name the operator's folders.
+import type { ModReport } from '../../shared/schemas/modReport'
+import type { ModSkipReason } from './bridgeModSpawn'
+
+export type SessionSetupState =
+  | { state: 'ready'; report: ModReport }
+  | { state: 'waiting' }
+  | { state: 'unavailable'; reason: ModSkipReason }
+
+export interface SessionSetup {
+  /** Keep the report when its session is known; false (and one `code=`) when it is not. */
+  accept(report: ModReport): boolean
+  /** The spawn went without the mod; a later report still wins. */
+  markUnavailable(sessionId: string, reason: ModSkipReason): void
+  get(sessionId: string): SessionSetupState
+  rebind(oldId: string, newId: string): void
+  forget(sessionId: string): void
+}
+
+export function createSessionSetup(deps: {
+  /** The launched set: the same gate as `hook_unknown_id`. */
+  isKnown: (sessionId: string) => boolean
+  /** Fires once per accepted report (Context's push, the file history). */
+  onChange: (sessionId: string, report: ModReport) => void
+  log: (line: string) => void
+}): SessionSetup {
+  const states = new Map<string, Exclude<SessionSetupState, { state: 'waiting' }>>()
+
+  return {
+    accept(report) {
+      if (!deps.isKnown(report.sessionId)) {
+        deps.log('[claude-watcher][mods] code=mod_unknown_session')
+        return false
+      }
+      states.set(report.sessionId, { state: 'ready', report })
+      deps.onChange(report.sessionId, report)
+      return true
+    },
+    markUnavailable(sessionId, reason) {
+      if (states.get(sessionId)?.state === 'ready') return
+      states.set(sessionId, { state: 'unavailable', reason })
+    },
+    get(sessionId) {
+      return states.get(sessionId) ?? { state: 'waiting' }
+    },
+    rebind(oldId, newId) {
+      const s = states.get(oldId)
+      if (s === undefined) return
+      states.delete(oldId)
+      states.set(newId, s)
+    },
+    forget(sessionId) {
+      states.delete(sessionId)
+    }
+  }
+}

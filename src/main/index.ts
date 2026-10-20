@@ -72,6 +72,7 @@ import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
 import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { bridgeModSourceDir, installBridgeMod, nodeBridgeModFs } from './mods/bridgeModInstall'
+import { createSessionSetup } from './mods/sessionSetup'
 import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
 // Story 3.5 (SM-2) — the append-only JSONL telemetry store (DI-seam'd, never-crash) +
 // the REAL fs-backed line store (Electron-touching; injected from here — keeps telemetry.ts
@@ -528,6 +529,14 @@ function ruleLookups(): Pick<RulesStoreOptions, 'lookupTag' | 'lookupTemplate'> 
 // Story 6.4 — the native session engine, one per window: `registerWatchFeed` on ready-to-show,
 // `teardownWatchFeed` on close (window/watchFeed.ts). The maps passed in are shared with the IPC
 // handlers here; the maps only the feed uses live inside it.
+// The bridge mod's latest report per live session (spec 2026-10-18 §2). App-global: Context asks
+// by session id; each window's hook listener feeds it.
+const sessionSetup = createSessionSetup({
+  isKnown: (id) => launchedSet.has(id),
+  onChange: () => {},
+  log: (line) => console.warn(line)
+})
+
 const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   smoke: SMOKE,
   reducers,
@@ -537,6 +546,7 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   launchBoardSeams,
   apiSeams,
   launchedSet,
+  sessionSetup,
   livePastSessions,
   orphanRegistry,
   processSessions,
@@ -960,7 +970,7 @@ app
         installedDir: () => bridgeModDir,
         claudeVersion: () => claudeVersionGate.lastVersion(),
         hookPort: PROFILE.hookPort,
-        onSkip: () => {}
+        onSkip: (sessionId, reason) => sessionSetup.markUnavailable(sessionId, reason)
       },
       isSessionLive,
       getTerminalManager: () => terminalManager,

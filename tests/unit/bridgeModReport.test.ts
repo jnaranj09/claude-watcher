@@ -2,6 +2,7 @@
 // 2026-10-18 §1.3). The shapes below are the ones the probe saw on claude 2.1.304.
 import { describe, it, expect } from 'vitest'
 import { buildReport, reportKey, type EngineData } from '../../src/mod/watcher-bridge/hooks/report'
+import { ModReportSchema } from '../../src/shared/schemas/modReport'
 
 const SID = '11111111-2222-4333-8444-555555555555'
 
@@ -154,5 +155,17 @@ describe('reportKey', () => {
 
   it('changes when the session id changes (a /clear sends again under the new id)', () => {
     expect(reportKey(buildReport(data(), 'other-id'))).not.toBe(reportKey(buildReport(data(), SID)))
+  })
+})
+
+describe('the builder and main agree on the shape', () => {
+  it('a built report passes main’s ModReportSchema', () => {
+    expect(ModReportSchema.safeParse(buildReport(data(), SID)).success).toBe(true)
+  })
+
+  it('a report with no breakdown passes too', () => {
+    expect(
+      ModReportSchema.safeParse(buildReport(data({ breakdown: undefined }), SID)).success
+    ).toBe(true)
   })
 })

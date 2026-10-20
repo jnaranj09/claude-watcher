@@ -58,6 +58,7 @@ import { runDeltaPipeline } from '../rules/deltaPipeline'
 import type { RemovalReason } from '../pty/launchRemoval'
 import type { LaunchService } from '../pty/launchSession'
 import type { LaunchedSet } from '../pty/launchedSet'
+import type { SessionSetup } from '../mods/sessionSetup'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
 import type { ProcessSessionSource } from '../pty/claudeSessionFile'
@@ -153,6 +154,8 @@ export interface WatchFeedDeps {
   launchBoardSeams: Map<Electron.WebContents, LaunchBoardSeam>
   apiSeams: Map<Electron.WebContents, ApiSeam>
   launchedSet: LaunchedSet
+  /** The bridge mod's latest report per session (app-global; Context reads it). */
+  sessionSetup: SessionSetup
   livePastSessions: LivePastSessions
   orphanRegistry: OrphanRegistry
   processSessions: ProcessSessionSource
@@ -183,6 +186,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     launchBoardSeams,
     apiSeams,
     launchedSet,
+    sessionSetup,
     livePastSessions,
     orphanRegistry,
     processSessions,
@@ -483,8 +487,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
       const stored = reducer.snapshotMap().get(sessionId)
       applyRemovalReason(reason, sessionId, stored, getPastSessionsStore(), Date.now())
-      // A removed card can have no pending rename to push.
+      // A removed card can have no pending rename to push, and no setup to show.
       pendingTitles.forget(sessionId)
+      sessionSetup.forget(sessionId)
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)
     }
 
@@ -704,6 +709,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
       // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
       pendingTitles.rebind(oldSessionId, newSessionId)
+      // Context follows the card too; the mod's next report arrives under the new id.
+      sessionSetup.rebind(oldSessionId, newSessionId)
       sendLaunchCorrelated(wc, terminalId, newSessionId)
       // R8 — tell an API stream on the OLD id where the card went, BEFORE its removal: the stream
       // ends on `session.rebound {newId}` and never reports the rebind as `session.removed`. The new
@@ -864,6 +871,10 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
         // D-11 — the push is on its way in this response; the ⟳ mark comes off the card now.
         if (name !== null) reducer.clearNameSyncPending(sessionId).forEach(handleDelta)
         return name
+      },
+      // The bridge mod's report (spec 2026-10-18 §2); an unknown id is dropped there.
+      onModReport: (report) => {
+        sessionSetup.accept(report)
       },
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.

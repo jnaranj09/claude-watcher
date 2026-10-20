@@ -7,12 +7,15 @@
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.
 // A request carrying an `Origin` header (a browser) is rejected 403 before the body is read.
 // 'error' handler on the server tolerates EADDRINUSE (log + skip).
+// `/mod/report` carries the bridge mod's report (ModReportSchema), behind the same method, Origin
+// and body-cap guards; every other path is a hook, as before.
 // Never throws past the request handler.
 // [.claude/rules/zod-boundaries.md; spec hookServer.ts Code Map]
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { HookEventSchema, type HookEvent } from '../../shared/schemas/hookEvent'
-import { HOST, PORT, MAX_BODY_BYTES } from './hookContract'
+import { ModReportSchema, type ModReport } from '../../shared/schemas/modReport'
+import { HOST, PORT, MAX_BODY_BYTES, MOD_REPORT_PATH } from './hookContract'
 import { buildHookResponseBody } from './hookResponse'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 
@@ -35,6 +38,9 @@ export interface HookServerOptions {
    *  pending. Wired to `pendingTitles.take` in main. Optional: when absent the server keeps
    *  its historical always-empty-200 behaviour, so every existing test stays valid. */
   takePendingTitle?: (sessionId: string) => string | null
+  /** The bridge mod's report (spec 2026-10-18 §2), schema-parsed. Absent: `/mod/report` is
+   *  parsed and answered like any path, and nothing receives it. */
+  onModReport?: (report: ModReport) => void
 }
 
 export interface HookServer {
@@ -45,14 +51,15 @@ export interface HookServer {
 /**
  * Create and start the localhost HTTP hook listener.
  *
- * Handles POST requests to any path (Claude Code always POSTs to HOOK_URL). Any
+ * Handles POST requests to any path (Claude Code always POSTs to HOOK_URL); `/mod/report` is the
+ * bridge mod's report, every other path a hook. Any
  * non-POST method is rejected with 405 before the body is read. Per the spec, the
  * handler NEVER throws past the request callback.
  *
  * Returns `{ close() }` — call to shut down cleanly (e.g. on app quit).
  */
 export function createHookServer(options: HookServerOptions): HookServer {
-  const { onHookEvent, takePendingTitle } = options
+  const { onHookEvent, takePendingTitle, onModReport } = options
   const log =
     options.log ??
     ((err: BoundaryErrorRecord): void => {
@@ -108,6 +115,24 @@ export function createHookServer(options: HookServerOptions): HookServer {
       } catch {
         log({ path: '(body)', code: 'invalid_json' })
         res.writeHead(400).end()
+        return
+      }
+
+      // The bridge mod's report: its own boundary, same PATH + CODE-only log, an empty 200.
+      if ((req.url ?? '/').split('?')[0] === MOD_REPORT_PATH) {
+        const report = ModReportSchema.safeParse(parsed)
+        if (!report.success) {
+          const issue = report.error.issues[0]
+          log({ path: (issue?.path ?? []).join('.') || '(root)', code: issue?.code ?? 'invalid' })
+          res.writeHead(400).end()
+          return
+        }
+        try {
+          onModReport?.(report.data)
+        } catch {
+          log({ path: '(mod_report)', code: 'mod_report_handler_error' })
+        }
+        res.writeHead(200).end()
         return
       }
 
