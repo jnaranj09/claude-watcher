@@ -89,6 +89,19 @@ describe('nodeContextFs', () => {
     expect(await nodeContextFs.exists(join(dir, 'a.md'))).toBe(true)
   })
 
+  it.skipIf(process.platform === 'win32')(
+    'isRunnable is true for a file with an execute bit and for a launcher, false for text',
+    async () => {
+      writeFileSync(join(dir, 'run.sh'), 'x')
+      chmodSync(join(dir, 'run.sh'), 0o755)
+      writeFileSync(join(dir, 'app.desktop'), 'x')
+      writeFileSync(join(dir, 'notes.txt'), 'x')
+      expect(await nodeContextFs.isRunnable(join(dir, 'run.sh'))).toBe(true)
+      expect(await nodeContextFs.isRunnable(join(dir, 'app.desktop'))).toBe(true)
+      expect(await nodeContextFs.isRunnable(join(dir, 'notes.txt'))).toBe(false)
+    }
+  )
+
   it('isDirectory is true only for a folder', async () => {
     writeFileSync(join(dir, 'a.md'), 'x')
     expect(await nodeContextFs.isDirectory(dir)).toBe(true)

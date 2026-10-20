@@ -2,11 +2,12 @@
 // Settings pane's row look (label left, details and actions right). Skills and agents have no
 // path in the engine's data, so they have no open action. Instructions opens a file's History in
 // place of the list, held by the file's PATH (a new report may list the files in another order);
-// a file that is not an absolute `.md` path (`isInstructionPath`) is listed with no action.
-import { useState, type JSX, type ReactNode } from 'react'
+// any absolute path has `Open in editor`; only an absolute `.md` path (`isInstructionPath`) has
+// History.
+import { Children, useState, type JSX, type ReactNode } from 'react'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import type { ModReport } from '../../../../shared/ipc/contract'
-import { isInstructionPath } from '../../../../shared/schemas/contextIpc'
+import { isAbsolutePath, isInstructionPath } from '../../../../shared/schemas/contextIpc'
 import {
   CONTEXT_COPY,
   contextErrorCopy,
@@ -45,7 +46,9 @@ function Row({
             ))}
         </span>
       </span>
-      {children !== undefined && <span className={styles.actions}>{children}</span>}
+      {Children.toArray(children).length > 0 && (
+        <span className={styles.actions}>{children}</span>
+      )}
     </div>
   )
 }
@@ -95,33 +98,33 @@ function InstructionsPage({
               tokens === undefined ? null : CONTEXT_COPY.tokens(tokens)
             ]}
           >
+            {isAbsolutePath(f.path) ? (
+              <ManageDialog.GhostButton
+                testId="context-file-open"
+                size="sm"
+                onClick={() => {
+                  actions.setError(null)
+                  window.context
+                    .open(sessionId, i)
+                    .catch((err: unknown) =>
+                      actions.setError(contextErrorCopy('open', err, fileName(f.path)))
+                    )
+                }}
+              >
+                {CONTEXT_COPY.openInEditor}
+              </ManageDialog.GhostButton>
+            ) : undefined}
             {isInstructionPath(f.path) ? (
-              <>
-                <ManageDialog.GhostButton
-                  testId="context-file-open"
-                  size="sm"
-                  onClick={() => {
-                    actions.setError(null)
-                    window.context
-                      .open(sessionId, i)
-                      .catch((err: unknown) =>
-                        actions.setError(contextErrorCopy('open', err, fileName(f.path)))
-                      )
-                  }}
-                >
-                  {CONTEXT_COPY.openInEditor}
-                </ManageDialog.GhostButton>
-                <ManageDialog.GhostButton
-                  testId="context-file-history"
-                  size="sm"
-                  onClick={() => {
-                    actions.setError(null)
-                    setHistoryOf(f.path)
-                  }}
-                >
-                  {CONTEXT_COPY.history}
-                </ManageDialog.GhostButton>
-              </>
+              <ManageDialog.GhostButton
+                testId="context-file-history"
+                size="sm"
+                onClick={() => {
+                  actions.setError(null)
+                  setHistoryOf(f.path)
+                }}
+              >
+                {CONTEXT_COPY.history}
+              </ManageDialog.GhostButton>
             ) : undefined}
           </Row>
         )

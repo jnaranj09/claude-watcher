@@ -1,17 +1,20 @@
 // Context's IPC handler bodies (spec 2026-10-18 §4), out of the registrar so they test in node
 // (the pastSessionOpen.ts precedent). Each argument is UNTRUSTED: parsed here, and it never
 // becomes a path. A file is a session id + an index into that session's report; a version is
-// a history id whose path a live report must still name. Only an absolute `.md` path is opened
-// or written (`isInstructionPath`). A refusal is a code the renderer maps
+// a history id whose path a live report must still name. Open takes any absolute path but
+// refuses one that can run as a program (an execute bit or a launcher type: the system would
+// run it, not show it); History and Restore take only an absolute `.md` path
+// (`isInstructionPath`). A refusal is a code the renderer maps
 // to copy (`registerContextIpc` throws it). Never logs a path.
 //
 // Restore is the one write to an operator's file (spec Decisions; technical-taste §12): it keeps
 // the file as it is now first, never creates a folder, and writes only a path that is both in
 // the history and in a live report.
-import { basename, dirname } from 'node:path'
+import { basename, dirname, extname } from 'node:path'
 import { stat, writeFile } from 'node:fs/promises'
 import {
   FileRefSchema,
+  isAbsolutePath,
   isInstructionPath,
   SessionSetupGetSchema,
   VersionRefSchema,
@@ -37,6 +40,8 @@ export interface ContextFs {
   isDirectory(path: string): Promise<boolean>
   /** Something is at the path (a symlink counts by its target). */
   exists(path: string): Promise<boolean>
+  /** The system would run it rather than show it: an execute bit, or a launcher type. */
+  isRunnable(path: string): Promise<boolean>
   /** Writes the file; never creates a folder. */
   writeFile(path: string, data: Buffer): Promise<void>
 }
@@ -61,14 +66,14 @@ export function createContextHandlers(deps: {
   /** `shell.openPath`: '' on success, an error string otherwise. */
   openPath: (path: string) => Promise<string>
 }): ContextHandlers {
-  /** The path at `fileIndex` of the session's ready report, or null (also for a path that is
-   *  not an instruction file: `isInstructionPath`). */
-  function fileAt(raw: unknown): string | null {
+  /** The path at `fileIndex` of the session's ready report, or null (also for a path `accepts`
+   *  refuses). */
+  function fileAt(raw: unknown, accepts: (path: string) => boolean): string | null {
     const { sessionId, fileIndex } = FileRefSchema.parse(raw)
     const s = deps.setup.get(sessionId)
     if (s.state !== 'ready') return null
     const path = s.report.instructionFiles[fileIndex]?.path
-    return path !== undefined && isInstructionPath(path) ? path : null
+    return path !== undefined && accepts(path) ? path : null
   }
 
   /** A version of an instruction file whose path a live report still names, or null. */
@@ -81,7 +86,7 @@ export function createContextHandlers(deps: {
     get: (raw) => deps.setup.get(SessionSetupGetSchema.parse(raw).sessionId),
 
     list(raw) {
-      const path = fileAt(raw)
+      const path = fileAt(raw, isInstructionPath)
       if (path === null) return refuse('file_missing')
       return {
         ok: true,
@@ -102,9 +107,10 @@ export function createContextHandlers(deps: {
     },
 
     async open(raw) {
-      const path = fileAt(raw)
+      const path = fileAt(raw, isAbsolutePath)
       if (path === null) return refuse('file_missing')
       if (!(await deps.fs.exists(path))) return refuse('file_missing')
+      if (await deps.fs.isRunnable(path)) return refuse('file_runnable')
       return (await deps.openPath(path)) === ''
         ? { ok: true, value: null }
         : refuse('file_open_failed')
@@ -133,6 +139,24 @@ export function createContextHandlers(deps: {
   }
 }
 
+/** Types the system runs when opened, on any platform (Linux launchers, macOS, Windows). */
+const LAUNCHER_TYPES = new Set([
+  '.desktop',
+  '.appimage',
+  '.app',
+  '.command',
+  '.jar',
+  '.exe',
+  '.msi',
+  '.bat',
+  '.cmd',
+  '.com',
+  '.scr',
+  '.lnk',
+  '.ps1',
+  '.vbs'
+])
+
 /** The real filesystem behind `ContextFs`. */
 export const nodeContextFs: ContextFs = {
   readCurrent: (path, maxBytes) => nodeFileHistoryFs.readOperatorFile(path, maxBytes),
@@ -149,6 +173,16 @@ export const nodeContextFs: ContextFs = {
       return true
     } catch {
       return false // missing or dangling: a yes/no whose throw is its answer
+    }
+  },
+  async isRunnable(path) {
+    if (LAUNCHER_TYPES.has(extname(path).toLowerCase())) return true
+    if (process.platform === 'win32') return false
+    try {
+      // `stat` follows a symlink: the target's mode is what the system would run.
+      return ((await stat(path)).mode & 0o111) !== 0
+    } catch {
+      return true // unreadable: not known to be safe to hand to the system
     }
   },
   async writeFile(path, data) {

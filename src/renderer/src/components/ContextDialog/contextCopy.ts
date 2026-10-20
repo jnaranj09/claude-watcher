@@ -70,6 +70,7 @@ export function contextErrorCopy(
 ): string {
   const code = contextRefusal(err)
   if (action === 'diff' && code === 'file_too_large') return 'That file is too large to compare.'
+  if (code === 'file_runnable') return `${file} can run as a program, so it is not opened.`
   const shared = code === null ? undefined : SHARED[code]
   if (shared !== undefined) return shared
   switch (action) {

@@ -203,18 +203,33 @@ describe('ContextDialog — a ready report', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('That file no longer exists.')
   })
 
-  it('a file that is not an absolute .md file is listed with no Open or History action', async () => {
+  it('another file a report names has Open in editor but no History', async () => {
     await open({
       state: 'ready',
       report: modReportFixture({
         instructionFiles: [
           { path: '/work/app/CLAUDE.md', kind: 'project' },
-          { path: '/work/app/run.sh', kind: 'project', parent: '/work/app/CLAUDE.md' }
+          { path: '/work/app/notes.txt', kind: 'project', parent: '/work/app/CLAUDE.md' },
+          { path: 'relative.md', kind: 'project' }
         ]
       })
     })
-    expect(within(fileRow('run.sh')).queryAllByRole('button')).toEqual([])
+    expect(
+      within(fileRow('notes.txt'))
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    ).toEqual(['Open in editor'])
     expect(within(fileRow('CLAUDE.md')).getAllByRole('button')).toHaveLength(2)
+    expect(within(fileRow('relative.md')).queryAllByRole('button')).toEqual([])
+  })
+
+  it('a refused Open of a program says it is not opened', async () => {
+    const bridge = await open()
+    bridge.open.mockRejectedValue(wrapped('file_runnable'))
+    await userEvent.click(within(fileRow('rules.md')).getByRole('button', { name: 'Open in editor' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'rules.md can run as a program, so it is not opened.'
+    )
   })
 
   it('an unknown kind shows as claude sent it', async () => {

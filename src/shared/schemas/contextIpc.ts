@@ -15,16 +15,20 @@ export type SessionSetupState =
 
 export type DiffLine = { op: 'same' | 'add' | 'del'; text: string }
 
-/** A path Context opens, keeps versions of and restores: absolute, ending in `.md`. A report can
- *  name any file (an `@` import of a script, or a report another local process forged); any other
- *  path is listed only, so the app never opens or writes it. */
+/** A path Context opens in the editor: absolute. Main still refuses one that can run as a
+ *  program (`file_runnable`). A relative path is listed only. */
+export const isAbsolutePath = (path: string): boolean => /^(\/|[A-Za-z]:[\\/])/.test(path)
+
+/** A path Context keeps versions of and restores: absolute, ending in `.md`. A report can name any
+ *  file (an `@` import, or a report another local process forged); the app writes only these. */
 export const isInstructionPath = (path: string): boolean =>
-  /^(\/|[A-Za-z]:[\\/])/.test(path) && /\.md$/i.test(path)
+  isAbsolutePath(path) && /\.md$/i.test(path)
 
 /** The refusals Context's handlers return; the renderer maps each to copy. */
 export const CONTEXT_REFUSAL_CODES = [
   'file_missing',
   'file_open_failed',
+  'file_runnable',
   'file_restore_failed',
   'file_too_large',
   'version_not_found',

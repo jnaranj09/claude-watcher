@@ -18,6 +18,7 @@ function world(
     contents?: Record<string, string>
     disk?: Record<string, string | Exclude<OperatorFileRead, { ok: true }>['reason']>
     dirs?: string[]
+    runnable?: string[]
   } = {}
 ): {
   handlers: ReturnType<typeof createContextHandlers>
@@ -30,6 +31,7 @@ function world(
   const contents = opts.contents ?? { v1: 'old' }
   const disk = new Map(Object.entries(opts.disk ?? { [FILE]: 'new' }))
   const dirs = new Set(opts.dirs ?? ['/work/app', '/home/op/.claude', '/work/app/docs'])
+  const runnable = new Set(opts.runnable ?? [])
   const calls: string[] = []
   const writes: [string, string][] = []
   const fs: ContextFs & { calls: string[]; writes: [string, string][] } = {
@@ -52,6 +54,10 @@ function world(
     exists(path) {
       calls.push(`exists ${path}`)
       return Promise.resolve(disk.has(path))
+    },
+    isRunnable(path) {
+      calls.push(`isRunnable ${path}`)
+      return Promise.resolve(runnable.has(path))
     },
     writeFile(path, data) {
       calls.push(`write ${path}`)
@@ -293,18 +299,48 @@ describe('a path that is not an absolute .md file', () => {
     report: modReportFixture({ instructionFiles: [{ path, kind: 'project' }] })
   })
 
-  it.each(['/work/app/run.sh', 'CLAUDE.md', '/work/app/CLAUDE.md.sh'])(
-    'Open refuses %s with file_missing and opens nothing',
-    async (path) => {
-      const { handlers, openPath, fs } = world({ states: { [SID]: forged(path) }, disk: { [path]: 'x' } })
-      expect(await handlers.open({ sessionId: SID, fileIndex: 0 })).toEqual({
-        ok: false,
-        code: 'file_missing'
-      })
-      expect(openPath).not.toHaveBeenCalled()
-      expect(fs.calls).toEqual([])
-    }
-  )
+  it('Open opens another text file a report names, such as an @ import', async () => {
+    const path = '/work/app/notes.txt'
+    const { handlers, openPath } = world({ states: { [SID]: forged(path) }, disk: { [path]: 'x' } })
+    expect(await handlers.open({ sessionId: SID, fileIndex: 0 })).toEqual({ ok: true, value: null })
+    expect(openPath).toHaveBeenCalledWith(path)
+  })
+
+  it('Open refuses a path that is not absolute with file_missing, touching no file', async () => {
+    const { handlers, openPath, fs } = world({
+      states: { [SID]: forged('CLAUDE.md') },
+      disk: { 'CLAUDE.md': 'x' }
+    })
+    expect(await handlers.open({ sessionId: SID, fileIndex: 0 })).toEqual({
+      ok: false,
+      code: 'file_missing'
+    })
+    expect(openPath).not.toHaveBeenCalled()
+    expect(fs.calls).toEqual([])
+  })
+
+  it('Open refuses a file that can run as a program with file_runnable and opens nothing', async () => {
+    const path = '/work/app/run.sh'
+    const { handlers, openPath } = world({
+      states: { [SID]: forged(path) },
+      disk: { [path]: 'x' },
+      runnable: [path]
+    })
+    expect(await handlers.open({ sessionId: SID, fileIndex: 0 })).toEqual({
+      ok: false,
+      code: 'file_runnable'
+    })
+    expect(openPath).not.toHaveBeenCalled()
+  })
+
+  it('List refuses another file with file_missing: only .md files keep versions', () => {
+    const path = '/work/app/notes.txt'
+    const { handlers } = world({ states: { [SID]: forged(path) }, disk: { [path]: 'x' } })
+    expect(handlers.list({ sessionId: SID, fileIndex: 0 })).toEqual({
+      ok: false,
+      code: 'file_missing'
+    })
+  })
 
   it('Restore refuses a version of such a path with version_not_found and writes nothing', async () => {
     const sh: FileVersion = { ...V, id: 'v9', path: '/work/app/run.sh' }

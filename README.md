@@ -102,9 +102,9 @@ No key archives or deletes a session; that is always a button.
 
 The **Context** button above a focused session shows what Claude loaded for it: instruction
 files (CLAUDE.md, rules, `@` imports, memory) with their tier and token cost, plus skills,
-agents, MCP servers, commands, hooks and plugins. Each `.md` instruction file opens in your editor,
-and its **History** keeps its last versions: compare one with the file now, or restore it (the file
-as it is now is kept first, so a restore can be undone).
+agents, MCP servers, commands, hooks and plugins. Each file opens in your editor (never a
+program), and each `.md` file's **History** keeps its last versions: compare one with the file
+now, or restore it (the file as it is now is kept first, so a restore can be undone).
 
 The app learns this from a small Claude Code mod it passes to the sessions it launches
 (`--plugin-dir`, from the app's own data folder). The mod only reads and reports file paths and
