@@ -48,7 +48,9 @@ import {
 import { acknowledgeSession } from '../utils/acknowledgeSession'
 import { isInsideTerminal } from '../lib/terminalFocus'
 import styles from './FocusedSession.module.css'
-import { CONTEXT_TERMS, SHELL_TERMS } from '../copy/terms'
+import { CONTEXT_TERMS, GOAL_TERMS, SHELL_TERMS } from '../copy/terms'
+import { selectTasksForSession, useGoals } from '../stores/goalsStore'
+import { SessionTasks } from './SessionTasks'
 
 /**
  * Story 4.3 (FR-15) — resolve a human-readable name for the focused terminal.
@@ -191,6 +193,14 @@ export function FocusedSession({
     await archiveTerminal(focusedTerminalId)
   })
 
+  // Tasks beside the terminal (spec 2026-10-19 E): shown while the session has linked tasks, or
+  // once the operator opens it. View-state only, not persisted.
+  const [tasksOpen, setTasksOpen] = useState(false)
+  const hasLinkedTasks =
+    useGoals((s) => (focusedSession === null ? [] : selectTasksForSession(focusedSession.id)(s)))
+      .length > 0
+  const tasksVisible = focusedSession !== null && (tasksOpen || hasLinkedTasks)
+
   // Card shell pane — every card's pane state (same reference until a pane changes).
   const shellPanes = useBoard((s) => s.shellPanes)
   const focusedPane: ShellPane | null = useBoard((s) =>
@@ -293,6 +303,17 @@ export function FocusedSession({
           >
             <span aria-hidden>{'>_'}</span> {SHELL_TERMS.label}
           </Button>
+          {/* Tasks (spec 2026-10-19 E) — the panel beside the terminal; LIT while it shows. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="focused-tasks"
+            lit={tasksVisible}
+            onClick={() => setTasksOpen((v) => !v)}
+            aria-pressed={tasksVisible}
+          >
+            {GOAL_TERMS.tasks}
+          </Button>
           {/* Past sessions (D-3) — Archive: no confirm, reversible through Past sessions. The
               button is the ONLY path: Ctrl+W archives nothing (R27 — it is claude's delete-word,
               and a slipped focus turned it into an archive). */}
@@ -320,35 +341,40 @@ export function FocusedSession({
             Delete
           </Button>
         </div>
-        <div className={styles.terminalWrap} data-focused-frames="">
-          {keptAlive.map((terminalId) => {
-            const isFocused = terminalId === focusedTerminalId
-            const pane = shellPanes[terminalId]
-            const paneVisible = pane?.visible === true
-            return (
-              <EmbeddedTerminal
-                key={terminalId}
-                terminalId={terminalId}
-                active={isFocused}
-                // R10 — exactly ONE of the two takes focus: the shell while its pane shows, claude
-                // otherwise. Hiding the pane flips both, so focus returns to claude.
-                takeFocus={viewShown && isFocused && !paneVisible}
-                shell={
-                  pane === undefined
-                    ? undefined
-                    : {
-                        terminalId: pane.terminalId,
-                        visible: pane.visible,
-                        takeFocus: viewShown && isFocused && pane.visible
-                      }
-                }
-                onNewSession={onNewSession}
-                onResume={resumeDeadTerminal}
-                {...(onPickTemplate ? { onPickTemplate } : {})}
-                {...(onManageTemplates ? { onManageTemplates } : {})}
-              />
-            )
-          })}
+        <div className={styles.body}>
+          <div className={styles.terminalWrap} data-focused-frames="">
+            {keptAlive.map((terminalId) => {
+              const isFocused = terminalId === focusedTerminalId
+              const pane = shellPanes[terminalId]
+              const paneVisible = pane?.visible === true
+              return (
+                <EmbeddedTerminal
+                  key={terminalId}
+                  terminalId={terminalId}
+                  active={isFocused}
+                  // R10 — exactly ONE of the two takes focus: the shell while its pane shows, claude
+                  // otherwise. Hiding the pane flips both, so focus returns to claude.
+                  takeFocus={viewShown && isFocused && !paneVisible}
+                  shell={
+                    pane === undefined
+                      ? undefined
+                      : {
+                          terminalId: pane.terminalId,
+                          visible: pane.visible,
+                          takeFocus: viewShown && isFocused && pane.visible
+                        }
+                  }
+                  onNewSession={onNewSession}
+                  onResume={resumeDeadTerminal}
+                  {...(onPickTemplate ? { onPickTemplate } : {})}
+                  {...(onManageTemplates ? { onManageTemplates } : {})}
+                />
+              )
+            })}
+          </div>
+          {tasksVisible && (
+            <SessionTasks sessionId={focusedSession.id} workspaceId={focusedSession.workspaceId} />
+          )}
         </div>
       </div>
     </div>

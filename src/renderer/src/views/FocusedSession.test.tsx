@@ -385,14 +385,15 @@ describe('FocusedSession — Past sessions Archive + Delete header buttons (D-3,
 // toolbar, 2026-06-24). It read as a thick bottom margin under a frame with thin gaps on its other
 // three sides, and a theme could not take it back, so it was removed from the app (2026-09-22).
 // The terminal wrap is the column's LAST box: nothing sits between it and the column's bottom.
+// (It sits in `.body`, the column's last child, beside the optional task panel.)
 describe('FocusedSession — no reserved strip under the terminal', () => {
-  it('.terminalWrap is the last child of .main', () => {
+  it('.terminalWrap is in the last child of .main', () => {
     boardStore.getState().openLaunchedTerminal('launch-strip-test', 'strip-test', 'default')
     const r = render()
     const focused = r.container.querySelector('[data-testid="focused-session"]')
     // .main is the second child of the focused wrapper (after AttentionRail).
     const main = focused?.children[1] as HTMLElement | undefined
-    expect(main?.lastElementChild?.className).toContain('terminalWrap')
+    expect(main?.lastElementChild?.firstElementChild?.className).toContain('terminalWrap')
   })
 
   it('the stylesheet reserves no bottom strip', () => {

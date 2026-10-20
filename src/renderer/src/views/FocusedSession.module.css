@@ -86,6 +86,17 @@
   font-weight: var(--font-weight-heading);
 }
 
+/* The terminals and, when it shows, the task panel beside them. A row: the terminal region takes
+   what the panel leaves (its frames refit to it), and the panel never sits inside `.terminalWrap`,
+   whose children are all absolutely-positioned terminal frames. */
+.body {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
 /* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned
    to fill it (inset:0), so the hidden ones (visibility:hidden — kept alive, NEVER display:none)
    keep a NON-ZERO box for the next fit(), and only the active one is visible on top. */

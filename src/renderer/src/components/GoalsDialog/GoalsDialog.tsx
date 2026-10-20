@@ -25,7 +25,7 @@ import {
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
-import { GoalProgress } from './GoalProgress'
+import { GoalProgress } from '../GoalProgress/GoalProgress'
 import { TaskList } from './TaskList'
 import styles from './GoalsDialog.module.css'
 
@@ -164,7 +164,7 @@ function GoalForm({
             )}
           </div>
 
-          <ManageDialog.Label>Tasks</ManageDialog.Label>
+          <ManageDialog.Label>{GOAL_TERMS.tasks}</ManageDialog.Label>
           <GoalProgress name={goal.name} done={done} total={total} />
           <TaskList tasks={tasks} workspaceId={workspaceId} goalId={goal.id} />
         </>

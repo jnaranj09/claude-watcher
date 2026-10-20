@@ -2,7 +2,7 @@
 // no tasks is an empty bar and `0/0`, never 100% (spec 2026-10-19 "Assumed"). Drawn from existing
 // tokens only; the app had no bar before this one.
 import type { JSX } from 'react'
-import styles from './GoalsDialog.module.css'
+import styles from './GoalProgress.module.css'
 
 export function GoalProgress({
   name,

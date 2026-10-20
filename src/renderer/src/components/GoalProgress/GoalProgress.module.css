@@ -1,0 +1,29 @@
+/* The bar: a --border track, a --text-primary fill (the lit look, like a ticked Checkbox), and the
+   count in mono beside it. No colour of its own: a theme that restyles the tokens restyles it. */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+.track {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  box-sizing: border-box;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--rounded-sm);
+  background: var(--border);
+}
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--text-primary);
+}
+.count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--text-secondary);
+}

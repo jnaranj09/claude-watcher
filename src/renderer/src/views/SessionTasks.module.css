@@ -1,0 +1,65 @@
+/* The focused view's task panel: a column beside the terminal, in the rail's surface. The menu of
+   `Link task` is absolute and the panel must not clip it, so only `.body` scrolls. */
+.panel {
+  flex: 0 0 var(--session-tasks-width, 260px);
+  inline-size: var(--session-tasks-width, 260px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  box-sizing: border-box;
+  padding: var(--inset-compact-x);
+  border-left: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.head {
+  display: flex;
+  justify-content: flex-end;
+}
+.anchor {
+  position: relative;
+}
+.menuWrap {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 10;
+  min-width: 200px;
+  max-width: calc(var(--session-tasks-width, 260px) - 2 * var(--space-3));
+  --popover-max-height: 240px;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+}
+.goalName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-label);
+}
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+}
+.empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-meta);
+}

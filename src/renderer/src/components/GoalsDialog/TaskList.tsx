@@ -7,8 +7,8 @@ import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { goalErrorCopy } from '../../lib/goalCopy'
 import { removeTask, saveTask, setTaskStatus } from '../../stores/goalsStore'
 import { Button } from '../Button/Button'
-import { Checkbox } from '../Checkbox/Checkbox'
 import { useManageDialogContext } from '../ManageDialog/ManageDialog'
+import { TaskRow } from '../TaskRow/TaskRow'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './GoalsDialog.module.css'
 
@@ -55,34 +55,23 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
     <div className={styles.tasks} data-testid="task-list">
       <ul className={styles.taskRows}>
         {tasks.map((task) => (
-          <li key={task.id} className={styles.task} data-done={task.status === 'done'}>
-            <label className={styles.taskLabel}>
-              <Checkbox
-                ariaLabel={task.title}
-                testId={`task-check-${task.id}`}
-                checked={task.status === 'done'}
-                onChange={(done) => void toggle.run(task, done)}
-              />
-              <span className={styles.taskTitle} title={task.title}>
-                {task.title}
-              </span>
-            </label>
-            {task.doneBy === 'session' && (
-              <span className={styles.doneBy} data-testid={`task-done-by-${task.id}`}>
-                Closed by a session
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="xs"
-              icon
-              testId={`task-remove-${task.id}`}
-              aria-label={`Remove ${task.title}`}
-              onClick={() => void remove.run(task)}
-            >
-              ✕
-            </Button>
-          </li>
+          <TaskRow
+            key={task.id}
+            task={task}
+            onToggle={(done) => void toggle.run(task, done)}
+            trailing={
+              <Button
+                variant="ghost"
+                size="xs"
+                icon
+                testId={`task-remove-${task.id}`}
+                aria-label={`Remove ${task.title}`}
+                onClick={() => void remove.run(task)}
+              >
+                ✕
+              </Button>
+            }
+          />
         ))}
       </ul>
       <TextInput

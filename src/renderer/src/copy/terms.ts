@@ -38,7 +38,14 @@ export const GOAL_TERMS = {
   loose: 'Loose tasks',
   placeholder: 'Select a goal on the left, or create a new one.',
   saveGoalFailed: 'Could not save goal.',
-  saveTaskFailed: 'Could not save task.'
+  saveTaskFailed: 'Could not save task.',
+  /** The focused view's task panel: its bar toggle and the menu that links a task to the session. */
+  tasks: 'Tasks',
+  linkTask: 'Link task',
+  linkTaskFailed: 'Could not link task.',
+  unlinkTaskFailed: 'Could not unlink task.',
+  nothingToLink: 'No open tasks to link.',
+  noneLinked: 'No tasks linked to this session.'
 } as const
 
 /** A default folder on a workspace or a goal: the field's label and its two controls. */

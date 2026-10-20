@@ -1,0 +1,34 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+/* The whole title toggles the checkbox, like a labelled Checkbox. */
+.label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+  cursor: pointer;
+  border-radius: var(--rounded-sm);
+}
+/* The shared row hover (ManageDialog `.row`): the whole title line, checkbox included. */
+.label:hover {
+  background: var(--bg-hover);
+}
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row[data-done='true'] .title {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+.doneBy {
+  flex: none;
+  font-size: var(--font-size-meta);
+  color: var(--text-secondary);
+}
