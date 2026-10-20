@@ -13,6 +13,7 @@
 import type { Template } from '../schemas/template'
 import type { Tag } from '../schemas/tag'
 import type { Rule } from '../schemas/rule'
+import type { Goal, GoalsView, Task } from '../schemas/goal'
 import type { Shortcut } from '../schemas/shortcut'
 import type { FileVersion } from '../schemas/fileHistory'
 import type { DiffLine } from '../schemas/contextIpc'
@@ -155,6 +156,21 @@ export const CH = {
   rulesSave: 'rules:save',
   rulesDelete: 'rules:delete',
   rulesMove: 'rules:move',
+  // Goals — a workspace's goals and tasks (main-owned file; the renderer holds a projection in
+  // goalsStore.ts). Every invoke answers the whole GoalsView. `goals:pick-folder` carries a goal id
+  // only: main opens its own picker. `goals:changed` is the PUSH (main → renderer) after any change,
+  // whoever caused it, validated at source (sendGoalsChanged.ts).
+  goalsList: 'goals:list',
+  goalsSaveGoal: 'goals:save-goal',
+  goalsDeleteGoal: 'goals:delete-goal',
+  goalsPickFolder: 'goals:pick-folder',
+  goalsClearFolder: 'goals:clear-folder',
+  goalsSaveTask: 'goals:save-task',
+  goalsDeleteTask: 'goals:delete-task',
+  goalsSetTaskStatus: 'goals:set-task-status',
+  goalsLinkTask: 'goals:link-task',
+  goalsUnlinkTask: 'goals:unlink-task',
+  goalsChanged: 'goals:changed',
   // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
   // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN
   // theme id (settings.themeId) and pushes the result. `themes:open-folder` opens the folder in
@@ -672,6 +688,27 @@ export type {
 export type RulesListResult = { rules: Rule[]; brokenIds: string[] }
 /** `rules:save` result — the saved row (so the dialog can select it) PLUS the full view. */
 export type RulesSaveResult = { saved: Rule } & RulesListResult
+
+// Goals — main-owned goals and tasks; the renderer holds a projection (goalsStore.ts).
+export type {
+  Goal,
+  Task,
+  TaskStatus,
+  TaskDoneBy,
+  Proposal,
+  GoalsView,
+  GoalSaveRequest,
+  GoalDeleteRequest,
+  GoalFolderRequest,
+  TaskSaveRequest,
+  TaskDeleteRequest,
+  TaskStatusRequest,
+  TaskLinkRequest
+} from '../schemas/goal'
+/** `goals:save-goal` result — the saved goal (so the sheet can select it) PLUS the full view. */
+export type GoalsSaveGoalResult = { saved: Goal } & GoalsView
+/** `goals:save-task` result — the saved task PLUS the full view. */
+export type GoalsSaveTaskResult = { saved: Task } & GoalsView
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

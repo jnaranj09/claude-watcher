@@ -43,6 +43,9 @@ import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore
 // evaluation snapshot type, and the delta-pipeline order the engine depends on (spec §2.2).
 import { createRulesStore, type RulesStore, type RulesStoreOptions } from './persistence/rules'
 import { createElectronRulesBlobStore } from './persistence/electronRulesBlobStore'
+import { createGoalsStore, type GoalsStore } from './persistence/goals'
+import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
+import { sendGoalsChanged } from './ipc/sendGoalsChanged'
 import type { TagRuleRef } from './persistence/tags'
 import type { RulesEngine } from './rules/rulesEngine'
 import type { RulesSnapshot } from './rules/evaluateRules'
@@ -463,6 +466,7 @@ function cascade(workspaceId: string): void {
   shortcutsStore?.removeByWorkspace(workspaceId)
   tagsStore?.removeByWorkspace(workspaceId)
   rulesStore?.removeByWorkspace(workspaceId)
+  goalsStore?.removeByWorkspace(workspaceId)
   pastSessionsStore?.removeByWorkspace(workspaceId) // D-9 — records are tied by workspace id
   // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
   // timers honest if that guard ever loosens.
@@ -516,6 +520,13 @@ let rulesStore: RulesStore | null = null
 function requireRulesStore(): RulesStore {
   if (rulesStore === null) throw new Error('rules store not initialized')
   return rulesStore
+}
+
+// Goals — same lifecycle as the rules store (needs app-ready for electron-store).
+let goalsStore: GoalsStore | null = null
+function requireGoalsStore(): GoalsStore {
+  if (goalsStore === null) throw new Error('goals store not initialized')
+  return goalsStore
 }
 
 /** The rules as the engines and the launch path read them: run order + the broken ids (T-23).
@@ -596,6 +607,7 @@ const {
   registerPastSessionsIpc,
   registerTagsIpc,
   registerRulesIpc,
+  registerGoalsIpc,
   registerWorkspacesIpc,
   registerShortcutsIpc,
   registerTelemetryIpc
@@ -613,6 +625,7 @@ const {
   requireShortcutsStore,
   requireTagsStore,
   requireRulesStore,
+  requireGoalsStore,
   launchBoardSeams,
   ruleEngines,
   trackers,
@@ -905,6 +918,26 @@ app
       rulesStore = createRulesStore(ruleLookups())
     }
     registerRulesIpc()
+
+    try {
+      goalsStore = SMOKE
+        ? createGoalsStore()
+        : createGoalsStore({
+            blobStore: createElectronGoalsBlobStore(),
+            report: storageHealth.reporterFor('goals')
+          })
+    } catch {
+      // Code ONLY — never the error: a SyntaxError message quotes file content, and a goals blob
+      // carries operator names and task titles.
+      console.error('[claude-watcher][goals] code=goals_store_init_failed (in-memory)')
+      storageHealth.report('goals', 'read_failed')
+      goalsStore = createGoalsStore()
+    }
+    // The push: every change, whoever caused it, reaches every window (validated at source).
+    goalsStore.onChange((view) => {
+      for (const win of BrowserWindow.getAllWindows()) sendGoalsChanged(win.webContents, view)
+    })
+    registerGoalsIpc()
 
     try {
       shortcutsStore = SMOKE

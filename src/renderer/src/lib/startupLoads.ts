@@ -1,5 +1,5 @@
-// Action feedback (spec 2026-09-29 §2.6) — the six startup loads and ONE error toast naming every
-// store that failed ("Could not load templates, tags and rules."): six sticky toasts would pass the
+// Action feedback (spec 2026-09-29 §2.6) — the seven startup loads and ONE error toast naming every
+// store that failed ("Could not load templates, tags and rules."): seven sticky toasts would pass the
 // cap of 3. Each Manage dialog also says `Could not load <x>.` in place of its empty sentence (the
 // stores' `loadFailed`). StorageNotice is unchanged: it reports FILE problems main found; this is
 // the IPC failing.
@@ -9,6 +9,7 @@ import { loadShortcuts } from '../stores/shortcutsStore'
 import { loadWorkspaces } from '../stores/workspacesStore'
 import { loadTags } from '../stores/tagsStore'
 import { loadRules } from '../stores/rulesStore'
+import { loadGoals } from '../stores/goalsStore'
 import { toast } from '../stores/toastStore'
 
 const STARTUP_LOADS: readonly { name: string; load: () => Promise<boolean> }[] = [
@@ -17,7 +18,8 @@ const STARTUP_LOADS: readonly { name: string; load: () => Promise<boolean> }[] =
   { name: 'shortcuts', load: loadShortcuts },
   { name: 'workspaces', load: loadWorkspaces },
   { name: 'tags', load: loadTags },
-  { name: 'rules', load: loadRules }
+  { name: 'rules', load: loadRules },
+  { name: 'goals', load: loadGoals }
 ]
 
 /** `templates, tags and rules` — one, two or many, in plain English. */

@@ -41,7 +41,10 @@ Every EXTERNAL input is validated at exactly ONE boundary that fails closed:
 | persisted file read                              | back up the bad file, start fresh (file history: `index.corrupt-<ts>.json`; an unreadable one moves to `index.unread-<ts>.json` before the next save, `fileHistory.ts`) |
 | `~/.claude/sessions/<pid>.json` (rebind)         | drop quietly, NO log (has cwd + name); fall back to cwd heuristic (`pty/claudeSessionFile.ts`)                                                                          |
 | same, running-elsewhere scan                     | skip quietly; answer one boolean; fail OPEN on unlistable dir (`pty/runningElsewhere.ts`)                                                                               |
+| goals file (`claude-watcher-goals.json`)         | back up the bad file, start empty, `code=goals_corrupt_reset_to_defaults`; names and titles never logged (`goals.ts`, `goal.ts`)                                        |
+| goals IPC arg (`goals:*`)                        | `.strict()` request, `Schema.parse(raw)` → throw typed error; no path ever comes from the renderer (`goalsIpc.ts`)                                                      |
 | renderer → main IPC arg                          | `Schema.parse(raw)` → throw typed error                                                                                                                                 |
+| goals push (`goals:changed`)                     | `GoalsViewSchema.safeParse` before send; drop + log path and code (`sendGoalsChanged.ts`)                                                                               |
 | main → renderer delta                            | validate at source before sending                                                                                                                                       |
 
 Other external input: the transcript tail (`transcriptEntry.ts`).

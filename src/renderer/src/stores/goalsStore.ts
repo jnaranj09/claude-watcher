@@ -1,0 +1,142 @@
+// Goals — the renderer PROJECTION of main's goals and tasks (state.md: main is truth; this is a
+// hydrated copy, replaced wholesale from every IPC result and every `goals:changed` push). The
+// renderer never invents or edits a task: it sends ids and intents, and draws what main answers.
+import { createStore, type StoreApi } from 'zustand/vanilla'
+import { useStore } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
+import type {
+  Goal,
+  GoalSaveRequest,
+  GoalsView,
+  Task,
+  TaskSaveRequest,
+  TaskStatus
+} from '../../../shared/ipc/contract'
+
+export interface GoalsState {
+  goals: Goal[]
+  tasks: Task[]
+  loaded: boolean
+  /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
+  loadFailed: boolean
+  hydrate: (view: GoalsView) => void
+  markLoadFailed: () => void
+}
+
+export function createGoalsViewStore(): StoreApi<GoalsState> {
+  return createStore<GoalsState>((set) => ({
+    goals: [],
+    tasks: [],
+    loaded: false,
+    loadFailed: false,
+    // Proposals ride in the same view; nothing draws them until the planner phase lands.
+    hydrate: (view) =>
+      set({ goals: view.goals, tasks: view.tasks, loaded: true, loadFailed: false }),
+    markLoadFailed: () => set({ loadFailed: true })
+  }))
+}
+
+export const goalsStore = createGoalsViewStore()
+
+/** `selector` may build a fresh array (the `select*` factories below do): the shallow compare keeps
+ *  React from re-rendering on every store write. */
+export function useGoals<T>(selector: (state: GoalsState) => T): T {
+  return useStore(goalsStore, useShallow(selector))
+}
+
+export const selectGoalsLoaded = (s: GoalsState): boolean => s.loaded
+/** True only while nothing loaded AND the load failed — the sheet says so instead of "none yet". */
+export const selectGoalsLoadFailed = (s: GoalsState): boolean => !s.loaded && s.loadFailed
+
+/** The workspace's goals, in creation order (main keeps the array in that order). */
+export const selectGoalsIn =
+  (workspaceId: string) =>
+  (s: GoalsState): Goal[] =>
+    s.goals.filter((g) => g.workspaceId === workspaceId)
+
+export const selectTasksOfGoal =
+  (goalId: string) =>
+  (s: GoalsState): Task[] =>
+    s.tasks.filter((t) => t.goalId === goalId)
+
+export const selectLooseTasks =
+  (workspaceId: string) =>
+  (s: GoalsState): Task[] =>
+    s.tasks.filter((t) => t.workspaceId === workspaceId && t.goalId === null)
+
+export const selectTasksForSession =
+  (sessionId: string) =>
+  (s: GoalsState): Task[] =>
+    s.tasks.filter((t) => t.sessionIds.includes(sessionId))
+
+/** Done of all. A goal with no tasks is 0/0 — an empty bar, never 100%. */
+export function progressOf(tasks: readonly Task[]): { done: number; total: number } {
+  return { done: tasks.filter((t) => t.status === 'done').length, total: tasks.length }
+}
+
+const LOG_PREFIX = '[claude-watcher][goals]'
+
+/** Resolves whether it worked (the startup toast names the failures). Never rejects. */
+export async function loadGoals(): Promise<boolean> {
+  try {
+    goalsStore.getState().hydrate(await window.goals.list())
+    return true
+  } catch {
+    console.warn(`${LOG_PREFIX} code=goals_load_failed`)
+    goalsStore.getState().markLoadFailed()
+    return false
+  }
+}
+
+// Every action below hydrates from the view main answered and RETHROWS: the sheet maps
+// `store_write_failed` and the goal codes to copy on its own message line.
+
+export async function saveGoal(req: GoalSaveRequest): Promise<Goal> {
+  const result = await window.goals.saveGoal(req)
+  goalsStore.getState().hydrate(result)
+  return result.saved
+}
+
+export async function removeGoal(id: string): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.deleteGoal(id))
+}
+
+/** Main opens its own folder picker; the renderer never holds the path it stores. */
+export async function pickGoalFolder(goalId: string): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.pickFolder(goalId))
+}
+
+export async function clearGoalFolder(goalId: string): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.clearFolder(goalId))
+}
+
+export async function saveTask(req: TaskSaveRequest): Promise<Task> {
+  const result = await window.goals.saveTask(req)
+  goalsStore.getState().hydrate(result)
+  return result.saved
+}
+
+export async function removeTask(id: string): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.deleteTask(id))
+}
+
+export async function setTaskStatus(id: string, status: TaskStatus): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.setTaskStatus(id, status))
+}
+
+export async function linkTask(taskId: string, sessionId: string): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.linkTask(taskId, sessionId))
+}
+
+export async function unlinkTask(taskId: string, sessionId: string): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.unlinkTask(taskId, sessionId))
+}
+
+// A change main made on its own (a session closed a task, a `/clear` moved links, a cascade) reaches
+// the renderer as a push. Subscribed ONCE at module load: the preload bridge exists before any
+// renderer script runs, and the store lives as long as the page. The guard is for the unit tests
+// that import this module (through startupLoads, the dialogs) without a preload; the app always
+// has the bridge.
+if (typeof window !== 'undefined' && 'goals' in window) {
+  window.goals.onChanged((view) => goalsStore.getState().hydrate(view))
+}

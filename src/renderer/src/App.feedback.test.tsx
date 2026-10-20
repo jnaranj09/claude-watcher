@@ -44,6 +44,7 @@ beforeEach(() => {
     },
     tags: { list: bridges.tagsList },
     rules: { list: bridges.rulesList },
+    goals: {},
     quit: { requestQuit: bridges.requestQuit, cancel: bridges.cancel, confirm: bridges.confirm }
   })
 })

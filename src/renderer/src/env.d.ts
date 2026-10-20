@@ -40,6 +40,12 @@ import type {
   RuleSaveRequest,
   RulesListResult,
   RulesSaveResult,
+  GoalSaveRequest,
+  GoalsView,
+  GoalsSaveGoalResult,
+  GoalsSaveTaskResult,
+  TaskSaveRequest,
+  TaskStatus,
   PastSession,
   PastSessionOpenResult,
   ThemeSummary,
@@ -201,6 +207,21 @@ declare global {
       save(req: RuleSaveRequest): Promise<RulesSaveResult>
       remove(id: string): Promise<RulesListResult>
       move(id: string, toIndex: number): Promise<RulesListResult>
+    }
+    // Goals — mirrors src/preload/index.ts `goalsApi`. MAIN owns goals and tasks and the folder
+    // picker; the renderer sends ids and intents, and `onChanged` is main's push.
+    goals: {
+      list(): Promise<GoalsView>
+      saveGoal(req: GoalSaveRequest): Promise<GoalsSaveGoalResult>
+      deleteGoal(id: string): Promise<GoalsView>
+      pickFolder(goalId: string): Promise<GoalsView>
+      clearFolder(goalId: string): Promise<GoalsView>
+      saveTask(req: TaskSaveRequest): Promise<GoalsSaveTaskResult>
+      deleteTask(id: string): Promise<GoalsView>
+      setTaskStatus(id: string, status: TaskStatus): Promise<GoalsView>
+      linkTask(taskId: string, sessionId: string): Promise<GoalsView>
+      unlinkTask(taskId: string, sessionId: string): Promise<GoalsView>
+      onChanged(cb: (view: GoalsView) => void): () => void
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

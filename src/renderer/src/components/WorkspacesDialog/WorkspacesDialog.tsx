@@ -25,6 +25,7 @@ import { workspaceTintClass } from '../WorkspaceTint/workspaceTint'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 import { boardStore } from '../../stores/boardStore'
 import { loadRules } from '../../stores/rulesStore'
+import { loadGoals } from '../../stores/goalsStore'
 import { loadShortcuts } from '../../stores/shortcutsStore'
 import { loadTags } from '../../stores/tagsStore'
 import { loadTemplates } from '../../stores/templatesStore'
@@ -205,14 +206,14 @@ function WorkspaceForm({
       {/* The cascade warning, a danger Callout (owner, 2026-10-14: a muted line under the folder
           was easy to miss before an irreversible delete) — the one thing this Delete says that Templates' does not, because
           deleting a workspace also deletes everything scoped to it: templates, shortcuts, tags,
-          rules and past sessions (main's `cascade()`; UX-09 — rules and past sessions were left
+          rules, goals and past sessions (main's `cascade()`; UX-09 — rules and past sessions were left
           out and went silently). */}
       {workspace !== null && workspace.id !== DEFAULT_WORKSPACE_ID && state.armed && (
         <Callout
           tone="danger"
           testId="workspace-delete-confirm-text"
           title={`Delete ${workspace.name}?`}
-          detail="Its templates, shortcuts, tags, rules and past sessions are deleted too. This cannot be undone."
+          detail="Its templates, shortcuts, tags, rules, goals and past sessions are deleted too. This cannot be undone."
         />
       )}
 
@@ -266,8 +267,8 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // workspace that no longer exists.
       const activeId = workspacesStore.getState().activeId
       if (wasActive && activeId !== id) boardStore.getState().focusWorkspace(activeId)
-      // A committed delete CASCADES in main (templates, shortcuts, the tag catalog and rules all
-      // removeByWorkspace), and nothing else tells the renderer: the four loaders otherwise run
+      // A committed delete CASCADES in main (templates, shortcuts, the tag catalog, rules and goals
+      // all removeByWorkspace), and nothing else tells the renderer: the five loaders otherwise run
       // ONLY at startup. Without this re-read the deleted rows sit in the projections until an
       // unrelated round-trip or a restart — and since their workspace is gone, the Manage dialogs
       // file them under `(no workspace)`, where they look legitimate: saving one throws
@@ -275,7 +276,7 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // counts in "Used by N rules". None of the loaders throw (each logs a code and leaves its
       // projection alone), so this cannot turn a successful delete into an error. Only on the
       // SUCCESS path — a refused delete cascaded nothing, so re-reading would be pointless work.
-      await Promise.all([loadTemplates(), loadShortcuts(), loadTags(), loadRules()])
+      await Promise.all([loadTemplates(), loadShortcuts(), loadTags(), loadRules(), loadGoals()])
       // The deleted row was the selected one: nothing open, the placeholder. `select` also clears the
       // error line and the armed Delete.
       dialog.actions.select(null)

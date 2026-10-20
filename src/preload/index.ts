@@ -53,6 +53,12 @@ import type {
   RuleMoveRequest,
   RulesListResult,
   RulesSaveResult,
+  GoalSaveRequest,
+  GoalsView,
+  GoalsSaveGoalResult,
+  GoalsSaveTaskResult,
+  TaskSaveRequest,
+  TaskStatus,
   PastSession,
   PastSessionForgetRequest,
   PastSessionImportRequest,
@@ -506,6 +512,49 @@ const rulesApi = {
 }
 export type RulesApi = typeof rulesApi
 
+// Goals — typed invoke wrappers over CH.goals*. Ids and intents only: a goal's folder is whatever
+// main's own picker returns, so `pickFolder` carries the goal id and nothing else. `onChanged` is
+// the main → renderer push after any change (a session closing a task, a cascade).
+const goalsApi = {
+  list(): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsList)
+  },
+  saveGoal(req: GoalSaveRequest): Promise<GoalsSaveGoalResult> {
+    return ipcRenderer.invoke(CH.goalsSaveGoal, req)
+  },
+  deleteGoal(id: string): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsDeleteGoal, { id })
+  },
+  pickFolder(goalId: string): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsPickFolder, { goalId })
+  },
+  clearFolder(goalId: string): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsClearFolder, { goalId })
+  },
+  saveTask(req: TaskSaveRequest): Promise<GoalsSaveTaskResult> {
+    return ipcRenderer.invoke(CH.goalsSaveTask, req)
+  },
+  deleteTask(id: string): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsDeleteTask, { id })
+  },
+  setTaskStatus(id: string, status: TaskStatus): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsSetTaskStatus, { id, status })
+  },
+  linkTask(taskId: string, sessionId: string): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsLinkTask, { taskId, sessionId })
+  },
+  unlinkTask(taskId: string, sessionId: string): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsUnlinkTask, { taskId, sessionId })
+  },
+  /** Subscribe to the push; returns the unsubscribe. `CH.goalsChanged` is a const, never a literal. */
+  onChanged(cb: (view: GoalsView) => void): () => void {
+    const listener = (_evt: unknown, view: GoalsView): void => cb(view)
+    ipcRenderer.on(CH.goalsChanged, listener)
+    return () => ipcRenderer.removeListener(CH.goalsChanged, listener)
+  }
+}
+export type GoalsApi = typeof goalsApi
+
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
 // touches ipcRenderer directly (contextIsolation stays ON). MAIN computes the wait duration.
@@ -714,6 +763,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('tags', tagsApi)
     // Rules — the rule list bridge (rules:list/save/delete/move).
     contextBridge.exposeInMainWorld('rules', rulesApi)
+    // Goals — the goals and tasks bridge (goals:* invokes + the goals:changed push).
+    contextBridge.exposeInMainWorld('goals', goalsApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -774,6 +825,8 @@ if (process.contextIsolated) {
   window.tags = tagsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.rules is in index.d.ts
   window.rules = rulesApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.goals is in index.d.ts
+  window.goals = goalsApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.api is in index.d.ts
   window.api = apiApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.themes is in index.d.ts

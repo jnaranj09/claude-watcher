@@ -35,7 +35,7 @@ export const SESSION_NAME_MAX_LENGTH = 60
  * control characters trips eslint's `no-control-regex` AND is invisible in a diff, so a reviewer
  * cannot see what it matches. The bounds here are explicit and readable.
  */
-function hasControlChar(value: string): boolean {
+export function hasControlChar(value: string): boolean {
   for (const ch of value) {
     const cp = ch.codePointAt(0)
     if (cp === undefined) continue

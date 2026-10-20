@@ -1,4 +1,4 @@
-import { shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 import { mkdirSync } from 'node:fs'
 import { CH } from '../../shared/ipc/contract'
 import { SettingsPatchSchema } from '../../shared/schemas/settings'
@@ -16,6 +16,8 @@ import type { TagsStore } from '../persistence/tags'
 import { createTagsIpcHandlers } from '../persistence/tagsIpc'
 import type { RulesStore } from '../persistence/rules'
 import { createRulesIpcHandlers } from '../persistence/rulesIpc'
+import type { GoalsStore } from '../persistence/goals'
+import { createGoalsIpcHandlers, goalPickerStart } from '../persistence/goalsIpc'
 import type { TelemetryStore } from '../persistence/telemetry'
 import type { RulesEngine } from '../rules/rulesEngine'
 import type { AttentionTracker } from '../c9watch/attention'
@@ -46,6 +48,7 @@ export interface StoreIpcDeps {
   requireShortcutsStore: () => ShortcutsStore
   requireTagsStore: () => TagsStore
   requireRulesStore: () => RulesStore
+  requireGoalsStore: () => GoalsStore
   launchBoardSeams: Map<Electron.WebContents, LaunchBoardSeam>
   ruleEngines: Map<Electron.WebContents, RulesEngine>
   trackers: Map<Electron.WebContents, AttentionTracker>
@@ -61,6 +64,7 @@ export interface StoreIpc {
   registerPastSessionsIpc(): void
   registerTagsIpc(): void
   registerRulesIpc(): void
+  registerGoalsIpc(): void
   registerWorkspacesIpc(): void
   registerShortcutsIpc(): void
   registerTelemetryIpc(): void
@@ -81,6 +85,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     requireShortcutsStore,
     requireTagsStore,
     requireRulesStore,
+    requireGoalsStore,
     launchBoardSeams,
     ruleEngines,
     trackers,
@@ -245,6 +250,40 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.rulesMove, (_evt, raw: unknown) => handlers.move(raw))
   }
 
+  // Goals — register ONCE (mirrors registerRulesIpc). Handler bodies live in
+  // persistence/goalsIpc.ts (unit-tested); this binds them to CH.* channels and supplies the native
+  // folder picker. The picker opens at the goal's folder, else its workspace's default folder; the
+  // path it returns is stored by main and never travels through the renderer. NEVER logged.
+  function registerGoalsIpc(): void {
+    const handlers = createGoalsIpcHandlers(requireGoalsStore(), {
+      pickDirectory: async (goal) => {
+        const start = goalPickerStart(
+          goal,
+          requireWorkspacesStore().get(goal.workspaceId)?.defaultCwd ?? null
+        )
+        const options: Electron.OpenDialogOptions = {
+          properties: ['openDirectory'],
+          ...(start !== null ? { defaultPath: start } : {})
+        }
+        const owner = BrowserWindow.getFocusedWindow()
+        const result = owner
+          ? await dialog.showOpenDialog(owner, options)
+          : await dialog.showOpenDialog(options)
+        return result.canceled ? null : (result.filePaths[0] ?? null)
+      }
+    })
+    ipc.handle(CH.goalsList, () => handlers.list())
+    ipc.handle(CH.goalsSaveGoal, (_evt, raw: unknown) => handlers.saveGoal(raw))
+    ipc.handle(CH.goalsDeleteGoal, (_evt, raw: unknown) => handlers.deleteGoal(raw))
+    ipc.handle(CH.goalsPickFolder, (_evt, raw: unknown) => handlers.pickFolder(raw))
+    ipc.handle(CH.goalsClearFolder, (_evt, raw: unknown) => handlers.clearFolder(raw))
+    ipc.handle(CH.goalsSaveTask, (_evt, raw: unknown) => handlers.saveTask(raw))
+    ipc.handle(CH.goalsDeleteTask, (_evt, raw: unknown) => handlers.deleteTask(raw))
+    ipc.handle(CH.goalsSetTaskStatus, (_evt, raw: unknown) => handlers.setTaskStatus(raw))
+    ipc.handle(CH.goalsLinkTask, (_evt, raw: unknown) => handlers.linkTask(raw))
+    ipc.handle(CH.goalsUnlinkTask, (_evt, raw: unknown) => handlers.unlinkTask(raw))
+  }
+
   // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
   // persistence/workspacesIpc.ts (unit-tested); this only binds them to CH.* channels.
   function registerWorkspacesIpc(): void {
@@ -359,6 +398,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     registerPastSessionsIpc,
     registerTagsIpc,
     registerRulesIpc,
+    registerGoalsIpc,
     registerWorkspacesIpc,
     registerShortcutsIpc,
     registerTelemetryIpc

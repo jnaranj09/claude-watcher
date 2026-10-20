@@ -97,7 +97,7 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
   disarms and STOPS (doesn't close the dialog). Never a second Cancel/Confirm pair.
 - **Delete is red at rest** (danger border/text, transparent), fills on hover/focus; `armed` (solid)
   only when armed. Looks live in `Button.module.css` only; use `<ManageDialog.Delete>`.
-- **Workspace Delete warning names EVERY cascaded store** (templates, shortcuts, tags, rules, past
+- **Workspace Delete warning names EVERY cascaded store** (templates, shortcuts, tags, rules, goals, past
   sessions — main's `cascade()`). A new cascaded store owes a word there and in its test (UX-09).
   Deleting the ACTIVE workspace re-points the focused view (`focusWorkspace`, UX-18).
 - **Panel capped to viewport, FORM scrolls:** `.panel` `max-height: calc(100vh - 2 *

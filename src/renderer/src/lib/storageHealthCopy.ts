@@ -10,6 +10,7 @@ const STORE_LABEL: Record<StoreName, string> = {
   tags: 'tags',
   workspaces: 'workspaces',
   rules: 'rules',
+  goals: 'goals',
   past_sessions: 'past sessions',
   bridge_mod: 'Claude mod',
   file_history: 'file history'

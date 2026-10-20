@@ -1,5 +1,5 @@
-// Action feedback (spec 2026-09-29 §2.6) — the six startup loads push ONE error toast naming every
-// store that failed (six sticky toasts would pass the cap of 3), and nothing when all load.
+// Action feedback (spec 2026-09-29 §2.6) — the seven startup loads push ONE error toast naming every
+// store that failed (seven sticky toasts would pass the cap of 3), and nothing when all load.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { runStartupLoads, startupLoadFailedCopy } from './startupLoads'
 import { toastStore } from '../stores/toastStore'
@@ -28,6 +28,7 @@ function stubAll(fail: readonly string[]): void {
   w['workspaces'] = { list: answer('workspaces', { activeId: 'default', workspaces: [] }) }
   w['tags'] = { list: answer('tags', []) }
   w['rules'] = { list: answer('rules', { rules: [], brokenIds: [] }) }
+  w['goals'] = { list: answer('goals', { goals: [], tasks: [], proposals: [] }) }
 }
 
 beforeEach(() => {
@@ -65,13 +66,13 @@ describe('runStartupLoads', () => {
     expect(templatesStore.getState().loadFailed).toBe(true)
   })
 
-  it('names settings too, and all six in one toast when everything fails', async () => {
-    stubAll(['settings', 'templates', 'shortcuts', 'workspaces', 'tags', 'rules'])
+  it('names settings too, and all seven in one toast when everything fails', async () => {
+    stubAll(['settings', 'templates', 'shortcuts', 'workspaces', 'tags', 'rules', 'goals'])
     await runStartupLoads()
     expect(toasts()).toEqual([
       [
         'error',
-        'Could not load settings, templates, shortcuts, workspaces, tags and rules. Reopen the app to try again.'
+        'Could not load settings, templates, shortcuts, workspaces, tags, rules and goals. Reopen the app to try again.'
       ]
     ])
   })

@@ -25,6 +25,7 @@ export const STORE_NAMES = [
   'tags',
   'workspaces',
   'rules',
+  'goals',
   'past_sessions',
   // The bridge mod's install into <userData>/mods (spec 2026-10-18 §1.2): not a store the operator
   // edits, but a failed write there is a disk problem they must see.

@@ -12,6 +12,7 @@ import { createShortcutsStore } from './shortcuts'
 import { createTagsStore } from './tags'
 import { createWorkspacesStore } from './workspaces'
 import { createRulesStore } from './rules'
+import { createGoalsStore } from './goals'
 import { createPastSessionsStore } from './pastSessions'
 import { createSettingsStore } from './settings'
 
@@ -108,6 +109,25 @@ describe('a dialog Save / Delete the disk refused is undone (UX-06)', () => {
     expect(s.list().map((r) => r.name)).toEqual(['a', 'b'])
   })
 
+  it('goals: a save, a delete and a status change keep the old state', () => {
+    const b = blob()
+    let n = 0
+    const s = createGoalsStore({ blobStore: b.store, log, newId: () => `g${++n}` })
+    s.saveGoal({ workspaceId: 'w1', name: 'Ship' })
+    s.saveTask({ workspaceId: 'w1', goalId: 'g1', title: 'write' })
+    const fired = vi.fn()
+    s.onChange(fired)
+    b.fail()
+    expect(() => s.saveGoal({ id: 'g1', workspaceId: 'w1', name: 'renamed' })).toThrow(
+      STORE_WRITE_FAILED
+    )
+    expect(() => s.setTaskStatus('g2', 'done', 'operator')).toThrow(STORE_WRITE_FAILED)
+    expect(() => s.removeGoal('g1')).toThrow(STORE_WRITE_FAILED)
+    expect(s.view().goals.map((g) => g.name)).toEqual(['Ship'])
+    expect(s.view().tasks.map((t) => t.status)).toEqual(['open'])
+    expect(fired).not.toHaveBeenCalled()
+  })
+
   it('workspaces: a refused delete keeps the workspace AND never cascades', () => {
     const b = blob()
     const cascade = vi.fn()
@@ -147,6 +167,17 @@ describe('every other write keeps the change and tells storage health (UX-06)', 
     s.save(TEMPLATE)
     b.fail()
     expect(s.removeByWorkspace('w1')).toBe(1)
+    expect(r.codes).toEqual(['write_failed'])
+  })
+
+  it('goals: a cascade reports write_failed and does not throw', () => {
+    const b = blob()
+    const r = reporter()
+    const s = createGoalsStore({ blobStore: b.store, log, report: r.report, newId: () => 'g1' })
+    s.saveGoal({ workspaceId: 'w1', name: 'Ship' })
+    b.fail()
+    expect(s.removeByWorkspace('w1')).toBe(1)
+    expect(s.view().goals).toEqual([])
     expect(r.codes).toEqual(['write_failed'])
   })
 

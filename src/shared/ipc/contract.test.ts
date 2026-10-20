@@ -21,6 +21,20 @@ describe('the CH channel registry', () => {
     expect(CH.rulesMove).toBe('rules:move')
   })
 
+  it('names the goal channels domain:action', () => {
+    expect(CH.goalsList).toBe('goals:list')
+    expect(CH.goalsSaveGoal).toBe('goals:save-goal')
+    expect(CH.goalsDeleteGoal).toBe('goals:delete-goal')
+    expect(CH.goalsPickFolder).toBe('goals:pick-folder')
+    expect(CH.goalsClearFolder).toBe('goals:clear-folder')
+    expect(CH.goalsSaveTask).toBe('goals:save-task')
+    expect(CH.goalsDeleteTask).toBe('goals:delete-task')
+    expect(CH.goalsSetTaskStatus).toBe('goals:set-task-status')
+    expect(CH.goalsLinkTask).toBe('goals:link-task')
+    expect(CH.goalsUnlinkTask).toBe('goals:unlink-task')
+    expect(CH.goalsChanged).toBe('goals:changed')
+  })
+
   it('names the programmatic-API channels domain:action', () => {
     expect(CH.launchRequested).toBe('launch:requested')
     expect(CH.apiTokenGet).toBe('api:token-get')

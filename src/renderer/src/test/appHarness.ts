@@ -10,7 +10,7 @@
 //   const r = await renderApp()
 //
 // The CORE bridges (pty, watch, attention, settings, terminal, launch, templates) are always
-// installed. The OPTIONAL ones (quit, tags, rules, shortcuts, themes, pastSessions, workspaces) are
+// installed. The OPTIONAL ones (quit, tags, rules, goals, shortcuts, themes, pastSessions, workspaces) are
 // installed only when named in `overrides`, so each suite keeps the bridge set it had before the
 // harness: App skips `window.quit` and `window.themes` when they are absent (App.tsx), and these
 // suites are what reach that path. An override is merged over the bridge's defaults member by
@@ -29,6 +29,7 @@ const OPTIONAL_BRIDGES = [
   'quit',
   'tags',
   'rules',
+  'goals',
   'shortcuts',
   'themes',
   'pastSessions',
@@ -106,6 +107,10 @@ function optionalBridgeDefaults(): Partial<Record<OptionalBridgeName, Bridge>> {
       save: vi.fn(),
       remove: vi.fn(),
       move: vi.fn()
+    },
+    goals: {
+      list: vi.fn(() => Promise.resolve({ goals: [], tasks: [], proposals: [] })),
+      onChanged: vi.fn(() => () => {})
     },
     shortcuts: { list: vi.fn(() => Promise.resolve([])), save: vi.fn(), remove: vi.fn() }
   }
