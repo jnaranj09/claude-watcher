@@ -50,9 +50,10 @@ export function ManageDialogProvider({
 }
 
 export interface ManageDialogFrameProps {
-  /** `wide` fits a form with long rows (Rules: trigger, conditions, actions). `full` is a sheet:
-   *  the window's width and height less a gutter on each side (Goals). */
-  size?: 'standard' | 'wide' | 'full'
+  /** `wide` fits a form with long rows (Rules: trigger, conditions, actions). `drop` is a sheet
+   *  that drops from under the app header, centred, 75% of the window body each way (Goals); the
+   *  caller renders it inside `<main>`, whose box it sizes against. */
+  size?: 'standard' | 'wide' | 'drop'
   children: ReactNode
 }
 
@@ -75,8 +76,9 @@ export function ManageDialogFrame({
 
   return (
     <div
-      className={styles.overlay}
+      className={cx(styles.overlay, size === 'drop' && styles.overlayDrop)}
       data-motion="dialog"
+      data-drop={size === 'drop' ? '' : undefined}
       {...leavingProps(leaving)}
       role="dialog"
       aria-modal="true"
@@ -88,7 +90,7 @@ export function ManageDialogFrame({
         className={cx(
           styles.panel,
           size === 'wide' && styles.panelWide,
-          size === 'full' && styles.panelFull
+          size === 'drop' && styles.panelDrop
         )}
         data-manage-panel=""
         data-testid={`${meta.testIdPrefix}-panel`}

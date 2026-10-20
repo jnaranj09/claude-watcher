@@ -562,9 +562,6 @@
   "src/renderer/src/components/SplitDivider/SplitDivider.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
       "count": 8
-    },
-    "testing-library/no-container": {
-      "count": 1
     }
   },
   "src/renderer/src/components/StatusDot/StatusDot.test.tsx": {

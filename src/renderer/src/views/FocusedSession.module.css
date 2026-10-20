@@ -97,6 +97,16 @@
   min-width: 0;
 }
 
+/* The task panel's drag line (a vertical SplitDivider) sits in the gap between the terminal frame
+   and the panel. `.terminalWrap > *` insets the frame 12px (--space-3) from the wrap's edge, so the
+   line is pulled that far left over the wrap (--inset-card is the same 12px step): the 12px strip
+   then fills the frame-to-panel gap exactly and its grip is centred in it. */
+.tasksDivider {
+  display: flex;
+  margin-left: calc(-1 * var(--inset-card));
+  z-index: 1;
+}
+
 /* The terminal region. A positioning context: every kept-alive terminal is absolutely positioned
    to fill it (inset:0), so the hidden ones (visibility:hidden — kept alive, NEVER display:none)
    keep a NON-ZERO box for the next fit(), and only the active one is visible on top. */

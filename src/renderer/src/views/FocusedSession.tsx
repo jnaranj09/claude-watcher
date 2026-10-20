@@ -51,6 +51,8 @@ import styles from './FocusedSession.module.css'
 import { CONTEXT_TERMS, GOAL_TERMS, SHELL_TERMS } from '../copy/terms'
 import { selectTasksForSession, useGoals } from '../stores/goalsStore'
 import { SessionTasks } from './SessionTasks'
+import { TASKS_PANEL_DEFAULT_PX, tasksDividerHandlers } from './tasksPanelWidth'
+import { SplitDivider } from '../components/SplitDivider/SplitDivider'
 
 /**
  * Story 4.3 (FR-15) — resolve a human-readable name for the focused terminal.
@@ -213,6 +215,9 @@ export function FocusedSession({
   }
   const tasksVisible =
     focusedSession !== null && tasksPanel.sessionId === focusedSessionId && tasksPanel.open
+  // Its width, set by the drag line on its left edge: one width for every session, kept while
+  // the app runs (view-state, not saved).
+  const [tasksWidth, setTasksWidth] = useState(TASKS_PANEL_DEFAULT_PX)
 
   // Card shell pane — every card's pane state (same reference until a pane changes).
   const shellPanes = useBoard((s) => s.shellPanes)
@@ -387,7 +392,25 @@ export function FocusedSession({
             })}
           </div>
           {tasksVisible && (
-            <SessionTasks sessionId={focusedSession.id} workspaceId={focusedSession.workspaceId} />
+            <>
+              {/* Pulled left over the terminal region's padding, so its grip sits midway between
+                  the terminal frame and the panel. */}
+              <span className={styles.tasksDivider}>
+                <SplitDivider
+                  orientation="vertical"
+                  {...tasksDividerHandlers(tasksWidth)}
+                  onDrag={setTasksWidth}
+                  onCommit={setTasksWidth}
+                  ariaLabel={GOAL_TERMS.resizeTasks}
+                  testId="session-tasks-divider"
+                />
+              </span>
+              <SessionTasks
+                sessionId={focusedSession.id}
+                workspaceId={focusedSession.workspaceId}
+                width={tasksWidth}
+              />
+            </>
           )}
         </div>
       </div>

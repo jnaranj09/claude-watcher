@@ -67,10 +67,13 @@ function groupsFor(
 
 export function SessionTasks({
   sessionId,
-  workspaceId
+  workspaceId,
+  width
 }: {
   sessionId: string
   workspaceId: string
+  /** Its width in px (the focused view's, changed by the drag line beside it). */
+  width: number
 }): JSX.Element {
   // The store's own arrays (stable references): groups are built here, not in the selector, so the
   // shallow compare never sees fresh nested objects.
@@ -132,8 +135,14 @@ export function SessionTasks({
   })
 
   return (
-    <aside className={styles.panel} data-testid="session-tasks" aria-label={GOAL_TERMS.tasks}>
-      <div className={styles.head}>
+    <aside
+      className={styles.panel}
+      style={{ width }}
+      data-testid="session-tasks"
+      aria-label={GOAL_TERMS.tasks}
+    >
+      <div className={styles.head} data-testid="session-tasks-head">
+        <span className={styles.heading}>{GOAL_TERMS.tasks}</span>
         <div className={styles.anchor} ref={anchorRef}>
           <Button
             variant="secondary"

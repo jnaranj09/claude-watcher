@@ -369,8 +369,13 @@ function App(): React.JSX.Element {
     boardStore.getState().openWorkspacesDialog()
   }, [])
 
-  // Goals — the header's Goals button. Same single-modal guard as every opener.
-  const handleOpenGoals = useCallback((): void => {
+  // Goals — the header's Goals button toggles the sheet: it stays visible above the sheet, so it
+  // also closes it. Opening keeps the single-modal guard every opener has.
+  const handleToggleGoals = useCallback((): void => {
+    if (boardStore.getState().goalsDialogOpen) {
+      boardStore.getState().closeGoalsDialog()
+      return
+    }
     if (isModalOpen()) return
     boardStore.getState().openGoalsDialog()
   }, [])
@@ -659,12 +664,14 @@ function App(): React.JSX.Element {
   // keystrokes reach a running claude session while a modal is on screen. None of these dialogs
   // render a focus trap of their own; this is the trap. The name stays — it now means "a modal
   // is open," not just "the name prompt is open."
-  const namePromptOpen =
+  // The Goals sheet is the one modal that leaves the header in reach: it drops from under it, and
+  // the header's Goals button closes it. So the header is inert for every OTHER modal; under the
+  // sheet only its other controls are (`headerGroup`).
+  const modalOverHeader =
     sessionNamePrompt !== null ||
     sessionsDialog !== null ||
     shortcutsDialogOpen ||
     workspacesDialogOpen ||
-    goalsDialogOpen ||
     tagsDialog !== null ||
     settingsDialogOpen ||
     contextDialogTerminalId !== null ||
@@ -672,6 +679,7 @@ function App(): React.JSX.Element {
     // reached the live terminal behind it.
     stopConfirm !== null ||
     quitGuard !== null
+  const namePromptOpen = modalOverHeader || goalsDialogOpen
 
   return (
     <div className={styles.app}>
@@ -682,7 +690,7 @@ function App(): React.JSX.Element {
         className={styles.header}
         data-testid="app-header"
         data-glass="header"
-        inert={namePromptOpen}
+        inert={modalOverHeader}
       >
         {/* The switcher sits beside the brand, apart from the actions: it says WHERE you are. */}
         <div className={styles.headerLead}>
@@ -690,38 +698,54 @@ function App(): React.JSX.Element {
             Claude Watcher
           </span>
           <span className={styles.headerDivider} aria-hidden="true" />
-          <WorkspaceSwitcher onManage={handleManageWorkspaces} />
+          {/* Under the Goals sheet the rest of the header is out of reach (one surface at a time):
+              inert and dimmed, so a click that cannot act does not look like it could. */}
+          <span
+            className={styles.headerGroup}
+            inert={goalsDialogOpen}
+            data-testid="header-lead-group"
+          >
+            <WorkspaceSwitcher onManage={handleManageWorkspaces} />
+          </span>
         </div>
         <div className={styles.headerActions}>
-          {/* Goals opens the planning sheet over the current view (spec 2026-10-19-goals): an icon
-              button, named for screen readers and on hover. */}
+          {/* Goals opens and closes the planning sheet under the header (spec 2026-10-19-goals): an
+              icon button, named for screen readers and on hover, lit while the sheet is open. */}
           <Button
             variant="secondary"
             icon
+            lit={goalsDialogOpen}
             testId="header-goals"
             aria-label={GOAL_TERMS.label}
+            aria-expanded={goalsDialogOpen}
             title={GOAL_TERMS.label}
-            onClick={handleOpenGoals}
+            onClick={handleToggleGoals}
           >
             <LucideIcon name="circle-check-big" />
           </Button>
-          <NewSessionButton
-            openRef={openNewSessionMenu}
-            busy={pickFolder.busy}
-            onPickFolder={() => void runPickFolder()}
-            onPickTemplate={handleTemplateSession}
-            onManage={handleManageTemplates}
-          />
-          {/* The header control after Goals and + New session: Settings, Shortcuts, the Tags
+          <span
+            className={styles.headerGroup}
+            inert={goalsDialogOpen}
+            data-testid="header-actions-group"
+          >
+            <NewSessionButton
+              openRef={openNewSessionMenu}
+              busy={pickFolder.busy}
+              onPickFolder={() => void runPickFolder()}
+              onPickTemplate={handleTemplateSession}
+              onManage={handleManageTemplates}
+            />
+            {/* The header control after Goals and + New session: Settings, Shortcuts, the Tags
               submenu and Past sessions (last). It filters nothing: the filters are the board's
               FilterBar. */}
-          <AppMenu
-            onOpenSettings={handleOpenSettings}
-            onOpenShortcuts={handleOpenShortcuts}
-            onManageTags={handleManageTags}
-            onManageRules={handleManageRules}
-            onOpenSessions={handleOpenSessions}
-          />
+            <AppMenu
+              onOpenSettings={handleOpenSettings}
+              onOpenShortcuts={handleOpenShortcuts}
+              onManageTags={handleManageTags}
+              onManageRules={handleManageRules}
+              onOpenSessions={handleOpenSessions}
+            />
+          </span>
         </div>
       </header>
       {/* UX-05 — the hook ingest is down: say so on every view until it is back. */}
@@ -776,6 +800,11 @@ function App(): React.JSX.Element {
             </div>
           )}
         </div>
+        {/* Goals (spec 2026-10-19-goals) — the planning sheet, inside <main> so it drops from
+            under the header and leaves the header visible (same single-modal rule). */}
+        <Presence value={goalsDialogOpen || null}>
+          {() => <GoalsDialog onClose={() => boardStore.getState().closeGoalsDialog()} />}
+        </Presence>
       </main>
       {/* Story 4.2 (FR-14) — the Quit-guard modal (renderer view-state; non-null when main
           detected ≥1 live app-launched session at quit time). Rendered as a stacked overlay
@@ -804,11 +833,6 @@ function App(): React.JSX.Element {
       </Presence>
       {/* Tags (spec 2026-10-03 C) — Tags · Rules as pages of one dialog (same z-60 layer and
           single-modal rule). */}
-      {/* Goals (spec 2026-10-19-goals) — the planning sheet (same z-60 layer and single-modal
-          rule). */}
-      <Presence value={goalsDialogOpen || null}>
-        {() => <GoalsDialog onClose={() => boardStore.getState().closeGoalsDialog()} />}
-      </Presence>
       <Presence value={tagsDialog}>
         {(page) => (
           <TagsDialog

@@ -1,12 +1,15 @@
-// Card shell pane — the divider: a keyboard-reachable separator that reports a live ratio while
-// dragging and commits ONCE at the end (the caller saves it), plus the 5% key steps and the
-// double-click reset. jsdom has no layout, so the frame bounds are injected.
+// The drag line between two panels: a keyboard-reachable separator that reports a live value while
+// dragging and commits ONCE at the end (the caller saves it), plus the key steps and the
+// double-click reset. Driven here through the shell split's handlers (5% steps, ratio clamps) and a
+// plain pixel width (the task panel's shape). jsdom has no layout, so the frame bounds are injected.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { act } from 'react'
+import { screen } from '@testing-library/react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { ShellDivider } from '../../terminal/ShellDivider'
 import { SplitDivider } from './SplitDivider'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -16,7 +19,12 @@ afterEach(() => {
   cleanup = undefined
 })
 
-function render(props: Partial<Parameters<typeof SplitDivider>[0]> = {}): {
+interface ShellProps {
+  ratio?: number
+  getBounds?: () => { top: number; height: number } | null
+}
+
+function render({ ratio = 0.3, getBounds = () => ({ top: 0, height: 1000 }) }: ShellProps = {}): {
   r: RenderResult
   el: HTMLElement
   onDrag: ReturnType<typeof vi.fn>
@@ -25,18 +33,17 @@ function render(props: Partial<Parameters<typeof SplitDivider>[0]> = {}): {
   const onDrag = vi.fn()
   const onCommit = vi.fn()
   const r = renderComponent(
-    <SplitDivider
-      ratio={0.3}
-      getBounds={() => ({ top: 0, height: 1000 })}
+    <ShellDivider
+      ratio={ratio}
+      getBounds={getBounds}
       onDrag={onDrag}
       onCommit={onCommit}
       ariaLabel="Resize shell pane"
       testId="shell-divider"
-      {...props}
     />
   )
   cleanup = r.unmount
-  const el = r.container.querySelector<HTMLElement>('[data-testid="shell-divider"]') as HTMLElement
+  const el = screen.getByTestId('shell-divider')
   return { r, el, onDrag, onCommit }
 }
 
@@ -143,6 +150,74 @@ describe('SplitDivider — double-click resets to the default', () => {
   })
 })
 
+describe('SplitDivider — vertical (a side panel edge, in pixels)', () => {
+  function renderVertical(): {
+    el: HTMLElement
+    onDrag: ReturnType<typeof vi.fn>
+    onCommit: ReturnType<typeof vi.fn>
+  } {
+    const onDrag = vi.fn()
+    const onCommit = vi.fn()
+    const width = 260
+    const clamp = (w: number): number => Math.min(600, Math.max(200, w))
+    const r = renderComponent(
+      <SplitDivider
+        orientation="vertical"
+        valueNow={width}
+        valueMin={200}
+        valueMax={600}
+        startDrag={(x0) => (x) => clamp(width + x0 - x)}
+        stepValue={(d) => clamp(width - d * 20)}
+        resetValue={260}
+        onDrag={onDrag}
+        onCommit={onCommit}
+        ariaLabel="Resize tasks"
+        testId="tasks-divider"
+      />
+    )
+    cleanup = r.unmount
+    return { el: screen.getByRole('separator', { name: 'Resize tasks' }), onDrag, onCommit }
+  }
+  function pointerX(type: string, clientX: number): Event {
+    const e = new MouseEvent(type, { bubbles: true, clientX, button: 0 })
+    Object.defineProperty(e, 'pointerId', { value: 1 })
+    return e
+  }
+
+  it('is a vertical separator; a drag follows clientX and commits once', () => {
+    const { el, onDrag, onCommit } = renderVertical()
+    expect(el).toHaveAttribute('aria-orientation', 'vertical')
+    expect(el).toHaveAttribute('aria-valuemin', '200')
+    expect(el).toHaveAttribute('aria-valuemax', '600')
+    act(() => {
+      el.dispatchEvent(pointerX('pointerdown', 700))
+    })
+    act(() => {
+      el.dispatchEvent(pointerX('pointermove', 600)) // 100px left → 100px wider
+    })
+    expect(onDrag).toHaveBeenLastCalledWith(360)
+    act(() => {
+      el.dispatchEvent(pointerX('pointerup', 600))
+    })
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onCommit).toHaveBeenLastCalledWith(360)
+  })
+  it('ArrowLeft / ArrowRight step it; ArrowUp does not', () => {
+    const { el, onCommit } = renderVertical()
+    const key = (k: string): void => {
+      act(() => {
+        el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }))
+      })
+    }
+    key('ArrowLeft')
+    expect(onCommit).toHaveBeenLastCalledWith(280)
+    key('ArrowRight')
+    expect(onCommit).toHaveBeenLastCalledWith(240)
+    key('ArrowUp')
+    expect(onCommit).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('SplitDivider — stylesheet (tokens only)', () => {
   const css = readFileSync(resolve(here, 'SplitDivider.module.css'), 'utf8').replace(
     /\/\*[\s\S]*?\*\//g,
@@ -161,5 +236,9 @@ describe('SplitDivider — stylesheet (tokens only)', () => {
     expect(css).toMatch(/\.divider\[data-dragging\]::after\s*\{[^}]*var\(--border-strong\)/)
     expect(css).toMatch(/\.divider:focus-visible\s*\{[^}]*var\(--focus-ring\)/)
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,6}\b/)
+    // Vertical: the same 12px strip turned on its side, the grip with it.
+    const vertical = /\.divider\[data-orientation='vertical'\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(vertical).toMatch(/width:\s*12px/)
+    expect(vertical).toMatch(/cursor:\s*col-resize/)
   })
 })

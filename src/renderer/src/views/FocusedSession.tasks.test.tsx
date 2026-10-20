@@ -90,6 +90,22 @@ describe('FocusedSession — the Tasks panel', () => {
     expect(frame).not.toContainElement(screen.getByTestId('session-tasks'))
   })
 
+  it('a drag line sits left of the panel; ArrowLeft widens the panel 20px, a double-click resets it', async () => {
+    const user = userEvent.setup()
+    open([linked])
+    const line = screen.getByRole('separator', { name: 'Resize task panel' })
+    expect(line).toHaveAttribute('aria-orientation', 'vertical')
+    // Left of the panel: the line comes first in the row.
+    const panel = screen.getByTestId('session-tasks')
+    expect(line.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(screen.getByTestId('session-tasks')).toHaveStyle({ width: '260px' })
+    line.focus()
+    await user.keyboard('{ArrowLeft}')
+    expect(screen.getByTestId('session-tasks')).toHaveStyle({ width: '280px' })
+    await user.dblClick(line)
+    expect(screen.getByTestId('session-tasks')).toHaveStyle({ width: '260px' })
+  })
+
   it('the toggle hides a panel that opened for linked tasks, and shows it again', async () => {
     const user = userEvent.setup()
     open([linked])

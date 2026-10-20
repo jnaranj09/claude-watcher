@@ -42,22 +42,37 @@
   max-width: 1040px;
   gap: var(--gap-section);
 }
-/* Goals: a sheet over the board, the window less a page gutter on each side. The height is the
-   cap the panel already has, so the sheet and any other panel clip the window alike; the rail's
-   480px row cap gives way so the rows fill the sheet, and the columns take the height the header
-   and the message slot leave. */
-.panelFull {
-  box-sizing: border-box;
-  width: calc(100vw - 2 * var(--gap-page));
-  max-width: none;
-  height: calc(100vh - 2 * var(--space-6));
+/* Goals: a sheet that drops from under the app header (owner, 2026-10-20: "a whole window
+   dropdown"). Its overlay fills `<main>` only, so the header stays visible and its Goals button
+   closes the sheet. The panel floats a page gutter under the header (never touching it, so every
+   theme's own panel border, corners and shadow stay whole), centred, 75% of the body's width and
+   height (owner: the whole body was "too big for
+   its UI", then 60% was too cramped for the form: 75% each way); the panel's 640px `min-width`
+   still holds on a narrow window. The rail's 480px row cap gives way so the rows fill the sheet,
+   and the columns take the height the sheet's own header and the message slot leave. The goals
+   rail is a little narrower than the tasks column (2fr : 3fr), not a fixed 300px. */
+.overlayDrop {
+  position: absolute;
+  align-items: flex-start;
+  padding-top: var(--gap-page);
 }
-.panelFull .rows {
+.panelDrop {
+  box-sizing: border-box;
+  width: 75%;
+  max-width: none;
+  height: 75%;
   max-height: none;
 }
-.panelFull .columns {
+.panelDrop .rows {
+  max-height: none;
+}
+.panelDrop .columns {
   flex: 1;
   min-height: 0;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+}
+.panelDrop .list {
+  width: auto;
 }
 
 .header {

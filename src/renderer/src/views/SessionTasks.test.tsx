@@ -5,6 +5,7 @@ import { act } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SessionTasks } from './SessionTasks'
+import { tasksDividerHandlers } from './tasksPanelWidth'
 import { goalsStore } from '../stores/goalsStore'
 import type { Goal, GoalsView, Task, TaskStatus } from '../../../shared/ipc/contract'
 
@@ -58,7 +59,7 @@ function install(initial: GoalsView): void {
 let unmount: (() => void) | undefined
 function open(initial: GoalsView): void {
   install(initial)
-  unmount = render(<SessionTasks sessionId="s1" workspaceId="w1" />).unmount
+  unmount = render(<SessionTasks sessionId="s1" workspaceId="w1" width={260} />).unmount
 }
 
 afterEach(() => {
@@ -69,6 +70,19 @@ afterEach(() => {
 })
 
 describe('SessionTasks', () => {
+  it('its head reads Tasks on the left, Link task on the right, above the list', () => {
+    open({ goals: [goal()], tasks: [], proposals: [] })
+    const head = screen.getByTestId('session-tasks-head')
+    const title = within(head).getByText('Tasks')
+    const link = within(head).getByRole('button', { name: 'Link task' })
+    const after = (a: Node, b: Node): boolean =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    expect(after(title, link)).toBe(true)
+    // The head comes before the empty line.
+    expect(after(head, screen.getByText('No tasks linked to this session.'))).toBe(true)
+    expect(screen.getByTestId('session-tasks')).toContainElement(head)
+  })
+
   it("lists this session's tasks and marks one done", async () => {
     const user = userEvent.setup()
     open({
@@ -182,5 +196,21 @@ describe('SessionTasks', () => {
     expect(screen.getByRole('button', { name: 'Link task' })).toBeDisabled()
     await act(async () => release(view))
     expect(bridge.linkTask).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('tasksDividerHandlers', () => {
+  it('a drag left widens the panel, held between 200 and 640px', () => {
+    const map = tasksDividerHandlers(260).startDrag(700)
+    expect(map?.(600)).toBe(360)
+    expect(map?.(900)).toBe(200)
+    expect(map?.(0)).toBe(640)
+  })
+  it('keys step 20px (left = wider), and the reset is 260px', () => {
+    const h = tasksDividerHandlers(300)
+    expect(h.stepValue(-1)).toBe(320)
+    expect(h.stepValue(1)).toBe(280)
+    expect(h.resetValue).toBe(260)
+    expect([h.valueNow, h.valueMin, h.valueMax]).toEqual([300, 200, 640])
   })
 })

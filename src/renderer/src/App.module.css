@@ -54,6 +54,17 @@
   background: var(--border);
 }
 
+/* A run of header controls the Goals sheet puts out of reach: inert while it is open, and dimmed
+   so they do not look clickable. */
+.headerGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.headerGroup[inert] {
+  opacity: 0.5;
+}
+
 /* Story 3.2 (FR-11) — the header actions cluster: + New session (UX-DR21) + Settings. */
 .headerActions {
   display: flex;
@@ -69,6 +80,9 @@
      scrollable, THIS would have become the next box to slide sideways. See the note in
      EmbeddedTerminal.module.css .frame. */
   overflow: clip;
+  /* The containing block of the Goals sheet (`ManageDialog.Frame size="drop"`): it fills the body
+     under the header, never the header itself. */
+  position: relative;
 }
 
 /* Story 3.4 (B-1 fix) — the Board ↔ Focused-session STACK. Both views are mounted at once and

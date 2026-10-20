@@ -1,21 +1,30 @@
 /* The focused view's task panel: a column beside the terminal, in the rail's surface. The menu of
-   `Link task` is absolute and the panel must not clip it, so only `.body` scrolls. */
+   `Link task` is absolute and the panel must not clip it, so only `.body` scrolls. Its width is
+   set inline (the caller's, changed by the drag line on its left edge); the containing block of
+   that line. */
 .panel {
-  flex: 0 0 260px;
-  width: 260px;
+  position: relative;
+  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--gap-group);
   box-sizing: border-box;
-  padding: var(--inset-compact-x);
+  /* The rail's gutter (16px): the panel reads as a page, not a cramped list. */
+  padding: var(--gap-page);
   border-left: 1px solid var(--border);
-  background: var(--bg-surface);
+  /* The raised surface, like a Settings panel, so the darker task boxes stand out on it. */
+  background: var(--bg-surface-raised);
 }
 
 .head {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-inline);
+}
+.heading {
+  font-weight: var(--font-weight-label);
 }
 .anchor {
   position: relative;
@@ -56,7 +65,16 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-row);
+  /* Filled boxes: 2px between them reads as one block. */
+  gap: var(--gap-row-filled);
+}
+/* Each task is a darker box on the raised panel, the look of a selected Settings rail row
+   (ManageDialog `.row[data-selected]`): --bg-surface, a --border-strong edge, --rounded-md. */
+.rows > li {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-md);
+  padding: var(--inset-item-y) var(--inset-item-x);
 }
 .empty {
   margin: 0;

@@ -41,6 +41,18 @@
     opacity: 0;
   }
 }
+/* A `drop` sheet (Goals) comes down from the header instead of rising: it starts above its place,
+   full size. */
+@starting-style {
+  [role='dialog'][data-motion='dialog'][data-drop] > * {
+    translate: 0 -8px;
+    scale: 1;
+  }
+}
+[role='dialog'][data-motion='dialog'][data-drop][data-leaving] > * {
+  translate: 0 -8px;
+  scale: 1;
+}
 [role='dialog'][data-motion='dialog'][data-leaving] {
   background-color: transparent;
   pointer-events: none;

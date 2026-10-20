@@ -121,16 +121,24 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.panel')).toMatch(/max-height:\s*calc\(100vh/)
   })
 
-  // The Goals sheet: a page on top of the board, the window less a gutter each side. Its height is
-  // the SAME cap `.panel` has (so the two cannot drift); the rail's 480px row cap gives way and the
-  // columns fill the sheet (a short form no longer leaves the panel's bottom empty).
-  it('.panelFull is the window less a page gutter each side, as tall as the cap', () => {
-    const cap = /max-height:\s*(calc\(100vh[^;]*\));/.exec(ruleBody(css, '.panel'))?.[1]
-    expect(cap).toBeDefined()
-    expect(ruleBody(css, '.panelFull')).toContain(`height: ${cap}`)
-    expect(ruleBody(css, '.panelFull')).toMatch(/width:\s*calc\(100vw - 2 \* var\(--gap-page\)\)/)
-    expect(ruleBody(css, '.panelFull .rows')).toMatch(/max-height:\s*none/)
-    expect(ruleBody(css, '.panelFull .columns')).toMatch(/flex:\s*1;/)
+  // The Goals sheet drops from under the app header: its overlay fills <main> (absolute, not the
+  // window), the panel floats a page gutter under the header, centred, 75% of the body each way,
+  // with the panel's own border and corners (no edge cut off, in any theme); the rail's 480px row
+  // cap gives way and the columns fill the sheet, the goals rail a little narrower than the tasks.
+  it('.panelDrop floats under the header at 75% of the body', () => {
+    expect(ruleBody(css, '.overlayDrop')).toMatch(/position:\s*absolute/)
+    expect(ruleBody(css, '.overlayDrop')).toMatch(/align-items:\s*flex-start/)
+    expect(ruleBody(css, '.overlayDrop')).toMatch(/padding-top:\s*var\(--gap-page\)/)
+    expect(ruleBody(css, '.panelDrop')).not.toMatch(/border(-[a-z-]+)?:|radius/)
+    expect(ruleBody(css, '.panelDrop')).toMatch(/(^|[^-])width:\s*75%/)
+    expect(ruleBody(css, '.panelDrop')).toMatch(/(^|[^-])height:\s*75%/)
+    expect(ruleBody(css, '.panelDrop')).toMatch(/max-height:\s*none/)
+    expect(ruleBody(css, '.panelDrop .rows')).toMatch(/max-height:\s*none/)
+    expect(ruleBody(css, '.panelDrop .columns')).toMatch(/flex:\s*1;/)
+    expect(ruleBody(css, '.panelDrop .columns')).toMatch(
+      /grid-template-columns:\s*minmax\(0, 2fr\) minmax\(0, 3fr\)/
+    )
+    expect(ruleBody(css, '.panelDrop .list')).toMatch(/width:\s*auto/)
   })
 
   it('a rail row is 44px, 13 / 500 — taller than a menu row, room for a second line', () => {

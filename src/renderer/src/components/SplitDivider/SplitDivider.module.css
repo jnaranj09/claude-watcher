@@ -1,8 +1,8 @@
-/* Card shell pane — the divider between the claude terminal and its shell (spec 2026-09-30).
-   It IS the gap between the two panels: the whole 12px strip takes the drag, and a short grip in
-   its middle shows where. Tokens only. The grip rests on --border; --border-strong while hovered
-   or dragged; the app's focus ring when reached by keyboard. `touch-action: none` so a pointer
-   drag is never turned into a scroll. */
+/* The drag line between two panels (SplitDivider). It IS the gap between them: the whole 12px
+   strip takes the drag, and a short grip in its middle shows where. Tokens only. The grip rests on
+   --border; --border-strong while hovered or dragged; the app's focus ring when reached by
+   keyboard. `touch-action: none` so a pointer drag is never turned into a scroll. `horizontal`
+   (the shell split) is a 12px-tall row; `vertical` (the task panel edge) a 12px-wide column. */
 
 .divider {
   flex: 0 0 auto;
@@ -18,12 +18,24 @@
   user-select: none;
 }
 
+.divider[data-orientation='vertical'] {
+  width: 12px;
+  height: auto;
+  align-self: stretch;
+  cursor: col-resize;
+}
+
 .divider::after {
   content: '';
   width: 48px;
   height: 4px;
   border-radius: 999px;
   background: var(--border);
+}
+
+.divider[data-orientation='vertical']::after {
+  width: 4px;
+  height: 48px;
 }
 
 .divider:hover::after {

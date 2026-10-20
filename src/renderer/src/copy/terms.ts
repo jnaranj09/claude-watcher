@@ -43,6 +43,7 @@ export const GOAL_TERMS = {
   saveTaskFailed: 'Could not save task.',
   /** The focused view's task panel: its bar toggle and the menu that links a task to the session. */
   tasks: 'Tasks',
+  resizeTasks: 'Resize task panel',
   linkTask: 'Link task',
   linkTaskFailed: 'Could not link task.',
   unlinkTaskFailed: 'Could not unlink task.',

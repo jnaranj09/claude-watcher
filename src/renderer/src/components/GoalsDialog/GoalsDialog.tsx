@@ -1,7 +1,7 @@
 // Goals — the sheet where goals and tasks are planned by hand (spec 2026-10-19-goals, "Plan by
 // hand") or with a planner session (`Plan with Claude`, whose proposal shows under the goal's
-// tasks: ProposalPanel), on the shared ManageDialog shell at its `full` size: a page on top of the board or the
-// terminal view, with a small gap on the sides. Rail = `Loose tasks` first, then this workspace's
+// tasks: ProposalPanel), on the shared ManageDialog shell at its `drop` size: a sheet that drops
+// from under the app header over the board or the terminal view, 75% of the body each way. Rail = `Loose tasks` first, then this workspace's
 // goals, each with `done/total` and a bar; right column = the goal's form and its tasks.
 //
 // Main owns the records (goalsStore is a projection); this file sends ids and intents and draws
@@ -256,7 +256,7 @@ export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
 
   return (
     <ManageDialog.Provider {...dialog}>
-      <ManageDialog.Frame size="full">
+      <ManageDialog.Frame size="drop">
         <ManageDialog.Header />
         <ManageDialog.Columns>
           <ManageDialog.List size="wide">

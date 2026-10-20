@@ -60,8 +60,8 @@ import {
   persistSettingsPatch,
   settingsStore
 } from '../stores/settingsStore'
-import { SplitDivider } from '../components/SplitDivider/SplitDivider'
 import { clampShellRatio } from './shellPaneRatio'
+import { ShellDivider } from './ShellDivider'
 import { expanderChord } from '../../../shared/schemas/settings'
 import { chordFromEvent } from '../shortcuts/chord'
 import { ExpanderBox } from '../components/ExpanderBox/ExpanderBox'
@@ -908,7 +908,7 @@ export function EmbeddedTerminal({
         )}
       </div>
       {shell !== undefined && shell.visible && (
-        <SplitDivider
+        <ShellDivider
           ratio={shellRatio}
           getBounds={shellBounds}
           onDrag={setDragRatio}
