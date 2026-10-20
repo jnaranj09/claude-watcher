@@ -28,7 +28,9 @@ export const STORE_NAMES = [
   'past_sessions',
   // The bridge mod's install into <userData>/mods (spec 2026-10-18 §1.2): not a store the operator
   // edits, but a failed write there is a disk problem they must see.
-  'bridge_mod'
+  'bridge_mod',
+  // Context's file history (spec 2026-10-18 §3): <userData>/claude-watcher-file-history.
+  'file_history'
 ] as const
 export const STORAGE_PROBLEM_CODES = [
   'corrupt_reset',

@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, nativeTheme, Menu } from 'electron'
 import { join } from 'path'
+import { randomUUID } from 'node:crypto'
 import { electronApp, is } from '@electron-toolkit/utils'
 import type { IPty } from 'node-pty'
 import icon from '../../resources/icon.png?asset'
@@ -73,6 +74,12 @@ import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
 import { bridgeModSourceDir, installBridgeMod, nodeBridgeModFs } from './mods/bridgeModInstall'
 import { createSessionSetup } from './mods/sessionSetup'
+import {
+  createFileHistory,
+  FILE_HISTORY_DIR,
+  nodeFileHistoryFs,
+  type FileHistory
+} from './mods/fileHistory'
 import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
 // Story 3.5 (SM-2) — the append-only JSONL telemetry store (DI-seam'd, never-crash) +
 // the REAL fs-backed line store (Electron-touching; injected from here — keeps telemetry.ts
@@ -533,9 +540,16 @@ function ruleLookups(): Pick<RulesStoreOptions, 'lookupTag' | 'lookupTemplate'> 
 // by session id; each window's hook listener feeds it.
 const sessionSetup = createSessionSetup({
   isKnown: (id) => launchedSet.has(id),
-  onChange: () => {},
+  // Each report snapshots the instruction files it names (spec 2026-10-18 §3).
+  onChange: (_sessionId, report) => {
+    fileHistory
+      ?.snapshot(report.instructionFiles.map((f) => f.path))
+      .catch(() => console.warn('[claude-watcher][mods] code=file_history_failed'))
+  },
   log: (line) => console.warn(line)
 })
+/** Context's file history; null until app-ready (it lives in userData). */
+let fileHistory: FileHistory | null = null
 
 const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   smoke: SMOKE,
@@ -717,6 +731,14 @@ app
       log: (line) => console.warn(line)
     }).then((dir) => {
       bridgeModDir = dir
+    })
+    fileHistory = createFileHistory({
+      dir: join(app.getPath('userData'), FILE_HISTORY_DIR),
+      fs: nodeFileHistoryFs,
+      now: Date.now,
+      newId: randomUUID,
+      report: storageHealth.reporterFor('file_history'),
+      log: (line) => console.warn(line)
     })
     // Set app user model id for windows. CANONICAL appId = `com.claudewatcher.app` (Story 2.3
     // AC-6): must match `electron-builder.yml` (`appId`) + the `.desktop` file's

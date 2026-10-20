@@ -11,7 +11,8 @@ const STORE_LABEL: Record<StoreName, string> = {
   workspaces: 'workspaces',
   rules: 'rules',
   past_sessions: 'past sessions',
-  bridge_mod: 'Claude mod'
+  bridge_mod: 'Claude mod',
+  file_history: 'file history'
 }
 
 /** The bridge mod's install failed (spec 2026-10-18 §1.2): new sessions launch without it, and

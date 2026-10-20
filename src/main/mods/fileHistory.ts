@@ -1,0 +1,285 @@
+// File history (spec 2026-10-18 §3): every instruction file a session's bridge mod names is
+// snapshotted into `<userData>/claude-watcher-file-history/` when its content changed, so Context
+// can show versions, a diff, and restore one. Its own store (technical-taste §6): `index.json`
+// (FileHistoryIndexSchema) plus content blobs named by SHA-256, one blob per distinct content.
+//
+// - Retention: the newest FILE_HISTORY_MAX_VERSIONS per file; over FILE_HISTORY_MAX_TOTAL_BYTES the
+//   oldest version of the largest history goes first. A file's newest version is never dropped.
+// - A file over FILE_HISTORY_MAX_FILE_BYTES is listed (`tooLarge`) but not snapshotted.
+// - One operation at a time (a serial queue): two sessions reporting the same file together must
+//   add one version, not two.
+// - Never throws to its caller and never logs a path (it names the operator's folders): a failed
+//   write reports `write_failed` and the history goes on in memory.
+import { createHash } from 'node:crypto'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import {
+  FILE_HISTORY_FILE_VERSION,
+  FileHistoryIndexSchema,
+  type FileVersion
+} from '../../shared/schemas/fileHistory'
+import type { StorageProblemCode } from '../../shared/schemas/storageHealth'
+
+export const FILE_HISTORY_MAX_VERSIONS = 10
+export const FILE_HISTORY_MAX_TOTAL_BYTES = 5 * 1024 * 1024
+export const FILE_HISTORY_MAX_FILE_BYTES = 1024 * 1024
+
+/** The folder under userData; its own store. */
+export const FILE_HISTORY_DIR = 'claude-watcher-file-history'
+
+const LOG = '[claude-watcher][mods]'
+
+export type OperatorFileRead =
+  | { ok: true; data: Buffer }
+  | { ok: false; reason: 'missing' | 'not_file' | 'too_large' | 'unreadable' }
+
+export interface FileHistoryFs {
+  /** The operator's file: a regular file (a symlink to one counts), at most `maxBytes`. A
+   *  dangling symlink is `missing`; a folder or device is `not_file`. Never throws. */
+  readOperatorFile(path: string, maxBytes: number): Promise<OperatorFileRead>
+  /** A file inside the store; null when it does not exist. */
+  readStoreFile(path: string): Promise<Buffer | null>
+  /** Writes a store file, creating its folders. */
+  writeStoreFile(path: string, data: Buffer): Promise<void>
+  removeStoreFile(path: string): Promise<void>
+  renameStoreFile(from: string, to: string): Promise<void>
+}
+
+export type CommitCurrentResult = 'ok' | 'store_write_failed' | 'file_too_large' | 'unreadable'
+
+export interface FileHistory {
+  snapshot(paths: readonly string[]): Promise<void>
+  /** Versions of one file, newest first. */
+  list(path: string): FileVersion[]
+  get(versionId: string): FileVersion | null
+  content(versionId: string): Promise<string | null>
+  /** The file was over the size cap when last read. */
+  tooLarge(path: string): boolean
+  /** Snapshot one file as it is now (restore keeps it first). A missing file is `ok`: there is
+   *  nothing to keep. */
+  commitCurrent(path: string): Promise<CommitCurrentResult>
+}
+
+export function createFileHistory(deps: {
+  dir: string
+  fs: FileHistoryFs
+  now: () => number
+  newId: () => string
+  report: (code: StorageProblemCode) => void
+  log: (line: string) => void
+}): FileHistory {
+  const indexPath = join(deps.dir, 'index.json')
+  const blobPath = (hash: string): string => join(deps.dir, 'blobs', hash)
+  let versions: FileVersion[] = []
+  const large = new Set<string>()
+
+  let queue: Promise<unknown> = load()
+  /** Run `fn` after every earlier operation. Each step catches its own failures; an unexpected
+   *  throw still rejects to its caller, and the queue goes on. */
+  function serial<T>(fn: () => Promise<T>): Promise<T> {
+    const next = queue.then(fn)
+    queue = next.catch(() => deps.log(`${LOG} code=file_history_failed`))
+    return next
+  }
+
+  async function load(): Promise<void> {
+    let raw: Buffer | null
+    try {
+      raw = await deps.fs.readStoreFile(indexPath)
+    } catch {
+      deps.log(`${LOG} code=file_history_read_failed`)
+      deps.report('read_failed')
+      return
+    }
+    if (raw === null) return
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw.toString('utf8'))
+    } catch {
+      parsed = undefined
+    }
+    const index = FileHistoryIndexSchema.safeParse(parsed)
+    if (index.success) {
+      versions = index.data.versions
+      return
+    }
+    try {
+      await deps.fs.renameStoreFile(indexPath, join(deps.dir, `index.corrupt-${deps.now()}.json`))
+    } catch {
+      deps.log(`${LOG} code=file_history_backup_failed`)
+      deps.report('backup_failed')
+    }
+    deps.log(`${LOG} code=file_history_corrupt_reset`)
+    deps.report('corrupt_reset')
+  }
+
+  /** Newest first, by `seenAt`, then by insertion (a later push is newer). */
+  const of = (path: string): FileVersion[] =>
+    versions
+      .map((v, i) => ({ v, i }))
+      .filter(({ v }) => v.path === path)
+      .sort((x, y) => y.v.seenAt - x.v.seenAt || y.i - x.i)
+      .map(({ v }) => v)
+
+  /** Adds a version when the content is new. `false` when the store refused the write. */
+  async function keep(path: string, data: Buffer): Promise<boolean> {
+    const hash = createHash('sha256').update(data).digest('hex')
+    if (of(path)[0]?.hash === hash) return true
+    try {
+      if (!versions.some((v) => v.hash === hash)) await deps.fs.writeStoreFile(blobPath(hash), data)
+    } catch {
+      deps.log(`${LOG} code=file_history_write_failed`)
+      deps.report('write_failed')
+      return false
+    }
+    versions.push({ id: deps.newId(), path, hash, size: data.length, seenAt: deps.now() })
+    await prune()
+    return persist()
+  }
+
+  async function prune(): Promise<void> {
+    const before = new Set(versions.map((v) => v.hash))
+    for (const path of new Set(versions.map((v) => v.path))) {
+      const drop = new Set(of(path).slice(FILE_HISTORY_MAX_VERSIONS))
+      versions = versions.filter((v) => !drop.has(v))
+    }
+    while (blobBytes() > FILE_HISTORY_MAX_TOTAL_BYTES) {
+      const victim = largestHistoryWithOld()
+      if (victim === null) break
+      const oldest = of(victim).at(-1)
+      versions = versions.filter((v) => v !== oldest)
+    }
+    const kept = new Set(versions.map((v) => v.hash))
+    for (const hash of before) {
+      if (kept.has(hash)) continue
+      try {
+        await deps.fs.removeStoreFile(blobPath(hash))
+      } catch {
+        deps.log(`${LOG} code=file_history_prune_failed`)
+      }
+    }
+  }
+
+  /** Bytes on disk: one blob per distinct content. */
+  function blobBytes(): number {
+    const sizes = new Map(versions.map((v) => [v.hash, v.size]))
+    let total = 0
+    for (const size of sizes.values()) total += size
+    return total
+  }
+
+  /** The path whose versions weigh the most, among those with more than their newest. */
+  function largestHistoryWithOld(): string | null {
+    let best: string | null = null
+    let bestBytes = -1
+    for (const path of new Set(versions.map((v) => v.path))) {
+      const list = of(path)
+      if (list.length < 2) continue
+      const bytes = list.reduce((sum, v) => sum + v.size, 0)
+      if (bytes > bestBytes) {
+        best = path
+        bestBytes = bytes
+      }
+    }
+    return best
+  }
+
+  async function persist(): Promise<boolean> {
+    try {
+      const index = { version: FILE_HISTORY_FILE_VERSION, versions }
+      await deps.fs.writeStoreFile(indexPath, Buffer.from(JSON.stringify(index)))
+      return true
+    } catch {
+      deps.log(`${LOG} code=file_history_write_failed`)
+      deps.report('write_failed')
+      return false
+    }
+  }
+
+  /** Read one operator file and keep it. A store failure was already reported by `keep`. */
+  async function take(path: string): Promise<'kept' | 'store_failed' | 'too_large' | 'unread'> {
+    const read = await deps.fs.readOperatorFile(path, FILE_HISTORY_MAX_FILE_BYTES)
+    if (read.ok) {
+      large.delete(path)
+      return (await keep(path, read.data)) ? 'kept' : 'store_failed'
+    }
+    if (read.reason === 'too_large') {
+      large.add(path)
+      return 'too_large'
+    }
+    return 'unread'
+  }
+
+  return {
+    snapshot(paths) {
+      return serial(async () => {
+        for (const path of paths) {
+          const r = await take(path)
+          if (r === 'too_large') deps.log(`${LOG} code=file_history_too_large`)
+          else if (r === 'unread') deps.log(`${LOG} code=file_history_read_failed`)
+        }
+      })
+    },
+    list: of,
+    get: (versionId) => versions.find((v) => v.id === versionId) ?? null,
+    async content(versionId) {
+      const v = versions.find((x) => x.id === versionId)
+      if (v === undefined) return null
+      try {
+        return (await deps.fs.readStoreFile(blobPath(v.hash)))?.toString('utf8') ?? null
+      } catch {
+        deps.log(`${LOG} code=file_history_read_failed`)
+        return null
+      }
+    },
+    tooLarge: (path) => large.has(path),
+    commitCurrent(path) {
+      return serial(async (): Promise<CommitCurrentResult> => {
+        const read = await deps.fs.readOperatorFile(path, FILE_HISTORY_MAX_FILE_BYTES)
+        if (read.ok) return (await keep(path, read.data)) ? 'ok' : 'store_write_failed'
+        if (read.reason === 'missing') return 'ok'
+        if (read.reason === 'too_large') return 'file_too_large'
+        return 'unreadable'
+      })
+    }
+  }
+}
+
+const isMissing = (err: unknown): boolean =>
+  err instanceof Error && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
+
+/** The real filesystem behind `FileHistoryFs`. */
+export const nodeFileHistoryFs: FileHistoryFs = {
+  async readOperatorFile(path, maxBytes) {
+    try {
+      // `stat` follows a symlink: a link to a regular file counts, a dangling one is ENOENT.
+      const s = await stat(path)
+      if (!s.isFile()) return { ok: false, reason: 'not_file' }
+      if (s.size > maxBytes) return { ok: false, reason: 'too_large' }
+      const data = await readFile(path)
+      // The file may have grown between the stat and the read.
+      if (data.length > maxBytes) return { ok: false, reason: 'too_large' }
+      return { ok: true, data }
+    } catch (err) {
+      return { ok: false, reason: isMissing(err) ? 'missing' : 'unreadable' }
+    }
+  },
+  async readStoreFile(path) {
+    try {
+      return await readFile(path)
+    } catch (err) {
+      if (isMissing(err)) return null
+      throw err
+    }
+  },
+  async writeStoreFile(path, data) {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, data)
+  },
+  async removeStoreFile(path) {
+    await rm(path, { force: true })
+  },
+  async renameStoreFile(from, to) {
+    await rename(from, to)
+  }
+}
