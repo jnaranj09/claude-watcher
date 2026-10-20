@@ -80,11 +80,16 @@ body {
      a terminal showed soft squares the ☰ menu does not). The blur works on the scrim-dimmed
      backdrop, a narrow band of dark greys (14 shades under Goals against 59 under the ☰ menu), and
      `brightness(175%)` multiplied each step between them into a visible patch. A white layer lifts
-     the panel without growing the steps: 7% (mean grey 34 on the drive, the header 48); 9% matched
-     the old lift and read too white (operator, same day).
-     Noise would hide them better (Acrylic), but this glass carries no grain (above). */
+     the panel without growing the steps (9% read too white). Noise would hide them better
+     (Acrylic), but this glass carries no grain (above).
+     The header's COLOUR, not grey (operator, same day: over the empty board the panel read whiter
+     than the header). The white layer is neutral: at 7% it took the panel on Bridge from the
+     board's blue (blue − red 18) to rgb(33, 38, 42), blue − red 9, against the header's
+     rgb(18, 30, 42). So less white (3%) and more `saturate` on the modal's blur (220%, the rest of
+     the glass keeps 140%): rgb(20, 30, 35), blue − red 15. */
   --glass-fill-modal: rgba(14, 14, 16, 0.38);
-  --glass-lift-modal: rgba(255, 255, 255, 0.07);
+  --glass-filter-modal: var(--glass-filter) saturate(157%); /* 140% × 157% ≈ 220% */
+  --glass-lift-modal: rgba(255, 255, 255, 0.03);
   /* The rim is a 1px lit edge PLUS a BEVEL: a soft inner glow a dozen px wide along every edge,
      which is what makes a panel read as THICK glass (the reference panel, 2026-09-23) rather than
      a film. Brighter than before (0.3 / 0.08 against 0.2 / 0.06): with the fill at 3% the rim is
@@ -150,7 +155,7 @@ body {
    replaces the token's `--bg-surface-raised` (white 10%): that, under the sheen the `::before`
    layer used to carry, is what made a dialog milky next to the header. The scrim behind a modal
    already darkens the board — too much through 3% glass, so a modal panel takes the brighter
-   `--glass-fill-modal` / `--glass-lift-modal` pair (see `:root`). */
+   `--glass-fill-modal` / `--glass-filter-modal` / `--glass-lift-modal` set (see `:root`). */
 [role='dialog'][aria-modal='true'] > *,
 [data-testid='settings-panel'] {
   background-color: var(--glass-fill-modal);
@@ -175,8 +180,8 @@ body {
 }
 [role='dialog'][aria-modal='true'] > *::before,
 [data-testid='settings-panel']::before {
-  backdrop-filter: var(--glass-filter);
-  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter-modal);
+  -webkit-backdrop-filter: var(--glass-filter-modal);
   background-color: var(--glass-lift-modal);
 }
 
