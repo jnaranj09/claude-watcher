@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createLivePastSessions, LIVE_RECORD_REFRESH_MS } from './livePastSessions'
 import { createPastSessionsStore } from './pastSessions'
+import { pastTasksMarkDone } from './pastSessionRecord'
 import type { Session } from '../../shared/schemas/session'
 import type { PastSession } from '../../shared/schemas/pastSession'
 
@@ -18,10 +19,12 @@ function harness(): {
   store: ReturnType<typeof createPastSessionsStore>
   writes: PastSession[]
   clock: { t: number }
+  flagged: Set<string>
 } {
   const store = createPastSessionsStore()
   const writes: PastSession[] = []
   const clock = { t: 1_000 }
+  const flagged = new Set<string>()
   const live = createLivePastSessions({
     store: () => ({
       markLive: (r) => {
@@ -30,9 +33,10 @@ function harness(): {
       },
       dropLive: (id) => store.dropLive(id)
     }),
-    now: () => clock.t
+    now: () => clock.t,
+    couldMarkDone: (id) => flagged.has(id)
   })
-  return { live, store, writes, clock }
+  return { live, store, writes, clock, flagged }
 }
 
 describe('createLivePastSessions (UX-01)', () => {
@@ -93,10 +97,33 @@ describe('createLivePastSessions (UX-01)', () => {
   })
 
   it('no store yet: a no-op, never a throw', () => {
-    const live = createLivePastSessions({ store: () => null, now: () => 1 })
+    const live = createLivePastSessions({
+      store: () => null,
+      now: () => 1,
+      couldMarkDone: () => false
+    })
     expect(() => {
       live.onSession(SESSION)
       live.onRemoved('sess-1')
     }).not.toThrow()
+  })
+
+  it('a flagged session keeps tasksMarkDone through a rename, and crash recovery keeps it', () => {
+    const { live, store, flagged } = harness()
+    flagged.add('sess-1')
+    live.onSession(SESSION)
+    live.onSession({ ...SESSION, sessionName: 'renamed' } as Session) // markLive again
+    expect(store.get('sess-1')).toMatchObject({ live: true, tasksMarkDone: true })
+    // The app dies; the next start turns the leftover live record into a normal one.
+    let blob: unknown = {
+      version: 1,
+      sessions: [{ ...store.get('sess-1') }]
+    }
+    const restarted = createPastSessionsStore({
+      blobStore: { read: () => blob, write: (v) => (blob = v), backup: () => undefined }
+    })
+    expect(restarted.get('sess-1')).toMatchObject({ name: 'renamed', tasksMarkDone: true })
+    expect(restarted.get('sess-1')).not.toHaveProperty('live')
+    expect(pastTasksMarkDone(restarted, 'sess-1')).toBe(true)
   })
 })

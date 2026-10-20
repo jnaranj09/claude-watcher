@@ -493,7 +493,8 @@ let pastSessionsStore: PastSessionsStore | null = null
 // still leaves it in Past sessions. App-global like the store (records are keyed by session id).
 const livePastSessions = createLivePastSessions({
   store: () => pastSessionsStore,
-  now: () => Date.now()
+  now: () => Date.now(),
+  couldMarkDone: (id) => goalMcp.tokens.markDoneFor(id)
 })
 /** Does claude still have a session's conversation? UX-08 (Open refuses) and NEW-5 (an archive
  *  writes no record) — the archive side only trusts a no-path scan while the hooks are bound. */

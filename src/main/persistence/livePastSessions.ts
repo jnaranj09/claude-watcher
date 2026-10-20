@@ -39,6 +39,9 @@ export function createLivePastSessions(deps: {
   /** Null until app-ready builds the store (a delta before then is a no-op). */
   store: () => LivePastSessionsSeam | null
   now: () => number
+  /** Could this session mark tasks done (`tokens.markDoneFor`)? The live record carries the
+   *  answer so a crash leaves the same `tasksMarkDone` an archive would. */
+  couldMarkDone: (sessionId: string) => boolean
   refreshMs?: number
 }): LivePastSessions {
   const refreshMs = deps.refreshMs ?? LIVE_RECORD_REFRESH_MS
@@ -49,7 +52,7 @@ export function createLivePastSessions(deps: {
     const store = deps.store()
     if (store === null) return
     const now = deps.now()
-    const record = buildPastSessionRecord(session, now)
+    const record = buildPastSessionRecord(session, now, deps.couldMarkDone(session.id))
     const path = paths.get(session.id)
     if (path !== undefined) record.transcriptPath = path
     const key = JSON.stringify([
@@ -58,7 +61,8 @@ export function createLivePastSessions(deps: {
       record.workspaceId,
       record.tagIds,
       record.launchedAt,
-      path ?? null
+      path ?? null,
+      record.tasksMarkDone === true
     ])
     const last = written.get(session.id)
     if (last !== undefined && last.key === key && now - last.at < refreshMs) return

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildPastSessionRecord, applyRemovalReason, pastTasksMarkDone } from './pastSessionRecord'
+import { createPastSessionsStore } from './pastSessions'
 import { PastSessionSchema } from '../../shared/schemas/pastSession'
 import type { Session } from '../../shared/schemas/session'
 
@@ -66,6 +67,15 @@ describe('tasksMarkDone flag', () => {
     expect(pastTasksMarkDone(store, 'sess-1')).toBe(true)
     expect(pastTasksMarkDone(store, 'other')).toBe(false)
     expect(pastTasksMarkDone(null, 'sess-1')).toBe(false)
+  })
+})
+
+describe('through the real past-sessions store', () => {
+  it('archive of a markDone session -> get().tasksMarkDone -> the lookup answers true', () => {
+    const store = createPastSessionsStore()
+    applyRemovalReason('archive', session.id, session, store, 500, (id) => id === 'sess-1')
+    expect(store.get('sess-1')?.tasksMarkDone).toBe(true)
+    expect(pastTasksMarkDone(store, 'sess-1')).toBe(true)
   })
 })
 

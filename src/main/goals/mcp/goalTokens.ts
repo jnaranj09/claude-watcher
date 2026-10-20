@@ -33,6 +33,8 @@ export function createGoalTokens(
   randomHex: () => string = () => randomBytes(32).toString('hex')
 ): GoalTokens {
   const grants = new Map<string, { digest: Buffer; grant: Grant }>()
+  // Kept for the whole run (memory only) ON PURPOSE: it outlives `revoke` so the archive and the
+  // live record can still ask "could this session mark tasks done?" after the token is dropped.
   const markDone = new Set<string>()
 
   return {
