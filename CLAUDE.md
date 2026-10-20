@@ -172,9 +172,7 @@ exist only under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`pty
 
 Linux/Windows: none; macOS: app + Edit only. The default menu ate claude's keys (Ctrl+R, Ctrl+M,
 F11, Alt). Never bring back `optimizer.watchWindowShortcuts`. DevTools in dev = F12 only.
-Playwright key presses skip accelerators — can't prove a key reaches the pty.
-
-Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10): claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
+Playwright key presses skip accelerators — can't prove a key reaches the pty. Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10): claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
 from inside `.xterm` (`isInsideTerminal`). **No key archives** (R27) — only the Archive button.
 Focus lands IN the terminal on every switch (`takeFocus`), never from a hidden mount or out of an
 open dialog. `Esc to return` shows only while focus is outside.
