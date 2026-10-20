@@ -51,8 +51,8 @@ declare global {
     tags: TagsApi
     // Rules — the rule list bridge (list/save/remove/move via CH.rules*).
     rules: RulesApi
-    // Goals — the goals and tasks bridge (CRUD, folder, status, links, start sessions via
-    // CH.goals*; onChanged push).
+    // Goals — the goals and tasks bridge (CRUD, folder, status, links, start sessions, plan with
+    // Claude and decide its proposal via CH.goals*; onChanged push).
     goals: GoalsApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi

@@ -116,6 +116,36 @@ describe('createGoalsStore', () => {
     ).toThrow(GOAL_ERROR.workspaceMismatch)
   })
 
+  it("addTaskFromSession adds a new open task, checks the goal's workspace, and a refused write keeps it and reports", () => {
+    const fake = fakeBlob(undefined)
+    const report = vi.fn()
+    let n = 0
+    const store = createGoalsStore({
+      blobStore: fake.blobStore,
+      log: () => {},
+      report,
+      newId: () => `id${++n}`,
+      now: () => 7
+    })
+    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'G' }).saved.id
+    expect(() =>
+      store.addTaskFromSession({ workspaceId: 'w2', goalId, title: 'elsewhere' })
+    ).toThrow(GOAL_ERROR.workspaceMismatch)
+    expect(() =>
+      store.addTaskFromSession({ workspaceId: 'w1', goalId: 'gone', title: 'x' })
+    ).toThrow(GOAL_ERROR.goalNotFound)
+    fake.blobStore.write = () => {
+      throw new Error('disk full')
+    }
+    const fired: GoalsView[] = []
+    store.onChange((v) => fired.push(v))
+    const saved = store.addTaskFromSession({ id: 'id1', workspaceId: 'w1', goalId, title: 'New' })
+    expect(saved).toMatchObject({ id: 'id2', goalId, title: 'New', status: 'open', sessionIds: [] })
+    expect(store.view().tasks).toEqual([saved])
+    expect(fired).toHaveLength(1)
+    expect(report).toHaveBeenCalledWith('write_failed')
+  })
+
   it('setTaskStatus done stamps doneAt and doneBy', () => {
     const { store } = make()
     store.saveTask({ workspaceId: 'w1', goalId: null, title: 't' })

@@ -103,7 +103,8 @@ function answer(body: unknown, grant: Grant, tools: McpTools): Answer {
           result: outcome.isError ? { ...result, isError: true } : result
         },
         method: logMethod,
-        // The text of a result is `done` or a refusal code, never a title.
+        // An error's text is a refusal code. A success's text can carry titles (`list_tasks`),
+        // so it is never logged: `ok` stands for it.
         code: outcome.isError ? outcome.text : 'ok'
       }
     }

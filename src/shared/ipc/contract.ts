@@ -173,6 +173,12 @@ export const CH = {
   // Start one session per group of open tasks (ids, the goal id and the markDone switch only):
   // main picks the folder and the name, and launches each like an API create (never takes the view).
   goalsStart: 'goals:start-sessions',
+  // "Plan with Claude": one planner session on a goal (its id only). Refused while the hook port
+  // is not ours (`hooks_unavailable`): the planner's tools are served on it.
+  goalsPlan: 'goals:plan',
+  // Accept (the planner's id, the possibly edited groups of task ids, the markDone switch) or
+  // Reject a planner's proposal. Accept starts through the same checks as `goals:start-sessions`.
+  goalsDecideProposal: 'goals:decide-proposal',
   goalsChanged: 'goals:changed',
   // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
   // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN
@@ -707,7 +713,8 @@ export type {
   TaskDeleteRequest,
   TaskStatusRequest,
   TaskLinkRequest,
-  GoalsStartRequest
+  GoalsStartRequest,
+  ProposalDecideRequest
 } from '../schemas/goal'
 /** `goals:save-goal` result — the saved goal (so the sheet can select it) PLUS the full view. */
 export type GoalsSaveGoalResult = { saved: Goal } & GoalsView
@@ -715,6 +722,8 @@ export type GoalsSaveGoalResult = { saved: Goal } & GoalsView
 export type GoalsSaveTaskResult = { saved: Task } & GoalsView
 /** `goals:start-sessions` result — the launched terminals, one per group (registered hidden). */
 export type GoalsStartResult = { terminalIds: string[] }
+/** `goals:decide-proposal` result — the launched terminals (none for Reject) PLUS the full view. */
+export type GoalsDecideResult = GoalsStartResult & GoalsView
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

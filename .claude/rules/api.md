@@ -59,7 +59,8 @@ export const sessionsGetCommand = defineCommand({
   `boardStore.registerLaunchedTerminal` (registry only, NOT `openLaunchedTerminal`). Terminal mounts
   hidden and spawns; `viewMode`, `focusedTerminalId`, active workspace untouched. Card lands in the
   TEMPLATE's workspace (global template → active workspace). The Goals sheet's `Start session`
-  (`goals:start-sessions`) launches through the same `requestLaunch`, so it never takes the view
+  (`goals:start-sessions`), `Plan with Claude` (`goals:plan`) and a proposal's `Accept`
+  (`goals:decide-proposal`) launch through the same `requestLaunch`, so they never take the view
   either.
 - **Prompt is never the caller's:** template `initialPrompt` with `$1..$n` from `args`
   (`shared/prompt/expand.ts`); each value checked against `maxLength` and anchored regex

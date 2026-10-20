@@ -10,6 +10,8 @@ import type {
   GoalSaveRequest,
   GoalsStartRequest,
   GoalsView,
+  Proposal,
+  ProposalDecideRequest,
   Task,
   TaskSaveRequest,
   TaskStatus
@@ -18,6 +20,8 @@ import type {
 export interface GoalsState {
   goals: Goal[]
   tasks: Task[]
+  /** The planners' proposals waiting for Accept or Reject (main keeps them in memory). */
+  proposals: Proposal[]
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
   loadFailed: boolean
@@ -29,11 +33,17 @@ export function createGoalsViewStore(): StoreApi<GoalsState> {
   return createStore<GoalsState>((set) => ({
     goals: [],
     tasks: [],
+    proposals: [],
     loaded: false,
     loadFailed: false,
-    // Proposals ride in the same view; nothing draws them until the planner phase lands.
     hydrate: (view) =>
-      set({ goals: view.goals, tasks: view.tasks, loaded: true, loadFailed: false }),
+      set({
+        goals: view.goals,
+        tasks: view.tasks,
+        proposals: view.proposals,
+        loaded: true,
+        loadFailed: false
+      }),
     markLoadFailed: () => set({ loadFailed: true })
   }))
 }
@@ -65,6 +75,12 @@ export const selectLooseTasks =
   (workspaceId: string) =>
   (s: GoalsState): Task[] =>
     s.tasks.filter((t) => t.workspaceId === workspaceId && t.goalId === null)
+
+/** The proposals waiting on a goal (one per planner session on it). */
+export const selectProposalsOfGoal =
+  (goalId: string) =>
+  (s: GoalsState): Proposal[] =>
+    s.proposals.filter((p) => p.goalId === goalId)
 
 export const selectTasksForSession =
   (sessionId: string) =>
@@ -169,7 +185,21 @@ export async function startSessions(req: GoalsStartRequest): Promise<void> {
   await window.goals.start(req)
 }
 
-// A change main made on its own (a session closed a task, a `/clear` moved links, a cascade) reaches
+/** "Plan with Claude": main launches a planner on the goal (registered hidden, the view stays). */
+export async function planGoal(goalId: string): Promise<void> {
+  await window.goals.plan(goalId)
+}
+
+/** Accept (one session per row, through the same checks as `Start session`) or Reject a planner's
+ *  proposal. Hydrates from main's answer, so the panel goes as soon as main cleared it. */
+export async function decideProposal(req: ProposalDecideRequest): Promise<number> {
+  const result = await window.goals.decideProposal(req)
+  goalsStore.getState().hydrate(result)
+  return result.terminalIds.length
+}
+
+// A change main made on its own (a session closed a task, a planner proposed a split, a `/clear`
+// moved links, a cascade) reaches
 // the renderer as a push. Subscribed ONCE at module load: the preload bridge exists before any
 // renderer script runs, and the store lives as long as the page. The guard is for the unit tests
 // that import this module (through startupLoads, the dialogs) without a preload; the app always

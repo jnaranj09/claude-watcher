@@ -59,6 +59,8 @@ import type {
   GoalsSaveTaskResult,
   GoalsStartRequest,
   GoalsStartResult,
+  GoalsDecideResult,
+  ProposalDecideRequest,
   TaskSaveRequest,
   TaskStatus,
   PastSession,
@@ -551,6 +553,14 @@ const goalsApi = {
   /** Start one session per group of open tasks. Ids, the goal id and the markDone switch only. */
   start(req: GoalsStartRequest): Promise<GoalsStartResult> {
     return ipcRenderer.invoke(CH.goalsStart, req)
+  },
+  /** "Plan with Claude": one planner session on the goal. The goal id only. */
+  plan(goalId: string): Promise<GoalsStartResult> {
+    return ipcRenderer.invoke(CH.goalsPlan, { goalId })
+  },
+  /** Accept (with the possibly edited groups of task ids) or Reject a planner's proposal. */
+  decideProposal(req: ProposalDecideRequest): Promise<GoalsDecideResult> {
+    return ipcRenderer.invoke(CH.goalsDecideProposal, req)
   },
   /** Subscribe to the push; returns the unsubscribe. `CH.goalsChanged` is a const, never a literal. */
   onChanged(cb: (view: GoalsView) => void): () => void {

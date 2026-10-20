@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createGoalsStore } from './goals'
 import { createGoalsIpcHandlers, goalPickerStart } from './goalsIpc'
+import { createProposals, type Proposals } from '../goals/proposals'
+import type { LaunchRequest } from '../pty/launchSession'
+
+type LaunchAnswer = { terminalId: string; workspaceId: string }
 
 function setup(pick: () => Promise<string | null> = () => Promise.resolve('/picked')): {
   h: ReturnType<typeof createGoalsIpcHandlers>
@@ -12,6 +16,8 @@ function setup(pick: () => Promise<string | null> = () => Promise.resolve('/pick
   return {
     h: createGoalsIpcHandlers(store, {
       pickDirectory,
+      proposals: createProposals(() => {}),
+      hookListening: () => true,
       launch: {
         workspaces: { get: () => null },
         pickDirectory: () => Promise.resolve('/picked'),
@@ -102,5 +108,181 @@ describe('goalPickerStart', () => {
     expect(requestLaunch).not.toHaveBeenCalled()
     await expect(h.start(ok, requestLaunch)).resolves.toEqual({ terminalIds: ['term-1'] })
     expect(requestLaunch).toHaveBeenCalledWith(expect.objectContaining({ cwd: '/picked' }))
+  })
+})
+
+describe('goals IPC — plan with Claude and the proposal', () => {
+  function planSetup(over: { hookListening?: () => boolean } = {}): {
+    h: ReturnType<typeof createGoalsIpcHandlers>
+    proposals: Proposals
+    goalId: string
+    t1: string
+    t2: string
+    t3: string
+    requestLaunch: ReturnType<typeof vi.fn<(req: LaunchRequest) => LaunchAnswer>>
+    launched: LaunchRequest[]
+  } {
+    let n = 0
+    const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
+    const proposals = createProposals(() => {})
+    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }).saved.id
+    store.setGoalFolder(goalId, '/goal')
+    const t1 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Write the spec' }).saved.id
+    const t2 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Cut the release' }).saved.id
+    const t3 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Tell the team' }).saved.id
+    const launched: LaunchRequest[] = []
+    let term = 0
+    const requestLaunch = vi.fn((req: LaunchRequest): LaunchAnswer => {
+      launched.push(req)
+      return { terminalId: `term-${++term}`, workspaceId: 'w1' }
+    })
+    const h = createGoalsIpcHandlers(store, {
+      pickDirectory: () => Promise.resolve(null),
+      proposals,
+      hookListening: over.hookListening ?? (() => true),
+      launch: {
+        workspaces: { get: () => null },
+        pickDirectory: () => Promise.resolve('/picked'),
+        isDirectory: () => true,
+        claudeVersionAllowsLaunch: () => true,
+        log: () => {}
+      }
+    })
+    return { h, proposals, goalId, t1, t2, t3, requestLaunch, launched }
+  }
+
+  it('plan launches one planner session on the goal, named after it, in its folder', async () => {
+    const { h, goalId, requestLaunch, launched } = planSetup()
+    await expect(h.plan({ goalId }, requestLaunch)).resolves.toEqual({ terminalIds: ['term-1'] })
+    expect(launched).toEqual([
+      {
+        cwd: '/goal',
+        name: 'Ship v2',
+        workspaceId: 'w1',
+        goalLaunch: { kind: 'planner', goalId }
+      }
+    ])
+  })
+
+  it('plan refuses with hooks_unavailable when the hook port is not ours, and launches nothing', async () => {
+    const { h, goalId, requestLaunch } = planSetup({ hookListening: () => false })
+    await expect(h.plan({ goalId }, requestLaunch)).rejects.toThrow('hooks_unavailable')
+    expect(requestLaunch).not.toHaveBeenCalled()
+  })
+
+  it('plan parses the request and refuses an unknown goal', async () => {
+    const { h, goalId, requestLaunch } = planSetup()
+    await expect(h.plan({ goalId, cwd: '/evil' }, requestLaunch)).rejects.toThrow()
+    await expect(h.plan({ goalId: 'nope' }, requestLaunch)).rejects.toThrow('goal_not_found')
+    expect(requestLaunch).not.toHaveBeenCalled()
+  })
+
+  it('accept starts one session per edited group and clears the proposal', async () => {
+    const { h, proposals, goalId, t1, t2, t3, requestLaunch, launched } = planSetup()
+    proposals.set({
+      plannerSessionId: 'planner-1',
+      goalId,
+      groups: [
+        { taskIds: [t1, t2], note: 'a' },
+        { taskIds: [t3], note: 'b' }
+      ]
+    })
+    const result = await h.decideProposal(
+      {
+        plannerSessionId: 'planner-1',
+        decision: 'accept',
+        groups: [{ taskIds: [t1] }, { taskIds: [t2, t3] }],
+        markDone: false
+      },
+      requestLaunch
+    )
+    expect(result.terminalIds).toEqual(['term-1', 'term-2'])
+    expect(result.proposals).toEqual([])
+    expect(proposals.list()).toEqual([])
+    expect(launched.map((l) => l.goalLaunch)).toEqual([
+      { kind: 'worker', taskIds: [t1], markDone: false },
+      { kind: 'worker', taskIds: [t2, t3], markDone: false }
+    ])
+    expect(launched.map((l) => l.cwd)).toEqual(['/goal', '/goal'])
+  })
+
+  it('accept with no edit starts the proposal as it is', async () => {
+    const { h, proposals, goalId, t1, t3, requestLaunch, launched } = planSetup()
+    proposals.set({
+      plannerSessionId: 'planner-1',
+      goalId,
+      groups: [
+        { taskIds: [t1], note: '' },
+        { taskIds: [t3], note: '' }
+      ]
+    })
+    await h.decideProposal(
+      { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+      requestLaunch
+    )
+    expect(launched.map((l) => l.goalLaunch)).toEqual([
+      { kind: 'worker', taskIds: [t1], markDone: true },
+      { kind: 'worker', taskIds: [t3], markDone: true }
+    ])
+  })
+
+  it('accept clears only the proposal it started: a newer one that landed meanwhile stays', async () => {
+    const { h, proposals, goalId, t1, t2, requestLaunch } = planSetup()
+    proposals.set({ plannerSessionId: 'planner-1', goalId, groups: [{ taskIds: [t1], note: '' }] })
+    const newer = { plannerSessionId: 'planner-1', goalId, groups: [{ taskIds: [t2], note: '' }] }
+    requestLaunch.mockImplementationOnce(() => {
+      proposals.set(newer)
+      return { terminalId: 'term-1', workspaceId: 'w1' }
+    })
+    await h.decideProposal(
+      { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+      requestLaunch
+    )
+    expect(proposals.list()).toEqual([newer])
+  })
+
+  it('reject clears it and starts nothing', async () => {
+    const { h, proposals, goalId, t1, requestLaunch } = planSetup()
+    proposals.set({ plannerSessionId: 'planner-1', goalId, groups: [{ taskIds: [t1], note: '' }] })
+    const result = await h.decideProposal(
+      { plannerSessionId: 'planner-1', decision: 'reject', markDone: true },
+      requestLaunch
+    )
+    expect(result).toMatchObject({ terminalIds: [], proposals: [] })
+    expect(proposals.list()).toEqual([])
+    expect(requestLaunch).not.toHaveBeenCalled()
+  })
+
+  it('edited groups go through the same checks: a repeated id, a task outside the proposal, a closed task', async () => {
+    const { h, proposals, goalId, t1, t2, t3, requestLaunch } = planSetup()
+    const proposal = {
+      plannerSessionId: 'planner-1',
+      goalId,
+      groups: [{ taskIds: [t1, t2], note: '' }]
+    }
+    proposals.set(proposal)
+    const accept = (groups: { taskIds: string[] }[]): Promise<unknown> =>
+      h.decideProposal(
+        { plannerSessionId: 'planner-1', decision: 'accept', groups, markDone: true },
+        requestLaunch
+      )
+    await expect(accept([{ taskIds: [t1] }, { taskIds: [t1] }])).rejects.toThrow('task_repeated')
+    await expect(accept([{ taskIds: [t1, t3] }])).rejects.toThrow('task_not_found')
+    h.setTaskStatus({ id: t2, status: 'done' })
+    await expect(accept([{ taskIds: [t1] }, { taskIds: [t2] }])).rejects.toThrow('task_not_found')
+    expect(requestLaunch).not.toHaveBeenCalled()
+    // A refused accept keeps the proposal, so the operator can fix it and press again.
+    expect(proposals.list()).toEqual([proposal])
+  })
+
+  it('a decision on a proposal that is gone is refused and starts nothing', async () => {
+    const { h, requestLaunch } = planSetup()
+    await expect(
+      h.decideProposal(
+        { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+        requestLaunch
+      )
+    ).rejects.toThrow('proposal_not_found')
+    expect(requestLaunch).not.toHaveBeenCalled()
   })
 })

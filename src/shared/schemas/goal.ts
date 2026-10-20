@@ -56,19 +56,48 @@ export const TaskSchema = z.object({
 })
 export type Task = z.infer<typeof TaskSchema>
 
+/** A task id that appears twice across a start's groups (or twice in one): one task, one session
+ *  per start. Code only, never the id. */
+export const TASK_REPEATED = 'task_repeated'
+
+/** Flags every task id after its first appearance across `groups` (`TASK_REPEATED`). */
+function refuseRepeatedTask(
+  groups: readonly { taskIds: readonly string[] }[],
+  ctx: z.RefinementCtx
+): void {
+  const seen = new Set<string>()
+  groups.forEach((group, g) =>
+    group.taskIds.forEach((id, t) => {
+      if (seen.has(id))
+        ctx.addIssue({ code: 'custom', message: TASK_REPEATED, path: [g, 'taskIds', t] })
+      seen.add(id)
+    })
+  )
+}
+
+/** A proposal's groups: what a planner's `propose_split` sends (its arguments' one boundary) and
+ *  what the view carries. The note shows in the sheet only; it never reaches a prompt. */
+export const ProposalGroupsSchema = z
+  .array(
+    z
+      .object({
+        taskIds: z.array(IdSchema).min(1),
+        note: z
+          .string()
+          .max(PROPOSAL_NOTE_MAX)
+          .refine((v) => !hasControlChar(v), { error: 'must not contain control characters' })
+      })
+      .strict()
+  )
+  .min(1)
+  .max(PROPOSAL_GROUPS_MAX)
+  .superRefine(refuseRepeatedTask)
+
 /** A planner's suggested split, in memory only (lives while the planner card lives). */
 export const ProposalSchema = z.object({
   plannerSessionId: IdSchema,
   goalId: IdSchema,
-  groups: z
-    .array(
-      z.object({
-        taskIds: z.array(IdSchema).min(1),
-        note: z.string().max(PROPOSAL_NOTE_MAX)
-      })
-    )
-    .min(1)
-    .max(PROPOSAL_GROUPS_MAX)
+  groups: ProposalGroupsSchema
 })
 export type Proposal = z.infer<typeof ProposalSchema>
 
@@ -123,24 +152,11 @@ export type TaskStatusRequest = z.infer<typeof TaskStatusSchema>
 export const TaskLinkSchema = z.object({ taskId: IdSchema, sessionId: IdSchema }).strict()
 export type TaskLinkRequest = z.infer<typeof TaskLinkSchema>
 
-/** A task id that appears twice across a start's groups (or twice in one): one task, one session
- *  per start. Code only, never the id. */
-export const TASK_REPEATED = 'task_repeated'
-
 const StartGroupsSchema = z
   .array(z.object({ taskIds: z.array(IdSchema).min(1) }).strict())
   .min(1)
   .max(PROPOSAL_GROUPS_MAX)
-  .superRefine((groups, ctx) => {
-    const seen = new Set<string>()
-    groups.forEach((group, g) =>
-      group.taskIds.forEach((id, t) => {
-        if (seen.has(id))
-          ctx.addIssue({ code: 'custom', message: TASK_REPEATED, path: [g, 'taskIds', t] })
-        seen.add(id)
-      })
-    )
-  })
+  .superRefine(refuseRepeatedTask)
 
 export const GoalsStartSchema = z
   .object({
@@ -156,6 +172,11 @@ export type GoalsStartRequest = z.infer<typeof GoalsStartSchema>
  *  launched, so the sheet says nothing (the `+ New session` cancel precedent). Shared: main throws
  *  it and the renderer matches it. */
 export const LAUNCH_CANCELLED = 'launch_cancelled'
+
+/** The refusal `goals:plan` throws while the hook port is not this app's (SEC-6): the endpoint
+ *  that serves the planner's tools lives on it, and a planner without its tools is useless. The
+ *  API's 503 uses the same word. Shared: main throws it and the renderer matches it. */
+export const HOOKS_UNAVAILABLE = 'hooks_unavailable'
 
 export const GoalsPlanSchema = z.object({ goalId: IdSchema }).strict()
 export type GoalsPlanRequest = z.infer<typeof GoalsPlanSchema>

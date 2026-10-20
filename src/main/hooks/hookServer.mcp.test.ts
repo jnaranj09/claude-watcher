@@ -10,6 +10,7 @@ import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { createGoalsStore, type GoalsStore } from '../persistence/goals'
 import { createGoalTokens, type GoalTokens } from '../goals/mcp/goalTokens'
 import { createMcpTools } from '../goals/mcp/mcpTools'
+import { createProposals } from '../goals/proposals'
 import { createMcpEndpoint, type McpEndpoint } from '../goals/mcp/mcpEndpoint'
 
 interface Reply {
@@ -77,7 +78,10 @@ function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise
   const mcpLines: string[] = []
   const endpoint = createMcpEndpoint({
     tokens,
-    tools: createMcpTools(() => store),
+    tools: createMcpTools(
+      () => store,
+      createProposals(() => {})
+    ),
     log: (l) => mcpLines.push(l)
   })
   let seen: () => void = () => {}

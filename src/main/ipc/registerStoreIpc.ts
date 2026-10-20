@@ -18,6 +18,7 @@ import type { RulesStore } from '../persistence/rules'
 import { createRulesIpcHandlers } from '../persistence/rulesIpc'
 import type { GoalsStore } from '../persistence/goals'
 import { createGoalsIpcHandlers, goalPickerStart } from '../persistence/goalsIpc'
+import type { Proposals } from '../goals/proposals'
 import type { TelemetryStore } from '../persistence/telemetry'
 import type { RulesEngine } from '../rules/rulesEngine'
 import type { AttentionTracker } from '../c9watch/attention'
@@ -59,6 +60,10 @@ export interface StoreIpcDeps {
   launchedSet: LaunchedSet
   /** The in-app claude version gate (re-probes a refusal). */
   claudeVersionAllowsLaunch: () => boolean
+  /** The planners' proposals (Goals, "Plan with Claude"). */
+  proposals: Proposals
+  /** SEC-6: whether THIS process holds the hook port (it serves the planner's tools). */
+  hookListening: () => boolean
 }
 
 /** One registrar per store; index.ts calls each ONCE, in its own place in the ready block. */
@@ -97,7 +102,9 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ruleEngines,
     trackers,
     launchedSet,
-    claudeVersionAllowsLaunch
+    claudeVersionAllowsLaunch,
+    proposals,
+    hookListening
   } = deps
 
   // Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
@@ -287,7 +294,9 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
         isDirectory: isExistingDirectory,
         claudeVersionAllowsLaunch,
         log: (message) => console.warn(message)
-      }
+      },
+      proposals,
+      hookListening
     })
     ipc.handle(CH.goalsList, () => handlers.list())
     ipc.handle(CH.goalsSaveGoal, (_evt, raw: unknown) => handlers.saveGoal(raw))
@@ -299,11 +308,18 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.goalsSetTaskStatus, (_evt, raw: unknown) => handlers.setTaskStatus(raw))
     ipc.handle(CH.goalsLinkTask, (_evt, raw: unknown) => handlers.linkTask(raw))
     ipc.handle(CH.goalsUnlinkTask, (_evt, raw: unknown) => handlers.unlinkTask(raw))
-    ipc.handle(CH.goalsStart, (evt, raw: unknown) => {
-      const seam = apiSeams.get(evt.sender)
+    /** The calling window's API launch seam: a launch from the sheet mounts hidden, the view
+     *  never moves. */
+    function launchSeamOf(sender: Electron.WebContents): ApiSeam['requestLaunch'] {
+      const seam = apiSeams.get(sender)
       if (seam === undefined) throw new Error('launch_seam_not_initialized')
-      return handlers.start(raw, (req) => seam.requestLaunch(req))
-    })
+      return (req) => seam.requestLaunch(req)
+    }
+    ipc.handle(CH.goalsStart, (evt, raw: unknown) => handlers.start(raw, launchSeamOf(evt.sender)))
+    ipc.handle(CH.goalsPlan, (evt, raw: unknown) => handlers.plan(raw, launchSeamOf(evt.sender)))
+    ipc.handle(CH.goalsDecideProposal, (evt, raw: unknown) =>
+      handlers.decideProposal(raw, launchSeamOf(evt.sender))
+    )
   }
 
   // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in

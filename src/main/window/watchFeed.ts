@@ -62,6 +62,7 @@ import type { SessionSetup } from '../mods/sessionSetup'
 import { dropCardState, moveCardState } from './cardState'
 import type { GoalsStore } from '../persistence/goals'
 import type { GoalTokens } from '../goals/mcp/goalTokens'
+import type { Proposals } from '../goals/proposals'
 import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
 import type { McpEndpoint } from '../goals/mcp/mcpEndpoint'
 import type { TerminalManager } from '../pty/terminalManager'
@@ -174,10 +175,10 @@ export interface WatchFeedDeps {
   requireWorkspacesStore: () => WorkspacesStore
   rulesSnapshot: () => RulesSnapshot
   apiLog: (message: string) => void
-  /** Goals (spec 2026-10-19): the task links, MCP tokens and config files that follow a card, and
-   *  the MCP endpoint each window's hook listener serves (app-global). */
+  /** Goals (spec 2026-10-19): the task links, MCP tokens, planner proposals and config files that
+   *  follow a card, and the MCP endpoint each window's hook listener serves (app-global). */
   getGoalsStore: () => GoalsStore | null
-  goalMcp: { tokens: GoalTokens; configs: McpConfigs; endpoint: McpEndpoint }
+  goalMcp: { tokens: GoalTokens; proposals: Proposals; configs: McpConfigs; endpoint: McpEndpoint }
 }
 
 export interface WatchFeed {
@@ -494,6 +495,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       sessionSetup,
       goals: getGoalsStore(),
       tokens: goalMcp.tokens,
+      proposals: goalMcp.proposals,
       mcpConfigs: goalMcp.configs
     })
 
@@ -622,7 +624,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // Main REGISTERS the launch recipe and asks the renderer to open the terminal; the renderer's
       // open is what actually spawns the pty and mints the session id. Nothing about the request is
       // the renderer's own: the label and the workspace are main's. A start from goal tasks
-      // (`goals:start-sessions`, registerStoreIpc.ts) launches here too: same hidden mount.
+      // (`goals:start-sessions`), a planner (`goals:plan`) and an accepted proposal
+      // (`goals:decide-proposal`, all registerStoreIpc.ts) launch here too: same hidden mount.
       requestLaunch: (req) => {
         const launchService = getLaunchService()
         if (launchService === null) throw new Error('launch service not initialized')
@@ -731,7 +734,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // D-10 — a rename waiting for the next prompt follows the card to its new id, or the next
       // prompt's read-back reverts it to claude's stale title (pendingTitles.ts `rebind`).
       // Context's setup follows the card too; the mod's next report arrives under the new id. So do
-      // its goal task links and its MCP token (the same claude keeps its loaded config).
+      // its goal task links, its MCP token (the same claude keeps its loaded config) and a
+      // planner's proposal.
       moveCardState(cardStateDeps(), oldSessionId, newSessionId)
       sendLaunchCorrelated(wc, terminalId, newSessionId)
       // R8 — tell an API stream on the OLD id where the card went, BEFORE its removal: the stream

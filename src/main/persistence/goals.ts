@@ -61,6 +61,9 @@ export interface GoalsStore {
   setGoalFolder(goalId: string, cwd: string | null): GoalsView
   /** Throws taskNotFound / goalNotFound / workspaceMismatch. */
   saveTask(req: TaskSaveRequest): GoalsSaveTaskResult
+  /** A planner session's `create_task`: a NEW task (`req.id` is ignored). Throws goalNotFound /
+   *  workspaceMismatch; a refused write is reported, not thrown (the change holds for this run). */
+  addTaskFromSession(req: TaskSaveRequest): Task
   removeTask(id: string): GoalsView
   /** done stamps `doneAt`/`doneBy`; open clears both; the status it already has changes nothing. */
   setTaskStatus(id: string, status: TaskStatus, by: TaskDoneBy): GoalsView
@@ -199,28 +202,44 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     )
   }
 
-  function saveTask(req: TaskSaveRequest): GoalsSaveTaskResult {
+  /** A task's goal must sit in the task's workspace. */
+  function checkGoalPlace(req: TaskSaveRequest): void {
     if (req.goalId !== null && goalOf(req.goalId).workspaceId !== req.workspaceId)
       throw new Error(GOAL_ERROR.workspaceMismatch)
+  }
+
+  function freshTask(req: TaskSaveRequest): Task {
+    return {
+      id: newId(),
+      workspaceId: req.workspaceId,
+      goalId: req.goalId,
+      title: req.title,
+      status: 'open',
+      sessionIds: [],
+      createdAt: now(),
+      doneAt: null,
+      doneBy: null
+    }
+  }
+
+  function saveTask(req: TaskSaveRequest): GoalsSaveTaskResult {
+    checkGoalPlace(req)
     const existing = req.id === undefined ? null : taskOf(req.id)
     if (existing !== null && existing.workspaceId !== req.workspaceId)
       throw new Error(GOAL_ERROR.workspaceMismatch)
     const saved: Task = existing
       ? { ...existing, goalId: req.goalId, title: req.title }
-      : {
-          id: newId(),
-          workspaceId: req.workspaceId,
-          goalId: req.goalId,
-          title: req.title,
-          status: 'open',
-          sessionIds: [],
-          createdAt: now(),
-          doneAt: null,
-          doneBy: null
-        }
+      : freshTask(req)
     const next =
       existing === null ? [...tasks, saved] : tasks.map((t) => (t === existing ? saved : t))
     return { saved, ...mutate(goals, next) }
+  }
+
+  function addTaskFromSession(req: TaskSaveRequest): Task {
+    checkGoalPlace(req)
+    const saved = freshTask(req)
+    applyTasks([...tasks, saved])
+    return saved
   }
 
   function removeTask(id: string): GoalsView {
@@ -329,6 +348,7 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     removeGoal,
     setGoalFolder,
     saveTask,
+    addTaskFromSession,
     removeTask,
     setTaskStatus,
     link,

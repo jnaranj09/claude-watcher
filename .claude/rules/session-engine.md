@@ -79,6 +79,25 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   the `headers` bearer and no `Origin`. The tool needs permission (`-p --permission-mode default`
   denies it without `--allowedTools`); with the flag, an interactive session in manual mode calls
   it with no prompt. Re-probe after an upgrade if the tool stops showing.
+- **Planner ("Plan with Claude", goals):** `goals:plan` (`startPlanner`, `goals/goalLaunch.ts`)
+  launches one session on a goal (named after it, the same folder fallback, the API launch seam),
+  refused before anything launches with `goal_not_found`, `hooks_unavailable` (hook port not ours:
+  the tools live on it), `claude_version`, `launch_cancelled`, `folder_missing`. Every spawn of a
+  planner (`goalLaunch.kind: 'planner'`) gets `buildPlannerPrompt`, a `mode: 'planner'` token bound
+  to its goal, the config file and `--allowedTools` for its three tools (comma-joined), all four or
+  none (no MCP, goal gone, SEC-6, refused write). It is linked to no task, gets no
+  `mark_task_done`, and its card shows nothing new. Tools (`goals/mcp/mcpTools.ts`), no goal-id
+  argument: `list_tasks` (its goal; titles go to the session, never to a log), `create_task`
+  (`TaskSaveSchema` title rules → `isError title_invalid`; `addTaskFromSession` keeps the task and
+  reports a refused write), `propose_split` (only that goal's OPEN tasks, else `task_not_in_goal`;
+  a repeated id `task_repeated`; nothing stored on a refusal). A worker calling a planner tool, or
+  a planner calling `mark_task_done`, is `-32602`. The proposal (`goals/proposals.ts`) is memory
+  only, one per planner (a new one replaces it), rides in the goals view, moves on `/clear` and
+  goes with the card (`window/cardState.ts`). `goals:decide-proposal`: Reject clears it; Accept
+  takes only proposed task ids (`task_not_found`), runs the `goals:start-sessions` schema and
+  checks, launches one hidden session per row, then clears it (a refusal keeps it). A planner
+  resumed (Past sessions, or the dead pane's Resume) has no goal launch and comes back without its
+  tools (known limit); a dead-pane Reopen keeps it.
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
   required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
   exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503

@@ -52,7 +52,21 @@ export const GOAL_TERMS = {
   startSession: 'Start session',
   markDone: 'Claude can mark tasks done',
   startFailed: 'Could not start sessions.',
-  sessionStarted: 'Session started.'
+  sessionStarted: 'Session started.',
+  sessionsStarted: 'Sessions started.',
+  /** "Plan with Claude": the button, its success line and its refusals. */
+  planWithClaude: 'Plan with Claude',
+  plannerStarted: 'Planner started.',
+  planFailed: 'Could not plan with Claude.',
+  planNeedsStatus: 'Could not plan with Claude: session status is off.',
+  /** A planner's proposal under the goal's tasks: one row per session. */
+  proposal: 'Proposed sessions',
+  proposalRow: (n: number): string => `Session ${n}`,
+  moveTask: (title: string): string => `Move ${title}`,
+  removeRow: (n: number): string => `Remove session ${n}`,
+  accept: 'Accept',
+  reject: 'Reject',
+  rejectFailed: 'Could not reject the proposal.'
 } as const
 
 /** A default folder on a workspace or a goal: the field's label and its two controls. */

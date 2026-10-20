@@ -9,6 +9,7 @@ import { dropCardState, moveCardState } from './cardState'
 import { createGoalsStore } from '../persistence/goals'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
 import { createMcpConfigs } from '../goals/mcp/mcpConfigFile'
+import { createProposals } from '../goals/proposals'
 
 type Rebind = (oldId: string, newId: string) => void
 type Forget = (id: string) => void
@@ -30,6 +31,7 @@ function deps(): Parameters<typeof moveCardState>[0] & {
   }
   goals: ReturnType<typeof createGoalsStore>
   tokens: ReturnType<typeof createGoalTokens>
+  proposals: ReturnType<typeof createProposals>
   mcpConfigs: ReturnType<typeof createMcpConfigs>
 } {
   const userData = mkdtempSync(join(tmpdir(), 'cw-card-'))
@@ -39,11 +41,27 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     sessionSetup: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
     goals: createGoalsStore(),
     tokens: createGoalTokens(),
+    proposals: createProposals(() => {}),
     mcpConfigs: createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
   }
 }
 
 describe('card state', () => {
+  it("a /clear moves a planner's proposal, and a removed planner card takes it away", () => {
+    const d = deps()
+    d.proposals.set({
+      plannerSessionId: 'old',
+      goalId: 'g',
+      groups: [{ taskIds: ['t'], note: '' }]
+    })
+    moveCardState(d, 'old', 'new')
+    expect(d.proposals.list().map((p) => p.plannerSessionId)).toEqual(['new'])
+    dropCardState(d, 'old')
+    expect(d.proposals.list()).toHaveLength(1)
+    dropCardState(d, 'new')
+    expect(d.proposals.list()).toEqual([])
+  })
+
   it('moves the pending rename and the Context setup to the new id', () => {
     const d = deps()
     moveCardState(d, 'old', 'new')

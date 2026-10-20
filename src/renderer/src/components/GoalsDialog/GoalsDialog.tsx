@@ -1,24 +1,27 @@
 // Goals — the sheet where goals and tasks are planned by hand (spec 2026-10-19-goals, "Plan by
-// hand"), on the shared ManageDialog shell at its `full` size: a page on top of the board or the
+// hand") or with a planner session (`Plan with Claude`, whose proposal shows under the goal's
+// tasks: ProposalPanel), on the shared ManageDialog shell at its `full` size: a page on top of the board or the
 // terminal view, with a small gap on the sides. Rail = `Loose tasks` first, then this workspace's
 // goals, each with `done/total` and a bar; right column = the goal's form and its tasks.
 //
 // Main owns the records (goalsStore is a projection); this file sends ids and intents and draws
 // what main answers. Every refusal reaches the ONE message slot through `goalErrorCopy`.
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
-import { GOAL_NAME_MAX, type Goal, type Task } from '../../../../shared/schemas/goal'
+import { GOAL_NAME_MAX, type Goal, type Proposal, type Task } from '../../../../shared/schemas/goal'
 import { FOLDER_TERMS, GOAL_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
-import { goalErrorCopy } from '../../lib/goalCopy'
+import { goalErrorCopy, goalPlanErrorCopy } from '../../lib/goalCopy'
 import {
   clearGoalFolder,
   pickGoalFolder,
+  planGoal,
   progressOf,
   removeGoal,
   saveGoal,
   selectGoalsIn,
   selectGoalsLoadFailed,
   selectLooseTasks,
+  selectProposalsOfGoal,
   selectTasksOfGoal,
   useGoals
 } from '../../stores/goalsStore'
@@ -27,10 +30,16 @@ import { ManageDialog, useManageDialog, useManageDialogContext } from '../Manage
 import { TextInput } from '../TextInput/TextInput'
 import { GoalProgress } from '../GoalProgress/GoalProgress'
 import { TaskList } from './TaskList'
+import { ProposalPanel } from './ProposalPanel'
 import styles from './GoalsDialog.module.css'
 
 export interface GoalsDialogProps {
   onClose: () => void
+}
+
+/** A proposal's identity for React: its planner and its split, so a replaced proposal remounts. */
+function proposalKey(p: Proposal): string {
+  return `${p.plannerSessionId}:${JSON.stringify(p.groups)}`
 }
 
 /** The `Loose tasks` rail row's id. Goal ids are minted uuids, so it cannot collide with one. */
@@ -80,6 +89,7 @@ function GoalForm({
   const [name, setName] = useState(goal?.name ?? '')
   const [busy, setBusy] = useState(false)
   const tasks = useGoals(selectTasksOfGoal(goal?.id ?? ''))
+  const proposals = useGoals(selectProposalsOfGoal(goal?.id ?? ''))
   const { done, total } = progressOf(tasks)
 
   const trimmed = name.trim()
@@ -112,6 +122,18 @@ function GoalForm({
       await pickGoalFolder(goal.id)
     } catch (err) {
       actions.setError(goalErrorCopy(err, GOAL_TERMS.saveGoalFailed))
+    }
+  })
+  // A planner card appears on the board without taking the view; the sheet stays open.
+  const plan = useAsyncAction(async (): Promise<void> => {
+    if (goal === null) return
+    actions.setError(null)
+    try {
+      await planGoal(goal.id)
+      actions.showSuccess(GOAL_TERMS.plannerStarted)
+    } catch (err) {
+      const copy = goalPlanErrorCopy(err)
+      if (copy !== null) actions.setError(copy)
     }
   })
   const clear = useAsyncAction(async (): Promise<void> => {
@@ -167,6 +189,19 @@ function GoalForm({
           <ManageDialog.Label>{GOAL_TERMS.tasks}</ManageDialog.Label>
           <GoalProgress name={goal.name} done={done} total={total} />
           <TaskList tasks={tasks} workspaceId={workspaceId} goalId={goal.id} />
+          <div className={styles.planRow}>
+            <ManageDialog.GhostButton
+              testId="goal-plan"
+              busy={plan.busy}
+              onClick={() => void plan.run()}
+            >
+              {GOAL_TERMS.planWithClaude}
+            </ManageDialog.GhostButton>
+          </div>
+          {proposals.map((p) => (
+            // Keyed by the proposal itself: a new `propose_split` starts a fresh draft.
+            <ProposalPanel key={proposalKey(p)} proposal={p} tasks={tasks} />
+          ))}
         </>
       )}
 

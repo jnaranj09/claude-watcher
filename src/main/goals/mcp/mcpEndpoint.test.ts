@@ -1,10 +1,12 @@
 // The JSON-RPC side of the goals MCP endpoint (spec 2026-10-19 goals, Claude integration): what a
 // session's MCP client gets for each method, and what `mark_task_done` may change.
 import { describe, it, expect } from 'vitest'
+import { z } from 'zod'
 import { createGoalsStore, type GoalsStore } from '../../persistence/goals'
 import { createGoalTokens, type Grant } from './goalTokens'
 import { createMcpTools } from './mcpTools'
 import { createMcpEndpoint, handleMcpRequest } from './mcpEndpoint'
+import { createProposals } from '../proposals'
 
 function seed(): { store: GoalsStore; t1: string; t2: string } {
   let n = 0
@@ -36,7 +38,10 @@ describe('goals MCP endpoint', () => {
         params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'claude' } }
       },
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -54,7 +59,10 @@ describe('goals MCP endpoint', () => {
     const res = handleMcpRequest(
       { jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: '2099-01-01' } },
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toMatchObject({ result: { protocolVersion: '2025-11-25' } })
   })
@@ -65,7 +73,10 @@ describe('goals MCP endpoint', () => {
       handleMcpRequest(
         { jsonrpc: '2.0', method: 'notifications/initialized' },
         worker,
-        createMcpTools(() => store)
+        createMcpTools(
+          () => store,
+          createProposals(() => {})
+        )
       )
     ).toBeNull()
   })
@@ -75,7 +86,10 @@ describe('goals MCP endpoint', () => {
     const res = handleMcpRequest(
       { jsonrpc: '2.0', id: 1, method: 'tools/list' },
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -84,23 +98,15 @@ describe('goals MCP endpoint', () => {
     })
   })
 
-  it('tools/list for a planner lists nothing yet, and it cannot call mark_task_done', () => {
-    const { store, t1 } = seed()
-    const planner: Grant = { sessionId: 'sess-a', workspaceId: 'w1', mode: 'planner', goalId: 'g' }
-    const tools = createMcpTools(() => store)
-    expect(
-      handleMcpRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, planner, tools)
-    ).toEqual({ jsonrpc: '2.0', id: 1, result: { tools: [] } })
-    expect(handleMcpRequest(call(t1), planner, tools)).toMatchObject({ error: { code: -32602 } })
-    expect(store.view().tasks.find((t) => t.id === t1)?.status).toBe('open')
-  })
-
   it('mark_task_done on a linked task marks it done by session', () => {
     const { store, t1 } = seed()
     const res = handleMcpRequest(
       call(t1),
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -120,7 +126,10 @@ describe('goals MCP endpoint', () => {
     const res = handleMcpRequest(
       call(t2),
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -137,7 +146,10 @@ describe('goals MCP endpoint', () => {
     const res = handleMcpRequest(
       call(other),
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_linked' }], isError: true } })
     expect(store.view().tasks.find((t) => t.id === other)?.status).toBe('open')
@@ -149,7 +161,10 @@ describe('goals MCP endpoint', () => {
     const res = handleMcpRequest(
       call(t1),
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_found' }], isError: true } })
   })
@@ -162,7 +177,10 @@ describe('goals MCP endpoint', () => {
     const res = handleMcpRequest(
       call(t1),
       worker,
-      createMcpTools(() => store)
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
     )
     expect(before.tasks.some((t) => t.id === t1)).toBe(false)
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_found' }], isError: true } })
@@ -171,7 +189,10 @@ describe('goals MCP endpoint', () => {
 
   it('twice succeeds and changes nothing', () => {
     const { store, t1 } = seed()
-    const tools = createMcpTools(() => store)
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
     handleMcpRequest(call(t1), worker, tools)
     const after = store.view()
     let emitted = 0
@@ -190,7 +211,10 @@ describe('goals MCP endpoint', () => {
       handleMcpRequest(
         { jsonrpc: '2.0', id: 'server-discover-probe-1', method: 'server/discover' },
         worker,
-        createMcpTools(() => store)
+        createMcpTools(
+          () => store,
+          createProposals(() => {})
+        )
       )
     ).toEqual({
       jsonrpc: '2.0',
@@ -201,7 +225,10 @@ describe('goals MCP endpoint', () => {
 
   it('bad params are -32602: no taskId, an unknown tool, an extra argument', () => {
     const { store, t1 } = seed()
-    const tools = createMcpTools(() => store)
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
     const bad = [
       { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'mark_task_done' } },
       { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'rm_rf', arguments: {} } },
@@ -224,7 +251,10 @@ describe('goals MCP endpoint', () => {
 
   it('a body that is not a JSON-RPC request is -32600 with a null id', () => {
     const { store } = seed()
-    const tools = createMcpTools(() => store)
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
     for (const body of [
       [],
       'x',
@@ -244,7 +274,10 @@ describe('goals MCP endpoint', () => {
       handleMcpRequest(
         { jsonrpc: '2.0', id: 9, method: 'ping' },
         worker,
-        createMcpTools(() => store)
+        createMcpTools(
+          () => store,
+          createProposals(() => {})
+        )
       )
     ).toEqual({ jsonrpc: '2.0', id: 9, result: {} })
   })
@@ -258,7 +291,10 @@ describe('goals MCP endpoint logging', () => {
     const lines: string[] = []
     const endpoint = createMcpEndpoint({
       tokens,
-      tools: createMcpTools(() => store),
+      tools: createMcpTools(
+        () => store,
+        createProposals(() => {})
+      ),
       log: (l) => lines.push(l)
     })
     endpoint.handle(call(t1), worker)
@@ -276,7 +312,10 @@ describe('goals MCP endpoint logging', () => {
     const token = tokens.mint(worker)
     const endpoint = createMcpEndpoint({
       tokens,
-      tools: createMcpTools(() => seed().store),
+      tools: createMcpTools(
+        () => seed().store,
+        createProposals(() => {})
+      ),
       log: () => {}
     })
     expect(endpoint.resolve(`Bearer ${token}`)).toEqual(worker)
@@ -284,5 +323,298 @@ describe('goals MCP endpoint logging', () => {
     expect(endpoint.resolve(`Basic ${token}`)).toBeNull()
     expect(endpoint.resolve(undefined)).toBeNull()
     expect(endpoint.resolve('Bearer nope')).toBeNull()
+  })
+})
+
+/** The one text of a successful tool result (parsed, so no cast). */
+function okText(res: unknown): string {
+  const parsed = z
+    .object({ result: z.object({ content: z.tuple([z.object({ text: z.string() })]) }) })
+    .parse(res)
+  return parsed.result.content[0].text
+}
+
+describe('goals MCP endpoint — the planner tools', () => {
+  /** Two goals in w1 (one done task in the first) and a goal in w2; a planner on the first goal. */
+  function plannerSeed(): {
+    store: GoalsStore
+    goalId: string
+    t1: string
+    t2: string
+    done: string
+    otherGoalTask: string
+    otherWorkspaceTask: string
+  } {
+    const { store, t1, t2 } = seed()
+    const goalId = store.view().goals[0]?.id ?? ''
+    const done = store.saveTask({ workspaceId: 'w1', goalId, title: 'Old work' }).saved.id
+    store.setTaskStatus(done, 'done', 'operator')
+    const g2 = store.saveGoal({ workspaceId: 'w1', name: 'Other' }).saved.id
+    const otherGoalTask = store.saveTask({ workspaceId: 'w1', goalId: g2, title: 'X' }).saved.id
+    const g3 = store.saveGoal({ workspaceId: 'w2', name: 'Far' }).saved.id
+    const otherWorkspaceTask = store.saveTask({ workspaceId: 'w2', goalId: g3, title: 'Y' }).saved
+      .id
+    return { store, goalId, t1, t2, done, otherGoalTask, otherWorkspaceTask }
+  }
+  const plannerOf = (goalId: string): Grant => ({
+    sessionId: 'planner-1',
+    workspaceId: 'w1',
+    mode: 'planner',
+    goalId
+  })
+  const tool = (name: string, args: unknown, id = 7): unknown => ({
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name, arguments: args }
+  })
+
+  it('tools/list for a planner lists list_tasks, create_task, propose_split', () => {
+    const { store, goalId } = plannerSeed()
+    const res = handleMcpRequest(
+      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+      plannerOf(goalId),
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
+    )
+    const { tools } = z
+      .object({ result: z.object({ tools: z.array(z.object({ name: z.string() })) }) })
+      .parse(res).result
+    expect(tools.map((t) => t.name)).toEqual(['list_tasks', 'create_task', 'propose_split'])
+  })
+
+  it("list_tasks lists only the planner's goal, with ids, titles and status", () => {
+    const { store, goalId, t1, t2, done } = plannerSeed()
+    const res = handleMcpRequest(
+      tool('list_tasks', {}),
+      plannerOf(goalId),
+      createMcpTools(
+        () => store,
+        createProposals(() => {})
+      )
+    )
+    expect(res).not.toMatchObject({ result: { isError: true } })
+    expect(JSON.parse(okText(res))).toEqual([
+      { id: t1, title: 'Write the spec', status: 'open' },
+      { id: t2, title: 'Cut the release', status: 'open' },
+      { id: done, title: 'Old work', status: 'done' }
+    ])
+  })
+
+  it("create_task adds a task to the planner's goal only", () => {
+    const { store, goalId } = plannerSeed()
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
+    // A goalId argument is not the planner's to give: the schema is strict.
+    expect(
+      handleMcpRequest(
+        tool('create_task', { title: 'Sneaky', goalId: 'g-other' }),
+        plannerOf(goalId),
+        tools
+      )
+    ).toMatchObject({ error: { code: -32602 } })
+    const res = handleMcpRequest(
+      tool('create_task', { title: '  Water the plants  ' }),
+      plannerOf(goalId),
+      tools
+    )
+    const { id } = z.object({ id: z.string() }).parse(JSON.parse(okText(res)))
+    expect(store.view().tasks.find((t) => t.id === id)).toMatchObject({
+      workspaceId: 'w1',
+      goalId,
+      title: 'Water the plants',
+      status: 'open',
+      sessionIds: []
+    })
+    expect(store.view().tasks.filter((t) => t.title === 'Sneaky')).toEqual([])
+  })
+
+  it('create_task goes through the task title rules: a refused title is isError, never echoed', () => {
+    const { store, goalId } = plannerSeed()
+    const before = store.view()
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
+    for (const title of ['', '   ', 'a\nb', 'tab\there', 'x'.repeat(201), '\u009bcsi']) {
+      expect(handleMcpRequest(tool('create_task', { title }), plannerOf(goalId), tools)).toEqual({
+        jsonrpc: '2.0',
+        id: 7,
+        result: { content: [{ type: 'text', text: 'title_invalid' }], isError: true }
+      })
+    }
+    expect(store.view()).toEqual(before)
+  })
+
+  it('create_task and list_tasks on a goal deleted since the launch are goal_not_found', () => {
+    const { store, goalId } = plannerSeed()
+    store.removeGoal(goalId)
+    const before = store.view()
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
+    for (const body of [tool('create_task', { title: 'Late' }), tool('list_tasks', {})]) {
+      expect(handleMcpRequest(body, plannerOf(goalId), tools)).toMatchObject({
+        result: { content: [{ text: 'goal_not_found' }], isError: true }
+      })
+    }
+    expect(store.view()).toEqual(before)
+  })
+
+  it('a planner grant naming a goal of another workspace reaches nothing', () => {
+    const { store } = plannerSeed()
+    const farGoal = store.view().goals.find((g) => g.workspaceId === 'w2')?.id ?? ''
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
+    expect(handleMcpRequest(tool('list_tasks', {}), plannerOf(farGoal), tools)).toMatchObject({
+      result: { content: [{ text: 'goal_not_found' }], isError: true }
+    })
+  })
+
+  it('propose_split stores the proposal for this planner and goal', () => {
+    const { store, goalId, t1, t2 } = plannerSeed()
+    const proposals = createProposals(() => {})
+    const res = handleMcpRequest(
+      tool('propose_split', {
+        groups: [
+          { taskIds: [t1], note: 'first' },
+          { taskIds: [t2], note: '' }
+        ]
+      }),
+      plannerOf(goalId),
+      createMcpTools(() => store, proposals)
+    )
+    expect(res).toEqual({
+      jsonrpc: '2.0',
+      id: 7,
+      result: { content: [{ type: 'text', text: 'proposed' }] }
+    })
+    expect(proposals.list()).toEqual([
+      {
+        plannerSessionId: 'planner-1',
+        goalId,
+        groups: [
+          { taskIds: [t1], note: 'first' },
+          { taskIds: [t2], note: '' }
+        ]
+      }
+    ])
+  })
+
+  it("propose_split with a done task or another goal's task is isError and stores nothing", () => {
+    const { store, goalId, t1, done, otherGoalTask, otherWorkspaceTask } = plannerSeed()
+    const proposals = createProposals(() => {})
+    const tools = createMcpTools(() => store, proposals)
+    for (const bad of [done, otherGoalTask, otherWorkspaceTask, 'no-such-task']) {
+      expect(
+        handleMcpRequest(
+          tool('propose_split', { groups: [{ taskIds: [t1, bad], note: '' }] }),
+          plannerOf(goalId),
+          tools
+        )
+      ).toEqual({
+        jsonrpc: '2.0',
+        id: 7,
+        result: { content: [{ type: 'text', text: 'task_not_in_goal' }], isError: true }
+      })
+    }
+    expect(proposals.list()).toEqual([])
+  })
+
+  it('propose_split with a repeated task id is isError task_repeated and stores nothing', () => {
+    const { store, goalId, t1, t2 } = plannerSeed()
+    const proposals = createProposals(() => {})
+    const tools = createMcpTools(() => store, proposals)
+    for (const groups of [
+      [{ taskIds: [t1, t1], note: '' }],
+      [
+        { taskIds: [t1, t2], note: '' },
+        { taskIds: [t2], note: '' }
+      ]
+    ]) {
+      expect(
+        handleMcpRequest(tool('propose_split', { groups }), plannerOf(goalId), tools)
+      ).toMatchObject({ result: { content: [{ text: 'task_repeated' }], isError: true } })
+    }
+    expect(proposals.list()).toEqual([])
+  })
+
+  it('propose_split with a bad shape is -32602 and stores nothing', () => {
+    const { store, goalId, t1 } = plannerSeed()
+    const proposals = createProposals(() => {})
+    const tools = createMcpTools(() => store, proposals)
+    for (const args of [
+      {},
+      { groups: [] },
+      { groups: [{ taskIds: [], note: '' }] },
+      { groups: [{ taskIds: [t1], note: 'x'.repeat(201) }] },
+      { groups: [{ taskIds: [t1], note: 'a\u0007b' }] },
+      { groups: Array.from({ length: 11 }, () => ({ taskIds: [t1], note: '' })) },
+      { groups: [{ taskIds: [t1], note: '', extra: 1 }] },
+      { groups: [{ taskIds: [t1], note: '' }], goalId: 'other' }
+    ]) {
+      expect(handleMcpRequest(tool('propose_split', args), plannerOf(goalId), tools)).toMatchObject(
+        { error: { code: -32602 } }
+      )
+    }
+    expect(proposals.list()).toEqual([])
+  })
+
+  it('a worker token cannot call create_task', () => {
+    const { store, goalId, t1 } = plannerSeed()
+    const proposals = createProposals(() => {})
+    const before = store.view()
+    const tools = createMcpTools(() => store, proposals)
+    for (const body of [
+      tool('create_task', { title: 'From a worker' }),
+      tool('list_tasks', {}),
+      tool('propose_split', { groups: [{ taskIds: [t1], note: '' }] })
+    ]) {
+      expect(handleMcpRequest(body, worker, tools)).toMatchObject({ error: { code: -32602 } })
+    }
+    expect(store.view()).toEqual(before)
+    expect(proposals.list()).toEqual([])
+    void goalId
+  })
+
+  it('a planner cannot call mark_task_done', () => {
+    const { store, goalId, t1 } = plannerSeed()
+    store.linkMany([t1], 'planner-1')
+    const tools = createMcpTools(
+      () => store,
+      createProposals(() => {})
+    )
+    expect(handleMcpRequest(call(t1), plannerOf(goalId), tools)).toMatchObject({
+      error: { code: -32602 }
+    })
+    expect(store.view().tasks.find((t) => t.id === t1)?.status).toBe('open')
+  })
+
+  it('logs codes only: a planner call never logs a title', () => {
+    const { store, goalId } = plannerSeed()
+    const lines: string[] = []
+    const endpoint = createMcpEndpoint({
+      tokens: createGoalTokens(),
+      tools: createMcpTools(
+        () => store,
+        createProposals(() => {})
+      ),
+      log: (l) => lines.push(l)
+    })
+    endpoint.handle(tool('list_tasks', {}), plannerOf(goalId))
+    endpoint.handle(tool('create_task', { title: 'Secret plan' }), plannerOf(goalId))
+    endpoint.handle(tool('create_task', { title: 'bad\ntitle' }), plannerOf(goalId))
+    expect(lines).toEqual([
+      '[claude-watcher][goals] route=mcp method=tools/call code=ok',
+      '[claude-watcher][goals] route=mcp method=tools/call code=ok',
+      '[claude-watcher][goals] route=mcp method=tools/call code=title_invalid'
+    ])
   })
 })

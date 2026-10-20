@@ -41,7 +41,8 @@ export interface ApiSeam {
    *  either. Returns the unsubscribe. */
   onEvent(cb: (event: ApiSessionEvent) => void): () => void
   /** Register the recipe + push `launch:requested`; the renderer's open spawns the pty. The Goals
-   *  sheet's `goals:start-sessions` launches through it too, for the same hidden mount. */
+   *  sheet's `goals:start-sessions`, `goals:plan` and `goals:decide-proposal` launch through it
+   *  too, for the same hidden mount. */
   requestLaunch(req: LaunchRequest): { terminalId: string; workspaceId: string }
   awaitSessionId(terminalId: string, timeoutMs: number): Promise<string>
 }

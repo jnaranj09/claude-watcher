@@ -1,5 +1,5 @@
 /* Goals — what is the Goals sheet's own: the rail row's two lines, the folder line, the task
-   list and its start bar. The progress bar is components/GoalProgress and a task row
+   list and its start bar, `Plan with Claude` and a planner's proposal. The progress bar is components/GoalProgress and a task row
    components/TaskRow. The shell, rail, form, footer and every button are ManageDialog.module.css
    (.claude/rules/design.md). */
 .rowText {
@@ -77,6 +77,76 @@
 .startSwitchLabel {
   color: var(--text-primary);
   font-size: var(--font-size-body);
+}
+
+/* `Plan with Claude` under the task list (and its start bar): one button at the start of a row. */
+.planRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+
+/* A planner's proposal: a different region from the tasks, so behind a divider with
+   --gap-section each side, like the start bar. Rows stack with --gap-group; each row is its head
+   (`Session <n>`, the note, ✕) over its tasks, each with its move Select at the end. */
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
+  border-top: 1px solid var(--border);
+  padding-top: var(--gap-section);
+}
+.proposalRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+}
+.proposalRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+}
+.proposalRowHead {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.proposalRowName {
+  white-space: nowrap;
+  font-weight: var(--font-weight-label);
+  font-size: var(--font-size-body);
+}
+.proposalNote {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}
+.proposalTask {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.proposalTaskTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+}
+.proposalActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-field) var(--gap-inline);
 }
 
 /* The rail's one sentence when the startup load failed. --text-secondary on the raised panel

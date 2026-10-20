@@ -45,6 +45,7 @@ import { createElectronTagsBlobStore } from './persistence/electronTagsBlobStore
 import { createRulesStore, type RulesStore, type RulesStoreOptions } from './persistence/rules'
 import { createElectronRulesBlobStore } from './persistence/electronRulesBlobStore'
 import { createGoalsStore, type GoalsStore } from './persistence/goals'
+import type { GoalsView } from '../shared/schemas/goal'
 import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
 import { goalSpawnExtras } from './goals/goalLaunch'
@@ -52,6 +53,7 @@ import { createGoalTokens } from './goals/mcp/goalTokens'
 import { createMcpConfigs } from './goals/mcp/mcpConfigFile'
 import { createMcpTools } from './goals/mcp/mcpTools'
 import { createMcpEndpoint } from './goals/mcp/mcpEndpoint'
+import { createProposals } from './goals/proposals'
 import { GOALS_MCP_URL } from './hooks/hookContract'
 import type { TagRuleRef } from './persistence/tags'
 import type { RulesEngine } from './rules/rulesEngine'
@@ -574,19 +576,33 @@ const sessionSetup = createSessionSetup({
 /** Context's file history; null until app-ready (it lives in userData). */
 let fileHistory: FileHistory | null = null
 
-// Goals: `mark_task_done` over MCP on the hook listener (spec 2026-10-19). Tokens are memory only;
-// config files live in userData and go with their session (window/cardState.ts).
+/** The goals push: every change, whoever caused it, reaches every window (validated at source). */
+function pushGoalsView(view: GoalsView): void {
+  for (const win of BrowserWindow.getAllWindows()) sendGoalsChanged(win.webContents, view)
+}
+
+// Goals: the worker's `mark_task_done` and the planner's tools over MCP on the hook listener (spec
+// 2026-10-19). Tokens and proposals are memory only; config files live in userData; all three go
+// with their session (window/cardState.ts). A proposal change pushes the goals view it rides in.
 const goalMcp = (() => {
   const tokens = createGoalTokens()
   const log = (line: string): void => console.warn(line)
+  const proposals = createProposals(() => {
+    if (goalsStore !== null) pushGoalsView(goalsStore.view())
+  }, log)
   return {
     tokens,
+    proposals,
     configs: createMcpConfigs({
       dir: () => app.getPath('userData'),
       log,
       report: storageHealth.reporterFor('goals')
     }),
-    endpoint: createMcpEndpoint({ tokens, tools: createMcpTools(requireGoalsStore), log })
+    endpoint: createMcpEndpoint({
+      tokens,
+      tools: createMcpTools(requireGoalsStore, proposals),
+      log
+    })
   }
 })()
 
@@ -657,7 +673,9 @@ const {
   ruleEngines,
   trackers,
   launchedSet,
-  claudeVersionAllowsLaunch
+  claudeVersionAllowsLaunch,
+  proposals: goalMcp.proposals,
+  hookListening: () => serverHealth.hookListening()
 })
 
 /**
@@ -949,22 +967,20 @@ app
 
     try {
       goalsStore = SMOKE
-        ? createGoalsStore()
+        ? createGoalsStore({ proposals: goalMcp.proposals.list })
         : createGoalsStore({
             blobStore: createElectronGoalsBlobStore(),
-            report: storageHealth.reporterFor('goals')
+            report: storageHealth.reporterFor('goals'),
+            proposals: goalMcp.proposals.list
           })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a goals blob
       // carries operator names and task titles.
       console.error('[claude-watcher][goals] code=goals_store_init_failed (in-memory)')
       storageHealth.report('goals', 'read_failed')
-      goalsStore = createGoalsStore()
+      goalsStore = createGoalsStore({ proposals: goalMcp.proposals.list })
     }
-    // The push: every change, whoever caused it, reaches every window (validated at source).
-    goalsStore.onChange((view) => {
-      for (const win of BrowserWindow.getAllWindows()) sendGoalsChanged(win.webContents, view)
-    })
+    goalsStore.onChange(pushGoalsView)
     registerGoalsIpc()
     // Every token in a file the last run left died with it. Not under SMOKE: smoke shares the
     // default userData and skips the single-instance lock, so a running app's files are live.

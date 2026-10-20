@@ -9,12 +9,14 @@ import type { LaunchRequest } from '../pty/launchSession'
 import {
   goalSpawnExtras,
   startGoalSessions,
+  startPlanner,
   type GoalLaunch,
   type GoalMcpSpawn,
   type GoalSpawnDeps,
   type StartGoalSessionsDeps
 } from './goalLaunch'
 import { createGoalTokens, type GoalTokens } from './mcp/goalTokens'
+import { buildPlannerPrompt } from './goalPrompt'
 import { createMcpConfigs } from './mcp/mcpConfigFile'
 import { createStorageHealth } from '../storageHealth'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -238,12 +240,13 @@ describe('goalSpawnExtras', () => {
     )
   })
 
-  it('a session with no tasks, a fresh launch with no goalLaunch, and a planner get nothing', () => {
+  it('a session with no tasks, a fresh launch with no goalLaunch, and a planner with no MCP get nothing', () => {
     const { store, goalId, t1 } = seed()
     store.linkMany([t1], 'sess-1')
     const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
     expect(goalSpawnExtras(noMcp(store), 'sess-unlinked', null, true, null)).toEqual(none)
     expect(goalSpawnExtras(noMcp(store), 'sess-1', null, false, null)).toEqual(none)
+    // A planner's prompt names its tools, so it comes with them or not at all.
     expect(
       goalSpawnExtras(noMcp(store), 'sess-p', { kind: 'planner', goalId }, false, null)
     ).toEqual(none)
@@ -471,12 +474,128 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     expect(flagged.mcpConfigPath).toBe('/cfg/sess-old.json')
   })
 
-  it('a planner and a session with no open task get no token', () => {
-    const { store, goalId, t1 } = seed()
+  it('a session with no open task gets no token', () => {
+    const { store, t1 } = seed()
     const m = mcp()
-    goalSpawnExtras({ store, mcp: m }, 'sess-p', { kind: 'planner', goalId }, false, null)
     store.setTaskStatus(t1, 'done', 'operator')
     goalSpawnExtras({ store, mcp: m }, 'sess-1', worker([t1]), false, null)
     expect(m.written).toEqual([])
+  })
+
+  it('a planner gets its prompt, a planner token bound to its goal, and the three planner tools', () => {
+    const { store, goalId, t1, t2, t3 } = seed()
+    store.setTaskStatus(t2, 'done', 'operator')
+    const m = mcp()
+    const extras = goalSpawnExtras(
+      { store, mcp: m },
+      'sess-p',
+      { kind: 'planner', goalId },
+      false,
+      null
+    )
+    expect(extras.appendPrompt).toBe(
+      buildPlannerPrompt({
+        goalName: 'Ship v2',
+        tasks: [
+          { id: t1, title: 'Write the spec', status: 'open' },
+          { id: t2, title: 'Cut the release', status: 'done' },
+          { id: t3, title: 'Tell the team', status: 'open' }
+        ]
+      })
+    )
+    expect(extras.mcpConfigPath).toBe('/cfg/sess-p.json')
+    expect(extras.allowedTools).toBe(
+      'mcp__claude-watcher__list_tasks,mcp__claude-watcher__create_task,mcp__claude-watcher__propose_split'
+    )
+    expect(m.tokens.resolve(m.written[0]?.token ?? '')).toEqual({
+      sessionId: 'sess-p',
+      workspaceId: 'w1',
+      mode: 'planner',
+      goalId
+    })
+    // A planner closes no work: it never counts as a session that could mark tasks done.
+    expect(m.tokens.markDoneFor('sess-p')).toBe(false)
+    // Linked to nothing: the planner's card shows no goal line.
+    expect(store.tasksForSession('sess-p')).toEqual([])
+  })
+
+  it('a planner gets nothing when the hook port is not ours, the write is refused, or its goal is gone', () => {
+    const { store, goalId } = seed()
+    const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
+    const planner: GoalLaunch = { kind: 'planner', goalId }
+
+    const notOurs = mcp({ hookListening: () => false })
+    expect(goalSpawnExtras({ store, mcp: notOurs }, 'sess-p', planner, false, null)).toEqual(none)
+    expect(notOurs.written).toEqual([])
+
+    const minted: string[] = []
+    const refused = mcp({ configs: { write: () => null, remove: () => {} } })
+    const mint = refused.tokens.mint.bind(refused.tokens)
+    refused.tokens.mint = (grant) => {
+      const t = mint(grant)
+      minted.push(t)
+      return t
+    }
+    expect(goalSpawnExtras({ store, mcp: refused }, 'sess-p', planner, false, null)).toEqual(none)
+    expect(minted).toHaveLength(1)
+    expect(refused.tokens.resolve(minted[0] ?? '')).toBeNull()
+
+    store.removeGoal(goalId)
+    const gone = mcp()
+    expect(goalSpawnExtras({ store, mcp: gone }, 'sess-p', planner, false, null)).toEqual(none)
+    expect(gone.written).toEqual([])
+  })
+})
+
+describe('startPlanner', () => {
+  it('launches one planner named after the goal (cut to the name limit), with the cwd fallback', async () => {
+    const { store, goalId } = seed()
+    store.saveGoal({ id: goalId, workspaceId: 'w1', name: 'G'.repeat(80) })
+    const d = deps(store, { workspaces: { get: () => ({ defaultCwd: '/ws' }) } })
+    await expect(startPlanner(goalId, { ...d, hookListening: () => true })).resolves.toEqual({
+      terminalIds: ['term-1']
+    })
+    expect(d.launched).toEqual([
+      {
+        cwd: '/ws',
+        name: `${'G'.repeat(59)}…`,
+        workspaceId: 'w1',
+        goalLaunch: { kind: 'planner', goalId }
+      }
+    ])
+    expect(d.pickDirectory).not.toHaveBeenCalled()
+  })
+
+  it('asks the picker once when neither the goal nor the workspace has a folder; cancel launches nothing', async () => {
+    const { store, goalId } = seed()
+    const d = deps(store, { pickDirectory: vi.fn(() => Promise.resolve<string | null>(null)) })
+    await expect(startPlanner(goalId, { ...d, hookListening: () => true })).rejects.toThrow(
+      LAUNCH_CANCELLED
+    )
+    expect(d.pickDirectory).toHaveBeenCalledTimes(1)
+    expect(d.launched).toEqual([])
+  })
+
+  it('refuses before anything launches: an unknown goal, hooks not ours, a too-old claude, a missing folder', async () => {
+    const { store, goalId } = seed()
+    store.setGoalFolder(goalId, '/goal')
+    const cases: [string, Parameters<typeof startPlanner>[1], string][] = [
+      ['nope', { ...deps(store), hookListening: () => true }, GOAL_ERROR.goalNotFound],
+      [goalId, { ...deps(store), hookListening: () => false }, 'hooks_unavailable'],
+      [
+        goalId,
+        { ...deps(store, { claudeVersionAllowsLaunch: () => false }), hookListening: () => true },
+        'claude_version'
+      ],
+      [
+        goalId,
+        { ...deps(store, { isDirectory: () => false }), hookListening: () => true },
+        'folder_missing'
+      ]
+    ]
+    for (const [id, d, code] of cases) {
+      await expect(startPlanner(id, d)).rejects.toThrow(code)
+      expect((d as unknown as { launched: unknown[] }).launched).toEqual([])
+    }
   })
 })

@@ -1,7 +1,7 @@
 // The Goals sheet's one mapping from a thrown IPC error to the operator's words (never
 // `error.message`: it is a code today, but an unknown string stays off the screen too).
 import { STORE_WRITE_FAILED } from '../../../shared/schemas/storageHealth'
-import { LAUNCH_CANCELLED } from '../../../shared/schemas/goal'
+import { HOOKS_UNAVAILABLE, LAUNCH_CANCELLED } from '../../../shared/schemas/goal'
 import { GOAL_TERMS } from '../copy/terms'
 import { launchErrorCopy } from './namePromptFlow'
 import { STORE_WRITE_FAILED_COPY } from './storageHealthCopy'
@@ -21,4 +21,14 @@ export function goalStartErrorCopy(err: unknown): string | null {
   const text = err instanceof Error ? err.message : ''
   if (text.includes(LAUNCH_CANCELLED)) return null
   return launchErrorCopy(err, GOAL_TERMS.startFailed)
+}
+
+/** `Plan with Claude`'s refusal: null for a cancelled folder pick, the session-status line while
+ *  the hook port is not ours (the banner at the top says why), the launch copy for
+ *  `folder_missing` / `claude_version`, else `Could not plan with Claude.` */
+export function goalPlanErrorCopy(err: unknown): string | null {
+  const text = err instanceof Error ? err.message : ''
+  if (text.includes(LAUNCH_CANCELLED)) return null
+  if (text.includes(HOOKS_UNAVAILABLE)) return GOAL_TERMS.planNeedsStatus
+  return launchErrorCopy(err, GOAL_TERMS.planFailed)
 }
