@@ -98,6 +98,17 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
   `c9watch-settings.json` are a PENDING rename (needs a migration) — don't rename in passing.
   `rg -w c9watch src/` must never show a CLI spawn.
 
+## Goals (`src/main/goals/`, spec 2026-10-19)
+
+Goals and tasks per workspace, main-owned, in `claude-watcher-goals.json` (`persistence/goals.ts`;
+a corrupt file is backed up and reset). A session started from tasks gets its open tasks as a
+prompt block; the operator may let it close them through the `mark_task_done` MCP tool, served on
+the HOOK listener at `/mcp/goals` (no third listener), only when the hook port is ours (SEC-6).
+"Plan with Claude" starts a planner with three more tools whose split the operator Accepts or
+Rejects. Bearer tokens are memory-only (per spawn, sha256), the MCP config file holds the only
+copy and argv only its path. `/clear` rebinds a session's tasks to the new id; Resume brings the
+tool back for a session, not for a planner. Full rules: `.claude/rules/session-engine.md`.
+
 ## Workspaces
 
 - `Session.workspaceId` is REQUIRED session truth, stamped at launch (`buildLaunchedSession`),

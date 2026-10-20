@@ -1,7 +1,7 @@
 ---
 title: 'Ideas board'
 description: 'This file lists new Feature ideas, fixes and changes for the project. They are here because they havent been implemented yet. It also tracks their status. When an feature is implemented or rejected it is simply removed from the file. If an idea needs expanding or additional info, the item below should point to an external file to keep this one just a list'
-last_modified: 2026-10-15
+last_modified: 2026-10-20
 allowed_statuses: [pending_review, approved, in_progress]
 allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 ---
@@ -25,6 +25,11 @@ allowed_efforts: [low_effort, medium_effort, high_effort, large_effort]
 - **Windows port — native claude, unsigned first**: Run the native Windows `claude.exe` through ConPTY (not WSL). Needs a platform layer for the spawn (`$SHELL -l -c` has no Windows twin), the version probe, the process-alive checks (`kill(pid,0)`, `~/.claude/sessions/<pid>.json`), paths, and an `nsis` job in `release.yml`. SmartScreen warning until a code-signing cert. Testing: the operator's Windows machine. `pending_review` `large_effort`
 - **e2e in CI (`xvfb-run`)**: Run the claude-free e2e specs in CI under `xvfb-run`, with a stub `claude` on PATH for the specs that launch a session. Decide which specs need the stub and which stay local-only. `pending_review` `medium_effort`
 - **e2e: `/clear` rebind with real claude (local only)**: An e2e spec that runs `/clear` in a real `claude` session and asserts the card rebinds (`session.rebound`). Local only: it needs a real claude and a login. `pending_review` `medium_effort`
+- **Goals: due dates and priorities**: Tasks and goals carry no date or rank today (left out of the goals spec). Decide whether a due date or priority orders the Goals sheet, shows on cards, or only on the sheet. `pending_review` `medium_effort`
+- **Goals: a template per goal**: A goal starts its sessions from the hand-typed folder and the default launch settings. A per-goal template (model, effort, folder) would be picked once on the goal. Decide how it meets a template's own workspace rule. `pending_review` `medium_effort`
+- **Goals: a global setting for `mark_task_done`**: The operator chooses whether sessions may close their tasks on every launch. A global default (Settings) could preset that choice. Decide whether a per-launch choice still overrides it. `pending_review` `low_effort`
+- **A resumed planner keeps its tools**: A planner resumed from Past sessions or the dead pane comes back without its goal tools (it has no goal launch). Record the goal on the past-session record so a resume re-mints the token and config like a fresh planner. `pending_review` `medium_effort`
+- **Proposal version so Accept never checks a newer proposal**: Accept sends the task ids the operator saw; if the planner replaces its proposal meanwhile, Accept checks against the newer one. A proposal version or nonce on the view and on `goals:decide-proposal` would refuse the stale Accept. `pending_review` `low_effort`
 
 ---
 

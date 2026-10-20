@@ -60,7 +60,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   read. The line in the block, `--mcp-config <file>` and `--allowedTools` (the one tool
   `mcp__claude-watcher__mark_task_done`) come together or not at all: the operator's choice
   (`goalLaunch.markDone`; on a resume, `tokens.markDoneFor` from this run, else the past-session
-  flag `tasksMarkDone`, written by the archive from `tokens.markDoneFor` before the token is
+  flag `tasksMarkDone`, written by the archive AND by the live crash-recovery record
+  (`livePastSessions` asks `couldMarkDone`) from `tokens.markDoneFor` before the token is
   dropped), AND the hook port is ours (SEC-6, else
   `code=mcp_hook_port_not_ours`; a failed bind already shows `ServerHealthBanner`), AND the config
   file was written (a refused write reports the `goals` store's `write_failed` to storage health,
