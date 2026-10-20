@@ -44,6 +44,8 @@ import type {
   GoalsView,
   GoalsSaveGoalResult,
   GoalsSaveTaskResult,
+  GoalsStartRequest,
+  GoalsStartResult,
   TaskSaveRequest,
   TaskStatus,
   PastSession,
@@ -221,6 +223,7 @@ declare global {
       setTaskStatus(id: string, status: TaskStatus): Promise<GoalsView>
       linkTask(taskId: string, sessionId: string): Promise<GoalsView>
       unlinkTask(taskId: string, sessionId: string): Promise<GoalsView>
+      start(req: GoalsStartRequest): Promise<GoalsStartResult>
       onChanged(cb: (view: GoalsView) => void): () => void
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the

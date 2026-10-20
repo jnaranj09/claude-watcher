@@ -48,6 +48,7 @@ describe('launchSession.launch — raw claude recipe (AC-1)', () => {
       workspaceId: null,
       launchedAt: 0,
       resume: null,
+      goalLaunch: null,
       lastSessionId: null
     })
     // NON-CONSUMING (Story 5.4): a second peek returns the SAME recipe. The recipe is durable so
@@ -216,6 +217,7 @@ describe('Story 6.2 — mintSpawn: session identity minted at ACTUAL spawn time'
       workspaceId: null,
       launchedAt: 0,
       resume: null,
+      goalLaunch: null,
       lastSessionId: 'sess-1'
     })
     const reopened = svc.mintSpawn('t-1')
@@ -299,5 +301,43 @@ describe('launchSession — the operator-typed session name (session-naming)', (
     const folder = svcWithMints(['sess-2'])
     folder.launch({ cwd: '/home/op/api', name: 'api' })
     expect(folder.mintSpawn('t-1')?.templateId).toBeNull()
+  })
+})
+
+// Goals (spec 2026-10-19): a launch from tasks carries its goal launch on the durable recipe, so a
+// dead-pane Reopen starts claude with the same tasks, and every actual spawn hands it to the factory.
+describe('launchSession — goalLaunch', () => {
+  it('the override keeps goalLaunch and mintSpawn passes it to spawn', () => {
+    const seen: unknown[] = []
+    let i = 0
+    const svc = createLaunchService({
+      launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
+      spawn: (sessionId, _name, _flags, _prompt, _resume, goalLaunch) => {
+        seen.push(goalLaunch)
+        return shellClaudeSpawn(sessionId)
+      },
+      newTerminalId: () => 't-1',
+      newSessionId: () => `sess-${++i}`
+    })
+    const goalLaunch = { kind: 'worker', taskIds: ['t-a', 't-b'], markDone: true } as const
+    svc.launch({ cwd: '/p', name: 'p', goalLaunch })
+    expect(svc.peekSpawnOverride('t-1')?.goalLaunch).toEqual(goalLaunch)
+    svc.mintSpawn('t-1')
+    svc.mintSpawn('t-1') // a Reopen keeps it
+    expect(seen).toEqual([goalLaunch, goalLaunch])
+
+    const plain = createLaunchService({
+      launchedSet: createLaunchedSet(),
+      isDirectory: () => true,
+      spawn: (sessionId, _name, _flags, _prompt, _resume, gl) => {
+        seen.push(gl)
+        return shellClaudeSpawn(sessionId)
+      },
+      newTerminalId: () => 't-2'
+    })
+    plain.launch({ cwd: '/p', name: 'p' })
+    plain.mintSpawn('t-2')
+    expect(seen.at(-1)).toBeNull()
   })
 })

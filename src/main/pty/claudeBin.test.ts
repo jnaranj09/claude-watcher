@@ -18,6 +18,7 @@ import {
 } from './claudeBin'
 import type { ClaudeCommandSpec } from './claudeBin'
 import { EFFORT_LEVELS } from '../../shared/schemas/template'
+import { buildWorkerPrompt, joinSystemPrompt } from '../goals/goalPrompt'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, chmodSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -210,6 +211,8 @@ describe('composeClaudeCommand', () => {
       initialPrompt: null,
       resume: false,
       pluginDir: null,
+      mcpConfigPath: null,
+      allowedTools: null,
       ...overrides
     }
   }
@@ -541,6 +544,87 @@ describe('composeClaudeCommand', () => {
       it('resume: false composes byte-identically to before (no regression)', () => {
         expect(composeClaudeCommand(spec({ displayName: 'billing api' }))).toBe(
           `'${BIN}' --session-id '${SID}' -n 'billing api'`
+        )
+      })
+    })
+
+    // A session started from goal tasks (spec 2026-10-19 goals). Its prompt block holds task
+    // titles, and the block has newlines, so the stub here ends each argument with a NUL instead
+    // of a newline: a multi-line argument must come back as ONE argument.
+    describe('a session started from tasks', () => {
+      let nulStub = ''
+      beforeAll(() => {
+        nulStub = join(mkdtempSync(join(tmpdir(), 'c9-argv0-')), 'claude-stub.sh')
+        writeFileSync(nulStub, '#!/bin/sh\nfor a in "$@"; do printf "%s\\0" "$a"; done\n')
+        chmodSync(nulStub, 0o755)
+      })
+      const argv0 = (over: Partial<ClaudeCommandSpec>): string[] =>
+        execFileSync(
+          '/bin/sh',
+          ['-l', '-c', composeClaudeCommand(spec({ ...over, claudeCommand: nulStub }))],
+          { encoding: 'utf8' }
+        )
+          .split('\0')
+          .slice(0, -1)
+
+      it.each([true, false])(
+        '--mcp-config and --allowedTools reach argv unchanged (resume: %s)',
+        (resume) => {
+          const argv = argv0({
+            resume,
+            appendSystemPrompt: 'block',
+            mcpConfigPath: "/data/mcp/it's 1.json",
+            allowedTools: 'mcp__claude-watcher__mark_task_done'
+          })
+          expect(argv).toEqual([
+            resume ? '--resume' : '--session-id',
+            SID,
+            '-n',
+            'x',
+            '--append-system-prompt',
+            'block',
+            '--mcp-config',
+            "/data/mcp/it's 1.json",
+            '--allowedTools',
+            'mcp__claude-watcher__mark_task_done'
+          ])
+        }
+      )
+
+      it('a prompt block with quotes, $(...) and a 200-char title reaches argv unchanged', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'c9-block-'))
+        const marker = join(dir, 'pwned')
+        try {
+          const long = `${'a'.repeat(191)} it's 200`
+          expect(long).toHaveLength(200)
+          const block = joinSystemPrompt(
+            QUESTION_FORMAT_PROMPT,
+            buildWorkerPrompt({
+              goalName: `Ship "v2" $(touch '${marker}')`,
+              tasks: [
+                { id: 't-1', title: `Fix it's \`touch ${marker}\` and "quotes"` },
+                { id: 't-2', title: long }
+              ],
+              markDone: true
+            })
+          )
+          expect(block).not.toBeNull()
+          const argv = argv0({ appendSystemPrompt: block })
+          expect(argv).toEqual(['--session-id', SID, '-n', 'x', '--append-system-prompt', block])
+          expect(existsSync(marker)).toBe(false)
+        } finally {
+          rmSync(dir, { recursive: true, force: true })
+        }
+      })
+
+      it.each([true, false])('null mcp fields emit nothing (resume: %s)', (resume) => {
+        const cmd = composeClaudeCommand(
+          spec({ resume, appendSystemPrompt: 'block', mcpConfigPath: null, allowedTools: null })
+        )
+        expect(cmd).not.toContain('--mcp-config')
+        expect(cmd).not.toContain('--allowedTools')
+        expect(cmd).toBe(
+          `'${BIN}' ${resume ? '--resume' : '--session-id'} '${SID}' -n 'x' --append-system-prompt 'block'`
         )
       })
     })

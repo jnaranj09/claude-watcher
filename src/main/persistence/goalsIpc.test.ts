@@ -9,7 +9,19 @@ function setup(pick: () => Promise<string | null> = () => Promise.resolve('/pick
   let n = 0
   const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
   const pickDirectory = vi.fn(pick)
-  return { h: createGoalsIpcHandlers(store, { pickDirectory }), pickDirectory }
+  return {
+    h: createGoalsIpcHandlers(store, {
+      pickDirectory,
+      launch: {
+        workspaces: { get: () => null },
+        pickDirectory: () => Promise.resolve('/picked'),
+        isDirectory: () => true,
+        claudeVersionAllowsLaunch: () => true,
+        log: () => {}
+      }
+    }),
+    pickDirectory
+  }
 }
 
 const GOAL = { workspaceId: 'w1', name: '  Ship  ' }
@@ -78,5 +90,17 @@ describe('goalPickerStart', () => {
     expect(goalPickerStart({ ...goal, defaultCwd: '/goal' }, '/ws')).toBe('/goal')
     expect(goalPickerStart(goal, '/ws')).toBe('/ws')
     expect(goalPickerStart(goal, null)).toBeNull()
+  })
+
+  it('start parses the request: an unknown key or an empty group launches nothing', async () => {
+    const { h } = setup()
+    h.saveTask(TASK)
+    const requestLaunch = vi.fn(() => ({ terminalId: 'term-1', workspaceId: 'w1' }))
+    const ok = { workspaceId: 'w1', goalId: null, groups: [{ taskIds: ['id1'] }], markDone: true }
+    await expect(h.start({ ...ok, cwd: '/evil' }, requestLaunch)).rejects.toThrow()
+    await expect(h.start({ ...ok, groups: [{ taskIds: [] }] }, requestLaunch)).rejects.toThrow()
+    expect(requestLaunch).not.toHaveBeenCalled()
+    await expect(h.start(ok, requestLaunch)).resolves.toEqual({ terminalIds: ['term-1'] })
+    expect(requestLaunch).toHaveBeenCalledWith(expect.objectContaining({ cwd: '/picked' }))
   })
 })

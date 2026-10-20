@@ -57,6 +57,8 @@ import type {
   GoalsView,
   GoalsSaveGoalResult,
   GoalsSaveTaskResult,
+  GoalsStartRequest,
+  GoalsStartResult,
   TaskSaveRequest,
   TaskStatus,
   PastSession,
@@ -545,6 +547,10 @@ const goalsApi = {
   },
   unlinkTask(taskId: string, sessionId: string): Promise<GoalsView> {
     return ipcRenderer.invoke(CH.goalsUnlinkTask, { taskId, sessionId })
+  },
+  /** Start one session per group of open tasks. Ids, the goal id and the markDone switch only. */
+  start(req: GoalsStartRequest): Promise<GoalsStartResult> {
+    return ipcRenderer.invoke(CH.goalsStart, req)
   },
   /** Subscribe to the push; returns the unsubscribe. `CH.goalsChanged` is a const, never a literal. */
   onChanged(cb: (view: GoalsView) => void): () => void {

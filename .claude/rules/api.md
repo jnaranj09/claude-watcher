@@ -58,7 +58,9 @@ export const sessionsGetCommand = defineCommand({
 - **A create never takes the view:** main pushes `CH.launchRequested`; renderer calls
   `boardStore.registerLaunchedTerminal` (registry only, NOT `openLaunchedTerminal`). Terminal mounts
   hidden and spawns; `viewMode`, `focusedTerminalId`, active workspace untouched. Card lands in the
-  TEMPLATE's workspace (global template → active workspace).
+  TEMPLATE's workspace (global template → active workspace). The Goals sheet's `Start session`
+  (`goals:start-sessions`) launches through the same `requestLaunch`, so it never takes the view
+  either.
 - **Prompt is never the caller's:** template `initialPrompt` with `$1..$n` from `args`
   (`shared/prompt/expand.ts`); each value checked against `maxLength` and anchored regex
   (`compileParamPattern`); miss → 400 `arg_invalid` path `args.<i>`. Passed as positional

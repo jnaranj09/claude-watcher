@@ -170,6 +170,9 @@ export const CH = {
   goalsSetTaskStatus: 'goals:set-task-status',
   goalsLinkTask: 'goals:link-task',
   goalsUnlinkTask: 'goals:unlink-task',
+  // Start one session per group of open tasks (ids, the goal id and the markDone switch only):
+  // main picks the folder and the name, and launches each like an API create (never takes the view).
+  goalsStart: 'goals:start-sessions',
   goalsChanged: 'goals:changed',
   // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
   // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN
@@ -703,12 +706,15 @@ export type {
   TaskSaveRequest,
   TaskDeleteRequest,
   TaskStatusRequest,
-  TaskLinkRequest
+  TaskLinkRequest,
+  GoalsStartRequest
 } from '../schemas/goal'
 /** `goals:save-goal` result — the saved goal (so the sheet can select it) PLUS the full view. */
 export type GoalsSaveGoalResult = { saved: Goal } & GoalsView
 /** `goals:save-task` result — the saved task PLUS the full view. */
 export type GoalsSaveTaskResult = { saved: Task } & GoalsView
+/** `goals:start-sessions` result — the launched terminals, one per group (registered hidden). */
+export type GoalsStartResult = { terminalIds: string[] }
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

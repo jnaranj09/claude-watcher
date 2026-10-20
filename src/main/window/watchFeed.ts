@@ -600,7 +600,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       onEvent: (cb) => apiHub.onEvent(cb),
       // Main REGISTERS the launch recipe and asks the renderer to open the terminal; the renderer's
       // open is what actually spawns the pty and mints the session id. Nothing about the request is
-      // the renderer's own: the label and the workspace are main's.
+      // the renderer's own: the label and the workspace are main's. A start from goal tasks
+      // (`goals:start-sessions`, registerStoreIpc.ts) launches here too: same hidden mount.
       requestLaunch: (req) => {
         const launchService = getLaunchService()
         if (launchService === null) throw new Error('launch service not initialized')

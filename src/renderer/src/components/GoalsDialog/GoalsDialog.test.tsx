@@ -85,6 +85,7 @@ function installBridge(initial: GoalsView): void {
     }),
     linkTask: vi.fn(answer),
     unlinkTask: vi.fn(answer),
+    start: vi.fn(() => Promise.resolve({ terminalIds: ['term-1'] })),
     onChanged: vi.fn(() => () => {})
   }
   ;(window as unknown as { goals: unknown }).goals = bridge
@@ -230,5 +231,92 @@ describe('GoalsDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Clear' }))
     expect(bridge.clearFolder).toHaveBeenCalledWith('g1')
     expect(screen.getByTestId('goal-default-cwd')).toHaveTextContent('None')
+  })
+
+  it('Start session sends the selected task ids and markDone true', async () => {
+    const user = userEvent.setup()
+    open({
+      goals: [goal()],
+      tasks: [
+        task(),
+        task({ id: 't2', title: 'Cut the release' }),
+        task({ id: 't3', title: 'Tell the team' }),
+        task({ id: 't4', title: 'Old', status: 'done' })
+      ],
+      proposals: []
+    })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    // Nothing selected: no bar. A done task cannot be selected.
+    expect(screen.queryByRole('button', { name: 'Start session' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Select Old' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Select Write the spec' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select Tell the team' }))
+    expect(screen.getByTestId('task-start-count')).toHaveTextContent('2 selected')
+    // Selecting is not ticking done.
+    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Claude can mark tasks done' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Start session' }))
+    expect(bridge.start).toHaveBeenCalledWith({
+      workspaceId: 'w1',
+      goalId: 'g1',
+      groups: [{ taskIds: ['t1', 't3'] }],
+      markDone: true
+    })
+    expect(bridge.setTaskStatus).not.toHaveBeenCalled()
+    expect(screen.getByTestId('goals-success')).toHaveTextContent('Session started.')
+    // The selection is spent: the bar goes away.
+    expect(screen.queryByRole('button', { name: 'Start session' })).not.toBeInTheDocument()
+  })
+
+  it('the switch turned off sends markDone false; loose tasks send no goal', async () => {
+    const user = userEvent.setup()
+    open({ goals: [], tasks: [task({ id: 't9', goalId: null, title: 'Water' })], proposals: [] })
+    await user.click(screen.getByRole('button', { name: /Loose tasks/ }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select Water' }))
+    await user.click(screen.getByRole('switch', { name: 'Claude can mark tasks done' }))
+    await user.click(screen.getByRole('button', { name: 'Start session' }))
+    expect(bridge.start).toHaveBeenCalledWith({
+      workspaceId: 'w1',
+      goalId: null,
+      groups: [{ taskIds: ['t9'] }],
+      markDone: false
+    })
+  })
+
+  it.each([
+    ['task_not_found', 'Could not start sessions.'],
+    ['goal_workspace_mismatch', 'Could not start sessions.'],
+    ['folder_missing', 'That folder no longer exists.'],
+    ['claude_version', 'or newer to launch from the app.']
+  ])('a %s refusal says so in the message slot and keeps the selection', async (code, copy) => {
+    const user = userEvent.setup()
+    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    bridge.start = vi.fn(() =>
+      Promise.reject(
+        new Error(`Error invoking remote method 'goals:start-sessions': Error: ${code}`)
+      )
+    )
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('checkbox', { name: 'Select Write the spec' }))
+    await user.click(screen.getByRole('button', { name: 'Start session' }))
+    expect(screen.getByTestId('goals-error')).toHaveTextContent(copy)
+    expect(screen.getByRole('checkbox', { name: 'Select Write the spec' })).toBeChecked()
+  })
+
+  it('a cancelled folder pick says nothing and keeps the selection', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    bridge.start = vi.fn(() =>
+      Promise.reject(
+        new Error(`Error invoking remote method 'goals:start-sessions': Error: launch_cancelled`)
+      )
+    )
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('checkbox', { name: 'Select Write the spec' }))
+    await user.click(screen.getByRole('button', { name: 'Start session' }))
+    expect(bridge.start).toHaveBeenCalled()
+    expect(screen.queryByTestId('goals-error')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('goals-success')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Write the spec' })).toBeChecked()
   })
 })

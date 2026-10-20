@@ -8,6 +8,7 @@ import { GOAL_TERMS } from '../copy/terms'
 import type {
   Goal,
   GoalSaveRequest,
+  GoalsStartRequest,
   GoalsView,
   Task,
   TaskSaveRequest,
@@ -160,6 +161,12 @@ export async function linkTask(taskId: string, sessionId: string): Promise<void>
 
 export async function unlinkTask(taskId: string, sessionId: string): Promise<void> {
   goalsStore.getState().hydrate(await window.goals.unlinkTask(taskId, sessionId))
+}
+
+/** Start sessions from tasks. Main links the tasks as each session spawns, and its push brings the
+ *  links here; the terminals arrive like an API launch (registered hidden, the view stays). */
+export async function startSessions(req: GoalsStartRequest): Promise<void> {
+  await window.goals.start(req)
 }
 
 // A change main made on its own (a session closed a task, a `/clear` moved links, a cascade) reaches

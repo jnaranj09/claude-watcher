@@ -1,11 +1,13 @@
 // The goals IPC handler BODIES, kept out of index.ts so they are unit-testable in node. Every arg is
 // UNTRUSTED cross-process input → Schema.parse(raw) throws typed on bad input (zod-boundaries.md
 // IPC-arg row). ipc/registerStoreIpc.ts binds them to CH.* channels. The renderer never sends a
-// path: a goal's folder is whatever main's own picker returned.
+// path: a goal's folder is whatever main's own picker returned, and a start from tasks sends ids
+// only (goals/goalLaunch.ts picks the folder and the names).
 import {
   GoalDeleteSchema,
   GoalFolderSchema,
   GoalSaveSchema,
+  GoalsStartSchema,
   TaskDeleteSchema,
   TaskLinkSchema,
   TaskSaveSchema,
@@ -13,13 +15,21 @@ import {
   type Goal,
   type GoalsView
 } from '../../shared/schemas/goal'
-import type { GoalsSaveGoalResult, GoalsSaveTaskResult } from '../../shared/ipc/contract'
+import type {
+  GoalsSaveGoalResult,
+  GoalsSaveTaskResult,
+  GoalsStartResult
+} from '../../shared/ipc/contract'
+import { startGoalSessions, type StartGoalSessionsDeps } from '../goals/goalLaunch'
 import { GOAL_ERROR, type GoalsStore } from './goals'
 
 export interface GoalsIpcDeps {
   /** Opens the native folder picker for this goal (the registrar picks its start folder and its
    *  window). `null` = cancelled. */
   pickDirectory(goal: Goal): Promise<string | null>
+  /** `goals:start-sessions`: what a start needs besides the store and the calling window's launch
+   *  seam (the registrar passes that per call). */
+  launch: Omit<StartGoalSessionsDeps, 'store' | 'requestLaunch'>
 }
 
 export interface GoalsIpcHandlers {
@@ -33,6 +43,10 @@ export interface GoalsIpcHandlers {
   setTaskStatus(raw: unknown): GoalsView
   linkTask(raw: unknown): GoalsView
   unlinkTask(raw: unknown): GoalsView
+  start(
+    raw: unknown,
+    requestLaunch: StartGoalSessionsDeps['requestLaunch']
+  ): Promise<GoalsStartResult>
 }
 
 /** Where the folder picker opens: the goal's own folder, else its workspace's default folder, else
@@ -69,6 +83,8 @@ export function createGoalsIpcHandlers(store: GoalsStore, deps: GoalsIpcDeps): G
     unlinkTask: (raw) => {
       const { taskId, sessionId } = TaskLinkSchema.parse(raw)
       return store.unlink(taskId, sessionId)
-    }
+    },
+    start: async (raw, requestLaunch) =>
+      startGoalSessions(GoalsStartSchema.parse(raw), { ...deps.launch, store, requestLaunch })
   }
 }

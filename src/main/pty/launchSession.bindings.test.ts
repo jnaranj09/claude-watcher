@@ -164,6 +164,7 @@ describe('session templates — launch flags reach spawn()', () => {
       workspaceId: null,
       launchedAt: 0,
       resume: null,
+      goalLaunch: null,
       lastSessionId: expect.any(String) // the default randomUUID mint
     })
   })

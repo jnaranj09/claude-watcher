@@ -138,6 +138,11 @@ export const GoalsStartSchema = z
   .strict()
 export type GoalsStartRequest = z.infer<typeof GoalsStartSchema>
 
+/** The refusal `goals:start-sessions` throws when the operator cancels the folder picker. Nothing
+ *  launched, so the sheet says nothing (the `+ New session` cancel precedent). Shared: main throws
+ *  it and the renderer matches it. */
+export const LAUNCH_CANCELLED = 'launch_cancelled'
+
 export const GoalsPlanSchema = z.object({ goalId: IdSchema }).strict()
 export type GoalsPlanRequest = z.infer<typeof GoalsPlanSchema>
 

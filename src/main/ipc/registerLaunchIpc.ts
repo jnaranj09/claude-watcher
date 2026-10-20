@@ -67,6 +67,8 @@ import { applyBridgeMod } from '../mods/bridgeModSpawn'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
+import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
+import { joinSystemPrompt } from '../goals/goalPrompt'
 import type { TrustedIpc } from './trustedIpc'
 
 // Claude version gate — read the installed version the SAME way the spawn resolves it.
@@ -140,6 +142,13 @@ export interface LaunchIpcDeps {
     /** The spawn went without the mod; Context says why. */
     onSkip: (sessionId: string, reason: ModSkipReason) => void
   }
+  /** Goals: what one spawn of `sessionId` adds (its tasks' prompt block). Read at spawn time;
+   *  links the tasks to the minted id (goals/goalLaunch.ts). */
+  goalSpawnExtras: (
+    sessionId: string,
+    goalLaunch: GoalLaunch | null,
+    resume: boolean
+  ) => GoalSpawnExtras
   isSessionLive: (sessionId: string) => boolean
   getTerminalManager: () => TerminalManager | null
   getPastSessionsStore: () => PastSessionsStore | null
@@ -174,6 +183,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     readTranscriptInfo,
     claudeVersionAllowsLaunch,
     bridgeMod,
+    goalSpawnExtras,
     isSessionLive,
     getTerminalManager,
     getPastSessionsStore,
@@ -241,7 +251,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     displayName: string,
     flags: ClaudeLaunchFlags,
     initialPrompt: string | null,
-    resume: boolean
+    resume: boolean,
+    goalLaunch: GoalLaunch | null
   ): {
     file: string
     args: string[]
@@ -283,6 +294,10 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
       log: (line) => console.warn(line)
     })
 
+    // Goals: a session started from tasks gets them as context (its tasks are linked to THIS
+    // minted id first). Nothing for any other launch.
+    const goal = goalSpawnExtras(sessionId, goalLaunch, resume)
+
     return {
       file: SHELL,
       // Composed in claudeBin.ts, NOT inlined here: this registrar is only reachable through
@@ -290,7 +305,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
       // Name-sync adds `-n <name>` so claude runs under the operator's name instead of
       // generating its own title, `--settings <file>` carries the hook block WITHOUT touching the
       // operator's project, and `--append-system-prompt` injects the deterministic-attention
-      // question-format nudge (DA-4; probe-verified GO).
+      // question-format nudge (DA-4; probe-verified GO), plus the task block of a session started
+      // from goal tasks.
       args: [
         '-l',
         '-c',
@@ -300,7 +316,9 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
           pluginDir,
-          appendSystemPrompt: QUESTION_FORMAT_PROMPT,
+          appendSystemPrompt: joinSystemPrompt(QUESTION_FORMAT_PROMPT, goal.appendPrompt),
+          mcpConfigPath: goal.mcpConfigPath,
+          allowedTools: goal.allowedTools,
           model: flags.model,
           permissionMode: flags.permissionMode,
           effort: flags.effort,

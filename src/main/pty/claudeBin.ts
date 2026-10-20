@@ -166,8 +166,8 @@ export interface ClaudeCommandSpec {
    *  PARTLY caller-supplied and this quoting is the last line of defence. */
   initialPrompt: string | null
   /** Past sessions (D-1): `claude --resume <sessionId>` instead of `--session-id <sessionId>`.
-   *  The template flags and the positional prompt are DROPPED; `--settings`, `--append-system-prompt`
-   *  and `-n` stay. `-n` (R3) carries a rename claude never got: a rename rides the NEXT prompt,
+   *  The template flags and the positional prompt are DROPPED; `--settings`, `--plugin-dir`,
+   *  `--append-system-prompt`, `--mcp-config`, `--allowedTools` and `-n` stay. `-n` (R3) carries a rename claude never got: a rename rides the NEXT prompt,
    *  so one made just before an archive was lost on resume. Probe-verified 2026-09-18: the resumed
    *  session keeps the same id, so the minted identity IS `sessionId`. Probe 2026-09-28 (claude
    *  2.1.284): `--resume <id> -n <name>` is accepted, keeps the id, and applies the name
@@ -178,6 +178,12 @@ export interface ClaudeCommandSpec {
    *  byte-identically to before. Probe 2026-10-19 (claude 2.1.304): loads with no consent screen,
    *  new and `--resume`. */
   pluginDir: string | null
+  /** A session started from goal tasks (spec 2026-10-19 goals): `--mcp-config <file>` naming the
+   *  app's own MCP server, and `--allowedTools <tools>` so its tool needs no permission prompt.
+   *  Both right after `--append-system-prompt`, on both forms. REQUIRED-and-nullable like the
+   *  others; `null` composes byte-identically to before. */
+  mcpConfigPath: string | null
+  allowedTools: string | null
 }
 
 function flagArg(flag: string, value: string | null): string {
@@ -224,6 +230,12 @@ function flagArg(flag: string, value: string | null): string {
  * decide, and `null` omits the flag entirely (fail-soft — the session still spawns without
  * the nudge). Shell-quoted: the prompt text is not guaranteed free of shell metacharacters.
  *
+ * `mcpConfigPath` / `allowedTools` become `--mcp-config <file>` / `--allowedTools <tools>` — a
+ * session started from goal tasks. Both are variadic (`<configs...>` / `<tools...>` in
+ * `claude --help`, 2.1.304), which is safe here: the next token is always another flag, the `--`
+ * before a prompt, or the end. Same REQUIRED-and-nullable contract; shell-quoted (the data dir
+ * may hold a space).
+ *
  * `model` / `permissionMode` / `effort` become `--model <alias|full name>` /
  * `--permission-mode <mode>` / `--effort <level>` — session templates (folder + model +
  * permission mode + thinking effort). Same REQUIRED-and-nullable contract: `null` (or an empty
@@ -254,7 +266,9 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
       flagArg('-n', spec.displayName) +
       flagArg('--settings', spec.hookSettingsPath) +
       flagArg('--plugin-dir', spec.pluginDir) +
-      flagArg('--append-system-prompt', spec.appendSystemPrompt)
+      flagArg('--append-system-prompt', spec.appendSystemPrompt) +
+      flagArg('--mcp-config', spec.mcpConfigPath) +
+      flagArg('--allowedTools', spec.allowedTools)
     )
   }
   const prompt =
@@ -267,6 +281,8 @@ export function composeClaudeCommand(spec: ClaudeCommandSpec): string {
     flagArg('--settings', spec.hookSettingsPath) +
     flagArg('--plugin-dir', spec.pluginDir) +
     flagArg('--append-system-prompt', spec.appendSystemPrompt) +
+    flagArg('--mcp-config', spec.mcpConfigPath) +
+    flagArg('--allowedTools', spec.allowedTools) +
     flagArg('--model', spec.model) +
     flagArg('--permission-mode', spec.permissionMode) +
     flagArg('--effort', spec.effort) +

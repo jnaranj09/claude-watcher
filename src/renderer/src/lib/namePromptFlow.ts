@@ -43,11 +43,12 @@ const LAUNCH_ERROR_COPY: readonly (readonly [string, string])[] = [
 ]
 
 /** Matched with `includes`: Electron wraps an invoke rejection as
- *  "Error invoking remote method '…': Error: <code>" (the `copyFor` precedent). */
-export function launchErrorCopy(err: unknown): string {
+ *  "Error invoking remote method '…': Error: <code>" (the `copyFor` precedent). Any other failure
+ *  gets `fallback`: the name prompt's own line, or the Goals sheet's `Could not start sessions.` */
+export function launchErrorCopy(err: unknown, fallback = 'Could not start the session.'): string {
   const text = err instanceof Error ? err.message : ''
   for (const [code, copy] of LAUNCH_ERROR_COPY) if (text.includes(code)) return copy
-  return 'Could not start the session.'
+  return fallback
 }
 
 export const RENAME_ERROR_COPY = 'Could not rename the session.'

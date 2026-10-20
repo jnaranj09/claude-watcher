@@ -40,7 +40,8 @@ export interface ApiSeam {
    *  session the board never shows (an external, non-app-launched one) never reaches a client
    *  either. Returns the unsubscribe. */
   onEvent(cb: (event: ApiSessionEvent) => void): () => void
-  /** Register the recipe + push `launch:requested`; the renderer's open spawns the pty. */
+  /** Register the recipe + push `launch:requested`; the renderer's open spawns the pty. The Goals
+   *  sheet's `goals:start-sessions` launches through it too, for the same hidden mount. */
   requestLaunch(req: LaunchRequest): { terminalId: string; workspaceId: string }
   awaitSessionId(terminalId: string, timeoutMs: number): Promise<string>
 }

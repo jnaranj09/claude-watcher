@@ -29,6 +29,8 @@ import type { ThemeLifecycle } from '../themes/themeLifecycle'
 import { chosenWallpaper, themeNeedsReapply } from '../themes/themeApplyTrigger'
 import { openThemesFolder } from '../themes/openThemesFolder'
 import type { LaunchBoardSeam } from '../window/watchFeed'
+import type { ApiSeam } from '../api/apiSeam'
+import { isExistingDirectory } from './registerLaunchIpc'
 import type { TrustedIpc } from './trustedIpc'
 
 /** What the store-backed registrars read from the app. Every store, the theme pieces, the API
@@ -50,9 +52,13 @@ export interface StoreIpcDeps {
   requireRulesStore: () => RulesStore
   requireGoalsStore: () => GoalsStore
   launchBoardSeams: Map<Electron.WebContents, LaunchBoardSeam>
+  /** Goals start their sessions through the calling window's API launch seam (hidden mount). */
+  apiSeams: Map<Electron.WebContents, ApiSeam>
   ruleEngines: Map<Electron.WebContents, RulesEngine>
   trackers: Map<Electron.WebContents, AttentionTracker>
   launchedSet: LaunchedSet
+  /** The in-app claude version gate (re-probes a refusal). */
+  claudeVersionAllowsLaunch: () => boolean
 }
 
 /** One registrar per store; index.ts calls each ONCE, in its own place in the ready block. */
@@ -87,9 +93,11 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     requireRulesStore,
     requireGoalsStore,
     launchBoardSeams,
+    apiSeams,
     ruleEngines,
     trackers,
-    launchedSet
+    launchedSet,
+    claudeVersionAllowsLaunch
   } = deps
 
   // Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
@@ -255,21 +263,30 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
   // folder picker. The picker opens at the goal's folder, else its workspace's default folder; the
   // path it returns is stored by main and never travels through the renderer. NEVER logged.
   function registerGoalsIpc(): void {
+    /** The native folder picker, opened at `start` (null = the OS default). Null = cancelled. */
+    async function showFolderPicker(start: string | null): Promise<string | null> {
+      const options: Electron.OpenDialogOptions = {
+        properties: ['openDirectory'],
+        ...(start !== null ? { defaultPath: start } : {})
+      }
+      const owner = BrowserWindow.getFocusedWindow()
+      const result = owner
+        ? await dialog.showOpenDialog(owner, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    }
     const handlers = createGoalsIpcHandlers(requireGoalsStore(), {
-      pickDirectory: async (goal) => {
-        const start = goalPickerStart(
-          goal,
-          requireWorkspacesStore().get(goal.workspaceId)?.defaultCwd ?? null
-        )
-        const options: Electron.OpenDialogOptions = {
-          properties: ['openDirectory'],
-          ...(start !== null ? { defaultPath: start } : {})
-        }
-        const owner = BrowserWindow.getFocusedWindow()
-        const result = owner
-          ? await dialog.showOpenDialog(owner, options)
-          : await dialog.showOpenDialog(options)
-        return result.canceled ? null : (result.filePaths[0] ?? null)
+      pickDirectory: (goal) =>
+        showFolderPicker(
+          goalPickerStart(goal, requireWorkspacesStore().get(goal.workspaceId)?.defaultCwd ?? null)
+        ),
+      launch: {
+        workspaces: { get: (id) => requireWorkspacesStore().get(id) },
+        // Asked only when neither the goal nor the workspace has a folder: nothing to open at.
+        pickDirectory: () => showFolderPicker(null),
+        isDirectory: isExistingDirectory,
+        claudeVersionAllowsLaunch,
+        log: (message) => console.warn(message)
       }
     })
     ipc.handle(CH.goalsList, () => handlers.list())
@@ -282,6 +299,11 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.goalsSetTaskStatus, (_evt, raw: unknown) => handlers.setTaskStatus(raw))
     ipc.handle(CH.goalsLinkTask, (_evt, raw: unknown) => handlers.linkTask(raw))
     ipc.handle(CH.goalsUnlinkTask, (_evt, raw: unknown) => handlers.unlinkTask(raw))
+    ipc.handle(CH.goalsStart, (evt, raw: unknown) => {
+      const seam = apiSeams.get(evt.sender)
+      if (seam === undefined) throw new Error('no launch seam for this window')
+      return handlers.start(raw, (req) => seam.requestLaunch(req))
+    })
   }
 
   // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in

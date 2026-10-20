@@ -1,6 +1,7 @@
-/* Goals — what is the Goals sheet's own: the rail row's two lines, the folder line and the task
-   list. The progress bar is components/GoalProgress and a task row components/TaskRow. The shell, rail, form, footer and every button are
-   ManageDialog.module.css (.claude/rules/design.md). */
+/* Goals — what is the Goals sheet's own: the rail row's two lines, the folder line, the task
+   list and its start bar. The progress bar is components/GoalProgress and a task row
+   components/TaskRow. The shell, rail, form, footer and every button are ManageDialog.module.css
+   (.claude/rules/design.md). */
 .rowText {
   flex: 1;
   min-width: 0;
@@ -45,6 +46,33 @@
   flex-direction: column;
   gap: var(--gap-row);
 }
+/* `Start session` under the task list: a different region, so behind a divider with
+   --gap-section each side (design.md rule 7, as ManageDialog's .listBottomDivided), laid out like
+   the Active sessions page's bulk bar (count on its own line, then controls). The list's own
+   --gap-field already sits above it. */
+.startBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-field) var(--gap-inline);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
+  border-top: 1px solid var(--border);
+  padding-top: var(--gap-section);
+}
+.startCount {
+  flex: 1 0 100%;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+}
+.startSwitch {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+}
+
 /* The rail's one sentence when the startup load failed. --text-secondary on the raised panel
    (never --text-muted: 2.54:1 there). */
 .loadFailed {

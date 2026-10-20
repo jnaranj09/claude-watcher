@@ -47,7 +47,11 @@ export const GOAL_TERMS = {
   linkTaskFailed: 'Could not link task.',
   unlinkTaskFailed: 'Could not unlink task.',
   nothingToLink: 'No open tasks to link.',
-  noneLinked: 'No tasks linked to this session.'
+  noneLinked: 'No tasks linked to this session.',
+  /** Starting sessions from tasks: the button, its one switch, and its refusal line. */
+  startSession: 'Start session',
+  markDone: 'Claude can mark tasks done',
+  startFailed: 'Could not start sessions.'
 } as const
 
 /** A default folder on a workspace or a goal: the field's label and its two controls. */

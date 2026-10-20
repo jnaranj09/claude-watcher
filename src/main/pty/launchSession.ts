@@ -17,6 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import type { LaunchedSet } from './launchedSet'
 import type { EffortLevel, PermissionMode } from '../../shared/schemas/template'
+import type { GoalLaunch } from '../goals/goalLaunch'
 
 /** Session templates — the three claude flags a launch may carry. Nullable, never undefined. */
 export interface ClaudeLaunchFlags {
@@ -58,6 +59,10 @@ export interface LaunchRequest {
   /** Past sessions — the record's tags that still exist; the card is born with them instead of
    *  running the launch rules (a resume is not a new launch). Ignored without `resumeSessionId`. */
   tagIds?: readonly string[]
+  /** Goals (spec 2026-10-19) — a launch from goal tasks: which tasks the session works on (or the
+   *  goal a planner plans). Omitted/null ⇒ a launch that is not from tasks. Rides the durable
+   *  override, so a Reopen starts claude with the same tasks. */
+  goalLaunch?: GoalLaunch | null
 }
 
 /** The per-terminal launch recipe, set once at launch and read on EVERY spawn of that terminal. */
@@ -76,6 +81,8 @@ export interface LaunchOverride {
    *  resume + the record's surviving tags. Null for a normal (fresh) launch. `rebind` moves the
    *  id on `/clear`, so a dead-pane Reopen resumes the conversation the card last showed. */
   resume: { sessionId: string; tagIds: string[] } | null
+  /** Goals — the launch's goal tasks, or null. Durable like `cwd`. */
+  goalLaunch: GoalLaunch | null
   /** Past sessions (D-3) — the session id this terminal was LAST bound to: written by every
    *  `mintSpawn`, moved by `rebind` (`/clear`), and — unlike the binding — never cleared by
    *  `unbind`. It is what a Delete on a pane whose claude already exited reaches: that exit
@@ -159,13 +166,18 @@ export interface LaunchServiceOptions {
    *  Past sessions (D-1): `resume` is true iff this launch's override carries a `resume`
    *  decision — the factory composes `claude --resume <sessionId>` instead of
    *  `--session-id <sessionId>` (claudeBin.ts `ClaudeCommandSpec.resume`), keeping `-n` (R3) and
-   *  dropping the template flags and the positional prompt. */
+   *  dropping the template flags and the positional prompt.
+   *
+   *  Goals: `goalLaunch` is the override's goal launch (null when the launch is not from tasks),
+   *  read off the same override so a Reopen keeps it. The factory links the tasks to `sessionId`
+   *  and adds their prompt block (`goalSpawnExtras`, goals/goalLaunch.ts). */
   spawn: (
     sessionId: string,
     displayName: string,
     flags: ClaudeLaunchFlags,
     initialPrompt: string | null,
-    resume: boolean
+    resume: boolean,
+    goalLaunch: GoalLaunch | null
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** Mint a fresh opaque terminalId per launch (NOT the session id, NOT a pid — F6). Injected
    *  for deterministic tests; defaults to a crypto-random id in main. */
@@ -315,6 +327,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // same prompt and lands the card in the same workspace. Omitted (every in-app flow) ⇒ null.
     // Past sessions: `resumeSessionId` set ⇒ the recipe carries the exact id to resume + the
     // record's surviving tags — read on every spawn (a Reopen resumes the SAME conversation).
+    // Goals: a launch from tasks keeps its goal launch here too, for the same reason.
     overrides.set(terminalId, {
       cwd: req.cwd,
       name: req.name,
@@ -327,6 +340,7 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
         req.resumeSessionId != null
           ? { sessionId: req.resumeSessionId, tagIds: [...(req.tagIds ?? [])] }
           : null,
+      goalLaunch: req.goalLaunch ?? null,
       lastSessionId: null // nothing spawned yet — mintSpawn writes it
     })
     return { terminalId }
@@ -355,13 +369,15 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // The operator's name rides the spawn so claude starts under it (`-n <name>`), rather than
     // generating its own title that would then disagree with the board card. Session templates:
     // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them. The
-    // resume flag tells the factory to compose `claude --resume <id>` instead.
+    // resume flag tells the factory to compose `claude --resume <id>` instead. Goals: the goal
+    // launch rides along too, so each spawn links its tasks to THIS minted id.
     const base = options.spawn(
       sessionId,
       displayName,
       override.flags,
       override.initialPrompt,
-      override.resume !== null
+      override.resume !== null,
+      override.goalLaunch
     )
     const spawn: LaunchSpawnConfig = {
       file: base.file,

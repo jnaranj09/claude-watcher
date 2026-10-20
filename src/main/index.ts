@@ -46,6 +46,7 @@ import { createElectronRulesBlobStore } from './persistence/electronRulesBlobSto
 import { createGoalsStore, type GoalsStore } from './persistence/goals'
 import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
+import { goalSpawnExtras } from './goals/goalLaunch'
 import type { TagRuleRef } from './persistence/tags'
 import type { RulesEngine } from './rules/rulesEngine'
 import type { RulesSnapshot } from './rules/evaluateRules'
@@ -627,9 +628,11 @@ const {
   requireRulesStore,
   requireGoalsStore,
   launchBoardSeams,
+  apiSeams,
   ruleEngines,
   trackers,
-  launchedSet
+  launchedSet,
+  claudeVersionAllowsLaunch
 })
 
 /**
@@ -1040,6 +1043,8 @@ app
         hookPort: PROFILE.hookPort,
         onSkip: (sessionId, reason) => sessionSetup.markUnavailable(sessionId, reason)
       },
+      goalSpawnExtras: (sessionId, goalLaunch, resume) =>
+        goalSpawnExtras(requireGoalsStore(), sessionId, goalLaunch, resume),
       isSessionLive,
       getTerminalManager: () => terminalManager,
       getPastSessionsStore: () => pastSessionsStore,
