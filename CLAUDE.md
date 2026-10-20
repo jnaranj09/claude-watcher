@@ -100,9 +100,8 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
 
 ## Goals (`src/main/goals/`)
 
-Per-workspace goals/tasks in `claude-watcher-goals.json`. `mark_task_done` is MCP on the HOOK
-listener at `/mcp/goals` (no third listener), only if the hook port is ours (SEC-6). Bearer tokens
-are memory-only. `/clear` rebinds tasks; Resume restores the tool (not a planner's).
+`claude-watcher-goals.json`; `mark_task_done` MCP on the HOOK listener `/mcp/goals` (no third
+listener), only if the hook port is ours (SEC-6); tokens memory-only; `/clear` rebinds tasks.
 
 ## Workspaces
 
@@ -145,18 +144,16 @@ Liquid Glass and Paper are read-only; a bad theme fails closed to Default. A the
 
 ## node-pty + packaging; single instance (`lifecycle/singleInstance.ts`, UX-04)
 
-Native module: EXTERNALIZED in electron-vite main config, rebuilt via `@electron/rebuild`
-(`postinstall`), `asarUnpack`-ed. `npm run smoke` proves it. Single-instance lock per userData
-(profiles don't block each other): a second launch quits (`code=already_running`), the first
-raises its window. SMOKE skips the lock.
+Native module: EXTERNALIZED in electron-vite main config, `@electron/rebuild`, `asarUnpack`-ed;
+`npm run smoke` proves it. Lock per userData (profiles don't block each other): a second launch
+quits (`code=already_running`), the first raises. SMOKE skips the lock.
 
 ## Storage health (`src/main/storageHealth.ts`, UX-06/07)
 
 Stores report to one collector → `CH.storageHealth` (name + code only) → `StorageNotice`. **A
-dialog Save/Delete the disk refuses is UNDONE and throws `store_write_failed`** (`commit()`); every
-Manage dialog maps it to `STORE_WRITE_FAILED_COPY` (a new dialog owes it). Other writes keep the
-change and report `write_failed` (`persistOrReport()`; removal paths never throw). Also
-`corrupt_reset`, `read_failed`. Workspace delete commits before its cascade.
+dialog Save/Delete the disk refuses is UNDONE, throws `store_write_failed`** (`commit()`; each
+Manage dialog maps it to `STORE_WRITE_FAILED_COPY`). Other writes keep the change, report
+`write_failed` (`persistOrReport()`); also `corrupt_reset`, `read_failed`. Workspace delete commits first.
 
 ## Security (never weaken)
 
@@ -168,11 +165,15 @@ no RunAsNode / NODE_OPTIONS / `--inspect`, asar-only (`electron-builder.yml`). *
 exist only under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
 `smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered.
 
-## No application menu (`appMenu/appMenu.ts`) and focused-view keys
+## No application menu (`appMenu/appMenu.ts`)
 
 Linux/Windows: none; macOS: app + Edit only. The default menu ate claude's keys (Ctrl+R, Ctrl+M,
 F11, Alt). Never bring back `optimizer.watchWindowShortcuts`. DevTools in dev = F12 only.
-Playwright key presses skip accelerators — can't prove a key reaches the pty. Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10): claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
+Playwright key presses skip accelerators — can't prove a key reaches the pty.
+
+## Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10)
+
+claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
 from inside `.xterm` (`isInsideTerminal`). **No key archives** (R27) — only the Archive button.
 Focus lands IN the terminal on every switch (`takeFocus`), never from a hidden mount or out of an
 open dialog. `Esc to return` shows only while focus is outside.
@@ -193,6 +194,6 @@ open dialog. `Esc to return` shows only while focus is outside.
 ## Versions (don't bump in passing)
 
 Electron **44** (ABI 149), zod 4, zustand 5, React 19, @xterm/xterm 6, node-pty 1.1, Vitest 4.
-Electron 44 notes: `npm install` doesn't download the binary (first run or
-`npx install-electron --no`); a new major needs a `node-abi` that knows it; main `clipboard` is
-async; Playwright `firstWindow()` resolves before `loadFile` — wait for the page first.
+Electron 44 notes: `npm install` doesn't download the binary (first run or `npx install-electron
+--no`); a new major needs a `node-abi` that knows it; main `clipboard` is async; Playwright
+`firstWindow()` resolves before `loadFile` — wait for the page first.
