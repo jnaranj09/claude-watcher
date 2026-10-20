@@ -167,6 +167,9 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
 
   function saveGoal(req: GoalSaveRequest): GoalsSaveGoalResult {
     const existing = req.id === undefined ? null : goalOf(req.id)
+    // A rename never re-parents: its tasks stay in the old workspace.
+    if (existing !== null && existing.workspaceId !== req.workspaceId)
+      throw new Error(GOAL_ERROR.workspaceMismatch)
     const saved: Goal = {
       id: existing?.id ?? newId(),
       workspaceId: req.workspaceId,
@@ -238,12 +241,17 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
   function setTaskStatus(id: string, status: TaskStatus, by: TaskDoneBy): GoalsView {
     const task = taskOf(id)
     if (task.status === status) return view()
-    return replaceTask(
-      task,
+    const next: Task =
       status === 'done'
         ? { ...task, status, doneAt: now(), doneBy: by }
         : { ...task, status, doneAt: null, doneBy: null }
-    )
+    // A session's mark-done is not a dialog write: it keeps the change, reports the disk, and never
+    // throws at its caller (the MCP tool). The operator's tick is a dialog write: undone on failure.
+    if (by === 'session') {
+      applyTasks(tasks.map((t) => (t === task ? next : t)))
+      return view()
+    }
+    return replaceTask(task, next)
   }
 
   function link(taskId: string, sessionId: string): GoalsView {

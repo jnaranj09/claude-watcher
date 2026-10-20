@@ -267,9 +267,10 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // workspace that no longer exists.
       const activeId = workspacesStore.getState().activeId
       if (wasActive && activeId !== id) boardStore.getState().focusWorkspace(activeId)
-      // A committed delete CASCADES in main (templates, shortcuts, the tag catalog, rules and goals
-      // all removeByWorkspace), and nothing else tells the renderer: the five loaders otherwise run
-      // ONLY at startup. Without this re-read the deleted rows sit in the projections until an
+      // A committed delete CASCADES in main (templates, shortcuts, tags, rules, goals and past
+      // sessions all removeByWorkspace), and nothing else tells the renderer: the five projections
+      // below otherwise load ONLY at startup (past sessions are read from main each time their
+      // dialog opens, so they need no re-read). Without this re-read the deleted rows sit in the projections until an
       // unrelated round-trip or a restart — and since their workspace is gone, the Manage dialogs
       // file them under `(no workspace)`, where they look legitimate: saving one throws
       // template_not_found / rule_not_found, ↑/↓ on a rule silently fail, and a deleted rule still

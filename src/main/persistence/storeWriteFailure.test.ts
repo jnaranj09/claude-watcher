@@ -170,6 +170,17 @@ describe('every other write keeps the change and tells storage health (UX-06)', 
     expect(r.codes).toEqual(['write_failed'])
   })
 
+  it('goals: a session status change keeps the change and reports write_failed', () => {
+    const b = blob()
+    const r = reporter()
+    const s = createGoalsStore({ blobStore: b.store, log, report: r.report, newId: () => 'g1' })
+    s.saveTask({ workspaceId: 'w1', goalId: null, title: 'write' })
+    b.fail()
+    expect(() => s.setTaskStatus('g1', 'done', 'session')).not.toThrow()
+    expect(s.view().tasks[0]).toMatchObject({ status: 'done', doneBy: 'session' })
+    expect(r.codes).toEqual(['write_failed'])
+  })
+
   it('goals: a cascade reports write_failed and does not throw', () => {
     const b = blob()
     const r = reporter()

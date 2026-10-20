@@ -62,6 +62,16 @@ describe('createGoalsStore', () => {
     )
   })
 
+  it('saveGoal cannot re-parent a goal to another workspace', () => {
+    const { store } = make()
+    store.saveGoal({ workspaceId: 'w1', name: 'A' })
+    store.saveTask({ workspaceId: 'w1', goalId: 'id1', title: 't' })
+    expect(() => store.saveGoal({ id: 'id1', workspaceId: 'w2', name: 'A' })).toThrow(
+      GOAL_ERROR.workspaceMismatch
+    )
+    expect(store.view().goals[0]?.workspaceId).toBe('w1')
+  })
+
   it('removeGoal deletes its tasks', () => {
     const { store } = make()
     store.saveGoal({ workspaceId: 'w1', name: 'A' })
