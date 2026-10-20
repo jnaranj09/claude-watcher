@@ -66,15 +66,32 @@ export function importSpecifiers(sf: ts.SourceFile): string[] {
 }
 
 const BANNED_LAYERS: Record<string, { layers: readonly string[]; packages: readonly string[] }> = {
-  shared: { layers: ['main', 'preload', 'renderer'], packages: ['electron', 'node-pty'] },
-  renderer: { layers: ['main', 'preload'], packages: ['electron', 'node-pty'] },
-  preload: { layers: ['main', 'renderer'], packages: ['node-pty'] },
-  main: { layers: ['preload', 'renderer'], packages: [] }
+  shared: { layers: ['main', 'preload', 'renderer', 'mod'], packages: ['electron', 'node-pty'] },
+  renderer: { layers: ['main', 'preload', 'mod'], packages: ['electron', 'node-pty'] },
+  preload: { layers: ['main', 'renderer', 'mod'], packages: ['node-pty'] },
+  main: { layers: ['preload', 'renderer', 'mod'], packages: [] }
+}
+
+/** The bridge mod runs inside claude's engine (no DOM, no Node): a file under `mod/<name>/`
+ *  imports only its own folder and the engine's `claude-code` module. */
+function modViolations(from: string, file: string, specifiers: readonly string[]): string[] {
+  const own = from.split('/').slice(0, 2).join('/')
+  const hits: string[] = []
+  for (const spec of specifiers) {
+    if (spec.startsWith('.')) {
+      const target = srcRel(resolve(dirname(file), spec))
+      if (!target.startsWith(`${own}/`)) hits.push(`${from} → ${target}`)
+    } else if (spec !== 'claude-code') {
+      hits.push(`${from} → ${spec}`)
+    }
+  }
+  return hits
 }
 
 /** `<file> → <target>` for each specifier that crosses a banned layer line. */
 export function layerViolations(file: string, specifiers: readonly string[]): string[] {
   const from = srcRel(file)
+  if (from.startsWith('mod/')) return modViolations(from, file, specifiers)
   const banned = BANNED_LAYERS[from.split('/')[0] ?? '']
   if (banned === undefined) return []
   const hits: string[] = []

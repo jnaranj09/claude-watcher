@@ -1,0 +1,8 @@
+{
+  "name": "watcher-bridge",
+  "version": "1.0.0",
+  "description": "Reports what this session loaded to Claude Watcher. Changes nothing in the session.",
+  "author": {
+    "name": "Claude Watcher"
+  }
+}

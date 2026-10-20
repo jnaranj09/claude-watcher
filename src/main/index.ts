@@ -71,6 +71,7 @@ import { API_SPAWN_TIMEOUT_MS } from './api/apiContract'
 // Custom themes — the folder scanner (T5) and the apply lifecycle (T11), wired below.
 import { createThemeScanner, type ThemeScanner } from './themes/themeScanner'
 import { BUNDLED_THEME_IDS, bundledThemesDir } from './themes/bundledThemes'
+import { bridgeModSourceDir, installBridgeMod, nodeBridgeModFs } from './mods/bridgeModInstall'
 import { createThemeLifecycle, type ThemeLifecycle } from './themes/themeLifecycle'
 // Story 3.5 (SM-2) — the append-only JSONL telemetry store (DI-seam'd, never-crash) +
 // the REAL fs-backed line store (Electron-touching; injected from here — keeps telemetry.ts
@@ -603,6 +604,8 @@ const claudeVersionGate = createClaudeVersionGate({
   now: Date.now,
   log: (m) => console.warn(m)
 })
+/** The installed bridge mod folder; null until the install at start succeeds (or when it failed). */
+let bridgeModDir: string | null = null
 function claudeVersionAllowsLaunch(): boolean {
   return claudeVersionGate.allowsInteractiveLaunch()
 }
@@ -686,9 +689,25 @@ nativeTheme.themeSource = 'dark'
 // initialization and is ready to create browser windows.
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     // A second instance is already exiting (UX-04): build nothing, bind nothing.
     if (!IS_PRIMARY_INSTANCE) return
+
+    // The bridge mod (spec 2026-10-18 §1.2): copied into userData now, awaited before the window
+    // opens, so no launch can race it. Never rejects; a failure leaves the dir null (fail open).
+    const bridgeModInstalled = installBridgeMod({
+      sourceDir: bridgeModSourceDir({
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath,
+        mainDir: __dirname
+      }),
+      userDataDir: app.getPath('userData'),
+      fs: nodeBridgeModFs,
+      report: storageHealth.reporterFor('bridge_mod'),
+      log: (line) => console.warn(line)
+    }).then((dir) => {
+      bridgeModDir = dir
+    })
     // Set app user model id for windows. CANONICAL appId = `com.claudewatcher.app` (Story 2.3
     // AC-6): must match `electron-builder.yml` (`appId`) + the `.desktop` file's
     // `StartupWMClass`/filename so the tray + notification OS identity is consistent. [FROZEN #5;
@@ -715,7 +734,8 @@ app
       shell: SHELL,
       ptys,
       getApiLifecycle: () => apiLifecycle,
-      bundledThemes
+      bundledThemes,
+      bridgeModDir: () => bridgeModDir
     })
 
     // Story 2.4 — build the ONE app-global settings store AFTER app-ready (electron-store
@@ -937,7 +957,7 @@ app
       readTranscriptInfo,
       claudeVersionAllowsLaunch,
       bridgeMod: {
-        installedDir: () => null,
+        installedDir: () => bridgeModDir,
         claudeVersion: () => claudeVersionGate.lastVersion(),
         hookPort: PROFILE.hookPort,
         onSkip: () => {}
@@ -1057,6 +1077,8 @@ app
     // would stop this listener before the verdict is taken.
     if (SMOKE) apiLifecycle.apply({ apiEnabled: true, apiPort: 0 })
     registerApiIpc()
+
+    await bridgeModInstalled
 
     // NOTE: there is NO hook registration step — not here, not per-launch. The hook block is
     // handed to each spawned `claude` via `--settings` from the app's own data dir

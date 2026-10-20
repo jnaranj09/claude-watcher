@@ -40,6 +40,12 @@ describe('storageProblemMessage', () => {
       'past sessions started empty'
     )
   })
+
+  it('says the Claude mod could not be set up, not that changes were lost, for a mod install failure', () => {
+    expect(storageProblemMessage({ store: 'bridge_mod', code: 'write_failed' })).toBe(
+      'The app could not set up its Claude mod. Reopen the app to try again.'
+    )
+  })
 })
 
 function Probe(): React.JSX.Element | null {

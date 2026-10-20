@@ -10,10 +10,18 @@ const STORE_LABEL: Record<StoreName, string> = {
   tags: 'tags',
   workspaces: 'workspaces',
   rules: 'rules',
-  past_sessions: 'past sessions'
+  past_sessions: 'past sessions',
+  bridge_mod: 'Claude mod'
 }
 
+/** The bridge mod's install failed (spec 2026-10-18 §1.2): new sessions launch without it, and
+ *  Context says the same words for a session that has no report because of it. */
+export const BRIDGE_MOD_FAILED_COPY =
+  'The app could not set up its Claude mod. Reopen the app to try again.'
+
 export function storageProblemMessage(problem: StorageProblem): string {
+  // Not a file of the operator's data: the store-file sentences below would say the wrong thing.
+  if (problem.store === 'bridge_mod') return BRIDGE_MOD_FAILED_COPY
   const what = STORE_LABEL[problem.store]
   switch (problem.code) {
     case 'corrupt_reset':

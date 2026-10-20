@@ -40,7 +40,10 @@ export default defineConfig(
       '**/out',
       'eslint-rules/__fixtures__/**',
       // Vendored agent skills (beaf0c7): third-party scripts, not app code.
-      '.agents/**'
+      '.agents/**',
+      // The bridge mod's engine tests: typed and run by claude itself (`npm run test:mod`); no
+      // tsconfig here can see `claude-code/testing`.
+      'src/mod/**/*.test.ts'
     ]
   },
   tseslint.configs.recommended,

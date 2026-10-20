@@ -30,7 +30,10 @@ export function evaluateVerdict(report, mode) {
     // Bundled themes — Liquid Glass and Paper must list clean and Liquid Glass must load from
     // <resourcesPath>/themes (electron-builder extraResources). A false here is a theme the
     // package did not carry, or one that no longer composes.
-    report.main?.themes?.pass === true
+    report.main?.themes?.pass === true &&
+    // The bridge mod — main copied it from <resourcesPath>/mods into userData at start. A false
+    // here is a package that did not carry it (electron-builder extraResources).
+    report.main?.bridgeMod?.pass === true
   const webgl = c.webgl?.pass === true
 
   if (mode === 'strict') {

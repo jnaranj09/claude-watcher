@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { bridgeModSpawn } from './bridgeModSpawn'
 import { MIN_MOD_CLAUDE_VERSION } from '../../shared/launch/claudeVersion'
 
-const DIR = '/data/mods/claude-watcher-bridge'
+const DIR = '/data/mods/watcher-bridge'
 const ok = {
   version: { major: 9, minor: 0, patch: 0 },
   listening: true,

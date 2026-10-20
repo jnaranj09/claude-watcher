@@ -46,6 +46,15 @@ extraResources:
       - liquid-glass/**
       - paper/**
       - '!*/src/**'
+  # The bridge mod (spec 2026-10-18 §1.2): main copies it into <userData>/mods/watcher-bridge at
+  # start, and each spawn hands that folder to claude as `--plugin-dir`. Its `*.test.ts` are
+  # engine tests (`npm run test:mod`), not shipped. The name matches BRIDGE_MOD_NAME
+  # (src/main/mods/bridgeModInstall.ts; bridgeModInstall.test.ts fails when they differ).
+  - from: src/mod/watcher-bridge
+    to: mods/watcher-bridge
+    filter:
+      - '**/*'
+      - '!**/*.test.ts'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

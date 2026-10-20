@@ -20,6 +20,8 @@
     "tests/main/**/*",
     "tests/e2e/**/*"
   ],
+  // The bridge mod's `*.test.ts` are engine tests typed by the engine itself (`claude plugin test`).
+  "exclude": ["src/mod/**"],
   "compilerOptions": {
     "composite": false,
     "noEmit": true,

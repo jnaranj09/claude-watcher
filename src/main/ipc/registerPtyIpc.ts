@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import * as os from 'os'
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
@@ -11,6 +11,7 @@ import { buildPtyEnv } from '../pty/ptyEnv'
 import type { ApiLifecycle } from '../api/apiLifecycle'
 import { createThemeScanner } from '../themes/themeScanner'
 import { BUNDLED_THEME_IDS } from '../themes/bundledThemes'
+import { bridgeModSmokeCheck } from '../mods/bridgeModInstall'
 import { containSmokeReport, registerSmokeIpc } from '../smoke/smokeIpc'
 import type { TrustedIpc } from './trustedIpc'
 
@@ -26,6 +27,8 @@ export interface PtyIpcDeps {
   ptys: Map<Electron.WebContents, IPty>
   getApiLifecycle: () => ApiLifecycle | null
   bundledThemes: () => { dir: string; ids: typeof BUNDLED_THEME_IDS }
+  /** The installed bridge mod folder (null when the install at start failed). */
+  bridgeModDir: () => string | null
 }
 
 // Build the child env for the PTY (Review F7): drop undefined-valued keys (the
@@ -40,7 +43,8 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
     shell: SHELL,
     ptys,
     getApiLifecycle,
-    bundledThemes
+    bundledThemes,
+    bridgeModDir
   } = deps
   // Renderer asks for the PTY once the terminal element is mounted & sized.
   const ptyStart = (evt: Electron.IpcMainEvent): void => {
@@ -165,6 +169,9 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
     } catch {
       console.error('[claude-watcher][themes] code=smoke_probe_failed')
     }
+    // The bridge mod (spec 2026-10-18 §1.2) — the install at start copied it out of
+    // <resourcesPath>/mods into userData; a false here is a package that did not carry it.
+    const bridgeMod = bridgeModSmokeCheck(bridgeModDir(), existsSync)
     const full = {
       ...report,
       main: {
@@ -173,7 +180,8 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
         node: process.versions.node,
         ptyPid: term?.pid ?? null,
         api,
-        themes
+        themes,
+        bridgeMod
       }
     }
     const json = JSON.stringify(full, null, 2)
