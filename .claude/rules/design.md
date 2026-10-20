@@ -367,8 +367,9 @@ variant="toolbar">` + magnifier `icon`. Escape with text clears and stops; empty
 
 ## Header ☰ menu (`components/AppMenu/AppMenu.tsx`)
 
-The header holds `+ New session`, `Goals` (opens the Goals sheet, `ManageDialog.Frame size="full"`:
-the window less a page gutter each side) and this ☰ menu, last. The menu filters nothing.
+The header holds the `Goals` icon button (lucide `circle-check-big`, named `Goals` by `aria-label` and
+`title`; opens the Goals sheet, `ManageDialog.Frame size="full"`: the window less a page gutter
+each side), `+ New session` and this ☰ menu, last. The menu filters nothing.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /

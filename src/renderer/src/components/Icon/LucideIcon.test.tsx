@@ -34,7 +34,8 @@ describe('LucideIcon', () => {
   it.each([
     ['layers', 3, 'M12.83 2.18'],
     ['rotate-ccw', 2, 'M3 12a9 9'],
-    ['arrow-up-right', 2, 'M7 7h10v10']
+    ['arrow-up-right', 2, 'M7 7h10v10'],
+    ['circle-check-big', 2, 'M21.801 10A10']
   ] as const)('%s draws its lucide paths', (name, count, firstPath) => {
     const paths = [...draw(name).querySelectorAll('path')]
     expect(paths).toHaveLength(count)

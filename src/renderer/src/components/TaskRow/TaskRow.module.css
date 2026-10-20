@@ -3,7 +3,13 @@
   align-items: center;
   gap: var(--gap-inline);
 }
-/* The whole title toggles the checkbox, like a labelled Checkbox. */
+/* A title without a leading control: it just fills the row. */
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+/* With a leading control, the whole title toggles it, like a labelled Checkbox. */
 .label {
   flex: 1;
   min-width: 0;
@@ -13,7 +19,7 @@
   cursor: pointer;
   border-radius: var(--rounded-sm);
 }
-/* The shared row hover (ManageDialog `.row`): the whole title line, checkbox included. */
+/* The shared row hover (ManageDialog `.row`): the whole title line, its control included. */
 .label:hover {
   background: var(--bg-hover);
 }

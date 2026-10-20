@@ -27,6 +27,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog/ShortcutsDialog'
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher/WorkspaceSwitcher'
 import { WorkspacesDialog } from './components/WorkspacesDialog/WorkspacesDialog'
 import { GoalsDialog } from './components/GoalsDialog/GoalsDialog'
+import { LucideIcon } from './components/Icon/LucideIcon'
 // The header ☰ menu — Settings, Shortcuts, and the Tags submenu (Manage tags / Manage rules).
 import { AppMenu } from './components/AppMenu/AppMenu'
 // Tags — the Manage-tags modal.
@@ -692,6 +693,18 @@ function App(): React.JSX.Element {
           <WorkspaceSwitcher onManage={handleManageWorkspaces} />
         </div>
         <div className={styles.headerActions}>
+          {/* Goals opens the planning sheet over the current view (spec 2026-10-19-goals): an icon
+              button, named for screen readers and on hover. */}
+          <Button
+            variant="secondary"
+            icon
+            testId="header-goals"
+            aria-label={GOAL_TERMS.label}
+            title={GOAL_TERMS.label}
+            onClick={handleOpenGoals}
+          >
+            <LucideIcon name="circle-check-big" />
+          </Button>
           <NewSessionButton
             openRef={openNewSessionMenu}
             busy={pickFolder.busy}
@@ -699,11 +712,7 @@ function App(): React.JSX.Element {
             onPickTemplate={handleTemplateSession}
             onManage={handleManageTemplates}
           />
-          {/* Goals opens the planning sheet over the current view (spec 2026-10-19-goals). */}
-          <Button variant="secondary" testId="header-goals" onClick={handleOpenGoals}>
-            {GOAL_TERMS.label}
-          </Button>
-          {/* The header control after + New session and Goals: Settings, Shortcuts, the Tags
+          {/* The header control after Goals and + New session: Settings, Shortcuts, the Tags
               submenu and Past sessions (last). It filters nothing: the filters are the board's
               FilterBar. */}
           <AppMenu

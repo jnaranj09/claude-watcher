@@ -167,18 +167,18 @@ describe('GoalsDialog', () => {
       proposals: []
     })
     await user.click(screen.getByRole('button', { name: /Loose tasks/ }))
-    expect(screen.getByRole('checkbox', { name: 'Water the plants' })).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: 'Write the spec' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Done Water the plants' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Done Write the spec' })).not.toBeInTheDocument()
   })
 
-  it("ticking a task's checkbox calls setTaskStatus done; unticking reopens it", async () => {
+  it("a task's Done calls setTaskStatus done; its Undo reopens it", async () => {
     const user = userEvent.setup()
     open({ goals: [goal()], tasks: [task()], proposals: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
-    await user.click(screen.getByRole('checkbox', { name: 'Write the spec' }))
+    await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
     expect(bridge.setTaskStatus).toHaveBeenLastCalledWith('t1', 'done')
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).toBeChecked()
-    await user.click(screen.getByRole('checkbox', { name: 'Write the spec' }))
+    expect(screen.getByRole('button', { name: 'Undo Write the spec' })).toHaveTextContent('Undo')
+    await user.click(screen.getByRole('button', { name: 'Undo Write the spec' }))
     expect(bridge.setTaskStatus).toHaveBeenLastCalledWith('t1', 'open')
   })
 
@@ -193,7 +193,7 @@ describe('GoalsDialog', () => {
       title: 'Cut the release'
     })
     expect(bridge.saveGoal).not.toHaveBeenCalled()
-    expect(screen.getByRole('checkbox', { name: 'Cut the release' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Done Cut the release' })).toBeInTheDocument()
   })
 
   it('a task a session closed says so', async () => {
@@ -252,8 +252,8 @@ describe('GoalsDialog', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select Write the spec' }))
     await user.click(screen.getByRole('checkbox', { name: 'Select Tell the team' }))
     expect(screen.getByTestId('task-start-count')).toHaveTextContent('2 selected')
-    // Selecting is not ticking done.
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).not.toBeChecked()
+    // Selecting is not marking done.
+    expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Claude can mark tasks done' })).toBeChecked()
     await user.click(screen.getByRole('button', { name: 'Start session' }))
     expect(bridge.start).toHaveBeenCalledWith({

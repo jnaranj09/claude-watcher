@@ -22,7 +22,7 @@
 
 import type { JSX } from 'react'
 
-export type LucideIconName = 'layers' | 'rotate-ccw' | 'arrow-up-right'
+export type LucideIconName = 'layers' | 'rotate-ccw' | 'arrow-up-right' | 'circle-check-big'
 
 const PATHS: Readonly<Record<LucideIconName, JSX.Element>> = {
   layers: (
@@ -42,6 +42,12 @@ const PATHS: Readonly<Record<LucideIconName, JSX.Element>> = {
     <>
       <path d="M7 7h10v10" />
       <path d="M7 17 17 7" />
+    </>
+  ),
+  'circle-check-big': (
+    <>
+      <path d="M21.801 10A10 10 0 1 1 17 3.335" />
+      <path d="m9 11 3 3L22 4" />
     </>
   )
 }

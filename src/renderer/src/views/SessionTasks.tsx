@@ -1,6 +1,6 @@
 // The focused view's task panel (spec 2026-10-19 Decision E): the tasks linked to the session in
-// view, grouped by goal with that goal's progress; tick one, `Link task` to add another, ✕ to
-// unlink. Pure renderer view of goalsStore; every change goes to main and comes back as the view.
+// view, grouped by goal with that goal's progress; `Done` / `Undo` on each, `Link task` to add
+// another, ✕ to unlink. Pure renderer view of goalsStore; every change goes to main and comes back as the view.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { GOAL_TERMS } from '../copy/terms'
 import { useAsyncAction } from '../hooks/useAsyncAction'

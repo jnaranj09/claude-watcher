@@ -88,6 +88,6 @@ describe('GoalsDialog — feedback', () => {
       retry.resolve({ saved: task, goals: [goal], tasks: [task], proposals: [] })
       await Promise.resolve()
     })
-    expect(screen.getByRole('checkbox', { name: 'Cut the tag' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Done Cut the tag' })).toBeInTheDocument()
   })
 })

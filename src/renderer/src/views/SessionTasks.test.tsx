@@ -69,18 +69,18 @@ afterEach(() => {
 })
 
 describe('SessionTasks', () => {
-  it("lists this session's tasks and ticks one done", async () => {
+  it("lists this session's tasks and marks one done", async () => {
     const user = userEvent.setup()
     open({
       goals: [goal()],
       tasks: [task(), task({ id: 't2', title: 'Other session', sessionIds: ['s2'] })],
       proposals: []
     })
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).not.toBeChecked()
-    expect(screen.queryByRole('checkbox', { name: 'Other session' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('checkbox', { name: 'Write the spec' }))
+    expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Done Other session' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
     expect(bridge.setTaskStatus).toHaveBeenCalledWith('t1', 'done')
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Undo Write the spec' })).toBeInTheDocument()
   })
 
   it("shows the goal's progress over all of its tasks, not just the linked ones", () => {
@@ -115,7 +115,7 @@ describe('SessionTasks', () => {
     expect(names).toEqual(['Free one', 'Linked to other'])
     await user.click(within(menu).getByRole('menuitem', { name: 'Free one' }))
     expect(bridge.linkTask).toHaveBeenCalledWith('t2', 's1')
-    expect(screen.getByRole('checkbox', { name: 'Free one' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Done Free one' })).toBeInTheDocument()
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
@@ -131,16 +131,16 @@ describe('SessionTasks', () => {
     open({ goals: [goal()], tasks: [task()], proposals: [] })
     await user.click(screen.getByRole('button', { name: 'Unlink Write the spec' }))
     expect(bridge.unlinkTask).toHaveBeenCalledWith('t1', 's1')
-    expect(screen.queryByRole('checkbox', { name: 'Write the spec' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Done Write the spec' })).not.toBeInTheDocument()
   })
 
-  it('a refused tick says so and leaves the task as main has it', async () => {
+  it('a refused Done says so and leaves the task as main has it', async () => {
     const user = userEvent.setup()
     open({ goals: [goal()], tasks: [task()], proposals: [] })
     bridge.setTaskStatus!.mockRejectedValueOnce(new Error('boom'))
-    await user.click(screen.getByRole('checkbox', { name: 'Write the spec' }))
+    await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Could not save task.')
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeInTheDocument()
   })
 
   it('a loose task is grouped under Loose tasks, with its own progress', () => {
@@ -156,7 +156,7 @@ describe('SessionTasks', () => {
     )
   })
 
-  it('a tick, a link and an unlink disable their control while main answers', async () => {
+  it('a Done, a link and an unlink disable their control while main answers', async () => {
     const user = userEvent.setup()
     open({
       goals: [goal()],
@@ -166,10 +166,10 @@ describe('SessionTasks', () => {
     let release: (v: GoalsView) => void = () => {}
     const pending = (): Promise<GoalsView> => new Promise((r) => (release = r))
     bridge.setTaskStatus!.mockImplementationOnce(pending)
-    await user.click(screen.getByRole('checkbox', { name: 'Write the spec' }))
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
+    expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeDisabled()
     await act(async () => release(view))
-    expect(screen.getByRole('checkbox', { name: 'Write the spec' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeEnabled()
 
     bridge.unlinkTask!.mockImplementationOnce(pending)
     await user.click(screen.getByRole('button', { name: 'Unlink Write the spec' }))

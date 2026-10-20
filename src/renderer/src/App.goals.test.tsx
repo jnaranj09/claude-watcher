@@ -18,15 +18,18 @@ afterEach(() => {
 })
 
 describe('App — the Goals button', () => {
-  it('the header shows Goals between + New session and the menu', async () => {
+  it('the header shows the Goals icon button left of + New session', async () => {
     await renderApp()
     const header = screen.getByTestId('app-header')
     const ids = within(header)
       .getAllByRole('button')
       .map((b) => b.getAttribute('data-testid') ?? '')
-    const wanted = ['header-new-session', 'header-goals', 'app-menu']
+    const wanted = ['header-goals', 'header-new-session', 'app-menu']
     expect(ids.filter((id) => wanted.includes(id))).toEqual(wanted)
-    expect(screen.getByTestId('header-goals')).toHaveTextContent('Goals')
+    // An icon: no visible text, named for screen readers and on hover.
+    expect(screen.getByTestId('header-goals')).toHaveTextContent('')
+    expect(screen.getByTestId('header-goals')).toHaveAccessibleName('Goals')
+    expect(screen.getByTestId('header-goals')).toHaveAttribute('title', 'Goals')
   })
 
   it('clicking it opens the sheet; Escape closes it', async () => {

@@ -1,9 +1,10 @@
-// The tasks of one goal (or the loose ones): a checkbox each, and `+ New task` as an inline field.
-// Lives inside the goal form, so Enter in the field adds a task and never submits the goal.
+// The tasks of one goal (or the loose ones): a `Done` / `Undo` button each, and `+ New task` as an
+// inline field. Lives inside the goal form, so Enter in the field adds a task and never submits
+// the goal.
 //
-// Start from tasks (spec 2026-10-19 "Start from tasks without the planner"): each OPEN task also
-// carries a select box at its end (`Select <title>`, the Active sessions page's row check), apart
-// from the done box at its start. While one is selected, a bar under the list (behind a divider,
+// Start from tasks (spec 2026-10-19 "Start from tasks without the planner"): each OPEN task
+// carries a select box at its start (`Select <title>`, the Active sessions page's row check); the
+// only checkbox on the row, so it never reads as "done". While one is selected, a bar under the list (behind a divider,
 // like that page's bulk bar) offers `Start session` with the `Claude can mark tasks done` switch:
 // one session with every selected task. The switch starts on for each list and is not kept.
 import { useId, useState, type JSX } from 'react'
@@ -94,27 +95,30 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
             key={task.id}
             task={task}
             onToggle={(done) => void toggle.run(task, done)}
+            leading={
+              task.status === 'open' ? (
+                <Checkbox
+                  testId={`task-select-${task.id}`}
+                  ariaLabel={`Select ${task.title}`}
+                  checked={picked.has(task.id)}
+                  onChange={(on) => setPick(task.id, on)}
+                />
+              ) : (
+                // A done task cannot be selected: a blank of the box's width keeps its title in line.
+                <span className={styles.checkBlank} aria-hidden="true" />
+              )
+            }
             trailing={
-              <>
-                {task.status === 'open' && (
-                  <Checkbox
-                    testId={`task-select-${task.id}`}
-                    ariaLabel={`Select ${task.title}`}
-                    checked={picked.has(task.id)}
-                    onChange={(on) => setPick(task.id, on)}
-                  />
-                )}
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  icon
-                  testId={`task-remove-${task.id}`}
-                  aria-label={`Remove ${task.title}`}
-                  onClick={() => void remove.run(task)}
-                >
-                  ✕
-                </Button>
-              </>
+              <Button
+                variant="ghost"
+                size="xs"
+                icon
+                testId={`task-remove-${task.id}`}
+                aria-label={`Remove ${task.title}`}
+                onClick={() => void remove.run(task)}
+              >
+                ✕
+              </Button>
             }
           />
         ))}
