@@ -33,6 +33,7 @@ import { createElectronShortcutsBlobStore } from './persistence/electronShortcut
 // corrupt history can never reset settings/templates/workspaces).
 import { createPastSessionsStore, type PastSessionsStore } from './persistence/pastSessions'
 import { createLivePastSessions } from './persistence/livePastSessions'
+import { pastTasksMarkDone } from './persistence/pastSessionRecord'
 import { createElectronPastSessionsBlobStore } from './persistence/electronPastSessionsBlobStore'
 import { archiveTranscriptCheck, createTranscriptLookupFromFs } from './pty/claudeTranscript'
 import { createTranscriptInfoReaderFromFs } from './pty/claudeTranscriptInfo'
@@ -1078,9 +1079,9 @@ app
               tokens: goalMcp.tokens,
               configs: goalMcp.configs,
               url: GOALS_MCP_URL,
-              // No past-session record carries the choice yet: a resume after a restart starts
-              // without the tool (a resume in the same run asks `tokens.markDoneFor`).
-              pastTasksMarkDone: () => false,
+              // A resume after a restart reads the flag the archive stored on the record (a
+              // resume in the same run asks `tokens.markDoneFor` first).
+              pastTasksMarkDone: (id) => pastTasksMarkDone(pastSessionsStore, id),
               log: (line) => console.warn(line)
             }
           },

@@ -506,7 +506,9 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
      *  store side-effect is new. */
     function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
       const stored = reducer.snapshotMap().get(sessionId)
-      applyRemovalReason(reason, sessionId, stored, getPastSessionsStore(), Date.now())
+      applyRemovalReason(reason, sessionId, stored, getPastSessionsStore(), Date.now(), (id) =>
+        goalMcp.tokens.markDoneFor(id)
+      )
       // A removed card can have no pending rename to push, no setup to show, and no live MCP token.
       dropCardState(cardStateDeps(), sessionId)
       reducer.applyHookStatus(sessionId, { kind: 'removed' }).forEach(handleDelta)

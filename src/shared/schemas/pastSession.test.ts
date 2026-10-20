@@ -25,6 +25,11 @@ describe('PastSessionSchema', () => {
     const { tagIds: _drop, ...noTags } = ROW
     expect(PastSessionSchema.parse(noTags).tagIds).toEqual([])
   })
+  it('an old record without tasksMarkDone reads as off', () => {
+    expect(PastSessionSchema.parse(ROW).tasksMarkDone).toBeUndefined()
+    expect(PastSessionSchema.parse({ ...ROW, tasksMarkDone: true }).tasksMarkDone).toBe(true)
+    expect(PastSessionSchema.safeParse({ ...ROW, tasksMarkDone: false }).success).toBe(false)
+  })
   it('is STRICT — an extra key fails closed (state only, never content)', () => {
     expect(PastSessionSchema.safeParse({ ...ROW, latestMessage: 'x' }).success).toBe(false)
   })

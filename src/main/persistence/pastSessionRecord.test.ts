@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildPastSessionRecord, applyRemovalReason } from './pastSessionRecord'
+import { buildPastSessionRecord, applyRemovalReason, pastTasksMarkDone } from './pastSessionRecord'
 import { PastSessionSchema } from '../../shared/schemas/pastSession'
 import type { Session } from '../../shared/schemas/session'
 
@@ -41,6 +41,31 @@ describe('buildPastSessionRecord', () => {
   it('D-8: a card re-keyed by /clear (adoptCard spreads the stored session) keeps its launch time', () => {
     const rebound: Session = { ...session, id: 'sess-2' }
     expect(buildPastSessionRecord(rebound, 600)).toMatchObject({ id: 'sess-2', launchedAt: 100 })
+  })
+})
+
+describe('tasksMarkDone flag', () => {
+  it('archiving a session that could mark tasks done stores the flag', () => {
+    const store = { archive: vi.fn(), remove: vi.fn() }
+    applyRemovalReason('archive', session.id, session, store, 500, (id) => id === 'sess-1')
+    const record = store.archive.mock.calls[0]?.[0] as ReturnType<typeof buildPastSessionRecord>
+    expect(record.tasksMarkDone).toBe(true)
+    expect(PastSessionSchema.safeParse(record).success).toBe(true)
+  })
+  it('a session that could not leaves the key out; a delete never asks', () => {
+    const store = { archive: vi.fn(), remove: vi.fn() }
+    const ask = vi.fn(() => true)
+    applyRemovalReason('archive', session.id, session, store, 500)
+    expect(store.archive.mock.calls[0]?.[0]).not.toHaveProperty('tasksMarkDone')
+    applyRemovalReason('delete', session.id, session, store, 500, ask)
+    expect(ask).not.toHaveBeenCalled()
+  })
+  it('the lookup reads the stored flag; no store or record is off', () => {
+    const rec = buildPastSessionRecord(session, 500, true)
+    const store = { get: (id: string) => (id === 'sess-1' ? rec : null) }
+    expect(pastTasksMarkDone(store, 'sess-1')).toBe(true)
+    expect(pastTasksMarkDone(store, 'other')).toBe(false)
+    expect(pastTasksMarkDone(null, 'sess-1')).toBe(false)
   })
 })
 

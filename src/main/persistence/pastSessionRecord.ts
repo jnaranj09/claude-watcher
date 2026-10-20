@@ -5,7 +5,11 @@ import type { Session } from '../../shared/schemas/session'
 import type { PastSession } from '../../shared/schemas/pastSession'
 import type { RemovalReason } from '../pty/launchRemoval'
 
-export function buildPastSessionRecord(session: Session, endedAt: number): PastSession {
+export function buildPastSessionRecord(
+  session: Session,
+  endedAt: number,
+  tasksMarkDone = false
+): PastSession {
   return {
     id: session.id, // claude's LATEST id — adoptCard re-keys the card on /clear (D-8)
     name: session.sessionName,
@@ -13,8 +17,18 @@ export function buildPastSessionRecord(session: Session, endedAt: number): PastS
     workspaceId: session.workspaceId,
     tagIds: [...session.tagIds],
     launchedAt: session.launchedAt ?? endedAt,
-    endedAt
+    endedAt,
+    ...(tasksMarkDone ? { tasksMarkDone: true as const } : {})
   }
+}
+
+/** The Resume lookup behind `goalSpawnExtras`: did this past session have the done tool? A
+ *  missing store or record reads as off (never-crash). */
+export function pastTasksMarkDone(
+  store: { get(id: string): PastSession | null } | null,
+  sessionId: string
+): boolean {
+  return store?.get(sessionId)?.tasksMarkDone === true
 }
 
 /** The narrow past-sessions WRITE seam this decision needs — `archive`/`remove` only, structurally
@@ -33,17 +47,22 @@ export interface PastSessionsWriteSeam {
  * `stored` is defined: a late SessionEnd for a card that already left the board must write no
  * record and log nothing (a quiet no-op, not an error). `delete` writes no record and removes any
  * earlier one for `sessionId` instead (D-4: the app's own record only, never claude's files). A
- * null `store` (no store yet) is a no-op either way — never-crash.
+ * null `store` (no store yet) is a no-op either way — never-crash. `couldMarkDone` is asked
+ * ONLY for an archive, and the caller runs this BEFORE `dropCardState` revokes the token, so
+ * the grant is still readable (`tokens.markDoneFor` outlives a revoke anyway).
  */
 export function applyRemovalReason(
   reason: RemovalReason,
   sessionId: string,
   stored: Session | undefined,
   store: PastSessionsWriteSeam | null,
-  endedAt: number
+  endedAt: number,
+  couldMarkDone: (sessionId: string) => boolean = () => false
 ): void {
   if (reason === 'archive') {
-    if (stored !== undefined) store?.archive(buildPastSessionRecord(stored, endedAt))
+    if (stored !== undefined) {
+      store?.archive(buildPastSessionRecord(stored, endedAt, couldMarkDone(stored.id)))
+    }
   } else {
     store?.remove(sessionId)
   }

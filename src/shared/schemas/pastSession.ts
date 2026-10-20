@@ -35,7 +35,11 @@ export const PastSessionSchema = z
     /** Claude's own transcript for this id, from the hook payload's `transcript_path` (UX-08).
      *  Open refuses with `transcript_missing` when it is gone. A record without it (older
      *  records, or a session no hook ever reached) is not checked. Never logged. */
-    transcriptPath: z.string().min(1).optional()
+    transcriptPath: z.string().min(1).optional(),
+    /** Present (and `true`) when the session could mark tasks done (the `mark_task_done` MCP
+     *  tool, goals), so a Resume after a restart brings the tool back. A flag only: no task ids or
+     *  titles (the links live in the goals store). Optional like `live`: absent = off, v1. */
+    tasksMarkDone: z.literal(true).optional()
   })
   .strict()
 export type PastSession = z.infer<typeof PastSessionSchema>
