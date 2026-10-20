@@ -100,8 +100,7 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
 
 ## Goals (`src/main/goals/`)
 
-`claude-watcher-goals.json`; `mark_task_done` MCP on the HOOK listener `/mcp/goals` (no third
-listener), only if the hook port is ours (SEC-6); tokens memory-only; `/clear` rebinds tasks.
+`claude-watcher-goals.json`; MCP on the HOOK listener `/mcp/goals` (SEC-6 gate); tokens memory-only.
 
 ## Workspaces
 
@@ -153,7 +152,8 @@ quits (`code=already_running`), the first raises. SMOKE skips the lock.
 Stores report to one collector → `CH.storageHealth` (name + code only) → `StorageNotice`. **A
 dialog Save/Delete the disk refuses is UNDONE, throws `store_write_failed`** (`commit()`; each
 Manage dialog maps it to `STORE_WRITE_FAILED_COPY`). Other writes keep the change, report
-`write_failed` (`persistOrReport()`); also `corrupt_reset`, `read_failed`. Workspace delete commits first.
+`write_failed` (`persistOrReport()`; removal paths never throw). Also `corrupt_reset`,
+`read_failed`. Workspace delete commits before its cascade.
 
 ## Security (never weaken)
 
