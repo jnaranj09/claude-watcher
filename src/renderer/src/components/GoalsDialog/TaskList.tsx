@@ -42,6 +42,7 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
   const add = useAsyncAction(async (): Promise<void> => {
     const trimmed = title.trim()
     if (trimmed === '') return
+    actions.setError(null)
     try {
       await saveTask({ workspaceId, goalId, title: trimmed })
       setTitle('')
@@ -67,12 +68,8 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
               </span>
             </label>
             {task.doneBy === 'session' && (
-              <span
-                className={styles.doneBy}
-                data-testid={`task-done-by-${task.id}`}
-                title="Closed by a session"
-              >
-                session
+              <span className={styles.doneBy} data-testid={`task-done-by-${task.id}`}>
+                Closed by a session
               </span>
             )}
             <Button

@@ -4,14 +4,22 @@
 import type { JSX } from 'react'
 import styles from './GoalsDialog.module.css'
 
-export function GoalProgress({ done, total }: { done: number; total: number }): JSX.Element {
+export function GoalProgress({
+  name,
+  done,
+  total
+}: {
+  name: string
+  done: number
+  total: number
+}): JSX.Element {
   const percent = total === 0 ? 0 : Math.round((done / total) * 100)
   return (
     <span className={styles.progress}>
       <span
         className={styles.track}
         role="progressbar"
-        aria-label="Tasks done"
+        aria-label={`Progress of ${name}`}
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}

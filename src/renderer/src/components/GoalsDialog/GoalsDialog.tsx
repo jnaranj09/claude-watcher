@@ -43,7 +43,7 @@ function GoalRowText({ goal }: { goal: Goal }): JSX.Element {
       <span className={styles.rowName} title={goal.name}>
         {goal.name}
       </span>
-      <GoalProgress done={done} total={total} />
+      <GoalProgress name={goal.name} done={done} total={total} />
     </span>
   )
 }
@@ -53,7 +53,7 @@ function LooseRowText({ workspaceId }: { workspaceId: string }): JSX.Element {
   return (
     <span className={styles.rowText}>
       <span className={styles.rowName}>{GOAL_TERMS.loose}</span>
-      <GoalProgress done={done} total={total} />
+      <GoalProgress name={GOAL_TERMS.loose} done={done} total={total} />
     </span>
   )
 }
@@ -165,7 +165,7 @@ function GoalForm({
           </div>
 
           <ManageDialog.Label>Tasks</ManageDialog.Label>
-          <GoalProgress done={done} total={total} />
+          <GoalProgress name={goal.name} done={done} total={total} />
           <TaskList tasks={tasks} workspaceId={workspaceId} goalId={goal.id} />
         </>
       )}

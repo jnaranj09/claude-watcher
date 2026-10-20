@@ -155,6 +155,7 @@ describe('GoalsDialog', () => {
     expect(row).toHaveTextContent('Ship v2')
     expect(within(row).getByTestId('goal-progress-text')).toHaveTextContent('1/2')
     expect(screen.queryByText('Elsewhere')).not.toBeInTheDocument()
+    expect(within(row).getByRole('progressbar')).toHaveAccessibleName('Progress of Ship v2')
   })
 
   it('a Loose tasks row lists tasks without a goal', async () => {
@@ -202,7 +203,7 @@ describe('GoalsDialog', () => {
       proposals: []
     })
     await user.click(screen.getByTestId('goal-select-g1'))
-    expect(screen.getByTestId('task-done-by-t1')).toHaveAttribute('title', 'Closed by a session')
+    expect(screen.getByTestId('task-done-by-t1')).toHaveTextContent('Closed by a session')
   })
 
   it('Delete arms in place and removes the goal', async () => {
