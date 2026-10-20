@@ -154,6 +154,21 @@ describe('goals MCP endpoint', () => {
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_found' }], isError: true } })
   })
 
+  it('after its goal is deleted (the cascade takes the task), returns task_not_found and changes nothing', () => {
+    const { store, t1 } = seed()
+    const goalId = store.view().goals[0]?.id ?? ''
+    store.removeGoal(goalId)
+    const before = store.view()
+    const res = handleMcpRequest(
+      call(t1),
+      worker,
+      createMcpTools(() => store)
+    )
+    expect(before.tasks.some((t) => t.id === t1)).toBe(false)
+    expect(res).toMatchObject({ result: { content: [{ text: 'task_not_found' }], isError: true } })
+    expect(store.view()).toEqual(before)
+  })
+
   it('twice succeeds and changes nothing', () => {
     const { store, t1 } = seed()
     const tools = createMcpTools(() => store)

@@ -15,6 +15,11 @@ import {
   type StartGoalSessionsDeps
 } from './goalLaunch'
 import { createGoalTokens, type GoalTokens } from './mcp/goalTokens'
+import { createMcpConfigs } from './mcp/mcpConfigFile'
+import { createStorageHealth } from '../storageHealth'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 function seed(): { store: GoalsStore; goalId: string; t1: string; t2: string; t3: string } {
   let n = 0
@@ -400,6 +405,33 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
     expect(extras.appendPrompt).not.toContain('mark_task_done')
     expect([extras.mcpConfigPath, extras.allowedTools]).toEqual([null, null])
     expect(m.tokens.resolve(token)).toBeNull()
+  })
+
+  it('a refused config write reports goals write_failed to storage health, and the session starts without the tool or the line', () => {
+    const { store, t1 } = seed()
+    const userData = mkdtempSync(join(tmpdir(), 'cw-goal-mcp-'))
+    try {
+      writeFileSync(join(userData, 'mcp'), 'not a folder') // the disk refuses the folder
+      const health = createStorageHealth({ onChange: () => {} })
+      const configs = createMcpConfigs({
+        dir: () => userData,
+        log: () => {},
+        report: health.reporterFor('goals')
+      })
+      const extras = goalSpawnExtras(
+        { store, mcp: mcp({ configs }) },
+        'sess-1',
+        worker([t1]),
+        false,
+        null
+      )
+      expect(health.get().problems).toEqual([{ store: 'goals', code: 'write_failed' }])
+      expect([extras.mcpConfigPath, extras.allowedTools]).toEqual([null, null])
+      expect(extras.appendPrompt).toContain(t1)
+      expect(extras.appendPrompt).not.toContain('mark_task_done')
+    } finally {
+      rmSync(userData, { recursive: true, force: true })
+    }
   })
 
   it("a Reopen of the same terminal keeps the operator's choice and mints for the new id", () => {

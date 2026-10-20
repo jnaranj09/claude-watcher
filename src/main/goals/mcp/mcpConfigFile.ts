@@ -4,10 +4,13 @@
 //
 // Files live in `<userData>/mcp/` (folder 0700, files 0600, a random name each). A file goes when
 // its session goes (`window/cardState.ts`), and a start clears what the last run left, since every
-// token in it died with that run. Logs carry a `code=` only: never the path, never the token.
+// token in it died with that run. Logs carry a `code=` only: never the path, never the token. A
+// refused write is also told to the operator: storage health, as the `goals` store's
+// `write_failed` (the notice a refused background goals write shows).
 import { randomBytes } from 'node:crypto'
 import { chmodSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { StorageProblemCode } from '../../../shared/schemas/storageHealth'
 
 /** The server key in the config, so claude names the tool `mcp__claude-watcher__<tool>`. */
 export const MCP_SERVER_NAME = 'claude-watcher'
@@ -56,6 +59,8 @@ export function createMcpConfigs(options: {
   /** `app.getPath('userData')`, read when a file is written. */
   dir: () => string
   log: (line: string) => void
+  /** Storage health's reporter for the `goals` store (`storageHealth.reporterFor('goals')`). */
+  report: (code: StorageProblemCode) => void
 }): McpConfigs {
   const paths = new Map<string, string>()
 
@@ -75,6 +80,7 @@ export function createMcpConfigs(options: {
         return path
       } catch {
         options.log('[claude-watcher][goals] code=mcp_config_write_failed')
+        options.report('write_failed')
         return null
       }
     },

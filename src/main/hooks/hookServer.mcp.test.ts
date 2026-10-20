@@ -8,7 +8,7 @@ import { GOALS_MCP_PATH, MAX_BODY_BYTES } from './hookContract'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { createGoalsStore, type GoalsStore } from '../persistence/goals'
-import { createGoalTokens } from '../goals/mcp/goalTokens'
+import { createGoalTokens, type GoalTokens } from '../goals/mcp/goalTokens'
 import { createMcpTools } from '../goals/mcp/mcpTools'
 import { createMcpEndpoint, type McpEndpoint } from '../goals/mcp/mcpEndpoint'
 
@@ -54,6 +54,9 @@ interface Rig {
   onHookEvent: ReturnType<typeof vi.fn<(evt: HookEvent) => void>>
   log: ReturnType<typeof vi.fn<(err: BoundaryErrorRecord) => void>>
   mcpLines: string[]
+  tokens: GoalTokens
+  /** Settles when the server first resolves a bearer (it has read the request's headers). */
+  headersSeen: Promise<void>
 }
 
 let rig: Rig | null = null
@@ -77,6 +80,12 @@ function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise
     tools: createMcpTools(() => store),
     log: (l) => mcpLines.push(l)
   })
+  let seen: () => void = () => {}
+  const headersSeen = new Promise<void>((r) => (seen = r))
+  const resolveSpy: McpEndpoint['resolve'] = (header) => {
+    seen()
+    return endpoint.resolve(header)
+  }
   const onHookEvent = vi.fn<(evt: HookEvent) => void>()
   const log = vi.fn<(err: BoundaryErrorRecord) => void>()
   return new Promise((resolve) => {
@@ -84,7 +93,14 @@ function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise
       onHookEvent,
       log,
       ...(withMcp
-        ? { mcp: { ...endpoint, ...endpointOverride, log: (l: string) => mcpLines.push(l) } }
+        ? {
+            mcp: {
+              ...endpoint,
+              resolve: resolveSpy,
+              ...endpointOverride,
+              log: (l: string) => mcpLines.push(l)
+            }
+          }
         : {}),
       port: 0,
       host: '127.0.0.1',
@@ -98,7 +114,9 @@ function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise
           otherTaskId,
           onHookEvent,
           log,
-          mcpLines
+          mcpLines,
+          tokens,
+          headersSeen
         }
         resolve(rig)
       }
@@ -204,6 +222,40 @@ describe('hookServer — the goals MCP endpoint', () => {
       r.store.view().tasks.find((t) => t.id === id)?.status
     expect([status(r.taskId), status(r.otherTaskId)]).toEqual(['done', 'open'])
     expect(r.onHookEvent).not.toHaveBeenCalled()
+  })
+
+  it('a token revoked while the body arrives is 401 at the body end, and the store is unchanged', async () => {
+    const r = await start()
+    const body = rpc('tools/call', { name: 'mark_task_done', arguments: { taskId: r.taskId } })
+    const u = new URL(r.base)
+    const reply = new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          hostname: u.hostname,
+          port: Number(u.port),
+          path: GOALS_MCP_PATH,
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(body),
+            authorization: `Bearer ${r.token}`
+          }
+        },
+        (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        }
+      )
+      req.on('error', reject)
+      req.write(body.slice(0, 10))
+      // The session is removed after the headers were authorized, before the body ends.
+      void r.headersSeen.then(() => {
+        r.tokens.revoke('sess-a')
+        req.end(body.slice(10))
+      })
+    })
+    expect(await reply).toBe(401)
+    expect(r.store.view().tasks.find((t) => t.id === r.taskId)?.status).toBe('open')
   })
 
   it('a GET is 405 (no stream is served)', async () => {

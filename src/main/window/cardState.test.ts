@@ -39,7 +39,7 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     sessionSetup: { rebind: vi.fn<Rebind>(), forget: vi.fn<Forget>() },
     goals: createGoalsStore(),
     tokens: createGoalTokens(),
-    mcpConfigs: createMcpConfigs({ dir: () => userData, log: () => {} })
+    mcpConfigs: createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
   }
 }
 

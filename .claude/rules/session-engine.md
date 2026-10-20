@@ -61,13 +61,16 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `mcp__claude-watcher__mark_task_done`) come together or not at all: the operator's choice
   (`goalLaunch.markDone`; on a resume, `tokens.markDoneFor` from this run, else the past-session
   flag, `false` until a record carries it), AND the hook port is ours (SEC-6, else
-  `code=mcp_hook_port_not_ours`), AND the config file was written. Tokens (`goals/mcp/goalTokens.ts`)
-  are memory only, sha256 + `timingSafeEqual`, one per session, fresh on every spawn; the file
+  `code=mcp_hook_port_not_ours`; a failed bind already shows `ServerHealthBanner`), AND the config
+  file was written (a refused write reports the `goals` store's `write_failed` to storage health,
+  so `StorageNotice` shows it). Tokens (`goals/mcp/goalTokens.ts`) are memory only, sha256 +
+  `timingSafeEqual`, one per session, fresh on every spawn; the file
   (`<userData>/mcp/<random>.json`, folder 0700, file 0600) holds the token in `headers`, so argv
-  holds only its path. `/clear` moves the task links, the token and the file
-  (`window/cardState.ts`); a removed card revokes the token and deletes the file (links stay); a
-  start deletes files a previous run left. Authority is the task's CURRENT `sessionIds` holding
-  the caller, in the grant's workspace (`task_not_linked`, `task_not_found`; already done = ok).
+  holds only its path. The token is resolved again when the body ends (a revoke meanwhile: 401).
+  `/clear` moves the task links, the token and the file (`window/cardState.ts`); a removed card
+  revokes the token and deletes the file (links stay); a start (not SMOKE: it shares the default
+  userData) deletes files a previous run left. Authority is the task's CURRENT `sessionIds`
+  holding the caller, in the grant's workspace (`task_not_linked`, `task_not_found`; already done = ok).
   Logs: `route=mcp method=<served method|other> code=` only. Probed on claude 2.1.304 (a stub
   server, then the real app in the drive profile): it POSTs `server/discover` first (answered
   -32601; it falls back), then `initialize` with protocolVersion `2025-11-25`,

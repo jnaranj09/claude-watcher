@@ -50,7 +50,7 @@ describe('mcp config file', () => {
 describe('mcp configs per session', () => {
   it('a second write for a session removes its first file; remove deletes the file', () => {
     const userData = tempDir()
-    const configs = createMcpConfigs({ dir: () => userData, log: () => {} })
+    const configs = createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
     const first = configs.write('sess-a', 't1', URL)
     const second = configs.write('sess-a', 't2', URL)
     expect(first).not.toBeNull()
@@ -61,7 +61,7 @@ describe('mcp configs per session', () => {
 
   it('rebind keeps the file and moves who owns it', () => {
     const userData = tempDir()
-    const configs = createMcpConfigs({ dir: () => userData, log: () => {} })
+    const configs = createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
     const path = configs.write('sess-old', 't', URL) ?? ''
     configs.rebind('sess-old', 'sess-new')
     configs.remove('sess-old')
@@ -70,19 +70,25 @@ describe('mcp configs per session', () => {
     expect(existsSync(path)).toBe(false)
   })
 
-  it('a write the disk refuses is null and logs a code only', () => {
+  it('a write the disk refuses is null, logs a code only and reports goals write_failed', () => {
     const userData = tempDir()
     writeFileSync(join(userData, 'mcp'), 'not a folder')
     const lines: string[] = []
-    const configs = createMcpConfigs({ dir: () => userData, log: (l) => lines.push(l) })
+    const reported: string[] = []
+    const configs = createMcpConfigs({
+      dir: () => userData,
+      log: (l) => lines.push(l),
+      report: (code) => reported.push(code)
+    })
     expect(configs.write('sess-a', 'secret-token', URL)).toBeNull()
     expect(lines).toEqual(['[claude-watcher][goals] code=mcp_config_write_failed'])
+    expect(reported).toEqual(['write_failed'])
   })
 
   it('clearStale removes the files a previous run left (their tokens died with it)', () => {
     const userData = tempDir()
     const leftover = writeMcpConfig(userData, 'old', URL)
-    const configs = createMcpConfigs({ dir: () => userData, log: () => {} })
+    const configs = createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
     configs.clearStale()
     expect(existsSync(leftover)).toBe(false)
   })
@@ -90,7 +96,11 @@ describe('mcp configs per session', () => {
   it('clearStale with no folder yet does nothing and logs nothing', () => {
     const userData = tempDir()
     const lines: string[] = []
-    createMcpConfigs({ dir: () => userData, log: (l) => lines.push(l) }).clearStale()
+    createMcpConfigs({
+      dir: () => userData,
+      log: (l) => lines.push(l),
+      report: () => {}
+    }).clearStale()
     expect(lines).toEqual([])
   })
 })

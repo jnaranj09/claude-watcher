@@ -145,12 +145,20 @@ export function createHookServer(options: HookServerOptions): HookServer {
         return
       }
 
-      // The goals MCP endpoint (authorized above): its own JSON-RPC boundary. A notification gets
-      // 202 and no body. A throw costs this request only (never-crash).
+      // The goals MCP endpoint (authorized above): its own JSON-RPC boundary. The token is resolved
+      // AGAIN now: a session removed (revoked) while the body arrived must not act, and a `/clear`
+      // meanwhile means the grant now names the new id. A notification gets 202 and no body. A
+      // throw costs this request only (never-crash).
       if (grant !== null && mcp !== undefined) {
+        const live = mcp.resolve(req.headers.authorization)
+        if (live === null) {
+          mcp.log('[claude-watcher][goals] route=mcp code=unauthorized')
+          res.writeHead(401).end()
+          return
+        }
         let response: ReturnType<McpEndpoint['handle']>
         try {
-          response = mcp.handle(parsed, grant)
+          response = mcp.handle(parsed, live)
         } catch {
           mcp.log('[claude-watcher][goals] route=mcp code=mcp_handler_error')
           res.writeHead(500).end()

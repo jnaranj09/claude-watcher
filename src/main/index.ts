@@ -579,7 +579,11 @@ const goalMcp = (() => {
   const log = (line: string): void => console.warn(line)
   return {
     tokens,
-    configs: createMcpConfigs({ dir: () => app.getPath('userData'), log }),
+    configs: createMcpConfigs({
+      dir: () => app.getPath('userData'),
+      log,
+      report: storageHealth.reporterFor('goals')
+    }),
     endpoint: createMcpEndpoint({ tokens, tools: createMcpTools(requireGoalsStore), log })
   }
 })()
@@ -960,8 +964,9 @@ app
       for (const win of BrowserWindow.getAllWindows()) sendGoalsChanged(win.webContents, view)
     })
     registerGoalsIpc()
-    // Every token in a file the last run left died with it.
-    goalMcp.configs.clearStale()
+    // Every token in a file the last run left died with it. Not under SMOKE: smoke shares the
+    // default userData and skips the single-instance lock, so a running app's files are live.
+    if (!SMOKE) goalMcp.configs.clearStale()
 
     try {
       shortcutsStore = SMOKE
