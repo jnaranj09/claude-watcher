@@ -98,16 +98,11 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
   `c9watch-settings.json` are a PENDING rename (needs a migration) — don't rename in passing.
   `rg -w c9watch src/` must never show a CLI spawn.
 
-## Goals (`src/main/goals/`, spec 2026-10-19)
+## Goals (`src/main/goals/`)
 
-Goals and tasks per workspace, main-owned, in `claude-watcher-goals.json` (`persistence/goals.ts`;
-a corrupt file is backed up and reset). A session started from tasks gets its open tasks as a
-prompt block; the operator may let it close them through the `mark_task_done` MCP tool, served on
-the HOOK listener at `/mcp/goals` (no third listener), only when the hook port is ours (SEC-6).
-"Plan with Claude" starts a planner with three more tools whose split the operator Accepts or
-Rejects. Bearer tokens are memory-only (per spawn, sha256), the MCP config file holds the only
-copy and argv only its path. `/clear` rebinds a session's tasks to the new id; Resume brings the
-tool back for a session, not for a planner. Full rules: `.claude/rules/session-engine.md`.
+Per-workspace goals/tasks in `claude-watcher-goals.json`. `mark_task_done` is MCP on the HOOK
+listener at `/mcp/goals` (no third listener), only if the hook port is ours (SEC-6). Bearer tokens
+are memory-only. `/clear` rebinds tasks; Resume restores the tool (not a planner's).
 
 ## Workspaces
 
@@ -148,15 +143,12 @@ Liquid Glass and Paper are read-only; a bad theme fails closed to Default. A the
 `glass` key turns on the WebGL board glass (`renderer/src/glass/`; CSS stays the fallback under
 `data-glass-on`). Full rules: `.claude/rules/themes.md`.
 
-## node-pty + packaging
+## node-pty + packaging; single instance (`lifecycle/singleInstance.ts`, UX-04)
 
 Native module: EXTERNALIZED in electron-vite main config, rebuilt via `@electron/rebuild`
-(`postinstall`), `asarUnpack`-ed. `npm run smoke` proves it.
-
-## Single instance (`lifecycle/singleInstance.ts`, UX-04)
-
-Lock per userData (profiles don't block each other). Second launch quits
-(`code=already_running`), first raises its window. SMOKE skips the lock.
+(`postinstall`), `asarUnpack`-ed. `npm run smoke` proves it. Single-instance lock per userData
+(profiles don't block each other): a second launch quits (`code=already_running`), the first
+raises its window. SMOKE skips the lock.
 
 ## Storage health (`src/main/storageHealth.ts`, UX-06/07)
 
@@ -176,15 +168,13 @@ no RunAsNode / NODE_OPTIONS / `--inspect`, asar-only (`electron-builder.yml`). *
 exist only under `C9_SMOKE=1`** (`smoke/smokeIpc.ts`, SEC-8): `CH.ptyStart`/`ptyInput`/`ptyResize`/
 `smokeReport` go through `registerSmokeIpc`; `CH.smokeConfig` is always registered.
 
-## No application menu (`appMenu/appMenu.ts`)
+## No application menu (`appMenu/appMenu.ts`) and focused-view keys
 
 Linux/Windows: none; macOS: app + Edit only. The default menu ate claude's keys (Ctrl+R, Ctrl+M,
 F11, Alt). Never bring back `optimizer.watchWindowShortcuts`. DevTools in dev = F12 only.
 Playwright key presses skip accelerators — can't prove a key reaches the pty.
 
-## Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10)
-
-claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
+Focused-view keys (`lib/terminalFocus.ts`, R1/R27/R10): claude keeps every key while its terminal has focus (Ctrl+W, Ctrl+N, Esc). App keydown skips keys
 from inside `.xterm` (`isInsideTerminal`). **No key archives** (R27) — only the Archive button.
 Focus lands IN the terminal on every switch (`takeFocus`), never from a hidden mount or out of an
 open dialog. `Esc to return` shows only while focus is outside.
