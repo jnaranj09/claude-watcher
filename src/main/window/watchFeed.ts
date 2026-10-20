@@ -49,7 +49,7 @@ import type { PastSessionsStore } from '../persistence/pastSessions'
 import type { LivePastSessions } from '../persistence/livePastSessions'
 // Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
 // record via buildPastSessionRecord; delete removes any earlier one; a null store no-ops).
-import { applyRemovalReason } from '../persistence/pastSessionRecord'
+import { hookServerMcp, recordRemoval } from './goalWiring'
 import type { TagsStore } from '../persistence/tags'
 import { staleTagEdits } from '../persistence/tagsIpc'
 import { createRulesEngine, type RulesEngine } from '../rules/rulesEngine'
@@ -501,15 +501,18 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
 
     /** D-3 — the ONE removal chokepoint for this window. Reads the card BEFORE the reducer drops
      *  it, then hands the reason → history decision to the PURE, unit-tested
-     *  `applyRemovalReason` (pastSessionRecord.ts): `archive` snapshots it into the past-sessions
-     *  store (a card that already left is a quiet no-op — no record, no log); `delete` drops any
-     *  record for the id instead. Rides the SAME hook-removal reducer path as Story 6.3
+     *  `recordRemoval` (goalWiring.ts, over `applyRemovalReason` in pastSessionRecord.ts):
+     *  `archive` snapshots it into the past-sessions store (a card that already left is a quiet
+     *  no-op — no record, no log); `delete` drops any record for the id instead. Rides the SAME hook-removal reducer path as Story 6.3
      *  (applyHookStatus removed → handleDelta), so the card-removal delta is unchanged — only the
      *  store side-effect is new. */
     function removeLaunchedSession(sessionId: string, reason: RemovalReason): void {
       const stored = reducer.snapshotMap().get(sessionId)
-      applyRemovalReason(reason, sessionId, stored, getPastSessionsStore(), Date.now(), (id) =>
-        goalMcp.tokens.markDoneFor(id)
+      recordRemoval(
+        { pastSessions: getPastSessionsStore(), tokens: goalMcp.tokens, now: Date.now },
+        reason,
+        sessionId,
+        stored
       )
       // A removed card can have no pending rename to push, no setup to show, and no live MCP token.
       dropCardState(cardStateDeps(), sessionId)
@@ -901,7 +904,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       // The bridge mod's report (spec 2026-10-18 §2); an unknown id is dropped there.
       onModReport: (report) => sessionSetup.accept(report),
       // The goals MCP endpoint (`mark_task_done`), behind each launch's bearer token.
-      mcp: { ...goalMcp.endpoint, log: (line) => console.warn(line) },
+      ...hookServerMcp(goalMcp.endpoint, (line) => console.warn(line)),
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),

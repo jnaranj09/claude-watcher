@@ -167,8 +167,9 @@ export interface ClaudeCommandSpec {
   initialPrompt: string | null
   /** Past sessions (D-1): `claude --resume <sessionId>` instead of `--session-id <sessionId>`.
    *  The template flags and the positional prompt are DROPPED; `--settings`, `--plugin-dir`,
-   *  `--append-system-prompt`, `--mcp-config`, `--allowedTools` and `-n` stay. `-n` (R3) carries a rename claude never got: a rename rides the NEXT prompt,
-   *  so one made just before an archive was lost on resume. Probe-verified 2026-09-18: the resumed
+   *  `--append-system-prompt`, `--mcp-config`, `--allowedTools` and `-n` stay. `-n` (R3) carries a
+   *  rename claude never got: a rename rides the NEXT prompt, so one made just before an archive
+   *  was lost on resume. Probe-verified 2026-09-18: the resumed
    *  session keeps the same id, so the minted identity IS `sessionId`. Probe 2026-09-28 (claude
    *  2.1.284): `--resume <id> -n <name>` is accepted, keeps the id, and applies the name
    *  (sessions/<pid>.json, the transcript's custom-title, the terminal title). */

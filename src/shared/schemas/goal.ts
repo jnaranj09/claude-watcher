@@ -181,12 +181,17 @@ export const HOOKS_UNAVAILABLE = 'hooks_unavailable'
 export const GoalsPlanSchema = z.object({ goalId: IdSchema }).strict()
 export type GoalsPlanRequest = z.infer<typeof GoalsPlanSchema>
 
-export const ProposalDecideSchema = z
-  .object({
-    plannerSessionId: IdSchema,
-    decision: z.enum(['accept', 'reject']),
-    groups: StartGroupsSchema.optional(),
-    markDone: z.boolean()
-  })
-  .strict()
+/** An Accept always carries the rows the operator saw (main never fills them in from the
+ *  proposal); a Reject carries nothing else. */
+export const ProposalDecideSchema = z.discriminatedUnion('decision', [
+  z
+    .object({
+      plannerSessionId: IdSchema,
+      decision: z.literal('accept'),
+      groups: StartGroupsSchema,
+      markDone: z.boolean()
+    })
+    .strict(),
+  z.object({ plannerSessionId: IdSchema, decision: z.literal('reject') }).strict()
+])
 export type ProposalDecideRequest = z.infer<typeof ProposalDecideSchema>

@@ -21,8 +21,14 @@ import { SessionNameSchema } from '../../shared/schemas/launch'
 import type { GoalsStartResult } from '../../shared/ipc/contract'
 import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
 import { LAUNCH_FOLDER_MISSING, type LaunchRequest } from '../pty/launchSession'
+import { QUESTION_FORMAT_PROMPT, type ClaudeCommandSpec } from '../pty/claudeBin'
 import { requireClaudeVersion } from '../pty/inAppLaunch'
-import { buildPlannerPrompt, buildWorkerPrompt, taskSessionName } from './goalPrompt'
+import {
+  buildPlannerPrompt,
+  buildWorkerPrompt,
+  joinSystemPrompt,
+  taskSessionName
+} from './goalPrompt'
 import type { GoalTokens } from './mcp/goalTokens'
 import { MCP_SERVER_NAME, type McpConfigs } from './mcp/mcpConfigFile'
 import { MARK_TASK_DONE, PLANNER_TOOLS } from './mcp/mcpTools'
@@ -37,6 +43,18 @@ export interface GoalSpawnExtras {
   appendPrompt: string | null
   mcpConfigPath: string | null
   allowedTools: string | null
+}
+
+/** The goal part of the claude command: the question-format nudge joined with the task block, and
+ *  the MCP config and allowed tools. Null extras leave the nudge alone and no MCP flag. */
+export function goalCommandFields(
+  extras: GoalSpawnExtras
+): Pick<ClaudeCommandSpec, 'appendSystemPrompt' | 'mcpConfigPath' | 'allowedTools'> {
+  return {
+    appendSystemPrompt: joinSystemPrompt(QUESTION_FORMAT_PROMPT, extras.appendPrompt),
+    mcpConfigPath: extras.mcpConfigPath,
+    allowedTools: extras.allowedTools
+  }
 }
 
 const NO_EXTRAS: GoalSpawnExtras = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }

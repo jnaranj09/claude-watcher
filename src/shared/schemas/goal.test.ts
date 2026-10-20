@@ -85,6 +85,21 @@ describe('goal schemas', () => {
     expect(GoalsStartSchema.safeParse(req([['t1'], ['t2']])).success).toBe(true)
   })
 
+  it('a proposal decision: Accept needs its groups, Reject carries nothing else', () => {
+    const accept = { plannerSessionId: 'p', decision: 'accept', markDone: true }
+    expect(ProposalDecideSchema.safeParse(accept).success).toBe(false)
+    expect(
+      ProposalDecideSchema.safeParse({ ...accept, groups: [{ taskIds: ['t1'] }] }).success
+    ).toBe(true)
+    expect(
+      ProposalDecideSchema.safeParse({ plannerSessionId: 'p', decision: 'reject' }).success
+    ).toBe(true)
+    expect(
+      ProposalDecideSchema.safeParse({ plannerSessionId: 'p', decision: 'reject', markDone: true })
+        .success
+    ).toBe(false)
+  })
+
   it('requests are strict (an extra key fails)', () => {
     expect(TaskSaveSchema.safeParse({ ...TASK_SAVE, cwd: '/etc' }).success).toBe(false)
     expect(

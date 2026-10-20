@@ -84,7 +84,7 @@ export function ProposalPanel({ proposal, tasks }: ProposalPanelProps): JSX.Elem
   const reject = useAsyncAction(async (): Promise<void> => {
     actions.setError(null)
     try {
-      await decideProposal({ plannerSessionId, decision: 'reject', markDone })
+      await decideProposal({ plannerSessionId, decision: 'reject' })
     } catch (err) {
       actions.setError(goalErrorCopy(err, GOAL_TERMS.rejectFailed))
     }

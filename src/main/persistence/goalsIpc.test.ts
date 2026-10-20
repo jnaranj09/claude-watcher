@@ -206,7 +206,7 @@ describe('goals IPC — plan with Claude and the proposal', () => {
     expect(launched.map((l) => l.cwd)).toEqual(['/goal', '/goal'])
   })
 
-  it('accept with no edit starts the proposal as it is', async () => {
+  it('accept starts exactly the groups it was sent, as given', async () => {
     const { h, proposals, goalId, t1, t3, requestLaunch, launched } = planSetup()
     proposals.set({
       plannerSessionId: 'planner-1',
@@ -217,7 +217,12 @@ describe('goals IPC — plan with Claude and the proposal', () => {
       ]
     })
     await h.decideProposal(
-      { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+      {
+        plannerSessionId: 'planner-1',
+        decision: 'accept',
+        groups: [{ taskIds: [t1] }, { taskIds: [t3] }],
+        markDone: true
+      },
       requestLaunch
     )
     expect(launched.map((l) => l.goalLaunch)).toEqual([
@@ -235,7 +240,12 @@ describe('goals IPC — plan with Claude and the proposal', () => {
       return { terminalId: 'term-1', workspaceId: 'w1' }
     })
     await h.decideProposal(
-      { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+      {
+        plannerSessionId: 'planner-1',
+        decision: 'accept',
+        groups: [{ taskIds: [t1] }],
+        markDone: true
+      },
       requestLaunch
     )
     expect(proposals.list()).toEqual([newer])
@@ -245,7 +255,7 @@ describe('goals IPC — plan with Claude and the proposal', () => {
     const { h, proposals, goalId, t1, requestLaunch } = planSetup()
     proposals.set({ plannerSessionId: 'planner-1', goalId, groups: [{ taskIds: [t1], note: '' }] })
     const result = await h.decideProposal(
-      { plannerSessionId: 'planner-1', decision: 'reject', markDone: true },
+      { plannerSessionId: 'planner-1', decision: 'reject' },
       requestLaunch
     )
     expect(result).toMatchObject({ terminalIds: [], proposals: [] })
@@ -275,11 +285,29 @@ describe('goals IPC — plan with Claude and the proposal', () => {
     expect(proposals.list()).toEqual([proposal])
   })
 
+  it('an accept that sends no groups launches nothing and keeps the proposal', async () => {
+    const { h, proposals, goalId, t1, requestLaunch } = planSetup()
+    proposals.set({ plannerSessionId: 'planner-1', goalId, groups: [{ taskIds: [t1], note: '' }] })
+    await expect(
+      h.decideProposal(
+        { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+        requestLaunch
+      )
+    ).rejects.toThrow()
+    expect(requestLaunch).not.toHaveBeenCalled()
+    expect(proposals.list()).toHaveLength(1)
+  })
+
   it('a decision on a proposal that is gone is refused and starts nothing', async () => {
     const { h, requestLaunch } = planSetup()
     await expect(
       h.decideProposal(
-        { plannerSessionId: 'planner-1', decision: 'accept', markDone: true },
+        {
+          plannerSessionId: 'planner-1',
+          decision: 'accept',
+          groups: [{ taskIds: ['t1'] }],
+          markDone: true
+        },
         requestLaunch
       )
     ).rejects.toThrow('proposal_not_found')

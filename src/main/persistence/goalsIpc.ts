@@ -128,7 +128,7 @@ export function createGoalsIpcHandlers(store: GoalsStore, deps: GoalsIpcDeps): G
       // An edit moves tasks between rows or drops a row: it never adds a task the planner did
       // not propose.
       const proposed = new Set(proposal.groups.flatMap((g) => g.taskIds))
-      const groups = req.groups ?? proposal.groups.map((g) => ({ taskIds: g.taskIds }))
+      const { groups } = req
       if (groups.some((g) => g.taskIds.some((id) => !proposed.has(id)))) {
         throw new Error(GOAL_ERROR.taskNotFound)
       }

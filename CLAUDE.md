@@ -98,9 +98,9 @@ touching hooks, pty, lifecycle, past sessions or `/clear` rebind).
   `c9watch-settings.json` are a PENDING rename (needs a migration) — don't rename in passing.
   `rg -w c9watch src/` must never show a CLI spawn.
 
-## Goals (`src/main/goals/`)
+## Goals (`src/main/goals/`; rules: `.claude/rules/session-engine.md`)
 
-`claude-watcher-goals.json`; MCP on the HOOK listener `/mcp/goals` (SEC-6 gate); tokens memory-only.
+`claude-watcher-goals.json`; MCP on the HOOK listener `/mcp/goals` (SEC-6); tokens memory-only.
 
 ## Workspaces
 
@@ -150,10 +150,10 @@ quits (`code=already_running`), the first raises. SMOKE skips the lock.
 ## Storage health (`src/main/storageHealth.ts`, UX-06/07)
 
 Stores report to one collector → `CH.storageHealth` (name + code only) → `StorageNotice`. **A
-dialog Save/Delete the disk refuses is UNDONE, throws `store_write_failed`** (`commit()`; each
-Manage dialog maps it to `STORE_WRITE_FAILED_COPY`). Other writes keep the change, report
-`write_failed` (`persistOrReport()`; removal paths never throw). Also `corrupt_reset`,
-`read_failed`. Workspace delete commits before its cascade.
+dialog Save/Delete the disk refuses is UNDONE and throws `store_write_failed`** (`commit()`; each
+Manage dialog, and every new one, maps it to `STORE_WRITE_FAILED_COPY`). Other writes keep the
+change and report `write_failed` (`persistOrReport()`; removal paths never throw). Also
+`corrupt_reset`, `read_failed`. Workspace delete commits before its cascade.
 
 ## Security (never weaken)
 

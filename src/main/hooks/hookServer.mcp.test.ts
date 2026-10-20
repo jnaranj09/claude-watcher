@@ -154,6 +154,32 @@ describe('hookServer — the goals MCP endpoint', () => {
     ])
   })
 
+  it('without a bearer is 401 before the body is read: an oversized body is not 400, an unfinished one is not a hang', async () => {
+    const r = await start()
+    const big = await send(r.base, GOALS_MCP_PATH, 'POST', 'x'.repeat(MAX_BODY_BYTES + 1))
+    expect(big.status).toBe(401)
+    const u = new URL(r.base)
+    const unfinished = new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          hostname: u.hostname,
+          port: Number(u.port),
+          path: GOALS_MCP_PATH,
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'content-length': 100 }
+        },
+        (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+          req.destroy()
+        }
+      )
+      req.on('error', reject)
+      req.write('{"jsonrpc"') // headers out, the body never ends
+    })
+    expect(await unfinished).toBe(401)
+  })
+
   it('with an Origin header is 403, even with a live token', async () => {
     const r = await start()
     const res = await send(

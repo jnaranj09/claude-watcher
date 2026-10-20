@@ -160,8 +160,7 @@ describe('ProposalPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Reject' }))
     expect(bridge.decideProposal).toHaveBeenCalledWith({
       plannerSessionId: 'planner-1',
-      decision: 'reject',
-      markDone: true
+      decision: 'reject'
     })
     expect(screen.queryByTestId('proposal-planner-1')).not.toBeInTheDocument()
   })

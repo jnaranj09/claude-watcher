@@ -1,7 +1,16 @@
 // The `--mcp-config` file a session started from tasks gets: the endpoint URL and its bearer token,
 // in a 0600 file under userData, so the token never goes on argv.
 import { describe, it, expect, afterEach } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createMcpConfigs, removeMcpConfig, writeMcpConfig } from './mcpConfigFile'
@@ -34,6 +43,14 @@ describe('mcp config file', () => {
         }
       }
     })
+  })
+
+  it('tightens a folder that already exists with looser permissions to 0700', () => {
+    const userData = tempDir()
+    mkdirSync(join(userData, 'mcp'), { mode: 0o755 })
+    chmodSync(join(userData, 'mcp'), 0o755)
+    writeMcpConfig(userData, 'tok123', URL)
+    expect(statSync(join(userData, 'mcp')).mode & 0o777).toBe(0o700)
   })
 
   it('each write gets its own file, and remove deletes it', () => {

@@ -6,13 +6,7 @@ import { execFileSync } from 'node:child_process'
 import * as os from 'os'
 import { CH } from '../../shared/ipc/contract'
 import type { PastSessionOpenResult, ShellOpenResult } from '../../shared/ipc/contract'
-import {
-  resolveClaudeBin,
-  composeClaudeCommand,
-  prependToPath,
-  shellQuote,
-  QUESTION_FORMAT_PROMPT
-} from '../pty/claudeBin'
+import { resolveClaudeBin, composeClaudeCommand, prependToPath, shellQuote } from '../pty/claudeBin'
 import { ShellOpenSchema } from '../../shared/schemas/terminal'
 import {
   SessionLaunchSchema,
@@ -67,8 +61,7 @@ import { applyBridgeMod } from '../mods/bridgeModSpawn'
 import type { ModSkipReason } from '../../shared/schemas/contextIpc'
 import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
-import type { GoalLaunch, GoalSpawnExtras } from '../goals/goalLaunch'
-import { joinSystemPrompt } from '../goals/goalPrompt'
+import { goalCommandFields, type GoalLaunch, type GoalSpawnExtras } from '../goals/goalLaunch'
 import type { TrustedIpc } from './trustedIpc'
 
 // Claude version gate — read the installed version the SAME way the spawn resolves it.
@@ -321,9 +314,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
           displayName,
           hookSettingsPath: hookSettingsPathForSpawn(),
           pluginDir,
-          appendSystemPrompt: joinSystemPrompt(QUESTION_FORMAT_PROMPT, goal.appendPrompt),
-          mcpConfigPath: goal.mcpConfigPath,
-          allowedTools: goal.allowedTools,
+          ...goalCommandFields(goal),
           model: flags.model,
           permissionMode: flags.permissionMode,
           effort: flags.effort,
