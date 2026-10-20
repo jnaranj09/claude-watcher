@@ -88,7 +88,8 @@ export interface LaunchOverride {
    *  `unbind`. It is what a Delete on a pane whose claude already exited reaches: that exit
    *  archived the card and consumed the binding, yet its record must still go (`CH.sessionDelete`
    *  → `deleteTerminalSession`, launchRemoval.ts). Null until the first spawn. NOT part of the
-   *  spawn recipe — no spawn reads it. */
+   *  spawn recipe: the next spawn only reads it as the id it replaces (Goals carries the work
+   *  still linked to it over to the new id). */
   lastSessionId: string | null
 }
 
@@ -169,7 +170,9 @@ export interface LaunchServiceOptions {
    *  dropping the template flags and the positional prompt.
    *
    *  Goals: `goalLaunch` is the override's goal launch (null when the launch is not from tasks),
-   *  read off the same override so a Reopen keeps it. The factory links the tasks to `sessionId`
+   *  read off the same override so a Reopen keeps it. `previousSessionId` is the override's
+   *  `lastSessionId` before this mint (null on the first spawn), so a Reopen carries over only
+   *  the work still linked to the session it replaces. The factory links the tasks to `sessionId`
    *  and adds their prompt block (`goalSpawnExtras`, goals/goalLaunch.ts). */
   spawn: (
     sessionId: string,
@@ -177,7 +180,8 @@ export interface LaunchServiceOptions {
     flags: ClaudeLaunchFlags,
     initialPrompt: string | null,
     resume: boolean,
-    goalLaunch: GoalLaunch | null
+    goalLaunch: GoalLaunch | null,
+    previousSessionId: string | null
   ) => { file: string; args?: string[]; env?: Record<string, string> }
   /** Mint a fresh opaque terminalId per launch (NOT the session id, NOT a pid — F6). Injected
    *  for deterministic tests; defaults to a crypto-random id in main. */
@@ -370,14 +374,16 @@ export function createLaunchService(options: LaunchServiceOptions): LaunchServic
     // generating its own title that would then disagree with the board card. Session templates:
     // the flags ride the same override — a re-spawn of this terminal (Reopen) keeps them. The
     // resume flag tells the factory to compose `claude --resume <id>` instead. Goals: the goal
-    // launch rides along too, so each spawn links its tasks to THIS minted id.
+    // launch rides along too, with the id the last spawn minted, so each spawn links its tasks
+    // to THIS minted id.
     const base = options.spawn(
       sessionId,
       displayName,
       override.flags,
       override.initialPrompt,
       override.resume !== null,
-      override.goalLaunch
+      override.goalLaunch,
+      override.lastSessionId
     )
     const spawn: LaunchSpawnConfig = {
       file: base.file,

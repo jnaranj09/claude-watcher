@@ -1043,8 +1043,8 @@ app
         hookPort: PROFILE.hookPort,
         onSkip: (sessionId, reason) => sessionSetup.markUnavailable(sessionId, reason)
       },
-      goalSpawnExtras: (sessionId, goalLaunch, resume) =>
-        goalSpawnExtras(requireGoalsStore(), sessionId, goalLaunch, resume),
+      goalSpawnExtras: (sessionId, goalLaunch, resume, previousSessionId) =>
+        goalSpawnExtras(requireGoalsStore(), sessionId, goalLaunch, resume, previousSessionId),
       isSessionLive,
       getTerminalManager: () => terminalManager,
       getPastSessionsStore: () => pastSessionsStore,

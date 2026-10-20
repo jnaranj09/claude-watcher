@@ -8,7 +8,7 @@
 // one session with every selected task. The switch starts on for each list and is not kept.
 import { useId, useState, type JSX } from 'react'
 import { TASK_TITLE_MAX, type Task } from '../../../../shared/schemas/goal'
-import { GOAL_TERMS } from '../../copy/terms'
+import { GOAL_TERMS, SELECTION_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { goalErrorCopy, goalStartErrorCopy } from '../../lib/goalCopy'
 import { removeTask, saveTask, setTaskStatus, startSessions } from '../../stores/goalsStore'
@@ -68,7 +68,7 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
     try {
       await startSessions({ workspaceId, goalId, groups: [{ taskIds: selectedIds }], markDone })
       setPicked(new Set())
-      actions.showSuccess('Session started.')
+      actions.showSuccess(GOAL_TERMS.sessionStarted)
     } catch (err) {
       const copy = goalStartErrorCopy(err)
       if (copy !== null) actions.setError(copy)
@@ -139,7 +139,7 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
       {selectedIds.length > 0 && (
         <div className={styles.startBar} data-testid="task-start-bar">
           <span className={styles.startCount} data-testid="task-start-count">
-            {selectedIds.length} selected
+            {SELECTION_TERMS.count(selectedIds.length)}
           </span>
           <span className={styles.startSwitch}>
             <Switch
@@ -148,7 +148,9 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
               checked={markDone}
               onChange={setMarkDone}
             />
-            <label htmlFor={switchId}>{GOAL_TERMS.markDone}</label>
+            <label className={styles.startSwitchLabel} htmlFor={switchId}>
+              {GOAL_TERMS.markDone}
+            </label>
           </span>
           <ManageDialog.GhostButton
             testId="task-start"

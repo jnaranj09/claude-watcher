@@ -40,6 +40,7 @@ import {
   exitResultCopy,
   statusAge
 } from './activeSessionsView'
+import { SELECTION_TERMS } from '../../copy/terms'
 import { RailFilter } from './RailFilter'
 import { railTags, type ScopedFilters } from './railFilters'
 import styles from './SessionsDialog.module.css'
@@ -248,7 +249,7 @@ export function ActiveSessionsPage({
             <ManageDialog.ListBottomDivided>
               <div className={styles.bulkBar}>
                 <span className={styles.bulkCount} data-testid="active-bulk-count">
-                  {checkedRows.length} selected
+                  {SELECTION_TERMS.count(checkedRows.length)}
                 </span>
                 <ManageDialog.GhostButton
                   testId="active-bulk-archive"

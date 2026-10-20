@@ -37,7 +37,7 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
     const { svc, spawn } = makeService()
     svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1', workspaceId: 'ws-9' })
     const minted = svc.mintSpawn('t-1')
-    expect(spawn).toHaveBeenCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false, null)
+    expect(spawn).toHaveBeenCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false, null, null)
     expect(minted?.initialPrompt).toBe('do HT-1')
     expect(minted?.workspaceId).toBe('ws-9')
   })
@@ -47,7 +47,15 @@ describe('programmatic API — the initial prompt and the workspace ride the rec
     svc.launch({ cwd: '/w', name: 'n', initialPrompt: 'do HT-1' })
     svc.mintSpawn('t-1')
     svc.mintSpawn('t-1')
-    expect(spawn).toHaveBeenLastCalledWith('sess-1', 'n', NO_LAUNCH_FLAGS, 'do HT-1', false, null)
+    expect(spawn).toHaveBeenLastCalledWith(
+      'sess-1',
+      'n',
+      NO_LAUNCH_FLAGS,
+      'do HT-1',
+      false,
+      null,
+      'sess-1'
+    )
   })
 })
 
@@ -138,7 +146,15 @@ describe('past sessions — resume and launchedAt', () => {
     expect(first?.sessionId).toBe('sess-A')
     expect(first?.resume).toEqual({ sessionId: 'sess-A', tagIds: ['t1'] })
     expect(first?.launchedAt).toBe(777)
-    expect(spawn).toHaveBeenLastCalledWith('sess-A', 'old name', NO_LAUNCH_FLAGS, null, true, null)
+    expect(spawn).toHaveBeenLastCalledWith(
+      'sess-A',
+      'old name',
+      NO_LAUNCH_FLAGS,
+      null,
+      true,
+      null,
+      null
+    )
     expect(launchedSet.has('sess-A')).toBe(true)
     // A dead-pane Reopen re-resumes the SAME conversation, never a fresh id.
     expect(svc.mintSpawn(terminalId)?.sessionId).toBe('sess-A')
@@ -171,7 +187,15 @@ describe('past sessions — resume and launchedAt', () => {
 
     expect(reopened?.sessionId).toBe('sess-B')
     expect(reopened?.resume).toEqual({ sessionId: 'sess-B', tagIds: ['t1'] })
-    expect(spawn).toHaveBeenLastCalledWith('sess-B', 'old name', NO_LAUNCH_FLAGS, null, true, null)
+    expect(spawn).toHaveBeenLastCalledWith(
+      'sess-B',
+      'old name',
+      NO_LAUNCH_FLAGS,
+      null,
+      true,
+      null,
+      'sess-B'
+    )
   })
 
   // R3: a resume now passes `-n <name>`, so the name it passes must be the one the card LAST had.
@@ -200,13 +224,22 @@ describe('past sessions — resume and launchedAt', () => {
       NO_LAUNCH_FLAGS,
       null,
       true,
+      null,
       null
     )
     expect(minted?.displayName).toBe('renamed later') // the card is born with the same name
 
     names.clear() // no record (hidden, or never written) → the recipe's name
     svc.mintSpawn(terminalId)
-    expect(spawn).toHaveBeenLastCalledWith('sess-A', 'old name', NO_LAUNCH_FLAGS, null, true, null)
+    expect(spawn).toHaveBeenLastCalledWith(
+      'sess-A',
+      'old name',
+      NO_LAUNCH_FLAGS,
+      null,
+      true,
+      null,
+      'sess-A'
+    )
   })
 
   it('a FRESH launch never consults resumeName', () => {
@@ -224,7 +257,15 @@ describe('past sessions — resume and launchedAt', () => {
     const { terminalId } = svc.launch({ cwd: '/c', name: 'typed' })
     svc.mintSpawn(terminalId)
     expect(resumeName).not.toHaveBeenCalled()
-    expect(spawn).toHaveBeenLastCalledWith('fresh', 'typed', NO_LAUNCH_FLAGS, null, false, null)
+    expect(spawn).toHaveBeenLastCalledWith(
+      'fresh',
+      'typed',
+      NO_LAUNCH_FLAGS,
+      null,
+      false,
+      null,
+      null
+    )
   })
 
   it('a /clear rebind never turns a FRESH launch into a resume', () => {
@@ -261,7 +302,7 @@ describe('past sessions — resume and launchedAt', () => {
     expect(minted?.sessionId).toBe('fresh')
     expect(minted?.resume).toBeNull()
     expect(minted?.launchedAt).toBe(5)
-    expect(spawn).toHaveBeenLastCalledWith('fresh', 'n', NO_LAUNCH_FLAGS, null, false, null)
+    expect(spawn).toHaveBeenLastCalledWith('fresh', 'n', NO_LAUNCH_FLAGS, null, false, null, null)
     expect(svc.peekSpawnOverride(terminalId)?.launchedAt).toBe(5)
   })
 })

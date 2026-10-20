@@ -45,13 +45,16 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path
   (`isInstructionPath`). `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
 - **Goals (spec 2026-10-19):** a launch from tasks carries `goalLaunch` on the durable override
-  (a Reopen keeps it); every spawn calls `goalSpawnExtras` (`goals/goalLaunch.ts`), which links the
-  tasks to THAT minted id and appends their block to `--append-system-prompt` after
-  `QUESTION_FORMAT_PROMPT`. A resume with no `goalLaunch` rebuilds the block from the links that
-  still name the id. `composeClaudeCommand` takes `--mcp-config` / `--allowedTools` after it; both
-  are null until the MCP tool exists. `goals:start-sessions` refuses before anything launches
-  (`task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
-  `folder_missing`).
+  (a Reopen keeps it); every spawn calls `goalSpawnExtras` (`goals/goalLaunch.ts`) with the id it
+  replaces (`lastSessionId`). The first spawn links the launch's tasks to THAT minted id; a Reopen
+  carries over only the tasks still open and still linked to the replaced id (closed or unlinked
+  work never comes back). The block, appended to `--append-system-prompt` after
+  `QUESTION_FORMAT_PROMPT`, lists open tasks only; none left, no block. A resume with no
+  `goalLaunch` rebuilds it from the links that still name the id. `composeClaudeCommand` takes
+  `--mcp-config` / `--allowedTools` after it; both are null until the MCP tool exists.
+  `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
+  `task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
+  `folder_missing`, a bad name on any group).
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
   required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
   exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503

@@ -6,7 +6,12 @@ import { createGoalsStore, GOAL_ERROR, type GoalsStore } from '../persistence/go
 import { LAUNCH_CANCELLED } from '../../shared/schemas/goal'
 import type { GoalsStartRequest } from '../../shared/schemas/goal'
 import type { LaunchRequest } from '../pty/launchSession'
-import { goalSpawnExtras, startGoalSessions, type StartGoalSessionsDeps } from './goalLaunch'
+import {
+  goalSpawnExtras,
+  startGoalSessions,
+  type GoalLaunch,
+  type StartGoalSessionsDeps
+} from './goalLaunch'
 
 function seed(): { store: GoalsStore; goalId: string; t1: string; t2: string; t3: string } {
   let n = 0
@@ -123,6 +128,27 @@ describe('startGoalSessions', () => {
     expect(d.launched).toEqual([])
   })
 
+  it('a group whose name fails the name check launches no group at all', async () => {
+    const { store, t1, t2, t3 } = seed()
+    // A title that slipped past its schema (control character): the name check refuses it.
+    const view = store.view.bind(store)
+    const sneaky: GoalsStore = {
+      ...store,
+      view: () => {
+        const v = view()
+        return { ...v, tasks: v.tasks.map((t) => (t.id === t3 ? { ...t, title: 'bad\u0007' } : t)) }
+      }
+    }
+    const d = deps(sneaky)
+    await expect(
+      startGoalSessions(
+        req({ groups: [{ taskIds: [t1] }, { taskIds: [t2] }, { taskIds: [t3] }] }),
+        d
+      )
+    ).rejects.toThrow()
+    expect(d.launched).toEqual([])
+  })
+
   it('cancel launches nothing', async () => {
     const { store, t1 } = seed()
     const d = deps(store, { pickDirectory: vi.fn(() => Promise.resolve(null)) })
@@ -172,7 +198,8 @@ describe('goalSpawnExtras', () => {
       store,
       'sess-1',
       { kind: 'worker', taskIds: [t1, t2], markDone: true },
-      false
+      false,
+      null
     )
     expect(store.tasksForSession('sess-1').map((t) => t.id)).toEqual([t1, t2])
     expect(extras).toEqual({
@@ -190,7 +217,7 @@ describe('goalSpawnExtras', () => {
     const { store, t1, t3 } = seed()
     store.linkMany([t3], 'sess-old')
     store.linkMany([t1], 'sess-old')
-    const extras = goalSpawnExtras(store, 'sess-old', null, true)
+    const extras = goalSpawnExtras(store, 'sess-old', null, true, null)
     expect(extras.appendPrompt).toBe(
       [
         'This session works on goal "Ship v2". Its tasks:',
@@ -204,9 +231,9 @@ describe('goalSpawnExtras', () => {
     const { store, goalId, t1 } = seed()
     store.linkMany([t1], 'sess-1')
     const none = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
-    expect(goalSpawnExtras(store, 'sess-unlinked', null, true)).toEqual(none)
-    expect(goalSpawnExtras(store, 'sess-1', null, false)).toEqual(none)
-    expect(goalSpawnExtras(store, 'sess-p', { kind: 'planner', goalId }, false)).toEqual(none)
+    expect(goalSpawnExtras(store, 'sess-unlinked', null, true, null)).toEqual(none)
+    expect(goalSpawnExtras(store, 'sess-1', null, false, null)).toEqual(none)
+    expect(goalSpawnExtras(store, 'sess-p', { kind: 'planner', goalId }, false, null)).toEqual(none)
   })
 
   it('tasks of more than one goal get the tasks-only head', () => {
@@ -216,7 +243,8 @@ describe('goalSpawnExtras', () => {
       store,
       'sess-1',
       { kind: 'worker', taskIds: [t1, loose], markDone: false },
-      false
+      false,
+      null
     )
     expect(extras.appendPrompt).toBe(
       ['This session works on these tasks:', `- [${t1}] Write the spec`, `- [${loose}] Loose`].join(
@@ -225,16 +253,67 @@ describe('goalSpawnExtras', () => {
     )
   })
 
-  it('when the hook port is not ours the block has no mark_task_done line', () => {
-    // No MCP server is served yet, so no session gets the tool and no block names it.
+  it('with no MCP tool yet, markDone adds no mark_task_done line and no MCP flags', () => {
+    // No MCP server is served in this task, so no session gets the tool and no block names it.
+    // The MCP task adds the real SEC-6 branch (hook port not ours → no tool, no line) and its test.
     const { store, t1 } = seed()
     const extras = goalSpawnExtras(
       store,
       'sess-1',
       { kind: 'worker', taskIds: [t1], markDone: true },
-      false
+      false,
+      null
     )
     expect(extras.appendPrompt).not.toContain('mark_task_done')
     expect(extras.mcpConfigPath).toBeNull()
+  })
+
+  // A dead-pane Reopen re-spawns the same recipe with a NEW id: only work still open and still
+  // linked to the id it replaces comes along.
+  const worker = (taskIds: string[]): GoalLaunch => ({ kind: 'worker', taskIds, markDone: true })
+
+  it('a Reopen after a task was closed does not list or re-link it', () => {
+    const { store, t1, t2 } = seed()
+    goalSpawnExtras(store, 'sess-1', worker([t1, t2]), false, null)
+    store.setTaskStatus(t1, 'done', 'operator')
+    const extras = goalSpawnExtras(store, 'sess-2', worker([t1, t2]), false, 'sess-1')
+    expect(store.tasksForSession('sess-2').map((t) => t.id)).toEqual([t2])
+    expect(extras.appendPrompt).toBe(
+      ['This session works on goal "Ship v2". Its tasks:', `- [${t2}] Cut the release`].join('\n')
+    )
+  })
+
+  it('a Reopen after the operator unlinked a task does not re-link it', () => {
+    const { store, t1, t2 } = seed()
+    goalSpawnExtras(store, 'sess-1', worker([t1, t2]), false, null)
+    store.unlink(t2, 'sess-1')
+    const extras = goalSpawnExtras(store, 'sess-2', worker([t1, t2]), false, 'sess-1')
+    expect(store.tasksForSession('sess-2').map((t) => t.id)).toEqual([t1])
+    expect(extras.appendPrompt).not.toContain(t2)
+  })
+
+  it('a Reopen with nothing left open gets no block', () => {
+    const { store, t1 } = seed()
+    goalSpawnExtras(store, 'sess-1', worker([t1]), false, null)
+    store.setTaskStatus(t1, 'done', 'operator')
+    expect(goalSpawnExtras(store, 'sess-2', worker([t1]), false, 'sess-1').appendPrompt).toBeNull()
+    expect(store.tasksForSession('sess-2')).toEqual([])
+  })
+
+  it('a resume whose linked tasks are all done gets no block', () => {
+    const { store, t1, t2 } = seed()
+    store.linkMany([t1, t2], 'sess-old')
+    store.setTaskStatus(t1, 'done', 'operator')
+    store.setTaskStatus(t2, 'done', 'session')
+    expect(goalSpawnExtras(store, 'sess-old', null, true, null).appendPrompt).toBeNull()
+  })
+
+  it('a resume lists only the open tasks of the session', () => {
+    const { store, t1, t2 } = seed()
+    store.linkMany([t1, t2], 'sess-old')
+    store.setTaskStatus(t1, 'done', 'operator')
+    const block = goalSpawnExtras(store, 'sess-old', null, true, null).appendPrompt
+    expect(block).toContain(t2)
+    expect(block).not.toContain(t1)
   })
 })

@@ -72,6 +72,12 @@
   align-items: center;
   gap: var(--gap-field);
 }
+/* A switch's text at body size, like the count above it (a bare label took the sheet's larger
+   inherited size). */
+.startSwitchLabel {
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
 
 /* The rail's one sentence when the startup load failed. --text-secondary on the raised panel
    (never --text-muted: 2.54:1 there). */

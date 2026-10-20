@@ -143,11 +143,13 @@ export interface LaunchIpcDeps {
     onSkip: (sessionId: string, reason: ModSkipReason) => void
   }
   /** Goals: what one spawn of `sessionId` adds (its tasks' prompt block). Read at spawn time;
-   *  links the tasks to the minted id (goals/goalLaunch.ts). */
+   *  links the tasks to the minted id (goals/goalLaunch.ts). `previousSessionId` = the id the
+   *  terminal's last spawn minted, null on its first. */
   goalSpawnExtras: (
     sessionId: string,
     goalLaunch: GoalLaunch | null,
-    resume: boolean
+    resume: boolean,
+    previousSessionId: string | null
   ) => GoalSpawnExtras
   isSessionLive: (sessionId: string) => boolean
   getTerminalManager: () => TerminalManager | null
@@ -252,7 +254,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
     flags: ClaudeLaunchFlags,
     initialPrompt: string | null,
     resume: boolean,
-    goalLaunch: GoalLaunch | null
+    goalLaunch: GoalLaunch | null,
+    previousSessionId: string | null
   ): {
     file: string
     args: string[]
@@ -296,7 +299,7 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
 
     // Goals: a session started from tasks gets them as context (its tasks are linked to THIS
     // minted id first). Nothing for any other launch.
-    const goal = goalSpawnExtras(sessionId, goalLaunch, resume)
+    const goal = goalSpawnExtras(sessionId, goalLaunch, resume, previousSessionId)
 
     return {
       file: SHELL,

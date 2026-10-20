@@ -309,12 +309,14 @@ describe('launchSession — the operator-typed session name (session-naming)', (
 describe('launchSession — goalLaunch', () => {
   it('the override keeps goalLaunch and mintSpawn passes it to spawn', () => {
     const seen: unknown[] = []
+    const previous: (string | null)[] = []
     let i = 0
     const svc = createLaunchService({
       launchedSet: createLaunchedSet(),
       isDirectory: () => true,
-      spawn: (sessionId, _name, _flags, _prompt, _resume, goalLaunch) => {
+      spawn: (sessionId, _name, _flags, _prompt, _resume, goalLaunch, previousSessionId) => {
         seen.push(goalLaunch)
+        previous.push(previousSessionId)
         return shellClaudeSpawn(sessionId)
       },
       newTerminalId: () => 't-1',
@@ -326,6 +328,8 @@ describe('launchSession — goalLaunch', () => {
     svc.mintSpawn('t-1')
     svc.mintSpawn('t-1') // a Reopen keeps it
     expect(seen).toEqual([goalLaunch, goalLaunch])
+    // The first spawn replaces nothing; the Reopen replaces the id the first one minted.
+    expect(previous).toEqual([null, 'sess-1'])
 
     const plain = createLaunchService({
       launchedSet: createLaunchedSet(),

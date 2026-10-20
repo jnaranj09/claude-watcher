@@ -32,6 +32,10 @@ export interface GoalSpawnExtras {
 
 const NO_EXTRAS: GoalSpawnExtras = { appendPrompt: null, mcpConfigPath: null, allowedTools: null }
 
+function openTasks(tasks: readonly Task[]): Task[] {
+  return tasks.filter((t) => t.status === 'open')
+}
+
 /** The goal the tasks share, or null when they span goals or are loose. */
 function sharedGoalName(store: GoalsStore, tasks: readonly Task[]): string | null {
   const goalId = tasks[0]?.goalId ?? null
@@ -40,26 +44,35 @@ function sharedGoalName(store: GoalsStore, tasks: readonly Task[]): string | nul
 }
 
 /**
- * The extras for ONE spawn of `sessionId`.
- * - A worker launch links its tasks to `sessionId` first (a Reopen mints a new id, so it links
- *   again), then gets the block for every task linked to that id.
+ * The extras for ONE spawn of `sessionId`. `previousSessionId` is the id this terminal's last
+ * spawn minted (`LaunchOverride.lastSessionId`), null on its first spawn.
+ * - A worker launch's FIRST spawn links its tasks to `sessionId`.
+ * - A re-spawn (a dead-pane Reopen mints a new id) carries over only the tasks that are still open
+ *   and still linked to the previous id: work closed or unlinked since never comes back.
  * - A resume with no goal launch (Past sessions, the dead pane's Resume) keeps the id, so the
  *   block comes back from the links that still name it.
  * - A fresh launch with no goal launch has a new id and no links: nothing.
  * - A planner gets nothing yet: its prompt names its tools, so it comes with them.
- * The mark-done line needs the MCP tool, which no session gets yet, so it is always left out and
- * both MCP fields are null.
+ * The block lists OPEN tasks only; none left, no block. The mark-done line needs the MCP tool,
+ * which no session gets yet, so it is always left out and both MCP fields are null.
  */
 export function goalSpawnExtras(
   store: GoalsStore,
   sessionId: string,
   goalLaunch: GoalLaunch | null,
-  resume: boolean
+  resume: boolean,
+  previousSessionId: string | null
 ): GoalSpawnExtras {
   if (goalLaunch?.kind === 'planner') return NO_EXTRAS
   if (goalLaunch === null && !resume) return NO_EXTRAS
-  if (goalLaunch !== null) store.linkMany(goalLaunch.taskIds, sessionId)
-  const tasks = store.tasksForSession(sessionId)
+  if (goalLaunch !== null) {
+    const carried =
+      previousSessionId === null
+        ? goalLaunch.taskIds
+        : openTasks(store.tasksForSession(previousSessionId)).map((t) => t.id)
+    store.linkMany(carried, sessionId)
+  }
+  const tasks = openTasks(store.tasksForSession(sessionId))
   if (tasks.length === 0) return NO_EXTRAS
   return {
     appendPrompt: buildWorkerPrompt({
@@ -131,15 +144,15 @@ export async function startGoalSessions(
     deps.log('[claude-watcher][goals] code=folder_missing')
     throw new Error(LAUNCH_FOLDER_MISSING)
   }
-  const terminalIds = groups.map((tasks) => {
-    const { terminalId } = deps.requestLaunch({
-      cwd,
-      // Titles are schema-checked already; the name check still runs, like a typed name.
-      name: SessionNameSchema.parse(taskSessionName(tasks.map((t) => t.title))),
-      workspaceId: req.workspaceId,
-      goalLaunch: { kind: 'worker', taskIds: tasks.map((t) => t.id), markDone: req.markDone }
-    })
-    return terminalId
-  })
+  // Every request is built (and its name checked) before the first launch, so a refusal on a
+  // later group launches nothing.
+  const requests: LaunchRequest[] = groups.map((tasks) => ({
+    cwd,
+    // Titles are schema-checked already; the name check still runs, like a typed name.
+    name: SessionNameSchema.parse(taskSessionName(tasks.map((t) => t.title))),
+    workspaceId: req.workspaceId,
+    goalLaunch: { kind: 'worker', taskIds: tasks.map((t) => t.id), markDone: req.markDone }
+  }))
+  const terminalIds = requests.map((launch) => deps.requestLaunch(launch).terminalId)
   return { terminalIds }
 }

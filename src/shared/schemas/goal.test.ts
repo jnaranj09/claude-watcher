@@ -3,6 +3,8 @@ import {
   GoalsFileSchema,
   GoalSaveSchema,
   GoalsStartSchema,
+  ProposalDecideSchema,
+  TASK_REPEATED,
   TaskSaveSchema,
   TaskSchema,
   TASK_TITLE_MAX
@@ -52,6 +54,35 @@ describe('goal schemas', () => {
     expect(GoalsStartSchema.safeParse(req(11)).success).toBe(false)
     expect(GoalsStartSchema.safeParse(req(10)).success).toBe(true)
     expect(GoalsStartSchema.safeParse(req(0)).success).toBe(false)
+  })
+
+  it('a task id twice across groups, or twice in one, fails with a code only', () => {
+    const req = (groups: string[][]): unknown => ({
+      workspaceId: 'w1',
+      goalId: null,
+      groups: groups.map((taskIds) => ({ taskIds })),
+      markDone: true
+    })
+    const across = GoalsStartSchema.safeParse(
+      req([
+        ['t1', 't2'],
+        ['t3', 't1']
+      ])
+    )
+    expect(across.success).toBe(false)
+    expect(across.error?.issues).toEqual([
+      expect.objectContaining({ message: TASK_REPEATED, path: ['groups', 1, 'taskIds', 1] })
+    ])
+    expect(GoalsStartSchema.safeParse(req([['t1', 't1']])).success).toBe(false)
+    expect(
+      ProposalDecideSchema.safeParse({
+        plannerSessionId: 'p',
+        decision: 'accept',
+        groups: [{ taskIds: ['t1'] }, { taskIds: ['t1'] }],
+        markDone: true
+      }).success
+    ).toBe(false)
+    expect(GoalsStartSchema.safeParse(req([['t1'], ['t2']])).success).toBe(true)
   })
 
   it('requests are strict (an extra key fails)', () => {

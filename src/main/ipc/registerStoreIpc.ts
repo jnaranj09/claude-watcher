@@ -301,7 +301,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.goalsUnlinkTask, (_evt, raw: unknown) => handlers.unlinkTask(raw))
     ipc.handle(CH.goalsStart, (evt, raw: unknown) => {
       const seam = apiSeams.get(evt.sender)
-      if (seam === undefined) throw new Error('no launch seam for this window')
+      if (seam === undefined) throw new Error('launch_seam_not_initialized')
       return handlers.start(raw, (req) => seam.requestLaunch(req))
     })
   }

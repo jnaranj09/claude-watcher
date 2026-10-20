@@ -51,7 +51,8 @@ export const GOAL_TERMS = {
   /** Starting sessions from tasks: the button, its one switch, and its refusal line. */
   startSession: 'Start session',
   markDone: 'Claude can mark tasks done',
-  startFailed: 'Could not start sessions.'
+  startFailed: 'Could not start sessions.',
+  sessionStarted: 'Session started.'
 } as const
 
 /** A default folder on a workspace or a goal: the field's label and its two controls. */
@@ -59,4 +60,10 @@ export const FOLDER_TERMS = {
   label: 'Default folder',
   choose: 'Choose…',
   clear: 'Clear'
+} as const
+
+/** Rows checked for a bulk action: the Active sessions page's bulk bar and the Goals sheet's
+ *  start bar. */
+export const SELECTION_TERMS = {
+  count: (n: number): string => `${n} selected`
 } as const

@@ -123,10 +123,24 @@ export type TaskStatusRequest = z.infer<typeof TaskStatusSchema>
 export const TaskLinkSchema = z.object({ taskId: IdSchema, sessionId: IdSchema }).strict()
 export type TaskLinkRequest = z.infer<typeof TaskLinkSchema>
 
+/** A task id that appears twice across a start's groups (or twice in one): one task, one session
+ *  per start. Code only, never the id. */
+export const TASK_REPEATED = 'task_repeated'
+
 const StartGroupsSchema = z
   .array(z.object({ taskIds: z.array(IdSchema).min(1) }).strict())
   .min(1)
   .max(PROPOSAL_GROUPS_MAX)
+  .superRefine((groups, ctx) => {
+    const seen = new Set<string>()
+    groups.forEach((group, g) =>
+      group.taskIds.forEach((id, t) => {
+        if (seen.has(id))
+          ctx.addIssue({ code: 'custom', message: TASK_REPEATED, path: [g, 'taskIds', t] })
+        seen.add(id)
+      })
+    )
+  })
 
 export const GoalsStartSchema = z
   .object({
