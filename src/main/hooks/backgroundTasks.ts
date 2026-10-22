@@ -6,6 +6,8 @@
 //   nothing running     "background_tasks": []
 //   a background shell  "background_tasks": [{ id, type:"shell", status:"running", … }]
 //   an armed Monitor    the same shape, also status "running"
+//   an artifact watch   type "monitor", status "running" — NOT work (claude 2.1.308, see
+//                       ARTIFACT_WATCH)
 //
 // WHAT THIS REPLACED. An earlier build reconstructed this fact the hard way: scrape a task
 // id out of each tool's `tool_response`, keep a live registry per session, tail the
@@ -29,6 +31,17 @@ import type { HookEvent } from '../../shared/schemas/hookEvent'
  *  an early "your turn", never a session silently stuck on `Working`. */
 const RUNNING = 'running'
 
+/** How claude 2.1.308 describes an artifact watch, whole: `live updates for artifact <url>
+ *  (<why it was armed>)` — `auto-armed on publish`, `watch requested`, `re-armed on session
+ *  resume`… (none holds a bracket). The watch is an ambient `monitor_ws` task that never ends by
+ *  itself, and claude leaves ambient watches out of its own "still running" checks. The Stop
+ *  payload drops the `ambient` flag, so the watch arrives as a running "monitor" and this text is
+ *  the only thing that tells it apart from a real Monitor (probe, 2026-10-22). Matching the whole
+ *  text, not a prefix, keeps a real Monitor from being skipped. Changed wording reads as running
+ *  work (the card says Working again, never idle with real work running);
+ *  `npm run test:claude-drift` fails first, after a claude upgrade. */
+const ARTIFACT_WATCH = /^live updates for artifact https:\/\/\S+\/artifact\/\S+ \([^()]+\)$/
+
 /**
  * True when this event reports background work still running.
  *
@@ -38,10 +51,19 @@ const RUNNING = 'running'
 export function hasRunningBackgroundWork(evt: HookEvent): boolean {
   const tasks = evt.background_tasks
   if (!Array.isArray(tasks)) return false
-  return tasks.some(
-    (task) =>
-      typeof task === 'object' &&
-      task !== null &&
-      (task as Record<string, unknown>)['status'] === RUNNING
+  return tasks.some((task) => {
+    if (typeof task !== 'object' || task === null) return false
+    const fields = task as Record<string, unknown>
+    return fields['status'] === RUNNING && !isArtifactWatch(fields)
+  })
+}
+
+/** An artifact watch is not work: claude sits at the prompt while it waits for comments. */
+function isArtifactWatch(fields: Record<string, unknown>): boolean {
+  const description = fields['description']
+  return (
+    fields['type'] === 'monitor' &&
+    typeof description === 'string' &&
+    ARTIFACT_WATCH.test(description)
   )
 }

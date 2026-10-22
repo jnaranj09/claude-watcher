@@ -72,6 +72,99 @@ describe('hasRunningBackgroundWork — read the truth off the Stop payload', () 
     ).toBe(true)
   })
 
+  // PROBE (claude 2.1.308, 2026-10-22): an artifact watch is an ambient `monitor_ws` task that
+  // never ends by itself. The Stop payload drops claude's `ambient` flag, so it reaches us as a
+  // running "monitor"; only its description tells it apart from a real Monitor.
+  it('false when the only running task is an artifact watch — claude is idle at the prompt', () => {
+    expect(
+      hasRunningBackgroundWork(
+        stop({
+          background_tasks: [
+            {
+              id: 'smde88tmr',
+              type: 'monitor',
+              status: 'running',
+              description:
+                'live updates for artifact https://claude.ai/artifact/34189Dye6YKeNgx6J8kKCH (watch requested)'
+            }
+          ]
+        })
+      )
+    ).toBe(false)
+  })
+
+  it('true when a real monitor runs beside an artifact watch', () => {
+    expect(
+      hasRunningBackgroundWork(
+        stop({
+          background_tasks: [
+            {
+              id: 'smde88tmr',
+              type: 'monitor',
+              status: 'running',
+              description:
+                'live updates for artifact https://claude.ai/artifact/x (watch requested)'
+            },
+            { id: 'bkjklu3zy', type: 'monitor', status: 'running', description: 'deploy events' }
+          ]
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('false for a watch claude re-armed on resume, at a /code/ artifact URL', () => {
+    expect(
+      hasRunningBackgroundWork(
+        stop({
+          background_tasks: [
+            {
+              id: 'sq1',
+              type: 'monitor',
+              status: 'running',
+              description:
+                'live updates for artifact https://claude.ai/code/artifact/0b7c (re-armed on session resume)'
+            }
+          ]
+        })
+      )
+    ).toBe(false)
+  })
+
+  it('true for a real monitor whose description only starts like a watch', () => {
+    expect(
+      hasRunningBackgroundWork(
+        stop({
+          background_tasks: [
+            {
+              id: 'bm1',
+              type: 'monitor',
+              status: 'running',
+              description: 'live updates for artifact builds on the CI page'
+            }
+          ]
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('true for a shell whose description reads exactly like a watch', () => {
+    expect(
+      hasRunningBackgroundWork(
+        stop({
+          background_tasks: [
+            {
+              id: 'bs1',
+              type: 'shell',
+              status: 'running',
+              description:
+                'live updates for artifact https://claude.ai/artifact/x (watch requested)'
+            }
+          ]
+        })
+      )
+    ).toBe(true)
+  })
+
   it('false for an empty list — the probe-observed idle shape', () => {
     expect(hasRunningBackgroundWork(stop({ background_tasks: [] }))).toBe(false)
   })

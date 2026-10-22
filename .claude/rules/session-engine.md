@@ -44,6 +44,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   §5). Open in editor takes any absolute path, but never a program (an execute bit or a
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path
   (`isInstructionPath`). `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
+  After a claude upgrade also run `npm run test:claude-drift` (local only): it checks that claude
+  still describes an artifact watch as `hooks/backgroundTasks.ts` reads it.
 - **Goals (spec 2026-10-19):** a launch from tasks carries `goalLaunch` on the durable override
   (a Reopen keeps it); every spawn calls `goalSpawnExtras` (`goals/goalLaunch.ts`) with the id it
   replaces (`lastSessionId`). The first spawn links the launch's tasks to THAT minted id; a Reopen
@@ -174,7 +176,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   copy (known limit).
 - **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
   otherwise) — don't narrow.
-- **Status rules:** turn ending with `background_tasks` running = `Working` (until next event; Esc
+- **Status rules:** turn ending with `background_tasks` running = `Working`; an artifact watch is
+  not work (`hooks/backgroundTasks.ts`) (until next event; Esc
   demotes any card not already idle). Ctrl+C demotes only a `Working` card (ST-4: an early cancel
   sends no hook and no marker; idle prompt: not an interrupt; needs-you: not counted, unprobed) —
   `interruptDemotes`. Tool events never pull a card out of `NeedsPermission` (R20) — except
