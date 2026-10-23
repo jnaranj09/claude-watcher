@@ -13,7 +13,9 @@
 //
 // The origin goes out once `next(e)` has settled, which is after claude's http `UserPromptSubmit`
 // hook was answered (probe, claude 2.1.309), so the app always sees the hook first. A 409 (no live
-// session) or a failed send is not retried: the next prompt sends its own.
+// session) or a failed send is not retried: the next prompt sends its own. A prompt with no origin
+// (a claude older than 2.1.309 may give none) sends nothing: the app then keeps clearing an ask on
+// `UserPromptSubmit`, where a reported non-operator origin would stop that for good.
 import type { Engine, Register } from 'claude-code'
 import { REPORT_SOURCES, buildReport, reportKey, type EngineData } from './report'
 import { buildPrompt, promptUrl } from './prompt'
@@ -67,6 +69,7 @@ export const register: Register = (on) => {
     const target = url === undefined ? undefined : promptUrl(url)
     if (target === undefined) return entered
     const body = buildPrompt(await $.session.id(), e.origin)
+    if (body === undefined) return entered
     await $.http.fetch(target, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -109,13 +109,24 @@ test('reports a typed prompt’s origin after it entered, without its text', asy
   ])
 })
 
-test('a prompt with no origin is reported unclassified', async ($, on) => {
+// An older claude with no `origin`: sending nothing keeps the app's `UserPromptSubmit` fallback.
+test('a prompt with no origin sends nothing', async ($, on) => {
   const { posts } = promptWorld(on, { CLAUDE_WATCHER_MOD_URL: URL }, OK)
   await $.session.start({ cwd: '/p', surface: null, isInteractive: false })
-  await $.prompt.submit({ text: 'hi', wait: false } as Parameters<typeof $.prompt.submit>[0])
-  expect(posts.map((p) => p.body)).toEqual([
-    '{"version":1,"sessionId":"sid-1","origin":"unclassified"}'
-  ])
+  const result = await $.prompt.submit({ text: 'hi', wait: false } as Parameters<
+    typeof $.prompt.submit
+  >[0])
+  expect(result).toEqual({ text: 'entered:hi' })
+  expect(posts).toEqual([])
+})
+
+test('a prompt with an empty origin kind sends nothing', async ($, on) => {
+  const { posts } = promptWorld(on, { CLAUDE_WATCHER_MOD_URL: URL }, OK)
+  await $.session.start({ cwd: '/p', surface: null, isInteractive: false })
+  await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: '' } } as Parameters<
+    typeof $.prompt.submit
+  >[0])
+  expect(posts).toEqual([])
 })
 
 test('a report that fails to send leaves the prompt as it entered', async ($, on) => {

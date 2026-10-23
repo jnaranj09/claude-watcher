@@ -38,9 +38,11 @@ describe('the bridge mod prompt contract', () => {
     expect(ModPromptSchema.safeParse(buildPrompt(SID, { kind: 'composer' })).success).toBe(true)
   })
 
-  it('a body built with no origin says unclassified and passes main’s schema', () => {
-    const body = buildPrompt(SID, undefined)
-    expect(body.origin).toBe('unclassified')
-    expect(ModPromptSchema.safeParse(body).success).toBe(true)
+  it('no origin builds no body (the app keeps its UserPromptSubmit fallback)', () => {
+    expect(buildPrompt(SID, undefined)).toBeUndefined()
+  })
+
+  it('an empty origin kind builds no body', () => {
+    expect(buildPrompt(SID, { kind: '' })).toBeUndefined()
   })
 })

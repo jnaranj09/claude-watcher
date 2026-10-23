@@ -21,7 +21,17 @@ export function promptUrl(reportUrl: string): string | undefined {
   return reportUrl.slice(0, -REPORT_PATH.length) + PROMPT_PATH
 }
 
-/** No origin on the event is claude's own `unclassified`: a channel it cannot attest. */
-export function buildPrompt(sessionId: string, origin: { kind: string } | undefined): ModPrompt {
-  return { version: 1, sessionId, origin: origin?.kind ?? 'unclassified' }
+/**
+ * The body for a prompt's origin, or undefined when the event carries none (or an empty kind):
+ * then the mod sends nothing. An older claude without `origin` must not mark the session as
+ * origin-reporting in the app, which would stop `UserPromptSubmit` clearing an ask while no
+ * operator origin ever arrives; sending nothing keeps that fallback.
+ */
+export function buildPrompt(
+  sessionId: string,
+  origin: { kind: string } | undefined
+): ModPrompt | undefined {
+  const kind: unknown = origin?.kind
+  if (typeof kind !== 'string' || kind === '') return undefined
+  return { version: 1, sessionId, origin: kind }
 }
