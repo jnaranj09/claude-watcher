@@ -62,6 +62,17 @@ export type HookStatusChange =
        *  prompt is open: Enter may answer only its first question, and its own PostToolUse is the
        *  way out (ST-2). */
       fromKey?: true
+      /** `Stop` whose last line is the `Needs you:` marker (`hooks/needsYouMarker.ts`): claude
+       *  is blocked on the operator while it may still run background work. The reducer holds
+       *  this as a sticky ask until the operator acts. */
+      opensAsk?: true
+      /** `UserPromptSubmit`: the operator sent a prompt. The reducer uses it to clear a sticky
+       *  ask; no other `Working` event is the operator speaking. */
+      fromPrompt?: true
+      /** `ElicitationResult`: the operator answered an MCP server's form. The reducer uses it
+       *  to clear a sticky ask, because otherwise it is indistinguishable from other `fromTool`
+       *  Working events. */
+      answered?: true
     }
   | { kind: 'removed' }
 

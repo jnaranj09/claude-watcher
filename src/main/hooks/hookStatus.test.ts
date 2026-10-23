@@ -157,7 +157,8 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
   it('UserPromptSubmit → Working', () => {
     expect(hookStatus(evt({ hook_event_name: 'UserPromptSubmit' }))).toEqual({
       kind: 'status',
-      status: 'Working'
+      status: 'Working',
+      fromPrompt: true
     })
   })
 
@@ -246,11 +247,12 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     })
   })
 
-  it('ElicitationResult (the operator answered the form) → Working', () => {
+  it('ElicitationResult (the operator answered the form) → Working, marked answered', () => {
     expect(hookStatus(evt({ hook_event_name: 'ElicitationResult' }))).toEqual({
       kind: 'status',
       status: 'Working',
-      fromTool: true
+      fromTool: true,
+      answered: true
     })
   })
 
@@ -382,11 +384,51 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
     ).toEqual({ kind: 'status', status: 'NeedsAttention' })
   })
 
+  // --- the sticky ask: a Stop ending in the `Needs you:` marker ---
+  const RUNNING = [{ id: 'b1', status: 'running' }]
+
+  it('Stop ending in the Needs you: marker opens the sticky ask, even with a running monitor', () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'Stop',
+          last_assistant_message: 'Armed the monitor.\nNeeds you: pick a branch',
+          background_tasks: RUNNING
+        })
+      )
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', opensAsk: true })
+  })
+
+  it('Stop ending in "?" with a running monitor is NeedsAttention WITHOUT opensAsk', () => {
+    const out = hookStatus(
+      evt({
+        hook_event_name: 'Stop',
+        last_assistant_message: 'Which branch?',
+        background_tasks: RUNNING
+      })
+    )
+    expect(out).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    expect(out).not.toHaveProperty('opensAsk')
+  })
+
+  it('Stop with the marker AND a "?" opens the ask (marker is checked first)', () => {
+    expect(
+      hookStatus(
+        evt({
+          hook_event_name: 'Stop',
+          last_assistant_message: 'Needs you: which branch?',
+          background_tasks: RUNNING
+        })
+      )
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', opensAsk: true })
+  })
+
   it('background_tasks does NOT change any non-Stop event', () => {
     const bg = [{ id: 'b1', status: 'running' }]
     expect(hookStatus(evt({ hook_event_name: 'UserPromptSubmit', background_tasks: bg }))).toEqual({
       kind: 'status',
-      status: 'Working'
+      status: 'Working',
+      fromPrompt: true
     })
     expect(hookStatus(evt({ hook_event_name: 'SessionEnd', background_tasks: bg }))).toEqual({
       kind: 'removed'
