@@ -42,7 +42,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   each prompt POSTs who sent it (`prompt.submit` `origin.kind`, never the text) to `/mod/prompt`
   (`MOD_PROMPT_PATH`, `ModPromptSchema`, `modPromptOrigin.ts`; 409 not live, handler throw → 200 +
   `code=mod_prompt_handler_error`; nothing sent when there is no origin); it never changes claude.
-  `prompt.submit` is verified in claude 2.1.307–2.1.309; 2.1.304–2.1.306 are unverified (the mod
+  Origin probed on claude 2.1.309; `prompt.submit` is present in the 2.1.307–2.1.309 binaries; 2.1.304–2.1.306 are unverified (the mod
   floor stays 2.1.304: there the origin never arrives and the `UserPromptSubmit` fallback below
   applies). Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
   versions, and Restore is the one operator-started write to an operator file (technical-taste
@@ -181,9 +181,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   copy (known limit).
 - **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
   otherwise) — don't narrow.
-- **Status rules:** a `Stop` whose last line is `Needs you:` (`NEEDS_YOU_MARKER`,
+- **Status rules:** a `Stop` with one of its last three non-empty lines starting `Needs you:` (`NEEDS_YOU_MARKER`,
   `endsWithNeedsYou`; `QUESTION_FORMAT_PROMPT` asks claude for it) → `NeedsAttention` and opens a
-  sticky ask (`opensAsk`); else a last line ending `?`/`？`/`؟` or an English ask phrase
+  sticky ask (`opensAsk`); else a line (of the last three) ending `?`/`？`/`؟` or an English ask phrase
   (`endsWithQuestion`) → `NeedsAttention`, not sticky; else `background_tasks` still running →
   `Working` (an artifact watch is not work: `hooks/backgroundTasks.ts`); else `YourTurn`. The
   reducer holds a sticky ask's `NeedsAttention` over `Working`/`YourTurn`; `NeedsPermission` still

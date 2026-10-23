@@ -33,23 +33,26 @@ Every card state comes from Claude Code's own structured output — its lifecycl
 hooks, plus its session transcript for the one thing the hooks never report (an Esc
 interrupt). No polling, no screen scraping, no guessing.
 
-| Card state       | It means                                               | Enters on                                                                                    | Leaves on                                                                     |
-| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Connecting       | the app spawned claude, not yet reporting              | app-launch                                                                                   | your first prompt (→ Working)                                                 |
-| Working          | Claude's turn, or its background work is still running | you submit a prompt / a tool runs / `/compact` runs / a turn ends with a shell still running | next event                                                                    |
-| Needs permission | Claude is blocked on an approval                       | the permission prompt                                                                        | you approve or deny (`Enter`, `1` or `2` in its terminal moves it to Working) |
-| Asking you       | Claude asked you a question                            | the AskUserQuestion tool, or a turn ending in a question                                     | you reply — viewing is not answering                                          |
-| Your turn        | Claude finished; the prompt is waiting                 | any finished turn                                                                            | you reply, you view the session, or you press Esc                             |
-| Idle             | nothing to do here                                     | a fresh session, a finished turn you looked at, or you pressed Esc                           | you submit a prompt                                                           |
+| Card state       | It means                                               | Enters on                                                                                                                       | Leaves on                                                                                                                                                |
+| ---------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Connecting       | the app spawned claude, not yet reporting              | app-launch                                                                                                                      | your first prompt (→ Working)                                                                                                                            |
+| Working          | Claude's turn, or its background work is still running | you submit a prompt / a tool runs / `/compact` runs / a turn ends with a shell still running, unless it ended with `Needs you:` | next event                                                                                                                                               |
+| Needs permission | Claude is blocked on an approval                       | the permission prompt                                                                                                           | you approve or deny (`Enter`, `1` or `2` in its terminal moves it to Working)                                                                            |
+| Asking you       | Claude asked you a question                            | the AskUserQuestion tool, a turn ending in a `Needs you:` line, or a turn ending in a question                                  | you reply, press Esc or `/clear` — viewing is not answering (a `Needs you:` ask also stays on through background work, monitor wake-ups and later turns) |
+| Your turn        | Claude finished; the prompt is waiting                 | any finished turn                                                                                                               | you reply, you view the session, or you press Esc                                                                                                        |
+| Idle             | nothing to do here                                     | a fresh session, a finished turn you looked at, or you pressed Esc                                                              | you submit a prompt                                                                                                                                      |
 
 Five honest footnotes:
 
-- "A turn ending in a question" is the one text heuristic in the app — and it only
-  picks the FLAVOR of attention (question vs. plain your-turn). A missed question
-  still shows as **Your turn**. Heuristics never decide WHETHER you're told; only
-  how loudly.
+- "A turn ending in a question" and the `Needs you:` line are the two text signals in the
+  app. The question heuristic only picks the FLAVOR of attention (question vs. plain
+  your-turn): a missed question still shows as **Your turn**. A `Needs you:` line, one of the
+  last three lines of a turn, is Claude saying it is blocked on you: the card stays on
+  **Asking you** through background work, monitor wake-ups and later turns until you reply,
+  press Esc or `/clear`. Heuristics never decide WHETHER you're told; only how loudly.
 - Sessions launched by the app get one extra system-prompt line asking Claude to
-  use its question tool (or end questions with `?`). It applies ONLY to sessions
+  use its question tool (or end questions with `?`) and to end a turn that is blocked on you
+  with a last line starting `Needs you:`. It applies ONLY to sessions
   this app launches — it never touches your settings files or other sessions.
 - **Background work keeps the card on Working.** When Claude backgrounds a shell or arms a
   monitor, its turn ends but the work keeps running. Claude Code reports that running work on
@@ -57,7 +60,7 @@ Five honest footnotes:
   ("1 shell still running"), and nothing pops up. When the work finishes, Claude wakes up on its
   own and that turn moves the card again; if it then finishes or asks you something, you are told
   then. Work that never ends (a dev server) keeps the card on Working — press Esc to drop it to
-  Idle. A question always wins: a turn ending in a question is **Asking you**, background or not.
+  Idle. A question always wins: a turn ending in a question or a `Needs you:` line is **Asking you**, background or not.
 - **Esc drops the card to Idle immediately.** Interrupting Claude emits no hook at all —
   not `Stop`, not a notification, nothing, not even after 90 seconds. Without help the card
   would keep saying Working until you next used the session. Claude does record the
@@ -108,7 +111,7 @@ now, or restore it (the file as it is now is kept first, so a restore can be und
 
 The app learns this from a small Claude Code mod it passes to the sessions it launches
 (`--plugin-dir`, from the app's own data folder). The mod only reads and reports file paths and
-counts; it changes nothing in the session. It needs Claude Code 2.1.304 or newer; on an older
+counts, plus who sent each prompt (the origin kind, never the text); it changes nothing in the session. It needs Claude Code 2.1.304 or newer; on an older
 claude the session runs as before and Context says why it is empty.
 
 ## Ending a session, and Past sessions

@@ -1,6 +1,7 @@
 // Pure detector for the `Needs you:` marker: claude is told (QUESTION_FORMAT_PROMPT) to end a
-// turn that is blocked on the user with a last line starting with this token, in English even
-// when it replies in another language. Read from the Stop hook's `last_assistant_message`.
+// turn that is blocked on the user with a last line starting with this token (the scan accepts
+// any of the last three non-empty lines), in English even when it replies in another
+// language. Read from the Stop hook's `last_assistant_message`.
 //
 // PURE: no I/O, no logging, deterministic. The argument is SENSITIVE (assistant text) — this
 // module MUST NEVER log it. [.claude/rules/zod-boundaries.md]

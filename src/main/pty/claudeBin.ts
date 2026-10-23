@@ -131,7 +131,7 @@ export function shellQuote(s: string): string {
  * accepted interactively and MERGES with the default prompt). Scoped exactly like the
  * --settings hooks file: zero footprint, app-launched sessions only. It raises how often
  * the DETERMINISTIC signals fire (AskUserQuestion PreToolUse / a `?` tail on Stop / the
- * `Needs you:` last line, `hooks/needsYouMarker.ts`); the board is already correct without
+ * `Needs you:` line, `hooks/needsYouMarker.ts`); the board is already correct without
  * it (YourTurn floor). Re-verify this flag whenever the claude version floor is bumped
  * (alongside --session-id / -n / --settings).
  */

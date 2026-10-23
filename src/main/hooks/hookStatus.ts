@@ -186,7 +186,7 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
       // A turn that ends by asking flips to needs-you; ANY other Stop is deterministically
       // the operator's turn (spec DA-1: the your-turn floor — never idle straight from Stop;
       // idle is reached only via an interrupt, a /clear or the session:seen demotion).
-      // A `Needs you:` last line is claude saying it is blocked on the operator: the reducer
+      // A `Needs you:` line near the end is claude saying it is blocked on the operator: the reducer
       // holds it as a sticky ask, even while background work runs. Checked before the question.
       if (endsWithNeedsYou(evt.last_assistant_message)) {
         return { kind: 'status', status: 'NeedsAttention', opensAsk: true }

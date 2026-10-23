@@ -62,7 +62,7 @@ export type HookStatusChange =
        *  prompt is open: Enter may answer only its first question, and its own PostToolUse is the
        *  way out (ST-2). */
       fromKey?: true
-      /** `Stop` whose last line is the `Needs you:` marker (`hooks/needsYouMarker.ts`): claude
+      /** `Stop` with the `Needs you:` marker on one of its last three non-empty lines (`hooks/needsYouMarker.ts`): claude
        *  is blocked on the operator while it may still run background work. The reducer holds
        *  this as a sticky ask until the operator acts. */
       opensAsk?: true

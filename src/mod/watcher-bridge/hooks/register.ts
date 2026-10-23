@@ -14,7 +14,8 @@
 // The origin goes out once `next(e)` has settled, which is after claude's http `UserPromptSubmit`
 // hook was answered (probe, claude 2.1.309), so the app always sees the hook first. A 409 (no live
 // session) or a failed send is not retried: the next prompt sends its own. A prompt with no origin
-// (a claude older than 2.1.309 may give none) sends nothing: the app then keeps clearing an ask on
+// (origin probed on 2.1.309; `prompt.submit` is in the 2.1.307–2.1.309 binaries, 2.1.304–2.1.306
+// unverified, so an older claude may give none) sends nothing: the app then keeps clearing an ask on
 // `UserPromptSubmit`, where a reported non-operator origin would stop that for good.
 import type { Engine, Register } from 'claude-code'
 import { REPORT_SOURCES, buildReport, reportKey, type EngineData } from './report'
