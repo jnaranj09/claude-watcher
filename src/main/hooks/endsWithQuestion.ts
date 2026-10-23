@@ -8,6 +8,10 @@
 // `YourTurn` instead of `NeedsAttention` — still needs-you either way (spec
 // DA-1/DA-5). False positives are cheap for the same reason.
 //
+// Language: the `?` check also takes the fullwidth `？` and Arabic `؟`; the ask
+// PHRASES below are English only (the `Needs you:` marker, needsYouMarker.ts,
+// is what covers other languages).
+//
 // PURE: no I/O, no logging, deterministic. The argument is
 // `last_assistant_message`, which is SENSITIVE (PTY content / prompts / secrets) —
 // this function MUST NEVER log it. [.claude/rules/zod-boundaries.md; plan L2 step 6]
@@ -33,7 +37,10 @@ const LINE_SCAN_WINDOW = 3
 
 /** Matches complete fenced code blocks (```…```), non-greedy so consecutive
  *  fenced blocks each match their own pair rather than spanning across both. */
-const FENCED_CODE_BLOCK = /```[\s\S]*?```/g
+export const FENCED_CODE_BLOCK = /```[\s\S]*?```/g
+
+/** Question marks that end a question: ASCII, fullwidth (U+FF1F) and Arabic (U+061F). */
+const QUESTION_MARKS = new Set(['?', '？', '؟'])
 
 /** Ask-phrases that mark a prose question without a `?`. Lower-case; matched as
  *  WORD-BOUNDARY-ANCHORED substrings of the LAST 2 non-empty lines only (a phrase
@@ -63,9 +70,9 @@ function lineEndsWithQuestionMark(line: string): boolean {
   if (trimmed.length === 0) return false
   let end = trimmed.length
   while (end > 0 && TRAILING_WRAPPERS.has(trimmed[end - 1]!)) end--
-  if (end > 0 && trimmed[end - 1] === '?') return true
+  if (end > 0 && QUESTION_MARKS.has(trimmed.charAt(end - 1))) return true
   const tail = trimmed.slice(Math.max(0, trimmed.length - TAIL_WINDOW))
-  return tail.includes('?')
+  return [...QUESTION_MARKS].some((mark) => tail.includes(mark))
 }
 
 /**
