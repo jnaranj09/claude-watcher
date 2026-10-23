@@ -1,5 +1,5 @@
 // The slice of claude's mod engine API the bridge mod uses, copied by hand from the engine's
-// declarations (claude 2.1.304). The engine's own file is the authority and it moves between
+// declarations (claude 2.1.304; `prompt.submit` from 2.1.309). The engine's own file is the authority and it moves between
 // releases: `npm run test:mod` runs `claude plugin validate` and `claude plugin test` against the
 // real engine. Declare ONLY what register.ts calls.
 declare module 'claude-code' {
@@ -60,6 +60,10 @@ declare module 'claude-code' {
   export type TurnCompleteInput = Readonly<Record<string, unknown>>
   /** Opaque here: the mod passes it on untouched. */
   export type TurnCompleteResult = Readonly<Record<string, unknown>> | undefined
+  /** Only `origin` is read (claude 2.1.309: who sent the prompt); the text is never read. */
+  export type PromptSubmitInput = { readonly origin?: { readonly kind: string } }
+  /** Opaque here: the mod passes it on untouched. */
+  export type PromptSubmitResult = Readonly<Record<string, unknown>>
 
   export interface On {
     (
@@ -74,6 +78,10 @@ declare module 'claude-code' {
       event: 'turn.complete',
       hook: Hook<TurnCompleteInput, TurnCompleteResult>
     ): Registration<TurnCompleteInput, TurnCompleteResult>
+    (
+      event: 'prompt.submit',
+      hook: Hook<PromptSubmitInput, PromptSubmitResult>
+    ): Registration<PromptSubmitInput, PromptSubmitResult>
   }
 
   export type Register = (on: On) => unknown

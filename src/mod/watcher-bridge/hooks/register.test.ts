@@ -1,11 +1,13 @@
 // Engine test for the bridge mod, run by `claude plugin test` (npm run test:mod, local only). The
 // test's own hooks sit beneath the mod and stand for the engine: they answer the calls the mod
 // makes and record what it POSTs. The pure report builder is unit-tested in
-// tests/unit/bridgeModReport.test.ts.
+// tests/unit/bridgeModReport.test.ts; the prompt-origin body and URL are pinned to main in
+// tests/main/modPromptContract.test.ts.
 import type { On } from 'claude-code'
 import { test, expect, mock } from 'claude-code/testing'
 
 const URL = 'http://127.0.0.1:19279/mod/report'
+const PROMPT_URL = 'http://127.0.0.1:19279/mod/prompt'
 const FILES = [{ path: '/p/CLAUDE.md', kind: 'project', content: 'SECRET TEXT' }]
 
 function world(on: On, env: Record<string, string>): { posts: string[]; contextSeen: unknown[] } {
@@ -64,4 +66,72 @@ test('hands prompt.context on untouched', async ($, on) => {
   const input = { blocks: [], instructionFiles: FILES }
   await $.prompt.context(input)
   expect(contextSeen).toEqual([input])
+})
+
+/** The engine beneath the mod for `prompt.submit`: answers it, and logs when it settled and what
+ *  the mod POSTed where, in order. */
+function promptWorld(
+  on: On,
+  env: Record<string, string>,
+  fetch: () => { status: number; ok: boolean }
+): { log: string[]; posts: { url: string; body: string }[] } {
+  const log: string[] = []
+  const posts: { url: string; body: string }[] = []
+  mock.env(on, env)
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('session.id', () => ({ value: 'sid-1' }))
+  on('prompt.submit', (_$, e) => {
+    log.push('next')
+    return { text: `entered:${e.text}` }
+  })
+  on('http.fetch', (_$, e) => {
+    log.push('post')
+    posts.push({ url: e.url, body: String(e.init?.body ?? '') })
+    return { value: { ...fetch(), headers: {}, text: '' } }
+  })
+  return { log, posts }
+}
+
+const OK = (): { status: number; ok: boolean } => ({ status: 200, ok: true })
+
+test('reports a typed prompt’s origin after it entered, without its text', async ($, on) => {
+  const { log, posts } = promptWorld(on, { CLAUDE_WATCHER_MOD_URL: URL }, OK)
+  await $.session.start({ cwd: '/p', surface: null, isInteractive: false })
+  const result = await $.prompt.submit({
+    text: 'SECRET PROMPT',
+    wait: false,
+    origin: { kind: 'composer' }
+  })
+  expect(result).toEqual({ text: 'entered:SECRET PROMPT' })
+  expect(log).toEqual(['next', 'post'])
+  expect(posts).toEqual([
+    { url: PROMPT_URL, body: '{"version":1,"sessionId":"sid-1","origin":"composer"}' }
+  ])
+})
+
+test('a prompt with no origin is reported unclassified', async ($, on) => {
+  const { posts } = promptWorld(on, { CLAUDE_WATCHER_MOD_URL: URL }, OK)
+  await $.session.start({ cwd: '/p', surface: null, isInteractive: false })
+  await $.prompt.submit({ text: 'hi', wait: false } as Parameters<typeof $.prompt.submit>[0])
+  expect(posts.map((p) => p.body)).toEqual([
+    '{"version":1,"sessionId":"sid-1","origin":"unclassified"}'
+  ])
+})
+
+test('a report that fails to send leaves the prompt as it entered', async ($, on) => {
+  const { log } = promptWorld(on, { CLAUDE_WATCHER_MOD_URL: URL }, () => {
+    throw new Error('connection refused')
+  })
+  await $.session.start({ cwd: '/p', surface: null, isInteractive: false })
+  const result = await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'composer' } })
+  expect(log).toEqual(['next', 'post'])
+  expect(result).toEqual({ text: 'entered:hi' })
+})
+
+test('reports no origin in a session the app did not launch', async ($, on) => {
+  const { posts } = promptWorld(on, {}, OK)
+  await $.session.start({ cwd: '/p', surface: null, isInteractive: false })
+  const result = await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'composer' } })
+  expect(result).toEqual({ text: 'entered:hi' })
+  expect(posts).toEqual([])
 })

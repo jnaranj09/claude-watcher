@@ -10,8 +10,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createHookServer, type HookServer } from './hookServer'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
-import { MAX_BODY_BYTES, MOD_REPORT_PATH } from './hookContract'
+import { MAX_BODY_BYTES, MOD_PROMPT_PATH, MOD_REPORT_PATH } from './hookContract'
 import type { ModReport } from '../../shared/schemas/modReport'
+import type { ModPrompt } from '../../shared/schemas/modPrompt'
 import { modReportFixture } from '../../__fixtures__/modReport'
 import { createServer, request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -357,5 +358,78 @@ describe('hookServer — the bridge mod report at /mod/report (spec 2026-10-18 �
       await post(`${srv!.base}${MOD_REPORT_PATH}?x=1`, JSON.stringify(modReportFixture()))
     ).toBe(200)
     expect(onModReport).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('hookServer — the bridge mod prompt origin at /mod/prompt', () => {
+  let srv: { close: () => void; base: string } | null = null
+  afterEach(() => {
+    srv?.close()
+    srv = null
+  })
+
+  const PROMPT: ModPrompt = {
+    version: 1,
+    sessionId: 'aaaaaaaa-0000-4000-8000-0000000000aa',
+    origin: 'composer'
+  }
+
+  function start(): Promise<{
+    onHookEvent: ReturnType<typeof vi.fn<(evt: HookEvent) => void>>
+    onModPrompt: ReturnType<typeof vi.fn<(p: ModPrompt) => boolean>>
+    onModReport: ReturnType<typeof vi.fn<(r: ModReport) => boolean>>
+    log: ReturnType<typeof vi.fn<(err: BoundaryErrorRecord) => void>>
+  }> {
+    const onHookEvent = vi.fn<(evt: HookEvent) => void>()
+    const onModPrompt = vi.fn<(p: ModPrompt) => boolean>(() => true)
+    const onModReport = vi.fn<(r: ModReport) => boolean>(() => true)
+    const log = vi.fn<(err: BoundaryErrorRecord) => void>()
+    return new Promise((resolve) => {
+      const s = createHookServer({
+        onHookEvent,
+        onModPrompt,
+        onModReport,
+        log,
+        port: 0,
+        host: '127.0.0.1',
+        onListening: (port) => {
+          srv = { close: () => s.close(), base: `http://127.0.0.1:${port}` }
+          resolve({ onHookEvent, onModPrompt, onModReport, log })
+        }
+      })
+    })
+  }
+
+  it('a valid origin goes to onModPrompt only; 200', async () => {
+    const { onHookEvent, onModPrompt, onModReport } = await start()
+    expect(await post(`${srv!.base}${MOD_PROMPT_PATH}`, JSON.stringify(PROMPT))).toBe(200)
+    expect(onModPrompt).toHaveBeenCalledWith(PROMPT)
+    expect(onHookEvent).not.toHaveBeenCalled()
+    expect(onModReport).not.toHaveBeenCalled()
+  })
+
+  it('an origin for a session that is not live is 409', async () => {
+    const { onModPrompt } = await start()
+    onModPrompt.mockReturnValue(false)
+    expect(await post(`${srv!.base}${MOD_PROMPT_PATH}`, JSON.stringify(PROMPT))).toBe(409)
+  })
+
+  it('a bad body is 400 with path + code only, never a value', async () => {
+    const { onModPrompt, onHookEvent, log } = await start()
+    const bad = { ...PROMPT, text: 'SECRET PROMPT' }
+    expect(await post(`${srv!.base}${MOD_PROMPT_PATH}`, JSON.stringify(bad))).toBe(400)
+    expect(onModPrompt).not.toHaveBeenCalled()
+    expect(onHookEvent).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith({ path: '(root)', code: 'unrecognized_keys' })
+    expect(JSON.stringify(log.mock.calls)).not.toContain('SECRET PROMPT')
+  })
+
+  it('a handler that throws still answers 200 and logs its code', async () => {
+    const { onModPrompt, log } = await start()
+    onModPrompt.mockImplementation(() => {
+      throw new Error('boom')
+    })
+    expect(await post(`${srv!.base}${MOD_PROMPT_PATH}`, JSON.stringify(PROMPT))).toBe(200)
+    expect(log).toHaveBeenCalledWith({ path: '(mod_prompt)', code: 'mod_prompt_handler_error' })
   })
 })

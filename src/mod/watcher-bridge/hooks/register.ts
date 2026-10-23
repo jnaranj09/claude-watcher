@@ -1,15 +1,22 @@
 // The bridge mod (spec 2026-10-18 §1.3): it reads what this session loaded and POSTs a
-// paths-and-counts report to Claude Watcher. It never changes what claude does or shows: every
-// hook hands `e` on untouched, and a failure is caught by `.catch(... next(e))`, which replays
-// what `next` settled to (the engine's replay-safe `next`), so claude runs on as if it were absent.
-// No command, tool, pane, status line or toast.
+// paths-and-counts report to Claude Watcher, and after each prompt it POSTs who sent it
+// (`prompt.submit`'s `origin.kind`, never the text; spec 2026-10-23). It never changes what
+// claude does or shows: every hook hands `e` on untouched and returns what `next` gave, and a
+// failure is caught by `.catch(... next(e))`, which replays what `next` settled to (the engine's
+// replay-safe `next`), so claude runs on as if it were absent. No command, tool, pane, status line
+// or toast.
 //
 // When it sends (probe, claude 2.1.304): `prompt.context` gives the instruction files on the first
 // prompt of each conversation, `/clear` included; `session.start` fires once per process, not
 // after `/clear`. So the report goes out after each turn, and at start only once the files are
 // known. Unchanged reports are not resent (`reportKey`).
+//
+// The origin goes out once `next(e)` has settled, which is after claude's http `UserPromptSubmit`
+// hook was answered (probe, claude 2.1.309), so the app always sees the hook first. A 409 (no live
+// session) or a failed send is not retried: the next prompt sends its own.
 import type { Engine, Register } from 'claude-code'
 import { REPORT_SOURCES, buildReport, reportKey, type EngineData } from './report'
+import { buildPrompt, promptUrl } from './prompt'
 
 /** Set by the app on the spawn; unset means a session the app did not launch: do nothing. */
 let url: string | undefined
@@ -53,6 +60,19 @@ export const register: Register = (on) => {
       }))
     }
     return next(e)
+  }).catch((_$, e, next) => next(e))
+
+  on('prompt.submit', async ($, e, next) => {
+    const entered = await next(e)
+    const target = url === undefined ? undefined : promptUrl(url)
+    if (target === undefined) return entered
+    const body = buildPrompt(await $.session.id(), e.origin)
+    await $.http.fetch(target, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    return entered
   }).catch((_$, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {

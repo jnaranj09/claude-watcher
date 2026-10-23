@@ -903,6 +903,21 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       },
       // The bridge mod's report (spec 2026-10-18 §2); an unknown id is dropped there.
       onModReport: (report) => sessionSetup.accept(report),
+      // Who sent a prompt (spec 2026-10-23): an operator origin clears a sticky ask. Live means a
+      // card in any window, as `sessionSetup.accept` decides it (index.ts `isSessionLive`); any
+      // other id is dropped and answered 409.
+      onModPrompt: (prompt) => {
+        let live = false
+        for (const seam of launchBoardSeams.values()) {
+          if (seam.hasSession(prompt.sessionId)) live = true
+        }
+        if (!live) {
+          console.warn('[claude-watcher][mods] code=mod_prompt_unknown_session')
+          return false
+        }
+        reducer.promptOrigin(prompt.sessionId, prompt.origin).forEach(handleDelta)
+        return true
+      },
       // The goals MCP endpoint (`mark_task_done`), behind each launch's bearer token.
       ...hookServerMcp(goalMcp.endpoint, (line) => console.warn(line)),
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),

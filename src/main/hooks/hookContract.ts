@@ -69,6 +69,11 @@ export const REGISTERED_EVENTS: readonly string[] = [
 /** The bridge mod POSTs its report here, on the hook listener (spec 2026-10-18 §2). */
 export const MOD_REPORT_PATH = '/mod/report'
 
+/** The bridge mod POSTs who sent each prompt here (`prompt.submit`'s `origin.kind`), on the hook
+ *  listener. The mod derives it from its report URL; tests/main/modPromptContract.test.ts pins
+ *  the mod's copy of both paths. */
+export const MOD_PROMPT_PATH = '/mod/prompt'
+
 /** The goals MCP endpoint (`mark_task_done`), on the hook listener behind a per-launch bearer token
  *  (spec 2026-10-19 goals; `goals/mcp/mcpEndpoint.ts`). */
 export const GOALS_MCP_PATH = '/mcp/goals'
