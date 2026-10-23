@@ -42,4 +42,16 @@ describe('endsWithNeedsYou', () => {
     expect(endsWithNeedsYou('')).toBe(false)
     expect(endsWithNeedsYou('   ')).toBe(false)
   })
+
+  it('the marker on the 3rd-from-last non-empty line → true', () => {
+    expect(endsWithNeedsYou(`${NEEDS_YOU_MARKER} pick one\n\n- a\n- b`)).toBe(true)
+  })
+
+  it('the marker on the 4th-from-last non-empty line → false', () => {
+    expect(endsWithNeedsYou(`${NEEDS_YOU_MARKER} pick one\n- a\n- b\n- c`)).toBe(false)
+  })
+
+  it('a last line that quotes the marker mid-line → false', () => {
+    expect(endsWithNeedsYou(`I will add a ${NEEDS_YOU_MARKER} line.`)).toBe(false)
+  })
 })
