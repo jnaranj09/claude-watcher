@@ -66,8 +66,9 @@ export type HookStatusChange =
        *  is blocked on the operator while it may still run background work. The reducer holds
        *  this as a sticky ask until the operator acts. */
       opensAsk?: true
-      /** `UserPromptSubmit`: the operator sent a prompt. The reducer uses it to clear a sticky
-       *  ask; no other `Working` event is the operator speaking. */
+      /** `UserPromptSubmit`: a prompt was sent, by the operator or by a Monitor/background
+       *  wake-up (the payloads look the same). It clears a sticky ask only while the session's
+       *  bridge mod has reported no prompt origin (fail open); otherwise `promptOrigin` decides. */
       fromPrompt?: true
       /** `ElicitationResult`: the operator answered an MCP server's form. The reducer uses it
        *  to clear a sticky ask, because otherwise it is indistinguishable from other `fromTool`
@@ -75,6 +76,13 @@ export type HookStatusChange =
       answered?: true
     }
   | { kind: 'removed' }
+
+/**
+ * `prompt.submit` origins that mean the operator spoke: `composer` (Enter in the terminal) and
+ * `bridge` (the operator's own message via Remote Control). Any other origin
+ * (`task-notification`, `scheduled-trigger`, `peer`, `sdk`) woke claude without the operator.
+ */
+export const OPERATOR_ORIGINS: ReadonlySet<string> = new Set(['composer', 'bridge'])
 
 /** A boundary failure record — PATH + CODE only, NEVER the parsed/raw value.
  *  (A ZodError stringifies its INPUT, which can carry PTY content / prompts /
@@ -197,6 +205,15 @@ export interface Reducer {
    * (viewing is not an error, and a seen racing a removal is normal).
    */
   markSeen(id: string): SessionDelta[]
+  /**
+   * The bridge mod reported who sent the session's latest prompt (`prompt.submit` `origin.kind`).
+   * Always remembers that this session reports origins, so its later `UserPromptSubmit` no
+   * longer clears a sticky ask on its own. An operator origin (`OPERATOR_ORIGINS`) clears an
+   * open ask and sets `Working`; with no ask open, or any other origin, it changes nothing and
+   * returns `[]` (the hook already set the status). Unknown `id` → `[]` with no log, like the
+   * idempotent removal (the route answers 409 before reaching here).
+   */
+  promptOrigin(id: string, origin: string): SessionDelta[]
   /** A defensive COPY of the current authoritative map. */
   snapshotMap(): Map<string, Session>
   /** Current session count. */
@@ -253,6 +270,11 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   // finishes.
   const lastPreTool = new Map<string, Map<string, { toolUseId: string; toolName?: string }>>()
   const openPrompts = new Map<string, Map<string, string | undefined>>()
+  // The sticky ask, memory only: sessions whose last `Needs you:` Stop the operator has not
+  // answered yet (`askOpen`), and sessions whose bridge mod reports prompt origins
+  // (`originReported`; until it does, a `UserPromptSubmit` clears the ask — fail open).
+  const askOpen = new Set<string>()
+  const originReported = new Set<string>()
   // The epoch is a CONSTANT 0 in the native engine (no snapshot reconcile ever bumps
   // it). Kept in the frame so the renderer's `payload.epoch < state.epoch` stale-drop
   // contract is untouched (0 < 0 is false → every delta applies).
@@ -287,14 +309,22 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       agentTool.delete(id)
       lastPreTool.delete(id)
       openPrompts.delete(id)
+      askOpen.delete(id)
+      originReported.delete(id)
       lastApplied = now()
       return [frame(toRemoved(id, stored))]
     }
 
-    // kind === 'status': hooks own the status — update it, keep the other fields.
+    // kind === 'status': hooks own the status — update it, keep the other fields (an open
+    // sticky ask holds Working/YourTurn on NeedsAttention, below).
     if (change.fromKey === true && questionOpen(id)) return []
     if (change.toolName !== undefined) rememberTool(id, change, change.toolName)
+    const closingTool =
+      change.toolDone === true && change.toolUseId !== undefined
+        ? openPrompts.get(id)?.get(change.toolUseId)
+        : undefined
     const closedLastPrompt = trackPrompts(id, change)
+    updateAsk(id, change, closedLastPrompt && closingTool === 'AskUserQuestion')
     if (change.fromTool === true && stored.status === 'NeedsPermission' && !closedLastPrompt) {
       return []
     }
@@ -314,7 +344,10 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
         : waitsOnQuestion && change.toolName !== undefined
           ? { name: change.toolName, detail: change.toolDetail }
           : undefined
-    const updated: Session = { ...stored, status: change.status }
+    // While the ask is open, Working and YourTurn show as NeedsAttention (the tool bookkeeping
+    // above still ran); NeedsPermission, a more urgent wait, shows as is.
+    const held = askOpen.has(id) && (change.status === 'Working' || change.status === 'YourTurn')
+    const updated: Session = { ...stored, status: held ? 'NeedsAttention' : change.status }
     if (pending === undefined) delete updated.pendingToolName
     else updated.pendingToolName = pending.name
     if (pending?.detail === undefined) delete updated.pendingToolDetail
@@ -322,6 +355,38 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     map.set(id, updated)
     lastApplied = now()
     return [frame(toUpdated(updated))]
+  }
+
+  /**
+   * Open or clear the sticky ask for one status change. Opens on a `Needs you:` Stop. Clears when
+   * the operator acted: an Esc interrupt or a `/clear` (`WaitingForInput`), an AskUserQuestion
+   * prompt closed by its own tool call (`answeredQuestion`), an answered elicitation, or a prompt
+   * from a session whose mod reports no origins (otherwise `promptOrigin` decides).
+   */
+  function updateAsk(
+    id: string,
+    change: HookStatusChange & { kind: 'status' },
+    answeredQuestion: boolean
+  ): void {
+    if (change.opensAsk === true) {
+      askOpen.add(id)
+      return
+    }
+    const operatorActed =
+      change.status === 'WaitingForInput' ||
+      answeredQuestion ||
+      change.answered === true ||
+      (change.fromPrompt === true && !originReported.has(id))
+    if (operatorActed) askOpen.delete(id)
+  }
+
+  /** The mod reported a prompt's origin (see the interface doc). */
+  function promptOrigin(id: string, origin: string): SessionDelta[] {
+    if (!map.has(id)) return []
+    originReported.add(id)
+    if (!OPERATOR_ORIGINS.has(origin) || !askOpen.has(id)) return []
+    askOpen.delete(id)
+    return applyHookStatus(id, { kind: 'status', status: 'Working' })
   }
 
   /** Remember the tool a change names. A PreToolUse brings its own detail (none clears the old
@@ -500,6 +565,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     setWorkspace,
     setTags,
     markSeen,
+    promptOrigin,
     // A defensive copy so callers can never mutate the authoritative map.
     snapshotMap: (): Map<string, Session> => new Map(map),
     size: () => map.size,
