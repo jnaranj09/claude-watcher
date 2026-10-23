@@ -101,8 +101,10 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
   sessions — main's `cascade()`). A new cascaded store owes a word there and in its test (UX-09).
   Deleting the ACTIVE workspace re-points the focused view (`focusWorkspace`, UX-18).
 - **Panel capped to viewport, FORM scrolls:** `.panel` `max-height: calc(100vh - 2 *
-var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)`, `.form` the one
-  `overflow-y: auto` (pinned by `ManageDialog.styles.test.ts`). A too-tall form gets shortened.
+var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)` and its own `max-height:
+  560px` (a long list or pane scrolls, it never makes the dialog taller; the Goals sheet lifts
+  it), `.form` the one `overflow-y: auto` (pinned by `ManageDialog.styles.test.ts`). A too-tall
+  form gets shortened.
   Any scroll region clips every side, so it needs `padding-left/right: var(--space-2)` +
   `scroll-padding-block` or focus rings get cut.
 - **One message slot per dialog** (`ManageDialog.Message`, under the columns): an error Callout

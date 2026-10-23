@@ -48,7 +48,7 @@
    theme's own panel border, corners and shadow stay whole), centred, 75% of the body's width and
    height (owner: the whole body was "too big for
    its UI", then 60% was too cramped for the form: 75% each way); the panel's 640px `min-width`
-   still holds on a narrow window. The rail's 480px row cap gives way so the rows fill the sheet,
+   still holds on a narrow window. The rail's 480px row cap and the body's 560px cap give way so the rows fill the sheet,
    and the columns take the height the sheet's own header and the message slot leave. The goals
    rail is a little narrower than the tasks column (2fr : 3fr), not a fixed 300px. */
 .overlayDrop {
@@ -69,6 +69,7 @@
 .panelDrop .columns {
   flex: 1;
   min-height: 0;
+  max-height: none;
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
 }
 .panelDrop .list {
@@ -125,13 +126,19 @@
 /* `minmax(0, 1fr)` on the row is what makes the panel's cap reach the form: an `auto` row sizes
    itself to the form's full content and pushes straight through the cap, so the form's own
    `overflow-y` would never engage. Under an indefinite panel height an `fr` row still sizes to its
-   content, so a short dialog is unchanged. */
+   content, so a short dialog is unchanged.
+   `max-height` is the body's OWN cap (owner, 2026-10-23: "pages should have an acceptable max
+   height, any list that is higher is just scrollable"). Without it a long pane (Context's Skills)
+   grew the panel up to the window's cap. 560px is the rail's own tallest (480px rows + the bottom
+   slot) with room to spare; past it the form or pane scrolls. A short window still wins through
+   the panel's cap above. */
 .columns {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--gap-section);
   min-height: 440px;
+  max-height: 560px;
 }
 /* A paged dialog (spec 2026-10-03 C): `pages | rail | form`. The third track exists only beside a
    rail — Import is `pages | form` and keeps the two tracks above. */

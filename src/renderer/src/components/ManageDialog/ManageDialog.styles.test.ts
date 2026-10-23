@@ -151,6 +151,16 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.columns')).toMatch(/grid-template-rows:\s*minmax\(0,\s*1fr\)/)
   })
 
+  // A long list (Context's Skills) used to grow the panel up to the window's height. The body
+  // has its own cap, so every dialog stops at one height and its form or pane scrolls instead.
+  it('caps the body height, so a long pane scrolls instead of growing the dialog', () => {
+    expect(ruleBody(css, '.columns')).toMatch(/max-height:\s*560px/)
+  })
+
+  it('.panelDrop lifts the body cap, so the Goals columns fill the sheet', () => {
+    expect(ruleBody(css, '.panelDrop .columns')).toMatch(/max-height:\s*none/)
+  })
+
   it('scrolls the form — the smallest region that leaves the rail and the header alone', () => {
     expect(ruleBody(css, '.form')).toMatch(/overflow-y:\s*auto/)
   })
