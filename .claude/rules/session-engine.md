@@ -38,8 +38,13 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   is dropped with the session (`window/cardState.ts` moves and drops it beside the pending
   rename). Only a live session's report is kept (`isSessionLive`); a dropped one is answered 409,
   so the mod sends it again after the next turn. The mod (`src/mod/
-  watcher-bridge`, not `claude-…`: a reserved prefix) only reads and reports paths + counts and
-  never changes claude; Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
+  watcher-bridge`, not `claude-…`: a reserved prefix) reads and reports paths + counts, and after
+  each prompt POSTs who sent it (`prompt.submit` `origin.kind`, never the text) to `/mod/prompt`
+  (`MOD_PROMPT_PATH`, `ModPromptSchema`, `modPromptOrigin.ts`; 409 not live, handler throw → 200 +
+  `code=mod_prompt_handler_error`; nothing sent when there is no origin); it never changes claude.
+  `prompt.submit` is verified in claude 2.1.307–2.1.309; 2.1.304–2.1.306 are unverified (the mod
+  floor stays 2.1.304: there the origin never arrives and the `UserPromptSubmit` fallback below
+  applies). Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
   versions, and Restore is the one operator-started write to an operator file (technical-taste
   §5). Open in editor takes any absolute path, but never a program (an execute bit or a
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path
@@ -176,7 +181,18 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   copy (known limit).
 - **`status` is not enum-locked.** `pendingToolInput` is polymorphic (object for `Agent`, string
   otherwise) — don't narrow.
-- **Status rules:** turn ending with `background_tasks` running = `Working`; an artifact watch is
+- **Status rules:** a `Stop` whose last line is `Needs you:` (`NEEDS_YOU_MARKER`,
+  `endsWithNeedsYou`; `QUESTION_FORMAT_PROMPT` asks claude for it) → `NeedsAttention` and opens a
+  sticky ask (`opensAsk`); else a last line ending `?`/`？`/`؟` or an English ask phrase
+  (`endsWithQuestion`) → `NeedsAttention`, not sticky; else running background work → `Working`;
+  else `YourTurn`. The reducer holds a sticky ask's `NeedsAttention` over `Working`/`YourTurn`;
+  `NeedsPermission` still wins and the card returns to `NeedsAttention` after it. It clears on an
+  operator prompt (`promptOrigin` `composer`/`bridge`, `OPERATOR_ORIGINS`; a `UserPromptSubmit`
+  (`fromPrompt`) counts only while the session's mod has reported no origin: fail open, because a
+  Monitor/background wake-up sends an identical `UserPromptSubmit` and the mod's origin is
+  `task-notification`; the hook always reaches the app before the mod's report), on Esc or `/clear`
+  (`WaitingForInput`), an AskUserQuestion closed by its own `PostToolUse`, an `answered`
+  `ElicitationResult`, or removal. Ctrl+C is NOT a clear. Turn ending with `background_tasks` running = `Working`; an artifact watch is
   not work (`hooks/backgroundTasks.ts`) (until next event; Esc
   demotes any card not already idle). Ctrl+C demotes only a `Working` card (ST-4: an early cancel
   sends no hook and no marker; idle prompt: not an interrupt; needs-you: not counted, unprobed) —
