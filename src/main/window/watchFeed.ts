@@ -98,6 +98,7 @@ import {
 // UserPromptSubmit hook POST (the only way to rename an already-running session).
 import { createPendingTitles } from '../hooks/pendingTitles'
 import { renameLaunched as renameLaunchedCard } from '../hooks/renameLaunched'
+import { applyModPrompt } from '../hooks/modPromptOrigin'
 // Name-sync — the read-back decision (claude is the authority on its own name). Pure + here
 // rather than inline, so it is testable: nothing can import index.ts.
 import { titleReadBackRename } from '../hooks/titleReadBack'
@@ -158,6 +159,8 @@ export interface WatchFeedDeps {
   focusedTerminals: Map<Electron.WebContents, string | null>
   ruleEngines: Map<Electron.WebContents, RulesEngine>
   launchBoardSeams: Map<Electron.WebContents, LaunchBoardSeam>
+  /** A card for this id is live in ANY window (index.ts; `sessionSetup.accept` decides the same). */
+  isSessionLive: (sessionId: string) => boolean
   apiSeams: Map<Electron.WebContents, ApiSeam>
   launchedSet: LaunchedSet
   /** The bridge mod's latest report per session (app-global; Context reads it). */
@@ -194,6 +197,7 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
     focusedTerminals,
     ruleEngines,
     launchBoardSeams,
+    isSessionLive,
     apiSeams,
     launchedSet,
     sessionSetup,
@@ -903,6 +907,19 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
       },
       // The bridge mod's report (spec 2026-10-18 §2); an unknown id is dropped there.
       onModReport: (report) => sessionSetup.accept(report),
+      // Who sent a prompt (spec 2026-10-23): an operator origin clears a sticky ask. Live means a
+      // card in any window, as `sessionSetup.accept` decides it (`isSessionLive`); any
+      // other id is dropped and answered 409.
+      onModPrompt: (prompt) =>
+        applyModPrompt(
+          {
+            isLive: isSessionLive,
+            promptOrigin: reducer.promptOrigin,
+            onDelta: handleDelta,
+            log: (line) => console.warn(line)
+          },
+          prompt
+        ),
       // The goals MCP endpoint (`mark_task_done`), behind each launch's bearer token.
       ...hookServerMcp(goalMcp.endpoint, (line) => console.warn(line)),
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),

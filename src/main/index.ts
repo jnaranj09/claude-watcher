@@ -613,6 +613,7 @@ const { registerWatchFeed, teardownWatchFeed } = createWatchFeed({
   focusedTerminals,
   ruleEngines,
   launchBoardSeams,
+  isSessionLive,
   apiSeams,
   launchedSet,
   sessionSetup,

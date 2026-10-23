@@ -24,6 +24,7 @@
 // the real filesystem — mirrors the ptyFactory/readStatusFromProc DI precedent (AR-11).
 
 import type { EffortLevel, PermissionMode } from '../../shared/schemas/template'
+import { NEEDS_YOU_MARKER } from '../hooks/needsYouMarker'
 
 /** Where a resolution came from — a CODE for logging (never the path value). */
 export type ClaudeBinSource = 'override' | 'path' | 'wellKnown' | 'unresolved'
@@ -129,13 +130,18 @@ export function shellQuote(s: string): string {
  * APP-LAUNCHED claude (probe-verified on claude ≥2.1.245: --append-system-prompt is
  * accepted interactively and MERGES with the default prompt). Scoped exactly like the
  * --settings hooks file: zero footprint, app-launched sessions only. It raises how often
- * the DETERMINISTIC signals fire (AskUserQuestion PreToolUse / a `?` tail on Stop); the
- * board is already correct without it (YourTurn floor). Re-verify this flag whenever the
- * claude version floor is bumped (alongside --session-id / -n / --settings).
+ * the DETERMINISTIC signals fire (AskUserQuestion PreToolUse / a `?` tail on Stop / the
+ * `Needs you:` line, `hooks/needsYouMarker.ts`); the board is already correct without
+ * it (YourTurn floor). Re-verify this flag whenever the claude version floor is bumped
+ * (alongside --session-id / -n / --settings).
  */
 export const QUESTION_FORMAT_PROMPT =
   'When you need information or a decision from the user, prefer the AskUserQuestion tool. ' +
-  'When you instead ask in prose, end the question paragraph with a question mark as the last character.'
+  'When you instead ask in prose, end the question paragraph with a question mark as the last character. ' +
+  'When you end your turn needing an answer or an action from the user, make the last line of your reply ' +
+  `start with exactly \`${NEEDS_YOU_MARKER}\` followed by what you need. ` +
+  'Always write that token in English, untranslated, even when you reply in another language. ' +
+  'Do not write that line when you need nothing from the user.'
 
 /** Everything that becomes a claude CLI flag. Every optional flag is REQUIRED-and-nullable so
  *  each call site decides explicitly; `null` (or '') omits the flag — never a bare flag that

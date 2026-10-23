@@ -16,6 +16,7 @@ import {
   composeClaudeCommand,
   QUESTION_FORMAT_PROMPT
 } from './claudeBin'
+import { NEEDS_YOU_MARKER } from '../hooks/needsYouMarker'
 import type { ClaudeCommandSpec } from './claudeBin'
 import { EFFORT_LEVELS } from '../../shared/schemas/template'
 import { buildWorkerPrompt, joinSystemPrompt } from '../goals/goalPrompt'
@@ -397,6 +398,10 @@ describe('composeClaudeCommand', () => {
         '--settings',
         '/tmp/a b/hooks.json'
       ])
+    })
+
+    it('QUESTION_FORMAT_PROMPT asks for the backtick-wrapped Needs you: token', () => {
+      expect(QUESTION_FORMAT_PROMPT).toContain(`\`${NEEDS_YOU_MARKER}\``)
     })
 
     it('delivers QUESTION_FORMAT_PROMPT to claude as ONE argument with the exact text', () => {

@@ -170,4 +170,17 @@ describe('phrase list (prose asks without a question mark)', () => {
   it('a real ask-phrase occurrence stays true even inside a longer sentence', () => {
     expect(endsWithQuestion('Do not let me know about failures automatically.')).toBe(true)
   })
+
+  // Fullwidth and Arabic question marks end a question like `?`.
+  it('a fullwidth `？` tail → true', () => {
+    expect(endsWithQuestion('¿Seguimos？')).toBe(true)
+  })
+
+  it('a fullwidth `？` inside the tail window, not last → true', () => {
+    expect(endsWithQuestion('¿Seguimos？ ya')).toBe(true)
+  })
+
+  it('an Arabic `؟` tail → true', () => {
+    expect(endsWithQuestion('هل نكمل؟')).toBe(true)
+  })
 })

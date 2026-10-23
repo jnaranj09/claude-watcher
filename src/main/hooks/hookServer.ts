@@ -1,15 +1,16 @@
 // Hook-status feature — the localhost HTTP listener that receives Claude Code hook POSTs.
 //
 // Binds to 127.0.0.1 only (never 0.0.0.0). Every inbound POST is validated at a fail-closed
-// boundary: HookEventSchema, ModReportSchema on `/mod/report`, or the goals MCP endpoint's JSON-RPC
-// schema on `/mcp/goals`. On bad input: respond 400 + log PATH + CODE
+// boundary: HookEventSchema, ModReportSchema on `/mod/report`, ModPromptSchema on `/mod/prompt`, or
+// the goals MCP endpoint's JSON-RPC schema on `/mcp/goals`. On bad input: respond 400 + log PATH + CODE
 // only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
 //
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.
 // A request carrying an `Origin` header (a browser) is rejected 403 before the body is read.
 // 'error' handler on the server tolerates EADDRINUSE (log + skip).
 // `/mod/report` carries the bridge mod's report (ModReportSchema), behind the same method, Origin
-// and body-cap guards. `/mcp/goals` is the goals MCP endpoint behind the same guards plus a bearer
+// and body-cap guards; `/mod/prompt` carries who sent each prompt (ModPromptSchema), behind the same
+// guards. `/mcp/goals` is the goals MCP endpoint behind the same guards plus a bearer
 // token (401 before the body is read; `goals/mcp/mcpEndpoint.ts` parses the JSON-RPC body). Every
 // other path is a hook, as before.
 // Never throws past the request handler.
@@ -18,7 +19,15 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { HookEventSchema, type HookEvent } from '../../shared/schemas/hookEvent'
 import { ModReportSchema, type ModReport } from '../../shared/schemas/modReport'
-import { HOST, PORT, MAX_BODY_BYTES, MOD_REPORT_PATH, GOALS_MCP_PATH } from './hookContract'
+import { ModPromptSchema, type ModPrompt } from '../../shared/schemas/modPrompt'
+import {
+  HOST,
+  PORT,
+  MAX_BODY_BYTES,
+  MOD_REPORT_PATH,
+  MOD_PROMPT_PATH,
+  GOALS_MCP_PATH
+} from './hookContract'
 import { buildHookResponseBody } from './hookResponse'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { McpEndpoint } from '../goals/mcp/mcpEndpoint'
@@ -48,6 +57,10 @@ export interface HookServerOptions {
    *  after the next turn (a report can race a `/clear` adoption). Absent: `/mod/report` is parsed
    *  and answered 200, and nothing receives it. */
   onModReport?: (report: ModReport) => boolean
+  /** Who sent a prompt (`prompt.submit`'s origin), schema-parsed; false when no live session has
+   *  its id, answered 409 (the mod drops it: the next prompt sends its own). Absent: `/mod/prompt`
+   *  is parsed and answered 200, and nothing receives it. */
+  onModPrompt?: (prompt: ModPrompt) => boolean
   /** The goals MCP endpoint at `GOALS_MCP_PATH` (spec 2026-10-19 goals). `log` gets a `code=` line
    *  only, never a header value. Absent: that path is answered 404. */
   mcp?: McpEndpoint & { log: (line: string) => void }
@@ -62,14 +75,14 @@ export interface HookServer {
  * Create and start the localhost HTTP hook listener.
  *
  * Handles POST requests to any path (Claude Code always POSTs to HOOK_URL); `/mod/report` is the
- * bridge mod's report, `/mcp/goals` the goals MCP endpoint, every other path a hook. Any
+ * bridge mod's report, `/mod/prompt` its prompt origin, `/mcp/goals` the goals MCP endpoint, every other path a hook. Any
  * non-POST method is rejected with 405 before the body is read. Per the spec, the
  * handler NEVER throws past the request callback.
  *
  * Returns `{ close() }` — call to shut down cleanly (e.g. on app quit).
  */
 export function createHookServer(options: HookServerOptions): HookServer {
-  const { onHookEvent, takePendingTitle, onModReport, mcp } = options
+  const { onHookEvent, takePendingTitle, onModReport, onModPrompt, mcp } = options
   const log =
     options.log ??
     ((err: BoundaryErrorRecord): void => {
@@ -186,6 +199,25 @@ export function createHookServer(options: HookServerOptions): HookServer {
           kept = onModReport?.(report.data) ?? true
         } catch {
           log({ path: '(mod_report)', code: 'mod_report_handler_error' })
+        }
+        res.writeHead(kept ? 200 : 409).end()
+        return
+      }
+
+      // Who sent a prompt: its own boundary, same PATH + CODE-only log, an empty 200.
+      if (route === MOD_PROMPT_PATH) {
+        const prompt = ModPromptSchema.safeParse(parsed)
+        if (!prompt.success) {
+          const issue = prompt.error.issues[0]
+          log({ path: (issue?.path ?? []).join('.') || '(root)', code: issue?.code ?? 'invalid' })
+          res.writeHead(400).end()
+          return
+        }
+        let kept = true
+        try {
+          kept = onModPrompt?.(prompt.data) ?? true
+        } catch {
+          log({ path: '(mod_prompt)', code: 'mod_prompt_handler_error' })
         }
         res.writeHead(kept ? 200 : 409).end()
         return

@@ -61,7 +61,7 @@ need `build:dir` + `smoke` (proves node-pty survives packaging — load-bearing)
 - `src/__fixtures__/` — fake hook feed, launched-session fixtures (never shipped).
 
 Flow (one-way): launch spawn (minted `--session-id`) → `reducer.upsertLaunched`; hook POSTs →
-Zod → `reducer.applyHookStatus`; reducer → validated deltas over `CH.watchEvents` → renderer store →
+Zod → `reducer.applyHookStatus`; mod `/mod/prompt` → `ModPromptSchema` → `reducer.promptOrigin`; reducer → validated deltas over `CH.watchEvents` → renderer store →
 selectors → components. Renderer never invents/mutates session truth.
 
 ## Load-bearing constraints (precedence order; read the rule file before touching a layer)

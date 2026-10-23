@@ -6,9 +6,14 @@
 //   - Notification(permission_prompt) → NeedsPermission  (→ needs-you column)
 //   - Elicitation / Notification(elicitation_*) → NeedsAttention (an MCP server asks — ST-6)
 //   - PreToolUse(AskUserQuestion)     → NeedsAttention   (→ needs-you column)
+//   - Stop ending in a `Needs you:` line → NeedsAttention + `opensAsk` (a sticky ask the
+//     reducer holds, even with background work running)
 //   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
 //   - Stop w/ background_tasks running → Working (claude backgrounded a shell / armed a
 //     monitor; the terminal says "1 shell still running", so the card says Working)
+//   - UserPromptSubmit                → Working + `fromPrompt` (a prompt was sent, by the
+//     operator or by a Monitor/background wake-up: the payloads look the same)
+//   - ElicitationResult               → Working + `fromTool` + `answered`
 //   - Stop, otherwise                 → YourTurn         (→ needs-you column; the
 //     deterministic your-turn floor — a turn NEVER ends idle straight from Stop)
 // Returns `null` for any event we choose to ignore (idle_prompt — an interrupt, a /clear
@@ -24,6 +29,7 @@
 import type { HookStatusChange } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
+import { endsWithNeedsYou } from './needsYouMarker'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
 import { hasRunningBackgroundWork } from './backgroundTasks'
 import { toolDetail } from './toolDetail'
@@ -80,15 +86,22 @@ function toolCall(evt: HookEvent): { toolUseId?: string; agentId?: string } {
  *   → `NeedsPermission` (a dialog waits on the operator — ST-6)
  * - `Notification` & `elicitation_dialog` | `elicitation_url_dialog`, and `Elicitation`
  *   → `NeedsAttention` (an MCP server asks for input; never out of `NeedsPermission` — ST-6)
- * - `ElicitationResult` → `Working` (the form was answered; never out of `NeedsPermission`)
+ * - `ElicitationResult` → `Working`, `fromTool` + `answered` (the form was answered; never out of
+ *   `NeedsPermission`; `answered` lets the reducer clear a sticky ask)
  * - `Notification` & `idle_prompt` (or any other type)          → `null` (ignore — Stop owns idle)
  * - `PermissionRequest` → `NeedsPermission`, naming the tool (a dialog just opened — ST-5);
  *   `tool_name === 'AskUserQuestion'` → `null` (its `PreToolUse` already said `NeedsAttention`)
  * - `PreToolUse` & `tool_name === 'AskUserQuestion'`            → `NeedsAttention`
- * - `PreToolUse` (other) | `UserPromptSubmit` | `PostToolUse` | `PostToolUseFailure` → `Working`;
+ * - `UserPromptSubmit` → `Working` + `fromPrompt` (a prompt was sent, by the operator or by a
+ *   Monitor/background wake-up: the payloads look the same. It clears a sticky ask only while
+ *   the session's bridge mod has reported no prompt origin (fail open); otherwise the reducer's
+ *   `promptOrigin` decides)
+ * - `PreToolUse` (other) | `PostToolUse` | `PostToolUseFailure` → `Working`;
  *   tool events carry `tool_use_id`/`agent_id`, and the finished call that opened a prompt clears
  *   it (ST-1)
- * - `Stop` → `NeedsAttention` if `last_assistant_message` ends in a question;
+ * - `Stop` → `NeedsAttention` + `opensAsk` if `last_assistant_message` ends in a `Needs you:`
+ *            line (checked first: a sticky ask survives running background work);
+ *            else `NeedsAttention` if it ends in a question;
  *            else `Working` if the payload's `background_tasks` still lists running work;
  *            else `YourTurn` (deterministic your-turn floor — ANY other Stop,
  *            including an absent message, is the operator's turn; a turn never
@@ -123,7 +136,7 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
     case 'ElicitationResult':
       // The operator answered the form (accept, decline or cancel): the MCP tool runs on (ST-6).
       // Marked like a tool event: it never closes a permission prompt open beside it (R20).
-      return { kind: 'status', status: 'Working', fromTool: true }
+      return { kind: 'status', status: 'Working', fromTool: true, answered: true }
 
     case 'PermissionRequest':
       // claude sends this the instant a permission dialog opens, and only then (an auto-allowed
@@ -167,12 +180,17 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
       return { kind: 'status', status: 'Working', fromTool: true, ...toolCall(evt), toolDone: true }
 
     case 'UserPromptSubmit':
-      return { kind: 'status', status: 'Working' }
+      return { kind: 'status', status: 'Working', fromPrompt: true }
 
     case 'Stop':
       // A turn that ends by asking flips to needs-you; ANY other Stop is deterministically
       // the operator's turn (spec DA-1: the your-turn floor — never idle straight from Stop;
       // idle is reached only via an interrupt, a /clear or the session:seen demotion).
+      // A `Needs you:` line near the end is claude saying it is blocked on the operator: the reducer
+      // holds it as a sticky ask, even while background work runs. Checked before the question.
+      if (endsWithNeedsYou(evt.last_assistant_message)) {
+        return { kind: 'status', status: 'NeedsAttention', opensAsk: true }
+      }
       // A QUESTION always wins: claude asked the operator something, and a background
       // task running alongside it does not make that question wait.
       if (endsWithQuestion(evt.last_assistant_message)) {
