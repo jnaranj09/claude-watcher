@@ -11,7 +11,8 @@
 //   - Stop ending in a prose question → NeedsAttention   (→ needs-you column)
 //   - Stop w/ background_tasks running → Working (claude backgrounded a shell / armed a
 //     monitor; the terminal says "1 shell still running", so the card says Working)
-//   - UserPromptSubmit                → Working + `fromPrompt` (the operator spoke)
+//   - UserPromptSubmit                → Working + `fromPrompt` (a prompt was sent, by the
+//     operator or by a Monitor/background wake-up: the payloads look the same)
 //   - ElicitationResult               → Working + `fromTool` + `answered`
 //   - Stop, otherwise                 → YourTurn         (→ needs-you column; the
 //     deterministic your-turn floor — a turn NEVER ends idle straight from Stop)
@@ -91,8 +92,10 @@ function toolCall(evt: HookEvent): { toolUseId?: string; agentId?: string } {
  * - `PermissionRequest` → `NeedsPermission`, naming the tool (a dialog just opened — ST-5);
  *   `tool_name === 'AskUserQuestion'` → `null` (its `PreToolUse` already said `NeedsAttention`)
  * - `PreToolUse` & `tool_name === 'AskUserQuestion'`            → `NeedsAttention`
- * - `UserPromptSubmit` → `Working` + `fromPrompt` (the operator spoke; the reducer clears a
- *   sticky ask on it)
+ * - `UserPromptSubmit` → `Working` + `fromPrompt` (a prompt was sent, by the operator or by a
+ *   Monitor/background wake-up: the payloads look the same. It clears a sticky ask only while
+ *   the session's bridge mod has reported no prompt origin (fail open); otherwise the reducer's
+ *   `promptOrigin` decides)
  * - `PreToolUse` (other) | `PostToolUse` | `PostToolUseFailure` → `Working`;
  *   tool events carry `tool_use_id`/`agent_id`, and the finished call that opened a prompt clears
  *   it (ST-1)
