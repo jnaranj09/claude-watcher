@@ -428,10 +428,10 @@
   },
   "src/renderer/src/components/SessionNameDialog/SessionNameDialog.busy.test.tsx": {
     "jest-dom/prefer-to-have-attribute": {
-      "count": 3
+      "count": 1
     },
     "jest-dom/prefer-to-have-text-content": {
-      "count": 3
+      "count": 2
     },
     "testing-library/no-container": {
       "count": 1

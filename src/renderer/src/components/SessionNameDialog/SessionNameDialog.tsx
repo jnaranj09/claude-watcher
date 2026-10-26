@@ -31,6 +31,10 @@ import { TextInput } from '../TextInput/TextInput'
 import { Callout } from '../Callout/Callout'
 import styles from './SessionNameDialog.module.css'
 import { leavingProps, useLeaving } from '../Presence/leaving'
+import { toast, toastStore } from '../../stores/toastStore'
+
+/** The refusal's toast key (spec 2026-10-26 dialog toasts): one toast, replaced by the next. */
+const ERROR_TOAST_KEY = 'dialog:session-name'
 
 export interface SessionNameDialogProps {
   /** The value the input starts at (the cwd basename on create; the current name on rename). */
@@ -54,7 +58,9 @@ export interface SessionNameDialogProps {
   busy?: boolean
   /** The confirm's label while busy (`Starting…` / `Renaming…`). */
   busyLabel?: string
-  /** The caller's mapped refusal copy — never a thrown message. Shown on the ONE error line. */
+  /** The caller's mapped refusal copy — never a thrown message. Shown as an error TOAST, not in
+   *  the dialog. The caller nulls it on every attempt (busy) and every edit, so each refusal is a
+   *  null → text change and shows again even when the text repeats. */
   error?: string | null
   /** Called on every edit, so the caller clears `error` (R26: editing clears the error line). */
   onEdit?: () => void
@@ -88,6 +94,18 @@ export function SessionNameDialog({
     input.select()
   }, [])
 
+  // The refusal is a toast keyed to this prompt. It fades when the error clears, when the prompt's
+  // exit starts (a pointer close keeps it mounted, `data-leaving`) and when it unmounts. A
+  // refusal that lands after the prompt closed is pushed by the caller (namePromptFlow), unkeyed.
+  useEffect(() => {
+    if (error === null) toastStore.getState().dismissKey(ERROR_TOAST_KEY, 'error')
+    else toast.error(error, { key: ERROR_TOAST_KEY })
+  }, [error])
+  useEffect(() => {
+    if (leaving) toastStore.getState().dismissKey(ERROR_TOAST_KEY, 'error')
+  }, [leaving])
+  useEffect(() => () => toastStore.getState().dismissKey(ERROR_TOAST_KEY, 'error'), [])
+
   // The submitted value is always the TRIMMED one, so what the operator sees on the card matches
   // what main stores (SessionNameSchema trims before its length checks).
   const trimmed = value.trim()
@@ -106,11 +124,11 @@ export function SessionNameDialog({
     onSubmit(trimmed)
   }
 
-  // The ONE error line: an over-long prefill first (typing is capped, so only a prefill gets
-  // there), else the caller's mapped refusal.
+  // The ONE inline line: an over-long prefill (typing is capped, so only a prefill gets there).
+  // The caller's refusal is a toast, not this line.
   const errorText = tooLong
     ? `Too long — ${trimmed.length}/${SESSION_NAME_MAX_LENGTH} characters.`
-    : error
+    : null
 
   return (
     <div
@@ -157,8 +175,7 @@ export function SessionNameDialog({
         )}
 
         {/* The over-long case is only reachable via an over-long PREFILL (typing is capped by
-            maxLength); without it the Create button would sit disabled with no stated reason.
-            Otherwise the caller's mapped launch/rename refusal. */}
+            maxLength); without it the Create button would sit disabled with no stated reason. */}
         {errorText !== null && (
           <Callout tone="danger" title={errorText} testId="session-name-error" />
         )}

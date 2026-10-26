@@ -22,6 +22,7 @@ import {
   selectKeptAliveTerminalIds,
   selectStartingTerminals
 } from './stores/boardStore'
+import { dialogToast } from './test/toasts'
 import { workspacesStore } from './stores/workspacesStore'
 import { SESSION_NAME_MAX_LENGTH, SessionNameSchema } from '../../shared/schemas/launch'
 
@@ -224,8 +225,12 @@ describe('App — Story 3.2 launch flow (AC-1, AC-5)', () => {
     // Spec 2026-09-29 §2.2: the prompt stays, with the typed name, and says why — never the
     // thrown message.
     expect(r.container.querySelector('[data-testid="session-name-overlay"]')).not.toBeNull()
-    const line = r.container.querySelector('[data-testid="session-name-error"]')
-    expect(line?.textContent).toBe('Could not start the session.')
+    // The refusal is an error toast, not a line in the prompt.
+    expect(r.container.querySelector('[data-testid="session-name-error"]')).toBeNull()
+    expect(dialogToast('session-name')).toMatchObject({
+      kind: 'error',
+      title: 'Could not start the session.'
+    })
     expect(r.container.textContent).not.toContain('spawn failed')
   })
 })

@@ -1,9 +1,10 @@
 // Action feedback (spec 2026-09-29 §2.2) — the prompt's own side: busy (confirm disabled, aria-busy,
-// the busy label, Enter does nothing, Cancel still works), the caller's mapped error on the ONE
-// role="alert" line, and every edit reported so the caller can clear that line.
+// the busy label, Enter does nothing, Cancel still works), the caller's mapped error as an error
+// TOAST (not a line in the dialog), and every edit reported so the caller can clear that error.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { dialogToast } from '../../test/toasts'
 import { SessionNameDialog, type SessionNameDialogProps } from './SessionNameDialog'
 
 let cleanup: (() => void) | undefined
@@ -52,12 +53,13 @@ describe('SessionNameDialog — busy and the caller error', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('shows the caller error on the one role="alert" line, keeping the typed name', () => {
+  it('shows the caller error as a toast, not in the dialog, keeping the typed name', () => {
     const { r } = render({ error: 'That folder no longer exists.' })
-    const line = el(r, 'session-name-error')
-    expect(line.getAttribute('role')).toBe('alert')
-    expect(line.textContent).toBe('That folder no longer exists.')
-    expect(line.getAttribute('data-callout-tone')).toBe('danger')
+    expect(document.querySelector('[data-testid="session-name-error"]')).toBeNull()
+    expect(dialogToast('session-name')).toMatchObject({
+      kind: 'error',
+      title: 'That folder no longer exists.'
+    })
     expect(el<HTMLInputElement>(r, 'session-name-input').value).toBe('api')
   })
 
@@ -73,8 +75,9 @@ describe('SessionNameDialog — busy and the caller error', () => {
     expect(onEdit).toHaveBeenCalledTimes(1)
   })
 
-  it('an over-long name still says so first', () => {
+  it('an over-long name says so inline; the refusal stays a toast', () => {
     const { r } = render({ initialName: 'x'.repeat(200), error: 'That folder no longer exists.' })
     expect(el(r, 'session-name-error').textContent).toMatch(/^Too long/)
+    expect(dialogToast('session-name')?.title).toBe('That folder no longer exists.')
   })
 })
