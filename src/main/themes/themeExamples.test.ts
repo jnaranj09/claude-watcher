@@ -678,6 +678,22 @@ describe('docs/themes/examples', () => {
       )
     ).toMatch(/background-color:\s*var\(--bg-row-rest\)/)
   })
+  // A Settings field error (`data-settings-field-error`, spec 2026-10-26) is not a row: Paper's
+  // row look (56px, its own line) must skip it, and the line moves from the field to under the
+  // error, so no rule separates the error from the field it describes.
+  it('paper: a Settings field error sits tight under its field, not drawn as a row', () => {
+    expect(
+      themeRules('paper').filter((r) => r.selectors.includes('[data-settings-group] > div'))
+    ).toEqual([])
+    const row = bodyOf('paper', '[data-settings-group] > div:not([data-settings-field-error])')
+    expect(row).toMatch(/min-height:\s*56px/)
+    expect(
+      bodyOf('paper', '[data-settings-group] > div:has(+ [data-settings-field-error])')
+    ).toMatch(/border-bottom:\s*0/)
+    expect(bodyOf('paper', '[data-settings-group] > [data-settings-field-error]')).toMatch(
+      /border-bottom:\s*1px solid var\(--border-card\)/
+    )
+  })
   it('paper: the workspace switcher keeps its tint (no background of its own)', () => {
     expect(bodyOf('paper', '[data-workspace-switcher]')).not.toMatch(/background/)
   })

@@ -395,6 +395,26 @@ describe('SettingsPanel — the local API block', () => {
     expect(q(r, '[data-testid="settings-pane-api"]')).not.toHaveTextContent('Port must be between')
   })
 
+  // The Callout and `aria-invalid` say the same thing: an edit takes both away, the next bad
+  // commit brings both back. Themes find the wrapper by its public hook, never the test id.
+  it('editing a refused port clears its Callout together with aria-invalid', async () => {
+    stubSettings()
+    stubApi()
+    stubThemes()
+    const r = render()
+    await flush()
+    const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
+    type(port, '80')
+    blur(port)
+    await flush()
+    expect(
+      q(r, '[data-settings-field-error] > [data-testid="settings-port-error"]')
+    ).toHaveTextContent('Port must be between 1024 and 65535.')
+    type(port, '8')
+    expect(port).not.toHaveAttribute('aria-invalid', 'true')
+    expect(q(r, '[data-testid="settings-pane-api"]')).not.toHaveTextContent('Port must be between')
+  })
+
   it('Copy writes the token to the clipboard', async () => {
     stubSettings()
     stubApi('c'.repeat(64))

@@ -453,7 +453,7 @@ button[data-manage-close][data-variant] {
   padding: 16px 28px 0;
 }
 /* One line under each setting row (the app's line on top of the next row is cleared). */
-[data-settings-group] > div {
+[data-settings-group] > div:not([data-settings-field-error]) {
   min-height: 56px;
   border-top: 0;
   border-bottom: 1px solid var(--border-card);
@@ -462,9 +462,18 @@ button[data-manage-close][data-variant] {
   align-items: center;
   padding-block: var(--inset-card);
 }
-[data-settings-group] > div > :first-child {
+[data-settings-group] > div:not([data-settings-field-error]) > :first-child {
   font-size: 14px;
   font-weight: 500;
+}
+/* A field error is not a row: it sits tight under the field it describes, so the field's line
+   moves under the error (no rule between them). */
+[data-settings-group] > div:has(+ [data-settings-field-error]) {
+  border-bottom: 0;
+}
+[data-settings-group] > [data-settings-field-error] {
+  border-bottom: 1px solid var(--border-card);
+  padding-bottom: var(--inset-card);
 }
 [data-settings-group] p {
   font-size: 12px;

@@ -363,7 +363,9 @@ What you can target:
   `[data-favorite-row]:has([data-favorite]:hover) > [data-popover-item]` in that rule.
 - **Settings groups.** `[data-settings-group]` wraps the fields of one Settings pane. The app draws
   nothing there; a theme may give it a fill, an edge and padding (Liquid Glass draws an inset glass
-  group).
+  group). A field or standing error in a pane is a direct child marked
+  `[data-settings-field-error]`, under the row it describes; a theme that draws each child `div` as
+  a row skips it with `:not([data-settings-field-error])` (Paper does).
 - **Surface hooks.** The focused view's rail and its top bar are drawn by several layers (the rail
   above, around and below the active tab, and the bar). Change their surface with two custom
   properties, never by styling the layers: `--rail-surface` (the whole rail; unset = `--bg-surface`)

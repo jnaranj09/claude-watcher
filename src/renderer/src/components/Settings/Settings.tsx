@@ -182,7 +182,8 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const [portInvalid, setPortInvalid] = useState(false)
   // Field and load-time errors are not action results (spec 2026-10-26): each sits in a danger
   // Callout by what it describes, in local state, never on the dialog's error state. The port's
-  // stays until a valid commit; the token read's until a read, a regenerate or the API off.
+  // goes with `aria-invalid` (an edit or a valid commit); the token read's stays until a read, a
+  // regenerate or the API off. The wrapper's `data-settings-field-error` is the theme hook.
   const [portError, setPortError] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -539,12 +540,12 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                   {/* Standing notices about the picker sit beside it (spec 2026-10-26): the chosen
                     theme that did not load (R12) and a themes folder that could not be read. */}
                   {themeError !== null && (
-                    <div className={styles.fieldError}>
+                    <div className={styles.fieldError} data-settings-field-error="">
                       <Callout tone="danger" title={themeError} testId="settings-theme-error" />
                     </div>
                   )}
                   {themesReadError !== null && (
-                    <div className={styles.fieldError}>
+                    <div className={styles.fieldError} data-settings-field-error="">
                       <Callout
                         tone="danger"
                         title={themesReadError}
@@ -728,6 +729,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                           onChange={(next) => {
                             setPortDraft(next)
                             setPortInvalid(false)
+                            setPortError(null)
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') commitPort()
@@ -739,7 +741,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                     </div>
                   </div>
                   {portError !== null && (
-                    <div className={styles.fieldError}>
+                    <div className={styles.fieldError} data-settings-field-error="">
                       <Callout tone="danger" title={portError} testId="settings-port-error" />
                     </div>
                   )}
@@ -788,7 +790,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                         </div>
                       </div>
                       {tokenError !== null && (
-                        <div className={styles.fieldError}>
+                        <div className={styles.fieldError} data-settings-field-error="">
                           <Callout tone="danger" title={tokenError} testId="settings-token-error" />
                         </div>
                       )}
