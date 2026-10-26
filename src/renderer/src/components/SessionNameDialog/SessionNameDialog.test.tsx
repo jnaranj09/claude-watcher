@@ -8,7 +8,7 @@
 //     unchanged (overridable title / confirm label / hint).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act } from 'react'
-import { renderComponent, type RenderResult } from '../../test/renderComponent'
+import { q, renderComponent, type RenderResult } from '../../test/renderComponent'
 import { SessionNameDialog } from './SessionNameDialog'
 import { SESSION_NAME_MAX_LENGTH } from '../../../../shared/schemas/launch'
 
@@ -211,5 +211,11 @@ describe('SessionNameDialog — reusable by the deferred rename pass', () => {
     r.unmount()
     const { r: r2 } = render()
     expect(r2.container.querySelector('[data-testid="session-name-helper"]')).toBeNull()
+  })
+
+  it('actions carry data-toast-clearance (the toast stack rises above them)', () => {
+    const { r } = render()
+    const cancel = q(r, '[data-testid="session-name-cancel"]')
+    expect(cancel.parentElement).toHaveAttribute('data-toast-clearance')
   })
 })

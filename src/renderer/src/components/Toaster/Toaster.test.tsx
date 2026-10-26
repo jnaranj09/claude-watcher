@@ -268,3 +268,33 @@ describe('Toaster — motion (spec 2026-10-04 §7)', () => {
     expect(reduce).toMatch(/transition-property:\s*opacity;/)
   })
 })
+
+describe('Toaster — clearance', () => {
+  it('region style carries --toast-clearance after a footer appears while a toast is showing', async () => {
+    const { store } = setup()
+    act(() => {
+      store.getState().push({ kind: 'success', title: 'ok' })
+    })
+    const region = r?.container.querySelector<HTMLElement>('[data-testid="toaster"]')
+    expect(region?.style.getPropertyValue('--toast-clearance')).toBe('0px')
+    const footer = document.createElement('div')
+    footer.setAttribute('data-toast-clearance', '')
+    footer.getBoundingClientRect = () => ({ top: window.innerHeight - 200 }) as DOMRect
+    await act(async () => {
+      document.body.append(footer)
+      await Promise.resolve()
+    })
+    expect(region?.style.getPropertyValue('--toast-clearance')).toBe('200px')
+    footer.remove()
+  })
+
+  it('the stack sits at --space-4 or above the clearance plus --gap-page', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/renderer/src/components/Toaster/Toaster.module.css'),
+      'utf8'
+    )
+    expect(css).toMatch(
+      /bottom:\s*max\(var\(--space-4\),\s*calc\(var\(--toast-clearance,\s*0px\)\s*\+\s*var\(--gap-page\)\)\);/
+    )
+  })
+})

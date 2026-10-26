@@ -163,7 +163,7 @@ export function SessionNameDialog({
           <Callout tone="danger" title={errorText} testId="session-name-error" />
         )}
 
-        <div className={styles.actions}>
+        <div className={styles.actions} data-toast-clearance="">
           <Button variant="secondary" testId="session-name-cancel" onClick={onCancel}>
             Cancel
           </Button>

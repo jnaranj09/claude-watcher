@@ -620,4 +620,9 @@ describe('ManageDialog — public theme hooks', () => {
       expect(r.container.querySelector(`[${hook}]`), hook).not.toBeNull()
     }
   })
+
+  it('Footer carries data-toast-clearance (the toast stack rises above it)', () => {
+    const { r } = render()
+    expect(q(r, '[data-manage-footer]')).toHaveAttribute('data-toast-clearance')
+  })
 })

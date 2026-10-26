@@ -9,7 +9,12 @@
 // (`[data-toast-mark]`, glyph in CSS so the text stays the words); info draws none. The action is
 // the toast's one primary Button, with its icon (spec 2026-10-14). Themes target `[data-toast]`,
 // `[data-toast-kind]`, `[data-toast-mark]` and `[data-toast-key]`, never a test id.
-import { useRef, type JSX } from 'react'
+//
+// The stack rises above an open dialog's buttons: a dialog marks its button row
+// `[data-toast-clearance]`, and while toasts exist the Toaster measures it (on a toast change, a
+// modal change, a resize, and any DOM change — a form opening under a toast already up, a dialog
+// starting to leave) into `--toast-clearance` on the region.
+import { useLayoutEffect, useRef, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
 import { Button } from '../Button/Button'
@@ -24,6 +29,7 @@ import {
 } from '../../stores/toastStore'
 import { useBoard } from '../../stores/boardStore'
 import { modalOpenIn } from '../../lib/modals'
+import { toastClearance } from './toastClearance'
 import styles from './Toaster.module.css'
 
 const ACTION_ICON: Readonly<Record<ToastActionIcon, LucideIconName>> = {
@@ -39,8 +45,36 @@ export interface ToasterProps {
 export function Toaster({ store = toastStore }: ToasterProps): JSX.Element {
   const toasts = useStore(store, selectToasts)
   const modalOpen = useBoard(modalOpenIn)
+  const region = useRef<HTMLElement>(null)
+  const hasToasts = toasts.length > 0
+  useLayoutEffect(() => {
+    const measure = (): void =>
+      region.current?.style.setProperty(
+        '--toast-clearance',
+        `${toastClearance(document, window.innerHeight)}px`
+      )
+    measure()
+    if (!hasToasts) return undefined
+    window.addEventListener('resize', measure)
+    const observer = new MutationObserver(measure)
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-leaving']
+    })
+    return () => {
+      window.removeEventListener('resize', measure)
+      observer.disconnect()
+    }
+  }, [toasts, modalOpen, hasToasts])
   return (
-    <section className={styles.region} aria-label="Notifications" data-testid="toaster">
+    <section
+      className={styles.region}
+      ref={region}
+      aria-label="Notifications"
+      data-testid="toaster"
+    >
       {toasts.map((t) => (
         <ToastCard key={t.id} toast={t} store={store} modalOpen={modalOpen} />
       ))}
