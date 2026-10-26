@@ -18,7 +18,7 @@
 // on the exact event that needs it. None of it was necessary.
 
 import { describe, it, expect } from 'vitest'
-import { hasRunningBackgroundWork } from './backgroundTasks'
+import { hasRunningBackgroundWork, runningTaskIds } from './backgroundTasks'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 
 const stop = (over: Partial<HookEvent> = {}): HookEvent => ({
@@ -200,5 +200,52 @@ describe('hasRunningBackgroundWork — read the truth off the Stop payload', () 
     expect(hasRunningBackgroundWork(stop({ background_tasks: null }))).toBe(false)
     expect(hasRunningBackgroundWork(stop({ background_tasks: [null, 42, 'x'] }))).toBe(false)
     expect(hasRunningBackgroundWork(stop({ background_tasks: [{}] }))).toBe(false)
+  })
+})
+
+describe('runningTaskIds — the ids of the running work, for the sticky ask and the interrupt', () => {
+  it('lists each running task id, in payload order', () => {
+    expect(
+      runningTaskIds(
+        stop({
+          background_tasks: [
+            { id: 'a', type: 'shell', status: 'running' },
+            { id: 'b', type: 'shell', status: 'completed' },
+            { id: 'c', type: 'monitor', status: 'running', description: 'chat' }
+          ]
+        })
+      )
+    ).toEqual(['a', 'c'])
+  })
+
+  it('leaves out an artifact watch: it is not work', () => {
+    expect(
+      runningTaskIds(
+        stop({
+          background_tasks: [
+            {
+              id: 'w',
+              type: 'monitor',
+              status: 'running',
+              description:
+                'live updates for artifact https://claude.ai/artifact/x1 (watch requested)'
+            }
+          ]
+        })
+      )
+    ).toEqual([])
+  })
+
+  it('leaves out a running task with no string id (it can never be told apart)', () => {
+    expect(
+      runningTaskIds(
+        stop({ background_tasks: [{ status: 'running' }, { id: 7, status: 'running' }] })
+      )
+    ).toEqual([])
+  })
+
+  it('is empty when the field is absent or malformed', () => {
+    expect(runningTaskIds(stop())).toEqual([])
+    expect(runningTaskIds(stop({ background_tasks: 'x' }))).toEqual([])
   })
 })

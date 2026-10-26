@@ -193,13 +193,14 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
       hookStatus(
         evt({ hook_event_name: 'Stop', last_assistant_message: 'Which option do you prefer?' })
       )
-    ).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', taskIds: [] })
   })
 
   it('Stop without a question ends the turn as YourTurn (deterministic your-turn floor)', () => {
     expect(hookStatus({ session_id: 's1', hook_event_name: 'Stop' })).toEqual({
       kind: 'status',
-      status: 'YourTurn'
+      status: 'YourTurn',
+      taskIds: []
     })
     expect(
       hookStatus({
@@ -207,7 +208,7 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
         hook_event_name: 'Stop',
         last_assistant_message: 'Done. All tests pass.'
       })
-    ).toEqual({ kind: 'status', status: 'YourTurn' })
+    ).toEqual({ kind: 'status', status: 'YourTurn', taskIds: [] })
   })
 
   it('Stop ending in a question still maps to NeedsAttention (urgency upgrade)', () => {
@@ -217,7 +218,7 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
         hook_event_name: 'Stop',
         last_assistant_message: 'Should I proceed?'
       })
-    ).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', taskIds: [] })
   })
 
   // --- ST-6: claude waits for input that is not a tool permission ---
@@ -340,8 +341,8 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
 
   it('is a pure function — repeated calls return equal results', () => {
     const stopQ = evt({ hook_event_name: 'Stop', last_assistant_message: 'Ready?' })
-    expect(hookStatus(stopQ)).toEqual({ kind: 'status', status: 'NeedsAttention' })
-    expect(hookStatus(stopQ)).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    expect(hookStatus(stopQ)).toEqual({ kind: 'status', status: 'NeedsAttention', taskIds: [] })
+    expect(hookStatus(stopQ)).toEqual({ kind: 'status', status: 'NeedsAttention', taskIds: [] })
     expect(hookStatus(evt({ hook_event_name: 'SessionEnd' }))).toEqual({ kind: 'removed' })
   })
 
@@ -355,14 +356,16 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
       )
     ).toEqual({
       kind: 'status',
-      status: 'Working'
+      status: 'Working',
+      taskIds: ['b1']
     })
   })
 
   it('Stop with NO pending background task keeps the YourTurn floor', () => {
     expect(hookStatus(evt({ hook_event_name: 'Stop', background_tasks: [] }))).toEqual({
       kind: 'status',
-      status: 'YourTurn'
+      status: 'YourTurn',
+      taskIds: []
     })
   })
 
@@ -381,7 +384,7 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
           background_tasks: [{ id: 'b1', status: 'running' }]
         })
       )
-    ).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', taskIds: ['b1'] })
   })
 
   // --- the sticky ask: a Stop ending in the `Needs you:` marker ---
@@ -396,7 +399,7 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
           background_tasks: RUNNING
         })
       )
-    ).toEqual({ kind: 'status', status: 'NeedsAttention', opensAsk: true })
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', opensAsk: true, taskIds: ['b1'] })
   })
 
   it('Stop ending in "?" with a running monitor is NeedsAttention WITHOUT opensAsk', () => {
@@ -407,7 +410,7 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
         background_tasks: RUNNING
       })
     )
-    expect(out).toEqual({ kind: 'status', status: 'NeedsAttention' })
+    expect(out).toEqual({ kind: 'status', status: 'NeedsAttention', taskIds: ['b1'] })
     expect(out).not.toHaveProperty('opensAsk')
   })
 
@@ -420,7 +423,7 @@ describe('hookStatus — event-object to HookStatusChange mapper', () => {
           background_tasks: RUNNING
         })
       )
-    ).toEqual({ kind: 'status', status: 'NeedsAttention', opensAsk: true })
+    ).toEqual({ kind: 'status', status: 'NeedsAttention', opensAsk: true, taskIds: ['b1'] })
   })
 
   it('background_tasks does NOT change any non-Stop event', () => {

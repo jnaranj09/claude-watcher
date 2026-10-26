@@ -771,19 +771,18 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
      * KEYSTROKE seen on the pty, and the `[Request interrupted by user]` marker the transcript
      * tail finds — so the rule below cannot drift between them.
      *
-     * The rule: an interrupt always demotes to idle, background work or not. It used to keep
-     * the card on `Working` while the last `Stop` said work was running, and a task that never
-     * ends (a dev server) then held it there forever, Esc included (R5). A turn end with work
-     * running is still `Working` (hookStatus.ts); an interrupt is the operator's own key,
-     * so it is the calm column. If claude later wakes on the task's completion, that turn's own
-     * hooks move the card again.
+     * The rule: an interrupt demotes to idle, unless the last `Stop` said background work was
+     * still running; then the reducer shows `Working` (`interrupt`). Running work is never idle,
+     * and a task that never ends (a dev server) keeping the card on Working is that task's fault,
+     * not the status's (owner, 2026-10-26; this reverses R5). If claude later wakes on the task's
+     * completion, that turn's own hooks move the card again.
      */
     function demoteOnInterrupt(sessionId: string, code: string): void {
       // Claude is now sitting at its prompt waiting, and the operator is the one who
-      // pressed the key — so this is idle-by-truth: the calm column, no notification.
+      // pressed the key — so this is idle-by-truth (Working while work runs), no notification.
       console.log(`[c9watch][hooks] code=${code} session=${sessionId}`)
       reducer
-        .applyHookStatus(sessionId, { kind: 'status', status: 'WaitingForInput' })
+        .applyHookStatus(sessionId, { kind: 'status', status: 'WaitingForInput', interrupt: true })
         .forEach(handleDelta)
     }
 

@@ -31,7 +31,7 @@ import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { endsWithQuestion } from './endsWithQuestion'
 import { endsWithNeedsYou } from './needsYouMarker'
 import { STATUS_YOUR_TURN } from '../../shared/ipc/contract'
-import { hasRunningBackgroundWork } from './backgroundTasks'
+import { hasRunningBackgroundWork, runningTaskIds } from './backgroundTasks'
 import { toolDetail } from './toolDetail'
 
 /**
@@ -182,28 +182,32 @@ export function hookStatus(evt: HookEvent): HookStatusChange | null {
     case 'UserPromptSubmit':
       return { kind: 'status', status: 'Working', fromPrompt: true }
 
-    case 'Stop':
+    case 'Stop': {
       // A turn that ends by asking flips to needs-you; ANY other Stop is deterministically
       // the operator's turn (spec DA-1: the your-turn floor — never idle straight from Stop;
       // idle is reached only via an interrupt, a /clear or the session:seen demotion).
       // A `Needs you:` line near the end is claude saying it is blocked on the operator: the reducer
       // holds it as a sticky ask, even while background work runs. Checked before the question.
+      // Every Stop carries the running work's ids: the reducer keeps the last ones for the sticky
+      // ask (new work clears it) and for an interrupt (running work is never idle).
+      const taskIds = runningTaskIds(evt)
       if (endsWithNeedsYou(evt.last_assistant_message)) {
-        return { kind: 'status', status: 'NeedsAttention', opensAsk: true }
+        return { kind: 'status', status: 'NeedsAttention', opensAsk: true, taskIds }
       }
       // A QUESTION always wins: claude asked the operator something, and a background
       // task running alongside it does not make that question wait.
       if (endsWithQuestion(evt.last_assistant_message)) {
-        return { kind: 'status', status: 'NeedsAttention' }
+        return { kind: 'status', status: 'NeedsAttention', taskIds }
       }
       // Claude's own `background_tasks` list says whether a shell or monitor is still
       // running: the card says Working, as the terminal does ("1 shell still running"). R5 made
       // this a quiet your-turn, and looking at the session then demoted it to Idle with the shell
-      // still running (operator, 2026-09-29). Working raises nothing; Esc still drops to idle.
+      // still running (operator, 2026-09-29). Working raises nothing; Esc keeps it Working.
       if (hasRunningBackgroundWork(evt)) {
-        return { kind: 'status', status: 'Working' }
+        return { kind: 'status', status: 'Working', taskIds }
       }
-      return { kind: 'status', status: STATUS_YOUR_TURN }
+      return { kind: 'status', status: STATUS_YOUR_TURN, taskIds }
+    }
 
     case 'StopFailure':
       // An API error (rate limit, overload, network, bad model) ends the turn with this event

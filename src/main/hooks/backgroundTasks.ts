@@ -49,9 +49,25 @@ const ARTIFACT_WATCH = /^live updates for artifact https:\/\/\S+\/artifact\/\S+ 
  * turn end; on any event without the field it is simply false.
  */
 export function hasRunningBackgroundWork(evt: HookEvent): boolean {
+  return runningTasks(evt).length > 0
+}
+
+/**
+ * The ids of the background work still running at this turn end (same filter as
+ * `hasRunningBackgroundWork`). A running task with no string id is left out: it can never be told
+ * apart from the work running when a sticky ask opened, so it never clears one.
+ */
+export function runningTaskIds(evt: HookEvent): string[] {
+  return runningTasks(evt).flatMap((fields) => {
+    const id = fields['id']
+    return typeof id === 'string' ? [id] : []
+  })
+}
+
+function runningTasks(evt: HookEvent): Record<string, unknown>[] {
   const tasks = evt.background_tasks
-  if (!Array.isArray(tasks)) return false
-  return tasks.some((task) => {
+  if (!Array.isArray(tasks)) return []
+  return tasks.filter((task): task is Record<string, unknown> => {
     if (typeof task !== 'object' || task === null) return false
     const fields = task as Record<string, unknown>
     return fields['status'] === RUNNING && !isArtifactWatch(fields)

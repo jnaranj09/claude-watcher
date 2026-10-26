@@ -25,7 +25,8 @@
 //     shows EXACTLY ONE `New session` button → clicking it re-runs the launch flow (picker
 //     seam) and a NEW live terminal takes focus.
 //
-//   Test 3 (the Esc interrupt, R5): Esc demotes the card to idle, background work or not.
+//   Test 3 (the Esc interrupt): Esc demotes the card to idle, or to working while background
+//     work runs (running work is never idle).
 //
 // THE HOOK PORT: the app runs on the e2e profile (src/main/profile.ts, set by ./fixtures.ts), whose
 // hook port no other profile uses, and the POSTs below go to that same `E2E_PROFILE.hookPort`.
@@ -271,7 +272,7 @@ test.describe('native engine', () => {
   })
 
   // =========================================================================================
-  // Test 3 — the ESC INTERRUPT demotes to idle, background work or not (R5).
+  // Test 3 — the ESC INTERRUPT demotes to idle; with background work running, to working.
   //
   // WHY THIS IS AN E2E AND NOT A UNIT TEST. The interrupt is the one path in this app with no
   // hook behind it: pressing Esc fires NO Claude Code hook of any kind (probe-verified twice
@@ -289,16 +290,17 @@ test.describe('native engine', () => {
   // asserts on BOTH the board column AND the main-process log line, which is the only place
   // the decision itself is observable.
   //
-  // THE BEHAVIOUR UNDER TEST (R5, `demoteOnInterrupt` in src/main/window/watchFeed.ts and
-  // `interruptDemotes` in src/main/pty/interruptKey.ts; .claude/rules/session-engine.md "Esc
-  // demotes any card not already idle"): an interrupt always demotes to idle, background work
-  // or not. It used to keep the card on `working` while the last `Stop` reported running work,
-  // and a task that never ends (a dev server) then held it there forever, Esc included.
+  // THE BEHAVIOUR UNDER TEST (`demoteOnInterrupt` in src/main/window/watchFeed.ts,
+  // `interruptDemotes` in src/main/pty/interruptKey.ts and the reducer's `interrupt` change;
+  // .claude/rules/session-engine.md "Esc demotes any card not already idle"): an interrupt
+  // demotes to idle, unless the last `Stop` reported running work: running work is never idle
+  // (owner, 2026-10-26; this reverses R5, which always went idle). A task that never ends (a dev
+  // server) keeping the card on `working` is that task's fault, not the status's.
   //
-  //   Esc while `background_tasks` reported RUNNING  → `interrupt_key` → idle
+  //   Esc while `background_tasks` reported RUNNING  → `interrupt_key` → working
   //   Esc with no background work reported           → `interrupt_key` → idle
   // =========================================================================================
-  test('esc interrupt: demotes to idle even while background work runs (R5)', async ({
+  test('esc interrupt: demotes to idle, but stays working while background work runs', async ({
     app,
     page,
     appEnv,
@@ -352,7 +354,7 @@ test.describe('native engine', () => {
       'a Stop reporting running background work must hold the card in the working column'
     ).toBeAttached({ timeout: 5000 })
 
-    // ── (2) Esc while that work runs DEMOTES (R5) ─────────────────────────────────────────
+    // ── (2) Esc while that work runs takes the demote path, and the card stays working ────
     // A real keystroke into the real xterm: renderer → preload MessagePort → terminalManager
     // → main's onInput → isInterruptKey → the board seam.
     //
@@ -373,17 +375,21 @@ test.describe('native engine', () => {
         message: 'the Escape keystroke must reach main through the pty input path'
       })
       .toBe(1)
-    // …and the decision must have been to demote, running work or not.
+    // …and the decision must have been to demote, which the reducer shows as working.
     await expect
       .poll(() => timesLogged(demoted), {
         timeout: 5000,
-        message: 'Esc during running background work must take the demote path (R5)'
+        message: 'Esc during running background work must take the demote path'
       })
       .toBe(1)
     await expect(
-      page.locator(`[data-column="idle"] [data-session-id="${sessionId}"]`),
-      'Esc must drop the card to the idle column even while background work runs (R5)'
+      page.locator(`[data-column="working"] [data-session-id="${sessionId}"]`),
+      'Esc must keep the card in the working column while background work runs'
     ).toBeAttached({ timeout: 5000 })
+    await expect(
+      page.locator(`[data-column="idle"] [data-session-id="${sessionId}"]`),
+      'running work is never idle'
+    ).toHaveCount(0)
 
     await page.screenshot({
       path: testInfo.outputPath('native-engine-e2e-interrupt-background.png')
