@@ -169,6 +169,21 @@ describe('toastStore', () => {
     expect(store.getState().toasts[0]?.leaving).toBe(false)
   })
 
+  it('a replaced timed toast has its timer cleared; the new one lives its own full lifetime', () => {
+    const clock = manualClock()
+    const clearTimer = vi.spyOn(clock, 'clearTimer')
+    const store = createToastStore(clock)
+    store.getState().push({ kind: 'info', title: 'a', key: 'k' })
+    clock.advance(1000)
+    store.getState().push({ kind: 'success', title: 'b', key: 'k' })
+    expect(clearTimer).toHaveBeenCalledTimes(1)
+    clock.advance(TOAST_MS - 1000)
+    expect(titles(store)).toEqual(['b'])
+    expect(store.getState().toasts[0]?.leaving).toBe(false)
+    clock.advance(1000)
+    expect(store.getState().toasts[0]?.leaving).toBe(true)
+  })
+
   it('keys do not touch unkeyed or other-keyed toasts', () => {
     const { store } = setup()
     store.getState().push({ kind: 'error', title: 'x' })
