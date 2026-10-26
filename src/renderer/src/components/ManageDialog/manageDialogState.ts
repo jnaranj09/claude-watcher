@@ -26,8 +26,9 @@ export interface ManageDialogState {
   /** WHICH Delete is armed: the footer's `'form'` (the default), or a key a page names when it has
    *  a second Delete on screen (the Active page's bulk bar: `'bulk'`). Null when none is. */
   armedKey: string | null
-  /** The current error's operator copy (the one its error toast shows), or null. Never a raw
-   *  `error.message` (design.md). A form reads it to hold back its own hint while it shows. */
+  /** The current error's operator copy, or null. It stays until the next clear, even if the
+   *  operator dismissed its toast. Never a raw `error.message` (design.md). A form reads it to
+   *  hold back its own hint while it is set. */
   error: string | null
 }
 
@@ -126,6 +127,7 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
           return
         }
         // Pushed even when `error` already holds this text: the operator may have ✕'d its toast.
+        // Also pushed after the dialog closed (a late refusal): a failure is never silent (rule 6).
         setError(message)
         toast.error(message, { key })
       },

@@ -128,21 +128,35 @@ describe('TagsDialog', () => {
     expect(rowNames(r)).toContain('deploy')
   })
 
-  // R26 / spec 2026-10-01 — editing ANY field ends the message: Color and Workspace too, not only Name.
-  // An edit fades only an error toast (spec 2026-10-26): a success is left to its own timer.
-  it('changing Color or Workspace after a save leaves "Tag saved." to fade on its own', async () => {
+  // R26 / spec 2026-10-01 — editing any field ends the error: Color and Workspace too, not only
+  // Name. The error's toast fades (spec 2026-10-26).
+  it('changing Color or Workspace after a refused save fades the error toast', async () => {
+    const taken = (): Error =>
+      new Error("Error invoking remote method 'tags:save': Error: tag_name_taken")
+    save.mockRejectedValueOnce(taken()).mockRejectedValueOnce(taken())
+    const { r } = render()
+    click(q(r, '[data-testid="tag-new"]'))
+    type(q(r, '[data-testid="tag-name"]'), 'deploy')
+    click(q(r, '[data-testid="tag-save"]'))
+    await flush()
+    expect(dialogToast('tags')?.kind).toBe('error')
+    chooseOption(r.container, 'tag-color', 'rose')
+    expect(dialogToast('tags')).toBeUndefined()
+    click(q(r, '[data-testid="tag-save"]'))
+    await flush()
+    expect(dialogToast('tags')?.kind).toBe('error')
+    chooseOption(r.container, 'tag-scope', 'w1')
+    expect(dialogToast('tags')).toBeUndefined()
+  })
+
+  // An edit fades only an error toast: a success is left to its own timer.
+  it('changing Color after a save leaves "Tag saved." to fade on its own', async () => {
     const { r } = render()
     click(q(r, '[data-testid="tag-new"]'))
     type(q(r, '[data-testid="tag-name"]'), 'prod')
     click(q(r, '[data-testid="tag-save"]'))
     await flush()
-    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
     chooseOption(r.container, 'tag-color', 'rose')
-    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
-    click(q(r, '[data-testid="tag-save"]'))
-    await flush()
-    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
-    chooseOption(r.container, 'tag-scope', 'w1')
     expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
   })
 

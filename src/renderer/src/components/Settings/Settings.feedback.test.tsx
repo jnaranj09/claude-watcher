@@ -1,7 +1,7 @@
 // Action feedback (spec 2026-09-29 §2.1) — every Settings action says what happened: the
 // dialog's `Saved` toast (spec 2026-10-26); a refused change snaps the control back and names the
-// setting in an error toast; Copy, Reload and Regenerate report on the button; Regenerate, Reload and Open folder cannot run twice;
-// the Theme trigger never shows a raw id while the list loads.
+// setting in an error toast; Copy, Reload and Regenerate report on the button; Regenerate, Reload
+// and Open folder cannot run twice; the Theme trigger never shows a raw id while the list loads.
 //
 // Flash state is read through the button's `role="status"` sibling, never the button's own
 // textContent: with `feedback` set, both layers are always in the button.
