@@ -74,3 +74,9 @@
   gap: var(--gap-group);
   padding: 0 0 var(--gap-group);
 }
+
+/* A field or standing error (spec 2026-10-26): a danger Callout under the row it describes, the
+   same bottom gap as the hint lines. The wrapper holds the spacing (Callout takes no className). */
+.fieldError {
+  padding: 0 0 var(--gap-group);
+}

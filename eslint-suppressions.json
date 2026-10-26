@@ -485,7 +485,7 @@
       "count": 8
     },
     "jest-dom/prefer-to-have-text-content": {
-      "count": 17
+      "count": 15
     },
     "testing-library/no-container": {
       "count": 8
@@ -496,10 +496,10 @@
       "count": 10
     },
     "jest-dom/prefer-to-have-text-content": {
-      "count": 23
+      "count": 19
     },
     "testing-library/no-container": {
-      "count": 31
+      "count": 30
     }
   },
   "src/renderer/src/components/Settings/Settings.theme.test.tsx": {
@@ -507,7 +507,7 @@
       "count": 1
     },
     "jest-dom/prefer-to-have-text-content": {
-      "count": 16
+      "count": 8
     },
     "testing-library/no-container": {
       "count": 4

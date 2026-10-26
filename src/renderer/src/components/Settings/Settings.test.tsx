@@ -365,11 +365,13 @@ describe('SettingsPanel — the local API block', () => {
     expect(port.getAttribute('aria-invalid')).toBe('true')
   })
 
-  // design.md (TextInput): `aria-invalid` is NEVER the only signal — the block's error line has
-  // to say what is wrong (UX-DR29). The copy names the range, so the operator can fix it without
-  // guessing. Asserted as a literal, not rebuilt from API_PORT_MIN/MAX: a test that composes the
-  // sentence the same way the component does cannot catch the sentence changing.
-  it('a refused port says why on the error line, and a good one clears it', async () => {
+  // design.md (TextInput): `aria-invalid` is NEVER the only signal — a danger Callout under the
+  // field says what is wrong (UX-DR29). It is a FIELD error, so it sits by the field, never on the
+  // dialog's message slot (spec 2026-10-26: only action results leave the pane). The copy names
+  // the range, so the operator can fix it without guessing. Asserted as a literal, not rebuilt
+  // from API_PORT_MIN/MAX: a test that composes the sentence the same way the component does
+  // cannot catch the sentence changing.
+  it('a refused port says why under the field, and a good one clears it', async () => {
     stubSettings()
     stubApi()
     stubThemes()
@@ -380,14 +382,17 @@ describe('SettingsPanel — the local API block', () => {
     type(port, '80')
     blur(port)
     await flush()
-    const line = q(r, '[data-testid="settings-error"]')
+    const line = q(r, '[data-testid="settings-port-error"]')
     expect(line.getAttribute('role')).toBe('alert')
+    expect(line).toHaveAttribute('data-callout')
     expect(line.textContent).toBe('Port must be between 1024 and 65535.')
+    expect(port).toHaveAttribute('aria-invalid', 'true')
+    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
 
     type(port, '9300')
     blur(port)
     await flush()
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+    expect(q(r, '[data-testid="settings-pane-api"]')).not.toHaveTextContent('Port must be between')
   })
 
   it('Copy writes the token to the clipboard', async () => {
@@ -463,7 +468,11 @@ describe('SettingsPanel — the local API block', () => {
     const r = render()
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('')
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not read the API token.')
+    // A load-time notice, so it sits in the API pane by the token, not on the message slot.
+    const line = q(r, '[data-testid="settings-pane-api"] [data-testid="settings-token-error"]')
+    expect(line).toHaveAttribute('role', 'alert')
+    expect(line).toHaveTextContent('Could not read the API token.')
+    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
     expect(r.container.textContent).not.toContain('no handler')
   })
 
@@ -589,8 +598,9 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     }
   })
 
-  // Review Focus 3 — the standing theme error is dialog-wide.
-  it('shows the theme error on the error line while another category is open', async () => {
+  // Spec 2026-10-26 — the standing theme error describes the theme picker, so it sits in the
+  // Appearance pane beside it (it used to be on the dialog-wide error line).
+  it('shows the theme error in the Appearance pane, not on the message slot', async () => {
     stubSettings()
     stubApi()
     stubThemes([{ id: 'broken', name: 'broken', colorScheme: 'dark', error: 'theme_css_missing' }])
@@ -598,12 +608,16 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     const r = renderPanel()
     await flush()
     openCategory(r, 'api')
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
+    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    openCategory(r, 'appearance')
+    expect(
+      q(r, '[data-testid="settings-pane-appearance"] [data-testid="settings-theme-error"]')
+    ).toHaveTextContent('could not be loaded')
   })
 
-  // Final review, Important 1 — a category switch disarms, but never wipes the ONE error line: the
-  // refusal it carries still describes the panel (a broken themes folder, a refused port).
-  it('a failed theme list stays on the error line after a category switch', async () => {
+  // Final review, Important 1 — a category switch never wipes a standing notice: a broken themes
+  // folder or a refused port is still true when the operator comes back to its pane.
+  it('a failed theme list is still in the Appearance pane after a category switch', async () => {
     stubSettings()
     stubApi()
     const themes = stubThemes()
@@ -611,12 +625,16 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     const r = renderPanel()
     await flush()
     openCategory(r, 'appearance')
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Could not read the themes folder.'
+    const line = q(
+      r,
+      '[data-testid="settings-pane-appearance"] [data-testid="settings-themes-read-error"]'
     )
+    expect(line).toHaveAttribute('role', 'alert')
+    expect(line).toHaveTextContent('Could not read the themes folder.')
+    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
   })
 
-  it('a refused port stays on the error line after leaving and coming back to API', async () => {
+  it('a refused port is still under the field after leaving and coming back to API', async () => {
     stubSettings()
     stubApi()
     stubThemes()
@@ -627,7 +645,7 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     blur(port)
     openCategory(r, 'terminal')
     openCategory(r, 'api')
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    expect(q(r, '[data-testid="settings-port-error"]')).toHaveTextContent(
       'Port must be between 1024 and 65535.'
     )
   })

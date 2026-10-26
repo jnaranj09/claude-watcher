@@ -6,11 +6,12 @@
 // the app did not launch is the dialog's Import page. No `+ New` (there is nothing to create) and
 // no RowActions. UX-DR14: App.tsx guards it against the other modals and closes it on the quit
 // guard. Never logs a record value.
-import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PastSession, Workspace } from '../../../../shared/ipc/contract'
 import { PAST_SESSIONS_MAX } from '../../../../shared/schemas/pastSession'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
+import { Callout } from '../Callout/Callout'
 import type { DialogPageProps } from '../ManageDialog/dialogPage'
 import { ScopeFilter } from '../ScopeFilter/ScopeFilter'
 import type { ScopeFilterValue } from '../ScopeFilter/scope'
@@ -64,21 +65,15 @@ export function PastSessionsPage({
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   // THIS open's load failed. The store keeps the list it already held, but no empty sentence may
-  // stand beside the error line: "No past sessions yet." is exactly what could not be checked.
+  // stand beside the notice: "No past sessions yet." is exactly what could not be checked. A
+  // standing notice, not an action result, so it lives here and never on the dialog's error state
+  // (spec 2026-10-26).
   const [loadFailed, setLoadFailed] = useState(false)
   // Action feedback (spec 2026-09-29 §2.5): the rail says `Loading…` while the history is in
   // flight and nothing is cached (a reopen refetches silently); Retry bumps the generation to fetch again (the Settings theme-list precedent).
   const [loading, setLoading] = useState(true)
   const [loadGeneration, setLoadGeneration] = useState(0)
   const searchRef = useRef<HTMLInputElement | null>(null)
-
-  // An Effect Event, so the mount effect below never re-runs: `dialog.actions` changes identity
-  // whenever App re-renders (its `onClose` is an inline arrow), and a re-run would reload the list
-  // and pull focus back to the search box.
-  const reportLoadFailed = useEffectEvent((): void => {
-    setLoadFailed(true)
-    dialog.actions.setError('Could not load past sessions')
-  })
 
   // Always fresh: the history changes with every exit, and this is the one place it is read. An
   // aria-modal dialog must also take focus on mount (TemplateList precedent). `alive` drops a load
@@ -88,7 +83,7 @@ export function PastSessionsPage({
     void loadPastSessions().then((ok) => {
       if (!alive) return
       setLoading(false)
-      if (!ok) reportLoadFailed()
+      if (!ok) setLoadFailed(true)
     })
     return () => {
       alive = false
@@ -103,7 +98,6 @@ export function PastSessionsPage({
   function retryLoad(): void {
     setLoadFailed(false)
     setLoading(true)
-    dialog.actions.setError(null)
     setLoadGeneration((g) => g + 1)
   }
 
@@ -227,7 +221,7 @@ export function PastSessionsPage({
             ))}
             {/* Nothing is said until the list has loaded: the first open of a run would otherwise
                   claim "No past sessions yet." while the history is still in flight. A failed load
-                  says so on the error line instead. */}
+                  says so here instead, in a danger Callout where that sentence would be. */}
             {loading && !loadFailed && sessions.length === 0 && (
               <p className={styles.empty} data-testid="past-sessions-loading">
                 Loading…
@@ -237,6 +231,13 @@ export function PastSessionsPage({
               <p className={styles.empty} data-testid="past-sessions-empty">
                 {pastSessionsEmptyCopy(sessions.length, scoped.length)}
               </p>
+            )}
+            {loadFailed && (
+              <Callout
+                tone="danger"
+                title="Could not load past sessions"
+                testId="past-session-load-error"
+              />
             )}
           </ManageDialog.Rows>
           {/* The rail's foot, behind a divider (a different region from the list): Retry after a

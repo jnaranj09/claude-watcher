@@ -162,7 +162,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(r.container.textContent).not.toContain('ENOENT')
   })
 
-  it('when the chosen theme is not the applied one, the error line names the reason and the picker keeps the choice', async () => {
+  it('when the chosen theme is not the applied one, a Callout by the picker names the reason and the picker keeps the choice', async () => {
     stubSettings()
     stubApi()
     stubThemes([broken])
@@ -171,9 +171,14 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     cleanup = r.unmount
     openCategory(r, 'appearance')
     await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    const line = q(r, '[data-testid="settings-theme-error"]')
+    expect(line).toHaveAttribute('role', 'alert')
+    expect(line).toHaveAttribute('data-callout')
+    expect(line).toHaveTextContent(
       'Theme "broken" could not be loaded, using Default — missing theme.css'
     )
+    // Never twice: the standing error is not on the dialog's message slot as well.
+    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
     expect(selectedValue(r.container, 'settings-theme')).toBe('broken')
     expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'broken'])
   })
@@ -181,7 +186,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
   // Finding 1(b) end-to-end: a theme whose MANIFEST is fine but whose CSS is broken (here, a
   // remote url()) must (1) be absent from the picker's loadable options, (2) appear in the
   // broken-themes line with its reason, and (3) — if it is the CHOSEN theme (e.g. it broke after
-  // it was picked) — the error line names the SAME reason, not just "could not be loaded".
+  // it was picked) — the theme error names the SAME reason, not just "could not be loaded".
   it('a CSS-level broken theme (fine manifest, bad CSS) is unpickable, listed broken, and named when chosen', async () => {
     const remoteCss: ThemeSummary = {
       id: 'remote-css',
@@ -204,8 +209,8 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(q(r, '[data-testid="settings-theme-broken"]').textContent).toBe(
       'Could not load: remote-css (a disallowed url(), @import, image-set() or escape in the CSS)'
     )
-    // (3) the chosen-theme error line names the same reason.
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    // (3) the chosen-theme error names the same reason.
+    expect(q(r, '[data-testid="settings-theme-error"]')).toHaveTextContent(
       'Theme "Remote CSS" could not be loaded, using Default — a disallowed url(), @import, image-set() or escape in the CSS'
     )
   })
@@ -226,9 +231,9 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(r.container.textContent).not.toContain('ECONNREFUSED')
   })
 
-  // R12 — the theme error is a STANDING condition, not an event: an unrelated flow that clears the
-  // shared line (a good port, the API switched off) must not hide it while the theme is still broken.
-  it('a still-broken theme keeps its error line through an API change that clears the line', async () => {
+  // R12 — the theme error is a STANDING condition, not an event: a flow that clears the dialog's
+  // error (a good port, the API switched off) must not hide it while the theme is still broken.
+  it('a still-broken theme keeps its error through a good port commit and the API switched off', async () => {
     const base: Settings = { ...DEFAULT_SETTINGS, themeId: 'broken', apiEnabled: true }
     // Main's answer keeps the broken theme chosen (the stub's default answer would reset it).
     stubSettings((patch) =>
@@ -249,15 +254,18 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     type(port, '9300')
     blur(port)
     await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    openCategory(r, 'appearance')
+    expect(q(r, '[data-testid="settings-theme-error"]')).toHaveTextContent(
       'Theme "broken" could not be loaded, using Default — missing theme.css'
     )
+    openCategory(r, 'api')
     click(q(r, '[data-testid="settings-api-enabled"]'))
     await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
+    openCategory(r, 'appearance')
+    expect(q(r, '[data-testid="settings-theme-error"]')).toHaveTextContent('could not be loaded')
   })
 
-  it('an API refusal still shows once the theme loads again', async () => {
+  it('a port error and the theme error each keep their own place', async () => {
     stubSettings()
     stubApi()
     stubThemes([broken])
@@ -270,9 +278,16 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     type(port, '80')
     blur(port)
     await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain('could not be loaded')
+    expect(q(r, '[data-testid="settings-port-error"]')).toHaveTextContent(
+      'Port must be between 1024 and 65535.'
+    )
     act(() => settingsStore.getState().hydrate({ ...DEFAULT_SETTINGS, themeId: 'default' }))
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    openCategory(r, 'appearance')
+    expect(q(r, '[data-testid="settings-pane-appearance"]')).not.toHaveTextContent(
+      'could not be loaded'
+    )
+    openCategory(r, 'api')
+    expect(q(r, '[data-testid="settings-port-error"]')).toHaveTextContent(
       'Port must be between 1024 and 65535.'
     )
   })
@@ -295,19 +310,19 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     await flush()
     chooseOption(r.container, 'settings-theme', 'paper')
     await flush()
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="settings-theme-error"]')).toBeNull()
     // Main answered without a paper bundle: the theme really failed, so now it is said.
     await act(async () => {
       answer?.()
       await Promise.resolve()
     })
     await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toContain(
+    expect(q(r, '[data-testid="settings-theme-error"]')).toHaveTextContent(
       'Theme "Paper" could not be loaded'
     )
   })
 
-  it('no error line when the chosen theme is the applied one', async () => {
+  it('no theme error when the chosen theme is the applied one', async () => {
     stubSettings()
     stubApi()
     stubThemes([paper])
@@ -321,7 +336,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     cleanup = r.unmount
     openCategory(r, 'appearance')
     await flush()
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+    expect(r.container.querySelector('[data-testid="settings-theme-error"]')).toBeNull()
   })
 
   it('shows the transparency hint only while the applied theme sets allowTransparency', async () => {
@@ -346,7 +361,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     )
   })
 
-  it('a list that fails shows mapped copy on the one error line and keeps Default selectable', async () => {
+  it('a list that fails shows mapped copy in the Appearance pane and keeps Default selectable', async () => {
     stubSettings()
     stubApi()
     const themes = stubThemes()
@@ -355,10 +370,30 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     cleanup = r.unmount
     openCategory(r, 'appearance')
     await flush()
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    const line = q(r, '[data-testid="settings-themes-read-error"]')
+    expect(line).toHaveAttribute('role', 'alert')
+    expect(line).toHaveTextContent('Could not read the themes folder.')
+    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    expect(optionValues(r.container, 'settings-theme')).toEqual(['default'])
+  })
+  it('a Reload whose list answers clears the themes-folder notice', async () => {
+    stubSettings()
+    stubApi()
+    const themes = stubThemes([paper])
+    themes.list.mockImplementationOnce(() => Promise.reject(new Error('boom')))
+    const r = renderComponent(<SettingsPanel />)
+    cleanup = r.unmount
+    openCategory(r, 'appearance')
+    await flush()
+    expect(q(r, '[data-testid="settings-themes-read-error"]')).toHaveTextContent(
       'Could not read the themes folder.'
     )
-    expect(optionValues(r.container, 'settings-theme')).toEqual(['default'])
+    click(q(r, '[data-testid="settings-theme-reload"]'))
+    await flush()
+    expect(q(r, '[data-testid="settings-pane-appearance"]')).not.toHaveTextContent(
+      'Could not read the themes folder.'
+    )
+    expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'paper'])
   })
   describe('Wallpaper (spec 2026-09-24)', () => {
     const two: ThemeSummary = {

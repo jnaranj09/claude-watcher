@@ -1,11 +1,13 @@
 // One instruction file's History (spec 2026-10-18 §5): its versions newest first (a radio group:
 // one is compared at a time), the diff of the picked one against the file now, and `Restore this
 // version`, which arms in place (`ManageDialog.Delete`'s two presses: a restore overwrites the
-// file, after main keeps what is there now). Results go to the dialog's one message slot. A
-// restore reloads the versions: main kept the file as it was, and that copy is now the newest.
+// file, after main keeps what is there now). Results go to the dialog's one message slot; a list
+// that fails is a standing notice, a danger Callout here (spec 2026-10-26). A restore reloads the
+// versions: main kept the file as it was, and that copy is now the newest.
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Radio } from '../Radio/Radio'
+import { Callout } from '../Callout/Callout'
 import { relativeEnded } from '../PastSessionsDialog/pastSessionsView'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import type { DiffLine, FileHistoryListResult } from '../../../../shared/ipc/contract'
@@ -27,6 +29,8 @@ export function ContextHistory({
 }): JSX.Element {
   const { actions } = useManageDialogContext()
   const [history, setHistory] = useState<FileHistoryListResult | null>(null)
+  // The last list failed; the next one that answers clears it.
+  const [listError, setListError] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [lines, setLines] = useState<DiffLine[] | null>(null)
   // The versions' age is read once, when the history opens (it is not a clock).
@@ -39,15 +43,17 @@ export function ContextHistory({
     window.context
       .listHistory(sessionId, fileIndex)
       .then((h) => {
-        if (live) setHistory(h)
+        if (!live) return
+        setHistory(h)
+        setListError(null)
       })
       .catch((err: unknown) => {
-        if (live) actions.setError(contextErrorCopy('list', err, name))
+        if (live) setListError(contextErrorCopy('list', err, name))
       })
     return () => {
       live = false
     }
-  }, [sessionId, fileIndex, name, actions, loads])
+  }, [sessionId, fileIndex, name, loads])
 
   // The pick a diff answer belongs to: an answer for an earlier pick that lands late is dropped,
   // or its diff would show under the version Restore would write.
@@ -94,6 +100,9 @@ export function ContextHistory({
           {name}
         </span>
       </div>
+      {listError !== null && (
+        <Callout tone="danger" title={listError} testId="context-load-error" />
+      )}
       {history === null ? null : history.tooLarge ? (
         <p className={styles.empty}>{CONTEXT_COPY.tooLargeForHistory}</p>
       ) : history.versions.length === 0 ? (

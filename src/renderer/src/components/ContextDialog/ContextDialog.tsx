@@ -5,6 +5,7 @@
 // the dialog asks again. The renderer never holds a path it sends back: a file is its index.
 import { useEffect, useState, type JSX } from 'react'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
+import { Callout } from '../Callout/Callout'
 import { useBoard } from '../../stores/boardStore'
 import type { ModReport, SessionSetupState } from '../../../../shared/ipc/contract'
 import { CONTEXT_TERMS } from '../../copy/terms'
@@ -53,6 +54,9 @@ export function ContextDialog({
     (s) => Object.entries(s.terminalIdBySessionId).find(([, t]) => t === terminalId)?.[0] ?? null
   )
   const [setup, setSetup] = useState<SessionSetupState | null>(null)
+  // The last read failed: a standing notice, so it sits in the right column, never on the
+  // dialog's error state (spec 2026-10-26). The next read that answers clears it.
+  const [loadError, setLoadError] = useState<string | null>(null)
   // The terminal was bound to a session once: a later null means its card left the board (the
   // session ended), not a launch still waiting for its id.
   const [bound, setBound] = useState(false)
@@ -64,7 +68,6 @@ export function ContextDialog({
     onClose,
     initialSelectedId: FIRST_CONTEXT_CATEGORY
   })
-  const { setError } = dialog.actions
 
   useEffect(() => {
     if (sessionId === null) return
@@ -73,10 +76,12 @@ export function ContextDialog({
       window.context
         .getSetup(sessionId)
         .then((next) => {
-          if (live) setSetup(next)
+          if (!live) return
+          setSetup(next)
+          setLoadError(null)
         })
         .catch(() => {
-          if (live) setError(CONTEXT_COPY.loadFailed)
+          if (live) setLoadError(CONTEXT_COPY.loadFailed)
         })
     }
     load()
@@ -87,11 +92,15 @@ export function ContextDialog({
       live = false
       off()
     }
-  }, [sessionId, setError])
+  }, [sessionId])
 
   const selected = dialog.state.selectedId
   const category = isCategory(selected) ? selected : FIRST_CONTEXT_CATEGORY
   const report = setup?.state === 'ready' ? setup.report : null
+  const loadNotice =
+    loadError === null ? null : (
+      <Callout tone="danger" title={loadError} testId="context-load-error" />
+    )
 
   return (
     <ManageDialog.Provider {...dialog}>
@@ -131,6 +140,7 @@ export function ContextDialog({
           </ManageDialog.List>
           {report !== null && sessionId !== null ? (
             <ManageDialog.Pane testId={`context-pane-${category}`}>
+              {loadNotice}
               <ContextPage
                 key={category}
                 category={category}
@@ -138,6 +148,10 @@ export function ContextDialog({
                 sessionId={sessionId}
               />
             </ManageDialog.Pane>
+          ) : loadNotice !== null && !ended ? (
+            // Nothing to show and the read failed: the notice stands in for the waiting sentence,
+            // which would claim a report is on its way.
+            <ManageDialog.Pane>{loadNotice}</ManageDialog.Pane>
           ) : (
             <ManageDialog.Placeholder testId="context-placeholder">
               {ended

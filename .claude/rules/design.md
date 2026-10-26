@@ -393,8 +393,9 @@ one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕), `--gap-section
 
 ## Past sessions and exits
 
-- Past sessions is the Past PAGE of the Sessions dialog (☰ → Sessions). Nothing selected → placeholder "Select a session on the left." Load failure → error line `Could
-not load past sessions`, suppresses the empty sentence.
+- Past sessions is the Past PAGE of the Sessions dialog (☰ → Sessions). Nothing selected → placeholder "Select a session on the left." Load failure → danger Callout
+`Could not load past sessions` in the rail (local state, not the dialog's error line), suppresses the
+empty sentence.
 - **Every exit is Archive or Delete.** Card + focused bar carry Archive (no confirm, reversible) and
   red-at-rest Delete. Delete opens `StopConfirm`: "Delete session? The session is stopped and
   nothing is kept in Past sessions. Claude's own files are not touched." — Cancel default-focused.

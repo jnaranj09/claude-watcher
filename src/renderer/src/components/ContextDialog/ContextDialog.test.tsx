@@ -226,7 +226,9 @@ describe('ContextDialog — a ready report', () => {
   it('a refused Open of a program says it is not opened', async () => {
     const bridge = await open()
     bridge.open.mockRejectedValue(wrapped('file_runnable'))
-    await userEvent.click(within(fileRow('rules.md')).getByRole('button', { name: 'Open in editor' }))
+    await userEvent.click(
+      within(fileRow('rules.md')).getByRole('button', { name: 'Open in editor' })
+    )
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'rules.md can run as a program, so it is not opened.'
     )
@@ -491,6 +493,58 @@ describe('ContextDialog — waiting and unavailable', () => {
     bridge.getSetup.mockClear()
     act(() => bridge.fire('other'))
     expect(bridge.getSetup).not.toHaveBeenCalled()
+  })
+})
+
+// Spec 2026-10-26: a failed load is a standing notice, not an action result — a danger Callout in
+// the pane it describes, never on the dialog's message slot.
+describe('ContextDialog — a load that fails', () => {
+  it('a failed setup read says so in the right column, not on the message slot', async () => {
+    const bridge = stubContext({ state: 'waiting' })
+    bridge.getSetup.mockRejectedValue(new Error('no handler'))
+    rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const line = screen.getByTestId('context-load-error')
+    expect(line).toHaveAttribute('role', 'alert')
+    expect(line).toHaveAttribute('data-callout')
+    expect(line).toHaveTextContent('Could not load this session’s context.')
+    // It stands in for the waiting sentence, which would claim a report is on its way.
+    expect(screen.queryByTestId('context-placeholder')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('context-error')).not.toBeInTheDocument()
+    expect(screen.queryByText('no handler')).not.toBeInTheDocument()
+  })
+
+  it('a setup push that loads clears the notice', async () => {
+    const bridge = stubContext({ state: 'waiting' })
+    bridge.getSetup.mockRejectedValueOnce(new Error('x'))
+    rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('context-load-error')).toBeVisible()
+    bridge.getSetup.mockResolvedValue({ state: 'ready', report: modReportFixture() })
+    await act(async () => {
+      bridge.fire(SID)
+      await Promise.resolve()
+    })
+    expect(screen.queryByTestId('context-load-error')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('context-file')).toHaveLength(3)
+  })
+
+  it('a history list that fails says so in the history pane, not on the message slot', async () => {
+    const bridge = await open()
+    bridge.listHistory.mockRejectedValue(new Error('x'))
+    await userEvent.click(
+      within(screen.getAllByTestId('context-file')[1]!).getByRole('button', { name: 'History' })
+    )
+    const line = await within(screen.getByTestId('context-history')).findByTestId(
+      'context-load-error'
+    )
+    expect(line).toHaveAttribute('role', 'alert')
+    expect(line).toHaveTextContent(/^Could not load the history of /)
+    expect(screen.queryByTestId('context-error')).not.toBeInTheDocument()
   })
 })
 

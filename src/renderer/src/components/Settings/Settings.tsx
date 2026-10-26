@@ -2,10 +2,12 @@
 // categories (Notifications, Appearance, Terminal, Keyboard, API) and the chosen category's
 // controls on the right. Every control persists on change through `persistSetting` (over
 // `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on
-// Notifications and never shows a placeholder. The panel's ONE error line carries the standing theme error whatever category is
-// open. Dropdowns are `Select` (a native <select> is banned — design.md); labels of a Select are
-// <span>s with `ariaLabel`. Reached from the ☰ menu's `Settings` row (App.tsx renders
-// `SettingsPanel` from `settingsDialogOpen`); the `Settings` gear below only serves `#terminals`.
+// Notifications and never shows a placeholder. The panel's ONE error line carries action results;
+// field and standing errors (a bad port, a theme that did not load) sit by what they describe, in
+// their own pane (spec 2026-10-26). Dropdowns are `Select` (a native <select> is banned —
+// design.md); labels of a Select are <span>s with `ariaLabel`. Reached from the ☰ menu's
+// `Settings` row (App.tsx renders `SettingsPanel` from `settingsDialogOpen`); the `Settings` gear
+// below only serves `#terminals`.
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import {
   useSettings,
@@ -42,6 +44,7 @@ import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
 import { SUCCESS_MS } from '../ManageDialog/manageDialogState'
 import { Switch } from '../Switch/Switch'
 import { Button } from '../Button/Button'
+import { Callout } from '../Callout/Callout'
 import { KeyChordRecorder } from '../ShortcutsDialog/KeyChordRecorder'
 import { reminderSummary } from './reminderSummary'
 import {
@@ -130,10 +133,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // snaps back) and the error line names what did not save — until the next change that lands.
   // The flash holds the CATEGORY it was saved on, so it never follows a switch to another page.
   const [savedOn, flashSaved, clearSaved] = useFlash<SettingsCategoryId>(SUCCESS_MS)
-  // The refusal goes on the panel's ONE error state (apiActions.setError), so a newer error — a bad
-  // port, a failed copy — always replaces it. A later save clears the line only while it still
-  // holds the refusal it wrote, never a newer, different error. Both refs are read in callbacks
-  // only: `errorNow` mirrors the dialog's error after each render (the latest-value pattern).
+  // The refusal goes on the panel's ONE error state (apiActions.setError), so a newer action
+  // error — a failed copy, a refused reload — always replaces it. A later save clears the line only
+  // while it still holds the refusal it wrote, never a newer, different error. Both refs are read
+  // in callbacks only: `errorNow` mirrors the dialog's error after each render (the latest-value
+  // pattern).
   const errorNow = useRef<string | null>(null)
   const saveErrorShown = useRef<string | null>(null)
   useLayoutEffect(() => {
@@ -176,6 +180,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // (react-hooks/set-state-in-effect).
   const [portDraft, setPortDraft] = useState<string | null>(null)
   const [portInvalid, setPortInvalid] = useState(false)
+  // Field and load-time errors are not action results (spec 2026-10-26): each sits in a danger
+  // Callout by what it describes, in local state, never on the dialog's error state. The port's
+  // stays until a valid commit; the token read's until a read, a regenerate or the API off.
+  const [portError, setPortError] = useState<string | null>(null)
+  const [tokenError, setTokenError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const portValue = portDraft ?? String(apiPort)
 
@@ -193,9 +202,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   // `.then()`/`.catch()` literally in the effect body, never via a named async helper called
   // from it — the Settings token-read effect above is the precedent).
   const [themeListGeneration, setThemeListGeneration] = useState(0)
+  // The last listing failed; the next one that answers clears it (Reload re-runs the listing).
+  const [themesReadError, setThemesReadError] = useState<string | null>(null)
 
   // Rescan on open (D-3) and after a Reload (bumps `themeListGeneration`). Never throws past
-  // here: a failed list keeps Default selectable and puts mapped copy on the one error line.
+  // here: a failed list keeps Default selectable and puts mapped copy in the Appearance pane.
   useEffect(() => {
     let alive = true
     window.themes
@@ -204,17 +215,18 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
         if (!alive) return
         setSummaries(result)
         setThemesLoaded(true)
+        setThemesReadError(null)
       })
       .catch(() => {
         console.warn('[claude-watcher][themes] code=list_failed')
         if (!alive) return
         setThemesLoaded(true)
-        apiActions.setError('Could not read the themes folder.')
+        setThemesReadError('Could not read the themes folder.')
       })
     return () => {
       alive = false
     }
-  }, [apiActions, themeListGeneration])
+  }, [themeListGeneration])
 
   // Default first, then the loadable ones ordered by NAME (the picker's own label).
   const loadable = summaries
@@ -255,11 +267,10 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     bundle.id !== themeId && !themeSwitching
       ? `Theme "${chosenName}" could not be loaded, using Default${chosenReason !== null ? ` — ${chosenReason}` : ''}`
       : null
-  // R12 — the theme error is a STANDING condition, derived on every render and shown on the ONE
-  // error line in place of the API/theme-action error (`themeError ?? state.error`). It used to be
-  // copied INTO that state, where any flow that cleared the line (a good port, the API switched
-  // off, a regenerate) wiped it while the theme was still broken.
-  const errorLine = themeError ?? dialog.state.error
+  // R12 — the theme error is a STANDING condition, derived on every render and shown in its own
+  // Callout beside the theme picker, never on the dialog's error state. It used to be copied INTO
+  // that state, where any flow that cleared the line (a good port, the API switched off, a
+  // regenerate) wiped it while the theme was still broken.
 
   function pickTheme(next: string): void {
     setThemeSwitching(true)
@@ -278,7 +289,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   }
 
   // Never rendered thrown (design.md): a failed open is mapped copy on the shared error line,
-  // same treatment as `reloadThemes` and every other async call in this file — never a silent
+  // same treatment as `reloadThemes` and every other action in this file — never a silent
   // unhandled rejection.
   async function openThemesFolder(): Promise<void> {
     try {
@@ -297,17 +308,19 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     window.api
       .getToken()
       .then((result) => {
-        if (alive) setToken(result.token)
+        if (!alive) return
+        setToken(result.token)
+        setTokenError(null)
       })
       .catch((error: unknown) => {
         // Log the CODE, never the value (zod-boundaries.md) — a token is a credential.
         console.warn('[claude-watcher][api] code=token_get_failed')
-        if (alive) apiActions.setError(tokenErrorCopy(error, 'Could not read the API token.'))
+        if (alive) setTokenError(tokenErrorCopy(error, 'Could not read the API token.'))
       })
     return () => {
       alive = false
     }
-  }, [apiEnabled, apiActions])
+  }, [apiEnabled])
 
   // The COMMITTED port, never the draft: this is the URL the running listener answers on.
   const docsUrl = `http://127.0.0.1:${apiPort}/docs`
@@ -320,10 +333,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
         : null
 
   function setApiEnabled(next: boolean): void {
-    // Switching OFF drops the token and the block's error line: there is nothing to show, and no
-    // stale credential is left sitting in renderer state.
+    // Switching OFF drops the token, its read error and the dialog's error line: there is nothing
+    // to show, and no stale credential is left sitting in renderer state.
     if (!next) {
       setToken(null)
+      setTokenError(null)
       apiActions.setError(null)
     }
     void persistSetting({ apiEnabled: next }, 'the Local API setting')
@@ -333,12 +347,13 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     const next = Number(portValue)
     if (!Number.isInteger(next) || next < API_PORT_MIN || next > API_PORT_MAX) {
       setPortInvalid(true)
-      // `aria-invalid` is never the ONLY signal (design.md / UX-DR29): the block's one error line
+      // `aria-invalid` is never the ONLY signal (design.md / UX-DR29): a Callout under the field
       // has to say what is wrong, and it names the range so the fix needs no guessing.
-      apiActions.setError(`Port must be between ${API_PORT_MIN} and ${API_PORT_MAX}.`)
+      setPortError(`Port must be between ${API_PORT_MIN} and ${API_PORT_MAX}.`)
       return
     }
     setPortInvalid(false)
+    setPortError(null)
     apiActions.setError(null)
     // Back to "no edit in flight": the field follows the stored port again, which
     // `persistSettingsPatch` has already updated optimistically.
@@ -358,6 +373,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     try {
       const result = await window.api.regenerateToken()
       setToken(result.token)
+      setTokenError(null)
       apiActions.setError(null)
       apiActions.disarm()
       flashNewToken(true)
@@ -389,7 +405,6 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
       {...dialog}
       state={{
         ...dialog.state,
-        error: errorLine,
         success: savedOn === category ? 'Saved' : null
       }}
     >
@@ -521,6 +536,22 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       />
                     </div>
                   </div>
+                  {/* Standing notices about the picker sit beside it (spec 2026-10-26): the chosen
+                    theme that did not load (R12) and a themes folder that could not be read. */}
+                  {themeError !== null && (
+                    <div className={styles.fieldError}>
+                      <Callout tone="danger" title={themeError} testId="settings-theme-error" />
+                    </div>
+                  )}
+                  {themesReadError !== null && (
+                    <div className={styles.fieldError}>
+                      <Callout
+                        tone="danger"
+                        title={themesReadError}
+                        testId="settings-themes-read-error"
+                      />
+                    </div>
+                  )}
                   {wallpaperOptions.length >= 2 && appliedWallpaper !== null && (
                     <div className={styles.row}>
                       <span className={styles.label}>Wallpaper</span>
@@ -707,6 +738,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                       </span>
                     </div>
                   </div>
+                  {portError !== null && (
+                    <div className={styles.fieldError}>
+                      <Callout tone="danger" title={portError} testId="settings-port-error" />
+                    </div>
+                  )}
 
                   {apiEnabled && (
                     <>
@@ -751,6 +787,11 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
                           />
                         </div>
                       </div>
+                      {tokenError !== null && (
+                        <div className={styles.fieldError}>
+                          <Callout tone="danger" title={tokenError} testId="settings-token-error" />
+                        </div>
+                      )}
                       {/* R11 — a listener that did not bind has no Docs URL to offer. The next change
                         in this panel retries the bind. */}
                       {apiDown !== null ? (

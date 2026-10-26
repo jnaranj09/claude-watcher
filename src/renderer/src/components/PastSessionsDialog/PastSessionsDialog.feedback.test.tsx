@@ -62,12 +62,12 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
     expect(r.container.querySelectorAll('[data-testid="past-session-row"]')).toHaveLength(1)
   })
 
-  it('a failed load keeps the error line and offers Retry, which loads again', async () => {
+  it('a failed load keeps its notice and offers Retry, which loads again', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     list.mockImplementationOnce(() => Promise.reject(new Error('x')))
     r = renderComponent(<SessionsDialog page="past" onPageChange={() => {}} onClose={() => {}} />)
     await settle()
-    expect(find('past-session-error')?.textContent).toBe('Could not load past sessions')
+    expect(find('past-session-load-error')?.textContent).toBe('Could not load past sessions')
     expect(find('past-sessions-loading')).toBeNull()
     // Retry is the bottom slot's first action, above Resume by id (spec 2026-10-02).
     expect(
@@ -77,7 +77,7 @@ describe('PastSessionsDialog — Loading… and Retry', () => {
     act(() => (find('past-sessions-retry') as HTMLButtonElement).click())
     await settle()
     expect(list).toHaveBeenCalledTimes(2)
-    expect(find('past-session-error')).toBeNull()
+    expect(find('past-session-load-error')).toBeNull()
     expect(find('past-sessions-retry')).toBeNull()
     expect(r.container.querySelectorAll('[data-testid="past-session-row"]')).toHaveLength(1)
   })

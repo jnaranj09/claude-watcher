@@ -509,9 +509,9 @@ and Martian Mono).
 ## Recovering from a broken theme
 
 - A theme that fails a rule is listed under the picker as `Could not load: <id> (<reason>)`.
-- If the CHOSEN theme fails, the app falls back to Default and keeps your choice; the Settings
-  error line reads `Theme "<name>" could not be loaded, using Default`. Fix the file and press
-  **Reload themes**.
+- If the CHOSEN theme fails, the app falls back to Default and keeps your choice; a notice under
+  the Settings picker reads `Theme "<name>" could not be loaded, using Default`. Fix the file and
+  press **Reload themes**.
 - If a raw-CSS theme made the app unusable: rename or delete its folder and restart. The folder
   is re-read at start, and a missing theme falls back to Default.
 - The terminal (`npm run dev`) or the app log prints `[claude-watcher][themes] code=<code> id=<id>

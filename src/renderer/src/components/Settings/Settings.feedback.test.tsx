@@ -187,7 +187,7 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
   })
 
-  it('a refused save does not hide a newer error: an invalid port after it shows the port message', async () => {
+  it('a refused save and an invalid port after it each show, in their own place', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubSettings(() => Promise.reject(new Error('x')))
     stubThemes()
@@ -201,8 +201,11 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     openCategory(r, 'api')
     commitPort(r, '80')
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    expect(q(r, '[data-testid="settings-port-error"]')).toHaveTextContent(
       'Port must be between 1024 and 65535.'
+    )
+    expect(q(r, '[data-testid="settings-error"]')).toHaveTextContent(
+      'Could not save the attention sound.'
     )
   })
 
@@ -212,19 +215,36 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     stubSettings((patch) =>
       refuse ? Promise.reject(new Error('x')) : Promise.resolve(mergedSettings(patch))
     )
-    stubThemes()
+    const themes = stubThemes()
+    themes.reload.mockImplementation(() => Promise.reject(new Error('x')))
     stubApi()
     const r = render()
     await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
+    openCategory(r, 'appearance')
+    click(q(r, '[data-testid="settings-theme-reload"]'))
+    await flush(3)
+    refuse = false
+    openCategory(r, 'api')
+    click(q(r, '[data-testid="settings-api-enabled"]'))
+    await flush(3)
+    expect(q(r, '[data-testid="settings-error"]')).toHaveTextContent('Could not reload themes.')
+  })
+
+  it('a save that lands leaves a port error under its field', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    stubSettings()
+    stubThemes()
+    stubApi()
+    const r = render()
+    await flush(3)
     openCategory(r, 'api')
     commitPort(r, '80')
     await flush(3)
-    refuse = false
     click(q(r, '[data-testid="settings-api-enabled"]'))
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
+    expect(q(r, '[data-testid="settings-port-error"]')).toHaveTextContent(
       'Port must be between 1024 and 65535.'
     )
   })

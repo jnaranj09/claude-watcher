@@ -120,16 +120,19 @@ describe('PastSessionsDialog', () => {
     expect(q(r, '[data-testid="past-sessions-empty"]')?.textContent).toBe('No past sessions yet.')
   })
 
-  // A failed load must not look like a load still in flight: it goes on the ONE error line, as
-  // copy — never the thrown message — and no empty sentence claims the history is empty.
-  it('a failed load says so on the error line, and no empty sentence is shown', async () => {
+  // A failed load must not look like a load still in flight: a danger Callout says so in the rail,
+  // where the empty sentence would be, as copy — never the thrown message — and no empty sentence
+  // claims the history is empty. A standing notice, so never on the dialog's message slot.
+  it('a failed load says so in the rail, and no empty sentence is shown', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     list.mockRejectedValueOnce(new Error('/home/op/secret leaked'))
     const { r } = render()
     await flush()
-    const error = q(r, '[data-testid="past-session-error"]')
+    const error = q(r, '[data-manage-rows] [data-testid="past-session-load-error"]')
     expect(error?.textContent).toBe('Could not load past sessions')
     expect(error?.getAttribute('role')).toBe('alert')
+    expect(error?.hasAttribute('data-callout')).toBe(true)
+    expect(q(r, '[data-testid="past-session-error"]')).toBeNull()
     expect(q(r, '[data-testid="past-sessions-empty"]')).toBeNull()
     expect(warn).toHaveBeenCalledWith(
       '[claude-watcher][past-sessions] code=past_sessions_load_failed'
@@ -144,7 +147,7 @@ describe('PastSessionsDialog', () => {
     list.mockRejectedValueOnce(new Error('x'))
     const { r } = render()
     await flush()
-    expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
+    expect(q(r, '[data-testid="past-session-load-error"]')?.textContent).toBe(
       'Could not load past sessions'
     )
     expect(q(r, '[data-testid="past-sessions-empty"]')).toBeNull()
