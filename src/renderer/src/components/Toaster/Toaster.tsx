@@ -5,9 +5,10 @@
 //
 // A toast's action is NOT rendered while a modal is open (design.md: a control the operator must not
 // use is not rendered — the notification-click precedent, UX-DR14). ✕ and the timer are unaffected.
-// Hover or focus inside a toast pauses its timer. Only an error draws a kind glyph (`!`); the action
-// is the toast's one primary Button, with its icon (spec 2026-10-14). Themes target `[data-toast]`
-// and `[data-toast-kind]`, never a test id.
+// Hover or focus inside a toast pauses its timer. A success and an error draw the Callout's disc
+// (`[data-toast-mark]`, glyph in CSS so the text stays the words); info draws none. The action is
+// the toast's one primary Button, with its icon (spec 2026-10-14). Themes target `[data-toast]`,
+// `[data-toast-kind]`, `[data-toast-mark]` and `[data-toast-key]`, never a test id.
 import { useRef, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
@@ -24,10 +25,6 @@ import {
 import { useBoard } from '../../stores/boardStore'
 import { modalOpenIn } from '../../lib/modals'
 import styles from './Toaster.module.css'
-
-// Only an error draws a kind glyph (spec 2026-10-14): success and info read from their words. The
-// action carries its own icon instead.
-const ERROR_GLYPH = '!'
 
 const ACTION_ICON: Readonly<Record<ToastActionIcon, LucideIconName>> = {
   resume: 'rotate-ccw',
@@ -75,6 +72,7 @@ function ToastCard({
       role={toast.kind === 'error' ? 'alert' : 'status'}
       data-toast=""
       data-toast-kind={toast.kind}
+      {...(toast.key !== undefined ? { 'data-toast-key': toast.key } : {})}
       {...(toast.leaving ? { 'data-leaving': '' } : {})}
       data-testid="toast"
       onMouseEnter={() => {
@@ -95,10 +93,8 @@ function ToastCard({
         settle()
       }}
     >
-      {toast.kind === 'error' && (
-        <span className={styles.glyph} data-kind="error" aria-hidden="true">
-          {ERROR_GLYPH}
-        </span>
+      {(toast.kind === 'success' || toast.kind === 'error') && (
+        <span className={styles.mark} data-toast-mark={toast.kind} aria-hidden="true" />
       )}
       <div className={styles.text}>
         <p className={styles.title}>

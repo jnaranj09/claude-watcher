@@ -1,7 +1,7 @@
 /* Action feedback (spec 2026-09-29 §1.2) — the toast stack. Bottom-right with a --space-4 gutter;
    z-index 70: above ManageDialog / QuitGuard / StopConfirm / the name prompt (60), below the
-   terminal context menu (1000). Tokens only. Only an error draws a glyph: its `!` is --danger
-   (success and info draw none, spec 2026-10-14). */
+   terminal context menu (1000). Tokens only. A success and an error draw the Callout's disc
+   (`.mark`); info draws none. */
 .region {
   position: fixed;
   right: var(--space-4);
@@ -55,15 +55,37 @@
   transition-timing-function: var(--motion-ease-exit);
 }
 
-.glyph {
+/* The Callout's `.icon` disc: 16px, the tone's fill, the glyph as CSS content so the text stays
+   the words. */
+.mark {
   flex: none;
   width: 16px;
-  text-align: center;
-  font-weight: 600;
+  height: 16px;
+  border-radius: var(--rounded-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.glyph[data-kind='error'] {
-  color: var(--danger);
+.mark[data-toast-mark='success'] {
+  background: var(--success);
+  color: var(--text-on-success);
+}
+
+.mark[data-toast-mark='success']::before {
+  content: '✓';
+}
+
+.mark[data-toast-mark='error'] {
+  background: var(--danger);
+  color: var(--text-on-danger);
+}
+
+.mark[data-toast-mark='error']::before {
+  content: '!';
 }
 
 .text {

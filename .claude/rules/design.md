@@ -446,7 +446,7 @@ until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCo
 - Success shows `SUCCESS_MS` (2.5 s); an error stays until the next action. Success copy names the
   THING (`Rule deleted.`, `Session forgotten.`), never a typed value. Green = `--success`; themes
   override it (Paper: dark green — `#a6e3a1` on white fails 3:1).
-- Toast glyph: an error's `!` in `--danger` only; success and info draw none.
+- Toast mark: a success and an error draw the Callout disc (`[data-toast-mark]`, 16px, `--success` `✓` / `--danger` `!`, glyph in CSS); info draws none.
 
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with

@@ -1,5 +1,5 @@
 // Action feedback (spec 2026-09-29 §1.2) — the Toaster: a labelled region, status vs alert roles,
-// ✕, the action, the action NOT rendered while a modal is open, hover/focus pausing the timer, and
+// the success/error mark, ✕, the action, the action NOT rendered while a modal is open, hover/focus pausing the timer, and
 // a workspace drawn as its tint.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,6 +10,7 @@ import { Toaster } from './Toaster'
 import { createToastStore, TOAST_EXIT_MS, TOAST_MS } from '../../stores/toastStore'
 import { boardStore } from '../../stores/boardStore'
 import { manualClock } from '../../test/manualClock'
+import { cssRule, readCss } from '../../test/cssRule'
 
 let r: RenderResult | undefined
 afterEach(() => {
@@ -55,22 +56,50 @@ describe('Toaster', () => {
     expect(cards().every((c) => c.hasAttribute('data-toast'))).toBe(true)
   })
 
-  // Spec 2026-10-14: success and info draw no kind glyph; an error keeps `!`.
-  // Every toast keeps its ✕.
-  it('only an error toast draws a glyph; every toast keeps ✕', () => {
+  const marks = (): (string | null)[] =>
+    cards().map(
+      (c) => c.querySelector('[data-toast-mark]')?.getAttribute('data-toast-mark') ?? null
+    )
+
+  it('success toast draws a ✓ mark', () => {
+    const { store } = setup()
+    act(() => void store.getState().push({ kind: 'success', title: 'ok' }))
+    const mark = r?.container.querySelector('[data-toast-mark="success"]')
+    expect(mark).not.toBeNull()
+    expect(mark?.getAttribute('aria-hidden')).toBe('true')
+    // The glyph is CSS content, so the accessible text stays the toast's words.
+    expect(mark?.textContent).toBe('')
+  })
+
+  it('error toast draws a ! mark', () => {
+    const { store } = setup()
+    act(() => void store.getState().push({ kind: 'error', title: 'no' }))
+    const mark = r?.container.querySelector('[data-toast-mark="error"]')
+    expect(mark?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('info toast draws no mark; every toast keeps ✕', () => {
     const { store } = setup()
     act(() => {
       store.getState().push({ kind: 'success', title: 'ok' })
       store.getState().push({ kind: 'info', title: 'fyi' })
       store.getState().push({ kind: 'error', title: 'no' })
     })
-    const glyphs = cards().map((c) => c.querySelector(':scope > [data-kind]')?.textContent ?? null)
-    expect(glyphs).toEqual([null, null, '!'])
+    expect(marks()).toEqual(['success', null, 'error'])
     expect(cards().map((c) => c.querySelector('[data-testid="toast-dismiss"]') !== null)).toEqual([
       true,
       true,
       true
     ])
+  })
+
+  it('a keyed toast exposes data-toast-key; an unkeyed one does not', () => {
+    const { store } = setup()
+    act(() => {
+      store.getState().push({ kind: 'success', title: 'ok', key: 'dialog:x' })
+      store.getState().push({ kind: 'info', title: 'fyi' })
+    })
+    expect(cards().map((c) => c.getAttribute('data-toast-key'))).toEqual(['dialog:x', null])
   })
 
   it('✕ dismisses: the toast fades (data-leaving) and is gone after the exit', () => {
@@ -186,21 +215,28 @@ describe('Toaster', () => {
   })
 })
 
-// Spec 2026-10-14 — only an error draws a glyph (`!` in --danger); a success or info glyph rule
-// coming back would colour nothing today and hide the next one that draws it.
-describe('Toaster stylesheet', () => {
-  const css = readFileSync(join(__dirname, 'Toaster.module.css'), 'utf8')
-  it('colours the error glyph --danger', () => {
-    expect(css).toMatch(/\.glyph\[data-kind='error'\]\s*\{[^}]*color:\s*var\(--danger\)/)
+// Success and error draw the Callout's disc (16px, round, 10px 700 glyph in CSS); info draws none.
+describe('Toaster stylesheet — the mark', () => {
+  const file = 'components/Toaster/Toaster.module.css'
+  it('is a 16px round disc', () => {
+    const body = cssRule(file, '.mark')
+    expect(body).toMatch(/border-radius:\s*var\(--rounded-full\)/)
+    expect(body).toMatch(/width:\s*16px/)
+    expect(body).toMatch(/height:\s*16px/)
   })
-  // The error rule sets the glyph's only colour; a base colour on `.glyph` would be dead.
-  it('gives the base glyph rule no colour of its own', () => {
-    const base = /\n\.glyph\s*\{([^}]*)\}/.exec(css)?.[1]
-    expect(base).toBeDefined()
-    expect(base).not.toMatch(/(^|[^-])color:/)
+  it.each([
+    ['success', '--success', '--text-on-success', '✓'],
+    ['error', '--danger', '--text-on-danger', '!']
+  ])('%s: fill, ink and glyph', (kind, fill, ink, glyph) => {
+    const body = cssRule(file, `.mark[data-toast-mark='${kind}']`)
+    expect(body).toMatch(new RegExp(`background:\\s*var\\(${fill}\\)`))
+    expect(body).toMatch(new RegExp(`color:\\s*var\\(${ink}\\)`))
+    expect(cssRule(file, `.mark[data-toast-mark='${kind}']::before`)).toContain(
+      `content: '${glyph}'`
+    )
   })
-  it('has no success or info glyph rule', () => {
-    expect(css).not.toMatch(/data-kind=['"]?(success|info)/)
+  it('has no info mark rule', () => {
+    expect(readCss(file)).not.toMatch(/data-toast-mark=['"]?info/)
   })
 })
 
