@@ -236,3 +236,85 @@ describe('reducer — the sticky Needs you: ask', () => {
     expect(log).not.toHaveBeenCalled()
   })
 })
+
+// Running background work is never idle (owner, 2026-10-26). The ask also ends when claude starts
+// background work of its own: it was unblocked some other way (a chat, a ticket, a coworker).
+describe('reducer — the sticky ask and running background work', () => {
+  const stopWith = (status: string, taskIds: string[], opensAsk = false): HookStatusChange =>
+    opensAsk
+      ? { kind: 'status', status, taskIds, opensAsk: true }
+      : { kind: 'status', status, taskIds }
+  const INTERRUPT: HookStatusChange = { kind: 'status', status: 'WaitingForInput', interrupt: true }
+
+  /** The D8NR shape: the ask opens while the chat monitor `mon` already runs, and the mod reports
+   *  origins (so a wake-up prompt waits for its own). */
+  function askWithMonitor(): ReturnType<typeof createReducer> {
+    const r = createReducer({ now: () => 1 })
+    r.upsertLaunched(launchedSession(ID))
+    r.applyHookStatus(ID, PROMPT)
+    r.promptOrigin(ID, 'composer')
+    r.applyHookStatus(ID, stopWith('NeedsAttention', ['mon'], true))
+    return r
+  }
+
+  it('a wake-up turn that only keeps the same work running holds the ask', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, PROMPT)
+    r.promptOrigin(ID, 'task-notification')
+    r.applyHookStatus(ID, pre('chat-post'))
+    r.applyHookStatus(ID, stopWith('Working', ['mon']))
+    expect(statusOf(r)).toBe('NeedsAttention')
+  })
+
+  it('a Stop with new background work clears the ask: claude went back to work by itself', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, stopWith('Working', ['mon', 'sleep150']))
+    expect(statusOf(r)).toBe('Working')
+    r.applyHookStatus(ID, stopWith('YourTurn', []))
+    expect(statusOf(r)).toBe('YourTurn')
+  })
+
+  it('work that only finishes never clears the ask', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, stopWith('YourTurn', []))
+    expect(statusOf(r)).toBe('NeedsAttention')
+  })
+
+  it('a repeated marker takes a new snapshot: work started before it does not clear the ask', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, stopWith('NeedsAttention', ['mon', 'poll'], true))
+    r.applyHookStatus(ID, stopWith('Working', ['mon', 'poll']))
+    expect(statusOf(r)).toBe('NeedsAttention')
+  })
+
+  it('an interrupt with work running goes to Working, not idle, and clears the ask', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, INTERRUPT)
+    expect(statusOf(r)).toBe('Working')
+    r.applyHookStatus(ID, stopWith('YourTurn', []))
+    expect(statusOf(r)).toBe('YourTurn')
+  })
+
+  it('an interrupt with no work running at the last Stop goes idle', () => {
+    const r = createReducer({ now: () => 1 })
+    r.upsertLaunched(launchedSession(ID))
+    r.applyHookStatus(ID, stopWith('Working', ['dev']))
+    r.applyHookStatus(ID, stopWith('YourTurn', []))
+    r.applyHookStatus(ID, INTERRUPT)
+    expect(statusOf(r)).toBe('WaitingForInput')
+  })
+
+  it('a /clear (no interrupt) stays idle even with work running', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, ESC)
+    expect(statusOf(r)).toBe('WaitingForInput')
+  })
+
+  it('a /clear forgets the old work: a later interrupt goes idle', () => {
+    const r = askWithMonitor()
+    r.applyHookStatus(ID, ESC)
+    r.applyHookStatus(ID, PROMPT)
+    r.applyHookStatus(ID, INTERRUPT)
+    expect(statusOf(r)).toBe('WaitingForInput')
+  })
+})

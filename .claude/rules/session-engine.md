@@ -185,16 +185,20 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `endsWithNeedsYou`; `QUESTION_FORMAT_PROMPT` asks claude for it) → `NeedsAttention` and opens a
   sticky ask (`opensAsk`); else a line (of the last three) ending `?`/`？`/`؟` or an English ask phrase
   (`endsWithQuestion`) → `NeedsAttention`, not sticky; else `background_tasks` still running →
-  `Working` (an artifact watch is not work: `hooks/backgroundTasks.ts`); else `YourTurn`. The
+  `Working` (an artifact watch is not work: `hooks/backgroundTasks.ts`); else `YourTurn`. Every
+  `Stop` carries its running task ids (`taskIds`, `runningTaskIds`). The
   reducer holds a sticky ask's `NeedsAttention` over `Working`/`YourTurn`; `NeedsPermission` still
-  wins and the card returns to `NeedsAttention` after it. A sticky ask clears on an operator prompt
+  wins and the card returns to `NeedsAttention` after it. A sticky ask clears when a later `Stop`
+  lists a task id the ask's `Stop` did not have (claude went back to work by itself, so something
+  else unblocked it: a finished task or a foreground tool never clears it), on an operator prompt
   (`promptOrigin` `composer`/`bridge`, `OPERATOR_ORIGINS`; a `UserPromptSubmit` (`fromPrompt`)
   counts only while the session's mod has reported no origin: fail open, because a
   Monitor/background wake-up sends an identical `UserPromptSubmit` and the mod's origin is
   `task-notification`; the hook always reaches the app before the mod's report), on Esc or `/clear`
   (`WaitingForInput`), an AskUserQuestion closed by its own `PostToolUse`, an `answered`
   `ElicitationResult`, or removal. Esc demotes any card not already idle (and so clears a sticky
-  ask). Ctrl+C demotes only a `Working` card (ST-4: an early cancel sends no hook and no marker;
+  ask); running work is never idle, so an interrupt (`interrupt`) whose last `Stop` had running
+  task ids is `Working` (owner, 2026-10-26; reverses R5). Ctrl+C demotes only a `Working` card (ST-4: an early cancel sends no hook and no marker;
   idle prompt: not an interrupt; a card already in a needs-you status, such as a sticky ask or
   claude's dialog: not counted, unprobed), so it never clears a sticky ask —
   `interruptDemotes`. Tool events never pull a card out of `NeedsPermission` (R20) — except

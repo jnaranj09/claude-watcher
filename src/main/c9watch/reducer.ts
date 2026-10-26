@@ -64,8 +64,18 @@ export type HookStatusChange =
       fromKey?: true
       /** `Stop` with the `Needs you:` marker on one of its last three non-empty lines (`hooks/needsYouMarker.ts`): claude
        *  is blocked on the operator while it may still run background work. The reducer holds
-       *  this as a sticky ask until the operator acts. */
+       *  this as a sticky ask until the operator acts, or until claude starts new background
+       *  work (`taskIds`). */
       opensAsk?: true
+      /** Every `Stop`: the ids of the background work still running (`runningTaskIds`). The
+       *  reducer keeps the last ones. A later Stop with an id the ask's Stop did not have clears
+       *  the ask (claude was unblocked some other way); an interrupt with work running is
+       *  `Working`, never idle. */
+      taskIds?: readonly string[]
+      /** An Esc or a `[Request interrupted by user]` (`watchFeed.demoteOnInterrupt`), sent as
+       *  `WaitingForInput`. The reducer shows it as `Working` while the last Stop had work
+       *  running (owner, 2026-10-26: running work is never idle). */
+      interrupt?: true
       /** `UserPromptSubmit`: a prompt was sent, by the operator or by a Monitor/background
        *  wake-up (the payloads look the same). It clears a sticky ask only while the session's
        *  bridge mod has reported no prompt origin (fail open); otherwise `promptOrigin` decides. */
@@ -271,9 +281,11 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   const lastPreTool = new Map<string, Map<string, { toolUseId: string; toolName?: string }>>()
   const openPrompts = new Map<string, Map<string, string | undefined>>()
   // The sticky ask, memory only: sessions whose last `Needs you:` Stop the operator has not
-  // answered yet (`askOpen`), and sessions whose bridge mod reports prompt origins
+  // answered yet, with the work running at that Stop (`askOpen`); the work running at each
+  // session's last Stop (`lastStopTasks`); and sessions whose bridge mod reports prompt origins
   // (`originReported`; until it does, a `UserPromptSubmit` clears the ask — fail open).
-  const askOpen = new Set<string>()
+  const askOpen = new Map<string, ReadonlySet<string>>()
+  const lastStopTasks = new Map<string, readonly string[]>()
   const originReported = new Set<string>()
   // The epoch is a CONSTANT 0 in the native engine (no snapshot reconcile ever bumps
   // it). Kept in the frame so the renderer's `payload.epoch < state.epoch` stale-drop
@@ -310,6 +322,7 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
       lastPreTool.delete(id)
       openPrompts.delete(id)
       askOpen.delete(id)
+      lastStopTasks.delete(id)
       originReported.delete(id)
       lastApplied = now()
       return [frame(toRemoved(id, stored))]
@@ -318,6 +331,14 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     // kind === 'status': hooks own the status — update it, keep the other fields (an open
     // sticky ask holds Working/YourTurn on NeedsAttention, below).
     if (change.fromKey === true && questionOpen(id)) return []
+    if (change.taskIds !== undefined) lastStopTasks.set(id, change.taskIds)
+    // A `/clear` is a fresh conversation: its work list starts empty until its first Stop.
+    if (change.status === 'WaitingForInput' && change.interrupt !== true) lastStopTasks.delete(id)
+    // Running work is never idle: an interrupt with work running at the last Stop is Working.
+    const status =
+      change.interrupt === true && (lastStopTasks.get(id)?.length ?? 0) > 0
+        ? 'Working'
+        : change.status
     if (change.toolName !== undefined) rememberTool(id, change, change.toolName)
     const closingTool =
       change.toolDone === true && change.toolUseId !== undefined
@@ -346,8 +367,8 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
           : undefined
     // While the ask is open, Working and YourTurn show as NeedsAttention (the tool bookkeeping
     // above still ran); NeedsPermission, a more urgent wait, shows as is.
-    const held = askOpen.has(id) && (change.status === 'Working' || change.status === 'YourTurn')
-    const updated: Session = { ...stored, status: held ? 'NeedsAttention' : change.status }
+    const held = askOpen.has(id) && (status === 'Working' || status === 'YourTurn')
+    const updated: Session = { ...stored, status: held ? 'NeedsAttention' : status }
     if (pending === undefined) delete updated.pendingToolName
     else updated.pendingToolName = pending.name
     if (pending?.detail === undefined) delete updated.pendingToolDetail
@@ -358,10 +379,12 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
   }
 
   /**
-   * Open or clear the sticky ask for one status change. Opens on a `Needs you:` Stop. Clears when
-   * the operator acted: an Esc interrupt or a `/clear` (`WaitingForInput`), an AskUserQuestion
-   * prompt closed by its own tool call (`answeredQuestion`), an answered elicitation, or a prompt
-   * from a session whose mod reports no origins (otherwise `promptOrigin` decides).
+   * Open or clear the sticky ask for one status change. Opens on a `Needs you:` Stop, keeping the
+   * work running at it. Clears when the operator acted: an Esc interrupt or a `/clear`
+   * (`WaitingForInput`), an AskUserQuestion prompt closed by its own tool call
+   * (`answeredQuestion`), an answered elicitation, or a prompt from a session whose mod reports no
+   * origins (otherwise `promptOrigin` decides). Also clears when a Stop lists work the ask's Stop
+   * did not have: claude went back to work by itself, so something else unblocked it.
    */
   function updateAsk(
     id: string,
@@ -369,15 +392,17 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
     answeredQuestion: boolean
   ): void {
     if (change.opensAsk === true) {
-      askOpen.add(id)
+      askOpen.set(id, new Set(change.taskIds))
       return
     }
+    const askTasks = askOpen.get(id)
     const operatorActed =
       change.status === 'WaitingForInput' ||
       answeredQuestion ||
       change.answered === true ||
       (change.fromPrompt === true && !originReported.has(id))
-    if (operatorActed) askOpen.delete(id)
+    const newWork = change.taskIds?.some((task) => askTasks?.has(task) === false) === true
+    if (operatorActed || newWork) askOpen.delete(id)
   }
 
   /** The mod reported a prompt's origin (see the interface doc). */
