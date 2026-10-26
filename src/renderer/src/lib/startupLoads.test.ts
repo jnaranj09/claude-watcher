@@ -32,7 +32,6 @@ function stubAll(fail: readonly string[]): void {
 }
 
 beforeEach(() => {
-  toastStore.setState({ toasts: [] })
   templatesStore.setState({ templates: [], loaded: false, loadFailed: false })
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })

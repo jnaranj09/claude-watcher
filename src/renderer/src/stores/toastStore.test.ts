@@ -159,6 +159,37 @@ describe('toastStore', () => {
     expect(titles(store)).toEqual([])
   })
 
+  it('push with a key replaces the live toast with that key', () => {
+    const { store, clock } = setup()
+    store.getState().push({ kind: 'error', title: 'a', key: 'k' })
+    clock.advance(1000)
+    store.getState().push({ kind: 'success', title: 'b', key: 'k' })
+    expect(titles(store)).toEqual(['b'])
+    clock.advance(TOAST_MS - 1000)
+    expect(store.getState().toasts[0]?.leaving).toBe(false)
+  })
+
+  it('keys do not touch unkeyed or other-keyed toasts', () => {
+    const { store } = setup()
+    store.getState().push({ kind: 'error', title: 'x' })
+    store.getState().push({ kind: 'error', title: 'k1', key: 'k1' })
+    store.getState().push({ kind: 'error', title: 'k2', key: 'k2' })
+    store.getState().push({ kind: 'error', title: 'k1-new', key: 'k1' })
+    expect(titles(store)).toEqual(['x', 'k2', 'k1-new'])
+  })
+
+  it('dismissKey fades only that key and kind', () => {
+    const { store, clock } = setup()
+    store.getState().push({ kind: 'error', title: 'e', key: 'k' })
+    store.getState().push({ kind: 'error', title: 'other', key: 'o' })
+    store.getState().dismissKey('k', 'success')
+    expect(store.getState().toasts.map((t) => t.leaving)).toEqual([false, false])
+    store.getState().dismissKey('k', 'error')
+    expect(store.getState().toasts.map((t) => t.leaving)).toEqual([true, false])
+    clock.advance(TOAST_EXIT_MS)
+    expect(titles(store)).toEqual(['other'])
+  })
+
   it('toast.success / error / info push onto the app singleton', () => {
     vi.useFakeTimers()
     toast.success('Archived "api"', { action: { label: 'Resume', icon: 'resume', run: () => {} } })

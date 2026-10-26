@@ -1,6 +1,10 @@
 // Action feedback (spec 2026-09-29 §1.1) — the toast list (RENDERER VIEW-STATE, state.md), a
 // singleton like the other stores. A toast is for a board-level action or a result the operator
-// cannot see (archive, move, a menu that closed); a dialog NEVER raises one for its own result.
+// cannot see (archive, move, a menu that closed), or a dialog's own result.
+//
+// A toast may carry a `key`: one toast per key. A push with a key removes the live toast(s) of
+// that key at once (no fade, timers stopped), then adds the new one — a dialog's one result
+// (`dialog:<prefix>`) never stacks. `dismissKey` fades a key's toast (optionally only one kind).
 //
 // At most TOAST_MAX on screen (a 4th drops the oldest at once). Success/info close after TOAST_MS,
 // TOAST_ACTION_MS with an action; an error stays until dismissed. Hover/focus pauses a toast's
@@ -43,6 +47,8 @@ export interface Toast {
   action?: ToastAction
   /** Drawn after the title (`Moved "api" to <WorkspaceLabel>`). */
   workspace?: ToastWorkspace
+  /** One toast per key: a push with a key replaces the live toast(s) holding it. */
+  key?: string
   /** True while it fades out; it is removed TOAST_EXIT_MS later. */
   leaving: boolean
 }
@@ -73,6 +79,8 @@ export interface ToastState {
   toasts: Toast[]
   push: (input: ToastInput) => string
   dismiss: (id: string) => void
+  /** Fades every non-leaving toast with this key (and this kind, when given). */
+  dismissKey: (key: string, kind?: ToastKind) => void
   pause: (id: string) => void
   resume: (id: string) => void
   runAction: (id: string) => void
@@ -110,13 +118,24 @@ export function createToastStore(clock: ToastClock = realClock): StoreApi<ToastS
       push: (input) => {
         seq += 1
         const id = `toast-${seq}`
-        const live = get().toasts.filter((t) => !t.leaving)
+        const replaced = new Set(
+          input.key === undefined
+            ? []
+            : get()
+                .toasts.filter((t) => !t.leaving && t.key === input.key)
+                .map((t) => t.id)
+        )
+        for (const gone of replaced) stop(gone)
+        const live = get().toasts.filter((t) => !t.leaving && !replaced.has(t.id))
         const evicted = new Set(
           live.slice(0, Math.max(0, live.length - TOAST_MAX + 1)).map((t) => t.id)
         )
         for (const gone of evicted) stop(gone)
         set((s) => ({
-          toasts: [...s.toasts.filter((t) => !evicted.has(t.id)), { ...input, id, leaving: false }]
+          toasts: [
+            ...s.toasts.filter((t) => !evicted.has(t.id) && !replaced.has(t.id)),
+            { ...input, id, leaving: false }
+          ]
         }))
         const ms = lifetime(input)
         if (ms !== null) arm(id, ms)
@@ -129,6 +148,12 @@ export function createToastStore(clock: ToastClock = realClock): StoreApi<ToastS
         stop(id)
         set((s) => ({ toasts: s.toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t)) }))
         clock.setTimer(() => remove(id), TOAST_EXIT_MS)
+      },
+
+      dismissKey: (key, kind) => {
+        for (const t of get().toasts) {
+          if (t.key === key && (kind === undefined || t.kind === kind)) get().dismiss(t.id)
+        }
       },
 
       pause: (id) => {
