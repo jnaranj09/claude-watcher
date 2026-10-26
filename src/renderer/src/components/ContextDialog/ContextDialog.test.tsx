@@ -2,7 +2,7 @@
 // file history of its instruction files. jsdom `unit` project; `window.context` is stubbed.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
-import { render, screen, within, type RenderResult } from '@testing-library/react'
+import { render, screen, waitFor, within, type RenderResult } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ContextDialog } from './ContextDialog'
 import { boardStore } from '../../stores/boardStore'
@@ -14,6 +14,8 @@ import type {
   SessionSetupState
 } from '../../../../shared/ipc/contract'
 import { cssRule } from '../../test/cssRule'
+import { dialogToast } from '../../test/toasts'
+import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 
 const TERMINAL = 'term-1'
 const NOW = 1_000_000_000
@@ -200,7 +202,12 @@ describe('ContextDialog — a ready report', () => {
         name: 'Open in editor'
       })
     )
-    expect(await screen.findByRole('alert')).toHaveTextContent('That file no longer exists.')
+    await waitFor(() =>
+      expect(dialogToast('context')).toMatchObject({
+        kind: 'error',
+        title: 'That file no longer exists.'
+      })
+    )
   })
 
   it('another file a report names has Open in editor but no History', async () => {
@@ -229,8 +236,11 @@ describe('ContextDialog — a ready report', () => {
     await userEvent.click(
       within(fileRow('rules.md')).getByRole('button', { name: 'Open in editor' })
     )
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'rules.md can run as a program, so it is not opened.'
+    await waitFor(() =>
+      expect(dialogToast('context')).toMatchObject({
+        kind: 'error',
+        title: 'rules.md can run as a program, so it is not opened.'
+      })
     )
   })
 
@@ -302,7 +312,12 @@ describe('ContextDialog — History', () => {
     const bridge = await openHistory()
     bridge.diff.mockRejectedValue(wrapped('file_too_large'))
     await userEvent.click((await screen.findAllByRole('radio'))[0]!)
-    expect(await screen.findByRole('alert')).toHaveTextContent('That file is too large to compare.')
+    await waitFor(() =>
+      expect(dialogToast('context')).toMatchObject({
+        kind: 'error',
+        title: 'That file is too large to compare.'
+      })
+    )
   })
 
   it('Restore this version arms in place, Escape disarms without closing', async () => {
@@ -322,20 +337,27 @@ describe('ContextDialog — History', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
     expect(bridge.restore).toHaveBeenCalledWith('v2')
-    expect(await screen.findByRole('status')).toHaveTextContent('Restored CLAUDE.md.')
+    await waitFor(() =>
+      expect(dialogToast('context')).toMatchObject({
+        kind: 'success',
+        title: 'Restored CLAUDE.md.'
+      })
+    )
   })
 
   it.each([
     ['file_restore_failed', 'Could not restore CLAUDE.md.'],
     ['version_not_found', 'That version is no longer in the history.'],
-    ['store_write_failed', 'Could not save to disk, so nothing changed.']
+    ['store_write_failed', STORE_WRITE_FAILED_COPY]
   ])('a refused restore (%s) shows its copy', async (code, copy) => {
     const bridge = await openHistory()
     bridge.restore.mockRejectedValue(wrapped(code))
     await userEvent.click((await screen.findAllByRole('radio'))[0]!)
     await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(copy)
+    await waitFor(() =>
+      expect(dialogToast('context')).toMatchObject({ kind: 'error', title: copy })
+    )
   })
 
   it('a file over the size cap says no versions are kept', async () => {
@@ -390,7 +412,7 @@ describe('ContextDialog — History', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm restore' }))
     expect(await screen.findByRole('radio', { name: 'just now, 10 B' })).toBeVisible()
     expect(screen.getAllByRole('radio')).toHaveLength(3)
-    expect(screen.getByRole('status')).toHaveTextContent('Restored CLAUDE.md.')
+    expect(dialogToast('context')).toMatchObject({ kind: 'success', title: 'Restored CLAUDE.md.' })
   })
 
   it('the back button returns to the file list', async () => {
@@ -497,9 +519,9 @@ describe('ContextDialog — waiting and unavailable', () => {
 })
 
 // Spec 2026-10-26: a failed load is a standing notice, not an action result — a danger Callout in
-// the pane it describes, never on the dialog's message slot.
+// the pane it describes, never in a toast.
 describe('ContextDialog — a load that fails', () => {
-  it('a failed setup read says so in the right column, not on the message slot', async () => {
+  it('a failed setup read says so in the right column, not in a toast', async () => {
     const bridge = stubContext({ state: 'waiting' })
     bridge.getSetup.mockRejectedValue(new Error('no handler'))
     rendered = render(<ContextDialog terminalId={TERMINAL} onClose={onClose} />)
@@ -512,7 +534,7 @@ describe('ContextDialog — a load that fails', () => {
     expect(line).toHaveTextContent('Could not load this session’s context.')
     // It stands in for the waiting sentence, which would claim a report is on its way.
     expect(screen.queryByTestId('context-placeholder')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('context-error')).not.toBeInTheDocument()
+    expect(dialogToast('context')).toBeUndefined()
     expect(screen.queryByText('no handler')).not.toBeInTheDocument()
   })
 
@@ -533,7 +555,7 @@ describe('ContextDialog — a load that fails', () => {
     expect(screen.getAllByTestId('context-file')).toHaveLength(3)
   })
 
-  it('a history list that fails says so in the history pane, not on the message slot', async () => {
+  it('a history list that fails says so in the history pane, not in a toast', async () => {
     const bridge = await open()
     bridge.listHistory.mockRejectedValue(new Error('x'))
     await userEvent.click(
@@ -544,7 +566,7 @@ describe('ContextDialog — a load that fails', () => {
     )
     expect(line).toHaveAttribute('role', 'alert')
     expect(line).toHaveTextContent(/^Could not load the history of /)
-    expect(screen.queryByTestId('context-error')).not.toBeInTheDocument()
+    expect(dialogToast('context')).toBeUndefined()
   })
 })
 

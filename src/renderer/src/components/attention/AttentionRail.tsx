@@ -100,8 +100,8 @@ import { CollapseChevronIcon } from './CollapseChevronIcon'
 import styles from './AttentionRail.module.css'
 import { Presence } from '../Presence/Presence'
 
-/** Saves the rail's collapse choice. The rail has no message slot, so a refused write (already
- *  rolled back by `persistSettingsPatch`) is a toast. */
+/** Saves the rail's collapse choice. A refused write (already rolled back by
+ *  `persistSettingsPatch`) is a toast. */
 function toggleCollapsed(next: boolean): void {
   persistSettingsPatch({ railCollapsed: next }).catch(() => {
     console.warn('[claude-watcher][rail] code=rail_collapsed_save_failed')

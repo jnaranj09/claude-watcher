@@ -21,6 +21,7 @@ import {
 import type { ThemeSummary } from '../../../../shared/schemas/theme'
 import { themeStore } from '../../stores/themeStore'
 import { DEFAULT_THEME_BUNDLE } from '../../../../shared/schemas/theme'
+import { dialogToast } from '../../test/toasts'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -145,7 +146,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(themes.openFolder).toHaveBeenCalledTimes(1)
   })
 
-  it('a refused Open themes folder shows mapped copy on the one error line', async () => {
+  it('a refused Open themes folder shows mapped copy in an error toast', async () => {
     stubSettings()
     stubApi()
     const themes = stubThemes()
@@ -156,9 +157,10 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     await flush()
     click(q(r, '[data-testid="settings-theme-open-folder"]'))
     await flush()
-    const line = q(r, '[data-testid="settings-error"]')
-    expect(line.getAttribute('role')).toBe('alert')
-    expect(line.textContent).toBe('Could not open the themes folder.')
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not open the themes folder.'
+    })
     expect(r.container.textContent).not.toContain('ENOENT')
   })
 
@@ -177,8 +179,8 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     expect(line).toHaveTextContent(
       'Theme "broken" could not be loaded, using Default — missing theme.css'
     )
-    // Never twice: the standing error is not on the dialog's message slot as well.
-    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    // Never twice: the standing error is not a toast as well.
+    expect(dialogToast('settings')).toBeUndefined()
     expect(selectedValue(r.container, 'settings-theme')).toBe('broken')
     expect(optionValues(r.container, 'settings-theme')).toEqual(['default', 'broken'])
   })
@@ -215,7 +217,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     )
   })
 
-  it('a reload() that rejects sets mapped copy on the one error line, never the raw error', async () => {
+  it('a reload() that rejects sets mapped copy in an error toast, never the raw error', async () => {
     stubSettings()
     stubApi()
     const themes = stubThemes([paper])
@@ -226,8 +228,10 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     await flush()
     click(q(r, '[data-testid="settings-theme-reload"]'))
     await flush()
-    const line = q(r, '[data-testid="settings-error"]')
-    expect(line.textContent).toBe('Could not reload themes.')
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not reload themes.'
+    })
     expect(r.container.textContent).not.toContain('ECONNREFUSED')
   })
 
@@ -373,7 +377,7 @@ describe('SettingsPanel — the Theme group (spec 2026-09-20)', () => {
     const line = q(r, '[data-testid="settings-themes-read-error"]')
     expect(line).toHaveAttribute('role', 'alert')
     expect(line).toHaveTextContent('Could not read the themes folder.')
-    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    expect(dialogToast('settings')).toBeUndefined()
     expect(optionValues(r.container, 'settings-theme')).toEqual(['default'])
   })
   it('a Reload whose list answers clears the themes-folder notice', async () => {

@@ -126,7 +126,6 @@ export function TagsPage({ scope, setScope, pages }: DialogPageProps): JSX.Eleme
           </ManageDialog.Placeholder>
         )}
       </ManageDialog.Columns>
-      <ManageDialog.Message testId="tag-error" />
     </>
   )
 }
@@ -178,7 +177,7 @@ function TagForm({ tag, onSaved }: TagFormProps): JSX.Element {
     setBusy(true)
     try {
       await removeTag(tag.id)
-      // Nothing open: the placeholder. `select` also clears the error line and the armed Delete; the form
+      // Nothing open: the placeholder. `select` also clears the error and the armed Delete; the form
       // remounts (its key changes), so there is no busy flag left to reset.
       actions.select(null)
       actions.showSuccess('Tag deleted.')

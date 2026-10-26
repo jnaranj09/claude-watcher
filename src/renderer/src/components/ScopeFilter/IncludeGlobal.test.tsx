@@ -13,6 +13,7 @@ import { ShortcutsDialog } from '../ShortcutsDialog/ShortcutsDialog'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { chooseOption } from '../../test/selectHarness'
 import type { Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -70,8 +71,9 @@ describe('Include global', () => {
     act(() => box(r, 'shortcut-include-global')?.click())
     await flush(4)
     expect(box(r, 'shortcut-include-global')?.checked).toBe(true)
-    expect(r.container.querySelector('[data-testid="shortcuts-error"]')?.textContent).toBe(
-      'Could not save the Include global choice.'
-    )
+    expect(dialogToast('shortcuts')).toMatchObject({
+      kind: 'error',
+      title: 'Could not save the Include global choice.'
+    })
   })
 })

@@ -1,5 +1,5 @@
 // Favorites in the Templates Manage dialog (spec 2026-10-13-favorites): a pin on every row,
-// pinned rows first inside each group, a refused pin in the dialog's message slot.
+// pinned rows first inside each group, a refused pin in the dialog's error toast.
 // Harness mirrors TemplatesDialog.scope.test.tsx (renderComponent, no Testing Library).
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act } from 'react'
@@ -11,6 +11,7 @@ import { workspacesStore } from '../../stores/workspacesStore'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Template, Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const W1: Workspace = { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }
 
@@ -109,13 +110,13 @@ describe('TemplatesDialog — favorites', () => {
     await press(q(r, '[data-testid="template-favorite-a"]'))
     expect(r.container.querySelector('[data-testid="template-placeholder"]')).not.toBeNull()
   })
-  it('a refused pin shows the store copy in the message slot and keeps the pin', async () => {
+  it('a refused pin shows the store copy in an error toast and keeps the pin', async () => {
     setFavorite.mockImplementation(() =>
       Promise.reject(new Error("Error invoking remote method 'x': Error: store_write_failed"))
     )
     const r = render()
     await press(q(r, '[data-testid="template-favorite-a"]'))
-    expect(q(r, '[data-testid="template-error"]').textContent).toBe(STORE_WRITE_FAILED_COPY)
+    expect(dialogToast('sessions')).toMatchObject({ kind: 'error', title: STORE_WRITE_FAILED_COPY })
     expect(q(r, '[data-testid="template-favorite-a"]').getAttribute('aria-pressed')).toBe('false')
   })
 })

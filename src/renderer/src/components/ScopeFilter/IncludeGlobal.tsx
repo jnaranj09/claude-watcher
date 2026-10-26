@@ -2,7 +2,7 @@
 // Rules: also list the global rows, which apply in that workspace too. ONE remembered choice
 // (`settings.includeGlobal`): unchecking it in Tags unchecks it in Templates, and it survives a
 // restart. Saved on change like every Settings control; a refused write is rolled back by
-// `persistSettingsPatch` and said in the dialog's message slot. Not rendered under All, Global or
+// `persistSettingsPatch` and said in the dialog's error toast. Not rendered under All, Global or
 // `(no workspace)`, where it would do nothing.
 import type { JSX } from 'react'
 import { persistSettingsPatch, selectIncludeGlobal, useSettings } from '../../stores/settingsStore'

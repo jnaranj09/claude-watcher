@@ -69,7 +69,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
     filterByScope(favoritesFirst(shortcuts), scope, known, includeGlobal),
     scope
   )
-  // A refused pin lands in the dialog's message slot; the pin keeps main's state.
+  // A refused pin is the dialog's error toast; the pin keeps main's state.
   const pinning = useAsyncAction(async (s: Shortcut): Promise<void> => {
     dialog.actions.setError(null)
     try {
@@ -182,7 +182,6 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps): JSX.Element 
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Message testId="shortcuts-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

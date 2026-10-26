@@ -1,5 +1,5 @@
 // Action feedback (spec 2026-09-29 §2.5) — Templates Browse… is busy while the native picker is
-// open, and a picker that fails says so on the form's error line (it was a console line).
+// open, and a picker that fails says so in the dialog's error toast (it was a console line).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -7,6 +7,7 @@ import { deferred, type Deferred } from '../../test/deferred'
 import { SessionsDialog } from '../SessionsDialog/SessionsDialog'
 import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
+import { dialogToast } from '../../test/toasts'
 
 let r: RenderResult | undefined
 let pick: ReturnType<typeof vi.fn>
@@ -49,6 +50,9 @@ describe('TemplatesDialog — Browse…', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(el('template-error').textContent).toBe('Could not open the folder picker.')
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'Could not open the folder picker.'
+    })
   })
 })

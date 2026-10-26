@@ -2,15 +2,18 @@
 // `{ state, actions, meta }` interface (vercel-composition-patterns `state-context-interface`):
 // the dialog that owns a ManageDialog creates it with `useManageDialog()` and hands it to
 // <ManageDialog.Provider>; each part reads it with React 19 `use()`, so selection, the armed
-// Delete and the one error line are never threaded through props.
+// Delete and the error are never threaded through props.
+//
+// A dialog's action RESULT is a toast (spec 2026-10-26 dialog toasts): `setError` and
+// `showSuccess` push ONE toast keyed `dialog:<testIdPrefix>`, so a new result replaces the last.
+// The error toast fades when the error clears and when the dialog closes (its exit starts) or
+// unmounts; a success fades on its own timer.
 //
 // Its own `.ts` file so `ManageDialogParts.tsx` exports components only
 // (react-refresh/only-export-components).
-import { createContext, use, useMemo, useRef, useState, type RefObject } from 'react'
-import { useFlash } from '../../hooks/useFlash'
-
-/** How long the message slot's success shows (spec 2026-10-01): one short sentence, read. */
-export const SUCCESS_MS = 2500
+import { createContext, use, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { toast, toastStore } from '../../stores/toastStore'
+import { useLeaving } from '../Presence/leaving'
 
 export interface ManageDialogState {
   /** The row the form edits, or null (nothing open, or the New form — see `creating`). */
@@ -23,27 +26,28 @@ export interface ManageDialogState {
   /** WHICH Delete is armed: the footer's `'form'` (the default), or a key a page names when it has
    *  a second Delete on screen (the Active page's bulk bar: `'bulk'`). Null when none is. */
   armedKey: string | null
-  /** The ONE error line's operator copy, or null. Never a raw `error.message` (design.md). */
+  /** The current error's operator copy (the one its error toast shows), or null. Never a raw
+   *  `error.message` (design.md). A form reads it to hold back its own hint while it shows. */
   error: string | null
-  /** The message slot's success copy, shown for SUCCESS_MS. Every other action clears it, so a
-   *  dialog calls `showSuccess` AFTER the `select` that follows its save. */
-  success: string | null
 }
 
 export interface ManageDialogActions {
   /** Open a row, or close what was open (null → the placeholder). Ends creating, disarms Delete
-   *  and clears the error line: both belonged to the row that was open, not to the one being
-   *  opened. */
+   *  and clears the error (its toast fades): both belonged to the row that was open, not to the
+   *  one being opened. */
   select: (id: string | null) => void
-  /** `+ New`: open the empty New form. Disarms Delete and clears the error line. */
+  /** `+ New`: open the empty New form. Disarms Delete and clears the error (its toast fades). */
   startNew: () => void
-  /** The first press of a Delete (`key` names which; default `'form'`). Clears the error line —
-   *  arming starts a new flow. */
+  /** The first press of a Delete (`key` names which; default `'form'`). Clears the error (its
+   *  toast fades) — arming starts a new flow. */
   arm: (key?: string) => void
   disarm: () => void
-  /** Any value clears the success: a refusal replaces it, and an edit (`setError(null)`) ends it. */
+  /** A refusal pushes the dialog's error toast (replacing its last toast), every time — the same
+   *  text again shows again after the operator's ✕. `null` (an edit, R26) fades the error toast
+   *  and leaves a success to its timer. */
   setError: (message: string | null) => void
-  /** A save, delete or forget that landed: the slot shows `text` for SUCCESS_MS, replacing an error. */
+  /** A save, delete or forget that landed: the dialog's success toast `text`, replacing its error
+   *  toast. Call it AFTER the `select` that follows the save. */
   showSuccess: (text: string) => void
   close: () => void
 }
@@ -71,9 +75,9 @@ export interface UseManageDialogOptions {
   onClose: () => void
   /** The row open on mount. Settings opens on its first category; Manage dialogs open on nothing. */
   initialSelectedId?: string | null
-  /** `select` keeps the error line. Settings: its rail rows are PAGES of one surface, so a
-   *  refusal (a port out of range, an unreadable themes folder) still describes the panel after a
-   *  category switch. A Manage dialog's rows are separate records, whose errors do not carry. */
+  /** `select` keeps the error (and its toast). Settings: its rail rows are PAGES of one surface,
+   *  so a refusal (a save main refused) still describes the panel after a category switch. A
+   *  Manage dialog's rows are separate records, whose errors do not carry. */
   keepErrorOnSelect?: boolean
 }
 
@@ -90,46 +94,60 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
   const [creating, setCreating] = useState(false)
   const [armedKey, setArmedKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [success, flashSuccess, clearSuccess] = useFlash<string>(SUCCESS_MS)
   const closeRef = useRef<HTMLButtonElement | null>(null)
+  const key = `dialog:${testIdPrefix}`
 
-  const actions = useMemo<ManageDialogActions>(
-    () => ({
+  const actions = useMemo<ManageDialogActions>(() => {
+    const clearError = (): void => {
+      setError(null)
+      toastStore.getState().dismissKey(key, 'error')
+    }
+    return {
       select: (id) => {
-        clearSuccess()
         setSelectedId(id)
         setCreating(false)
         setArmedKey(null)
-        if (!keepErrorOnSelect) setError(null)
+        if (!keepErrorOnSelect) clearError()
       },
       startNew: () => {
-        clearSuccess()
         setSelectedId(null)
         setCreating(true)
         setArmedKey(null)
-        setError(null)
+        clearError()
       },
-      arm: (key = 'form') => {
-        clearSuccess()
-        setArmedKey(key)
-        setError(null)
+      arm: (armKey = 'form') => {
+        setArmedKey(armKey)
+        clearError()
       },
       disarm: () => setArmedKey(null),
       setError: (message) => {
-        clearSuccess()
+        if (message === null) {
+          clearError()
+          return
+        }
+        // Pushed even when `error` already holds this text: the operator may have ✕'d its toast.
         setError(message)
+        toast.error(message, { key })
       },
       showSuccess: (text) => {
         setError(null)
-        flashSuccess(text)
+        toast.success(text, { key })
       },
       close: () => onClose()
-    }),
-    [onClose, keepErrorOnSelect, clearSuccess, flashSuccess]
-  )
+    }
+  }, [onClose, keepErrorOnSelect, key])
+
+  // The error toast describes this dialog's form: it goes when the dialog's exit starts (a
+  // pointer close keeps it mounted, `data-leaving`, for MOTION_EXIT_MS) and when it unmounts (a
+  // keyboard close, a page that goes). A success stays and fades on its own timer.
+  const leaving = useLeaving()
+  useEffect(() => {
+    if (leaving) toastStore.getState().dismissKey(key, 'error')
+  }, [leaving, key])
+  useEffect(() => () => toastStore.getState().dismissKey(key, 'error'), [key])
 
   return {
-    state: { selectedId, creating, armed: armedKey !== null, armedKey, error, success },
+    state: { selectedId, creating, armed: armedKey !== null, armedKey, error },
     actions,
     meta: { title, testIdPrefix, closeRef }
   }

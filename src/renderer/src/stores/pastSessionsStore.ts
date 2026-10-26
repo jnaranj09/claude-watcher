@@ -33,7 +33,7 @@ export const selectPastSessionsLoaded = (s: PastSessionsState): boolean => s.loa
 const LOG_PREFIX = '[claude-watcher][past-sessions]'
 
 /** Resolves `false` on a failed load (logged by code; the list already held is kept) so the dialog
- *  can say so on its error line — a swallowed failure left `loaded` false and the rail blank,
+ *  can say so in its load-error Callout — a swallowed failure left `loaded` false and the rail blank,
  *  indistinguishable from a load still in flight. Never rejects. */
 export async function loadPastSessions(): Promise<boolean> {
   try {
@@ -65,7 +65,7 @@ async function openResumed(result: PastSessionOpenResult): Promise<PastSessionOp
  * recipe and answers with the terminal to open; this opens it exactly like the `+ New session`
  * popover does (`openLaunchedTerminal`: registry + focus). The record's workspace becomes the
  * active one first, or the focused terminal would sit hidden under another workspace's board.
- * Rethrows the code (`not_found` / `folder_missing` / `already_open`) for the dialog's error line
+ * Rethrows the code (`not_found` / `folder_missing` / `already_open`) for the dialog's error toast
  * (`already_open` first tries `focusLiveSession`).
  */
 export async function openPastSession(id: string): Promise<PastSessionOpenResult> {
@@ -76,7 +76,7 @@ export async function openPastSession(id: string): Promise<PastSessionOpenResult
  * Import (spec 2026-10-03 E) — a claude session the app did not launch, into the workspace the
  * operator CHOSE on the Import page (an id the app already knows resumes as its record, in that
  * record's workspace). `id` must already be trimmed and lower-cased by the caller. Rethrows the
- * code for the page's error line.
+ * code for the page's error toast.
  */
 export async function resumeSessionById(
   id: string,
@@ -107,7 +107,7 @@ export async function resumeDeadTerminal(terminalId: string): Promise<void> {
  * show its own terminal in the focused view). The card's workspace (session truth, which may
  * differ from the record's: the card can have moved) becomes the active one first, or the terminal
  * would sit hidden under another workspace's board. Resolves `false` — and changes nothing — when
- * the renderer knows no card or no terminal for the id; the dialog then keeps its error line.
+ * the renderer knows no card or no terminal for the id; the dialog then shows its error toast.
  * Never rejects.
  */
 export async function focusLiveSession(id: string): Promise<boolean> {

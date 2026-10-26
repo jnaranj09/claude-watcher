@@ -104,7 +104,7 @@ export function pastSessionErrorMessage(err: unknown): string {
   return copyForCode(err, ERROR_COPY, 'Could not open the session')
 }
 
-/** Resume by id's error line — the same matching as Open, its own copy. */
+/** Resume by id's error copy — the same matching as Open, its own copy. */
 export function resumeByIdErrorMessage(err: unknown): string {
   return copyForCode(err, RESUME_BY_ID_COPY, 'Could not resume the session')
 }

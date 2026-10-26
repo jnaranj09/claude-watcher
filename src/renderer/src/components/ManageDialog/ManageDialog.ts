@@ -18,7 +18,6 @@ import {
   ManageDialogListBottom,
   ManageDialogListBottomDivided,
   ManageDialogListNote,
-  ManageDialogMessage,
   ManageDialogNew,
   ManageDialogPane,
   ManageDialogPlaceholder,
@@ -53,7 +52,6 @@ export const ManageDialog = {
   Footer: ManageDialogFooter,
   Delete: ManageDialogDelete,
   Save: ManageDialogSave,
-  Message: ManageDialogMessage,
   Label: ManageDialogLabel,
   Hint: ManageDialogHint,
   GhostButton: ManageDialogGhostButton

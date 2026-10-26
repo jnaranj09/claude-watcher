@@ -1,5 +1,5 @@
-// Action feedback (spec 2026-09-29 §2.5) — a goal save main refused says so in the dialog's ONE
-// message slot, in the operator's words, and the goal is not shown as saved.
+// Action feedback (spec 2026-09-29 §2.5) — a goal save main refused says so in the dialog's error
+// toast, in the operator's words, and the goal is not shown as saved.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { render, screen } from '@testing-library/react'
@@ -9,6 +9,7 @@ import { deferred } from '../../test/deferred'
 import { goalsStore } from '../../stores/goalsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
+import { dialogToast } from '../../test/toasts'
 
 let unmount: (() => void) | undefined
 
@@ -40,14 +41,13 @@ afterEach(() => {
 })
 
 describe('GoalsDialog — feedback', () => {
-  it('a refused save shows STORE_WRITE_FAILED_COPY in the message slot', async () => {
+  it('a refused save shows STORE_WRITE_FAILED_COPY in an error toast', async () => {
     const user = userEvent.setup()
     unmount = render(<GoalsDialog onClose={() => {}} />).unmount
     await user.click(screen.getByRole('button', { name: '+ New goal' }))
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ship v2')
     await user.click(screen.getByTestId('goal-submit'))
-    expect(screen.getByTestId('goals-error')).toHaveTextContent(STORE_WRITE_FAILED_COPY)
-    expect(screen.queryByTestId('goals-success')).not.toBeInTheDocument()
+    expect(dialogToast('goals')).toMatchObject({ kind: 'error', title: STORE_WRITE_FAILED_COPY })
   })
 
   it('a failed task add shows the error, and the retry clears it before trying', async () => {
@@ -79,11 +79,11 @@ describe('GoalsDialog — feedback', () => {
     unmount = render(<GoalsDialog onClose={() => {}} />).unmount
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.type(screen.getByRole('textbox', { name: '+ New task' }), 'Cut the tag{Enter}')
-    expect(screen.getByTestId('goals-error')).toHaveTextContent(STORE_WRITE_FAILED_COPY)
+    expect(dialogToast('goals')).toMatchObject({ kind: 'error', title: STORE_WRITE_FAILED_COPY })
     await user.keyboard('{Enter}')
     // The retry is still in flight: the old error is already gone.
     expect(saveTask).toHaveBeenCalledTimes(2)
-    expect(screen.queryByTestId('goals-error')).not.toBeInTheDocument()
+    expect(dialogToast('goals')).toBeUndefined()
     await act(async () => {
       retry.resolve({ saved: task, goals: [goal], tasks: [task], proposals: [] })
       await Promise.resolve()

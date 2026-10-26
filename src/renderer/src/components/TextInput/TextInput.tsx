@@ -6,8 +6,8 @@
 // dropped a field back to Chromium's own dark-scheme input, which is how this component came to
 // exist. One component, one box.
 //
-// It renders the FIELD only — the <label>, the helper line and the error line stay at the call
-// site, because their layout differs per dialog and the error line is one-per-dialog by rule.
+// It renders the FIELD only — the <label>, the helper line and a field's error Callout stay at
+// the call site, because their layout differs per dialog.
 import type { JSX, KeyboardEvent, ReactNode, Ref } from 'react'
 import styles from './TextInput.module.css'
 
@@ -22,7 +22,7 @@ export interface TextInputProps {
   ariaLabel?: string | undefined
   placeholder?: string | undefined
   maxLength?: number | undefined
-  /** Marks the current value as rejected. The dialog still owns the error LINE. */
+  /** Marks the current value as rejected. The caller still says what is wrong. */
   invalid?: boolean | undefined
   disabled?: boolean | undefined
   /** A value the operator reads and copies but must not edit (the API token). NOT `disabled` —

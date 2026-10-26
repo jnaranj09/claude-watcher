@@ -95,7 +95,7 @@ export async function saveTag(req: TagSaveRequest): Promise<Tag> {
   return result.saved
 }
 
-/** Rethrows: `tag_in_use` is operator-facing (the Tags dialog error line). */
+/** Rethrows: `tag_in_use` is operator-facing (the Tags dialog's error toast). */
 export async function removeTag(id: string): Promise<void> {
   tagsStore.getState().hydrate(await window.tags.remove(id))
 }

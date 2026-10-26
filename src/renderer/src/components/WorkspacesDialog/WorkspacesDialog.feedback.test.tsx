@@ -1,5 +1,5 @@
 // Action feedback (spec 2026-09-29 §2.5) — Workspaces Save is greyed on an unchanged row, and
-// Choose… is busy while the native picker is open; a picker that fails says so on the error line.
+// Choose… is busy while the native picker is open; a picker that fails says so in an error toast.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'
@@ -7,6 +7,7 @@ import { deferred, type Deferred } from '../../test/deferred'
 import { WorkspacesDialog } from './WorkspacesDialog'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const ROWS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -58,6 +59,9 @@ describe('WorkspacesDialog — feedback', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(el('workspace-error').textContent).toBe('Could not open the folder picker.')
+    expect(dialogToast('workspaces')).toMatchObject({
+      kind: 'error',
+      title: 'Could not open the folder picker.'
+    })
   })
 })

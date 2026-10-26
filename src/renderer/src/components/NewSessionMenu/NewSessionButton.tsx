@@ -68,7 +68,7 @@ export function NewSessionButton({
     variant === 'header' ? 'end' : 'center'
   )
 
-  // Favorites — a refused pin is an error toast (the popover has no message slot); the pin
+  // Favorites — a refused pin is an error toast (the popover has no line of its own); the pin
   // keeps main's state. The popover stays open: the pin is not a pick.
   const pinning = useAsyncAction(async (t: Template): Promise<void> => {
     try {

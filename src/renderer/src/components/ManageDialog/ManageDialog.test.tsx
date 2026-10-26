@@ -1,11 +1,12 @@
 // ManageDialog — the ONE shell every Manage dialog is built on (spec 2026-09-11 §0). jsdom `unit`
 // project, `renderComponent` harness (this repo has no @testing-library/react — Story 1.3).
 //
-// The arm-in-place Delete, the error line and the selection contract are proved ONCE here, so the
+// The arm-in-place Delete, the error toast and the selection contract are proved ONCE here, so the
 // dialogs built on the shell do not each re-prove them (spec §6).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, type JSX } from 'react'
 import { click, q, renderComponent, type RenderResult } from '../../test/renderComponent'
+import { dialogToast } from '../../test/toasts'
 import { ManageDialog, useManageDialog, useManageDialogContext } from './ManageDialog'
 import styles from './ManageDialog.module.css'
 
@@ -60,7 +61,6 @@ function Harness(props: { onClose: () => void; onConfirm: () => void }): JSX.Ele
             <ManageDialog.Save testId="thing-save" disabled={false} />
           </ManageDialog.Footer>
         </ManageDialog.Form>
-        <ManageDialog.Message testId="things-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )
@@ -247,31 +247,29 @@ describe('ManageDialog.Delete — its labels', () => {
   })
 })
 
-describe('ManageDialog — the error line and the selection contract', () => {
-  it('renders the ONE error line as role=alert, only while there is an error', () => {
+describe('ManageDialog — the error toast and the selection contract', () => {
+  it("a refusal is the dialog's ONE error toast, only while there is an error", () => {
     const { r } = render()
-    expect(r.container.querySelector('[data-testid="things-error"]')).toBeNull()
+    expect(dialogToast('things')).toBeUndefined()
     click(q(r, '[data-testid="probe-fail"]'))
-    const line = q(r, '[data-testid="things-error"]')
-    expect(line.getAttribute('role')).toBe('alert')
-    expect(line.textContent).toBe('Could not save.')
+    expect(dialogToast('things')).toMatchObject({ kind: 'error', title: 'Could not save.' })
   })
 
-  it('select() moves the selection, clears the error line and disarms Delete', () => {
+  it('select() moves the selection, clears the error toast and disarms Delete', () => {
     const { r } = render()
     click(q(r, '[data-testid="thing-delete"]'))
     click(q(r, '[data-testid="probe-fail"]'))
     click(q(r, '[data-testid="probe-select"]'))
     expect(q(r, '[data-testid="probe-selected"]').textContent).toBe('b')
     expect(q(r, '[data-testid="probe-armed"]').textContent).toBe('false')
-    expect(r.container.querySelector('[data-testid="things-error"]')).toBeNull()
+    expect(dialogToast('things')).toBeUndefined()
   })
 
-  it('arming Delete clears a stale error line', () => {
+  it('arming Delete clears a stale error toast', () => {
     const { r } = render()
     click(q(r, '[data-testid="probe-fail"]'))
     click(q(r, '[data-testid="thing-delete"]'))
-    expect(r.container.querySelector('[data-testid="things-error"]')).toBeNull()
+    expect(dialogToast('things')).toBeUndefined()
   })
 })
 
@@ -352,7 +350,7 @@ describe('ManageDialog — nothing open vs New form (spec 2026-09-29)', () => {
     expect(text(r, 'sp-selected')).toBe('a')
   })
 
-  it('+ New starts creating, and disarms and clears the error line', () => {
+  it('+ New starts creating, and disarms and clears the error', () => {
     const r = renderState()
     click(q(r, '[data-testid="sp-arm"]'))
     click(q(r, '[data-testid="sp-fail"]'))

@@ -11,6 +11,7 @@ import { tagsStore } from '../../stores/tagsStore'
 import { rulesStore } from '../../stores/rulesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { Tag, TagSaveRequest, Workspace, Rule } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -91,7 +92,7 @@ describe('TagsDialog', () => {
     expect(save).toHaveBeenCalledWith({ name: 'prod', color: 'rose', workspaceId: null })
     // A new row is Global; the list was on Default, so the scope follows the saved row.
     expect(rowNames(r)).toContain('prod')
-    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag saved.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
   })
 
   it('shows the operator copy when the name is taken (the wrapped Electron error)', async () => {
@@ -103,7 +104,10 @@ describe('TagsDialog', () => {
     type(q(r, '[data-testid="tag-name"]'), 'deploy')
     click(q(r, '[data-testid="tag-save"]'))
     await flush()
-    expect(q(r, '[data-testid="tag-error"]').textContent).toMatch(/already exists/i)
+    expect(dialogToast('tags')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/already exists/i)
+    })
   })
 
   it('a refused delete (a rule uses the tag) says so and keeps the row', async () => {
@@ -117,25 +121,29 @@ describe('TagsDialog', () => {
     click(q(r, '[data-testid="tag-delete"]'))
     await flush()
     expect(remove).toHaveBeenCalledWith('t-deploy')
-    expect(q(r, '[data-testid="tag-error"]').textContent).toMatch(/rule/i)
+    expect(dialogToast('tags')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/rule/i)
+    })
     expect(rowNames(r)).toContain('deploy')
   })
 
   // R26 / spec 2026-10-01 — editing ANY field ends the message: Color and Workspace too, not only Name.
-  it('changing Color or Workspace after a save clears "Tag saved."', async () => {
+  // An edit fades only an error toast (spec 2026-10-26): a success is left to its own timer.
+  it('changing Color or Workspace after a save leaves "Tag saved." to fade on its own', async () => {
     const { r } = render()
     click(q(r, '[data-testid="tag-new"]'))
     type(q(r, '[data-testid="tag-name"]'), 'prod')
     click(q(r, '[data-testid="tag-save"]'))
     await flush()
-    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag saved.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
     chooseOption(r.container, 'tag-color', 'rose')
-    expect(r.container.querySelector('[data-testid="tags-success"]')).toBeNull()
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
     click(q(r, '[data-testid="tag-save"]'))
     await flush()
-    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag saved.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
     chooseOption(r.container, 'tag-scope', 'w1')
-    expect(r.container.querySelector('[data-testid="tags-success"]')).toBeNull()
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag saved.' })
   })
 
   it('a confirmed delete removes the row and returns to the placeholder', async () => {
@@ -148,7 +156,7 @@ describe('TagsDialog', () => {
     expect(rowNames(r)).toEqual(['ops-only'])
     expect(q(r, '[data-testid="tag-placeholder"]')).toBeTruthy()
     expect(r.container.querySelector('[data-testid="tag-name"]')).toBeNull()
-    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Tag deleted.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Tag deleted.' })
   })
 
   it('a refused delete says how many rules use the tag (T-16)', async () => {
@@ -172,9 +180,10 @@ describe('TagsDialog', () => {
     click(q(r, '[data-testid="tag-delete"]'))
     click(q(r, '[data-testid="tag-delete"]'))
     await flush()
-    expect(q(r, '[data-testid="tag-error"]').textContent).toBe(
-      'Used by 2 rules. Change or delete them first.'
-    )
+    expect(dialogToast('tags')).toMatchObject({
+      kind: 'error',
+      title: 'Used by 2 rules. Change or delete them first.'
+    })
   })
 
   it('D-13: a slash name draws as parent/ muted + leaf, indented, and its row is named by the full name', () => {

@@ -18,6 +18,7 @@ import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
 import type { SettingsPatch } from '../../../../shared/schemas/settings'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
+import { dialogToast } from '../../test/toasts'
 
 const A = {
   id: 'sc-1',
@@ -136,9 +137,10 @@ describe('ShortcutsDialog', () => {
     type(byTestId('shortcut-text-input'), 'y')
     click(byTestId('shortcut-save'))
     await act(async () => {})
-    expect(byTestId('shortcuts-error')?.textContent).toBe(
-      'That alias is already used by another shortcut.'
-    )
+    expect(dialogToast('shortcuts')).toMatchObject({
+      kind: 'error',
+      title: 'That alias is already used by another shortcut.'
+    })
   })
 
   it('the subtitle names the live chord', () => {
@@ -155,8 +157,8 @@ describe('ShortcutsDialog', () => {
     expect(removeMock).toHaveBeenCalledWith('sc-1')
   })
 
-  // Spec 2026-10-01 — a save and a delete say so in the dialog's message slot.
-  it('a save and a delete each say so in the message slot', async () => {
+  // Spec 2026-10-01 — a save and a delete say so in the dialog's toast.
+  it('a save and a delete each say so in a toast', async () => {
     render()
     click(byTestId('shortcut-select-sc-1'))
     type(byTestId('shortcut-name-input'), 'renamed')
@@ -165,7 +167,7 @@ describe('ShortcutsDialog', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(byTestId('shortcuts-success')?.textContent).toBe('Shortcut saved.')
+    expect(dialogToast('shortcuts')).toMatchObject({ kind: 'success', title: 'Shortcut saved.' })
     click(byTestId('shortcut-select-sc-1'))
     click(byTestId('shortcut-delete'))
     click(byTestId('shortcut-delete'))
@@ -173,7 +175,7 @@ describe('ShortcutsDialog', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(byTestId('shortcuts-success')?.textContent).toBe('Shortcut deleted.')
+    expect(dialogToast('shortcuts')).toMatchObject({ kind: 'success', title: 'Shortcut deleted.' })
   })
 
   // --- layout / onboarding -------------------------------------------------------------------
@@ -255,9 +257,9 @@ describe('ShortcutsDialog', () => {
     expect(optionValues(document, 'shortcut-scope-filter')).toContain('orphans')
   })
 
-  // R26 — the error line clears when the operator starts fixing the field (Templates/Tags/Rules
+  // R26 — the error toast goes when the operator starts fixing the field (Templates/Tags/Rules
   // already did; this dialog left the refusal up while the alias was being changed).
-  it('clears the error line when a field changes', async () => {
+  it('fades the error toast when a field changes', async () => {
     saveMock.mockImplementationOnce(() => Promise.reject(new Error('shortcut_alias_taken')))
     render()
     click(byTestId('shortcut-new'))
@@ -266,9 +268,9 @@ describe('ShortcutsDialog', () => {
     type(byTestId('shortcut-text-input'), 'y')
     click(byTestId('shortcut-save'))
     await act(async () => {})
-    expect(byTestId('shortcuts-error')).not.toBeNull()
+    expect(dialogToast('shortcuts')?.kind).toBe('error')
     type(byTestId('shortcut-alias-input'), 'ap2')
-    expect(byTestId('shortcuts-error')).toBeNull()
+    expect(dialogToast('shortcuts')).toBeUndefined()
   })
 
   // R26 — Save greyed with no reason: `deploy-prod` fails the alias rule silently.
@@ -312,7 +314,10 @@ describe('ShortcutsDialog', () => {
     click(byTestId('shortcut-delete'))
     click(byTestId('shortcut-delete'))
     await act(async () => {})
-    expect(byTestId('shortcuts-error')?.textContent).toBe(STORE_WRITE_FAILED_COPY)
+    expect(dialogToast('shortcuts')).toMatchObject({
+      kind: 'error',
+      title: STORE_WRITE_FAILED_COPY
+    })
     expect(byTestId('shortcut-form')).not.toBeNull()
     expect(warn).toHaveBeenCalledWith('[claude-watcher][shortcuts] code=shortcuts_remove_failed')
   })
@@ -325,7 +330,10 @@ describe('ShortcutsDialog', () => {
     click(byTestId('shortcut-delete'))
     click(byTestId('shortcut-delete'))
     await act(async () => {})
-    expect(byTestId('shortcuts-error')?.textContent).toBe('Could not delete the shortcut.')
+    expect(dialogToast('shortcuts')).toMatchObject({
+      kind: 'error',
+      title: 'Could not delete the shortcut.'
+    })
   })
 })
 

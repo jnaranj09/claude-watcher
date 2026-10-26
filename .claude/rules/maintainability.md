@@ -284,7 +284,7 @@ Landed walks today:
   a default (`testId = 'header-new-session'`); an id seen only inside a longer selector string
   does not count. Ids the ManageDialog shell builds count too: the test collects each
   `testIdPrefix` literal (an option to `useManageDialog` or a prop) and adds the suffixes the shell
-  sets in `ManageDialogParts.tsx` (`-overlay`, `-panel`, `-close`, `-message`, `-success`), read
+  sets in `ManageDialogParts.tsx` (`-overlay`, `-panel`, `-close`), read
   from that file. A page row's id is a prefix, `-`, and a page id: it passes when the page id is
   an `id:` string literal in a page list in a non-test renderer file (`'rules'` in
   `TagsDialog.tsx`, `'past'` in `SessionsDialog/sessionsPages.ts`). A template `${…}` selector in the drive script is skipped. A prefix locator

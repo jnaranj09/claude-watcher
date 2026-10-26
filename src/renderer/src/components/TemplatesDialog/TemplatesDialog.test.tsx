@@ -9,6 +9,7 @@ import { rulesStore } from '../../stores/rulesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Template, Rule } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const T1: Template = {
   id: 'a',
@@ -108,7 +109,7 @@ describe('TemplatesDialog', () => {
       params: []
     })
     expect(r.container.querySelectorAll('[data-testid="template-row"]')).toHaveLength(2)
-    expect(q(r, '[data-testid="sessions-success"]').textContent).toBe('Template saved.')
+    expect(dialogToast('sessions')).toMatchObject({ kind: 'success', title: 'Template saved.' })
   })
   it('selecting a row loads it; the error copy shows when main says template_name_taken', async () => {
     const { r } = render()
@@ -119,9 +120,10 @@ describe('TemplatesDialog', () => {
     save.mockRejectedValueOnce(new Error('template_name_taken'))
     click(q(r, '[data-testid="template-save"]'))
     await flush()
-    expect(q(r, '[data-testid="template-error"]').textContent).toBe(
-      'A template with this name already exists.'
-    )
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'A template with this name already exists.'
+    })
     expect(save).toHaveBeenCalledWith({
       id: 'a',
       name: 'api2',
@@ -173,7 +175,7 @@ describe('TemplatesDialog', () => {
     await flush()
     expect(remove).toHaveBeenCalledWith('a')
     expect(r.container.querySelector('[data-testid="template-delete"]')).toBeNull()
-    expect(q(r, '[data-testid="sessions-success"]').textContent).toBe('Template deleted.')
+    expect(dialogToast('sessions')).toMatchObject({ kind: 'success', title: 'Template deleted.' })
   })
   it('a dirty-but-invalid draft explains WHY Save is disabled; the hint clears when it is fixed', async () => {
     const { r } = render()
@@ -302,14 +304,15 @@ describe('TemplatesDialog', () => {
     click(q(r, '[data-testid="template-delete"]'))
     click(q(r, '[data-testid="template-delete"]'))
     await flush()
-    expect(q(r, '[data-testid="template-error"]').textContent).toBe(
-      'Used by 1 rule. Change or delete it first.'
-    )
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'Used by 1 rule. Change or delete it first.'
+    })
     act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
   })
 
   // §1.4 — a SAVE that narrows a used template's scope is refused with the same code as a delete,
-  // and lands on the same error line. It counts the rules the new scope would hide the template
+  // and lands in the same error toast. It counts the rules the new scope would hide the template
   // from (the global one), not every rule that uses it (the Ops one can still see it in Ops).
   it('a refused scope change says how many rules would lose the template', async () => {
     const globalRule: Rule = {
@@ -342,9 +345,10 @@ describe('TemplatesDialog', () => {
     click(q(r, '[data-testid="template-save"]'))
     await flush()
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: T1.id, workspaceId: 'w1' }))
-    expect(q(r, '[data-testid="template-error"]').textContent).toBe(
-      'Used by 1 rule. Change or delete it first.'
-    )
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'Used by 1 rule. Change or delete it first.'
+    })
     act(() => rulesStore.setState({ rules: [], brokenIds: [], loaded: false }))
   })
 

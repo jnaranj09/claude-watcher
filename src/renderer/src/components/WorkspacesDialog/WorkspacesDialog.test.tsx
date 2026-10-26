@@ -12,6 +12,7 @@ import { boardStore, selectBoardFilters } from '../../stores/boardStore'
 import { NO_FILTERS } from '../../lib/sessionFilters'
 import type { Workspace, WorkspaceSaveRequest } from '../../../../shared/ipc/contract'
 import { WORKSPACE_COLORS } from '../../../../shared/schemas/workspace'
+import { dialogToast } from '../../test/toasts'
 
 const ROWS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -97,7 +98,7 @@ describe('WorkspacesDialog', () => {
     click(q(r, '[data-testid="workspace-submit"]'))
     await flush()
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Side' }))
-    expect(q(r, '[data-testid="workspaces-success"]').textContent).toBe('Workspace saved.')
+    expect(dialogToast('workspaces')).toMatchObject({ kind: 'success', title: 'Workspace saved.' })
   })
 
   // Rejects with the WRAPPED shape Electron actually delivers — `Error invoking remote method
@@ -113,9 +114,10 @@ describe('WorkspacesDialog', () => {
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
     await flush()
-    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(
-      /still has running sessions/i
-    )
+    expect(dialogToast('workspaces')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/still has running sessions/i)
+    })
   })
 
   // Wrapped shape, same reasoning as the delete case above.
@@ -128,7 +130,10 @@ describe('WorkspacesDialog', () => {
     type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
     click(q(r, '[data-testid="workspace-submit"]'))
     await flush()
-    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/^Could not save to disk/)
+    expect(dialogToast('workspaces')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/^Could not save to disk/)
+    })
   })
 
   it('shows the name-taken copy on a duplicate', async () => {
@@ -140,7 +145,10 @@ describe('WorkspacesDialog', () => {
     type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
     click(q(r, '[data-testid="workspace-submit"]'))
     await flush()
-    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/already/i)
+    expect(dialogToast('workspaces')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/already/i)
+    })
   })
 
   // Deleting a workspace CASCADES its scoped templates, shortcuts, tags, rules and goals in main; the
@@ -168,7 +176,10 @@ describe('WorkspacesDialog', () => {
     expect(tagsList).toHaveBeenCalledTimes(1)
     expect(rulesList).toHaveBeenCalledTimes(1)
     expect(goalsList).toHaveBeenCalledTimes(1)
-    expect(q(r, '[data-testid="workspaces-success"]').textContent).toBe('Workspace deleted.')
+    expect(dialogToast('workspaces')).toMatchObject({
+      kind: 'success',
+      title: 'Workspace deleted.'
+    })
   })
 
   // Session filters are view-state kept per workspace: a deleted workspace's entry must go, and
@@ -200,7 +211,10 @@ describe('WorkspacesDialog', () => {
     click(q(r, '[data-testid="workspace-delete-w1"]'))
     click(q(r, '[data-testid="workspace-delete-confirm"]'))
     await flush()
-    expect(q(r, '[data-testid="workspace-error"]').textContent).toMatch(/still has running/i)
+    expect(dialogToast('workspaces')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/still has running/i)
+    })
     expect(templatesList).not.toHaveBeenCalled()
     expect(shortcutsList).not.toHaveBeenCalled()
     expect(tagsList).not.toHaveBeenCalled()
@@ -320,18 +334,18 @@ describe('WorkspacesDialog', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  // R26 — the error line clears when the operator starts fixing the name (Templates/Tags/Rules
+  // R26 — the error toast goes when the operator starts fixing the name (Templates/Tags/Rules
   // already did).
-  it('clears the error line when the name changes', async () => {
+  it('fades the error toast when the name changes', async () => {
     save.mockRejectedValueOnce(new Error('workspace_name_taken'))
     const { r } = render()
     click(q(r, '[data-testid="workspace-new"]'))
     type(q(r, '[data-testid="workspace-name-input"]'), 'Ops')
     click(q(r, '[data-testid="workspace-submit"]'))
     await flush()
-    expect(r.container.querySelector('[data-testid="workspace-error"]')).not.toBeNull()
+    expect(dialogToast('workspaces')?.kind).toBe('error')
     type(q(r, '[data-testid="workspace-name-input"]'), 'Ops 2')
-    expect(r.container.querySelector('[data-testid="workspace-error"]')).toBeNull()
+    expect(dialogToast('workspaces')).toBeUndefined()
   })
 
   // R26 — a default folder could be set but never removed again.

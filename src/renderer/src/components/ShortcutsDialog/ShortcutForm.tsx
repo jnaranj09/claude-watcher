@@ -58,10 +58,10 @@ export function ShortcutForm({ shortcut, onSaved }: ShortcutFormProps): JSX.Elem
   const result = draftToSaveRequest(draft)
   const dirty = isDraftDirty(draft, shortcut)
   // R26 — why Save is greyed, once the operator has edited something. A muted hint, NOT the
-  // role=alert error line (reserved for main's refusals).
+  // error toast (reserved for main's refusals).
   const problem = dirty && !result.ok && state.error === null ? shortcutDraftProblem(draft) : null
 
-  // R26 — editing a field clears the error line.
+  // R26 — editing a field clears the error (its toast fades).
   function change(next: ShortcutDraft): void {
     setDraft(next)
     actions.setError(null)

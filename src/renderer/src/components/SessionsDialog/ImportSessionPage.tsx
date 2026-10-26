@@ -105,7 +105,6 @@ export function ImportSessionPage({ pages }: Pick<DialogPageProps, 'pages'>): JS
           </ManageDialog.Footer>
         </ManageDialog.Form>
       </ManageDialog.Columns>
-      <ManageDialog.Message testId="import-error" />
     </>
   )
 }

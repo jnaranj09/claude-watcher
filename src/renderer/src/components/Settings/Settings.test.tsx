@@ -27,6 +27,7 @@ import {
   type,
   blur
 } from '../../test/settingsPanelHarness'
+import { dialogToast } from '../../test/toasts'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -366,8 +367,8 @@ describe('SettingsPanel — the local API block', () => {
   })
 
   // design.md (TextInput): `aria-invalid` is NEVER the only signal — a danger Callout under the
-  // field says what is wrong (UX-DR29). It is a FIELD error, so it sits by the field, never on the
-  // dialog's message slot (spec 2026-10-26: only action results leave the pane). The copy names
+  // field says what is wrong (UX-DR29). It is a FIELD error, so it sits by the field, never in the
+  // dialog's toast (spec 2026-10-26: only action results leave the pane). The copy names
   // the range, so the operator can fix it without guessing. Asserted as a literal, not rebuilt
   // from API_PORT_MIN/MAX: a test that composes the sentence the same way the component does
   // cannot catch the sentence changing.
@@ -387,7 +388,7 @@ describe('SettingsPanel — the local API block', () => {
     expect(line).toHaveAttribute('data-callout')
     expect(line.textContent).toBe('Port must be between 1024 and 65535.')
     expect(port).toHaveAttribute('aria-invalid', 'true')
-    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    expect(dialogToast('settings')).toBeUndefined()
 
     type(port, '9300')
     blur(port)
@@ -455,7 +456,7 @@ describe('SettingsPanel — the local API block', () => {
   // Main rejects when it minted a token it could not persist (`token_write_failed`). Showing the
   // new token then would be a lie — the old one is still the live credential. Never render the
   // raw message: map the code to operator copy (design.md).
-  it('a regenerate main could not persist keeps the old token and says so on the error line', async () => {
+  it('a regenerate main could not persist keeps the old token and says so in an error toast', async () => {
     stubSettings()
     stubApi('a'.repeat(64), {
       regenerateToken: () => Promise.reject(new Error('token_write_failed: EACCES'))
@@ -469,9 +470,10 @@ describe('SettingsPanel — the local API block', () => {
     click(btn)
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('a'.repeat(64))
-    const line = q(r, '[data-testid="settings-error"]')
-    expect(line.getAttribute('role')).toBe('alert')
-    expect(line.textContent).toBe('Could not save the new token.')
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not save the new token.'
+    })
     expect(r.container.textContent).not.toContain('EACCES')
     // A REFUSED action stays armed, so one more press retries it — the component's own
     // documented behaviour, and the opposite of the success path above.
@@ -488,11 +490,11 @@ describe('SettingsPanel — the local API block', () => {
     const r = render()
     await flush()
     expect(q<HTMLInputElement>(r, '[data-testid="settings-api-token"]').value).toBe('')
-    // A load-time notice, so it sits in the API pane by the token, not on the message slot.
+    // A load-time notice, so it sits in the API pane by the token, never in a toast.
     const line = q(r, '[data-testid="settings-pane-api"] [data-testid="settings-token-error"]')
     expect(line).toHaveAttribute('role', 'alert')
     expect(line).toHaveTextContent('Could not read the API token.')
-    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    expect(dialogToast('settings')).toBeUndefined()
     expect(r.container.textContent).not.toContain('no handler')
   })
 
@@ -620,7 +622,7 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
 
   // Spec 2026-10-26 — the standing theme error describes the theme picker, so it sits in the
   // Appearance pane beside it (it used to be on the dialog-wide error line).
-  it('shows the theme error in the Appearance pane, not on the message slot', async () => {
+  it('shows the theme error in the Appearance pane, not in a toast', async () => {
     stubSettings()
     stubApi()
     stubThemes([{ id: 'broken', name: 'broken', colorScheme: 'dark', error: 'theme_css_missing' }])
@@ -628,7 +630,7 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     const r = renderPanel()
     await flush()
     openCategory(r, 'api')
-    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    expect(dialogToast('settings')).toBeUndefined()
     openCategory(r, 'appearance')
     expect(
       q(r, '[data-testid="settings-pane-appearance"] [data-testid="settings-theme-error"]')
@@ -651,7 +653,7 @@ describe('Settings in categories (spec 2026-09-29 §3)', () => {
     )
     expect(line).toHaveAttribute('role', 'alert')
     expect(line).toHaveTextContent('Could not read the themes folder.')
-    expect(q(r, '[data-testid="settings-message"]')).toBeEmptyDOMElement()
+    expect(dialogToast('settings')).toBeUndefined()
   })
 
   it('a refused port is still under the field after leaving and coming back to API', async () => {

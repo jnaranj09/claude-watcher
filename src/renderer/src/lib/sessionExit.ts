@@ -8,8 +8,8 @@
 // `Archived "<name>"` with [Resume], the Past sessions Open path, offered only once the record
 // exists and only when the pane had a bound session id.
 //
-// The Sessions dialog uses the CORE of each exit — no toast, no jump to the board; it reports in
-// its own message slot (spec 2026-10-03 D).
+// The Sessions dialog uses the CORE of each exit — no board toast, no jump to the board; it reports
+// in its own dialog toast (spec 2026-10-03 D, 2026-10-26).
 import { boardStore } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
 import { focusLiveSession, openPastSession } from '../stores/pastSessionsStore'
@@ -63,7 +63,7 @@ const archiving = new Set<string>()
 
 /** The archive CORE: send it (F1 — the main-side stop goes out AT THE CALL, before any await),
  *  wait for main, forget the terminal only once main confirmed. No view change and no toast: the
- *  card wrapper below adds those; the Sessions dialog reports in its message slot. Never rejects. */
+ *  card wrapper below adds those; the Sessions dialog reports in its own toast. Never rejects. */
 export async function archiveTerminalCore(terminalId: string): Promise<boolean> {
   try {
     await window.launch.archiveSession(terminalId)

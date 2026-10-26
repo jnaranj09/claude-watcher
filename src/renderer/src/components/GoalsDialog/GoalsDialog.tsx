@@ -7,7 +7,7 @@
 // `done/total` and a bar; right column = the selected row's tasks (a goal's inside its form).
 //
 // Main owns the records (goalsStore is a projection); this file sends ids and intents and draws
-// what main answers. Every refusal reaches the ONE message slot through `goalErrorCopy`.
+// what main answers. Every refusal reaches the dialog's error toast through `goalErrorCopy`.
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
 import { GOAL_NAME_MAX, type Goal, type Proposal, type Task } from '../../../../shared/schemas/goal'
 import { FOLDER_TERMS, GOAL_TERMS } from '../../copy/terms'
@@ -317,7 +317,6 @@ export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
             </ManageDialog.Pane>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Message testId="goals-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

@@ -54,7 +54,7 @@ export function TemplateList({ templates, workspaces, scope }: TemplateListProps
     scope
   )
   const { actions } = useManageDialogContext()
-  // A refused pin lands in the dialog's message slot; the pin keeps main's state.
+  // A refused pin is the dialog's error toast; the pin keeps main's state.
   const pinning = useAsyncAction(async (t: Template): Promise<void> => {
     actions.setError(null)
     try {

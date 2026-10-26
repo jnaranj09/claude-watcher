@@ -275,7 +275,6 @@ export function PastSessionsPage({
           </ManageDialog.Placeholder>
         )}
       </ManageDialog.Columns>
-      <ManageDialog.Message testId="past-session-error" />
     </>
   )
 }

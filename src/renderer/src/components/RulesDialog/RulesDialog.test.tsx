@@ -12,6 +12,7 @@ import { tagsStore } from '../../stores/tagsStore'
 import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { Rule, RuleSaveRequest, Tag, Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -214,7 +215,7 @@ describe('RulesDialog', () => {
         actions: [{ kind: 'add-tag', tagId: 't-pending' }]
       })
     )
-    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Rule saved.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Rule saved.' })
   })
 
   it('an invalid regex blocks Save and says why', () => {
@@ -240,7 +241,10 @@ describe('RulesDialog', () => {
     click(q(r, '[data-testid="rule-add-action"]'))
     click(q(r, '[data-testid="rule-save"]'))
     await flush()
-    expect(q(r, '[data-testid="rule-error"]').textContent).toMatch(/cannot see/)
+    expect(dialogToast('tags')).toMatchObject({
+      kind: 'error',
+      title: expect.stringMatching(/cannot see/)
+    })
   })
 
   it('Delete arms, confirms, and returns to the placeholder', async () => {
@@ -253,7 +257,7 @@ describe('RulesDialog', () => {
     expect(remove).toHaveBeenCalledWith('ra')
     expect(q(r, '[data-testid="rule-placeholder"]')).toBeTruthy()
     expect(r.container.querySelector('[data-testid="rule-name"]')).toBeNull()
-    expect(q(r, '[data-testid="tags-success"]').textContent).toBe('Rule deleted.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'success', title: 'Rule deleted.' })
   })
 
   it('closes on Escape', () => {

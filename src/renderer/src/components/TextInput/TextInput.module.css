@@ -27,7 +27,7 @@
   border-color: var(--border);
   cursor: not-allowed;
 }
-/* Never the only signal — the dialog's error line says what is wrong (UX-DR29). */
+/* Never the only signal — a Callout by the field says what is wrong (UX-DR29). */
 .input[aria-invalid='true'] {
   border-color: var(--danger);
 }

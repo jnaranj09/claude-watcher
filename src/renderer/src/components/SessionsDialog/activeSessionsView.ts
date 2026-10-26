@@ -64,7 +64,7 @@ function quotedList(names: readonly string[]): string {
     : `${quoted.slice(0, -1).join(', ')} and ${quoted[quoted.length - 1]}`
 }
 
-/** What a bulk (or single) Archive / Delete says in the message slot: `Archived "api".`,
+/** What a bulk (or single) Archive / Delete says in the dialog's toast: `Archived "api".`,
  *  `Archived 3 sessions.`, `Archived 2 sessions. Could not archive "web".` */
 export function exitResultCopy(
   verb: ExitVerb,

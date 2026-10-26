@@ -1,5 +1,5 @@
 // Action feedback (spec 2026-09-29 §2.5) — the Past sessions rail says Loading… while the history
-// is fetched; a failed load keeps the error line and offers Retry in the rail foot.
+// is fetched; a failed load keeps its load-error Callout and offers Retry in the rail foot.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'

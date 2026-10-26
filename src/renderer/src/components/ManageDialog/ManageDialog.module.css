@@ -49,7 +49,7 @@
    height (owner: the whole body was "too big for
    its UI", then 60% was too cramped for the form: 75% each way); the panel's 640px `min-width`
    still holds on a narrow window. The rail's 480px row cap and the body's 560px cap give way so the rows fill the sheet,
-   and the columns take the height the sheet's own header and the message slot leave. The goals
+   and the columns take the height the sheet's own header leaves. The goals
    rail is a little narrower than the tasks column (2fr : 3fr), not a fixed 300px. */
 .overlayDrop {
   position: absolute;
@@ -365,11 +365,6 @@
   margin: 0;
   font-size: var(--font-size-meta);
   color: var(--text-muted);
-}
-/* The message slot: always in the page, one block Callout tall (2 × padding + 2px border + one
-   line), so a message that comes and goes never moves the dialog. The panel's gap spaces it. */
-.message {
-  min-height: calc(2 * var(--space-2) + 2px + 1lh);
 }
 .footer {
   display: flex;

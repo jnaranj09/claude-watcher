@@ -9,6 +9,7 @@ import { GoalsDialog } from './GoalsDialog'
 import { goalsStore } from '../../stores/goalsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { GoalsView, Proposal, Task } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const task = (id: string, title: string, over: Partial<Task> = {}): Task => ({
   id,
@@ -116,7 +117,7 @@ describe('ProposalPanel', () => {
       groups: [{ taskIds: ['t1'] }, { taskIds: ['t3', 't2'] }],
       markDone: false
     })
-    expect(screen.getByTestId('goals-success')).toHaveTextContent('Sessions started.')
+    expect(dialogToast('goals')).toMatchObject({ kind: 'success', title: 'Sessions started.' })
     // Main's answer carries no proposal any more: the panel goes.
     expect(screen.queryByTestId('proposal-planner-1')).not.toBeInTheDocument()
   })
@@ -175,7 +176,10 @@ describe('ProposalPanel', () => {
       )
     })
     await user.click(screen.getByRole('button', { name: 'Accept' }))
-    expect(screen.getByTestId('goals-error')).toHaveTextContent('Could not start sessions.')
+    expect(dialogToast('goals')).toMatchObject({
+      kind: 'error',
+      title: 'Could not start sessions.'
+    })
     expect(screen.getByTestId('proposal-planner-1')).toBeInTheDocument()
   })
 
@@ -191,7 +195,7 @@ describe('Plan with Claude', () => {
     await openGoal([])
     await user.click(screen.getByRole('button', { name: 'Plan with Claude' }))
     expect(bridge.plan).toHaveBeenCalledWith('g1')
-    expect(screen.getByTestId('goals-success')).toHaveTextContent('Planner started.')
+    expect(dialogToast('goals')).toMatchObject({ kind: 'success', title: 'Planner started.' })
   })
 
   it('a hook port that is not ours says planning needs session status', async () => {
@@ -204,9 +208,10 @@ describe('Plan with Claude', () => {
       )
     })
     await user.click(screen.getByRole('button', { name: 'Plan with Claude' }))
-    expect(screen.getByTestId('goals-error')).toHaveTextContent(
-      'Could not plan with Claude: session status is off.'
-    )
+    expect(dialogToast('goals')).toMatchObject({
+      kind: 'error',
+      title: 'Could not plan with Claude: session status is off.'
+    })
   })
 
   it('a cancelled folder pick says nothing', async () => {
@@ -220,7 +225,6 @@ describe('Plan with Claude', () => {
     })
     await user.click(screen.getByRole('button', { name: 'Plan with Claude' }))
     expect(bridge.plan).toHaveBeenCalled()
-    expect(screen.queryByTestId('goals-error')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('goals-success')).not.toBeInTheDocument()
+    expect(dialogToast('goals')).toBeUndefined()
   })
 })

@@ -162,7 +162,6 @@ export function ContextDialog({
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Message testId="context-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

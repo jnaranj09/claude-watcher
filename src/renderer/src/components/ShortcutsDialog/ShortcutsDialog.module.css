@@ -1,6 +1,6 @@
 /* Phrase shortcuts — what is Shortcuts' own in the Manage dialog: the rail row's name + alias,
    the rail's empty sentences, the key chips, the form's help lines and the chord recorder (which
-   Settings → Keyboard renders). The shell, rail, form, error line and every button are
+   Settings → Keyboard renders). The shell, rail, form and every button are
    ManageDialog.module.css (.claude/rules/design.md). Zero new colors, zero new tokens (spec S-7). */
 
 /* The rail's empty sentences — --text-secondary on the raised panel (design.md). */

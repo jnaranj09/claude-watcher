@@ -84,9 +84,6 @@ export function TemplatesPage({ scope, setScope, pages }: DialogPageProps): JSX.
           </ManageDialog.Placeholder>
         )}
       </ManageDialog.Columns>
-      {/* The ONE message slot, under the columns like every Manage dialog: a delete unmounts
-            the form, and its success still has to show. */}
-      <ManageDialog.Message testId="template-error" />
     </>
   )
 }

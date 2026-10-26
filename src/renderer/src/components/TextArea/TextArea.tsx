@@ -4,8 +4,8 @@
 // how the single-line box drifted into five different boxes. One component, one box — and
 // `TextInput.test.tsx`'s structural walk fails if any other module declares `.textArea`.
 //
-// Like TextInput it renders the FIELD only — the <label>, the character counter and the dialog's
-// one error line stay at the call site.
+// Like TextInput it renders the FIELD only — the <label>, the character counter and any error
+// stay at the call site.
 import type { JSX, Ref } from 'react'
 import styles from './TextArea.module.css'
 
@@ -20,7 +20,7 @@ export interface TextAreaProps {
   ariaLabel?: string | undefined
   placeholder?: string | undefined
   maxLength?: number | undefined
-  /** Marks the current value as rejected. The dialog still owns the error LINE. */
+  /** Marks the current value as rejected. The caller still says what is wrong. */
   invalid?: boolean | undefined
   disabled?: boolean | undefined
   /** Visible lines at rest. The operator can still drag it taller (`resize: vertical`). */

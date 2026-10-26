@@ -1,5 +1,5 @@
 // Workspaces — the Manage dialog, on the shared ManageDialog shell (.claude/rules/design.md): the
-// overlay, header, list rail, form footer, arm-in-place Delete and the ONE error line are
+// overlay, header, list rail, form footer, arm-in-place Delete and the result toast are
 // ManageDialog parts. This file keeps only what is Workspaces': the fields, the cascade warning,
 // the Default rule and the cascade re-read. UX-DR14: App.tsx guards it against the other modals via
 // isModalOpen() and closes it on the quit guard.
@@ -9,7 +9,7 @@
 // renders NO delete control at all — main also refuses it, but the UI must not offer it.
 //
 // Never render a raw thrown error: every IPC rejection is mapped through `copyFor()` to
-// operator-facing copy before it reaches the shared error line, which both the delete flow and
+// operator-facing copy before it reaches the dialog's error toast, which both the delete flow and
 // the save flow report through.
 import { STORE_WRITE_FAILED } from '../../../../shared/schemas/storageHealth'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
@@ -94,8 +94,8 @@ function WorkspaceForm({
   const [defaultCwd, setDefaultCwd] = useState<string | null>(workspace?.defaultCwd ?? null)
   const [busy, setBusy] = useState(false)
 
-  // Action feedback (spec 2026-09-29 §2.5) — one native picker at a time; a failure says so on
-  // the dialog's error line (it was a console line only).
+  // Action feedback (spec 2026-09-29 §2.5) — one native picker at a time; a failure says so in
+  // the dialog's error toast (it was a console line only).
   const browse = useAsyncAction(async (): Promise<void> => {
     try {
       // R26 — open at the EDITED workspace's folder: main reads it from its own store by id (the
@@ -110,7 +110,7 @@ function WorkspaceForm({
     }
   })
 
-  // R26 — editing a field clears the error line (Templates/Tags/Rules do the same).
+  // R26 — editing a field clears the error (its toast fades; Templates/Tags/Rules do the same).
   function changeName(next: string): void {
     setName(next)
     actions.setError(null)
@@ -280,7 +280,7 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
       // SUCCESS path — a refused delete cascaded nothing, so re-reading would be pointless work.
       await Promise.all([loadTemplates(), loadShortcuts(), loadTags(), loadRules(), loadGoals()])
       // The deleted row was the selected one: nothing open, the placeholder. `select` also clears the
-      // error line and the armed Delete.
+      // error and the armed Delete.
       dialog.actions.select(null)
       dialog.actions.showSuccess('Workspace deleted.')
     } catch (err) {
@@ -338,7 +338,6 @@ export function WorkspacesDialog({ onClose }: WorkspacesDialogProps): JSX.Elemen
             </ManageDialog.Placeholder>
           )}
         </ManageDialog.Columns>
-        <ManageDialog.Message testId="workspace-error" />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

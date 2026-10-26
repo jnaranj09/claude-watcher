@@ -10,6 +10,7 @@ import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { boardStore } from '../../stores/boardStore'
 import type { PastSession, Tag, Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -122,7 +123,7 @@ describe('PastSessionsDialog', () => {
 
   // A failed load must not look like a load still in flight: a danger Callout says so in the rail,
   // where the empty sentence would be, as copy — never the thrown message — and no empty sentence
-  // claims the history is empty. A standing notice, so never on the dialog's message slot.
+  // claims the history is empty. A standing notice, so never in a toast.
   it('a failed load says so in the rail, and no empty sentence is shown', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     list.mockRejectedValueOnce(new Error('/home/op/secret leaked'))
@@ -132,7 +133,7 @@ describe('PastSessionsDialog', () => {
     expect(error?.textContent).toBe('Could not load past sessions')
     expect(error?.getAttribute('role')).toBe('alert')
     expect(error?.hasAttribute('data-callout')).toBe(true)
-    expect(q(r, '[data-testid="past-session-error"]')).toBeNull()
+    expect(dialogToast('sessions')).toBeUndefined()
     expect(q(r, '[data-testid="past-sessions-empty"]')).toBeNull()
     expect(warn).toHaveBeenCalledWith(
       '[claude-watcher][past-sessions] code=past_sessions_load_failed'
@@ -167,10 +168,11 @@ describe('PastSessionsDialog', () => {
     expect(document.activeElement).toBe(q(r, '[data-testid="past-session-select-sa"]'))
   })
 
-  it('a successful load leaves the error line empty', async () => {
+  it('a successful load shows no load error and no toast', async () => {
     const { r } = render()
     await flush()
-    expect(q(r, '[data-testid="past-session-error"]')).toBeNull()
+    expect(q(r, '[data-testid="past-session-load-error"]')).toBeNull()
+    expect(dialogToast('sessions')).toBeUndefined()
   })
 
   it('All sessions shows every workspace; the search narrows by name; empty sentences differ', async () => {
@@ -283,17 +285,17 @@ describe('PastSessionsDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('a refused Open shows the code as copy on the ONE error line and keeps the dialog', async () => {
+  it('a refused Open shows the code as copy in an error toast and keeps the dialog', async () => {
     open.mockRejectedValueOnce(new Error('folder_missing'))
     const { r, onClose } = render()
     await flush()
     act(() => q(r, '[data-testid="past-session-select-sa"]')?.click())
     act(() => q(r, '[data-testid="past-session-open"]')?.click())
     await flush()
-    expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
-      'That folder no longer exists'
-    )
-    expect(q(r, '[data-testid="past-session-error"]')?.getAttribute('role')).toBe('alert')
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'That folder no longer exists'
+    })
     expect(onClose).not.toHaveBeenCalled()
     // Not left busy: the operator can pick another row and try again.
     expect((q(r, '[data-testid="past-session-open"]') as HTMLButtonElement).disabled).toBe(false)
@@ -370,7 +372,7 @@ describe('PastSessionsDialog', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('without a known terminal for it, keeps the dialog and says so on the error line', async () => {
+    it('without a known terminal for it, keeps the dialog and says so in an error toast', async () => {
       open.mockRejectedValueOnce(ALREADY_OPEN)
       const { r, onClose } = render()
       await flush()
@@ -378,9 +380,10 @@ describe('PastSessionsDialog', () => {
       act(() => q(r, '[data-testid="past-session-open"]')?.click())
       await flush()
 
-      expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
-        'That session is already open'
-      )
+      expect(dialogToast('sessions')).toMatchObject({
+        kind: 'error',
+        title: 'That session is already open'
+      })
       expect(boardStore.getState().viewMode).toBe('board')
       expect(boardStore.getState().focusedTerminalId).toBeNull()
       expect(onClose).not.toHaveBeenCalled()
@@ -418,10 +421,10 @@ describe('PastSessionsDialog', () => {
     await flush()
     expect(forget).toHaveBeenCalledWith('sa')
     expect(q(r, '[data-testid="past-session-form-name"]')).toBeNull()
-    expect(q(r, '[data-testid="sessions-success"]')?.textContent).toBe('Session forgotten.')
+    expect(dialogToast('sessions')).toMatchObject({ kind: 'success', title: 'Session forgotten.' })
   })
 
-  it('a refused Forget keeps the record and says so on the error line', async () => {
+  it('a refused Forget keeps the record and says so in an error toast', async () => {
     forget.mockRejectedValueOnce(new Error('boom'))
     const { r } = render()
     await flush()
@@ -429,9 +432,10 @@ describe('PastSessionsDialog', () => {
     act(() => q(r, '[data-testid="past-session-forget"]')?.click())
     act(() => q(r, '[data-testid="past-session-forget"]')?.click())
     await flush()
-    expect(q(r, '[data-testid="past-session-error"]')?.textContent).toBe(
-      'Could not forget the session'
-    )
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'Could not forget the session'
+    })
     expect(q(r, '[data-testid="past-session-form-name"]')?.textContent).toBe('billing api')
   })
 

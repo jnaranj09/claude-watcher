@@ -16,6 +16,7 @@ import type {
   TaskSaveRequest,
   TaskStatus
 } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const goal = (over: Partial<Goal> = {}): Goal => ({
   id: 'g1',
@@ -138,7 +139,7 @@ describe('GoalsDialog', () => {
     await user.click(screen.getByTestId('goal-submit'))
     expect(bridge.saveGoal).toHaveBeenCalledWith({ workspaceId: 'w1', name: 'Ship v2' })
     expect(screen.getByTestId('goal-select-g-new')).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByTestId('goals-success')).toHaveTextContent('Goal saved.')
+    expect(dialogToast('goals')).toMatchObject({ kind: 'success', title: 'Goal saved.' })
   })
 
   it("the rail lists this workspace's goals with done/total", () => {
@@ -263,7 +264,7 @@ describe('GoalsDialog', () => {
       markDone: true
     })
     expect(bridge.setTaskStatus).not.toHaveBeenCalled()
-    expect(screen.getByTestId('goals-success')).toHaveTextContent('Session started.')
+    expect(dialogToast('goals')).toMatchObject({ kind: 'success', title: 'Session started.' })
     // The selection is spent: the bar goes away.
     expect(screen.queryByRole('button', { name: 'Start session' })).not.toBeInTheDocument()
   })
@@ -288,7 +289,7 @@ describe('GoalsDialog', () => {
     ['goal_workspace_mismatch', 'Could not start sessions.'],
     ['folder_missing', 'That folder no longer exists.'],
     ['claude_version', 'or newer to launch from the app.']
-  ])('a %s refusal says so in the message slot and keeps the selection', async (code, copy) => {
+  ])('a %s refusal says so in an error toast and keeps the selection', async (code, copy) => {
     const user = userEvent.setup()
     open({ goals: [goal()], tasks: [task()], proposals: [] })
     bridge.start = vi.fn(() =>
@@ -299,7 +300,10 @@ describe('GoalsDialog', () => {
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByRole('checkbox', { name: 'Select Write the spec' }))
     await user.click(screen.getByRole('button', { name: 'Start session' }))
-    expect(screen.getByTestId('goals-error')).toHaveTextContent(copy)
+    expect(dialogToast('goals')).toMatchObject({
+      kind: 'error',
+      title: expect.stringContaining(copy)
+    })
     expect(screen.getByRole('checkbox', { name: 'Select Write the spec' })).toBeChecked()
   })
 
@@ -315,8 +319,7 @@ describe('GoalsDialog', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select Write the spec' }))
     await user.click(screen.getByRole('button', { name: 'Start session' }))
     expect(bridge.start).toHaveBeenCalled()
-    expect(screen.queryByTestId('goals-error')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('goals-success')).not.toBeInTheDocument()
+    expect(dialogToast('goals')).toBeUndefined()
     expect(screen.getByRole('checkbox', { name: 'Select Write the spec' })).toBeChecked()
   })
 })

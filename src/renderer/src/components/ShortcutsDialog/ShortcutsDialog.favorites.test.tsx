@@ -10,6 +10,7 @@ import { workspacesStore } from '../../stores/workspacesStore'
 import { STORE_WRITE_FAILED_COPY } from '../../lib/storageHealthCopy'
 import { DEFAULT_WORKSPACE_ID } from '../../../../shared/schemas/workspace'
 import type { Shortcut, Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const W1: Workspace = { id: 'w1', name: 'Ops', color: 'blue', defaultCwd: null }
 
@@ -106,14 +107,17 @@ describe('ShortcutsDialog — favorites', () => {
     await press(q(r, '[data-testid="shortcut-favorite-a"]'))
     expect(r.container.querySelector('[data-testid="shortcut-placeholder"]')).not.toBeNull()
   })
-  it('a refused pin shows the store copy in the message slot and keeps the pin', async () => {
+  it('a refused pin shows the store copy in an error toast and keeps the pin', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     setFavorite.mockImplementation(() =>
       Promise.reject(new Error("Error invoking remote method 'x': Error: store_write_failed"))
     )
     const r = render()
     await press(q(r, '[data-testid="shortcut-favorite-a"]'))
-    expect(q(r, '[data-testid="shortcuts-error"]').textContent).toBe(STORE_WRITE_FAILED_COPY)
+    expect(dialogToast('shortcuts')).toMatchObject({
+      kind: 'error',
+      title: STORE_WRITE_FAILED_COPY
+    })
     expect(q(r, '[data-testid="shortcut-favorite-a"]').getAttribute('aria-pressed')).toBe('false')
   })
 })

@@ -216,8 +216,8 @@ export function RuleForm({ rule, onSaved }: RuleFormProps): JSX.Element {
         + Add action
       </ManageDialog.GhostButton>
 
-      {/* Why Save is disabled, once the operator has edited something. The error line (below the
-          columns) stays reserved for main's refusals. */}
+      {/* Why Save is disabled, once the operator has edited something. The error toast stays
+          reserved for main's refusals. */}
       {dirty && !validation.ok && (
         <ManageDialog.Hint testId="rule-hint">{validation.error}</ManageDialog.Hint>
       )}

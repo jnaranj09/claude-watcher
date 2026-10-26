@@ -13,6 +13,7 @@ import { workspacesStore } from '../../stores/workspacesStore'
 import { boardStore } from '../../stores/boardStore'
 import { deferred } from '../../test/deferred'
 import type { Template, Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -170,7 +171,7 @@ describe('a late Active-page exit (final review 1)', () => {
       for (let i = 0; i < 6; i++) await Promise.resolve()
     })
     expect(q(r, '[data-testid="template-name"]')).not.toBeNull()
-    expect(q(r, '[data-testid="sessions-success"]')).toBeNull()
+    expect(dialogToast('sessions')).toBeUndefined()
   })
 })
 

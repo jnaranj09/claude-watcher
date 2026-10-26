@@ -1,7 +1,7 @@
 // One instruction file's History (spec 2026-10-18 §5): its versions newest first (a radio group:
 // one is compared at a time), the diff of the picked one against the file now, and `Restore this
 // version`, which arms in place (`ManageDialog.Delete`'s two presses: a restore overwrites the
-// file, after main keeps what is there now). Results go to the dialog's one message slot; a list
+// file, after main keeps what is there now). Results are the dialog's toast; a list
 // that fails is a standing notice, a danger Callout here (spec 2026-10-26). A restore reloads the
 // versions: main kept the file as it was, and that copy is now the newest.
 import { useEffect, useRef, useState, type JSX } from 'react'

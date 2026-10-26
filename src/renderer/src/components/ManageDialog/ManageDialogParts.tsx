@@ -28,7 +28,6 @@ import { useOverflowEnd } from './useOverflowEnd'
 import styles from './ManageDialog.module.css'
 import { Checkbox } from '../Checkbox/Checkbox'
 import { Button, type ButtonSize } from '../Button/Button'
-import { Callout } from '../Callout/Callout'
 import { workspaceTintClass, type WorkspaceTone } from '../WorkspaceTint/workspaceTint'
 import { leavingProps, useLeaving } from '../Presence/leaving'
 
@@ -351,38 +350,6 @@ export function ManageDialogSave({
     >
       {children}
     </Button>
-  )
-}
-
-/** The dialog's ONE message slot (design.md, spec 2026-10-01): an error (alert, stays until the
- *  next action) or a success (SUCCESS_MS). Both are a `Callout` block; never both. The error keeps
- *  the caller's test id; the success is `<testIdPrefix>-success`.
- *  The slot is ALWAYS in the page: it is the polite live region (a status inserted together with
- *  its text is announced unreliably), and it reserves one callout's height, so a message that
- *  comes and goes never moves the centred dialog under the pointer.
- *  `compact`: the success Callout is one line (Settings' `Saved`). An error is always `block`. */
-export function ManageDialogMessage({
-  testId,
-  compact = false
-}: {
-  testId: string
-  compact?: boolean
-}): JSX.Element {
-  const { state, meta } = useManageDialogContext()
-  return (
-    <div className={styles.message} role="status" data-testid={`${meta.testIdPrefix}-message`}>
-      {state.error !== null ? (
-        <Callout tone="danger" title={state.error} testId={testId} />
-      ) : state.success !== null ? (
-        <Callout
-          tone="success"
-          size={compact ? 'compact' : 'block'}
-          title={state.success}
-          announce={false}
-          testId={`${meta.testIdPrefix}-success`}
-        />
-      ) : null}
-    </div>
   )
 }
 

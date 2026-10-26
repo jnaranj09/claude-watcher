@@ -10,6 +10,7 @@ import { workspacesStore } from '../../stores/workspacesStore'
 import { tagsStore } from '../../stores/tagsStore'
 import { boardStore } from '../../stores/boardStore'
 import type { Workspace } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -146,9 +147,10 @@ describe('Sessions → Import (spec 2026-10-03 E)', () => {
     type(input, ID)
     act(() => submit(r)?.click())
     await flush()
-    expect(q(r, '[data-testid="import-error"]')?.textContent).toBe(
-      'Claude has no conversation with that id'
-    )
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'Claude has no conversation with that id'
+    })
     expect(onClose).not.toHaveBeenCalled()
     expect(submit(r)?.disabled).toBe(false)
   })

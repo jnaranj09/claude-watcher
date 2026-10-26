@@ -68,7 +68,7 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
   }
 
   // Action feedback (spec 2026-09-29 §2.5) — one move at a time: a second press would compute its
-  // index from a list main has not answered yet. A refusal says so on the error line, and the next
+  // index from a list main has not answered yet. A refusal says so in the error toast, and the next
   // move clears it. ↑ / ↓ move past the neighbouring VISIBLE rule — in a filtered view, the rule the
   // operator sees beside it. `rules:move` takes the FINAL index in the full list.
   const moving = useAsyncAction(async (rule: Rule, step: -1 | 1): Promise<void> => {
@@ -191,7 +191,6 @@ export function RulesPage({ scope, setScope, pages }: DialogPageProps): JSX.Elem
           </ManageDialog.Placeholder>
         )}
       </ManageDialog.Columns>
-      <ManageDialog.Message testId="rule-error" />
     </>
   )
 }

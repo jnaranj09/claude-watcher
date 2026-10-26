@@ -1,6 +1,6 @@
 // Session templates — the edit form. Keyed by the selected id in TemplatesDialog, so a
 // selection change remounts it with a fresh draft (no effect-based syncing). The armed Delete and
-// the error line are the ManageDialog shell's state, so they reset on a selection change too.
+// the error are the ManageDialog shell's state, so they reset on a selection change too.
 import { useState, type FormEvent, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { Template } from '../../../../shared/ipc/contract'
@@ -67,8 +67,8 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   const patchParam = (i: number, p: Partial<ParamDraft>): void =>
     patch({ params: draft.params.map((row, j) => (j === i ? { ...row, ...p } : row)) })
 
-  // Action feedback (spec 2026-09-29 §2.5) — one native picker at a time; a failure says so on the
-  // form's error line (it was a console line only).
+  // Action feedback (spec 2026-09-29 §2.5) — one native picker at a time; a failure says so in the
+  // dialog's error toast (it was a console line only).
   const browse = useAsyncAction(async (): Promise<void> => {
     try {
       const cwd = await window.launch.pickDirectory()
@@ -100,7 +100,7 @@ export function TemplateForm({ template, onSaved, onRemoved }: TemplateFormProps
   }
 
   /** The second press of Delete — ManageDialog.Delete owns the first (arm). A refusal (a rule uses
-   *  this template, T-17) lands on the dialog's one error line. */
+   *  this template, T-17) is the dialog's error toast. */
   async function remove(): Promise<void> {
     if (template === null) return
     setBusy(true)

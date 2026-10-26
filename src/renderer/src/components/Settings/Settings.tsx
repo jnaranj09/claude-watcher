@@ -2,13 +2,13 @@
 // categories (Notifications, Appearance, Terminal, Keyboard, API) and the chosen category's
 // controls on the right. Every control persists on change through `persistSetting` (over
 // `persistSettingsPatch`: optimistic + persist + rollback), so there is no Save. It opens on
-// Notifications and never shows a placeholder. The panel's ONE error line carries action results;
+// Notifications and never shows a placeholder. Action results are the dialog's ONE toast;
 // field and standing errors (a bad port, a theme that did not load) sit by what they describe, in
 // their own pane (spec 2026-10-26). Dropdowns are `Select` (a native <select> is banned —
 // design.md); labels of a Select are <span>s with `ariaLabel`. Reached from the ☰ menu's
 // `Settings` row (App.tsx renders `SettingsPanel` from `settingsDialogOpen`); the `Settings` gear
 // below only serves `#terminals`.
-import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import {
   useSettings,
   selectSoundEnabled,
@@ -41,7 +41,6 @@ import { brokenThemesLine, themeErrorCopy } from '../../lib/themeCopy'
 import { Select, type SelectOption } from '../Select/Select'
 import { TextInput } from '../TextInput/TextInput'
 import { ManageDialog, useManageDialog } from '../ManageDialog/ManageDialog'
-import { SUCCESS_MS } from '../ManageDialog/manageDialogState'
 import { Switch } from '../Switch/Switch'
 import { Button } from '../Button/Button'
 import { Callout } from '../Callout/Callout'
@@ -114,35 +113,24 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
 
   // ONE ManageDialog for the whole panel (spec 2026-09-29 §3): the category rail is its selection
   // (opens on the first category, so there is never a placeholder), Regenerate is its one armable
-  // control, and its error line is the panel's one error line.
+  // control, and its result toast is the panel's one result.
   const dialog = useManageDialog({
     title: 'Settings',
     testIdPrefix: 'settings',
     onClose: onClose ?? NO_CLOSE,
     initialSelectedId: FIRST_SETTINGS_CATEGORY,
-    // A category switch disarms Regenerate but keeps the error line: it describes the panel.
+    // A category switch disarms Regenerate but keeps the error toast: it describes the panel.
     keepErrorOnSelect: true
   })
   const { actions: apiActions } = dialog
   const category = (dialog.state.selectedId ?? FIRST_SETTINGS_CATEGORY) as SettingsCategoryId
 
   // ── Action feedback (spec 2026-09-29 §2.1) ────────────────────────────────────────────────
-  // Every change says it landed: the compact success Callout `Saved` in the dialog's one message
-  // slot for SUCCESS_MS (spec 2026-10-07). When main refuses
-  // one, persistSettingsPatch has already rolled the store back to main's value (the control
-  // snaps back) and the error line names what did not save — until the next change that lands.
-  // The flash holds the CATEGORY it was saved on, so it never follows a switch to another page.
-  const [savedOn, flashSaved, clearSaved] = useFlash<SettingsCategoryId>(SUCCESS_MS)
-  // The refusal goes on the panel's ONE error state (apiActions.setError), so a newer action
-  // error — a failed copy, a refused reload — always replaces it. A later save clears the line only
-  // while it still holds the refusal it wrote, never a newer, different error. Both refs are read
-  // in callbacks only: `errorNow` mirrors the dialog's error after each render (the latest-value
-  // pattern).
-  const errorNow = useRef<string | null>(null)
-  const saveErrorShown = useRef<string | null>(null)
-  useLayoutEffect(() => {
-    errorNow.current = dialog.state.error
-  })
+  // Every change says it landed: the dialog's `Saved` toast (spec 2026-10-26 dialog toasts). When
+  // main refuses one, persistSettingsPatch has already rolled the store back to main's value (the
+  // control snaps back) and the error toast names what did not save. Both are the dialog's ONE
+  // toast, so each new result replaces the last: quick changes leave one `Saved`, never a pile.
+
   // Each result text is a constant on its button (`feedback`); these only say WHEN it shows.
   const [copied, flashCopied] = useFlash<true>()
   const [reloaded, flashReloaded] = useFlash<true>()
@@ -151,22 +139,9 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   /** The ONE wrapper every control persists through. `what` is operator copy (`the API port`),
    *  never a value. Never rejects. */
   function persistSetting(patch: SettingsPatch, what: string): Promise<void> {
-    const savedFrom = category
     return persistSettingsPatch(patch).then(
-      () => {
-        if (saveErrorShown.current !== null && errorNow.current === saveErrorShown.current) {
-          apiActions.setError(null)
-        }
-        saveErrorShown.current = null
-        flashSaved(savedFrom)
-      },
-      () => {
-        const message = `Could not save ${what}.`
-        saveErrorShown.current = message
-        errorNow.current = message
-        clearSaved()
-        apiActions.setError(message)
-      }
+      () => apiActions.showSuccess('Saved'),
+      () => apiActions.setError(`Could not save ${what}.`)
     )
   }
   const expanderKey = useSettings(selectExpanderKey)
@@ -289,7 +264,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
     setThemeListGeneration((g) => g + 1)
   }
 
-  // Never rendered thrown (design.md): a failed open is mapped copy on the shared error line,
+  // Never rendered thrown (design.md): a failed open is mapped copy in the dialog's error toast,
   // same treatment as `reloadThemes` and every other action in this file — never a silent
   // unhandled rejection.
   async function openThemesFolder(): Promise<void> {
@@ -334,7 +309,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
         : null
 
   function setApiEnabled(next: boolean): void {
-    // Switching OFF drops the token, its read error and the dialog's error line: there is nothing
+    // Switching OFF drops the token, its read error and the dialog's error toast: there is nothing
     // to show, and no stale credential is left sitting in renderer state.
     if (!next) {
       setToken(null)
@@ -402,13 +377,7 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
   const regenerate = useAsyncAction(regenerateToken)
 
   return (
-    <ManageDialog.Provider
-      {...dialog}
-      state={{
-        ...dialog.state,
-        success: savedOn === category ? 'Saved' : null
-      }}
-    >
+    <ManageDialog.Provider {...dialog}>
       <ManageDialog.Frame>
         <ManageDialog.Header />
         <ManageDialog.Columns>
@@ -812,7 +781,6 @@ export function SettingsPanel({ onClose }: { onClose?: () => void }): JSX.Elemen
             </div>
           </ManageDialog.Pane>
         </ManageDialog.Columns>
-        <ManageDialog.Message testId="settings-error" compact />
       </ManageDialog.Frame>
     </ManageDialog.Provider>
   )

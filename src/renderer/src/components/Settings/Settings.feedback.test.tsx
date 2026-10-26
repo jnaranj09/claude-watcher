@@ -1,6 +1,6 @@
-// Action feedback (spec 2026-09-29 §2.1) — every Settings action says what happened: `Saved`
-// in the dialog's message slot; a refused change snaps the control back and names the setting; Copy,
-// Reload and Regenerate report on the button; Regenerate, Reload and Open folder cannot run twice;
+// Action feedback (spec 2026-09-29 §2.1) — every Settings action says what happened: the
+// dialog's `Saved` toast (spec 2026-10-26); a refused change snaps the control back and names the
+// setting in an error toast; Copy, Reload and Regenerate report on the button; Regenerate, Reload and Open folder cannot run twice;
 // the Theme trigger never shows a raw id while the list loads.
 //
 // Flash state is read through the button's `role="status"` sibling, never the button's own
@@ -15,7 +15,8 @@ import { deferred } from '../../test/deferred'
 import { mergedSettings, stubSettings } from '../../test/settingsBridge'
 import { DEFAULT_SETTINGS } from '../../../../shared/schemas/settings'
 import { DEFAULT_THEME_BUNDLE, type ThemeSummary } from '../../../../shared/schemas/theme'
-import { SUCCESS_MS } from '../ManageDialog/manageDialogState'
+import { toastStore } from '../../stores/toastStore'
+import { dialogToast } from '../../test/toasts'
 
 let cleanup: (() => void) | undefined
 afterEach(() => {
@@ -79,35 +80,33 @@ function openCategory(r: RenderResult, id: string): void {
   click(q(r, `[data-testid="settings-category-${id}"] button`))
 }
 
-describe('Settings — ✓ Saved and rollback', () => {
-  it('a change main stored shows a compact Saved callout in the message slot for SUCCESS_MS', async () => {
-    vi.useFakeTimers()
+describe('Settings — Saved and rollback', () => {
+  it("a change main stored shows the dialog's Saved toast", async () => {
     stubSettings()
     stubThemes()
     const r = render()
     await flush(3)
-    const mark = q(r, '[data-testid="settings-message"]')
-    expect(mark.getAttribute('role')).toBe('status')
-    expect(mark.textContent).toBe('')
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
-    expect(mark.textContent).toBe('Saved')
-    // The slot is the live region (always in the page); the callout inside does not re-announce.
-    const callout = mark.querySelector('[data-testid="settings-success"]')
-    expect(callout?.getAttribute('data-callout-tone')).toBe('success')
-    expect(callout?.getAttribute('data-callout-size')).toBe('compact')
-    expect(callout?.hasAttribute('role')).toBe(false)
-    act(() => {
-      vi.advanceTimersByTime(SUCCESS_MS - 1)
-    })
-    expect(mark.textContent).toBe('Saved')
-    act(() => {
-      vi.advanceTimersByTime(1)
-    })
-    expect(mark.textContent).toBe('')
+    expect(dialogToast('settings')).toMatchObject({ kind: 'success', title: 'Saved' })
   })
 
-  it('a refused change snaps the control back to main value and names it on the error line', async () => {
+  // Review Focus 3: each result replaces the dialog's last toast, so quick toggles never pile up.
+  it('three quick saves leave one Saved toast', async () => {
+    stubSettings()
+    stubThemes()
+    const r = render()
+    await flush(3)
+    click(q(r, '[data-testid="settings-sound-toggle"]'))
+    click(q(r, '[data-testid="settings-notifications-toggle"]'))
+    click(q(r, '[data-testid="settings-sound-toggle"]'))
+    await flush(3)
+    const live = toastStore.getState().toasts.filter((t) => !t.leaving)
+    expect(live).toHaveLength(1)
+    expect(live[0]).toMatchObject({ kind: 'success', title: 'Saved', key: 'dialog:settings' })
+  })
+
+  it('a refused change snaps the control back to main value and names it in an error toast', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubSettings(() => Promise.reject(new Error('EACCES /home/op/.config')))
     stubThemes()
@@ -118,15 +117,15 @@ describe('Settings — ✓ Saved and rollback', () => {
     click(toggle)
     await flush(3)
     expect(toggle.checked).toBe(true)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Could not save the attention sound.'
-    )
-    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not save the attention sound.'
+    })
     expect(r.container.textContent).not.toContain('EACCES')
     expect(warn.mock.calls.flat().join(' ')).not.toContain('/home/op')
   })
 
-  it('the next change that main stores clears that line', async () => {
+  it('the next change that main stores replaces that error with Saved', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     let refuse = true
     stubSettings((patch) =>
@@ -137,15 +136,15 @@ describe('Settings — ✓ Saved and rollback', () => {
     await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
-    expect(r.container.querySelector('[data-testid="settings-error"]')).not.toBeNull()
+    expect(dialogToast('settings')?.kind).toBe('error')
     refuse = false
     click(q(r, '[data-testid="settings-notifications-toggle"]'))
     await flush(3)
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
+    expect(dialogToast('settings')).toMatchObject({ kind: 'success', title: 'Saved' })
   })
 })
 
-describe('Settings — one error line, and ✓ Saved stays where it belongs (review fixes)', () => {
+describe('Settings — one result toast, and field errors stay by their field (review fixes)', () => {
   /** Type into the React-controlled port field and commit it (React's onBlur is `focusout`). */
   function commitPort(r: RenderResult, value: string): void {
     const port = q<HTMLInputElement>(r, '[data-testid="settings-api-port"]')
@@ -159,10 +158,9 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     })
   }
 
-  // The slot draws the error ahead of the success, so a refusal HIDES `Saved` even if nothing
-  // clears it. This pins the clearing itself: once the error goes away without a save (the
-  // current port committed again), the earlier `Saved` must not come back.
-  it('a refused save forgets the earlier Saved: clearing the error without a save shows nothing', async () => {
+  // The refusal replaces `Saved`; once the error goes away without a save (the current port
+  // committed again), its toast fades and the earlier `Saved` does not come back.
+  it('a refused save replaces Saved; clearing the error without a save leaves no toast', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     let refuse = false
     stubSettings((patch) =>
@@ -176,15 +174,17 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     openCategory(r, 'api')
     commitPort(r, '30000')
     await flush(3)
-    expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
+    expect(dialogToast('settings')).toMatchObject({ kind: 'success', title: 'Saved' })
     refuse = true
     commitPort(r, '30001')
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not save the API port.')
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not save the API port.'
+    })
     commitPort(r, '30000')
     await flush(3)
-    expect(r.container.querySelector('[data-testid="settings-error"]')).toBeNull()
-    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
+    expect(dialogToast('settings')).toBeUndefined()
   })
 
   it('a refused save and an invalid port after it each show, in their own place', async () => {
@@ -195,41 +195,38 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Could not save the attention sound.'
-    )
     openCategory(r, 'api')
     commitPort(r, '80')
     await flush(3)
     expect(q(r, '[data-testid="settings-port-error"]')).toHaveTextContent(
       'Port must be between 1024 and 65535.'
     )
-    expect(q(r, '[data-testid="settings-error"]')).toHaveTextContent(
-      'Could not save the attention sound.'
-    )
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not save the attention sound.'
+    })
   })
 
-  it('a save that lands clears only its own refusal, never a newer different error', async () => {
+  // One result per dialog (spec 2026-10-26 [AGENT]): the newest result is the one on screen.
+  it('a save that lands replaces a different error toast with Saved', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    let refuse = true
-    stubSettings((patch) =>
-      refuse ? Promise.reject(new Error('x')) : Promise.resolve(mergedSettings(patch))
-    )
     const themes = stubThemes()
     themes.reload.mockImplementation(() => Promise.reject(new Error('x')))
+    stubSettings()
     stubApi()
     const r = render()
-    await flush(3)
-    click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
     openCategory(r, 'appearance')
     click(q(r, '[data-testid="settings-theme-reload"]'))
     await flush(3)
-    refuse = false
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not reload themes.'
+    })
     openCategory(r, 'api')
     click(q(r, '[data-testid="settings-api-enabled"]'))
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]')).toHaveTextContent('Could not reload themes.')
+    expect(dialogToast('settings')).toMatchObject({ kind: 'success', title: 'Saved' })
   })
 
   it('a save that lands leaves a port error under its field', async () => {
@@ -249,19 +246,22 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     )
   })
 
-  it('✓ Saved does not follow a switch to another category', async () => {
-    stubSettings()
+  it('an error toast stays across a switch to another category', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    stubSettings(() => Promise.reject(new Error('x')))
     stubThemes()
     const r = render()
     await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
-    expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
     openCategory(r, 'terminal')
-    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not save the attention sound.'
+    })
   })
 
-  it('a refusal right after a success clears ✓ Saved — never both at once', async () => {
+  it('a refusal right after a success replaces Saved — never both at once', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     let refuse = false
     stubSettings((patch) =>
@@ -272,14 +272,16 @@ describe('Settings — one error line, and ✓ Saved stays where it belongs (rev
     await flush(3)
     click(q(r, '[data-testid="settings-sound-toggle"]'))
     await flush(3)
-    expect(q(r, '[data-testid="settings-success"]').textContent).toBe('Saved')
+    expect(dialogToast('settings')).toMatchObject({ kind: 'success', title: 'Saved' })
     refuse = true
     click(q(r, '[data-testid="settings-notifications-toggle"]'))
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe(
-      'Could not save desktop notifications.'
-    )
-    expect(r.container.querySelector('[data-testid="settings-success"]')).toBeNull()
+    const live = toastStore.getState().toasts.filter((t) => !t.leaving)
+    expect(live).toHaveLength(1)
+    expect(live[0]).toMatchObject({
+      kind: 'error',
+      title: 'Could not save desktop notifications.'
+    })
   })
 })
 
@@ -308,7 +310,7 @@ describe('Settings — API token actions', () => {
     expect(copy.nextElementSibling?.textContent).toBe('✓ Copied')
   })
 
-  it('a failed copy says so on the error line', async () => {
+  it('a failed copy says so in an error toast', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubSettings()
     stubThemes()
@@ -321,7 +323,10 @@ describe('Settings — API token actions', () => {
     const copy = q<HTMLButtonElement>(r, '[data-testid="settings-api-copy"]')
     click(copy)
     await flush(3)
-    expect(q(r, '[data-testid="settings-error"]').textContent).toBe('Could not copy the token.')
+    expect(dialogToast('settings')).toMatchObject({
+      kind: 'error',
+      title: 'Could not copy the token.'
+    })
     expect(copy.nextElementSibling?.textContent).toBe('')
     expect(warn.mock.calls.flat().join(' ')).not.toContain('a'.repeat(64))
   })

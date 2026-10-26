@@ -1,5 +1,5 @@
 // Action feedback (spec 2026-09-29 §2.5) — ↑/↓ are busy while a move is in flight (a second press
-// would compute its index from a stale list), and a refused move says so on the error line (it was
+// would compute its index from a stale list), and a refused move says so in an error toast (it was
 // console only).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from 'react'
@@ -11,6 +11,7 @@ import { tagsStore } from '../../stores/tagsStore'
 import { templatesStore } from '../../stores/templatesStore'
 import { workspacesStore } from '../../stores/workspacesStore'
 import type { Rule } from '../../../../shared/ipc/contract'
+import { dialogToast } from '../../test/toasts'
 
 const R_A: Rule = {
   id: 'ra',
@@ -67,7 +68,7 @@ describe('RulesDialog — ↑/↓ feedback', () => {
       pending.reject(new Error('rule_not_found'))
       await pending.promise.catch(() => {})
     })
-    expect(el('rule-error').textContent).toBe('Could not move the rule.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'error', title: 'Could not move the rule.' })
     expect(el('rule-down-ra').hasAttribute('aria-busy')).toBe(false)
   })
 
@@ -79,9 +80,9 @@ describe('RulesDialog — ↑/↓ feedback', () => {
       pending.reject(new Error('rule_not_found'))
       await pending.promise.catch(() => {})
     })
-    expect(el('rule-error').textContent).toBe('Could not move the rule.')
+    expect(dialogToast('tags')).toMatchObject({ kind: 'error', title: 'Could not move the rule.' })
     pending = deferred<unknown>()
     act(() => el('rule-down-ra').click())
-    expect(r.container.querySelector('[data-testid="rule-error"]')).toBeNull()
+    expect(dialogToast('tags')).toBeUndefined()
   })
 })

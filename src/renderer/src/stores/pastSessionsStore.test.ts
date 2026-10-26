@@ -31,7 +31,7 @@ beforeEach(() => {
 describe('pastSessionsStore', () => {
   it('load hydrates from the bridge; a failure logs a code and keeps the store', async () => {
     stub('pastSessions', { list: vi.fn(() => Promise.resolve([ROW])) })
-    // It tells the caller whether it worked: the dialog puts a failure on its error line.
+    // It tells the caller whether it worked: the dialog puts a failure in its load-error Callout.
     expect(await loadPastSessions()).toBe(true)
     expect(pastSessionsStore.getState()).toMatchObject({ sessions: [ROW], loaded: true })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

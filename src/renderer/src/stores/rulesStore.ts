@@ -87,12 +87,12 @@ export async function saveRule(req: RuleSaveRequest): Promise<Rule> {
   return result.saved
 }
 
-/** Rethrows: the Rules dialog error line shows it. */
+/** Rethrows: the Rules dialog's error toast shows it. */
 export async function removeRule(id: string): Promise<void> {
   rulesStore.getState().hydrate(await window.rules.remove(id))
 }
 
-/** Logs a code and RETHROWS: the Rules dialog says so on its error line (spec 2026-09-29 §2.5 — a
+/** Logs a code and RETHROWS: the Rules dialog says so in its error toast (spec 2026-09-29 §2.5 — a
  *  refused move used to be console-only). The list stays as main last sent it. */
 export async function moveRule(id: string, toIndex: number): Promise<void> {
   try {

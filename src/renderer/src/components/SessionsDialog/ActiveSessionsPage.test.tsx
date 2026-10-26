@@ -16,6 +16,7 @@ vi.mock('../../lib/openFromNotification', () => ({
   openFromNotification: vi.fn(() => Promise.resolve())
 }))
 import { toastStore } from '../../stores/toastStore'
+import { dialogToast } from '../../test/toasts'
 
 const WS: Workspace[] = [
   { id: 'default', name: 'Default', color: 'slate', defaultCwd: null },
@@ -203,7 +204,7 @@ describe('Sessions → Active — the bulk bar', () => {
     expect(text(r, 'active-bulk-delete')).toBe('Delete')
   })
 
-  it('Archive: no confirm; one call per checked row; the slot says so — no toast, no board', async () => {
+  it("Archive: no confirm; one call per checked row; the dialog's toast says so — no board toast, no board", async () => {
     act(() => boardStore.setState({ viewMode: 'focused', focusedTerminalId: 'tz' }))
     act(() => toastStore.setState({ toasts: [] }))
     const r = render()
@@ -212,9 +213,12 @@ describe('Sessions → Active — the bulk bar', () => {
     click(q(r, '[data-testid="active-bulk-archive"]'))
     expect(archive.mock.calls.map((c) => c[0]).sort()).toEqual(['tb', 'tc'])
     await flush(6)
-    expect(text(r, 'sessions-success')).toBe('Archived 2 sessions.')
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'success',
+      title: 'Archived 2 sessions.'
+    })
     expect(boardStore.getState().viewMode).toBe('focused') // the card's showBoard() never ran
-    expect(toastStore.getState().toasts).toEqual([])
+    expect(toastStore.getState().toasts).toHaveLength(1) // the dialog's own, no `Archived` + Resume
   })
 
   it('a partial failure names the refused one and keeps it checked', async () => {
@@ -227,7 +231,10 @@ describe('Sessions → Active — the bulk bar', () => {
     click(box(r, 'c'))
     click(q(r, '[data-testid="active-bulk-archive"]'))
     await flush(6)
-    expect(text(r, 'active-session-error')).toBe('Archived "name-b". Could not archive "name-c".')
+    expect(dialogToast('sessions')).toMatchObject({
+      kind: 'error',
+      title: 'Archived "name-b". Could not archive "name-c".'
+    })
     expect(box(r, 'c')?.checked).toBe(true)
     expect(box(r, 'b')?.checked).toBe(false)
   })
@@ -249,7 +256,7 @@ describe('Sessions → Active — the bulk bar', () => {
       ['tc', 'c']
     ])
     await flush(6)
-    expect(text(r, 'sessions-success')).toBe('Deleted 2 sessions.')
+    expect(dialogToast('sessions')).toMatchObject({ kind: 'success', title: 'Deleted 2 sessions.' })
   })
 
   it('both buttons are busy while main answers: one press, one action', async () => {
@@ -330,7 +337,7 @@ describe('Sessions → Active — details', () => {
       boardStore.setState({ sessionsById: rest })
     })
     await flush(6)
-    expect(text(r, 'sessions-success')).toBe('Archived "name-b".')
+    expect(dialogToast('sessions')).toMatchObject({ kind: 'success', title: 'Archived "name-b".' })
     expect(q(r, '[data-testid="active-session-placeholder"]')).not.toBeNull()
   })
 

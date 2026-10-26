@@ -121,8 +121,8 @@ export function ActiveSessionsPage({
     })
   }
   // One press, one action (spec 2026-09-29 §2.3): Archive and Delete — bulk or the footer's — share
-  // one in-flight flag. Results go to the message slot: inside the dialog there is no toast and no
-  // jump to the board (spec D feedback rule).
+  // one in-flight flag. Results are the dialog's own toast (spec 2026-10-26): no board toast
+  // (`Archived` + Resume) and no jump to the board (spec D feedback rule).
   const exiting = useAsyncAction(async (verb: ExitVerb, ids: string[]): Promise<void> => {
     dialog.actions.setError(null)
     const outcomes = await exitSessions(verb, ids)
@@ -306,7 +306,6 @@ export function ActiveSessionsPage({
           </ManageDialog.Placeholder>
         )}
       </ManageDialog.Columns>
-      <ManageDialog.Message testId="active-session-error" />
     </>
   )
 }
