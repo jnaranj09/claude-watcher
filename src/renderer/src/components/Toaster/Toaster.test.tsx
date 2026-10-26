@@ -1,6 +1,6 @@
 // Action feedback (spec 2026-09-29 §1.2) — the Toaster: a labelled region, status vs alert roles,
-// the success/error mark, ✕, the action, the action NOT rendered while a modal is open, hover/focus pausing the timer, and
-// a workspace drawn as its tint.
+// the success/error mark, ✕, the action, the action NOT rendered while a modal is open,
+// hover/focus pausing the timer, and a workspace drawn as its tint.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'

@@ -451,10 +451,10 @@ until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCo
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
   action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`. Anatomy:
-  error glyph, title, optional `detail`, optional action (`Button primary sm` with its icon,
+  disc (success and error), title, optional `detail`, optional action (`Button primary sm` with its icon,
   `ToastAction.icon`), ✕ (`Button secondary xs icon="round"`, `aria-label="Dismiss"`).
   Success/info `role="status"`, error `role="alert"`, in `<section aria-label="Notifications">`.
-  Themes: `[data-toast]`, `[data-toast-kind]`.
+  Themes: `[data-toast]`, `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]`.
 - Toast action not rendered while a modal is open (`modalOpenIn`).
 - Toast closes when `run` is called; store contains throws silently, so a failing `run` pushes its
   own error toast.
