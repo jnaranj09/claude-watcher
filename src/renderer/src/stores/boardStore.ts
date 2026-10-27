@@ -328,7 +328,8 @@ export interface BoardState {
    *  flight: the prompt stays open and its confirm reads `Starting…` / `Renaming…`. Reset by
    *  show/clear. RENDERER VIEW-STATE. */
   sessionNamePromptBusy: boolean
-  /** The prompt's mapped refusal copy (never a thrown message), or null. Reset by show/clear. */
+  /** The prompt's mapped refusal copy (never a thrown message), or null. The dialog shows it as an
+   *  error toast, not inline. Reset by show/clear. */
   sessionNamePromptError: string | null
   /**
    * Sessions (spec 2026-10-03 B) — the Sessions dialog's page while it is open, else null. ONE flag
@@ -523,7 +524,7 @@ export interface BoardState {
    * (registry only, never the view).
    */
   clearSessionNamePrompt: () => void
-  /** Mark the prompt's invoke in flight (true also clears the error line) or done. */
+  /** Mark the prompt's invoke in flight (true also clears the error) or done. */
   setSessionNamePromptBusy: (busy: boolean) => void
   setSessionNamePromptError: (message: string | null) => void
   /** Sessions — open the dialog on `page`, or switch to `page` while it is open. Same page: no-op. */

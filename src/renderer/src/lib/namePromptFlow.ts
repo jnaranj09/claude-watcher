@@ -1,12 +1,12 @@
 // Action feedback (spec 2026-09-29 §2.2) — what the name prompt's Create / Rename DO, outside React
 // so the ordering is testable without App.
 //
-// The prompt STAYS OPEN and busy while main answers. A refusal keeps the typed name and puts mapped
-// copy on the prompt's error line. A launch that has not answered in LAUNCH_GUARD_MS (longer than
+// The prompt STAYS OPEN and busy while main answers. A refusal keeps the typed name; the dialog
+// shows its mapped copy as an error toast keyed `dialog:session-name`. A launch that has not answered in LAUNCH_GUARD_MS (longer than
 // main's synchronous 10 s version probe, index.ts `readClaudeVersionRaw`) closes the prompt and
 // says so in a toast. A result that lands after the prompt closed (the guard, or the operator's
 // Escape/Cancel) NEVER takes the view: a success is registered like an API launch (registry only,
-// `registerLaunchedTerminal`) and toasted with [Open]; a failure is an error toast.
+// `registerLaunchedTerminal`) and toasted with [Open]; a failure is an error toast too (unkeyed: the dialog is gone).
 //
 // "The prompt" is the payload OBJECT that was submitted: a newer prompt is never touched by an
 // older result. Rename has no guard — main's rename handler is synchronous (index.ts).

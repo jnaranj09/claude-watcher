@@ -442,7 +442,7 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  // Action feedback — an edit clears the prompt's error line (R26).
+  // Action feedback — an edit clears the prompt's error (R26), which fades its toast.
   const clearNamePromptError = useCallback((): void => {
     boardStore.getState().setSessionNamePromptError(null)
   }, [])

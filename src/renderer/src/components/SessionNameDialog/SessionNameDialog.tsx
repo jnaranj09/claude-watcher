@@ -62,7 +62,7 @@ export interface SessionNameDialogProps {
    *  the dialog. The caller nulls it on every attempt (busy) and every edit, so each refusal is a
    *  null → text change and shows again even when the text repeats. */
   error?: string | null
-  /** Called on every edit, so the caller clears `error` (R26: editing clears the error line). */
+  /** Called on every edit, so the caller clears `error` (R26: editing clears the error, which fades its toast). */
   onEdit?: () => void
 }
 
