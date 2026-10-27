@@ -1,9 +1,9 @@
 /* Action feedback (spec 2026-09-29 §1.2) — the toast stack. Bottom-right with a --space-4 gutter;
    while a dialog is open the Toaster sets --toast-clearance (px from the viewport bottom to the
    dialog's `[data-toast-clearance]` footer) and the stack rises to sit a --gap-page above it, so a
-   toast never covers the dialog's buttons. z-index 70: above ManageDialog / QuitGuard / StopConfirm / the name prompt (60), below the
-   terminal context menu (1000). Tokens only. A success and an error draw the Callout's disc
-   (`.mark`); info draws none. */
+   toast never covers the dialog's buttons. z-index 70: above ManageDialog / QuitGuard /
+   StopConfirm / the name prompt (60), below the terminal context menu (1000). Tokens only. A
+   success and an error draw the Callout's disc (`.mark`); info draws none. */
 .region {
   position: fixed;
   right: var(--space-4);

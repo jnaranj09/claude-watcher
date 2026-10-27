@@ -426,6 +426,11 @@ button[data-manage-close][data-variant] {
   border-right: 1px solid var(--border-card);
   padding: 12px 10px;
 }
+/* The columns reach the panel's bottom edge (a dialog draws no band under them), so the first
+   column's fill takes the panel's corner: 14px less the panel's 1px border. */
+[data-manage-body] > :first-child {
+  border-bottom-left-radius: 13px;
+}
 [data-manage-list] [data-manage-row-select] {
   border-radius: var(--rounded-md);
 }

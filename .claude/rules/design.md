@@ -51,12 +51,11 @@ const formOpen = dialog.state.creating || selected !== null
         </ManageDialog.Placeholder>
       )}
     </ManageDialog.Columns>
-    <ManageDialog.Message testId="template-error" />
   </ManageDialog.Frame>
 </ManageDialog.Provider>
 ```
 
-A dialog with sibling pages owns this state and renders each page's Header/Columns/Message — see
+A dialog with sibling pages owns this state and renders each page's Header/Columns — see
 "Page column".
 
 ## Two-column rules
@@ -82,8 +81,8 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
   `aria-current="page"`; its rows ARE rail rows, so the current page has the one selected look
   (above), the same as a Settings category. Never tabs, never a second dialog. The dialog owns the
   scope and Active's and Past's filters (both survive a page switch) and the shell state; each
-  page renders `Header` + `Columns` (page column first) + `Message` and takes `DialogPageProps`.
-  A page switch closes what was open.
+  page renders `Header` + `Columns` (page column first) and takes `DialogPageProps`. A page
+  switch closes what was open.
 - No exceptions: a surface that "needs" a table or card is a design question.
 
 ## Dialog rules
@@ -107,10 +106,13 @@ var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)` and its own `m
   form gets shortened.
   Any scroll region clips every side, so it needs `padding-left/right: var(--space-2)` +
   `scroll-padding-block` or focus rings get cut.
-- **One message slot per dialog** (`ManageDialog.Message`, under the columns): an error Callout
-  (`role="alert"`) or a 2.5 s success Callout (`showSuccess('Template saved.')`, called AFTER the
-  `select` that follows the save). Never render `error.message` — map the code to copy (`copyFor` /
-  `templateErrorMessage`). Editing any field clears it (R26). A refused Delete says so.
+- **A dialog's result is ONE toast** (spec 2026-10-26 dialog toasts), keyed `dialog:<testIdPrefix>`
+  so a new result replaces the last: `setError(copy)` pushes the error toast,
+  `showSuccess('Template saved.')` the success toast (called AFTER the `select` that follows the
+  save). Never render `error.message` — map the code to copy (`copyFor` / `templateErrorMessage`).
+  Editing any field clears the error and fades its toast (R26), and so does closing the dialog; a
+  success fades on its timer. A refused Delete says so. A field error or a standing notice is NOT
+  a result: it is a danger Callout by the field or in the pane it describes, never a toast.
 - **A greyed Save says why** once dirty: muted `ManageDialog.Hint` (not the alert) naming the
   failing field, chosen by Zod issue PATH + draft shape, never the message.
 - **A scope change in a form resets what the new scope can't see** (R15, `rescopeDraft`).
@@ -188,7 +190,7 @@ Tags dialog rail uses `TagPathLabel` instead.
 - Open peek toggle is LIT (`--text-primary` fill, `--text-on-lit`, `TagIndicator mono`), `title`
   `Hide tags`. `Show all tags` toggle lit the same way. It is remembered PER WORKSPACE
   (`settings.showAllTagsByWorkspace`); the rail's collapse is remembered once for all
-  (`settings.railCollapsed`). A refused save rolls back and toasts (the rail has no message slot).
+  (`settings.railCollapsed`). A refused save rolls back and toasts.
 - Tag names truncate sideways only (`overflow-x: clip`, `text-box: trim-both ex alphabetic`) —
   `overflow:hidden` + `line-height:1` cut descenders.
 - `TagPicker` trigger: `aria-expanded` + `aria-controls`, never `aria-haspopup` (popup is a
@@ -251,7 +253,7 @@ Spec `2026-10-02-region-spacing-design.md`. The roles say WHICH value a relation
 which relation two neighbours ARE. Items of one kind close, different regions clearly apart.
 
 1. **A screen is a stack of regions.** Header (title row, optional description) · body (rail |
-   pane) · message slot. Rail: top tool (search) · list · bottom slot (`+ New` or an action row,
+   pane). Rail: top tool (search) · list · bottom slot (`+ New` or an action row,
    plus an optional footnote). Form: blocks (label + control + hint) · footer.
 2. **Two different regions never sit closer than `--gap-group` (12px)**; rows of one list keep
    `--gap-row` / `--gap-row-filled`. Check: the space AROUND a group is at least twice the largest
@@ -393,9 +395,10 @@ one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕), `--gap-section
 
 ## Past sessions and exits
 
-- Past sessions is the Past PAGE of the Sessions dialog (☰ → Sessions). Nothing selected → placeholder "Select a session on the left." Load failure → danger Callout
-`Could not load past sessions` in the rail (local state, not the dialog's error line), suppresses the
-empty sentence.
+- Past sessions is the Past PAGE of the Sessions dialog (☰ → Sessions). Nothing selected →
+  placeholder "Select a session on the left." Load failure → danger Callout
+  `Could not load past sessions` in the rail (local state, not the dialog's error toast),
+  suppresses the empty sentence.
 - **Every exit is Archive or Delete.** Card + focused bar carry Archive (no confirm, reversible) and
   red-at-rest Delete. Delete opens `StopConfirm`: "Delete session? The session is stopped and
   nothing is kept in Past sessions. Claude's own files are not touched." — Cancel default-focused.
@@ -403,10 +406,10 @@ empty sentence.
   Idle, oldest first; a `RowCheck` per row + `Select all` (indeterminate) for the bulk bar
   (`ListBottomDivided`: `N selected [Archive] [Delete]`), the row itself for the details
   (`[Delete] [Archive] [Open]`). Delete ARMS IN PLACE (keyed: `armKey="bulk"` vs the footer's) with
-  StopConfirm's sentence as a `Hint` — StopConfirm cannot open over a dialog. Results go to the
-  message slot through the quiet exit core (`archiveTerminalCore` / `deleteTerminalCore` /
-  `exitSessions`): no toast, no jump to the board. `Open` closes the dialog, then
-  `openFromNotification`.
+  StopConfirm's sentence as a `Hint` — StopConfirm cannot open over a dialog. Results are the
+  dialog's own result toast, through the quiet exit core (`archiveTerminalCore` /
+  `deleteTerminalCore` / `exitSessions`): no board toast, no jump to the board. `Open` closes the
+  dialog, then `openFromNotification`.
 - **No key archives** (R27); Archive button label names no chord.
 - `Esc to return` only while focus is outside the terminal.
 - Rail foot: "Keeps the 200 most recent sessions" (UX-15) — a `ListNote` in `ListBottomDivided`
@@ -429,8 +432,10 @@ Spec `2026-09-29-action-feedback-design.md`. Visible result for every action; no
 
 **Placement:**
 
-1. Inside a dialog → its message slot (error or success) / Settings' compact `Saved`. **A dialog
-   never toasts its own result** (Delete confirm and Quit guard have no slot → they toast refusals).
+1. A dialog's result (a save, delete, forget, restore, start or import that landed or was
+   refused) → its ONE result toast (`dialog:<testIdPrefix>`; the name prompt `dialog:session-name`;
+   Settings' `Saved`), above the dialog's footer. Delete confirm and Quit guard toast refusals too.
+   A field error or standing notice stays inline (a danger Callout by what it describes).
 2. Small action on a control that stays (Copy, Reload themes, Regenerate) → Button `feedback` for
    1.5 s.
 3. Board-level or off-screen result → toast.
@@ -441,21 +446,25 @@ until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCo
 - **Callout (`components/Callout`, spec `2026-10-01-feedback-callout-design.md`) is the ONE in-page
   message.** Tinted box (`--success-fill`/`--danger-fill`), 1px tinted border, 3px `--success`/
   `--danger` left bar, icon disc drawn in CSS (text = the words), `--text-primary` title, optional
-  `detail` (`--text-secondary`) and `action`. `size="block"` (dialog slot, small forms, banners) or
-  `"compact"` (one line: Settings' `Saved` in the message slot, expander). Success `role="status"`, danger
-  `role="alert"`; `announce={false}` inside something already live (dead pane, Settings' slot).
-- Success shows `SUCCESS_MS` (2.5 s); an error stays until the next action. Success copy names the
-  THING (`Rule deleted.`, `Session forgotten.`), never a typed value. Green = `--success`; themes
-  override it (Paper: dark green — `#a6e3a1` on white fails 3:1).
-- Toast mark: a success and an error draw the Callout disc (`[data-toast-mark]`, 16px, `--success` `✓` / `--danger` `!`, glyph in CSS); info draws none.
+  `detail` (`--text-secondary`) and `action`. `size="block"` (a field or pane error, small forms,
+  banners) or `"compact"` (one line: the expander). Success `role="status"`, danger `role="alert"`;
+  `announce={false}` inside something already live (dead pane).
+- A dialog's success toast lasts the toast time (`TOAST_MS`); its error stays until the next
+  action, a ✕ or the dialog closing. Success copy names the THING (`Rule deleted.`,
+  `Session forgotten.`), never a typed value. Green = `--success`; themes override it (Paper: dark green — `#a6e3a1` on white fails 3:1).
+- Toast mark: a success and an error draw the Callout disc (`[data-toast-mark]`, 16px,
+  `--success` `✓` / `--danger` `!`, glyph in CSS); info draws none.
 
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
-  action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`. Anatomy:
-  disc (success and error), title, optional `detail`, optional action (`Button primary sm` with its icon,
-  `ToastAction.icon`), ✕ (`Button secondary xs icon="round"`, `aria-label="Dismiss"`).
+  action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`; while a
+  dialog is open the stack rises a `--gap-page` above its button row (`[data-toast-clearance]`,
+  measured into `--toast-clearance`), so a toast never covers `[Delete] [Save]`. Anatomy: disc
+  (success and error), title, optional `detail`, optional action (`Button primary sm` with its
+  icon, `ToastAction.icon`), ✕ (`Button secondary xs icon="round"`, `aria-label="Dismiss"`).
   Success/info `role="status"`, error `role="alert"`, in `<section aria-label="Notifications">`.
-  Themes: `[data-toast]`, `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]`.
+  Themes: `[data-toast]`, `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]`,
+  `[data-toast-clearance]`.
 - Toast action not rendered while a modal is open (`modalOpenIn`).
 - Toast closes when `run` is called; store contains throws silently, so a failing `run` pushes its
   own error toast.
@@ -467,12 +476,12 @@ feedbackShown={copied !== null}`. `busy` = disabled + `aria-busy`; busy `Delete`
 - **Every async button uses `useAsyncAction(fn)` → `{ run, busy }` or a `busy` flag.**
 - **Every `void window.<a>.<b>(…)` ends in `.catch(`** (`lib/bridgeCatch.test.ts`). A wrapper that
   can fail rethrows a code or reports itself.
-- Settings: compact success Callout `Saved` in the dialog's message slot
-  (`ManageDialog.Message compact`), 2.5 s; refused change rolls back
-  (`persistSettingsPatch` → `settings_persist_failed`), error line `Could not save <setting>.`
+- Settings: every change says `Saved` in the dialog's success toast (one at a time: quick changes
+  replace it); a refused change rolls back (`persistSettingsPatch` → `settings_persist_failed`)
+  and toasts `Could not save <setting>.`
 - **Name prompt stays open while main answers** (`lib/namePromptFlow.ts`): busy `Starting…` /
-  `Renaming…`; refusal keeps the name + mapped copy (`folder_missing`, `claude_version`,
-  `template_not_found`). No answer in 15 s → close + `Still starting "<name>"…` toast. Late result
+  `Renaming…`; refusal keeps the name and toasts mapped copy (`dialog:session-name`;
+  `folder_missing`, `claude_version`, `template_not_found`). No answer in 15 s → close + `Still starting "<name>"…` toast. Late result
   never takes the view (success → registry only + toast with `Open`; failure → error toast).
 - **Archive/Delete wait for main:** view goes to board at once, registry only after main answers.
   Archive toasts `Archived "<name>"` with `Resume` (only once the record exists and with a bound id).

@@ -330,8 +330,8 @@ export async function createWorkspace(page, name, color = 'blue') {
   await closeManageWorkspaces(page)
 }
 
-/** Delete a workspace through the dialog (Delete → Confirm delete). Throws with the dialog's own
- *  error line when main refuses. */
+/** Delete a workspace through the dialog (Delete → Confirm delete). Throws with the dialog's
+ *  error toast (`dialog:workspaces`) when main refuses. */
 export async function deleteWorkspace(page, name) {
   await openManageWorkspaces(page)
   const row = page.locator('[data-testid^="workspace-select-"]', { hasText: name })
@@ -342,8 +342,10 @@ export async function deleteWorkspace(page, name) {
   try {
     await row.waitFor({ state: 'detached', timeout: 5000 })
   } catch {
-    const error = page.locator('[data-testid="workspace-error"]')
-    const why = (await error.count()) > 0 ? await error.innerText() : 'no error line shown'
+    const error = page.locator(
+      '[data-toast][data-toast-key="dialog:workspaces"][data-toast-kind="error"]'
+    )
+    const why = (await error.count()) > 0 ? await error.innerText() : 'no error toast shown'
     throw new Error(`deleting workspace "${name}" did not complete: ${why}`)
   }
   await closeManageWorkspaces(page)

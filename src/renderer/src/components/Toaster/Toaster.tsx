@@ -8,7 +8,8 @@
 // Hover or focus inside a toast pauses its timer. A success and an error draw the Callout's disc
 // (`[data-toast-mark]`, glyph in CSS so the text stays the words); info draws none. The action is
 // the toast's one primary Button, with its icon (spec 2026-10-14). Themes target `[data-toast]`,
-// `[data-toast-kind]`, `[data-toast-mark]` and `[data-toast-key]`, never a test id.
+// `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]` and `[data-toast-clearance]`, never
+// a test id.
 //
 // The stack rises above an open dialog's buttons: a dialog marks its button row
 // `[data-toast-clearance]`, and while toasts exist the Toaster measures it (on a toast change, a

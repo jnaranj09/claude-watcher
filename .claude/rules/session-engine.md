@@ -23,7 +23,7 @@ session truth (`state.md`); every input is parsed at one boundary (`zod-boundari
 - **Min claude 2.1.245, checked at launch** (`pty/claudeVersion.ts`, `MIN_CLAUDE_VERSION` in
   `src/shared/launch/`). Spawn passes `--session-id`, `-n`, `--settings`; an older claude rejects
   them and dies. `CH.sessionLaunch` probes `$SHELL -l -c "<claude> --version"`, refuses with
-  `claude_version` (error line in the name prompt; Past sessions Open and dead-pane Resume map it
+  `claude_version` (a toast over the name prompt; Past sessions Open and dead-pane Resume map it
   too). Caches only the OK verdict. **Fails OPEN** on unreadable version (a false block bricks a
   working install). Bump the floor only after re-verifying the three flags. API create: 503
   `claude_version`, refusal reused 30 s (`createClaudeVersionGate`).
@@ -107,8 +107,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   resumed (Past sessions, or the dead pane's Resume) has no goal launch and comes back without its
   tools (known limit); a dead-pane Reopen keeps it.
 - **Missing folder refused before anything registers** (UX-11): `launchService.launch` takes a
-  required `isDirectory`, throws `folder_missing` (in-app: error line "That folder no longer
-  exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503
+  required `isDirectory`, throws `folder_missing` (in-app: a toast over the name prompt "That folder
+  no longer exists."; API: 409 before the 503s). Dead-pane Reopen not checked. Hook server unbound → API 503
   `hooks_unavailable` (after `claude_version`, before `no_window`).
 - **Identity minted at launch:** `claude --session-id <uuid>`; card synthesized immediately via
   `reducer.upsertLaunched` (status `Connecting`). Identity = stable `id`, never `pid`.
