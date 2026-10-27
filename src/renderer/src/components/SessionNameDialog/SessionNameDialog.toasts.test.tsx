@@ -1,8 +1,8 @@
 // The name prompt's refusal is a toast (spec 2026-10-26 dialog toasts): the caller's `error` (a
 // refused launch or rename) is ONE error toast keyed `dialog:session-name`, never a line in the
 // dialog. `Too long — N/<max> characters.` stays inline: it is live, per keystroke, and has a
-// reason to sit by the field. The board nulls the error on every attempt (busy) and on every edit, so
-// each refusal is a null → text change, which is what pushes the toast again after a ✕.
+// reason to sit by the field. The board nulls the error on every attempt (busy) and on every edit,
+// so each refusal is a null → text change, which is what pushes the toast again after a ✕.
 import { describe, it, expect, afterEach } from 'vitest'
 import { act, type JSX } from 'react'
 import { renderComponent, type RenderResult } from '../../test/renderComponent'

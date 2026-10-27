@@ -2,8 +2,9 @@
 //
 // Main used to explain a too-old claude and a missing folder with `dialog.showErrorBox`, because
 // the renderer swallowed a rejected launch invoke. The name prompt now stays open while the invoke
-// runs and maps these codes to copy on its own error line (§2.2), so a box would say it twice. The
-// API path keeps its own refusals (sessionsCreate.ts: 503 `claude_version`, 409 `folder_missing`).
+// runs and maps these codes to copy shown as an error toast (§2.2), so a box would say it twice.
+// The API path keeps its own refusals (sessionsCreate.ts: 503 `claude_version`, 409
+// `folder_missing`).
 // Past sessions → Open and the dead pane's Resume use `requireClaudeVersion` for the same reason.
 import { isFolderMissing } from './launchSession'
 

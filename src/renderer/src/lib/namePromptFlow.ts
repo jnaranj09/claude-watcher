@@ -2,11 +2,12 @@
 // so the ordering is testable without App.
 //
 // The prompt STAYS OPEN and busy while main answers. A refusal keeps the typed name; the dialog
-// shows its mapped copy as an error toast keyed `dialog:session-name`. A launch that has not answered in LAUNCH_GUARD_MS (longer than
-// main's synchronous 10 s version probe, index.ts `readClaudeVersionRaw`) closes the prompt and
-// says so in a toast. A result that lands after the prompt closed (the guard, or the operator's
-// Escape/Cancel) NEVER takes the view: a success is registered like an API launch (registry only,
-// `registerLaunchedTerminal`) and toasted with [Open]; a failure is an error toast too (unkeyed: the dialog is gone).
+// shows its mapped copy as an error toast keyed `dialog:session-name`. A launch that has not
+// answered in LAUNCH_GUARD_MS (longer than main's synchronous 10 s version probe, index.ts
+// `readClaudeVersionRaw`) closes the prompt and says so in a toast. A result that lands after the
+// prompt closed (the guard, or the operator's Escape/Cancel) NEVER takes the view: a success is
+// registered like an API launch (registry only, `registerLaunchedTerminal`) and toasted with
+// [Open]; a failure is an error toast too (unkeyed: the dialog is gone).
 //
 // "The prompt" is the payload OBJECT that was submitted: a newer prompt is never touched by an
 // older result. Rename has no guard — main's rename handler is synchronous (index.ts).
@@ -44,7 +45,8 @@ const LAUNCH_ERROR_COPY: readonly (readonly [string, string])[] = [
 
 /** Matched with `includes`: Electron wraps an invoke rejection as
  *  "Error invoking remote method '…': Error: <code>" (the `copyFor` precedent). Any other failure
- *  gets `fallback`: the name prompt's own line, or the Goals sheet's `Could not start sessions.` */
+ *  gets `fallback`: the name prompt's toast copy, or the Goals sheet's
+ *  `Could not start sessions.` */
 export function launchErrorCopy(err: unknown, fallback = 'Could not start the session.'): string {
   const text = err instanceof Error ? err.message : ''
   for (const [code, copy] of LAUNCH_ERROR_COPY) if (text.includes(code)) return copy
