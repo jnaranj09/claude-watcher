@@ -56,8 +56,10 @@
   font-size: var(--font-size-label);
   border-radius: var(--rounded-sm);
 }
-/* Icon-only: a square of the size's height. */
+/* Icon-only: a square of the size's height. It never shrinks in a crowded flex row: its
+   min-content is only the glyph, so a long toast title squeezed the round ✕ into an oval. */
 .icon {
+  flex-shrink: 0;
   width: 32px;
   padding: 0;
 }

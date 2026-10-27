@@ -306,6 +306,12 @@ describe('Button owns every button style', () => {
     expect(cssRule('components/Button/Button.module.css', '.round')).toMatch(/border-radius: 50%;/)
   })
 
+  // A toast with a long title squeezed its xs ✕ from 20px to 12px wide (drive, 2026-10-27): a
+  // flex item shrinks to its min-content, and an icon's min-content is the glyph.
+  it('keeps an icon square when its flex row runs out of room', () => {
+    expect(cssRule('components/Button/Button.module.css', '.icon')).toMatch(/flex-shrink: 0;/)
+  })
+
   // `.secondary:hover:not(:disabled)` (0,3,0) outranks `.button[data-lit]` (0,2,0): a hovered
   // lit Filter button took the surface fill but KEPT the dark lit ink, so its icon and label
   // vanished. The lit hover rule must out-rank every variant's hover and keep the lit ink.
