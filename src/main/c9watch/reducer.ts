@@ -212,7 +212,9 @@ export interface Reducer {
    * status — a question, a permission wait, active work, already idle, or an unknown
    * id — is a SILENT no-op. That guard is the race safety: a `seen` that arrives after
    * a newer Stop/question/permission can never hide it. Unknown-id logs nothing
-   * (viewing is not an error, and a seen racing a removal is normal).
+   * (viewing is not an error, and a seen racing a removal is normal). It also releases a
+   * sticky ask's hold without changing the status: the operator has seen the ask, so claude's
+   * next turn decides again (a false or stale `Needs you:` can no longer stay gold forever).
    */
   markSeen(id: string): SessionDelta[]
   /**
@@ -574,6 +576,9 @@ export function createReducer(options: ReducerOptions = {}): Reducer {
    * known id in ANY other status) is a silent no-op — no delta, no log.
    */
   function markSeen(id: string): SessionDelta[] {
+    // A seen sticky ask has done its job: the operator knows. It keeps its NeedsAttention, but
+    // no longer holds the next Working/YourTurn, so claude's next turn decides again.
+    askOpen.delete(id)
     const stored = map.get(id)
     if (stored === undefined || !YOUR_TURN_STATUSES.has(stored.status)) return []
     const updated: Session = { ...stored, status: 'WaitingForInput' }

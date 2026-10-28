@@ -197,6 +197,32 @@ describe('reducer — the sticky Needs you: ask', () => {
     expect(statusOf(r)).toBe('NeedsAttention')
   })
 
+  it('a seen releases the hold: the next wake-up turn decides', () => {
+    const r = askOpen()
+    r.markSeen(ID)
+    r.applyHookStatus(ID, PROMPT)
+    r.promptOrigin(ID, 'scheduled-trigger')
+    expect(statusOf(r)).toBe('Working')
+    r.applyHookStatus(ID, MONITOR_STOP)
+    expect(statusOf(r)).toBe('Working')
+  })
+
+  it('unseen, the ask holds through wake-up turns', () => {
+    const r = askOpen()
+    r.applyHookStatus(ID, PROMPT)
+    r.promptOrigin(ID, 'scheduled-trigger')
+    r.applyHookStatus(ID, MONITOR_STOP)
+    expect(statusOf(r)).toBe('NeedsAttention')
+  })
+
+  it('a new marker after a seen opens a fresh hold', () => {
+    const r = askOpen()
+    r.markSeen(ID)
+    r.applyHookStatus(ID, MARKER_STOP)
+    r.applyHookStatus(ID, MONITOR_STOP)
+    expect(statusOf(r)).toBe('NeedsAttention')
+  })
+
   it('removal forgets the ask and the origin: promptOrigin afterwards returns nothing', () => {
     const r = askOpen()
     r.applyHookStatus(ID, { kind: 'removed' })
