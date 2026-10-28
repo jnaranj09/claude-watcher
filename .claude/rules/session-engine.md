@@ -188,7 +188,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `Working` (an artifact watch is not work: `hooks/backgroundTasks.ts`); else `YourTurn`. Every
   `Stop` carries its running task ids (`taskIds`, `runningTaskIds`). The
   reducer holds a sticky ask's `NeedsAttention` over `Working`/`YourTurn`; `NeedsPermission` still
-  wins and the card returns to `NeedsAttention` after it. A sticky ask clears when a later `Stop`
+  wins and the card returns to `NeedsAttention` after it. A seen (`markSeen`, the operator viewing
+  the session) releases the hold but keeps the status, so claude's next turn decides again: a
+  false or stale `Needs you:` costs one look. A sticky ask clears when a later `Stop`
   lists a task id the ask's `Stop` did not have (claude went back to work by itself, so something
   else unblocked it: a finished task or a foreground tool never clears it), on an operator prompt
   (`promptOrigin` `composer`/`bridge`, `OPERATOR_ORIGINS`; a `UserPromptSubmit` (`fromPrompt`)
