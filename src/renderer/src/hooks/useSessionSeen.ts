@@ -1,12 +1,17 @@
 // Deterministic-attention — the SEEN effect: while the operator is LOOKING at a session
-// (focused view's active rail session, window focused) that is `YourTurn`, tell main via
-// the typed `window.launch.markSeen` invoke. Main demotes ONLY YourTurn → idle (the
-// reducer guard), so this can never hide a question/permission. View intent flowing
+// (focused view's active rail session, window focused) that is `YourTurn` or `NeedsAttention`,
+// tell main via the typed `window.launch.markSeen` invoke. Main demotes ONLY YourTurn → idle
+// (the reducer guard), so this can never hide a question/permission; a seen `NeedsAttention`
+// only releases a sticky `Needs you:` ask's hold, so claude's next turn decides again. View intent flowing
 // main-ward over typed IPC — the renderer never mutates session truth locally
 // [.claude/rules/state.md]. Distinct from `acknowledgedById` (renderer-only emphasis).
 import { useEffect, useState } from 'react'
 import { useBoard, selectRailActiveSessionId, selectViewMode } from '../stores/boardStore'
 import { YOUR_TURN_STATUSES } from '../../../shared/ipc/contract'
+
+/** The statuses a look acts on: YourTurn (demoted to idle) and NeedsAttention (a sticky ask's
+ *  hold released; the card keeps its status). */
+const SEEN_STATUSES: ReadonlySet<string> = new Set([...YOUR_TURN_STATUSES, 'NeedsAttention'])
 
 export function useSessionSeen(): void {
   const activeId = useBoard(selectRailActiveSessionId)
@@ -31,8 +36,7 @@ export function useSessionSeen(): void {
 
   useEffect(() => {
     if (viewMode !== 'focused' || !windowFocused) return
-    if (activeId === null || activeStatus === undefined || !YOUR_TURN_STATUSES.has(activeStatus))
-      return
+    if (activeId === null || activeStatus === undefined || !SEEN_STATUSES.has(activeStatus)) return
     // Fire-and-forget; a rejection logs a code only (never the id as "content" — it is an
     // opaque uuid, but the log stays value-free by convention).
     window.launch.markSeen(activeId).catch(() => {

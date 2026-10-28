@@ -628,7 +628,8 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
 
   // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by
   // event.sender to the owning window's seam (session truth is per-window). The reducer's
-  // markSeen guard makes a stale seen harmless — only YourTurn demotes. Returns void; the
+  // markSeen guard makes a stale seen harmless — only YourTurn demotes (a held ask is only
+  // released, never demoted). Returns void; the
   // demoted card arrives as a normal `session.updated` delta.
   ipc.handle(CH.sessionSeen, (event, raw: unknown) => {
     const { id } = SessionSeenSchema.parse(raw)

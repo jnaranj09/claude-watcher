@@ -156,8 +156,16 @@ describe('useSessionSeen — the deterministic-attention seen effect', () => {
     expect(markSeenSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('does NOT fire for a NeedsAttention/NeedsPermission/Working/idle active session', async () => {
-    for (const status of ['NeedsAttention', 'NeedsPermission', 'Working', 'WaitingForInput']) {
+  it('fires for a NeedsAttention session: seeing a sticky ask releases its hold (main decides)', async () => {
+    seedFocused('sess-1', 'NeedsAttention')
+    await renderProbe()
+    dispatchWindowFocus()
+
+    expect(markSeenSpy).toHaveBeenCalledWith('sess-1')
+  })
+
+  it('does NOT fire for a NeedsPermission/Working/idle active session', async () => {
+    for (const status of ['NeedsPermission', 'Working', 'WaitingForInput']) {
       markSeenSpy.mockClear()
       seedFocused('sess-1', status)
       const r = await renderProbe()
