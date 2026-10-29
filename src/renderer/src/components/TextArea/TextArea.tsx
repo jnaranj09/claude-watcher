@@ -6,7 +6,7 @@
 //
 // Like TextInput it renders the FIELD only — the <label>, the character counter and any error
 // stay at the call site.
-import type { JSX, Ref } from 'react'
+import type { JSX, KeyboardEvent, Ref } from 'react'
 import styles from './TextArea.module.css'
 
 export interface TextAreaProps {
@@ -29,6 +29,8 @@ export interface TextAreaProps {
   fill?: boolean | undefined
   /** For focus-on-open only, like TextInput's `inputRef`. */
   textAreaRef?: Ref<HTMLTextAreaElement> | undefined
+  /** Like TextInput's: the Goals sheet's task title field saves on Enter and cancels on Escape. */
+  onKeyDown?: ((e: KeyboardEvent<HTMLTextAreaElement>) => void) | undefined
 }
 
 export function TextArea({
@@ -43,7 +45,8 @@ export function TextArea({
   disabled,
   rows = 4,
   fill,
-  textAreaRef
+  textAreaRef,
+  onKeyDown
 }: TextAreaProps): JSX.Element {
   return (
     <textarea
@@ -60,6 +63,7 @@ export function TextArea({
       rows={rows}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
     />
   )
 }
