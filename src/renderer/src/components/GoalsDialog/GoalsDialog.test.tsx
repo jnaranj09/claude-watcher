@@ -665,6 +665,16 @@ describe('GoalsDialog task row: Link session', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
+  it('the menu draws outside the sheet, so the scroll body cannot cut it', async () => {
+    const user = userEvent.setup()
+    openWith({ s1: live('s1', 'working') })
+    await user.click(screen.getByTestId('task-link-t1'))
+    expect(screen.getByTestId('goals-panel')).not.toContainElement(screen.getByRole('menu'))
+    expect(cssRule('components/GoalsDialog/GoalsDialog.module.css', '.linkMenuWrap')).toMatch(
+      /position:\s*fixed/
+    )
+  })
+
   it('a long menu scrolls inside its list', () => {
     expect(cssRule('components/GoalsDialog/GoalsDialog.module.css', '.linkMenuWrap')).toMatch(
       /--popover-max-height:\s*\d+px/
