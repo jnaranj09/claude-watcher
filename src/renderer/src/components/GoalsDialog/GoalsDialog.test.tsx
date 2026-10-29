@@ -376,6 +376,33 @@ describe('GoalsDialog task row: open and edit', () => {
     ).toHaveAttribute('aria-expanded', 'true')
   })
 
+  it('the edit field is a 3-row text area, so a long title wraps while it is edited', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    const field = screen.getByRole('textbox', { name: 'Task title' })
+    expect(field.tagName).toBe('TEXTAREA')
+    expect(field).toHaveAttribute('rows', '3')
+  })
+
+  it('Shift+Enter saves too: a title stays one line', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    await user.type(screen.getByRole('textbox', { name: 'Task title' }), '!{Shift>}{Enter}{/Shift}')
+    expect(bridge.saveTask).toHaveBeenCalledWith(expect.objectContaining({ title: `${LONG}!` }))
+  })
+
+  it('a pasted line break becomes a space', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    const field = screen.getByRole('textbox', { name: 'Task title' })
+    await user.clear(field)
+    await user.paste('first line\n  second line')
+    expect(field).toHaveValue('first line second line')
+  })
+
   it('Enter in the field saves', async () => {
     const user = userEvent.setup()
     await openRow(user)

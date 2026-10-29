@@ -9,9 +9,10 @@
 // one session with every selected task. The switch starts on for each list and is not kept.
 //
 // Read more + edit (spec 2026-10-29 task read more + edit): each row's ▸ opens it to the full
-// title and an `Edit` button; `Edit` swaps the title for a field with `Save` / `Cancel` (Enter
-// saves, Escape cancels the edit only). An empty or unchanged title saves nothing. Open and edit
-// state live in each row and are not kept.
+// title and an `Edit` button; `Edit` swaps the title for a 3-row text area (the long title wraps)
+// with `Save` / `Cancel`. A title stays one line: Enter (Shift too) saves, a pasted line break
+// becomes a space, and Escape cancels the edit only. An empty or unchanged title saves nothing.
+// Open and edit state live in each row and are not kept.
 import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 'react'
 import { TASK_TITLE_MAX, type Task } from '../../../../shared/schemas/goal'
 import { GOAL_TERMS, SELECTION_TERMS } from '../../copy/terms'
@@ -23,6 +24,7 @@ import { Checkbox } from '../Checkbox/Checkbox'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { Switch } from '../Switch/Switch'
 import { TaskRow } from '../TaskRow/TaskRow'
+import { TextArea } from '../TextArea/TextArea'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './GoalsDialog.module.css'
 
@@ -194,7 +196,7 @@ function OpenableTaskRow({
   const [open, setOpen] = useState(false)
   // The field's text while editing; null = not editing.
   const [draft, setDraft] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const editRef = useRef<HTMLButtonElement>(null)
   const wasEditing = useRef(false)
   const editing = draft !== null
@@ -231,14 +233,16 @@ function OpenableTaskRow({
     draft === null ? undefined : (
       <span className={styles.taskEditor}>
         <span className={styles.taskEditField}>
-          <TextInput
+          <TextArea
             testId={`task-edit-input-${task.id}`}
             ariaLabel={GOAL_TERMS.taskTitle}
             maxLength={TASK_TITLE_MAX}
+            rows={3}
             value={draft}
-            inputRef={inputRef}
+            textAreaRef={inputRef}
             onChange={(next) => {
-              setDraft(next)
+              // A title is one line: a pasted line break (and the space around it) is one space.
+              setDraft(next.replace(/\s*[\r\n]+\s*/g, ' '))
               actions.setError(null)
             }}
             onKeyDown={(e) => {
