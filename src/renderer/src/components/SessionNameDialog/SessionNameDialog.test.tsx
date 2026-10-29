@@ -213,7 +213,12 @@ describe('SessionNameDialog — reusable by the deferred rename pass', () => {
     expect(r2.container.querySelector('[data-testid="session-name-helper"]')).toBeNull()
   })
 
-  it('actions carry data-toast-clearance (the toast stack rises above them)', () => {
+  it('panel carries data-toast-anchor (the toast stack sits inside it)', () => {
+    const { r } = render()
+    expect(q(r, '[data-testid="session-name-panel"]')).toHaveAttribute('data-toast-anchor')
+  })
+
+  it('actions carry data-toast-clearance (the toast stack rises above them when it would cover them)', () => {
     const { r } = render()
     const cancel = q(r, '[data-testid="session-name-cancel"]')
     expect(cancel.parentElement).toHaveAttribute('data-toast-clearance')

@@ -96,6 +96,7 @@ export function ManageDialogFrame({
           size === 'drop' && styles.panelDrop
         )}
         data-manage-panel=""
+        data-toast-anchor=""
         data-testid={`${meta.testIdPrefix}-panel`}
       >
         {children}
