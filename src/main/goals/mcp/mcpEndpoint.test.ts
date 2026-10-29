@@ -11,7 +11,7 @@ import { createProposals } from '../proposals'
 function seed(): { store: GoalsStore; t1: string; t2: string } {
   let n = 0
   const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 5 })
-  const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }).saved.id
+  const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }, '/work').saved.id
   const t1 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Write the spec' }).saved.id
   const t2 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Cut the release' }).saved.id
   store.linkMany([t1], 'sess-a')
@@ -349,9 +349,9 @@ describe('goals MCP endpoint — the planner tools', () => {
     const goalId = store.view().goals[0]?.id ?? ''
     const done = store.saveTask({ workspaceId: 'w1', goalId, title: 'Old work' }).saved.id
     store.setTaskStatus(done, 'done', 'operator')
-    const g2 = store.saveGoal({ workspaceId: 'w1', name: 'Other' }).saved.id
+    const g2 = store.saveGoal({ workspaceId: 'w1', name: 'Other' }, '/work').saved.id
     const otherGoalTask = store.saveTask({ workspaceId: 'w1', goalId: g2, title: 'X' }).saved.id
-    const g3 = store.saveGoal({ workspaceId: 'w2', name: 'Far' }).saved.id
+    const g3 = store.saveGoal({ workspaceId: 'w2', name: 'Far' }, '/work').saved.id
     const otherWorkspaceTask = store.saveTask({ workspaceId: 'w2', goalId: g3, title: 'Y' }).saved
       .id
     return { store, goalId, t1, t2, done, otherGoalTask, otherWorkspaceTask }

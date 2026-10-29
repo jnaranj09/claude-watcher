@@ -3,7 +3,7 @@
 // spawn of such a session gets (its tasks linked to the minted id, and the prompt block).
 import { describe, it, expect, vi } from 'vitest'
 import { createGoalsStore, GOAL_ERROR, type GoalsStore } from '../persistence/goals'
-import { LAUNCH_CANCELLED } from '../../shared/schemas/goal'
+import { GOAL_FOLDER_MISSING, LAUNCH_CANCELLED } from '../../shared/schemas/goal'
 import type { GoalsStartRequest } from '../../shared/schemas/goal'
 import type { LaunchRequest } from '../pty/launchSession'
 import {
@@ -28,11 +28,26 @@ import { join } from 'node:path'
 function seed(): { store: GoalsStore; goalId: string; t1: string; t2: string; t3: string } {
   let n = 0
   const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
-  const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }).saved.id
+  const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }, '/work').saved.id
   const t1 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Write the spec' }).saved.id
   const t2 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Cut the release' }).saved.id
   const t3 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Tell the team' }).saved.id
   return { store, goalId, t1, t2, t3 }
+}
+
+/** A goal from before folders were required (`defaultCwd` null), with one open task. */
+function legacySeed(): { store: GoalsStore; goalId: string; t1: string } {
+  const file = {
+    version: 1,
+    goals: [{ id: 'old', workspaceId: 'w1', name: 'Old goal', createdAt: 1 }],
+    tasks: [
+      { id: 'ot1', workspaceId: 'w1', goalId: 'old', title: 'a', status: 'open', createdAt: 1 }
+    ]
+  }
+  const store = createGoalsStore({
+    blobStore: { read: () => file, write: () => {}, backup: () => {} }
+  })
+  return { store, goalId: 'old', t1: 'ot1' }
 }
 
 function deps(
@@ -69,26 +84,39 @@ const req = (over: Partial<GoalsStartRequest>): GoalsStartRequest => ({
 })
 
 describe('startGoalSessions', () => {
-  it('uses the goal folder first, then the workspace folder, then asks once', async () => {
+  it("a goal's tasks start in the goal folder, never the workspace's or a picker", async () => {
     const { store, goalId, t1, t2 } = seed()
     const groups = [{ taskIds: [t1] }, { taskIds: [t2] }]
-
     store.setGoalFolder(goalId, '/goal')
     const withGoal = deps(store, { workspaces: { get: () => ({ defaultCwd: '/ws' }) } })
     await startGoalSessions(req({ goalId, groups }), withGoal)
     expect(withGoal.launched.map((l) => l.cwd)).toEqual(['/goal', '/goal'])
     expect(withGoal.pickDirectory).not.toHaveBeenCalled()
+  })
 
-    store.setGoalFolder(goalId, null)
+  it('daily tasks use the workspace folder, then ask once', async () => {
+    let n = 0
+    const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
+    const t1 = store.saveTask({ workspaceId: 'w1', goalId: null, title: 'a' }).saved.id
+    const groups = [{ taskIds: [t1] }]
     const withWorkspace = deps(store, { workspaces: { get: () => ({ defaultCwd: '/ws' }) } })
-    await startGoalSessions(req({ goalId, groups }), withWorkspace)
-    expect(withWorkspace.launched.map((l) => l.cwd)).toEqual(['/ws', '/ws'])
+    await startGoalSessions(req({ groups }), withWorkspace)
+    expect(withWorkspace.launched.map((l) => l.cwd)).toEqual(['/ws'])
     expect(withWorkspace.pickDirectory).not.toHaveBeenCalled()
-
     const asks = deps(store)
-    await startGoalSessions(req({ goalId, groups }), asks)
-    expect(asks.launched.map((l) => l.cwd)).toEqual(['/picked', '/picked'])
+    await startGoalSessions(req({ groups }), asks)
+    expect(asks.launched.map((l) => l.cwd)).toEqual(['/picked'])
     expect(asks.pickDirectory).toHaveBeenCalledTimes(1)
+  })
+
+  it('a goal with no folder refuses with goal_folder_missing and never opens the picker', async () => {
+    const { store, goalId, t1 } = legacySeed()
+    const d = deps(store, { workspaces: { get: () => ({ defaultCwd: '/ws' }) } })
+    await expect(
+      startGoalSessions(req({ goalId, groups: [{ taskIds: [t1] }] }), d)
+    ).rejects.toThrow(GOAL_FOLDER_MISSING)
+    expect(d.pickDirectory).not.toHaveBeenCalled()
+    expect(d.launched).toEqual([])
   })
 
   it('one group per requestLaunch with the derived name', async () => {
@@ -101,13 +129,13 @@ describe('startGoalSessions', () => {
     expect(out).toEqual({ terminalIds: ['term-1', 'term-2'] })
     expect(d.launched).toEqual([
       {
-        cwd: '/picked',
+        cwd: '/work',
         name: 'Write the spec +1',
         workspaceId: 'w1',
         goalLaunch: { kind: 'worker', taskIds: [t1, t3], markDone: false }
       },
       {
-        cwd: '/picked',
+        cwd: '/work',
         name: 'Cut the release',
         workspaceId: 'w1',
         goalLaunch: { kind: 'worker', taskIds: [t2], markDone: false }
@@ -550,7 +578,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
 })
 
 describe('startPlanner', () => {
-  it('launches one planner named after the goal (cut to the name limit), with the cwd fallback', async () => {
+  it('launches one planner named after the goal (cut to the name limit), in its folder', async () => {
     const { store, goalId } = seed()
     store.saveGoal({ id: goalId, workspaceId: 'w1', name: 'G'.repeat(80) })
     const d = deps(store, { workspaces: { get: () => ({ defaultCwd: '/ws' }) } })
@@ -559,7 +587,7 @@ describe('startPlanner', () => {
     })
     expect(d.launched).toEqual([
       {
-        cwd: '/ws',
+        cwd: '/work',
         name: `${'G'.repeat(59)}…`,
         workspaceId: 'w1',
         goalLaunch: { kind: 'planner', goalId }
@@ -568,13 +596,13 @@ describe('startPlanner', () => {
     expect(d.pickDirectory).not.toHaveBeenCalled()
   })
 
-  it('asks the picker once when neither the goal nor the workspace has a folder; cancel launches nothing', async () => {
-    const { store, goalId } = seed()
-    const d = deps(store, { pickDirectory: vi.fn(() => Promise.resolve<string | null>(null)) })
+  it('a goal with no folder refuses with goal_folder_missing and launches nothing', async () => {
+    const { store, goalId } = legacySeed()
+    const d = deps(store, { workspaces: { get: () => ({ defaultCwd: '/ws' }) } })
     await expect(startPlanner(goalId, { ...d, hookListening: () => true })).rejects.toThrow(
-      LAUNCH_CANCELLED
+      GOAL_FOLDER_MISSING
     )
-    expect(d.pickDirectory).toHaveBeenCalledTimes(1)
+    expect(d.pickDirectory).not.toHaveBeenCalled()
     expect(d.launched).toEqual([])
   })
 

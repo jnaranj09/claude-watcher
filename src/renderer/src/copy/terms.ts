@@ -42,6 +42,14 @@ export const GOAL_TERMS = {
   daily: 'Daily tasks',
   saveGoalFailed: 'Could not save goal.',
   saveTaskFailed: 'Could not save task.',
+  /** A goal's `GOALS.md` (spec 2026-10-29): the switch, its hint, its problem's retry, and the
+   *  toast when a change left the file behind. */
+  saveToFile: 'Save to GOALS.md',
+  saveToFileHint: 'Keeps this goal and its tasks in GOALS.md in its folder, for source control.',
+  tryAgain: 'Try again',
+  fileNotUpdated: (reason: string): string => `Saved, but GOALS.md was not updated. ${reason}`,
+  /** A goal made before folders were required: it starts nothing until it has one. */
+  noFolderYet: 'No folder yet. Choose one to start sessions.',
   /** The Goals sheet's task row: its ▸ / ▾ toggle (with the title after it) and its edit field. */
   showFullText: 'Show full text',
   hideFullText: 'Hide full text',
@@ -78,7 +86,8 @@ export const GOAL_TERMS = {
   rejectFailed: 'Could not reject the proposal.'
 } as const
 
-/** A default folder on a workspace or a goal: the field's label and its two controls. */
+/** A default folder on a workspace or a goal: the field's label and its controls (a goal's folder
+ *  is never cleared, so only a workspace offers `Clear`). */
 export const FOLDER_TERMS = {
   label: 'Default folder',
   choose: 'Choose…',

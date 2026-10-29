@@ -5,12 +5,19 @@
 // A task belongs to ONE workspace and, optionally, one goal of that SAME workspace. Links to cards
 // live on the task (`sessionIds`, minted `--session-id` values). Proposals are NOT stored here:
 // they live in memory with the planner session, so the view reads them through an injected lookup.
+//
+// Every successful mutation goes through `emit()`. It first hands the before/after lists to
+// `afterChange` (the `GOALS.md` exporter, goals/goalsFile.ts), then tells the listeners, so a new
+// store method reaches a goal's `GOALS.md` by emitting like every other one. A new goal needs a
+// folder (spec 2026-10-29); a goal from before that rule keeps `defaultCwd: null`.
 import { randomUUID } from 'node:crypto'
 import {
   EMPTY_GOALS_FILE,
+  GOAL_FOLDER_MISSING,
   GOALS_FILE_VERSION,
   GoalsFileSchema,
   type Goal,
+  type GoalFileProblem,
   type GoalSaveRequest,
   type GoalsFile,
   type GoalsView,
@@ -30,6 +37,7 @@ import {
 } from './persistedBlob'
 import type { GoalsSaveGoalResult, GoalsSaveTaskResult } from '../../shared/ipc/contract'
 import { STORE_WRITE_FAILED } from '../../shared/schemas/storageHealth'
+import type { GoalsSnapshot } from '../goals/goalsFile'
 
 export type GoalsBlobStore = PersistedBlobStore<GoalsFile>
 
@@ -52,16 +60,26 @@ export interface GoalsStoreOptions {
   now?: () => number
   /** The planner proposals alive right now (in memory, owned elsewhere). Default: none. */
   proposals?: () => Proposal[]
+  /** Runs after every successful mutation, before the listeners (the `GOALS.md` exporter). A
+   *  throw is logged and never undoes the change. Default: nothing. */
+  afterChange?: (before: GoalsSnapshot, after: GoalsSnapshot) => void
+  /** The `GOALS.md` problems for these lists (memory only, owned by the exporter). Default: none. */
+  fileProblems?: (snap: GoalsSnapshot) => GoalFileProblem[]
 }
 
 export interface GoalsStore {
   view(): GoalsView
-  /** Throws GOAL_ERROR.goalNotFound for an unknown id. Keeps the goal's folder on a rename. */
-  saveGoal(req: GoalSaveRequest): GoalsSaveGoalResult
+  /** A create needs `folder` (main's own picker), else throws GOAL_FOLDER_MISSING; it starts with
+   *  `saveToFile` off. A rename keeps both. Throws GOAL_ERROR.goalNotFound for an unknown id. */
+  saveGoal(req: GoalSaveRequest, folder?: string): GoalsSaveGoalResult
   /** Deletes the goal AND its tasks. Unknown id is a no-op. */
   removeGoal(id: string): GoalsView
-  /** `cwd` comes from main's own folder picker, never from the renderer. */
-  setGoalFolder(goalId: string, cwd: string | null): GoalsView
+  /** `cwd` comes from main's own folder picker, never from the renderer. A folder is never
+   *  cleared. */
+  setGoalFolder(goalId: string, cwd: string): GoalsView
+  /** `Save to GOALS.md`. A dialog write (undone on a refused disk write); the same value changes
+   *  nothing. Turning it on for a goal with no folder throws GOAL_FOLDER_MISSING. */
+  setSaveToFile(goalId: string, on: boolean): GoalsView
   /** Throws taskNotFound / goalNotFound / workspaceMismatch. */
   saveTask(req: TaskSaveRequest): GoalsSaveTaskResult
   /** A planner session's `create_task`: a NEW task (`req.id` is ignored). Throws goalNotFound /
@@ -92,6 +110,7 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
   const newId = options.newId ?? randomUUID
   const now = options.now ?? Date.now
   const proposals = options.proposals ?? ((): Proposal[] => [])
+  const fileProblems = options.fileProblems ?? ((): GoalFileProblem[] => [])
 
   const loaded = loadPersistedOrReset<GoalsFile>({
     blobStore,
@@ -105,6 +124,7 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
   let goals: Goal[] = [...loaded.goals]
   let tasks: Task[] = [...loaded.tasks]
   const listeners = new Set<(view: GoalsView) => void>()
+  let lastEmitted: GoalsSnapshot = { goals, tasks }
   persistOrReport()
 
   function persist(): boolean {
@@ -130,11 +150,24 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
   }
 
   function view(): GoalsView {
-    return { goals: [...goals], tasks: [...tasks], proposals: proposals() }
+    return {
+      goals: [...goals],
+      tasks: [...tasks],
+      proposals: proposals(),
+      fileProblems: fileProblems({ goals, tasks })
+    }
   }
 
-  /** After a successful mutation. A listener that throws never undoes the change. */
+  /** After a successful mutation: `GOALS.md` first, then the listeners. A throw in either never
+   *  undoes the change. */
   function emit(): GoalsView {
+    const after: GoalsSnapshot = { goals, tasks }
+    try {
+      options.afterChange?.(lastEmitted, after)
+    } catch {
+      log(`${LOG_PREFIX} code=goals_file_sync_failed`)
+    }
+    lastEmitted = after
     const current = view()
     for (const listener of listeners) {
       try {
@@ -171,8 +204,9 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     return task
   }
 
-  function saveGoal(req: GoalSaveRequest): GoalsSaveGoalResult {
+  function saveGoal(req: GoalSaveRequest, folder?: string): GoalsSaveGoalResult {
     const existing = req.id === undefined ? null : goalOf(req.id)
+    if (existing === null && folder === undefined) throw new Error(GOAL_FOLDER_MISSING)
     // A rename never re-parents: its tasks stay in the old workspace.
     if (existing !== null && existing.workspaceId !== req.workspaceId)
       throw new Error(GOAL_ERROR.workspaceMismatch)
@@ -180,7 +214,8 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
       id: existing?.id ?? newId(),
       workspaceId: req.workspaceId,
       name: req.name,
-      defaultCwd: existing?.defaultCwd ?? null,
+      defaultCwd: existing === null ? (folder ?? null) : existing.defaultCwd,
+      saveToFile: existing?.saveToFile ?? false,
       createdAt: existing?.createdAt ?? now()
     }
     const next =
@@ -196,11 +231,21 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     )
   }
 
-  function setGoalFolder(goalId: string, cwd: string | null): GoalsView {
+  function setGoalFolder(goalId: string, cwd: string): GoalsView {
     const goal = goalOf(goalId)
     if (goal.defaultCwd === cwd) return view()
     return mutate(
       goals.map((g) => (g === goal ? { ...g, defaultCwd: cwd } : g)),
+      tasks
+    )
+  }
+
+  function setSaveToFile(goalId: string, on: boolean): GoalsView {
+    const goal = goalOf(goalId)
+    if (goal.saveToFile === on) return view()
+    if (on && goal.defaultCwd === null) throw new Error(GOAL_FOLDER_MISSING)
+    return mutate(
+      goals.map((g) => (g === goal ? { ...g, saveToFile: on } : g)),
       tasks
     )
   }
@@ -350,6 +395,7 @@ export function createGoalsStore(options: GoalsStoreOptions = {}): GoalsStore {
     saveGoal,
     removeGoal,
     setGoalFolder,
+    setSaveToFile,
     saveTask,
     addTaskFromSession,
     removeTask,

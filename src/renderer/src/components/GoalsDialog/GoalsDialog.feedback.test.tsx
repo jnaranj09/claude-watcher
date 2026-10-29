@@ -63,7 +63,14 @@ describe('GoalsDialog — feedback', () => {
       doneAt: null,
       doneBy: null
     }
-    const goal = { id: 'g1', workspaceId: 'w1', name: 'Ship v2', defaultCwd: null, createdAt: 1 }
+    const goal = {
+      id: 'g1',
+      workspaceId: 'w1',
+      name: 'Ship v2',
+      defaultCwd: null,
+      saveToFile: false,
+      createdAt: 1
+    }
     const retry = deferred<unknown>()
     const saveTask = vi
       .fn()
@@ -85,7 +92,7 @@ describe('GoalsDialog — feedback', () => {
     expect(saveTask).toHaveBeenCalledTimes(2)
     expect(dialogToast('goals')).toBeUndefined()
     await act(async () => {
-      retry.resolve({ saved: task, goals: [goal], tasks: [task], proposals: [] })
+      retry.resolve({ saved: task, goals: [goal], tasks: [task], proposals: [], fileProblems: [] })
       await Promise.resolve()
     })
     expect(screen.getByRole('button', { name: 'Done Cut the tag' })).toBeInTheDocument()

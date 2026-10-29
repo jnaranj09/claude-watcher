@@ -586,7 +586,9 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     unmountHook?.()
     unmountHook = undefined
     act(() => boardStore.getState().setBoardFilters('default', NO_FILTERS))
-    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [] }))
+    act(() =>
+      goalsStore.getState().hydrate({ goals: [], tasks: [], proposals: [], fileProblems: [] })
+    )
   })
 
   it('each workspace keeps its own filters; switching back finds them all', () => {
@@ -603,7 +605,14 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
   })
 
   it('a deleted goal drops out of the filter at read time', () => {
-    const goal = { id: 'g-1', workspaceId: 'default', name: 'Ship', defaultCwd: null, createdAt: 1 }
+    const goal = {
+      id: 'g-1',
+      workspaceId: 'default',
+      name: 'Ship',
+      defaultCwd: null,
+      saveToFile: false,
+      createdAt: 1
+    }
     const task = {
       id: 'k-1',
       workspaceId: 'default',
@@ -615,7 +624,11 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
       doneAt: null,
       doneBy: null
     }
-    act(() => goalsStore.getState().hydrate({ goals: [goal], tasks: [task], proposals: [] }))
+    act(() =>
+      goalsStore
+        .getState()
+        .hydrate({ goals: [goal], tasks: [task], proposals: [], fileProblems: [] })
+    )
     const hook = renderHook(() => useBoardFilter('default'))
     unmountHook = hook.unmount
     expect(hook.result.current.goalIdsBySession.get('s1')).toEqual(['g-1'])
@@ -623,7 +636,9 @@ describe('boardStore — filters per workspace (spec 2026-10-16)', () => {
     act(() => boardStore.getState().setBoardFilters('default', { ...NO_FILTERS, goalIds: ['g-1'] }))
     hook.rerender()
     expect(hook.result.current.filters.goalIds).toEqual(['g-1'])
-    act(() => goalsStore.getState().hydrate({ goals: [], tasks: [task], proposals: [] }))
+    act(() =>
+      goalsStore.getState().hydrate({ goals: [], tasks: [task], proposals: [], fileProblems: [] })
+    )
     hook.rerender()
     expect(hook.result.current.filters.goalIds).toEqual([])
     expect(hook.result.current.goalIdsBySession.size).toBe(0)

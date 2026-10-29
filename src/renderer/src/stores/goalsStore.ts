@@ -5,6 +5,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import { GOAL_TERMS } from '../copy/terms'
+import type { GoalFileProblem, GoalsFileProblemCode } from '../../../shared/schemas/goal'
 import type {
   Goal,
   GoalSaveRequest,
@@ -22,6 +23,8 @@ export interface GoalsState {
   tasks: Task[]
   /** The planners' proposals waiting for Accept or Reject (main keeps them in memory). */
   proposals: Proposal[]
+  /** Goals whose `GOALS.md` did not follow their last change (main keeps them in memory). */
+  fileProblems: GoalFileProblem[]
   loaded: boolean
   /** Action feedback (spec 2026-09-29 §2.6) — the startup load failed; any hydrate clears it. */
   loadFailed: boolean
@@ -34,6 +37,7 @@ export function createGoalsViewStore(): StoreApi<GoalsState> {
     goals: [],
     tasks: [],
     proposals: [],
+    fileProblems: [],
     loaded: false,
     loadFailed: false,
     hydrate: (view) =>
@@ -41,6 +45,7 @@ export function createGoalsViewStore(): StoreApi<GoalsState> {
         goals: view.goals,
         tasks: view.tasks,
         proposals: view.proposals,
+        fileProblems: view.fileProblems,
         loaded: true,
         loadFailed: false
       }),
@@ -65,6 +70,12 @@ export const selectGoalsIn =
   (workspaceId: string) =>
   (s: GoalsState): Goal[] =>
     s.goals.filter((g) => g.workspaceId === workspaceId)
+
+/** Why this goal's `GOALS.md` did not follow its last change, or null. */
+export const selectFileProblemOf =
+  (goalId: string) =>
+  (s: GoalsState): GoalsFileProblemCode | null =>
+    s.fileProblems.find((p) => p.goalId === goalId)?.code ?? null
 
 export const selectTasksOfGoal =
   (goalId: string) =>
@@ -153,8 +164,9 @@ export async function pickGoalFolder(goalId: string): Promise<void> {
   goalsStore.getState().hydrate(await window.goals.pickFolder(goalId))
 }
 
-export async function clearGoalFolder(goalId: string): Promise<void> {
-  goalsStore.getState().hydrate(await window.goals.clearFolder(goalId))
+/** `Save to GOALS.md`. On always rewrites the file (also `Try again`). */
+export async function setGoalSaveToFile(goalId: string, on: boolean): Promise<void> {
+  goalsStore.getState().hydrate(await window.goals.setSaveToFile(goalId, on))
 }
 
 export async function saveTask(req: TaskSaveRequest): Promise<Task> {

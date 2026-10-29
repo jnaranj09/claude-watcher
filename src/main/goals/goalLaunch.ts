@@ -16,7 +16,7 @@
 // planner token bound to its goal and the three planner tools instead, and is linked to nothing.
 // Never logs a title, a name, a path or a token (`code=` only).
 import type { Goal, GoalsStartRequest, Task } from '../../shared/schemas/goal'
-import { HOOKS_UNAVAILABLE, LAUNCH_CANCELLED } from '../../shared/schemas/goal'
+import { GOAL_FOLDER_MISSING, HOOKS_UNAVAILABLE, LAUNCH_CANCELLED } from '../../shared/schemas/goal'
 import { SessionNameSchema } from '../../shared/schemas/launch'
 import type { GoalsStartResult } from '../../shared/ipc/contract'
 import { GOAL_ERROR, type GoalsStore } from '../persistence/goals'
@@ -209,7 +209,7 @@ function plannerExtras(deps: GoalSpawnDeps, sessionId: string, goalId: string): 
 export interface StartGoalSessionsDeps {
   store: GoalsStore
   workspaces: { get(id: string): { defaultCwd: string | null } | null }
-  /** The native folder picker; null = cancelled. */
+  /** The native folder picker, for Daily tasks only; null = cancelled. */
   pickDirectory(): Promise<string | null>
   /** The API seam's launch (watchFeed.ts): registers the recipe and asks the renderer to mount
    *  the terminal hidden. Never takes the view. */
@@ -220,15 +220,20 @@ export interface StartGoalSessionsDeps {
   log(message: string): void
 }
 
-/** ONE folder for a whole launch: the goal's, else the workspace's, else the picker once.
- *  A cancelled picker throws `launch_cancelled`. */
+/** ONE folder for a whole launch. A goal's launch uses the goal's folder only: a goal with none
+ *  (made before folders were required) throws `goal_folder_missing` and never opens the picker.
+ *  Daily tasks (no goal): the workspace's folder, else the picker once; a cancelled picker
+ *  throws `launch_cancelled`. */
 async function pickLaunchFolder(
   goal: Goal | null,
   workspaceId: string,
   deps: Pick<StartGoalSessionsDeps, 'workspaces' | 'pickDirectory'>
 ): Promise<string> {
-  const cwd =
-    goal?.defaultCwd ?? deps.workspaces.get(workspaceId)?.defaultCwd ?? (await deps.pickDirectory())
+  if (goal !== null) {
+    if (goal.defaultCwd === null) throw new Error(GOAL_FOLDER_MISSING)
+    return goal.defaultCwd
+  }
+  const cwd = deps.workspaces.get(workspaceId)?.defaultCwd ?? (await deps.pickDirectory())
   if (cwd === null) throw new Error(LAUNCH_CANCELLED)
   return cwd
 }

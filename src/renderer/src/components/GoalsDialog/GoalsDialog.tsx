@@ -8,28 +8,37 @@
 //
 // Main owns the records (goalsStore is a projection); this file sends ids and intents and draws
 // what main answers. Every refusal reaches the dialog's error toast through `goalErrorCopy`.
-import { useEffect, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type JSX } from 'react'
 import { GOAL_NAME_MAX, type Goal, type Proposal, type Task } from '../../../../shared/schemas/goal'
 import { FOLDER_TERMS, GOAL_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
-import { goalErrorCopy, goalPlanErrorCopy } from '../../lib/goalCopy'
 import {
-  clearGoalFolder,
+  goalErrorCopy,
+  goalFileProblemCopy,
+  goalPlanErrorCopy,
+  isFolderCancelled
+} from '../../lib/goalCopy'
+import {
   pickGoalFolder,
   planGoal,
   progressOf,
   removeGoal,
   saveGoal,
   selectGoalsIn,
+  goalsStore,
+  selectFileProblemOf,
   selectGoalsLoadFailed,
   selectLooseTasks,
   selectProposalsOfGoal,
   selectTasksOfGoal,
+  setGoalSaveToFile,
   useGoals
 } from '../../stores/goalsStore'
 import { selectActiveWorkspaceId, useWorkspaces } from '../../stores/workspacesStore'
 import { ManageDialog, useManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
 import { TextInput } from '../TextInput/TextInput'
+import { Callout } from '../Callout/Callout'
+import { Switch } from '../Switch/Switch'
 import { GoalProgress } from '../GoalProgress/GoalProgress'
 import { TaskList } from './TaskList'
 import { ProposalPanel } from './ProposalPanel'
@@ -79,7 +88,10 @@ interface GoalFormProps {
 
 /** Keyed by the selected id in GoalsDialog, so a selection change remounts it with a fresh draft
  *  (same reasoning as WorkspaceForm). The Default folder row and the tasks need a goal id, so a
- *  goal being created shows only its name until it is saved. */
+ *  goal being created shows only its name until it is saved; `Create` makes main open its folder
+ *  picker first (no goal without a folder; a cancel creates nothing and says nothing). A goal from
+ *  before that rule (no folder) says so and offers no `Save to GOALS.md`, `Plan with Claude` or
+ *  `Start session` until it has one. */
 function GoalForm({
   goal,
   workspaceId,
@@ -93,6 +105,8 @@ function GoalForm({
   const tasks = useGoals(selectTasksOfGoal(goal?.id ?? ''))
   const proposals = useGoals(selectProposalsOfGoal(goal?.id ?? ''))
   const { done, total } = progressOf(tasks)
+  const fileProblem = useGoals(selectFileProblemOf(goal?.id ?? ''))
+  const saveToFileId = useId()
 
   const trimmed = name.trim()
   const canSave = trimmed.length > 0 && (goal === null || trimmed !== goal.name) && !busy
@@ -110,11 +124,37 @@ function GoalForm({
         )
       )
     } catch (err) {
-      actions.setError(goalErrorCopy(err, GOAL_TERMS.saveGoalFailed))
+      if (!isFolderCancelled(err)) actions.setError(goalErrorCopy(err, GOAL_TERMS.saveGoalFailed))
     } finally {
       setBusy(false)
     }
   }
+
+  // A change made while this goal is open that left its GOALS.md behind is a result: the error
+  // toast. A problem already there when the goal opened is only the Callout below.
+  const seenProblem = useRef(fileProblem)
+  useEffect(() => {
+    if (fileProblem !== null && fileProblem !== seenProblem.current) {
+      actions.setError(GOAL_TERMS.fileNotUpdated(goalFileProblemCopy(fileProblem)))
+    }
+    seenProblem.current = fileProblem
+  }, [fileProblem, actions])
+
+  // On (and `Try again`) always rewrites the file in main; a problem comes back in the view.
+  const saveToFile = useAsyncAction(async (on: boolean): Promise<void> => {
+    if (goal === null) return
+    actions.setError(null)
+    try {
+      await setGoalSaveToFile(goal.id, on)
+      if (!on) return
+      // A problem the rewrite left (new or the same as before) is this action's result too.
+      const problem = selectFileProblemOf(goal.id)(goalsStore.getState())
+      if (problem === null) actions.showSuccess('Saved')
+      else actions.setError(GOAL_TERMS.fileNotUpdated(goalFileProblemCopy(problem)))
+    } catch (err) {
+      actions.setError(goalErrorCopy(err, GOAL_TERMS.saveGoalFailed))
+    }
+  })
 
   // Main opens its own folder picker by goal id; the renderer never holds the path it stores.
   const browse = useAsyncAction(async (): Promise<void> => {
@@ -136,15 +176,6 @@ function GoalForm({
     } catch (err) {
       const copy = goalPlanErrorCopy(err)
       if (copy !== null) actions.setError(copy)
-    }
-  })
-  const clear = useAsyncAction(async (): Promise<void> => {
-    if (goal === null) return
-    actions.setError(null)
-    try {
-      await clearGoalFolder(goal.id)
-    } catch (err) {
-      actions.setError(goalErrorCopy(err, GOAL_TERMS.saveGoalFailed))
     }
   })
 
@@ -176,17 +207,44 @@ function GoalForm({
             >
               {FOLDER_TERMS.choose}
             </ManageDialog.GhostButton>
-            {/* The way back to None. Not rendered while there is nothing to clear. */}
-            {goal.defaultCwd !== null && (
-              <ManageDialog.GhostButton
-                testId="goal-clear-folder"
-                busy={clear.busy}
-                onClick={() => void clear.run()}
-              >
-                {FOLDER_TERMS.clear}
-              </ManageDialog.GhostButton>
-            )}
           </div>
+          {goal.defaultCwd === null ? (
+            <Callout tone="danger" title={GOAL_TERMS.noFolderYet} testId="goal-no-folder" />
+          ) : (
+            <>
+              <span className={styles.saveToFile}>
+                <Switch
+                  id={saveToFileId}
+                  testId="goal-save-to-file"
+                  checked={goal.saveToFile}
+                  disabled={saveToFile.busy}
+                  onChange={(on) => void saveToFile.run(on)}
+                />
+                <label className={styles.saveToFileLabel} htmlFor={saveToFileId}>
+                  {GOAL_TERMS.saveToFile}
+                </label>
+              </span>
+              <ManageDialog.Hint testId="goal-save-to-file-hint">
+                {GOAL_TERMS.saveToFileHint}
+              </ManageDialog.Hint>
+              {fileProblem !== null && (
+                <Callout
+                  tone="danger"
+                  title={goalFileProblemCopy(fileProblem)}
+                  testId="goal-file-problem"
+                  action={
+                    <ManageDialog.GhostButton
+                      testId="goal-file-retry"
+                      busy={saveToFile.busy}
+                      onClick={() => void saveToFile.run(true)}
+                    >
+                      {GOAL_TERMS.tryAgain}
+                    </ManageDialog.GhostButton>
+                  }
+                />
+              )}
+            </>
+          )}
 
           <ManageDialog.Label>{GOAL_TERMS.tasks}</ManageDialog.Label>
           <TaskList
@@ -195,15 +253,17 @@ function GoalForm({
             goalId={goal.id}
             head={<GoalProgress name={goal.name} done={done} total={total} />}
           />
-          <div className={styles.planRow}>
-            <ManageDialog.GhostButton
-              testId="goal-plan"
-              busy={plan.busy}
-              onClick={() => void plan.run()}
-            >
-              {GOAL_TERMS.planWithClaude}
-            </ManageDialog.GhostButton>
-          </div>
+          {goal.defaultCwd !== null && (
+            <div className={styles.planRow}>
+              <ManageDialog.GhostButton
+                testId="goal-plan"
+                busy={plan.busy}
+                onClick={() => void plan.run()}
+              >
+                {GOAL_TERMS.planWithClaude}
+              </ManageDialog.GhostButton>
+            </div>
+          )}
           {proposals.map((p) => (
             // Keyed by the proposal itself: a new `propose_split` starts a fresh draft.
             <ProposalPanel key={proposalKey(p)} proposal={p} tasks={tasks} />

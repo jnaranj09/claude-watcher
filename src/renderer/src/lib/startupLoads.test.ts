@@ -28,7 +28,7 @@ function stubAll(fail: readonly string[]): void {
   w['workspaces'] = { list: answer('workspaces', { activeId: 'default', workspaces: [] }) }
   w['tags'] = { list: answer('tags', []) }
   w['rules'] = { list: answer('rules', { rules: [], brokenIds: [] }) }
-  w['goals'] = { list: answer('goals', { goals: [], tasks: [], proposals: [] }) }
+  w['goals'] = { list: answer('goals', { goals: [], tasks: [], proposals: [], fileProblems: [] }) }
 }
 
 beforeEach(() => {

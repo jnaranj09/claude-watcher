@@ -109,7 +109,7 @@ function optionalBridgeDefaults(): Partial<Record<OptionalBridgeName, Bridge>> {
       move: vi.fn()
     },
     goals: {
-      list: vi.fn(() => Promise.resolve({ goals: [], tasks: [], proposals: [] })),
+      list: vi.fn(() => Promise.resolve({ goals: [], tasks: [], proposals: [], fileProblems: [] })),
       onChanged: vi.fn(() => () => {})
     },
     shortcuts: { list: vi.fn(() => Promise.resolve([])), save: vi.fn(), remove: vi.fn() }

@@ -239,7 +239,10 @@ them:
   their entries without being asked. Hooks go through `--settings` and the bridge mod through
   `--plugin-dir`, both in the app's own data folder. One exception, started by the operator:
   Context's `Restore` writes an instruction file back to an older version, after keeping the
-  file as it is now, and only a `.md` file a live session loaded (owner, 2026-10-18).
+  file as it is now, and only a `.md` file a live session loaded (owner, 2026-10-18). A second
+  one, switched on per goal: `Save to GOALS.md` keeps that goal and its tasks in `GOALS.md` in the
+  goal's folder, for source control; the app writes or removes only a `GOALS.md` whose first line
+  is its own header, and never at startup (owner, 2026-10-29).
 - **Make illegal states impossible to write.** Use discriminated unions, and required-nullable
   parameters so "every call site must decide".
 - **Testable placement.** Keep logic out of `src/main/index.ts`. Tests import the shipped module and
@@ -673,6 +676,8 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | e2e skips when its port is busy (not tampering)                                                     | e2e has its own profile and fails when its port is busy                                                                               | The skip hid a test that could not pass for two weeks (owner, 2026-10-14)                                    |
 | Renderer tests on an in-house `createRoot` harness, no Testing Library (Story 1.3)                  | React Testing Library; `renderComponent` wraps its `render`                                                                           | User-facing queries need it; owner, 2026-10-15                                                               |
 | The app never writes an operator's file                                                             | Context's `Restore` writes an instruction file the operator picked (current copy kept first; only a `.md` file a live session loaded) | Owner 2026-10-18: get an old version of a file back                                                          |
+| The app never writes into an operator's project                                                     | A goal's `Save to GOALS.md` keeps `<goal folder>/GOALS.md` (export only; only a file with the app's header; no write at startup)     | Owner 2026-10-29: commit a goal and its tasks with the project, like `IdeasBoard.md`                          |
+| A goal's folder is optional (goal → workspace folder → picker)                                      | A new goal needs a folder (create opens the picker); a goal's sessions start in it only; Daily tasks keep the fallback               | Owner 2026-10-29                                                                                             |
 
 ## 13. Rejected — don't propose these again
 
@@ -692,7 +697,8 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 - Silent failures: an unhandled rejection, an error only in the console, a silent rollback,
   silently withholding a feature, resetting the user's choice on failure.
 - A file version bump without a migration. Storing a new domain inside the settings blob. Writing
-  into operator projects or claude's files (the one exception is Context's `Restore`, §5).
+  into operator projects or claude's files (the exceptions are Context's `Restore` and a goal's
+  `Save to GOALS.md`, §5).
 - File watchers, a theme marketplace, wallpapers from disk, darken sliders.
 - Changing claude's own theme. Weakening a contrast threshold.
 - Building releases on the dev host, `ubuntu-latest`, auto-publish, auto-update.

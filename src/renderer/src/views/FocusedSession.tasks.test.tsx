@@ -146,7 +146,7 @@ describe('FocusedSession — the Tasks panel', () => {
       onChanged: vi.fn(() => () => {}),
       unlinkTask: vi.fn(() => {
         const tasks = [{ ...linked, sessionIds: [] }]
-        return Promise.resolve({ goals: [], tasks, proposals: [] })
+        return Promise.resolve({ goals: [], tasks, proposals: [], fileProblems: [] })
       })
     }
     act(() => goalsStore.setState({ goals: [], tasks: [linked], loaded: true, loadFailed: false }))

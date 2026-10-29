@@ -46,7 +46,9 @@ beforeEach(() => {
   shortcutsList = vi.fn(() => Promise.resolve([]))
   tagsList = vi.fn(() => Promise.resolve([]))
   rulesList = vi.fn(() => Promise.resolve({ rules: [], brokenIds: [] }))
-  goalsList = vi.fn(() => Promise.resolve({ goals: [], tasks: [], proposals: [] }))
+  goalsList = vi.fn(() =>
+    Promise.resolve({ goals: [], tasks: [], proposals: [], fileProblems: [] })
+  )
   ;(window as unknown as { workspaces: unknown }).workspaces = { save, remove }
   ;(window as unknown as { templates: unknown }).templates = { list: templatesList }
   ;(window as unknown as { shortcuts: unknown }).shortcuts = { list: shortcutsList }

@@ -2,7 +2,11 @@
 // Electron-wrapped invoke rejection (the templateErrorMessage precedent). The Workspaces dialog's
 // mapper is private to its .tsx and is pinned in WorkspacesDialog.test.tsx instead.
 import { describe, expect, it } from 'vitest'
-import { STORE_WRITE_FAILED_COPY } from './storageHealthCopy'
+import {
+  GOALS_FILE_FAILED_COPY,
+  STORE_WRITE_FAILED_COPY,
+  storageProblemMessage
+} from './storageHealthCopy'
 import { templateErrorMessage } from '../components/TemplatesDialog/templateForm'
 import { tagErrorMessage } from '../components/TagsDialog/tagForm'
 import { ruleErrorMessage } from '../components/RulesDialog/ruleForm'
@@ -16,5 +20,13 @@ describe('store_write_failed copy (UX-06)', () => {
     expect(tagErrorMessage(wrapped)).toBe(STORE_WRITE_FAILED_COPY)
     expect(ruleErrorMessage(wrapped)).toBe(STORE_WRITE_FAILED_COPY)
     expect(SHORTCUT_ERROR_COPY[shortcutErrorCode(wrapped)]).toBe(STORE_WRITE_FAILED_COPY)
+  })
+})
+
+describe('GOALS.md export failures (goals_file)', () => {
+  it('say which file and where to look, not the store sentence', () => {
+    expect(storageProblemMessage({ store: 'goals_file', code: 'write_failed' })).toBe(
+      GOALS_FILE_FAILED_COPY
+    )
   })
 })

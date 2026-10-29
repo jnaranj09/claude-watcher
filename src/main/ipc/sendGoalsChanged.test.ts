@@ -9,9 +9,19 @@ function fakeWc(destroyed = false): { wc: Electron.WebContents; send: ReturnType
 }
 
 const VIEW: GoalsView = {
-  goals: [{ id: 'g1', workspaceId: 'w1', name: 'Ship', defaultCwd: null, createdAt: 1 }],
+  goals: [
+    {
+      id: 'g1',
+      workspaceId: 'w1',
+      name: 'Ship',
+      defaultCwd: '/work',
+      saveToFile: false,
+      createdAt: 1
+    }
+  ],
   tasks: [],
-  proposals: []
+  proposals: [],
+  fileProblems: []
 }
 
 afterEach(() => vi.restoreAllMocks())

@@ -31,7 +31,9 @@ export const STORE_NAMES = [
   // edits, but a failed write there is a disk problem they must see.
   'bridge_mod',
   // Context's file history (spec 2026-10-18 §3): <userData>/claude-watcher-file-history.
-  'file_history'
+  'file_history',
+  // A goal's `GOALS.md` in its project folder (spec 2026-10-29): only a failure no goal can show.
+  'goals_file'
 ] as const
 export const STORAGE_PROBLEM_CODES = [
   'corrupt_reset',

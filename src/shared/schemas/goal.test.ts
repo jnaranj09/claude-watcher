@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
+  GoalSaveToFileSchema,
+  GoalSchema,
   GoalsFileSchema,
+  GoalsViewSchema,
   GoalSaveSchema,
   GoalsStartSchema,
   ProposalDecideSchema,
@@ -110,5 +113,30 @@ describe('goal schemas', () => {
   it('the file schema is versioned 1', () => {
     expect(GoalsFileSchema.safeParse({ version: 2, goals: [], tasks: [] }).success).toBe(false)
     expect(GoalsFileSchema.safeParse({ version: 1, goals: [], tasks: [] }).success).toBe(true)
+  })
+
+  it('reads a goal written before saveToFile as off', () => {
+    const goal = GoalSchema.parse({ id: 'g1', workspaceId: 'w1', name: 'g', createdAt: 1 })
+    expect(goal.saveToFile).toBe(false)
+  })
+
+  it('the save-to-file request is strict (never carries a path)', () => {
+    expect(GoalSaveToFileSchema.safeParse({ goalId: 'g1', on: true }).success).toBe(true)
+    expect(GoalSaveToFileSchema.safeParse({ goalId: 'g1', on: true, path: '/x' }).success).toBe(
+      false
+    )
+  })
+
+  it('a view refuses a file problem code outside the list', () => {
+    const view = { goals: [], tasks: [], proposals: [] }
+    expect(
+      GoalsViewSchema.safeParse({
+        ...view,
+        fileProblems: [{ goalId: 'g1', code: 'folder_missing' }]
+      }).success
+    ).toBe(true)
+    expect(
+      GoalsViewSchema.safeParse({ ...view, fileProblems: [{ goalId: 'g1', code: 'nope' }] }).success
+    ).toBe(false)
   })
 })

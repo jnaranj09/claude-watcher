@@ -54,6 +54,7 @@ import { createMcpConfigs } from './goals/mcp/mcpConfigFile'
 import { createMcpTools } from './goals/mcp/mcpTools'
 import { createMcpEndpoint } from './goals/mcp/mcpEndpoint'
 import { createProposals } from './goals/proposals'
+import { createGoalsFileExporter, nodeGoalsFileFs, type GoalsFileExporter } from './goals/goalsFile'
 import { GOALS_MCP_URL } from './hooks/hookContract'
 import type { TagRuleRef } from './persistence/tags'
 import type { RulesEngine } from './rules/rulesEngine'
@@ -532,8 +533,10 @@ function requireRulesStore(): RulesStore {
   return rulesStore
 }
 
-// Goals — same lifecycle as the rules store (needs app-ready for electron-store).
+// Goals — same lifecycle as the rules store (needs app-ready for electron-store). The GOALS.md
+// exporter (goals/goalsFile.ts) runs inside the store's emit; none under SMOKE (no project writes).
 let goalsStore: GoalsStore | null = null
+let goalsFile: GoalsFileExporter | null = null
 function requireGoalsStore(): GoalsStore {
   if (goalsStore === null) throw new Error('goals store not initialized')
   return goalsStore
@@ -676,7 +679,10 @@ const {
   launchedSet,
   claudeVersionAllowsLaunch,
   proposals: goalMcp.proposals,
-  hookListening: () => serverHealth.hookListening()
+  hookListening: () => serverHealth.hookListening(),
+  rewriteGoalsFile: (folder) => {
+    if (goalsStore !== null) goalsFile?.rewrite(folder, goalsStore.view())
+  }
 })
 
 /**
@@ -966,21 +972,34 @@ app
     }
     registerRulesIpc()
 
+    goalsFile = SMOKE
+      ? null
+      : createGoalsFileExporter({
+          fs: nodeGoalsFileFs,
+          log: (message) => console.warn(message),
+          reportOrphan: () => storageHealth.report('goals_file', 'write_failed')
+        })
+    const fileHooks =
+      goalsFile === null
+        ? {}
+        : { afterChange: goalsFile.afterChange, fileProblems: goalsFile.problems }
     try {
       goalsStore = SMOKE
         ? createGoalsStore({ proposals: goalMcp.proposals.list })
         : createGoalsStore({
             blobStore: createElectronGoalsBlobStore(),
             report: storageHealth.reporterFor('goals'),
-            proposals: goalMcp.proposals.list
+            proposals: goalMcp.proposals.list,
+            ...fileHooks
           })
     } catch {
       // Code ONLY — never the error: a SyntaxError message quotes file content, and a goals blob
       // carries operator names and task titles.
       console.error('[claude-watcher][goals] code=goals_store_init_failed (in-memory)')
       storageHealth.report('goals', 'read_failed')
-      goalsStore = createGoalsStore({ proposals: goalMcp.proposals.list })
+      goalsStore = createGoalsStore({ proposals: goalMcp.proposals.list, ...fileHooks })
     }
+    goalsFile?.check(goalsStore.view())
     goalsStore.onChange(pushGoalsView)
     registerGoalsIpc()
     // Every token in a file the last run left died with it. Not under SMOKE: smoke shares the

@@ -219,7 +219,7 @@ declare global {
       saveGoal(req: GoalSaveRequest): Promise<GoalsSaveGoalResult>
       deleteGoal(id: string): Promise<GoalsView>
       pickFolder(goalId: string): Promise<GoalsView>
-      clearFolder(goalId: string): Promise<GoalsView>
+      setSaveToFile(goalId: string, on: boolean): Promise<GoalsView>
       saveTask(req: TaskSaveRequest): Promise<GoalsSaveTaskResult>
       deleteTask(id: string): Promise<GoalsView>
       setTaskStatus(id: string, status: TaskStatus): Promise<GoalsView>
