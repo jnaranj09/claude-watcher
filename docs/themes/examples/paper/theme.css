@@ -446,11 +446,13 @@ button[data-manage-close][data-variant] {
 [data-manage-pages] [data-selected='true'] button {
   font-weight: 600;
 }
+/* 20px here + the app's 8px focus-ring buffer on the scroll body and the footer = 28px to the
+   fields and the buttons. */
 [data-manage-pane] {
-  padding: 8px 28px;
+  padding: 8px 20px;
 }
 [data-manage-body] > form {
-  padding: 16px 28px 0;
+  padding: 16px 20px 0;
 }
 /* One line under each setting row (the app's line on top of the next row is cleared). */
 [data-settings-group] > div:not([data-settings-field-error]) {
@@ -478,10 +480,12 @@ button[data-manage-close][data-variant] {
 [data-settings-group] p {
   font-size: 12px;
 }
-/* The action row sits inside the form column, so the form's padding is its side padding. */
+/* The action row sits under the form's scroll body, behind a line; its side padding is the
+   app's focus-ring buffer (plus the body's scrollbar gutter on the right), so the buttons end
+   where the fields end. */
 [data-manage-footer] {
   border-top: 1px solid var(--border-card);
-  padding: 14px 0;
+  padding: 14px calc(8px + var(--scrollbar-size)) 14px 8px;
 }
 /* No tone bar: the disc carries the tone, the edge is the tone's border token. */
 [data-callout] {

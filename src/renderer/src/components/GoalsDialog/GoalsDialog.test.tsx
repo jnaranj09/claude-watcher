@@ -17,6 +17,7 @@ import type {
   TaskStatus
 } from '../../../../shared/ipc/contract'
 import { dialogToast } from '../../test/toasts'
+import { cssRule } from '../../test/cssRule'
 
 const goal = (over: Partial<Goal> = {}): Goal => ({
   id: 'g1',
@@ -467,5 +468,37 @@ describe('GoalsDialog task row: open and edit', () => {
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByRole('button', { name: 'Show full text Write the spec' }))
     expect(screen.getByRole('button', { name: 'Edit Write the spec' })).toBeInTheDocument()
+  })
+})
+
+// Spec 2026-10-29 goals page polish: the tasks section (progress bar, rows, `+ New task`, start
+// bar) sits in one darker box; `Plan with Claude` is a different region, outside it.
+describe('GoalsDialog — the tasks box', () => {
+  it('a goal draws its progress bar inside the tasks box and Plan with Claude outside it', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal({ defaultCwd: '/repo' })], tasks: [task()], proposals: [] })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    const box = screen.getByTestId('task-list')
+    expect(within(box).getByRole('progressbar', { name: 'Progress of Ship v2' })).toBeVisible()
+    expect(within(box).queryByTestId('goal-plan')).not.toBeInTheDocument()
+    expect(screen.getByTestId('goal-plan')).toBeInTheDocument()
+  })
+
+  it('Daily tasks draw their progress bar inside the tasks box too', () => {
+    open({ goals: [], tasks: [task({ goalId: null })], proposals: [] })
+    const box = screen.getByTestId('task-list')
+    expect(within(box).getByRole('progressbar', { name: 'Progress of Daily tasks' })).toBeVisible()
+  })
+
+  it('the box is a darker well with the card inset; Plan with Claude a section below', () => {
+    const sheet = 'components/GoalsDialog/GoalsDialog.module.css'
+    const tasks = cssRule(sheet, '.tasks')
+    expect(tasks).toMatch(/background:\s*var\(--bg-inset\)/)
+    expect(tasks).toMatch(/border:\s*1px solid var\(--border\)/)
+    expect(tasks).toMatch(/border-radius:\s*var\(--rounded-md\)/)
+    expect(tasks).toMatch(/padding:\s*var\(--inset-card\)/)
+    expect(cssRule(sheet, '.planRow')).toMatch(
+      /margin-top:\s*calc\(var\(--gap-section\) - var\(--gap-field\)\)/
+    )
   })
 })

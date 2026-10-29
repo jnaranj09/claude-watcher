@@ -161,8 +161,9 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.panelDrop .columns')).toMatch(/max-height:\s*none/)
   })
 
-  it('scrolls the form — the smallest region that leaves the rail and the header alone', () => {
-    expect(ruleBody(css, '.form')).toMatch(/overflow-y:\s*auto/)
+  it('scrolls the form body — the smallest region that leaves the rail, header and footer alone', () => {
+    expect(ruleBody(css, '.scrollBody')).toMatch(/overflow-y:\s*auto/)
+    expect(ruleBody(css, '.form')).not.toMatch(/overflow/)
   })
 
   // `overflow-y: auto` makes overflow-x compute to `auto` too, so the form clips at its padding box
@@ -170,10 +171,11 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
   // `outline: 2px` + `outline-offset: 1px` focus ring (3px) to the clip. Both buffers, or the ring
   // is cut on one side of every full-width field in the form: measured `left: 0` on
   // `template-name` and `template-prompt` with `padding: 0px 8px 0px 0px`.
-  it('buffers the focus ring on BOTH horizontal edges of its clip box', () => {
-    const form = ruleBody(css, '.form')
-    expect(form).toMatch(/padding-left:\s*var\(--inset-compact-x\)/)
-    expect(form).toMatch(/padding-right:\s*var\(--inset-compact-x\)/)
+  it('buffers the focus ring on BOTH horizontal edges of its clip box, and at its bottom', () => {
+    const body = ruleBody(css, '.scrollBody')
+    expect(body).toMatch(/padding-left:\s*var\(--inset-compact-x\)/)
+    expect(body).toMatch(/padding-right:\s*var\(--inset-compact-x\)/)
+    expect(body).toMatch(/padding-bottom:\s*var\(--inset-compact-y\)/)
   })
 
   it('leaves the rail`s own scroll and its `+ New` bottom pin intact', () => {
@@ -182,13 +184,11 @@ describe('the shell fits the window (the ✕ and the footer stay reachable)', ()
     expect(ruleBody(css, '.listBottom')).toMatch(/margin-top:\s*auto/)
   })
 
-  it('the Pane shares the Form rule: one scroll region, both paddings, scroll padding', () => {
+  it('the Pane shares the Form rule: a column of the scroll body and the footer slot', () => {
     const css = readFileSync(join(componentsDir, 'ManageDialog/ManageDialog.module.css'), 'utf8')
     const body = ruleBody(css, '.pane')
-    expect(body).toContain('overflow-y: auto')
-    expect(body).toContain('padding-left: var(--inset-compact-x)')
-    expect(body).toContain('padding-right: var(--inset-compact-x)')
-    expect(body).toContain('scroll-padding-block: var(--inset-compact-x)')
+    expect(body).toContain('flex-direction: column')
+    expect(body).toContain('min-height: 0')
     expect(ruleBody(css, '.form')).toBe(body)
   })
 
@@ -286,46 +286,53 @@ describe('ManageDialog form rhythm', () => {
     cssRule('components/ManageDialog/ManageDialog.module.css', selector)
 
   it('label → field is --gap-field; field → next label is --gap-section', () => {
-    expect(rule('.form,\n.pane')).toMatch(/gap:\s*var\(--gap-field\)/)
+    expect(rule('.scrollBody')).toMatch(/gap:\s*var\(--gap-field\)/)
     expect(rule('.label')).toMatch(
       /margin-top:\s*calc\(var\(--gap-section\) - var\(--gap-field\)\)/
     )
   })
 
-  it('the scrolling form keeps its side buffer, so focus rings are not clipped', () => {
-    expect(rule('.form,\n.pane')).toMatch(/padding-left:\s*var\(--inset-compact-x\)/)
-    expect(rule('.form,\n.pane')).toMatch(/padding-right:\s*var\(--inset-compact-x\)/)
-  })
-
-  it('the footer is sticky at the bottom of the form, so Save is always visible', () => {
-    expect(rule('.footer')).toMatch(/position:\s*sticky/)
-    expect(rule('.footer')).toMatch(/bottom:\s*0/)
-  })
-})
-
-describe('ManageDialog sticky footer never hides a field (final review)', () => {
-  const rule = (selector: string): string =>
-    cssRule('components/ManageDialog/ManageDialog.module.css', selector)
-
-  it('Tab scrolls a field clear of the sticky footer, not under it', () => {
-    expect(rule('.form,\n.pane')).toMatch(
-      /scroll-padding-block:\s*var\(--inset-compact-x\)\s+calc\(32px \+ var\(--gap-actions\) \+ var\(--inset-compact-y\) \+ var\(--inset-compact-x\)\)/
+  // The footer is outside the scroll box, so it must match the body's scrollbar gutter on the
+  // right, or the buttons end a scrollbar's width past the fields while the body scrolls.
+  it('the footer lines up with the fields: the body side buffer plus its scrollbar gutter', () => {
+    expect(rule('.scrollBody')).toMatch(/scrollbar-gutter:\s*stable/)
+    expect(rule('.footer')).toMatch(/padding-left:\s*var\(--inset-compact-x\)/)
+    expect(rule('.footer')).toMatch(
+      /padding-right:\s*calc\(var\(--inset-compact-x\) \+ var\(--scrollbar-size\)\)/
     )
   })
 
-  // The space sits INSIDE the sticky footer (its padding), so it stays while the form scrolls
-  // under it. No negative margin: the footer box paints over the field above it (z-index 1), so
-  // the form's --gap-field must stay between them or the last field's focus ring is covered
-  // (drive check 2026-10-02: Tab to `template-prompt` ended 0px from the footer box).
-  it('the last field sits at least --gap-actions above the buttons, also while sticky', () => {
-    expect(rule('.footer')).toMatch(/padding-top:\s*var\(--gap-actions\)/)
+  it('the scrollbar width has one owner, --scrollbar-size, in main.css', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/src/assets/main.css'), 'utf8')
+    expect(main).toMatch(/--scrollbar-size:\s*10px/)
+    expect(main).toMatch(/::-webkit-scrollbar\s*\{[^}]*width:\s*var\(--scrollbar-size\)/)
+  })
+
+  // Spec 2026-10-29 goals page polish: the footer sits UNDER the scroll body, so nothing scrolls
+  // behind it — no sticky band, no fill drawn over the fields (owner: "so square, so weird").
+  it('the footer is not sticky and draws no band', () => {
+    expect(rule('.footer')).not.toMatch(/position|z-index|background/)
+  })
+})
+
+describe('ManageDialog footer never hides a field (final review)', () => {
+  const rule = (selector: string): string =>
+    cssRule('components/ManageDialog/ManageDialog.module.css', selector)
+
+  it('Tab parks a field clear of the body top edge and above its end fade', () => {
+    expect(rule('.scrollBody')).toMatch(/scroll-padding-block:\s*var\(--inset-compact-x\)\s+32px/)
+  })
+
+  // Last field → buttons is --gap-actions: the body's bottom buffer plus the footer's padding.
+  it('the last field sits --gap-actions above the buttons', () => {
+    expect(rule('.footer')).toMatch(
+      /padding-top:\s*calc\(var\(--gap-actions\) - var\(--inset-compact-y\)\)/
+    )
     expect(rule('.footer')).not.toMatch(/margin-top/)
   })
 
   it('the first label starts level with the first rail row', () => {
-    expect(rule('.form > .label:first-child, .pane > .label:first-child')).toMatch(
-      /margin-top:\s*0/
-    )
+    expect(rule('.scrollBody > .label:first-child')).toMatch(/margin-top:\s*0/)
   })
 })
 
@@ -371,13 +378,13 @@ describe('ManageDialog region spacing', () => {
     )
   })
 
-  it('the list fades at its end only while more rows are below (design.md rule 8)', () => {
+  it('the list and a form body fade at their end only while more is below (design.md rule 8)', () => {
     // Raw-sheet match: `[` in the selector would break `ruleBody`'s RegExp.
     const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(stripped).toMatch(
-      /\.rows\[data-overflow-end\]\s*\{[^}]*mask-image:\s*linear-gradient\(to bottom, black calc\(100% - 32px\), transparent\)/
+      /\.rows\[data-overflow-end\],\s*\.scrollBody\[data-overflow-end\]\s*\{[^}]*mask-image:\s*linear-gradient\(to bottom, black calc\(100% - 32px\), transparent\)/
     )
-    // Exactly one mask in the sheet, and it is that rule: never on the plain .rows at rest.
+    // Exactly one mask in the sheet, and it is that shared rule: never on a region at rest.
     expect(stripped.match(/mask-image/g)).toHaveLength(1)
   })
 

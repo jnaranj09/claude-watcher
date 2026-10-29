@@ -1,8 +1,9 @@
 // The end fade of a scroll box (design.md rule 8: a scroll region shows where it ends). Sets
 // `data-overflow-end` on the element while content sits below its visible end; the sheet fades the
 // box's bottom edge on that attribute. IMPERATIVE on purpose: it is DOM state React never renders,
-// so a scroll never re-renders the list. Re-checks on scroll, on a size change, and when rows are
-// added or removed (an async load or a search changes the content without a scroll event).
+// so a scroll never re-renders the list. Re-checks on scroll, on a size change, and when content is
+// added or removed anywhere inside (an async load, a search, a task added deep in a form body all
+// change the content without a scroll event). Used by the rail's rows and a form's or pane's body.
 import { useLayoutEffect, type RefObject } from 'react'
 
 export function useOverflowEnd(ref: RefObject<HTMLElement | null>): void {
@@ -17,12 +18,12 @@ export function useOverflowEnd(ref: RefObject<HTMLElement | null>): void {
     el.addEventListener('scroll', update, { passive: true })
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
     resize?.observe(el)
-    const rows = new MutationObserver(update)
-    rows.observe(el, { childList: true })
+    const content = new MutationObserver(update)
+    content.observe(el, { childList: true, subtree: true })
     return () => {
       el.removeEventListener('scroll', update)
       resize?.disconnect()
-      rows.disconnect()
+      content.disconnect()
     }
   }, [ref])
 }

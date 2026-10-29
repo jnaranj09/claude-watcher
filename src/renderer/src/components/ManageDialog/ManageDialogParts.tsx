@@ -11,9 +11,11 @@
 import {
   Children,
   isValidElement,
+  use,
   useEffect,
   useEffectEvent,
   useRef,
+  useState,
   type FormEvent,
   type JSX,
   type KeyboardEvent,
@@ -24,7 +26,9 @@ import {
   useManageDialogContext,
   type ManageDialogContextValue
 } from './manageDialogState'
+import { createPortal } from 'react-dom'
 import { useOverflowEnd } from './useOverflowEnd'
+import { FooterSlotContext } from './footerSlot'
 import styles from './ManageDialog.module.css'
 import { Checkbox } from '../Checkbox/Checkbox'
 import { Button, type ButtonSize } from '../Button/Button'
@@ -180,13 +184,13 @@ export function ManageDialogForm({
       onSubmit={onSubmit}
       onKeyDown={handleKeyDown}
     >
-      {children}
+      <ScrollWithFooter testId={testId}>{children}</ScrollWithFooter>
     </form>
   )
 }
 
 /** The right column for a surface with NOTHING to submit — Settings, whose controls persist on
- *  change. Same scroll region as `Form` (one CSS rule), same Escape-disarm, but a `<div>`. */
+ *  change. Same two regions as `Form` (one CSS rule), same Escape-disarm, but a `<div>`. */
 export function ManageDialogPane({
   testId,
   children
@@ -197,8 +201,36 @@ export function ManageDialogPane({
   const handleKeyDown = useDisarmOnEscape()
   return (
     <div className={styles.pane} data-testid={testId} data-manage-pane="" onKeyDown={handleKeyDown}>
-      {children}
+      <ScrollWithFooter testId={testId}>{children}</ScrollWithFooter>
     </div>
+  )
+}
+
+/** A Form's or Pane's two regions: the scroll body (fades at its end while more is below, as the
+ *  rail does) and, under it, the slot every `ManageDialog.Footer` inside draws into. */
+function ScrollWithFooter({
+  testId,
+  children
+}: {
+  testId: string | undefined
+  children: ReactNode
+}): JSX.Element {
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  useOverflowEnd(bodyRef)
+  // State, not a ref: the Footer must re-render into the slot once it exists.
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null)
+  return (
+    <FooterSlotContext value={{ element: slot, testId }}>
+      <div
+        className={styles.scrollBody}
+        ref={bodyRef}
+        data-manage-scroll=""
+        data-testid={testId === undefined ? undefined : `${testId}-scroll`}
+      >
+        {children}
+      </div>
+      <div ref={setSlot} />
+    </FooterSlotContext>
   )
 }
 
@@ -218,13 +250,24 @@ export function ManageDialogPlaceholder({
   )
 }
 
-/** The form's ONE `flex-end` action row: `[Delete] [Save]` (design.md). */
-export function ManageDialogFooter({ children }: { children: ReactNode }): JSX.Element {
-  return (
-    <div className={styles.footer} data-manage-footer="" data-toast-clearance="">
+/** The form's ONE `flex-end` action row: `[Delete] [Save]` (design.md). Drawn in its Form's or
+ *  Pane's footer slot, under the scroll body, wherever it sits in the children. */
+export function ManageDialogFooter({ children }: { children: ReactNode }): JSX.Element | null {
+  const slot = use(FooterSlotContext)
+  const footer = (
+    <div
+      className={styles.footer}
+      data-manage-footer=""
+      data-toast-clearance=""
+      data-testid={slot?.testId === undefined ? undefined : `${slot.testId}-footer`}
+    >
       {children}
     </div>
   )
+  // Outside any Form or Pane it draws in place. Inside one it waits for the slot (one render),
+  // never drawing in place first: moving it into a portal would mount its buttons twice.
+  if (slot === null) return footer
+  return slot.element === null ? null : createPortal(footer, slot.element)
 }
 
 export interface ManageDialogDeleteProps {

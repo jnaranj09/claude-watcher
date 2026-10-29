@@ -162,22 +162,6 @@ body {
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: var(--shadow-dialog);
 }
-/* The sticky [Delete] [Save] row of a Manage form (spec 2026-10-01-spacing-roles): a long form
-   scrolls UNDER it. The token's flat `--bg-surface-raised` is white 10% here and let a field read
-   straight through the buttons; the row frosts what passes below instead, and stays invisible
-   while nothing does. The blur sits on `::before` like every glass layer here: on the row itself it
-   would make the row the backdrop root of its own glass buttons. */
-[data-manage-footer] {
-  background-color: transparent;
-}
-[data-manage-footer]::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
 [role='dialog'][aria-modal='true'] > *::before,
 [data-testid='settings-panel']::before {
   backdrop-filter: var(--glass-filter-modal);

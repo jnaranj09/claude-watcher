@@ -7,6 +7,7 @@ export const TOKEN_DOCS: Record<TokenName, string> = {
     'The window ground: the board behind the columns and the ground the active rail row opens onto',
   'bg-surface': 'Panels and fields: the dialog body, text inputs, the Select box',
   'bg-surface-raised': 'A panel floating above the surface: the Settings dialog, popovers, menus',
+  'bg-inset': 'A well sunk into a raised panel: the Goals sheet tasks box (never transparent)',
   'bg-col-hero': 'The needs-you column background',
   'bg-col-calm': 'The working and idle column backgrounds',
   'bg-card-hero': 'A session card in the needs-you column',

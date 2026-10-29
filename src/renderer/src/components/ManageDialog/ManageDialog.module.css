@@ -183,11 +183,14 @@
   /* A row reached by keyboard parks above the end fade, not inside it (same 32px). */
   scroll-padding-bottom: 32px;
 }
-/* More rows below the visible end: the bottom 32px fades out (design.md rule 8), so a row cut by
-   the scroll reads as "more below", not as broken layout. `useOverflowEnd` sets the attribute; at
-   the end, or when everything fits, there is no mask and the last row (and its focus ring) is
-   whole. `black`/`transparent` are mask alpha, not colours. 32px is geometry: about one row. */
-.rows[data-overflow-end] {
+/* More content below the visible end: the bottom 32px fades out (design.md rule 8), so a row or
+   field cut by the scroll reads as "more below", not as broken layout. ONE rule for both scroll
+   regions, the rail's rows and a form's or pane's body (same meaning, same look). `useOverflowEnd`
+   sets the attribute; at the end, or when everything fits, there is no mask and the last row or
+   field (and its focus ring) is whole. `black`/`transparent` are mask alpha, not colours. 32px is
+   geometry: about one row. */
+.rows[data-overflow-end],
+.scrollBody[data-overflow-end] {
   mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent);
 }
 .row {
@@ -304,24 +307,29 @@
   color: var(--text-secondary);
 }
 
-/* The form is the ONLY region that scrolls — the smallest one that fixes the overflow. The header
-   (with ✕) and the rail keep their own heights, so `.rows` still scrolls itself and `+ New` still
-   sits at the bottom of the rail. The `[Delete] [Save]` footer is STICKY at the bottom of this region
-   (spec 2026-10-01-spacing-roles): a form taller than the window scrolls under it, so Save is always
-   in view. It used to scroll WITH the form, and a long form on a short window put Save out of reach.
-
-   The padding is NOT decoration: `overflow-y: auto` makes overflow-x compute to `auto` as well, so
-   this box clips at its padding edge on EVERY side, not only the one it scrolls. A field flush with
-   that edge loses its `outline` + `outline-offset: 1px` ring to the clip — with
-   `padding-right` alone, every full-width field in the form (TextInput, Select, TextArea) sat at
-   left 0 and had its ring cut down the left side. So both sides get the same buffer, and
-   `scroll-padding-block` gives the same 8px to a field the browser scrolls into view on Tab, which
-   would otherwise align its border box with the top or bottom edge and clip the ring there. At the
-   BOTTOM it also clears the sticky footer (a 32px md Button + its --gap-actions / compact padding), or Tab would park
-   the focused field under `[Delete] [Save]`.
-   `.pane` is the same region for a surface with no submit (Settings). */
+/* The right column (`.form`, or `.pane` for a surface with no submit such as Settings) is a
+   column of two regions: the scroll body, then the footer slot. The body is the ONLY region that
+   scrolls, the smallest one that fixes the overflow: the header (with ✕) and the rail keep their
+   own heights, so `.rows` still scrolls itself and `+ New` still sits at the bottom of the rail.
+   `[Delete] [Save]` sit UNDER the body, never over it (spec 2026-10-29 goals page polish), so Save
+   is always in view and nothing scrolls behind the buttons. The body takes its content's height
+   until the column is full, then shrinks and scrolls, so on a short form the buttons still follow
+   the last field. */
 .form,
 .pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* The padding is NOT decoration: `overflow-y: auto` makes overflow-x compute to `auto` as well, so
+   this box clips at its padding edge on EVERY side, not only the one it scrolls. A field flush with
+   that edge loses its `outline` + `outline-offset: 1px` ring to the clip — with `padding-right`
+   alone, every full-width field (TextInput, Select, TextArea) sat at left 0 and had its ring cut
+   down the left side. So both sides get the same buffer, and the bottom one keeps the last
+   field's ring whole when scrolled to the end. `scroll-padding-block` gives a field the browser
+   scrolls into view on Tab the same 8px at the top, and parks it above the 32px end fade at the
+   bottom (as `.rows` does). */
+.scrollBody {
   display: flex;
   flex-direction: column;
   gap: var(--gap-field);
@@ -329,8 +337,11 @@
   overflow-y: auto;
   padding-left: var(--inset-compact-x);
   padding-right: var(--inset-compact-x);
-  scroll-padding-block: var(--inset-compact-x)
-    calc(32px + var(--gap-actions) + var(--inset-compact-y) + var(--inset-compact-x));
+  padding-bottom: var(--inset-compact-y);
+  scroll-padding-block: var(--inset-compact-x) 32px;
+  /* The scrollbar's room is kept at rest too, so the fields never move when the body starts to
+     scroll, and the footer below can match it. */
+  scrollbar-gutter: stable;
 }
 /* The right column while nothing is open (spec 2026-09-29): it stretches to the row the rail sets
    and centres one line in it, so the panel keeps its size and the line sits mid-column.
@@ -357,8 +368,7 @@
   margin-top: calc(var(--gap-section) - var(--gap-field));
 }
 /* The first label starts level with the rail's first row: the section gap is BETWEEN fields. */
-.form > .label:first-child,
-.pane > .label:first-child {
+.scrollBody > .label:first-child {
   margin-top: 0;
 }
 .hint {
@@ -366,23 +376,19 @@
   font-size: var(--font-size-meta);
   color: var(--text-muted);
 }
+/* `[Delete] [Save]` under the scroll body. --gap-actions from the last field: the body's own
+   bottom buffer is part of it. The side buffer matches the body's, plus its scrollbar gutter on the
+   right, so the buttons end where the fields end. No fill and no stacking: nothing passes under
+   it. */
 .footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--gap-inline);
-  /* --gap-actions above the buttons is the footer's OWN padding, so it stays while the form
-     scrolls under it (a margin would scroll away and the last field would sit flush on Save). The
-     form's --gap-field stays above the footer box on purpose: the box paints over what is under it
-     (z-index 1), and that 6px is what keeps the last field's focus ring visible. */
-  /* Sticky: a form taller than the window scrolls UNDER [Delete] [Save], so Save is always in
-     view (spec 2026-10-01-spacing-roles). The panel's own fill hides the fields passing below. */
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  padding-top: var(--gap-actions);
+  padding-top: calc(var(--gap-actions) - var(--inset-compact-y));
   padding-bottom: var(--inset-compact-y);
-  background: var(--bg-surface-raised);
+  padding-left: var(--inset-compact-x);
+  padding-right: calc(var(--inset-compact-x) + var(--scrollbar-size));
 }
 
 /* The buttons — Save, Delete, Cancel, + New, ✕ — are `components/Button` (design.md): primary,

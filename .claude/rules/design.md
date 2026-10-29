@@ -102,8 +102,8 @@ a new one.` (no `+ New` → `Select a <thing> on the left.`). No button in it.
 - **Panel capped to viewport, FORM scrolls:** `.panel` `max-height: calc(100vh - 2 *
 var(--space-6))`, `.columns` `grid-template-rows: minmax(0, 1fr)` and its own `max-height:
   560px` (a long list or pane scrolls, it never makes the dialog taller; the Goals sheet lifts
-  it), `.form` the one `overflow-y: auto` (pinned by `ManageDialog.styles.test.ts`). A too-tall
-  form gets shortened.
+  it), the form's or pane's body (`.scrollBody`) the one `overflow-y: auto` (pinned by
+  `ManageDialog.styles.test.ts`), with `[Delete] [Save]` under it. A too-tall form gets shortened.
   Any scroll region clips every side, so it needs `padding-left/right: var(--space-2)` +
   `scroll-padding-block` or focus rings get cut.
 - **A dialog's result is ONE toast** (spec 2026-10-26 dialog toasts), keyed `dialog:<testIdPrefix>`
@@ -241,8 +241,10 @@ sections clearly apart. Every `gap`/`padding`/`margin` in a component stylesheet
 - A divider keeps 8px each side; a group with NO divider before a Popover list (search → list)
   gets `--gap-group` (Popover owns it — no per-menu slot).
 - Dialog form: `.form` gap `--gap-field`, `.label` margin-top `--gap-section − --gap-field`.
-- **Manage footer is sticky** (`[Delete] [Save]` stays in view while a long form scrolls under
-  it; themes style `[data-manage-footer]` — Liquid Glass frosts it).
+- **Manage footer sits under the scroll body** (spec 2026-10-29 goals page polish): a Form or
+  Pane is its scroll body (`[data-manage-scroll]`) then a footer slot; `ManageDialog.Footer`
+  draws into that slot wherever it sits in the children, so `[Delete] [Save]` stay in view and
+  nothing scrolls behind them. No fill, no band. Themes style `[data-manage-footer]`.
 - The guard's allow-list holds optical nudges and geometry (`+1px` border compensation, the 28px
   peek toggle, 14px icon, 8px dot), each with a reason. A new one needs a reason, not a habit.
 - `--gutter` / `--card-gap` are aliases kept for themes; components use the roles.
@@ -284,10 +286,9 @@ one above it. The exception is a Settings row: its label and control sit at the 
      line (Shortcuts, Workspaces) — its hover is the whole row, pin and checkbox included; compact and quiet popover rows keep their own size. Open-rail
      rows 36, active row 40; collapsed rail 40 / 44 squares.
 5. **A scroll region never ends flush on a fixed region.** The rail list stops `--gap-group` above
-   the bottom slot. The sticky footer's space is its PADDING (stays while the form scrolls under
-   it), and the form's `--gap-field` stays above the footer box: the box paints over what is under
-   it, so flush would cover the last field's focus ring. `scroll-padding-block` clears the whole
-   footer box, so Tab never parks a field under it.
+   the bottom slot. A form's body keeps an `--inset-compact-y` buffer at its bottom (the last
+   field's focus ring stays whole), and the footer's padding-top makes up the rest of
+   `--gap-actions`. `scroll-padding-block` parks a field reached by Tab above the body's end fade.
 6. **A new screen picks slots, not gaps.** Rail foot content goes in `ManageDialog.ListBottom`
    (items `--gap-field` apart), a footnote in `ManageDialog.ListNote`. A DIFFERENT region under
    the list (a footnote, a bulk bar) goes in `ManageDialog.ListBottomDivided`: a divider with
@@ -301,9 +302,9 @@ one above it. The exception is a Settings row: its label and control sit at the 
    included), not box to box: a row's own padding is space too.
 8. **A scroll region shows where it ends.** A frame, a fill or a divider marks its edge, so a row
    cut by the scroll reads as "more below", not as broken layout, and what sits outside it is
-   clearly outside. Every `ManageDialog.Rows` fades its bottom 32px while more rows are below
-   (`useOverflowEnd`); none at rest. `scroll-padding-bottom: 32px` parks a row reached by keyboard
-   above the fade.
+   clearly outside. Every `ManageDialog.Rows`, and every Form or Pane body, fades its bottom 32px
+   while more is below (`useOverflowEnd`, one shared CSS rule); none at rest. A 32px bottom scroll
+   padding parks a row or field reached by keyboard above the fade.
 9. **Bare controls get more air than containers** (owner, 2026-10-12). A container's own edge
    already separates it, and its content, so space plus that edge reads as a double break: two
    containers side by side keep the smaller gap. Controls with no container around them (a search
@@ -378,7 +379,10 @@ The header holds the `Goals` icon button (lucide `circle-check-big`, a Button `r
 The Goals sheet's rail starts with `Daily tasks` (the tasks with no goal): it is open on every open
 of the sheet and where a deleted goal leaves it, so the sheet has no placeholder (like Settings,
 which opens on its first category). Every task, in the sheet and in the focused task panel, is the
-one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕), `--gap-section` under the `Tasks` head.
+one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕). In the focused task panel the rows
+sit `--gap-section` under the `Tasks` head; on the sheet the progress bar, the rows, `+ New task`
+and the start bar sit in ONE darker box (`--bg-inset`, `--gap-group` apart), and `Plan with Claude`
+sits `--gap-section` below it, outside.
 On the sheet only, a ghost `▸` / `▾` before ✕ opens a row: the title wraps in full and `Edit`
 shows; `Edit` swaps the title for a 3-row `TextArea` (the title wraps) with `Save` / `Cancel`
 (Enter saves, a pasted line break becomes a space, Escape cancels the edit only, empty or

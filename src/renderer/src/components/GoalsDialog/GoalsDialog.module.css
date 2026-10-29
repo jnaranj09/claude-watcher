@@ -1,5 +1,5 @@
-/* Goals — what is the Goals sheet's own: the rail row's two lines, the folder line, the task
-   list and its start bar, `Plan with Claude` and a planner's proposal. The progress bar is components/GoalProgress and a task row
+/* Goals — what is the Goals sheet's own: the rail row's two lines, the folder line, the tasks
+   box (progress bar, task list, start bar), `Plan with Claude` and a planner's proposal. The progress bar is components/GoalProgress and a task row
    components/TaskRow. The shell, rail, form, footer and every button are ManageDialog.module.css
    (.claude/rules/design.md). */
 .rowText {
@@ -33,14 +33,20 @@
   white-space: nowrap;
 }
 
-/* The tasks body under its head (the `Tasks` label and the progress bar): head → body is
-   --gap-section (design.md "header → body"); the form's own --gap-field already sits above it.
-   Inside, the rows, `+ New task` and the start bar are different regions: --gap-group apart. */
+/* The tasks section is ONE darker box under the `Tasks` label (spec 2026-10-29 goals page
+   polish): the progress bar, the rows, `+ New task` and the start bar. A well sunk into the raised
+   panel (--bg-inset, never transparent in a theme), so the boxed rows inside read one step lighter
+   and the section reads as one block apart from the name and folder above it. Label → box is the
+   form's own --gap-field (label → its control). Inside, the bar, the rows, `+ New task` and the
+   start bar are different regions: --gap-group apart, the card inset around them. */
 .tasks {
   display: flex;
   flex-direction: column;
   gap: var(--gap-group);
-  margin-top: calc(var(--gap-section) - var(--gap-field));
+  padding: var(--inset-card);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
 }
 /* A task row being edited: the field fills the row, `Save` / `Cancel` after it. */
 .taskEditor {
@@ -106,11 +112,13 @@
   font-size: var(--font-size-body);
 }
 
-/* `Plan with Claude` under the task list (and its start bar): one button at the start of a row. */
+/* `Plan with Claude` under the tasks box: one button at the start of a row. A different region,
+   so --gap-section from the box (the form's --gap-field already sits above it), never inside it. */
 .planRow {
   display: flex;
   align-items: center;
   gap: var(--gap-inline);
+  margin-top: calc(var(--gap-section) - var(--gap-field));
 }
 
 /* A planner's proposal: a different region from the tasks, so behind a divider with
