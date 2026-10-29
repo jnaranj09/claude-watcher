@@ -97,10 +97,15 @@ describe('SessionTasks', () => {
     expect(screen.getByRole('button', { name: 'Undo Write the spec' })).toBeInTheDocument()
   })
 
-  it("shows the goal's progress over all of its tasks, not just the linked ones", () => {
+  it("counts only this session's tasks of the goal, not the goal's other tasks", () => {
     open({
       goals: [goal()],
-      tasks: [task(), task({ id: 't2', status: 'done', sessionIds: [] })],
+      tasks: [
+        task(),
+        task({ id: 't2', status: 'done' }),
+        task({ id: 't3', status: 'done', sessionIds: [] }),
+        task({ id: 't4', sessionIds: ['s2'] })
+      ],
       proposals: []
     })
     const bar = screen.getByRole('progressbar')
@@ -161,6 +166,21 @@ describe('SessionTasks', () => {
     open({ goals: [], tasks: [task({ goalId: null })], proposals: [] })
     expect(screen.getByText('Daily tasks')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Daily tasks')
+  })
+
+  it("Daily tasks counts only this session's daily tasks, not the workspace's", () => {
+    open({
+      goals: [],
+      tasks: [
+        task({ goalId: null }),
+        task({ id: 't2', goalId: null, status: 'done', sessionIds: [] }),
+        task({ id: 't3', goalId: null, sessionIds: ['s2'] }),
+        task({ id: 't4', goalId: null, sessionIds: [] })
+      ],
+      proposals: []
+    })
+    expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Daily tasks')
+    expect(screen.getByTestId('goal-progress-text')).toHaveTextContent('0/1')
   })
 
   it('opened with nothing linked it says so', () => {

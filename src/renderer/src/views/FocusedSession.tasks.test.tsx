@@ -35,7 +35,8 @@ beforeEach(() => {
     focusedTerminalId: null,
     terminalIdBySessionId: {},
     launchedTerminals: {},
-    shellPanes: {}
+    shellPanes: {},
+    tasksPanelOpenById: {}
   })
   stubXtermBrowserApis()
   ;(window as unknown as { terminal: unknown }).terminal = {
@@ -176,16 +177,50 @@ describe('FocusedSession — the Tasks panel', () => {
     expect(screen.getByRole('button', { name: 'Tasks' })).toBeDisabled()
   })
 
-  it('moving focus to another session resets the panel to that session', async () => {
+  it('each session keeps its own open/closed choice across a switch away and back', async () => {
     const user = userEvent.setup()
     boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
     boardStore.getState().addCorrelation('b', 'launch-b')
     open([])
     await user.click(screen.getByRole('button', { name: 'Tasks' }))
     expect(screen.getByTestId('session-tasks')).toBeInTheDocument()
+    // b has made no choice yet: it starts from its own linked tasks (none here).
     act(() => boardStore.getState().switchTerminal('launch-b'))
     expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
     act(() => boardStore.getState().switchTerminal('launch-a'))
+    expect(screen.getByTestId('session-tasks')).toBeInTheDocument()
+  })
+
+  it('hiding a panel that opened for linked tasks stays hidden after a switch away and back', async () => {
+    const user = userEvent.setup()
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
+    boardStore.getState().addCorrelation('b', 'launch-b')
+    open([linked])
+    await user.click(screen.getByRole('button', { name: 'Tasks' }))
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+    act(() => boardStore.getState().switchTerminal('launch-b'))
+    act(() => boardStore.getState().switchTerminal('launch-a'))
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('a session never toggled takes its start from its linked tasks each time focus returns', () => {
+    boardStore.getState().applyWatchEvent(watchUpdated(1, 'b', 'needs-you', 200))
+    boardStore.getState().addCorrelation('b', 'launch-b')
+    open([{ ...linked, sessionIds: [] }])
+    act(() => goalsStore.setState({ tasks: [linked] }))
+    expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
+    act(() => boardStore.getState().switchTerminal('launch-b'))
+    act(() => boardStore.getState().switchTerminal('launch-a'))
+    expect(screen.getByTestId('session-tasks')).toBeInTheDocument()
+  })
+
+  it('the hidden choice survives the view remounting', async () => {
+    const user = userEvent.setup()
+    open([linked])
+    await user.click(screen.getByRole('button', { name: 'Tasks' }))
+    rendered?.unmount()
+    rendered = render(<FocusedSession onBack={() => {}} onNewSession={() => {}} />)
     expect(screen.queryByTestId('session-tasks')).not.toBeInTheDocument()
   })
 })

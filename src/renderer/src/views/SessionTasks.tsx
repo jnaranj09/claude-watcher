@@ -1,5 +1,6 @@
 // The focused view's task panel (spec 2026-10-19 Decision E): the tasks linked to the session in
-// view, grouped by goal with that goal's progress; `Done` / `Undo` on each, `Link task` to add
+// view, grouped by goal; each group's bar counts only this session's tasks in it (not the whole
+// goal, not every daily task of the workspace); `Done` / `Undo` on each, `Link task` to add
 // another, ✕ to unlink. Pure renderer view of goalsStore; every change goes to main and comes back as the view.
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { GOAL_TERMS } from '../copy/terms'
@@ -26,41 +27,25 @@ import styles from './SessionTasks.module.css'
 interface Group {
   key: string
   name: string
-  /** Linked here: what the rows show. */
+  /** Linked here: what the rows show and what the bar counts. */
   linked: Task[]
-  /** Every task of the goal (or the loose ones of the workspace): what the bar counts. */
-  all: Task[]
 }
 
 /** The linked tasks by goal, in the order the goals were made; loose ones last. */
-function groupsFor(
-  s: Pick<GoalsState, 'goals' | 'tasks'>,
-  sessionId: string,
-  workspaceId: string
-): Group[] {
+function groupsFor(s: Pick<GoalsState, 'goals' | 'tasks'>, sessionId: string): Group[] {
   const linked = s.tasks.filter((t) => t.sessionIds.includes(sessionId))
   const groups: Group[] = []
   for (const g of s.goals) {
     const mine = linked.filter((t) => t.goalId === g.id)
     if (mine.length > 0) {
-      groups.push({
-        key: g.id,
-        name: g.name,
-        linked: mine,
-        all: s.tasks.filter((t) => t.goalId === g.id)
-      })
+      groups.push({ key: g.id, name: g.name, linked: mine })
     }
   }
   // A task whose goal is missing is shown as loose rather than dropped.
   const known = new Set(s.goals.map((g) => g.id))
   const loose = linked.filter((t) => t.goalId === null || !known.has(t.goalId))
   if (loose.length > 0) {
-    groups.push({
-      key: 'loose',
-      name: GOAL_TERMS.daily,
-      linked: loose,
-      all: s.tasks.filter((t) => t.workspaceId === workspaceId && t.goalId === null)
-    })
+    groups.push({ key: 'loose', name: GOAL_TERMS.daily, linked: loose })
   }
   return groups
 }
@@ -78,7 +63,7 @@ export function SessionTasks({
   // The store's own arrays (stable references): groups are built here, not in the selector, so the
   // shallow compare never sees fresh nested objects.
   const { goals, tasks } = useGoals((s) => ({ goals: s.goals, tasks: s.tasks }))
-  const groups = groupsFor({ goals, tasks }, sessionId, workspaceId)
+  const groups = groupsFor({ goals, tasks }, sessionId)
   const candidates = useGoals((s) =>
     s.tasks.filter(
       (t) =>
@@ -190,7 +175,7 @@ export function SessionTasks({
           <p className={styles.empty}>{GOAL_TERMS.noneLinked}</p>
         ) : (
           groups.map((g) => {
-            const { done, total } = progressOf(g.all)
+            const { done, total } = progressOf(g.linked)
             return (
               <section key={g.key} className={styles.group} data-testid={`session-tasks-${g.key}`}>
                 <span className={styles.goalName} title={g.name}>

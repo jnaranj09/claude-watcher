@@ -298,6 +298,11 @@ export interface BoardState {
   /** Drop every pane whose parent terminal is not in `renderedParentIds` (its frame unmounted, so
    *  main already stopped the shell). Same reference when nothing drops. */
   pruneShellPanes: (renderedParentIds: readonly string[]) => void
+  /** The focused view's Tasks panel: the operator's last toggle per session id, kept while the
+   *  app runs (not saved). No entry ⇒ the panel starts from that session's linked tasks.
+   *  Dropped on `session.removed`. */
+  tasksPanelOpenById: Record<string, boolean>
+  setTasksPanelOpen: (sessionId: string, open: boolean) => void
   /**
    * Story 4.2 (FR-14) — the QUIT-GUARD modal payload (RENDERER VIEW-STATE; not session truth).
    * Non-null when main detected ≥1 live app-launched session and pushed the guard payload via
@@ -671,6 +676,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
     // Story 5.6 (AC-1) — no launched terminals recorded until the first launch returns a terminalId.
     launchedTerminals: {},
     shellPanes: {},
+    tasksPanelOpenById: {},
 
     applyWatchEvent: (payload) => {
       const state = get()
@@ -731,6 +737,7 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
         // DOWN on this same c9watch removal), and the rail no longer holds a binding for a gone session.
         const ackCleared = state.acknowledgedById[event.id] !== undefined
         const bindingCleared = state.terminalIdBySessionId[event.id] !== undefined
+        const tasksChoiceCleared = state.tasksPanelOpenById[event.id] !== undefined
         set({
           sessionsById: nextById,
           epoch: payload.epoch,
@@ -741,6 +748,9 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
           ...(ackCleared ? { acknowledgedById: omitKey(state.acknowledgedById, event.id) } : {}),
           ...(bindingCleared
             ? { terminalIdBySessionId: omitKey(state.terminalIdBySessionId, event.id) }
+            : {}),
+          ...(tasksChoiceCleared
+            ? { tasksPanelOpenById: omitKey(state.tasksPanelOpenById, event.id) }
             : {})
           // No hero re-evaluation: the hero is PINNED (HERO_COLUMN) — emptying Needs-you
           // leaves the center where it is, now showing an empty column.
@@ -830,6 +840,12 @@ export function createBoardStore(options: BoardStoreOptions = {}): BoardStore {
       const panes = { ...state.shellPanes }
       for (const id of stale) delete panes[id]
       set({ shellPanes: panes })
+    },
+
+    setTasksPanelOpen: (sessionId, open) => {
+      const state = get()
+      if (state.tasksPanelOpenById[sessionId] === open) return
+      set({ tasksPanelOpenById: { ...state.tasksPanelOpenById, [sessionId]: open } })
     },
 
     forgetLaunchedTerminal: (terminalId) => {
