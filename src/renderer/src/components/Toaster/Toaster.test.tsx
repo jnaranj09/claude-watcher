@@ -269,32 +269,42 @@ describe('Toaster — motion (spec 2026-10-04 §7)', () => {
   })
 })
 
-describe('Toaster — clearance', () => {
-  it('region style carries --toast-clearance after a footer appears while a toast is showing', async () => {
+describe('Toaster — placement', () => {
+  it('region style puts the stack inside a dialog panel that opens while a toast is showing', async () => {
     const { store } = setup()
     act(() => {
       store.getState().push({ kind: 'success', title: 'ok' })
     })
     const region = r?.container.querySelector<HTMLElement>('[data-testid="toaster"]')
-    expect(region?.style.getPropertyValue('--toast-clearance')).toBe('0px')
-    const footer = document.createElement('div')
-    footer.setAttribute('data-toast-clearance', '')
-    footer.getBoundingClientRect = () => ({ top: window.innerHeight - 200 }) as DOMRect
+    expect(region?.style.getPropertyValue('--toast-bottom')).toBe('0px')
+    expect(region?.style.getPropertyValue('--toast-room')).toBe('')
+    const panel = document.createElement('div')
+    panel.setAttribute('data-toast-anchor', '')
+    panel.getBoundingClientRect = () =>
+      ({
+        top: 40,
+        right: window.innerWidth - 50,
+        bottom: window.innerHeight - 40,
+        width: 900
+      }) as DOMRect
     await act(async () => {
-      document.body.append(footer)
+      document.body.append(panel)
       await Promise.resolve()
     })
-    expect(region?.style.getPropertyValue('--toast-clearance')).toBe('200px')
-    footer.remove()
+    expect(region?.style.getPropertyValue('--toast-right')).toBe('50px')
+    expect(region?.style.getPropertyValue('--toast-bottom')).toBe('40px')
+    expect(region?.style.getPropertyValue('--toast-room')).toBe('900px')
+    panel.remove()
   })
 
-  it('the stack sits at --space-4 or above the clearance plus --gap-page', () => {
-    const css = readFileSync(
-      join(process.cwd(), 'src/renderer/src/components/Toaster/Toaster.module.css'),
-      'utf8'
+  it('the stack sits a --space-4 inside the placement, no wider than the room', () => {
+    const region = cssRule('components/Toaster/Toaster.module.css', '.region')
+    expect(region).toMatch(/right:\s*calc\(var\(--toast-right,\s*0px\)\s*\+\s*var\(--space-4\)\);/)
+    expect(region).toMatch(
+      /bottom:\s*calc\(var\(--toast-bottom,\s*0px\)\s*\+\s*var\(--space-4\)\);/
     )
-    expect(css).toMatch(
-      /bottom:\s*max\(var\(--space-4\),\s*calc\(var\(--toast-clearance,\s*0px\)\s*\+\s*var\(--gap-page\)\)\);/
+    expect(region).toMatch(
+      /width:\s*min\(360px,\s*calc\(var\(--toast-room,\s*100vw\)\s*-\s*2\s*\*\s*var\(--space-4\)\)\);/
     )
   })
 })

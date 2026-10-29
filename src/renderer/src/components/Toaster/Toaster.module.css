@@ -1,19 +1,20 @@
-/* Action feedback (spec 2026-09-29 §1.2) — the toast stack. Bottom-right with a --space-4 gutter;
-   while a dialog is open the Toaster sets --toast-clearance (px from the viewport bottom to the
-   dialog's `[data-toast-clearance]` footer) and the stack rises to sit a --gap-page above it, so a
-   toast never covers the dialog's buttons. z-index 70: above ManageDialog / QuitGuard /
+/* Action feedback (spec 2026-09-29 §1.2) — the toast stack. Bottom-right with a --space-4 gutter.
+   While a dialog is open the Toaster sets --toast-right / --toast-bottom (px from the viewport's
+   edges to the dialog panel's, or to the top of a button row the stack would cover) and
+   --toast-room (the panel's width), so the stack sits whole INSIDE the panel's bottom-right corner
+   and never covers the dialog's buttons. z-index 70: above ManageDialog / QuitGuard /
    StopConfirm / the name prompt (60), below the terminal context menu (1000). Tokens only. A
    success and an error draw the Callout's disc (`.mark`); info draws none. */
 .region {
   position: fixed;
-  right: var(--space-4);
-  bottom: max(var(--space-4), calc(var(--toast-clearance, 0px) + var(--gap-page)));
+  right: calc(var(--toast-right, 0px) + var(--space-4));
+  bottom: calc(var(--toast-bottom, 0px) + var(--space-4));
   z-index: 70;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--gap-inline);
-  width: min(360px, calc(100vw - 2 * var(--space-4)));
+  width: min(360px, calc(var(--toast-room, 100vw) - 2 * var(--space-4)));
   /* The empty strip between toasts must not eat clicks meant for the board under it. */
   pointer-events: none;
 }

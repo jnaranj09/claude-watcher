@@ -141,7 +141,12 @@ export function SessionNameDialog({
       aria-modal="true"
       aria-label={title}
     >
-      <form className={styles.panel} data-testid="session-name-panel" onSubmit={handleSubmit}>
+      <form
+        className={styles.panel}
+        data-toast-anchor=""
+        data-testid="session-name-panel"
+        onSubmit={handleSubmit}
+      >
         <div className={styles.header}>
           <span className={styles.title} data-testid="session-name-title">
             {title}

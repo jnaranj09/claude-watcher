@@ -8,13 +8,15 @@
 // Hover or focus inside a toast pauses its timer. A success and an error draw the Callout's disc
 // (`[data-toast-mark]`, glyph in CSS so the text stays the words); info draws none. The action is
 // the toast's one primary Button, with its icon (spec 2026-10-14). Themes target `[data-toast]`,
-// `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]` and `[data-toast-clearance]`, never
-// a test id.
+// `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]`, `[data-toast-anchor]` and
+// `[data-toast-clearance]`, never a test id.
 //
-// The stack rises above an open dialog's buttons: a dialog marks its button row
-// `[data-toast-clearance]`, and while toasts exist the Toaster measures it (on a toast change, a
-// modal change, a resize, and any DOM change — a form opening under a toast already up, a dialog
-// starting to leave) into `--toast-clearance` on the region.
+// While a dialog is open the stack sits INSIDE its panel (`[data-toast-anchor]`), in the panel's
+// bottom-right corner, and rises above the panel's button row (`[data-toast-clearance]`) only when
+// it would cover it (`toastPlacement`). While toasts exist the Toaster measures that (on a toast
+// change, a modal change, a resize, and any DOM change — a form opening under a toast already up,
+// a dialog starting to leave) into `--toast-right`, `--toast-bottom` and `--toast-room` on the
+// region.
 import { useLayoutEffect, useRef, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
@@ -30,7 +32,7 @@ import {
 } from '../../stores/toastStore'
 import { useBoard } from '../../stores/boardStore'
 import { modalOpenIn } from '../../lib/modals'
-import { toastClearance } from './toastClearance'
+import { toastPlacement } from './toastPlacement'
 import styles from './Toaster.module.css'
 
 const ACTION_ICON: Readonly<Record<ToastActionIcon, LucideIconName>> = {
@@ -49,11 +51,22 @@ export function Toaster({ store = toastStore }: ToasterProps): JSX.Element {
   const region = useRef<HTMLElement>(null)
   const hasToasts = toasts.length > 0
   useLayoutEffect(() => {
-    const measure = (): void =>
-      region.current?.style.setProperty(
-        '--toast-clearance',
-        `${toastClearance(document, window.innerHeight)}px`
+    const measure = (): void => {
+      const el = region.current
+      if (el === null) return
+      const place = toastPlacement(
+        document,
+        { width: window.innerWidth, height: window.innerHeight },
+        {
+          height: el.offsetHeight,
+          gap: parseFloat(getComputedStyle(el).getPropertyValue('--space-4')) || 0
+        }
       )
+      el.style.setProperty('--toast-right', `${place.right}px`)
+      el.style.setProperty('--toast-bottom', `${place.bottom}px`)
+      if (place.room === null) el.style.removeProperty('--toast-room')
+      else el.style.setProperty('--toast-room', `${place.room}px`)
+    }
     measure()
     if (!hasToasts) return undefined
     window.addEventListener('resize', measure)

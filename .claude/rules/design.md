@@ -451,7 +451,8 @@ Spec `2026-09-29-action-feedback-design.md`. Visible result for every action; no
 
 1. A dialog's result (a save, delete, forget, restore, start or import that landed or was
    refused) → its ONE result toast (`dialog:<testIdPrefix>`; the name prompt `dialog:session-name`;
-   Settings' `Saved`), above the dialog's footer. Delete confirm and Quit guard toast refusals too.
+   Settings' `Saved`), inside the dialog's panel, bottom-right. Delete confirm and Quit guard
+   toast refusals too.
    A field error or standing notice stays inline (a danger Callout by what it describes).
 2. Small action on a control that stays (Copy, Reload themes, Regenerate) → Button `feedback` for
    1.5 s.
@@ -475,13 +476,16 @@ until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCo
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
   action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`; while a
-  dialog is open the stack rises a `--gap-page` above its button row (`[data-toast-clearance]`,
-  measured into `--toast-clearance`), so a toast never covers `[Delete] [Save]`. Anatomy: disc
+  dialog is open the stack sits whole INSIDE its panel (`[data-toast-anchor]`), a `--space-4` in
+  from the panel's bottom-right corner and never wider than the panel, and rises a `--space-4`
+  above its button row (`[data-toast-clearance]`) only when it would cover it
+  (`Toaster/toastPlacement.ts` → `--toast-right` / `--toast-bottom` / `--toast-room`), so a toast
+  never floats half outside the dialog or covers `[Delete] [Save]`. Anatomy: disc
   (success and error), title, optional `detail`, optional action (`Button primary sm` with its
   icon, `ToastAction.icon`), ✕ (`Button secondary xs icon="round"`, `aria-label="Dismiss"`).
   Success/info `role="status"`, error `role="alert"`, in `<section aria-label="Notifications">`.
   Themes: `[data-toast]`, `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]`,
-  `[data-toast-clearance]`.
+  `[data-toast-anchor]`, `[data-toast-clearance]`.
 - Toast action not rendered while a modal is open (`modalOpenIn`).
 - Toast closes when `run` is called; store contains throws silently, so a failing `run` pushes its
   own error toast.
