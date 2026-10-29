@@ -63,17 +63,23 @@
 /* `Link session` and its menu, which floats under the button's right edge over the rows below
    (like the session rail's `Link task` menu). A long list scrolls inside `Popover.List`. */
 .linkAnchor {
-  position: relative;
   display: inline-flex;
 }
+/* Portaled to the body and placed by `useAnchoredPlacement` (inline top or bottom, right edge on
+   the button's, maxHeight), like Select's list: inside the form, the scroll body and its end fade
+   would cut it. Above ManageDialog (60), below toasts (70), as Select's. A flex column so the
+   inline maxHeight reaches the list through the Surface. */
 .linkMenuWrap {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  right: 0;
-  z-index: 10;
+  position: fixed;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
   min-width: 200px;
   max-width: 280px;
   --popover-max-height: 240px;
+}
+.linkMenuWrap > [data-popover] {
+  min-height: 0;
 }
 /* Under a task's title: its live sessions, one button each, wrapping. */
 .taskSessions {
