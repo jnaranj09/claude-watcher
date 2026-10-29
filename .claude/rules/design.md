@@ -379,6 +379,9 @@ The Goals sheet's rail starts with `Daily tasks` (the tasks with no goal): it is
 of the sheet and where a deleted goal leaves it, so the sheet has no placeholder (like Settings,
 which opens on its first category). Every task, in the sheet and in the focused task panel, is the
 one boxed `TaskRow` (44px, `md` `Done` / `Undo`, `md` ghost ✕), `--gap-section` under the `Tasks` head.
+On the sheet only, a ghost `▸` / `▾` before ✕ opens a row: the title wraps in full and `Edit`
+shows; `Edit` swaps the title for a field with `Save` / `Cancel` (Enter saves, Escape cancels the
+edit only, empty or unchanged saves nothing).
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /

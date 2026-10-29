@@ -42,6 +42,18 @@
   gap: var(--gap-group);
   margin-top: calc(var(--gap-section) - var(--gap-field));
 }
+/* A task row being edited: the field fills the row, `Save` / `Cancel` after it. */
+.taskEditor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.taskEditField {
+  flex: 1;
+  min-width: 0;
+}
 /* Where a done task's select box would be: the Checkbox's 14px square, empty. */
 .checkBlank {
   flex: none;

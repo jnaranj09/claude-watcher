@@ -40,6 +40,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* An open row (the Goals sheet's ▾) shows the whole title, wrapped; a long word breaks too. */
+.row[data-open='true'] .title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .row[data-done='true'] .title {
   color: var(--text-secondary);
   text-decoration: line-through;

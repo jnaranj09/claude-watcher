@@ -75,8 +75,11 @@ function installBridge(initial: GoalsView): void {
       return answer()
     }),
     saveTask: vi.fn((req: TaskSaveRequest) => {
-      const saved = task({ id: 't-new', goalId: req.goalId, title: req.title })
-      view = { ...view, tasks: [...view.tasks, saved] }
+      const existing = view.tasks.find((t) => t.id === req.id)
+      const saved = existing
+        ? { ...existing, title: req.title }
+        : task({ id: 't-new', goalId: req.goalId, title: req.title })
+      view = { ...view, tasks: [...view.tasks.filter((t) => t !== existing), saved] }
       return Promise.resolve({ saved, ...view })
     }),
     deleteTask: vi.fn(answer),
@@ -321,5 +324,121 @@ describe('GoalsDialog', () => {
     expect(bridge.start).toHaveBeenCalled()
     expect(dialogToast('goals')).toBeUndefined()
     expect(screen.getByRole('checkbox', { name: 'Select Write the spec' })).toBeChecked()
+  })
+})
+
+// Read more + edit (spec 2026-10-29 task read more + edit): ▸ opens a row to its full title and
+// an `Edit` button; Edit turns the title into a field with `Save` / `Cancel`.
+describe('GoalsDialog task row: open and edit', () => {
+  const LONG =
+    'Refactor the goals store so a goal with the shared file keeps its tasks in that file'
+
+  async function openRow(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    open({ goals: [goal()], tasks: [task({ title: LONG })], proposals: [] })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('button', { name: `Show full text ${LONG}` }))
+  }
+
+  it('▸ opens the row: the toggle is expanded and Edit shows; ▾ closes it again', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    const toggle = screen.getByRole('button', { name: `Hide full text ${LONG}` })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: `Edit ${LONG}` })).toBeInTheDocument()
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: `Show full text ${LONG}` })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(screen.queryByRole('button', { name: `Edit ${LONG}` })).not.toBeInTheDocument()
+  })
+
+  it('Edit → Save sends the task id with the new title; the open row shows it', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    const field = screen.getByRole('textbox', { name: 'Task title' })
+    expect(field).toHaveValue(LONG)
+    expect(field).toHaveFocus()
+    await user.clear(field)
+    await user.type(field, 'Ship the shared file')
+    // The goal form has its own `Save`; the row's is the one by the field.
+    await user.click(screen.getByTestId('task-edit-save-t1'))
+    expect(bridge.saveTask).toHaveBeenCalledWith({
+      id: 't1',
+      workspaceId: 'w1',
+      goalId: 'g1',
+      title: 'Ship the shared file'
+    })
+    expect(screen.queryByRole('textbox', { name: 'Task title' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Hide full text Ship the shared file' })
+    ).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('Enter in the field saves', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    await user.type(screen.getByRole('textbox', { name: 'Task title' }), '!{Enter}')
+    expect(bridge.saveTask).toHaveBeenCalledWith(expect.objectContaining({ title: `${LONG}!` }))
+    expect(bridge.saveGoal).not.toHaveBeenCalled()
+  })
+
+  it('Escape cancels the edit only: nothing is saved and the dialog stays open', async () => {
+    const user = userEvent.setup()
+    installBridge({ goals: [goal()], tasks: [task({ title: LONG })], proposals: [] })
+    const onClose = vi.fn()
+    unmount = render(<GoalsDialog onClose={onClose} />).unmount
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('button', { name: `Show full text ${LONG}` }))
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    await user.type(screen.getByRole('textbox', { name: 'Task title' }), ' more{Escape}')
+    expect(screen.queryByRole('textbox', { name: 'Task title' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(bridge.saveTask).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: `Hide full text ${LONG}` })).toBeInTheDocument()
+  })
+
+  it('Cancel leaves edit mode without saving', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    await user.type(screen.getByRole('textbox', { name: 'Task title' }), ' more')
+    await user.click(screen.getByTestId('task-edit-cancel-t1'))
+    expect(screen.queryByRole('textbox', { name: 'Task title' })).not.toBeInTheDocument()
+    expect(bridge.saveTask).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an unchanged', ''],
+    ['an empty', '{Control>}a{/Control}{Backspace}  ']
+  ])('Save with %s title leaves edit mode without a call', async (_label, keys) => {
+    const user = userEvent.setup()
+    await openRow(user)
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    await user.type(screen.getByRole('textbox', { name: 'Task title' }), `${keys}{Enter}`)
+    expect(screen.queryByRole('textbox', { name: 'Task title' })).not.toBeInTheDocument()
+    expect(bridge.saveTask).not.toHaveBeenCalled()
+  })
+
+  it('a refused save says so in the error toast and keeps the typed title', async () => {
+    const user = userEvent.setup()
+    await openRow(user)
+    bridge.saveTask = vi.fn(() =>
+      Promise.reject(new Error(`Error invoking remote method 'goals:save-task': Error: x`))
+    )
+    await user.click(screen.getByRole('button', { name: `Edit ${LONG}` }))
+    await user.type(screen.getByRole('textbox', { name: 'Task title' }), '!{Enter}')
+    expect(dialogToast('goals')).toMatchObject({ kind: 'error', title: 'Could not save task.' })
+    expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue(`${LONG}!`)
+  })
+
+  it('a done task opens and edits too', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal()], tasks: [task({ status: 'done' })], proposals: [] })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('button', { name: 'Show full text Write the spec' }))
+    expect(screen.getByRole('button', { name: 'Edit Write the spec' })).toBeInTheDocument()
   })
 })

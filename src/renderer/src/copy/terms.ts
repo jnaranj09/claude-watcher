@@ -42,6 +42,10 @@ export const GOAL_TERMS = {
   daily: 'Daily tasks',
   saveGoalFailed: 'Could not save goal.',
   saveTaskFailed: 'Could not save task.',
+  /** The Goals sheet's task row: its ▸ / ▾ toggle (with the title after it) and its edit field. */
+  showFullText: 'Show full text',
+  hideFullText: 'Hide full text',
+  taskTitle: 'Task title',
   /** The focused view's task panel: its bar toggle and the menu that links a task to the session. */
   tasks: 'Tasks',
   resizeTasks: 'Resize task panel',
