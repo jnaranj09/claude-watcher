@@ -92,6 +92,22 @@ describe('docs/themes/examples', () => {
     const r = scanner.load('builtin-dark')
     expect(r.ok).toBe(true)
   })
+  // The Goals tasks box (spec 2026-10-29 goals page polish): a well sunk into a raised panel.
+  // Never `transparent`: Liquid Glass makes `bg-base` that, and the box would be an outline only.
+  it('every bundled theme fills --bg-inset, and Default text reads on it (4.5:1)', () => {
+    for (const id of ['liquid-glass', 'paper']) {
+      const manifest = JSON.parse(readFileSync(resolve(examples, `${id}/theme.json`), 'utf8')) as {
+        tokens: Record<string, string>
+      }
+      expect(manifest.tokens['bg-inset'], id).toMatch(/^(#|rgba\()/)
+    }
+    for (const ink of ['text-primary', 'text-secondary'] as const) {
+      expect(
+        contrast(hexToRgb(TOKENS[ink]), hexToRgb(TOKENS['bg-inset'])),
+        ink
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
   it('liquid-glass composes with a transparent terminal and backdrop-filter in its CSS', () => {
     const r = scanner.load('liquid-glass')
     expect(r.ok).toBe(true)
@@ -577,6 +593,7 @@ describe('docs/themes/examples', () => {
     const grounds: Record<string, string> = {
       'bg-base': t['bg-base'] ?? '',
       'bg-surface': t['bg-surface'] ?? '',
+      'bg-inset': t['bg-inset'] ?? '',
       'bg-row-rest': t['bg-row-rest'] ?? '',
       'bg-card-calm': t['bg-card-calm'] ?? '',
       'bg-card-hero': t['bg-card-hero'] ?? '',

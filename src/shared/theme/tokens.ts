@@ -34,6 +34,10 @@ export const TOKENS = {
   'bg-base': '#1a1a18',
   'bg-surface': '#232220',
   'bg-surface-raised': '#2c2b27',
+  /* A well sunk INTO a raised panel (the Goals sheet's tasks box): darker than the panel, so the
+   * boxed rows inside read one step lighter. Its own token, not `bg-base`: a glass theme makes
+   * `bg-base` transparent, and the well would be an outline only. Same value as `bg-base` here. */
+  'bg-inset': '#1a1a18',
   'bg-col-hero': '#201f1c',
   'bg-col-calm': '#151513',
   'bg-card-hero': '#2a2925',

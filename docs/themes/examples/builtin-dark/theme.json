@@ -8,6 +8,7 @@
     "bg-base": "#1a1a18",
     "bg-surface": "#232220",
     "bg-surface-raised": "#2c2b27",
+    "bg-inset": "#1a1a18",
     "bg-col-hero": "#201f1c",
     "bg-col-calm": "#151513",
     "bg-card-hero": "#2a2925",

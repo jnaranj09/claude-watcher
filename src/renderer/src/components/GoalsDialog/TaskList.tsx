@@ -13,6 +13,9 @@
 // with `Save` / `Cancel`. A title stays one line: Enter (Shift too) saves, a pasted line break
 // becomes a space, and Escape cancels the edit only. An empty or unchanged title saves nothing.
 // Open and edit state live in each row and are not kept.
+//
+// Goals page polish (spec 2026-10-29): all of it — the caller's `head` (the progress bar) first —
+// sits in one darker box; `Plan with Claude` stays outside it, in the goal form.
 import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 'react'
 import { TASK_TITLE_MAX, type Task } from '../../../../shared/schemas/goal'
 import { GOAL_TERMS, SELECTION_TERMS } from '../../copy/terms'
@@ -33,9 +36,11 @@ export interface TaskListProps {
   workspaceId: string
   /** The goal the tasks belong to; null = the loose tasks. */
   goalId: string | null
+  /** Drawn first inside the tasks box: the progress bar. */
+  head?: ReactNode
 }
 
-export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Element {
+export function TaskList({ tasks, workspaceId, goalId, head }: TaskListProps): JSX.Element {
   const { actions } = useManageDialogContext()
   const [title, setTitle] = useState('')
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
@@ -96,6 +101,7 @@ export function TaskList({ tasks, workspaceId, goalId }: TaskListProps): JSX.Ele
 
   return (
     <div className={styles.tasks} data-testid="task-list">
+      {head}
       <ul className={styles.taskRows}>
         {tasks.map((task) => (
           <OpenableTaskRow

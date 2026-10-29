@@ -189,8 +189,12 @@ function GoalForm({
           </div>
 
           <ManageDialog.Label>{GOAL_TERMS.tasks}</ManageDialog.Label>
-          <GoalProgress name={goal.name} done={done} total={total} />
-          <TaskList tasks={tasks} workspaceId={workspaceId} goalId={goal.id} />
+          <TaskList
+            tasks={tasks}
+            workspaceId={workspaceId}
+            goalId={goal.id}
+            head={<GoalProgress name={goal.name} done={done} total={total} />}
+          />
           <div className={styles.planRow}>
             <ManageDialog.GhostButton
               testId="goal-plan"
@@ -312,8 +316,12 @@ export function GoalsDialog({ onClose }: GoalsDialogProps): JSX.Element {
             // gone (deleted elsewhere) falls back here too, never to an empty column.
             <ManageDialog.Pane testId="goal-daily-pane">
               <ManageDialog.Label>{GOAL_TERMS.tasks}</ManageDialog.Label>
-              <GoalProgress name={GOAL_TERMS.daily} done={dailyDone} total={dailyTotal} />
-              <TaskList tasks={daily} workspaceId={workspaceId} goalId={null} />
+              <TaskList
+                tasks={daily}
+                workspaceId={workspaceId}
+                goalId={null}
+                head={<GoalProgress name={GOAL_TERMS.daily} done={dailyDone} total={dailyTotal} />}
+              />
             </ManageDialog.Pane>
           )}
         </ManageDialog.Columns>

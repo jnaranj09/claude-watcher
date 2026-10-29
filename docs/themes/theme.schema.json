@@ -46,6 +46,10 @@
           "type": "string",
           "maxLength": 500
         },
+        "bg-inset": {
+          "type": "string",
+          "maxLength": 500
+        },
         "bg-col-hero": {
           "type": "string",
           "maxLength": 500

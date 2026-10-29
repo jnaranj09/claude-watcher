@@ -36,9 +36,14 @@ body {
    applied theme instead of the desktop's native one. Deliberately NO standard `scrollbar-color` /
    `scrollbar-width` here or anywhere: Chromium ignores every `::-webkit-scrollbar` rule on an
    element that sets either of them. xterm draws its own scrollbar (themed in xtermTheme.ts). */
+/* The scrollbar's width, owned here: a Manage dialog's footer sits OUTSIDE its scroll body and
+   adds this on its right so its buttons end where the fields end (ManageDialog.module.css). */
+:root {
+  --scrollbar-size: 10px;
+}
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
 ::-webkit-scrollbar-track,

@@ -9,6 +9,7 @@
     "bg-base": "#e8e9eb",
     "bg-surface": "#ffffff",
     "bg-surface-raised": "#ffffff",
+    "bg-inset": "#f2f3f5",
     "bg-col-hero": "#ffffff",
     "bg-col-calm": "#ffffff",
     "bg-card-hero": "#ffffff",

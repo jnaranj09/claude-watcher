@@ -24,7 +24,9 @@ const GEOMETRY_VARS = new Set([
   '--rounded-md',
   '--rail-tab-inset',
   '--rail-tools-width',
-  '--row-actions-width'
+  '--row-actions-width',
+  // The app scrollbar's width (main.css): the Manage footer matches its scroll body's gutter.
+  '--scrollbar-size'
 ])
 
 // Optical nudges and geometry sizes, each with its reason. Key: `<file> <prop>: <value>`.
@@ -35,9 +37,8 @@ const ALLOWED = new Set([
   'components/attention/AttentionRail.module.css margin-right: -1px',
   // A space's width inside running text.
   'components/SessionCard/SessionCard.module.css margin-left: 0.3em',
-  // Geometry: Tab must park a field clear of the sticky Manage footer (a 32px md Button + its
-  // --gap-actions top / compact bottom padding).
-  'components/ManageDialog/ManageDialog.module.css scroll-padding-block: var(--inset-compact-x) calc(32px + var(--gap-actions) + var(--inset-compact-y) + var(--inset-compact-x))',
+  // Geometry: Tab parks a field above a Manage form body's 32px end fade.
+  'components/ManageDialog/ManageDialog.module.css scroll-padding-block: var(--inset-compact-x) 32px',
   // Geometry: a row reached by keyboard parks above the rail list's 32px end fade.
   'components/ManageDialog/ManageDialog.module.css scroll-padding-bottom: 32px',
   // Geometry: Select all's box lines up with the row boxes past the row's 1px border.

@@ -78,6 +78,7 @@ Every token is a CSS custom property (`--bg-base`, `--rounded-md`, …). Set any
 | `bg-base` | The window ground: the board behind the columns and the ground the active rail row opens onto | `#1a1a18` |
 | `bg-surface` | Panels and fields: the dialog body, text inputs, the Select box | `#232220` |
 | `bg-surface-raised` | A panel floating above the surface: the Settings dialog, popovers, menus | `#2c2b27` |
+| `bg-inset` | A well sunk into a raised panel: the Goals sheet tasks box (never transparent) | `#1a1a18` |
 | `bg-col-hero` | The needs-you column background | `#201f1c` |
 | `bg-col-calm` | The working and idle column backgrounds | `#151513` |
 | `bg-card-hero` | A session card in the needs-you column | `#2a2925` |
@@ -419,7 +420,9 @@ What you can target:
 - **Dialog hooks.** `[data-manage-panel]` is the dialog box, `[data-manage-head]` its header,
   `[data-manage-title]` the title, `[data-manage-close]` the ✕, `[data-manage-body]` the rail and
   form columns, `[data-manage-list]` the left rail, `[data-manage-pane]` a right column with no
-  form (Settings), `[data-manage-footer]` the action row, `[data-manage-row-select]` a rail row's
+  form (Settings), `[data-manage-scroll]` the scrolling body of a form or pane (it carries
+  `[data-overflow-end]` while more is below), `[data-manage-footer]` the action row under it,
+  `[data-manage-row-select]` a rail row's
   select button. `[data-callout]` is a message with `[data-callout-tone]` and
   `[data-callout-size]`. Controls use ARIA: a switch is `[role="switch"]`, the Select box is
   `[aria-haspopup="listbox"]`.
