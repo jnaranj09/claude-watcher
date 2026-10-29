@@ -30,6 +30,8 @@ import { TaskRow } from '../TaskRow/TaskRow'
 import { TextArea } from '../TextArea/TextArea'
 import { TextInput } from '../TextInput/TextInput'
 import styles from './GoalsDialog.module.css'
+import { LinkSessionMenu } from './LinkSessionMenu'
+import { TaskSessionLine } from './TaskSessionLine'
 
 export interface TaskListProps {
   tasks: readonly Task[]
@@ -288,6 +290,7 @@ function OpenableTaskRow({
       leading={leading}
       open={open}
       editor={editor}
+      sessions={<TaskSessionLine task={task} />}
       trailing={
         <>
           {open && (
@@ -301,6 +304,7 @@ function OpenableTaskRow({
               {EDIT}
             </Button>
           )}
+          {task.status === 'open' && <LinkSessionMenu task={task} />}
           <Button
             variant="ghost"
             icon

@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { SessionTasks } from './SessionTasks'
 import { tasksDividerHandlers } from './tasksPanelWidth'
 import { goalsStore } from '../stores/goalsStore'
+import { boardStore } from '../stores/boardStore'
 import type { Goal, GoalsView, Task, TaskStatus } from '../../../shared/ipc/contract'
 
 const goal = (over: Partial<Goal> = {}): Goal => ({
@@ -181,6 +182,30 @@ describe('SessionTasks', () => {
     })
     expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Daily tasks')
     expect(screen.getByTestId('goal-progress-text')).toHaveTextContent('0/1')
+  })
+
+  it('shows no session line: the session is the one you are in', () => {
+    act(() =>
+      boardStore.setState({
+        sessionsById: {
+          s1: {
+            id: 's1',
+            sessionName: 'build-api',
+            projectPath: '/p',
+            status: 'x',
+            pid: 1,
+            column: 'working',
+            enteredColumnAt: 1,
+            workspaceId: 'w1',
+            tagIds: []
+          }
+        }
+      })
+    )
+    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    expect(screen.getByText('Write the spec')).toBeInTheDocument()
+    expect(screen.queryByTestId('task-sessions-t1')).not.toBeInTheDocument()
+    act(() => boardStore.setState({ sessionsById: {} }))
   })
 
   it('opened with nothing linked it says so', () => {

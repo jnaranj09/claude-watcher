@@ -43,10 +43,37 @@ describe('goals IPC handler logic', () => {
       status: 'done',
       doneBy: 'operator'
     })
-    expect(h.linkTask({ taskId: 'id2', sessionId: 's1' }).tasks[0]?.sessionIds).toEqual(['s1'])
+    expect(h.linkTask({ taskId: 'id2', sessionId: 's1' }, () => 'w1').tasks[0]?.sessionIds).toEqual(
+      ['s1']
+    )
     expect(h.unlinkTask({ taskId: 'id2', sessionId: 's1' }).tasks[0]?.sessionIds).toEqual([])
     expect(h.deleteTask({ id: 'id2' }).tasks).toEqual([])
     expect(h.deleteGoal({ id: 'id1' }).goals).toEqual([])
+  })
+
+  it('goals:link-task refuses a session that is not live', () => {
+    const { h } = setup()
+    h.saveTask(TASK)
+    expect(() => h.linkTask({ taskId: 'id1', sessionId: 's1' }, () => undefined)).toThrow(
+      'session_not_found'
+    )
+    expect(h.list().tasks[0]?.sessionIds).toEqual([])
+  })
+
+  it('goals:link-task refuses a session in another workspace', () => {
+    const { h } = setup()
+    h.saveTask(TASK)
+    expect(() => h.linkTask({ taskId: 'id1', sessionId: 's1' }, () => 'w2')).toThrow(
+      'session_not_found'
+    )
+    expect(h.list().tasks[0]?.sessionIds).toEqual([])
+  })
+
+  it('goals:link-task still refuses an unknown task first', () => {
+    const { h } = setup()
+    expect(() => h.linkTask({ taskId: 'nope', sessionId: 's1' }, () => 'w1')).toThrow(
+      'task_not_found'
+    )
   })
 
   it('a MALFORMED arg throws and does NOT mutate', async () => {
@@ -62,7 +89,7 @@ describe('goals IPC handler logic', () => {
     expect(() => h.saveTask({ ...TASK, title: 'a\nb' })).toThrow()
     expect(() => h.deleteTask(null)).toThrow()
     expect(() => h.setTaskStatus({ id: 'id2', status: 'in-progress' })).toThrow()
-    expect(() => h.linkTask({ taskId: 'id2' })).toThrow()
+    expect(() => h.linkTask({ taskId: 'id2' }, () => 'w1')).toThrow()
     expect(() => h.unlinkTask('id2')).toThrow()
     expect(pickDirectory).not.toHaveBeenCalled()
     const view = h.list()

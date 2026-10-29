@@ -3,7 +3,8 @@
 // and the focused view's task panel (same meaning, same look); each passes its own `leading`
 // control (the sheet's select box) and trailing action (an `md` ghost icon button, the height of
 // `Done`). The Goals sheet also opens a row to its full title (`open`) and swaps the title for its
-// edit field (`editor`); the task panel sets neither.
+// edit field (`editor`), and draws its live sessions under the title (`sessions`); the task panel
+// sets none of them.
 import type { JSX, ReactNode } from 'react'
 import type { Task } from '../../../../shared/schemas/goal'
 import { Button } from '../Button/Button'
@@ -21,7 +22,8 @@ export function TaskRow({
   leading,
   trailing,
   open = false,
-  editor
+  editor,
+  sessions
 }: {
   task: Task
   /** Gets the NEW done value. */
@@ -36,6 +38,8 @@ export function TaskRow({
   /** While set, the row shows `leading` and this (the edit field and its buttons) and nothing
    *  else. */
   editor?: ReactNode
+  /** A line under the title: the Goals sheet's live sessions on this task. */
+  sessions?: ReactNode
 }): JSX.Element {
   const done = task.status === 'done'
   if (editor !== undefined) {
@@ -53,14 +57,17 @@ export function TaskRow({
   )
   return (
     <li className={styles.row} data-done={done} data-open={open}>
-      {leading === undefined ? (
-        <span className={styles.text}>{title}</span>
-      ) : (
-        <label className={styles.label}>
-          {leading}
-          {title}
-        </label>
-      )}
+      <span className={styles.main}>
+        {leading === undefined ? (
+          <span className={styles.text}>{title}</span>
+        ) : (
+          <label className={styles.label}>
+            {leading}
+            {title}
+          </label>
+        )}
+        {sessions}
+      </span>
       {task.doneBy === 'session' && (
         <span className={styles.doneBy} data-testid={`task-done-by-${task.id}`}>
           Closed by a session

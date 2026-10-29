@@ -60,7 +60,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `goalLaunch` rebuilds it from the links that still name the id.
   `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
   `task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
-  `folder_missing`, a bad name on any group).
+  `folder_missing`, a bad name on any group). `goals:link-task` (the session's task rail and the
+  Goals sheet's `Link session`) refuses with `session_not_found` unless the session is live on
+  the calling window's board in the task's workspace. A task linked after launch is not told to
+  claude (no prompt block, no tool change): it only shows in the rail, and `mark_task_done` can
+  close it only if that session already has the tool.
 - **`mark_task_done` over MCP (goals):** served on the hook listener at `GOALS_MCP_PATH`
   (`/mcp/goals`; no third listener), Streamable HTTP, stateless, POST only (GET 405), behind the
   same Origin 403 and body cap plus a per-launch bearer token: a miss is 401 before the body is

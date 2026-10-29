@@ -37,7 +37,10 @@ export type GoalsBlobStore = PersistedBlobStore<GoalsFile>
 export const GOAL_ERROR = {
   goalNotFound: 'goal_not_found',
   taskNotFound: 'task_not_found',
-  workspaceMismatch: 'goal_workspace_mismatch'
+  workspaceMismatch: 'goal_workspace_mismatch',
+  /** `goals:link-task`: the session is not live on the calling window's board, or it sits in
+   *  another workspace than the task. */
+  sessionNotFound: 'session_not_found'
 } as const
 
 export interface GoalsStoreOptions {
