@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event'
 import { GoalsDialog } from './GoalsDialog'
 import { goalsStore } from '../../stores/goalsStore'
 import { workspacesStore } from '../../stores/workspacesStore'
+import { boardStore, type BoardSession } from '../../stores/boardStore'
 import type {
   Goal,
   GoalSaveRequest,
@@ -119,13 +120,17 @@ afterEach(() => {
   act(() => {
     goalsStore.setState({ goals: [], tasks: [], loaded: false, loadFailed: false })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
+    boardStore.setState({ sessionsById: {}, selectedId: null })
   })
   vi.restoreAllMocks()
 })
 
-function open(initial: GoalsView = { goals: [], tasks: [], proposals: [] }): void {
+function open(
+  initial: GoalsView = { goals: [], tasks: [], proposals: [] },
+  onClose: () => void = () => {}
+): void {
   installBridge(initial)
-  unmount = render(<GoalsDialog onClose={() => {}} />).unmount
+  unmount = render(<GoalsDialog onClose={onClose} />).unmount
 }
 
 describe('GoalsDialog', () => {
@@ -499,6 +504,170 @@ describe('GoalsDialog — the tasks box', () => {
     expect(tasks).toMatch(/padding:\s*var\(--inset-card\)/)
     expect(cssRule(sheet, '.planRow')).toMatch(
       /margin-top:\s*calc\(var\(--gap-section\) - var\(--gap-field\)\)/
+    )
+  })
+})
+
+const live = (
+  id: string,
+  column: BoardSession['column'],
+  over: Partial<BoardSession> = {}
+): BoardSession => ({
+  id,
+  sessionName: id,
+  projectPath: `/p/${id}`,
+  status: 'x',
+  pid: 1,
+  column,
+  enteredColumnAt: 1,
+  workspaceId: 'w1',
+  tagIds: [],
+  ...over
+})
+
+describe('GoalsDialog task row: who works on it', () => {
+  function openLinked(onClose?: () => void): void {
+    act(() =>
+      boardStore.setState({
+        sessionsById: { s1: live('s1', 'working', { sessionName: 'build-api' }) }
+      })
+    )
+    open({ goals: [], tasks: [task({ goalId: null, sessionIds: ['s1'] })], proposals: [] }, onClose)
+  }
+
+  it('shows the status word and name of each live linked session', () => {
+    openLinked()
+    const entry = screen.getByTestId('task-session-open-s1')
+    expect(within(entry).getByTestId('status-label')).toHaveTextContent('Working')
+    expect(entry).toHaveTextContent('build-api')
+    expect(entry).toHaveAttribute('title', 'Open build-api')
+  })
+
+  it('follows a status change while the sheet is open', () => {
+    openLinked()
+    act(() => boardStore.setState({ sessionsById: { s1: live('s1', 'needs-you') } }))
+    const entry = screen.getByTestId('task-session-open-s1')
+    expect(within(entry).getByTestId('status-label')).toHaveTextContent('Needs you')
+  })
+
+  it('drops a session that ended', () => {
+    openLinked()
+    act(() => boardStore.setState({ sessionsById: {} }))
+    expect(screen.queryByTestId('task-sessions-t1')).not.toBeInTheDocument()
+  })
+
+  it('a click closes the sheet first, then opens the session', async () => {
+    const user = userEvent.setup()
+    const selectedAtClose: (string | null)[] = []
+    openLinked(() => selectedAtClose.push(boardStore.getState().selectedId))
+    await user.click(screen.getByTestId('task-session-open-s1'))
+    expect(selectedAtClose).toEqual([null])
+    expect(boardStore.getState().selectedId).toBe('s1')
+  })
+})
+
+describe('GoalsDialog task row: Link session', () => {
+  function openWith(
+    sessions: Record<string, BoardSession>,
+    tasks: Task[] = [task({ goalId: null })],
+    onClose?: () => void
+  ): void {
+    act(() => boardStore.setState({ sessionsById: sessions }))
+    open({ goals: [], tasks, proposals: [] }, onClose)
+  }
+
+  it('an open task offers Link session; a done task does not', () => {
+    openWith({}, [task({ goalId: null }), task({ id: 't2', goalId: null, status: 'done' })])
+    expect(screen.getByTestId('task-link-t1')).toHaveTextContent('Link session')
+    expect(screen.queryByTestId('task-link-t2')).not.toBeInTheDocument()
+  })
+
+  it("lists the workspace's live sessions not linked yet, Needs you first", async () => {
+    const user = userEvent.setup()
+    openWith(
+      {
+        idle: live('idle', 'idle', { enteredColumnAt: 1 }),
+        need: live('need', 'needs-you', { enteredColumnAt: 5 }),
+        linked: live('linked', 'working'),
+        other: live('other', 'working', { workspaceId: 'w2' })
+      },
+      [task({ goalId: null, sessionIds: ['linked'] })]
+    )
+    await user.click(screen.getByTestId('task-link-t1'))
+    const items = within(screen.getByRole('menu')).getAllByRole('menuitem')
+    expect(items.map((i) => i.getAttribute('data-testid'))).toEqual([
+      'task-link-pick-need',
+      'task-link-pick-idle'
+    ])
+  })
+
+  it('says so when no live session can be linked', async () => {
+    const user = userEvent.setup()
+    openWith({})
+    await user.click(screen.getByTestId('task-link-t1'))
+    expect(screen.getByTestId('task-link-none-t1')).toHaveTextContent('No live sessions to link.')
+  })
+
+  it('picking a session links the task, closes the menu and the row shows it', async () => {
+    const user = userEvent.setup()
+    openWith({ s1: live('s1', 'working', { sessionName: 'build-api' }) })
+    bridge.linkTask = vi.fn((taskId: string, sessionId: string) => {
+      view = {
+        ...view,
+        tasks: view.tasks.map((t) => (t.id === taskId ? { ...t, sessionIds: [sessionId] } : t))
+      }
+      return Promise.resolve(view)
+    })
+    await user.click(screen.getByTestId('task-link-t1'))
+    await user.click(screen.getByTestId('task-link-pick-s1'))
+    expect(bridge.linkTask).toHaveBeenCalledWith('t1', 's1')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByTestId('task-session-open-s1')).toHaveTextContent('build-api')
+  })
+
+  it('a refused link says so in the error toast', async () => {
+    const user = userEvent.setup()
+    openWith({ s1: live('s1', 'working') })
+    bridge.linkTask = vi.fn(() =>
+      Promise.reject(
+        new Error(`Error invoking remote method 'goals:link-task': Error: session_not_found`)
+      )
+    )
+    await user.click(screen.getByTestId('task-link-t1'))
+    await user.click(screen.getByTestId('task-link-pick-s1'))
+    expect(dialogToast('goals')).toMatchObject({ kind: 'error', title: 'Could not link task.' })
+  })
+
+  it('Escape closes the menu only: the sheet stays open', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    openWith({ s1: live('s1', 'working') }, undefined, onClose)
+    await user.click(screen.getByTestId('task-link-t1'))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('Escape from inside the menu puts focus back on Link session', async () => {
+    const user = userEvent.setup()
+    openWith({ s1: live('s1', 'working') })
+    await user.click(screen.getByTestId('task-link-t1'))
+    act(() => screen.getByTestId('task-link-pick-s1').focus())
+    await user.keyboard('{Escape}')
+    expect(screen.getByTestId('task-link-t1')).toHaveFocus()
+  })
+
+  it('a press outside closes the menu', async () => {
+    const user = userEvent.setup()
+    openWith({ s1: live('s1', 'working') })
+    await user.click(screen.getByTestId('task-link-t1'))
+    await user.click(screen.getByTestId('goal-daily-pane'))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('a long menu scrolls inside its list', () => {
+    expect(cssRule('components/GoalsDialog/GoalsDialog.module.css', '.linkMenuWrap')).toMatch(
+      /--popover-max-height:\s*\d+px/
     )
   })
 })

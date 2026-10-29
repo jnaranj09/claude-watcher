@@ -54,7 +54,9 @@ export interface GoalsIpcHandlers {
   saveTask(raw: unknown): GoalsSaveTaskResult
   deleteTask(raw: unknown): GoalsView
   setTaskStatus(raw: unknown): GoalsView
-  linkTask(raw: unknown): GoalsView
+  /** `workspaceOf` is the calling window's board: the session's workspace while it is live
+   *  there, else undefined. A link needs a live session in the task's workspace. */
+  linkTask(raw: unknown, workspaceOf: (sessionId: string) => string | undefined): GoalsView
   unlinkTask(raw: unknown): GoalsView
   start(
     raw: unknown,
@@ -97,8 +99,13 @@ export function createGoalsIpcHandlers(store: GoalsStore, deps: GoalsIpcDeps): G
       const { id, status } = TaskStatusSchema.parse(raw)
       return store.setTaskStatus(id, status, 'operator')
     },
-    linkTask: (raw) => {
+    linkTask: (raw, workspaceOf) => {
       const { taskId, sessionId } = TaskLinkSchema.parse(raw)
+      const task = store.view().tasks.find((t) => t.id === taskId)
+      // An unknown task falls through to `link`, which refuses it with `task_not_found`.
+      if (task !== undefined && workspaceOf(sessionId) !== task.workspaceId) {
+        throw new Error(GOAL_ERROR.sessionNotFound)
+      }
       return store.link(taskId, sessionId)
     },
     unlinkTask: (raw) => {

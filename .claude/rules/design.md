@@ -386,7 +386,12 @@ sits `--gap-section` below it, outside.
 On the sheet only, a ghost `▸` / `▾` before ✕ opens a row: the title wraps in full and `Edit`
 shows; `Edit` swaps the title for a 3-row `TextArea` (the title wraps) with `Save` / `Cancel`
 (Enter saves, a pasted line break becomes a space, Escape cancels the edit only, empty or
-unchanged saves nothing).
+unchanged saves nothing). Also on the sheet only: an OPEN task's row has
+`Link session` before `▸` / `▾` (a `Popover` menu of the task workspace's live sessions not linked
+yet, Needs you first, each `StatusDot` + name; the same link as the rail's `Link task`), and under
+its title each live linked session is a ghost button (`StatusDot` + name, `title` `Open <name>`):
+a click closes the sheet, then opens the session (`openFromNotification`). A session that ended
+drops off the row; the task panel draws no such line.
 
 - Rows: `Settings` (sliders), `Shortcuts` (keyboard), `Tags ›` (`Manage tags` /
   `Manage rules`), `Sessions ›` (clock; `Active sessions` / `Past sessions` / `Templates` /

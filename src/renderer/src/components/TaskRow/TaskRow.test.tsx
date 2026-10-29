@@ -42,4 +42,16 @@ describe('TaskRow', () => {
     expect(screen.queryByRole('button', { name: 'Done Write the spec' })).not.toBeInTheDocument()
     unmount()
   })
+
+  it('the sessions line shows under the title, and not while the editor is open', () => {
+    const line = <span>build-api</span>
+    const first = render(<TaskRow task={task} onToggle={() => {}} sessions={line} />)
+    expect(screen.getByText('build-api')).toBeInTheDocument()
+    first.unmount()
+    const editing = render(
+      <TaskRow task={task} onToggle={() => {}} sessions={line} editor={<span>field</span>} />
+    )
+    expect(screen.queryByText('build-api')).not.toBeInTheDocument()
+    editing.unmount()
+  })
 })

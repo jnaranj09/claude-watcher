@@ -60,6 +60,41 @@
   flex: 1;
   min-width: 0;
 }
+/* `Link session` and its menu, which floats under the button's right edge over the rows below
+   (like the session rail's `Link task` menu). A long list scrolls inside `Popover.List`. */
+.linkAnchor {
+  position: relative;
+  display: inline-flex;
+}
+.linkMenuWrap {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 10;
+  min-width: 200px;
+  max-width: 280px;
+  --popover-max-height: 240px;
+}
+/* Under a task's title: its live sessions, one button each, wrapping. */
+.taskSessions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-inline-tight);
+  min-width: 0;
+}
+/* One session: its status dot + word, then its name, cut short with the full name in `title`. */
+.taskSession {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
+.taskSessionName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Where a done task's select box would be: the Checkbox's 14px square, empty. */
 .checkBlank {
   flex: none;

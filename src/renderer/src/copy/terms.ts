@@ -53,6 +53,9 @@ export const GOAL_TERMS = {
   linkTaskFailed: 'Could not link task.',
   unlinkTaskFailed: 'Could not unlink task.',
   nothingToLink: 'No open tasks to link.',
+  /** The Goals sheet's side of the same link: an open task picks a live session. */
+  linkSession: 'Link session',
+  noSessionsToLink: 'No live sessions to link.',
   noneLinked: 'No tasks linked to this session.',
   /** Starting sessions from tasks: the button, its one switch, and its refusal line. */
   startSession: 'Start session',

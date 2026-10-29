@@ -63,6 +63,7 @@ import type { ClaudeVersion } from '../../shared/launch/claudeVersion'
 import type { LaunchBoardSeam } from '../window/watchFeed'
 import { goalCommandFields, type GoalLaunch, type GoalSpawnExtras } from '../goals/goalLaunch'
 import type { TrustedIpc } from './trustedIpc'
+import { boardWorkspaceOf } from './boardWorkspaceOf'
 
 // Claude version gate — read the installed version the SAME way the spawn resolves it.
 //
@@ -619,11 +620,12 @@ export function registerLaunchIpc(deps: LaunchIpcDeps): LaunchIpc {
   // testable, unlike this file). Routed by event.sender to the owning window's seam (session truth
   // is per-window). Returns void; the tagged card arrives as a normal `session.updated` delta.
   ipc.handle(CH.sessionSetTags, (event, raw: unknown) => {
-    const seam = launchBoardSeams.get(event.sender)
-    const { sessionId, tagIds } = parseSessionSetTags(requireTagsStore(), raw, (id) =>
-      seam?.workspaceOf(id)
+    const { sessionId, tagIds } = parseSessionSetTags(
+      requireTagsStore(),
+      raw,
+      boardWorkspaceOf(launchBoardSeams, event.sender)
     )
-    seam?.setTagsLaunched(sessionId, tagIds)
+    launchBoardSeams.get(event.sender)?.setTagsLaunched(sessionId, tagIds)
   })
 
   // session:seen — UNTRUSTED cross-process input; parse-and-throw at THIS boundary. Routed by

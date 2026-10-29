@@ -12,6 +12,12 @@ import { scopeWorkspaceId } from '../ScopeFilter/scope'
 /** Needs you first: attention is rationed and needs-you stays the loudest thing. */
 const COLUMN_RANK: Record<Column, number> = { 'needs-you': 0, working: 1, idle: 2 }
 
+/** Needs you → Working → Idle, oldest first inside each. Also orders the Goals sheet's
+ *  `Link session` menu. */
+export function byAttention(a: BoardSession, b: BoardSession): number {
+  return COLUMN_RANK[a.column] - COLUMN_RANK[b.column] || a.enteredColumnAt - b.enteredColumnAt
+}
+
 export function activeRows(
   sessions: readonly BoardSession[],
   scope: PastScope,
@@ -31,10 +37,7 @@ export function activeRows(
         now
       )
     )
-    .sort(
-      (a, b) =>
-        COLUMN_RANK[a.column] - COLUMN_RANK[b.column] || a.enteredColumnAt - b.enteredColumnAt
-    )
+    .sort(byAttention)
 }
 
 /** Three different nothings, three sentences (design.md "Scoped lists"). */

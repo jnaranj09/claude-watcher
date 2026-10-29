@@ -32,6 +32,7 @@ import { openThemesFolder } from '../themes/openThemesFolder'
 import type { LaunchBoardSeam } from '../window/watchFeed'
 import type { ApiSeam } from '../api/apiSeam'
 import { isExistingDirectory } from './registerLaunchIpc'
+import { boardWorkspaceOf } from './boardWorkspaceOf'
 import type { TrustedIpc } from './trustedIpc'
 
 /** What the store-backed registrars read from the app. Every store, the theme pieces, the API
@@ -306,7 +307,9 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.goalsSaveTask, (_evt, raw: unknown) => handlers.saveTask(raw))
     ipc.handle(CH.goalsDeleteTask, (_evt, raw: unknown) => handlers.deleteTask(raw))
     ipc.handle(CH.goalsSetTaskStatus, (_evt, raw: unknown) => handlers.setTaskStatus(raw))
-    ipc.handle(CH.goalsLinkTask, (_evt, raw: unknown) => handlers.linkTask(raw))
+    ipc.handle(CH.goalsLinkTask, (event, raw: unknown) =>
+      handlers.linkTask(raw, boardWorkspaceOf(launchBoardSeams, event.sender))
+    )
     ipc.handle(CH.goalsUnlinkTask, (_evt, raw: unknown) => handlers.unlinkTask(raw))
     /** The calling window's API launch seam: a launch from the sheet mounts hidden, the view
      *  never moves. */
