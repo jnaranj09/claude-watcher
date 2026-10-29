@@ -98,6 +98,15 @@ describe('boardStore — reduces validated deltas into a BoardSession projection
     expect(selectTotalCount(store.getState(), 'default', NO_FILTER)).toBe(0)
   })
 
+  it("session.removed drops that session's task panel choice, and only that one", () => {
+    const store = createBoardStore({ now: () => FIXED_NOW })
+    store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))
+    store.getState().setTasksPanelOpen('a', false)
+    store.getState().setTasksPanelOpen('b', true)
+    store.getState().applyWatchEvent(watchRemoved(2, 'a'))
+    expect(store.getState().tasksPanelOpenById).toEqual({ b: true })
+  })
+
   it('attention.raised is IGNORED by the board projection (Epic 2/3 consume it)', () => {
     const store = createBoardStore({ now: () => FIXED_NOW })
     store.getState().applyWatchEvent(watchUpdated(1, 'a', 'working', 100))

@@ -197,26 +197,32 @@ export function FocusedSession({
     await archiveTerminal(focusedTerminalId)
   })
 
-  // Tasks beside the terminal (spec 2026-10-19 E): a real open/closed state per focused session.
-  // Moving focus to a session starts it open when that session has linked tasks, closed when not;
-  // after that only the toggle changes it (a last unlink does not close it, a link does not open
-  // it). Local view-state, not persisted; reset in render the moment the focused session changes.
+  // Tasks beside the terminal (spec 2026-10-19 E): a real open/closed state per session. A toggle
+  // is remembered per session in the board store (`tasksPanelOpenById`, kept while the app runs),
+  // so a switch away and back, or a remount, keeps it. A session never toggled starts open when it
+  // has linked tasks, closed when not; that start is taken when focus moves to it, so a last
+  // unlink does not close it and a link does not open it.
   const focusedSessionId = focusedSession?.id ?? null
   const hasLinkedTasks =
     useGoals((s) => (focusedSessionId === null ? [] : selectTasksForSession(focusedSessionId)(s)))
       .length > 0
-  const [tasksPanel, setTasksPanel] = useState<{ sessionId: string | null; open: boolean }>({
+  const tasksChoice = useBoard((s) =>
+    focusedSessionId === null ? undefined : s.tasksPanelOpenById[focusedSessionId]
+  )
+  const [tasksStart, setTasksStart] = useState<{ sessionId: string | null; open: boolean }>({
     sessionId: null,
     open: false
   })
-  if (tasksPanel.sessionId !== focusedSessionId) {
-    setTasksPanel({
+  if (tasksStart.sessionId !== focusedSessionId) {
+    setTasksStart({
       sessionId: focusedSessionId,
       open: focusedSessionId !== null && hasLinkedTasks
     })
   }
   const tasksVisible =
-    focusedSession !== null && tasksPanel.sessionId === focusedSessionId && tasksPanel.open
+    focusedSession !== null &&
+    tasksStart.sessionId === focusedSessionId &&
+    (tasksChoice ?? tasksStart.open)
   // Its width, set by the drag line on its left edge: one width for every session, kept while
   // the app runs (view-state, not saved).
   const [tasksWidth, setTasksWidth] = useState(TASKS_PANEL_DEFAULT_PX)
@@ -332,7 +338,10 @@ export function FocusedSession({
             testId="focused-tasks"
             lit={tasksVisible}
             disabled={focusedSession === null}
-            onClick={() => setTasksPanel((p) => ({ ...p, open: !p.open }))}
+            onClick={() => {
+              if (focusedSessionId === null) return
+              boardStore.getState().setTasksPanelOpen(focusedSessionId, !tasksVisible)
+            }}
             aria-pressed={tasksVisible}
             reveal={GOAL_TERMS.tasks}
           >
