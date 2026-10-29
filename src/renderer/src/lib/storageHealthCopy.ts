@@ -13,7 +13,8 @@ const STORE_LABEL: Record<StoreName, string> = {
   goals: 'goals',
   past_sessions: 'past sessions',
   bridge_mod: 'Claude mod',
-  file_history: 'file history'
+  file_history: 'file history',
+  goals_file: 'GOALS.md'
 }
 
 /** The bridge mod's install failed (spec 2026-10-18 §1.2): new sessions launch without it, and
@@ -21,9 +22,15 @@ const STORE_LABEL: Record<StoreName, string> = {
 export const BRIDGE_MOD_FAILED_COPY =
   'The app could not set up its Claude mod. Reopen the app to try again.'
 
+/** A goal's `GOALS.md` did not follow a change and no goal is left to show why (its last goal was
+ *  deleted, moved or turned off). Not a store file: the sentences below would say the wrong thing. */
+export const GOALS_FILE_FAILED_COPY =
+  "The app could not update GOALS.md in a goal's folder. Open the goal on the Goals sheet to see why."
+
 export function storageProblemMessage(problem: StorageProblem): string {
   // Not a file of the operator's data: the store-file sentences below would say the wrong thing.
   if (problem.store === 'bridge_mod') return BRIDGE_MOD_FAILED_COPY
+  if (problem.store === 'goals_file') return GOALS_FILE_FAILED_COPY
   const what = STORE_LABEL[problem.store]
   switch (problem.code) {
     case 'corrupt_reset':

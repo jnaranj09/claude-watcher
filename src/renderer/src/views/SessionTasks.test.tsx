@@ -15,6 +15,7 @@ const goal = (over: Partial<Goal> = {}): Goal => ({
   workspaceId: 'w1',
   name: 'Ship v2',
   defaultCwd: null,
+  saveToFile: false,
   createdAt: 1,
   ...over
 })
@@ -72,7 +73,7 @@ afterEach(() => {
 
 describe('SessionTasks', () => {
   it('its head reads Tasks on the left, Link task on the right, above the list', () => {
-    open({ goals: [goal()], tasks: [], proposals: [] })
+    open({ goals: [goal()], tasks: [], proposals: [], fileProblems: [] })
     const head = screen.getByTestId('session-tasks-head')
     const title = within(head).getByText('Tasks')
     const link = within(head).getByRole('button', { name: 'Link task' })
@@ -89,7 +90,8 @@ describe('SessionTasks', () => {
     open({
       goals: [goal()],
       tasks: [task(), task({ id: 't2', title: 'Other session', sessionIds: ['s2'] })],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     expect(screen.getByRole('button', { name: 'Done Write the spec' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Done Other session' })).not.toBeInTheDocument()
@@ -107,7 +109,8 @@ describe('SessionTasks', () => {
         task({ id: 't3', status: 'done', sessionIds: [] }),
         task({ id: 't4', sessionIds: ['s2'] })
       ],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     const bar = screen.getByRole('progressbar')
     expect(bar).toHaveAccessibleName('Progress of Ship v2')
@@ -125,7 +128,8 @@ describe('SessionTasks', () => {
         task({ id: 't4', title: 'Elsewhere', sessionIds: [], workspaceId: 'w2' }),
         task({ id: 't5', title: 'Linked to other', sessionIds: ['s2'] })
       ],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     await user.click(screen.getByRole('button', { name: 'Link task' }))
     const menu = screen.getByRole('menu')
@@ -141,14 +145,14 @@ describe('SessionTasks', () => {
 
   it('Link task says so when there is nothing to link', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     await user.click(screen.getByRole('button', { name: 'Link task' }))
     expect(screen.getByRole('menu')).toHaveTextContent('No open tasks to link.')
   })
 
   it('unlink removes the row', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     await user.click(screen.getByRole('button', { name: 'Unlink Write the spec' }))
     expect(bridge.unlinkTask).toHaveBeenCalledWith('t1', 's1')
     expect(screen.queryByRole('button', { name: 'Done Write the spec' })).not.toBeInTheDocument()
@@ -156,7 +160,7 @@ describe('SessionTasks', () => {
 
   it('a refused Done says so and leaves the task as main has it', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     bridge.setTaskStatus!.mockRejectedValueOnce(new Error('boom'))
     await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Could not save task.')
@@ -164,7 +168,7 @@ describe('SessionTasks', () => {
   })
 
   it('a loose task is grouped under Daily tasks, with its own progress', () => {
-    open({ goals: [], tasks: [task({ goalId: null })], proposals: [] })
+    open({ goals: [], tasks: [task({ goalId: null })], proposals: [], fileProblems: [] })
     expect(screen.getByText('Daily tasks')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Daily tasks')
   })
@@ -178,7 +182,8 @@ describe('SessionTasks', () => {
         task({ id: 't3', goalId: null, sessionIds: ['s2'] }),
         task({ id: 't4', goalId: null, sessionIds: [] })
       ],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     expect(screen.getByRole('progressbar')).toHaveAccessibleName('Progress of Daily tasks')
     expect(screen.getByTestId('goal-progress-text')).toHaveTextContent('0/1')
@@ -202,14 +207,14 @@ describe('SessionTasks', () => {
         }
       })
     )
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     expect(screen.getByText('Write the spec')).toBeInTheDocument()
     expect(screen.queryByTestId('task-sessions-t1')).not.toBeInTheDocument()
     act(() => boardStore.setState({ sessionsById: {} }))
   })
 
   it('opened with nothing linked it says so', () => {
-    open({ goals: [goal()], tasks: [], proposals: [] })
+    open({ goals: [goal()], tasks: [], proposals: [], fileProblems: [] })
     expect(screen.getByTestId('session-tasks')).toHaveTextContent(
       'No tasks linked to this session.'
     )
@@ -220,7 +225,8 @@ describe('SessionTasks', () => {
     open({
       goals: [goal()],
       tasks: [task(), task({ id: 't2', title: 'Free one', sessionIds: [] })],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     let release: (v: GoalsView) => void = () => {}
     const pending = (): Promise<GoalsView> => new Promise((r) => (release = r))

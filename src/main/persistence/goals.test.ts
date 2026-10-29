@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createGoalsStore, GOAL_ERROR, type GoalsBlobStore } from './goals'
-import type { GoalsFile, GoalsView } from '../../shared/schemas/goal'
+import { GOAL_FOLDER_MISSING, type GoalsFile, type GoalsView } from '../../shared/schemas/goal'
+import type { GoalsSnapshot } from '../goals/goalsFile'
 
 function fakeBlob(seed: unknown): {
   blobStore: GoalsBlobStore
@@ -45,15 +46,15 @@ function make(seed: unknown = undefined): {
 describe('createGoalsStore', () => {
   it('fresh install: empty, writes the empty v1 file, logs nothing', () => {
     const { store, fake, log } = make()
-    expect(store.view()).toEqual({ goals: [], tasks: [], proposals: [] })
+    expect(store.view()).toEqual({ goals: [], tasks: [], proposals: [], fileProblems: [] })
     expect(fake.current()).toEqual({ version: 1, goals: [], tasks: [] })
     expect(log).not.toHaveBeenCalled()
   })
 
   it('saveGoal creates, then renames without touching the folder', () => {
     const { store } = make()
-    const { saved } = store.saveGoal({ workspaceId: 'w1', name: 'Ship' })
-    expect(saved).toMatchObject({ id: 'id1', name: 'Ship', defaultCwd: null })
+    const { saved } = store.saveGoal({ workspaceId: 'w1', name: 'Ship' }, '/work')
+    expect(saved).toMatchObject({ id: 'id1', name: 'Ship', defaultCwd: '/work', saveToFile: false })
     store.setGoalFolder('id1', '/srv/app')
     store.saveGoal({ id: 'id1', workspaceId: 'w1', name: 'Ship it' })
     expect(store.view().goals[0]).toMatchObject({ name: 'Ship it', defaultCwd: '/srv/app' })
@@ -64,7 +65,7 @@ describe('createGoalsStore', () => {
 
   it('saveGoal cannot re-parent a goal to another workspace', () => {
     const { store } = make()
-    store.saveGoal({ workspaceId: 'w1', name: 'A' })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
     store.saveTask({ workspaceId: 'w1', goalId: 'id1', title: 't' })
     expect(() => store.saveGoal({ id: 'id1', workspaceId: 'w2', name: 'A' })).toThrow(
       GOAL_ERROR.workspaceMismatch
@@ -74,8 +75,8 @@ describe('createGoalsStore', () => {
 
   it('removeGoal deletes its tasks', () => {
     const { store } = make()
-    store.saveGoal({ workspaceId: 'w1', name: 'A' })
-    store.saveGoal({ workspaceId: 'w1', name: 'B' })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    store.saveGoal({ workspaceId: 'w1', name: 'B' }, '/work')
     store.saveTask({ workspaceId: 'w1', goalId: 'id1', title: 'in A' })
     store.saveTask({ workspaceId: 'w1', goalId: 'id2', title: 'in B' })
     store.saveTask({ workspaceId: 'w1', goalId: null, title: 'loose' })
@@ -87,7 +88,7 @@ describe('createGoalsStore', () => {
 
   it('saveTask with a goal of another workspace throws goal_workspace_mismatch', () => {
     const { store } = make()
-    store.saveGoal({ workspaceId: 'w1', name: 'A' })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
     expect(() => store.saveTask({ workspaceId: 'w2', goalId: 'id1', title: 't' })).toThrow(
       GOAL_ERROR.workspaceMismatch
     )
@@ -127,7 +128,7 @@ describe('createGoalsStore', () => {
       newId: () => `id${++n}`,
       now: () => 7
     })
-    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'G' }).saved.id
+    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'G' }, '/work').saved.id
     expect(() =>
       store.addTaskFromSession({ workspaceId: 'w2', goalId, title: 'elsewhere' })
     ).toThrow(GOAL_ERROR.workspaceMismatch)
@@ -210,20 +211,110 @@ describe('createGoalsStore', () => {
     expect(fake.current().tasks[0]?.sessionIds).toEqual(['new'])
   })
 
-  it('setGoalFolder sets and clears; an unknown goal throws', () => {
+  it('setGoalFolder changes the folder; an unknown goal throws', () => {
     const { store } = make()
-    store.saveGoal({ workspaceId: 'w1', name: 'A' })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
     store.setGoalFolder('id1', '/srv')
     expect(store.view().goals[0]?.defaultCwd).toBe('/srv')
-    store.setGoalFolder('id1', null)
-    expect(store.view().goals[0]?.defaultCwd).toBeNull()
     expect(() => store.setGoalFolder('nope', '/x')).toThrow(GOAL_ERROR.goalNotFound)
+  })
+
+  it('create without a folder throws goal_folder_missing and stores nothing', () => {
+    const { store, fired } = make()
+    expect(() => store.saveGoal({ workspaceId: 'w1', name: 'A' })).toThrow(GOAL_FOLDER_MISSING)
+    expect(store.view().goals).toEqual([])
+    expect(fired).toEqual([])
+  })
+
+  it('rename keeps the folder and saveToFile', () => {
+    const { store } = make()
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    store.setSaveToFile('id1', true)
+    store.saveGoal({ id: 'id1', workspaceId: 'w1', name: 'B' })
+    expect(store.view().goals[0]).toMatchObject({
+      name: 'B',
+      defaultCwd: '/work',
+      saveToFile: true
+    })
+  })
+
+  it('setSaveToFile turns it on and off; the same value fires nothing', () => {
+    const { store, fired } = make()
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    store.setSaveToFile('id1', true)
+    expect(store.view().goals[0]?.saveToFile).toBe(true)
+    const count = fired.length
+    store.setSaveToFile('id1', true)
+    expect(fired).toHaveLength(count)
+    store.setSaveToFile('id1', false)
+    expect(store.view().goals[0]?.saveToFile).toBe(false)
+    expect(() => store.setSaveToFile('nope', true)).toThrow(GOAL_ERROR.goalNotFound)
+  })
+
+  it('setSaveToFile on a goal with no folder throws goal_folder_missing', () => {
+    const legacy = {
+      version: 1,
+      goals: [{ id: 'g1', workspaceId: 'w1', name: 'Old', createdAt: 1 }],
+      tasks: []
+    }
+    const { store } = make(legacy)
+    expect(() => store.setSaveToFile('g1', true)).toThrow(GOAL_FOLDER_MISSING)
+    expect(store.view().goals[0]?.saveToFile).toBe(false)
+  })
+
+  it('afterChange gets before and after for every emitted change', () => {
+    const calls: [GoalsSnapshot, GoalsSnapshot][] = []
+    let n = 0
+    const store = createGoalsStore({
+      newId: () => `id${++n}`,
+      afterChange: (before, after) => calls.push([before, after])
+    })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    store.saveTask({ workspaceId: 'w1', goalId: 'id1', title: 'a' })
+    store.linkMany(['id2'], 's1')
+    store.removeByWorkspace('w1')
+    expect(calls).toHaveLength(4)
+    expect(calls[0]?.[0].goals).toEqual([])
+    expect(calls[1]?.[0].tasks).toEqual([])
+    expect(calls[1]?.[1].tasks).toHaveLength(1)
+    expect(calls[2]?.[1].tasks[0]?.sessionIds).toEqual(['s1'])
+    expect(calls[3]?.[0].goals).toHaveLength(1)
+    expect(calls[3]?.[1].goals).toEqual([])
+  })
+
+  it('listeners hear the view with the file problems the change made', () => {
+    let problem = false
+    const store = createGoalsStore({
+      newId: () => 'g1',
+      afterChange: () => {
+        problem = true
+      },
+      fileProblems: () => (problem ? [{ goalId: 'g1', code: 'folder_missing' as const }] : [])
+    })
+    const heard: GoalsView[] = []
+    store.onChange((v) => heard.push(v))
+    const result = store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    expect(heard[0]?.fileProblems).toEqual([{ goalId: 'g1', code: 'folder_missing' }])
+    expect(result.fileProblems).toEqual([{ goalId: 'g1', code: 'folder_missing' }])
+  })
+
+  it('a throwing afterChange never undoes the change', () => {
+    const log = vi.fn()
+    const store = createGoalsStore({
+      log,
+      afterChange: () => {
+        throw new Error('boom')
+      }
+    })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    expect(store.view().goals).toHaveLength(1)
+    expect(log).toHaveBeenCalledWith('[claude-watcher][goals] code=goals_file_sync_failed')
   })
 
   it('removeByWorkspace deletes goals and tasks of that workspace only and persists', () => {
     const { store, fake, fired } = make()
-    store.saveGoal({ workspaceId: 'w1', name: 'A' })
-    store.saveGoal({ workspaceId: 'w2', name: 'B' })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
+    store.saveGoal({ workspaceId: 'w2', name: 'B' }, '/work')
     store.saveTask({ workspaceId: 'w1', goalId: 'id1', title: 'a' })
     store.saveTask({ workspaceId: 'w1', goalId: null, title: 'loose' })
     store.saveTask({ workspaceId: 'w2', goalId: 'id2', title: 'b' })
@@ -242,11 +333,11 @@ describe('createGoalsStore', () => {
     const { store, fired } = make()
     const extra = vi.fn()
     const off = store.onChange(extra)
-    store.saveGoal({ workspaceId: 'w1', name: 'A' })
+    store.saveGoal({ workspaceId: 'w1', name: 'A' }, '/work')
     expect(fired.at(-1)?.goals).toHaveLength(1)
     expect(extra).toHaveBeenCalledTimes(1)
     off()
-    store.saveGoal({ workspaceId: 'w1', name: 'B' })
+    store.saveGoal({ workspaceId: 'w1', name: 'B' }, '/work')
     expect(extra).toHaveBeenCalledTimes(1)
   })
 

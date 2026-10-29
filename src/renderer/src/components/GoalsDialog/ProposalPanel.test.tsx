@@ -35,9 +35,19 @@ const PROPOSAL: Proposal = {
 
 function viewWith(proposals: Proposal[]): GoalsView {
   return {
-    goals: [{ id: 'g1', workspaceId: 'w1', name: 'Chores', defaultCwd: '/home/j', createdAt: 1 }],
+    goals: [
+      {
+        id: 'g1',
+        workspaceId: 'w1',
+        name: 'Chores',
+        defaultCwd: '/home/j',
+        saveToFile: false,
+        createdAt: 1
+      }
+    ],
     tasks: [task('t1', 'Water plants'), task('t2', 'Take out trash'), task('t3', 'Clean garage')],
-    proposals
+    proposals,
+    fileProblems: []
   }
 }
 

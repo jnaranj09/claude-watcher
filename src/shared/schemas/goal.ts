@@ -35,8 +35,12 @@ export const GoalSchema = z.object({
   id: IdSchema,
   workspaceId: WorkspaceIdSchema,
   name: GoalNameSchema,
-  // Stored by main from its own folder picker; the renderer never sends a path (spec §7).
+  // Stored by main from its own folder picker; the renderer never sends a path (spec §7). Required
+  // for a new goal (create opens the picker first); null only on a goal made before that rule,
+  // which cannot start sessions until it gets one (spec 2026-10-29).
   defaultCwd: z.string().min(1).nullable().default(null),
+  // `Save to GOALS.md`: keep this goal and its tasks in `<defaultCwd>/GOALS.md` (goals/goalsFile.ts).
+  saveToFile: z.boolean().default(false),
   createdAt: z.number()
 })
 export type Goal = z.infer<typeof GoalSchema>
@@ -111,11 +115,27 @@ export type GoalsFile = z.infer<typeof GoalsFileSchema>
 
 export const EMPTY_GOALS_FILE: GoalsFile = { version: GOALS_FILE_VERSION, goals: [], tasks: [] }
 
+/** Why a goal's `GOALS.md` did not follow its last change (goals/goalsFile.ts). Memory only. */
+export const GOALS_FILE_PROBLEMS = [
+  'goals_file_not_ours',
+  'folder_missing',
+  'goals_file_write_failed'
+] as const
+export type GoalsFileProblemCode = (typeof GOALS_FILE_PROBLEMS)[number]
+
+export const GoalFileProblemSchema = z.object({
+  goalId: IdSchema,
+  code: z.enum(GOALS_FILE_PROBLEMS)
+})
+export type GoalFileProblem = z.infer<typeof GoalFileProblemSchema>
+
 /** What main sends on `goals:changed` and answers every goals invoke with. */
 export const GoalsViewSchema = z.object({
   goals: z.array(GoalSchema),
   tasks: z.array(TaskSchema),
-  proposals: z.array(ProposalSchema)
+  proposals: z.array(ProposalSchema),
+  // One per goal with `saveToFile` whose folder's file did not follow; never on disk.
+  fileProblems: z.array(GoalFileProblemSchema)
 })
 export type GoalsView = z.infer<typeof GoalsViewSchema>
 
@@ -129,9 +149,13 @@ export type GoalSaveRequest = z.infer<typeof GoalSaveSchema>
 export const GoalDeleteSchema = z.object({ id: IdSchema }).strict()
 export type GoalDeleteRequest = z.infer<typeof GoalDeleteSchema>
 
-/** `goals:pick-folder` / `goals:clear-folder` — an id only; main opens the picker. */
+/** `goals:pick-folder` — an id only; main opens the picker. */
 export const GoalFolderSchema = z.object({ goalId: IdSchema }).strict()
 export type GoalFolderRequest = z.infer<typeof GoalFolderSchema>
+
+/** `goals:set-save-to-file` — an id and the switch; the folder is main's own record. */
+export const GoalSaveToFileSchema = z.object({ goalId: IdSchema, on: z.boolean() }).strict()
+export type GoalSaveToFileRequest = z.infer<typeof GoalSaveToFileSchema>
 
 export const TaskSaveSchema = z
   .object({
@@ -172,6 +196,14 @@ export type GoalsStartRequest = z.infer<typeof GoalsStartSchema>
  *  launched, so the sheet says nothing (the `+ New session` cancel precedent). Shared: main throws
  *  it and the renderer matches it. */
 export const LAUNCH_CANCELLED = 'launch_cancelled'
+
+/** The refusal `goals:save-goal` throws when the operator cancels the folder picker of a NEW goal:
+ *  nothing is created, and the sheet says nothing. Shared: main throws it, the renderer matches it. */
+export const FOLDER_CANCELLED = 'folder_cancelled'
+
+/** The refusal for a goal with no folder (made before folders were required): a create without
+ *  one, a start or a planner on it, or turning its `Save to GOALS.md` on. Shared like the above. */
+export const GOAL_FOLDER_MISSING = 'goal_folder_missing'
 
 /** The refusal `goals:plan` throws while the hook port is not this app's (SEC-6): the endpoint
  *  that serves the planner's tools lives on it, and a planner without its tools is useless. The

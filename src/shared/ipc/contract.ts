@@ -158,13 +158,15 @@ export const CH = {
   rulesMove: 'rules:move',
   // Goals — a workspace's goals and tasks (main-owned file; the renderer holds a projection in
   // goalsStore.ts). Every invoke answers the whole GoalsView. `goals:pick-folder` carries a goal id
-  // only: main opens its own picker. `goals:changed` is the PUSH (main → renderer) after any change,
+  // only: main opens its own picker (a NEW goal's `goals:save-goal` opens it too). A goal's folder
+  // can be changed, never cleared. `goals:set-save-to-file` turns its `GOALS.md` on or off (goal id
+  // and the switch only; on always rewrites the file). `goals:changed` is the PUSH (main → renderer) after any change,
   // whoever caused it, validated at source (sendGoalsChanged.ts).
   goalsList: 'goals:list',
   goalsSaveGoal: 'goals:save-goal',
   goalsDeleteGoal: 'goals:delete-goal',
   goalsPickFolder: 'goals:pick-folder',
-  goalsClearFolder: 'goals:clear-folder',
+  goalsSetSaveToFile: 'goals:set-save-to-file',
   goalsSaveTask: 'goals:save-task',
   goalsDeleteTask: 'goals:delete-task',
   goalsSetTaskStatus: 'goals:set-task-status',

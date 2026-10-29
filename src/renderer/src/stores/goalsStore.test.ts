@@ -7,6 +7,7 @@ const goal = (over: Partial<Goal> = {}): Goal => ({
   workspaceId: 'w1',
   name: 'Ship',
   defaultCwd: null,
+  saveToFile: false,
   createdAt: 1,
   ...over
 })
@@ -22,7 +23,12 @@ const task = (over: Partial<Task> = {}): Task => ({
   doneBy: null,
   ...over
 })
-const view = (goals: Goal[], tasks: Task[]): GoalsView => ({ goals, tasks, proposals: [] })
+const view = (goals: Goal[], tasks: Task[]): GoalsView => ({
+  goals,
+  tasks,
+  proposals: [],
+  fileProblems: []
+})
 
 let push: (view: GoalsView) => void = () => {}
 const bridge = {
@@ -30,7 +36,7 @@ const bridge = {
   saveGoal: vi.fn(),
   deleteGoal: vi.fn(),
   pickFolder: vi.fn(),
-  clearFolder: vi.fn(),
+  setSaveToFile: vi.fn(),
   saveTask: vi.fn(),
   deleteTask: vi.fn(),
   setTaskStatus: vi.fn(),
@@ -49,7 +55,13 @@ beforeAll(async () => {
   m = await import('./goalsStore')
 })
 beforeEach(() => {
-  m.goalsStore.setState({ goals: [], tasks: [], loaded: false, loadFailed: false })
+  m.goalsStore.setState({
+    goals: [],
+    tasks: [],
+    fileProblems: [],
+    loaded: false,
+    loadFailed: false
+  })
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
@@ -94,9 +106,17 @@ describe('goalsStore', () => {
     bridge.pickFolder.mockResolvedValueOnce(view([goal({ id: 'g2', defaultCwd: '/srv' })], []))
     await m.pickGoalFolder('g2')
     expect(m.goalsStore.getState().goals[0]?.defaultCwd).toBe('/srv')
-    bridge.clearFolder.mockResolvedValueOnce(view([second], []))
-    await m.clearGoalFolder('g2')
-    expect(m.goalsStore.getState().goals[0]?.defaultCwd).toBeNull()
+  })
+
+  it('setGoalSaveToFile sends the switch and hydrates the file problems main answers', async () => {
+    bridge.setSaveToFile.mockResolvedValueOnce({
+      ...view([goal({ id: 'g2', saveToFile: true })], []),
+      fileProblems: [{ goalId: 'g2', code: 'folder_missing' }]
+    })
+    await m.setGoalSaveToFile('g2', true)
+    expect(bridge.setSaveToFile).toHaveBeenCalledWith('g2', true)
+    expect(m.goalsStore.getState().goals[0]?.saveToFile).toBe(true)
+    expect(m.selectFileProblemOf('g2')(m.goalsStore.getState())).toBe('folder_missing')
   })
 
   it('a rejected action rethrows and leaves the state as main last sent it', async () => {

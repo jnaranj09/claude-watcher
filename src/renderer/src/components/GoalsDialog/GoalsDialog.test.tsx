@@ -24,7 +24,8 @@ const goal = (over: Partial<Goal> = {}): Goal => ({
   id: 'g1',
   workspaceId: 'w1',
   name: 'Ship v2',
-  defaultCwd: null,
+  defaultCwd: '/repo',
+  saveToFile: false,
   createdAt: 1,
   ...over
 })
@@ -69,10 +70,10 @@ function installBridge(initial: GoalsView): void {
       }
       return answer()
     }),
-    clearFolder: vi.fn((goalId: string) => {
+    setSaveToFile: vi.fn((goalId: string, on: boolean) => {
       view = {
         ...view,
-        goals: view.goals.map((g) => (g.id === goalId ? { ...g, defaultCwd: null } : g))
+        goals: view.goals.map((g) => (g.id === goalId ? { ...g, saveToFile: on } : g))
       }
       return answer()
     }),
@@ -96,7 +97,13 @@ function installBridge(initial: GoalsView): void {
   }
   ;(window as unknown as { goals: unknown }).goals = bridge
   act(() =>
-    goalsStore.setState({ goals: view.goals, tasks: view.tasks, loaded: true, loadFailed: false })
+    goalsStore.setState({
+      goals: view.goals,
+      tasks: view.tasks,
+      fileProblems: view.fileProblems,
+      loaded: true,
+      loadFailed: false
+    })
   )
 }
 
@@ -118,7 +125,13 @@ afterEach(() => {
   unmount?.()
   unmount = undefined
   act(() => {
-    goalsStore.setState({ goals: [], tasks: [], loaded: false, loadFailed: false })
+    goalsStore.setState({
+      goals: [],
+      tasks: [],
+      fileProblems: [],
+      loaded: false,
+      loadFailed: false
+    })
     workspacesStore.setState({ workspaces: [], activeId: 'default', loaded: false })
     boardStore.setState({ sessionsById: {}, selectedId: null })
   })
@@ -126,7 +139,7 @@ afterEach(() => {
 })
 
 function open(
-  initial: GoalsView = { goals: [], tasks: [], proposals: [] },
+  initial: GoalsView = { goals: [], tasks: [], proposals: [], fileProblems: [] },
   onClose: () => void = () => {}
 ): void {
   installBridge(initial)
@@ -159,7 +172,8 @@ describe('GoalsDialog', () => {
         task({ id: 't2', status: 'done' }),
         task({ id: 't3', goalId: 'g2', workspaceId: 'default' })
       ],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     const row = screen.getByTestId('goal-row-g1')
     expect(row).toHaveTextContent('Ship v2')
@@ -173,7 +187,8 @@ describe('GoalsDialog', () => {
     open({
       goals: [goal()],
       tasks: [task(), task({ id: 't9', goalId: null, title: 'Water the plants' })],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByRole('button', { name: /Daily tasks/ }))
@@ -183,7 +198,7 @@ describe('GoalsDialog', () => {
 
   it("a task's Done calls setTaskStatus done; its Undo reopens it", async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByRole('button', { name: 'Done Write the spec' }))
     expect(bridge.setTaskStatus).toHaveBeenLastCalledWith('t1', 'done')
@@ -194,7 +209,7 @@ describe('GoalsDialog', () => {
 
   it('+ New task adds a task to the selected goal', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [], proposals: [] })
+    open({ goals: [goal()], tasks: [], proposals: [], fileProblems: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.type(screen.getByRole('textbox', { name: '+ New task' }), 'Cut the release{Enter}')
     expect(bridge.saveTask).toHaveBeenCalledWith({
@@ -211,7 +226,8 @@ describe('GoalsDialog', () => {
     open({
       goals: [goal()],
       tasks: [task({ status: 'done', doneBy: 'session', doneAt: 5 })],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     await user.click(screen.getByTestId('goal-select-g1'))
     expect(screen.getByTestId('task-done-by-t1')).toHaveTextContent('Closed by a session')
@@ -219,7 +235,7 @@ describe('GoalsDialog', () => {
 
   it('Delete arms in place and removes the goal', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByTestId('goal-delete-g1'))
     expect(bridge.deleteGoal).not.toHaveBeenCalled()
@@ -229,18 +245,144 @@ describe('GoalsDialog', () => {
     expect(screen.queryByTestId('goal-row-g1')).not.toBeInTheDocument()
   })
 
-  it('Default folder shows None, Choose… calls pickGoalFolder, Clear clears it', async () => {
+  it('Default folder shows the folder, Choose… calls pickGoalFolder, and there is no Clear', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [], proposals: [] })
+    open({ goals: [goal()], tasks: [], proposals: [], fileProblems: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
-    expect(screen.getByTestId('goal-default-cwd')).toHaveTextContent('None')
-    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('goal-default-cwd')).toHaveTextContent('/repo')
     await user.click(screen.getByRole('button', { name: 'Choose…' }))
     expect(bridge.pickFolder).toHaveBeenCalledWith('g1')
     expect(screen.getByTestId('goal-default-cwd')).toHaveTextContent('/home/j/app')
-    await user.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(bridge.clearFolder).toHaveBeenCalledWith('g1')
-    expect(screen.getByTestId('goal-default-cwd')).toHaveTextContent('None')
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
+  })
+
+  it('Save to GOALS.md turned on calls setSaveToFile and says Saved', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal()], tasks: [], proposals: [], fileProblems: [] })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    const toggle = screen.getByRole('switch', { name: 'Save to GOALS.md' })
+    expect(toggle).not.toBeChecked()
+    expect(
+      screen.getByText(
+        'Keeps this goal and its tasks in GOALS.md in its folder, for source control.'
+      )
+    ).toBeInTheDocument()
+    await user.click(toggle)
+    expect(bridge.setSaveToFile).toHaveBeenCalledWith('g1', true)
+    expect(screen.getByRole('switch', { name: 'Save to GOALS.md' })).toBeChecked()
+    expect(dialogToast('goals')).toMatchObject({ kind: 'success', title: 'Saved' })
+  })
+
+  it('a file problem shows its sentence, and Try again sends the switch on again', async () => {
+    const user = userEvent.setup()
+    open({
+      goals: [goal({ saveToFile: true })],
+      tasks: [],
+      proposals: [],
+      fileProblems: [{ goalId: 'g1', code: 'goals_file_not_ours' }]
+    })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    expect(screen.getByTestId('goal-file-problem')).toHaveTextContent(
+      'GOALS.md in this folder was not made by claude-watcher. Rename or move it, then try again.'
+    )
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(bridge.setSaveToFile).toHaveBeenCalledWith('g1', true)
+  })
+
+  it('a problem already there when the goal opens shows only its Callout, no toast', async () => {
+    const user = userEvent.setup()
+    open({
+      goals: [goal({ saveToFile: true })],
+      tasks: [],
+      proposals: [],
+      fileProblems: [{ goalId: 'g1', code: 'folder_missing' }]
+    })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    expect(screen.getByTestId('goal-file-problem')).toHaveTextContent(
+      'Its folder no longer exists.'
+    )
+    expect(dialogToast('goals')).toBeUndefined()
+  })
+
+  it('turning it on when the file cannot be written says so, never Saved', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal()], tasks: [], proposals: [], fileProblems: [] })
+    bridge.setSaveToFile = vi.fn((goalId: string, on: boolean) => {
+      view = {
+        ...view,
+        goals: view.goals.map((g) => (g.id === goalId ? { ...g, saveToFile: on } : g)),
+        fileProblems: [{ goalId, code: 'goals_file_write_failed' }]
+      }
+      return Promise.resolve(view)
+    })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    await user.click(screen.getByRole('switch', { name: 'Save to GOALS.md' }))
+    expect(dialogToast('goals')).toMatchObject({ kind: 'error' })
+  })
+
+  it('Try again that still fails says so again in the error toast', async () => {
+    const user = userEvent.setup()
+    open({
+      goals: [goal({ saveToFile: true })],
+      tasks: [],
+      proposals: [],
+      fileProblems: [{ goalId: 'g1', code: 'goals_file_not_ours' }]
+    })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    expect(dialogToast('goals')).toBeUndefined()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(dialogToast('goals')).toMatchObject({
+      kind: 'error',
+      title:
+        'Saved, but GOALS.md was not updated. GOALS.md in this folder was not made by claude-watcher. Rename or move it, then try again.'
+    })
+  })
+
+  it('a change that leaves GOALS.md behind says so in the error toast', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal({ saveToFile: true })], tasks: [], proposals: [], fileProblems: [] })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    act(() =>
+      goalsStore.getState().hydrate({
+        ...view,
+        fileProblems: [{ goalId: 'g1', code: 'goals_file_write_failed' }]
+      })
+    )
+    expect(dialogToast('goals')).toMatchObject({
+      kind: 'error',
+      title:
+        'Saved, but GOALS.md was not updated. Could not write GOALS.md. Check free space and folder permissions, then try again.'
+    })
+  })
+
+  it('a goal with no folder says so, and offers no switch, Plan with Claude or Start session', async () => {
+    const user = userEvent.setup()
+    open({ goals: [goal({ defaultCwd: null })], tasks: [task()], proposals: [], fileProblems: [] })
+    await user.click(screen.getByTestId('goal-select-g1'))
+    expect(screen.getByTestId('goal-no-folder')).toHaveTextContent(
+      'No folder yet. Choose one to start sessions.'
+    )
+    expect(screen.queryByRole('switch', { name: 'Save to GOALS.md' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Plan with Claude' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: 'Select Write the spec' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('a create whose folder pick is cancelled says nothing and keeps the form', async () => {
+    const user = userEvent.setup()
+    open()
+    bridge.saveGoal = vi.fn(() =>
+      Promise.reject(
+        new Error(`Error invoking remote method 'goals:save-goal': Error: folder_cancelled`)
+      )
+    )
+    await user.click(screen.getByRole('button', { name: '+ New goal' }))
+    await user.type(screen.getByTestId('goal-name-input'), 'Ship')
+    await user.click(screen.getByTestId('goal-submit'))
+    expect(bridge.saveGoal).toHaveBeenCalled()
+    expect(dialogToast('goals')).toBeUndefined()
+    expect(screen.getByTestId('goal-name-input')).toHaveValue('Ship')
   })
 
   it('Start session sends the selected task ids and markDone true', async () => {
@@ -253,7 +395,8 @@ describe('GoalsDialog', () => {
         task({ id: 't3', title: 'Tell the team' }),
         task({ id: 't4', title: 'Old', status: 'done' })
       ],
-      proposals: []
+      proposals: [],
+      fileProblems: []
     })
     await user.click(screen.getByTestId('goal-select-g1'))
     // Nothing selected: no bar. A done task cannot be selected.
@@ -280,7 +423,12 @@ describe('GoalsDialog', () => {
 
   it('the switch turned off sends markDone false; loose tasks send no goal', async () => {
     const user = userEvent.setup()
-    open({ goals: [], tasks: [task({ id: 't9', goalId: null, title: 'Water' })], proposals: [] })
+    open({
+      goals: [],
+      tasks: [task({ id: 't9', goalId: null, title: 'Water' })],
+      proposals: [],
+      fileProblems: []
+    })
     await user.click(screen.getByRole('button', { name: /Daily tasks/ }))
     await user.click(screen.getByRole('checkbox', { name: 'Select Water' }))
     await user.click(screen.getByRole('switch', { name: 'Claude can mark tasks done' }))
@@ -300,7 +448,7 @@ describe('GoalsDialog', () => {
     ['claude_version', 'or newer to launch from the app.']
   ])('a %s refusal says so in an error toast and keeps the selection', async (code, copy) => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     bridge.start = vi.fn(() =>
       Promise.reject(
         new Error(`Error invoking remote method 'goals:start-sessions': Error: ${code}`)
@@ -318,7 +466,7 @@ describe('GoalsDialog', () => {
 
   it('a cancelled folder pick says nothing and keeps the selection', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task()], proposals: [] })
+    open({ goals: [goal()], tasks: [task()], proposals: [], fileProblems: [] })
     bridge.start = vi.fn(() =>
       Promise.reject(
         new Error(`Error invoking remote method 'goals:start-sessions': Error: launch_cancelled`)
@@ -340,7 +488,7 @@ describe('GoalsDialog task row: open and edit', () => {
     'Refactor the goals store so a goal with the shared file keeps its tasks in that file'
 
   async function openRow(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    open({ goals: [goal()], tasks: [task({ title: LONG })], proposals: [] })
+    open({ goals: [goal()], tasks: [task({ title: LONG })], proposals: [], fileProblems: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByRole('button', { name: `Show full text ${LONG}` }))
   }
@@ -420,7 +568,12 @@ describe('GoalsDialog task row: open and edit', () => {
 
   it('Escape cancels the edit only: nothing is saved and the dialog stays open', async () => {
     const user = userEvent.setup()
-    installBridge({ goals: [goal()], tasks: [task({ title: LONG })], proposals: [] })
+    installBridge({
+      goals: [goal()],
+      tasks: [task({ title: LONG })],
+      proposals: [],
+      fileProblems: []
+    })
     const onClose = vi.fn()
     unmount = render(<GoalsDialog onClose={onClose} />).unmount
     await user.click(screen.getByTestId('goal-select-g1'))
@@ -469,7 +622,7 @@ describe('GoalsDialog task row: open and edit', () => {
 
   it('a done task opens and edits too', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal()], tasks: [task({ status: 'done' })], proposals: [] })
+    open({ goals: [goal()], tasks: [task({ status: 'done' })], proposals: [], fileProblems: [] })
     await user.click(screen.getByTestId('goal-select-g1'))
     await user.click(screen.getByRole('button', { name: 'Show full text Write the spec' }))
     expect(screen.getByRole('button', { name: 'Edit Write the spec' })).toBeInTheDocument()
@@ -481,7 +634,12 @@ describe('GoalsDialog task row: open and edit', () => {
 describe('GoalsDialog — the tasks box', () => {
   it('a goal draws its progress bar inside the tasks box and Plan with Claude outside it', async () => {
     const user = userEvent.setup()
-    open({ goals: [goal({ defaultCwd: '/repo' })], tasks: [task()], proposals: [] })
+    open({
+      goals: [goal({ defaultCwd: '/repo' })],
+      tasks: [task()],
+      proposals: [],
+      fileProblems: []
+    })
     await user.click(screen.getByTestId('goal-select-g1'))
     const box = screen.getByTestId('task-list')
     expect(within(box).getByRole('progressbar', { name: 'Progress of Ship v2' })).toBeVisible()
@@ -490,7 +648,7 @@ describe('GoalsDialog — the tasks box', () => {
   })
 
   it('Daily tasks draw their progress bar inside the tasks box too', () => {
-    open({ goals: [], tasks: [task({ goalId: null })], proposals: [] })
+    open({ goals: [], tasks: [task({ goalId: null })], proposals: [], fileProblems: [] })
     const box = screen.getByTestId('task-list')
     expect(within(box).getByRole('progressbar', { name: 'Progress of Daily tasks' })).toBeVisible()
   })
@@ -532,7 +690,15 @@ describe('GoalsDialog task row: who works on it', () => {
         sessionsById: { s1: live('s1', 'working', { sessionName: 'build-api' }) }
       })
     )
-    open({ goals: [], tasks: [task({ goalId: null, sessionIds: ['s1'] })], proposals: [] }, onClose)
+    open(
+      {
+        goals: [],
+        tasks: [task({ goalId: null, sessionIds: ['s1'] })],
+        proposals: [],
+        fileProblems: []
+      },
+      onClose
+    )
   }
 
   it('shows the status word and name of each live linked session', () => {
@@ -573,7 +739,7 @@ describe('GoalsDialog task row: Link session', () => {
     onClose?: () => void
   ): void {
     act(() => boardStore.setState({ sessionsById: sessions }))
-    open({ goals: [], tasks, proposals: [] }, onClose)
+    open({ goals: [], tasks, proposals: [], fileProblems: [] }, onClose)
   }
 
   it('an open task offers Link session; a done task does not', () => {

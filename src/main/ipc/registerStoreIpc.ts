@@ -65,6 +65,8 @@ export interface StoreIpcDeps {
   proposals: Proposals
   /** SEC-6: whether THIS process holds the hook port (it serves the planner's tools). */
   hookListening: () => boolean
+  /** `Save to GOALS.md` on / `Try again`: sync that folder's GOALS.md now (goals/goalsFile.ts). */
+  rewriteGoalsFile: (folder: string) => void
 }
 
 /** One registrar per store; index.ts calls each ONCE, in its own place in the ready block. */
@@ -105,7 +107,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     launchedSet,
     claudeVersionAllowsLaunch,
     proposals,
-    hookListening
+    hookListening,
+    rewriteGoalsFile
   } = deps
 
   // Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
@@ -268,11 +271,16 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
 
   // Goals — register ONCE (mirrors registerRulesIpc). Handler bodies live in
   // persistence/goalsIpc.ts (unit-tested); this binds them to CH.* channels and supplies the native
-  // folder picker. The picker opens at the goal's folder, else its workspace's default folder; the
-  // path it returns is stored by main and never travels through the renderer. NEVER logged.
+  // folder picker. The picker opens at the goal's folder, else its workspace's default folder (a
+  // NEW goal's: its workspace's); the path it returns is stored by main and never travels through
+  // the renderer. NEVER logged.
   function registerGoalsIpc(): void {
     /** The native folder picker, opened at `start` (null = the OS default). Null = cancelled. */
     async function showFolderPicker(start: string | null): Promise<string | null> {
+      // TEST-ONLY seam, the `session:pick-directory` one (registerLaunchIpc.ts): Playwright cannot
+      // drive the native dialog, so the drive/e2e runs set C9_TEST_PICK_DIR. Never set in use.
+      const testPickDir = process.env.C9_TEST_PICK_DIR
+      if (testPickDir !== undefined && testPickDir !== '') return testPickDir
       const options: Electron.OpenDialogOptions = {
         properties: ['openDirectory'],
         ...(start !== null ? { defaultPath: start } : {})
@@ -288,9 +296,12 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
         showFolderPicker(
           goalPickerStart(goal, requireWorkspacesStore().get(goal.workspaceId)?.defaultCwd ?? null)
         ),
+      pickNewGoalFolder: (workspaceId) =>
+        showFolderPicker(requireWorkspacesStore().get(workspaceId)?.defaultCwd ?? null),
+      rewriteFile: rewriteGoalsFile,
       launch: {
         workspaces: { get: (id) => requireWorkspacesStore().get(id) },
-        // Asked only when neither the goal nor the workspace has a folder: nothing to open at.
+        // Asked only for Daily tasks in a workspace with no folder: nothing to open at.
         pickDirectory: () => showFolderPicker(null),
         isDirectory: isExistingDirectory,
         claudeVersionAllowsLaunch,
@@ -303,7 +314,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.goalsSaveGoal, (_evt, raw: unknown) => handlers.saveGoal(raw))
     ipc.handle(CH.goalsDeleteGoal, (_evt, raw: unknown) => handlers.deleteGoal(raw))
     ipc.handle(CH.goalsPickFolder, (_evt, raw: unknown) => handlers.pickFolder(raw))
-    ipc.handle(CH.goalsClearFolder, (_evt, raw: unknown) => handlers.clearFolder(raw))
+    ipc.handle(CH.goalsSetSaveToFile, (_evt, raw: unknown) => handlers.setSaveToFile(raw))
     ipc.handle(CH.goalsSaveTask, (_evt, raw: unknown) => handlers.saveTask(raw))
     ipc.handle(CH.goalsDeleteTask, (_evt, raw: unknown) => handlers.deleteTask(raw))
     ipc.handle(CH.goalsSetTaskStatus, (_evt, raw: unknown) => handlers.setTaskStatus(raw))

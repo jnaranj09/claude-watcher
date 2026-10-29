@@ -1,14 +1,17 @@
 // The goals IPC handler BODIES, kept out of index.ts so they are unit-testable in node. Every arg is
 // UNTRUSTED cross-process input → Schema.parse(raw) throws typed on bad input (zod-boundaries.md
 // IPC-arg row). ipc/registerStoreIpc.ts binds them to CH.* channels. The renderer never sends a
-// path: a goal's folder is whatever main's own picker returned, and a start from tasks sends ids
-// only (goals/goalLaunch.ts picks the folder and the names). "Plan with Claude" sends a goal id;
+// path: a goal's folder is whatever main's own picker returned (a NEW goal's save opens it first:
+// no goal exists without a folder), and a start from tasks sends ids only (goals/goalLaunch.ts
+// picks the folder and the names). `Save to GOALS.md` on always rewrites that folder's file. "Plan with Claude" sends a goal id;
 // a decision on a planner's proposal sends the planner's id and, for Accept, the (possibly edited)
 // groups of task ids, which pass the same checks as `Start session`.
 import {
+  FOLDER_CANCELLED,
   GoalDeleteSchema,
   GoalFolderSchema,
   GoalSaveSchema,
+  GoalSaveToFileSchema,
   GoalsPlanSchema,
   GoalsStartSchema,
   ProposalDecideSchema,
@@ -36,6 +39,11 @@ export interface GoalsIpcDeps {
   /** Opens the native folder picker for this goal (the registrar picks its start folder and its
    *  window). `null` = cancelled. */
   pickDirectory(goal: Goal): Promise<string | null>
+  /** Opens the native folder picker for a NEW goal of this workspace (at its default folder).
+   *  `null` = cancelled. */
+  pickNewGoalFolder(workspaceId: string): Promise<string | null>
+  /** `Save to GOALS.md` on (or `Try again`): sync this folder's file now, whatever changed. */
+  rewriteFile(folder: string): void
   /** `goals:start-sessions`: what a start needs besides the store and the calling window's launch
    *  seam (the registrar passes that per call). */
   launch: Omit<StartGoalSessionsDeps, 'store' | 'requestLaunch'>
@@ -47,10 +55,10 @@ export interface GoalsIpcDeps {
 
 export interface GoalsIpcHandlers {
   list(): GoalsView
-  saveGoal(raw: unknown): GoalsSaveGoalResult
+  saveGoal(raw: unknown): Promise<GoalsSaveGoalResult>
   deleteGoal(raw: unknown): GoalsView
   pickFolder(raw: unknown): Promise<GoalsView>
-  clearFolder(raw: unknown): GoalsView
+  setSaveToFile(raw: unknown): GoalsView
   saveTask(raw: unknown): GoalsSaveTaskResult
   deleteTask(raw: unknown): GoalsView
   setTaskStatus(raw: unknown): GoalsView
@@ -81,7 +89,13 @@ export function goalPickerStart(goal: Goal, workspaceDefaultCwd: string | null):
 export function createGoalsIpcHandlers(store: GoalsStore, deps: GoalsIpcDeps): GoalsIpcHandlers {
   return {
     list: () => store.view(),
-    saveGoal: (raw) => store.saveGoal(GoalSaveSchema.parse(raw)),
+    saveGoal: async (raw) => {
+      const req = GoalSaveSchema.parse(raw)
+      if (req.id !== undefined) return store.saveGoal(req)
+      const folder = await deps.pickNewGoalFolder(req.workspaceId)
+      if (folder === null) throw new Error(FOLDER_CANCELLED)
+      return store.saveGoal(req, folder)
+    },
     deleteGoal: (raw) => store.removeGoal(GoalDeleteSchema.parse(raw).id),
     pickFolder: async (raw) => {
       const { goalId } = GoalFolderSchema.parse(raw)
@@ -92,7 +106,13 @@ export function createGoalsIpcHandlers(store: GoalsStore, deps: GoalsIpcDeps): G
       // while the dialog was open throws goal_not_found instead of resurrecting anything.
       return picked === null ? store.view() : store.setGoalFolder(goalId, picked)
     },
-    clearFolder: (raw) => store.setGoalFolder(GoalFolderSchema.parse(raw).goalId, null),
+    setSaveToFile: (raw) => {
+      const { goalId, on } = GoalSaveToFileSchema.parse(raw)
+      store.setSaveToFile(goalId, on)
+      const folder = store.view().goals.find((g) => g.id === goalId)?.defaultCwd ?? null
+      if (on && folder !== null) deps.rewriteFile(folder)
+      return store.view()
+    },
     saveTask: (raw) => store.saveTask(TaskSaveSchema.parse(raw)),
     deleteTask: (raw) => store.removeTask(TaskDeleteSchema.parse(raw).id),
     setTaskStatus: (raw) => {

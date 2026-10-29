@@ -532,8 +532,9 @@ const goalsApi = {
   pickFolder(goalId: string): Promise<GoalsView> {
     return ipcRenderer.invoke(CH.goalsPickFolder, { goalId })
   },
-  clearFolder(goalId: string): Promise<GoalsView> {
-    return ipcRenderer.invoke(CH.goalsClearFolder, { goalId })
+  /** `Save to GOALS.md`. On always rewrites the goal folder's file (also `Try again`). */
+  setSaveToFile(goalId: string, on: boolean): Promise<GoalsView> {
+    return ipcRenderer.invoke(CH.goalsSetSaveToFile, { goalId, on })
   },
   saveTask(req: TaskSaveRequest): Promise<GoalsSaveTaskResult> {
     return ipcRenderer.invoke(CH.goalsSaveTask, req)

@@ -1,21 +1,31 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createGoalsStore } from './goals'
 import { createGoalsIpcHandlers, goalPickerStart } from './goalsIpc'
+import { FOLDER_CANCELLED } from '../../shared/schemas/goal'
 import { createProposals, type Proposals } from '../goals/proposals'
 import type { LaunchRequest } from '../pty/launchSession'
 
 type LaunchAnswer = { terminalId: string; workspaceId: string }
 
-function setup(pick: () => Promise<string | null> = () => Promise.resolve('/picked')): {
+function setup(
+  pick: () => Promise<string | null> = () => Promise.resolve('/picked'),
+  pickNew: () => Promise<string | null> = () => Promise.resolve('/new')
+): {
   h: ReturnType<typeof createGoalsIpcHandlers>
   pickDirectory: ReturnType<typeof vi.fn>
+  pickNewGoalFolder: ReturnType<typeof vi.fn<(workspaceId: string) => Promise<string | null>>>
+  rewriteFile: ReturnType<typeof vi.fn<(folder: string) => void>>
 } {
   let n = 0
   const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
   const pickDirectory = vi.fn(pick)
+  const pickNewGoalFolder = vi.fn<(workspaceId: string) => Promise<string | null>>(() => pickNew())
+  const rewriteFile = vi.fn<(folder: string) => void>()
   return {
     h: createGoalsIpcHandlers(store, {
       pickDirectory,
+      pickNewGoalFolder,
+      rewriteFile,
       proposals: createProposals(() => {}),
       hookListening: () => true,
       launch: {
@@ -26,7 +36,9 @@ function setup(pick: () => Promise<string | null> = () => Promise.resolve('/pick
         log: () => {}
       }
     }),
-    pickDirectory
+    pickDirectory,
+    pickNewGoalFolder,
+    rewriteFile
   }
 }
 
@@ -34,10 +46,10 @@ const GOAL = { workspaceId: 'w1', name: '  Ship  ' }
 const TASK = { workspaceId: 'w1', goalId: null, title: 'write' }
 
 describe('goals IPC handler logic', () => {
-  it('save / status / link / unlink / delete go through, saveGoal trims the name', () => {
+  it('save / status / link / unlink / delete go through, saveGoal trims the name', async () => {
     const { h } = setup()
-    expect(h.list()).toEqual({ goals: [], tasks: [], proposals: [] })
-    expect(h.saveGoal(GOAL).saved.name).toBe('Ship')
+    expect(h.list()).toEqual({ goals: [], tasks: [], proposals: [], fileProblems: [] })
+    expect((await h.saveGoal(GOAL)).saved.name).toBe('Ship')
     expect(h.saveTask({ ...TASK, goalId: 'id1' }).saved.id).toBe('id2')
     expect(h.setTaskStatus({ id: 'id2', status: 'done' }).tasks[0]).toMatchObject({
       status: 'done',
@@ -78,14 +90,15 @@ describe('goals IPC handler logic', () => {
 
   it('a MALFORMED arg throws and does NOT mutate', async () => {
     const { h, pickDirectory } = setup()
-    h.saveGoal(GOAL)
+    await h.saveGoal(GOAL)
     h.saveTask(TASK)
-    expect(() => h.saveGoal({ ...GOAL, name: '' })).toThrow()
-    expect(() => h.saveGoal({ ...GOAL, defaultCwd: '/etc' })).toThrow()
+    await expect(h.saveGoal({ ...GOAL, name: '' })).rejects.toThrow()
+    await expect(h.saveGoal({ ...GOAL, defaultCwd: '/etc' })).rejects.toThrow()
     expect(() => h.deleteGoal({ id: '' })).toThrow()
     await expect(h.pickFolder({ goalId: '' })).rejects.toThrow()
     await expect(h.pickFolder({ goalId: 'id1', cwd: '/etc' })).rejects.toThrow()
-    expect(() => h.clearFolder({})).toThrow()
+    expect(() => h.setSaveToFile({ goalId: 'id1' })).toThrow()
+    expect(() => h.setSaveToFile({ goalId: 'id1', on: true, path: '/etc' })).toThrow()
     expect(() => h.saveTask({ ...TASK, title: 'a\nb' })).toThrow()
     expect(() => h.deleteTask(null)).toThrow()
     expect(() => h.setTaskStatus({ id: 'id2', status: 'in-progress' })).toThrow()
@@ -93,6 +106,7 @@ describe('goals IPC handler logic', () => {
     expect(() => h.unlinkTask('id2')).toThrow()
     expect(pickDirectory).not.toHaveBeenCalled()
     const view = h.list()
+    expect(view.goals[0]?.saveToFile).toBe(false)
     expect(view.goals).toHaveLength(1)
     expect(view.goals[0]?.name).toBe('Ship')
     expect(view.tasks).toHaveLength(1)
@@ -102,12 +116,46 @@ describe('goals IPC handler logic', () => {
   it('goals:pick-folder stores the picked path; cancel changes nothing', async () => {
     const picks: (string | null)[] = ['/picked', null]
     const { h, pickDirectory } = setup(() => Promise.resolve(picks.shift() ?? null))
-    h.saveGoal(GOAL)
+    await h.saveGoal(GOAL)
     expect((await h.pickFolder({ goalId: 'id1' })).goals[0]?.defaultCwd).toBe('/picked')
     expect((await h.pickFolder({ goalId: 'id1' })).goals[0]?.defaultCwd).toBe('/picked')
     expect(pickDirectory).toHaveBeenCalledTimes(2)
     expect(pickDirectory.mock.calls[0]?.[0]).toMatchObject({ id: 'id1' })
-    expect(h.clearFolder({ goalId: 'id1' }).goals[0]?.defaultCwd).toBeNull()
+  })
+
+  it('create opens the picker for its workspace and stores the picked folder', async () => {
+    const { h, pickNewGoalFolder } = setup()
+    const { saved } = await h.saveGoal(GOAL)
+    expect(pickNewGoalFolder).toHaveBeenCalledWith('w1')
+    expect(saved).toMatchObject({ defaultCwd: '/new', saveToFile: false })
+  })
+
+  it('create cancelled throws folder_cancelled and stores nothing', async () => {
+    const { h } = setup(undefined, () => Promise.resolve(null))
+    await expect(h.saveGoal(GOAL)).rejects.toThrow(FOLDER_CANCELLED)
+    expect(h.list().goals).toEqual([])
+  })
+
+  it('a rename never opens the picker', async () => {
+    const { h, pickNewGoalFolder } = setup()
+    await h.saveGoal(GOAL)
+    await h.saveGoal({ id: 'id1', workspaceId: 'w1', name: 'Renamed' })
+    expect(pickNewGoalFolder).toHaveBeenCalledTimes(1)
+  })
+
+  it('setSaveToFile on rewrites the goal folder file, even when already on', async () => {
+    const { h, rewriteFile } = setup()
+    await h.saveGoal(GOAL)
+    expect(h.setSaveToFile({ goalId: 'id1', on: true }).goals[0]?.saveToFile).toBe(true)
+    h.setSaveToFile({ goalId: 'id1', on: true })
+    expect(rewriteFile.mock.calls).toEqual([['/new'], ['/new']])
+  })
+
+  it('setSaveToFile off does not rewrite', async () => {
+    const { h, rewriteFile } = setup()
+    await h.saveGoal(GOAL)
+    h.setSaveToFile({ goalId: 'id1', on: false })
+    expect(rewriteFile).not.toHaveBeenCalled()
   })
 
   it('pick-folder on an unknown goal throws goal_not_found without opening the picker', async () => {
@@ -118,7 +166,14 @@ describe('goals IPC handler logic', () => {
 })
 
 describe('goalPickerStart', () => {
-  const goal = { id: 'g', workspaceId: 'w1', name: 'x', defaultCwd: null, createdAt: 1 }
+  const goal = {
+    id: 'g',
+    workspaceId: 'w1',
+    name: 'x',
+    defaultCwd: null,
+    saveToFile: false,
+    createdAt: 1
+  }
   it('opens at the goal folder, else the workspace folder, else the OS default', () => {
     expect(goalPickerStart({ ...goal, defaultCwd: '/goal' }, '/ws')).toBe('/goal')
     expect(goalPickerStart(goal, '/ws')).toBe('/ws')
@@ -152,7 +207,7 @@ describe('goals IPC — plan with Claude and the proposal', () => {
     let n = 0
     const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
     const proposals = createProposals(() => {})
-    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }).saved.id
+    const goalId = store.saveGoal({ workspaceId: 'w1', name: 'Ship v2' }, '/work').saved.id
     store.setGoalFolder(goalId, '/goal')
     const t1 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Write the spec' }).saved.id
     const t2 = store.saveTask({ workspaceId: 'w1', goalId, title: 'Cut the release' }).saved.id
@@ -165,6 +220,8 @@ describe('goals IPC — plan with Claude and the proposal', () => {
     })
     const h = createGoalsIpcHandlers(store, {
       pickDirectory: () => Promise.resolve(null),
+      pickNewGoalFolder: () => Promise.resolve(null),
+      rewriteFile: () => {},
       proposals,
       hookListening: over.hookListening ?? (() => true),
       launch: {

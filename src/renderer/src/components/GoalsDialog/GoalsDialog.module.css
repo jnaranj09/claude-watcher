@@ -22,6 +22,17 @@
   align-items: center;
   gap: var(--gap-inline);
 }
+/* `Save to GOALS.md` under the folder row: the switch, then its words (the start bar's switch
+   look, .startSwitch below). */
+.saveToFile {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-field);
+}
+.saveToFileLabel {
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
 .path {
   flex: 1;
   min-width: 0;

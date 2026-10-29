@@ -26,7 +26,7 @@ describe('the CH channel registry', () => {
     expect(CH.goalsSaveGoal).toBe('goals:save-goal')
     expect(CH.goalsDeleteGoal).toBe('goals:delete-goal')
     expect(CH.goalsPickFolder).toBe('goals:pick-folder')
-    expect(CH.goalsClearFolder).toBe('goals:clear-folder')
+    expect(CH.goalsSetSaveToFile).toBe('goals:set-save-to-file')
     expect(CH.goalsSaveTask).toBe('goals:save-task')
     expect(CH.goalsDeleteTask).toBe('goals:delete-task')
     expect(CH.goalsSetTaskStatus).toBe('goals:set-task-status')

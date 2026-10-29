@@ -113,7 +113,7 @@ describe('a dialog Save / Delete the disk refused is undone (UX-06)', () => {
     const b = blob()
     let n = 0
     const s = createGoalsStore({ blobStore: b.store, log, newId: () => `g${++n}` })
-    s.saveGoal({ workspaceId: 'w1', name: 'Ship' })
+    s.saveGoal({ workspaceId: 'w1', name: 'Ship' }, '/work')
     s.saveTask({ workspaceId: 'w1', goalId: 'g1', title: 'write' })
     const fired = vi.fn()
     s.onChange(fired)
@@ -185,7 +185,7 @@ describe('every other write keeps the change and tells storage health (UX-06)', 
     const b = blob()
     const r = reporter()
     const s = createGoalsStore({ blobStore: b.store, log, report: r.report, newId: () => 'g1' })
-    s.saveGoal({ workspaceId: 'w1', name: 'Ship' })
+    s.saveGoal({ workspaceId: 'w1', name: 'Ship' }, '/work')
     b.fail()
     expect(s.removeByWorkspace('w1')).toBe(1)
     expect(s.view().goals).toEqual([])

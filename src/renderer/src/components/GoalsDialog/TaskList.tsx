@@ -21,7 +21,13 @@ import { TASK_TITLE_MAX, type Task } from '../../../../shared/schemas/goal'
 import { GOAL_TERMS, SELECTION_TERMS } from '../../copy/terms'
 import { useAsyncAction } from '../../hooks/useAsyncAction'
 import { goalErrorCopy, goalStartErrorCopy } from '../../lib/goalCopy'
-import { removeTask, saveTask, setTaskStatus, startSessions } from '../../stores/goalsStore'
+import {
+  removeTask,
+  saveTask,
+  setTaskStatus,
+  startSessions,
+  useGoals
+} from '../../stores/goalsStore'
 import { Button } from '../Button/Button'
 import { Checkbox } from '../Checkbox/Checkbox'
 import { ManageDialog, useManageDialogContext } from '../ManageDialog/ManageDialog'
@@ -48,6 +54,11 @@ export function TaskList({ tasks, workspaceId, goalId, head }: TaskListProps): J
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [markDone, setMarkDone] = useState(true)
   const switchId = useId()
+  // A goal with no folder (made before folders were required) starts nothing: its tasks offer no
+  // select box and no start bar until it has one. Daily tasks always can.
+  const startable = useGoals(
+    (s) => goalId === null || (s.goals.find((g) => g.id === goalId)?.defaultCwd ?? null) !== null
+  )
   // Only open tasks can be selected; one closed or deleted since drops out of the selection.
   const selectedIds = tasks.filter((t) => t.status === 'open' && picked.has(t.id)).map((t) => t.id)
 
@@ -111,7 +122,7 @@ export function TaskList({ tasks, workspaceId, goalId, head }: TaskListProps): J
             task={task}
             onToggle={(done) => void toggle.run(task, done)}
             leading={
-              task.status === 'open' ? (
+              task.status === 'open' && startable ? (
                 <Checkbox
                   testId={`task-select-${task.id}`}
                   ariaLabel={`Select ${task.title}`}
@@ -119,7 +130,8 @@ export function TaskList({ tasks, workspaceId, goalId, head }: TaskListProps): J
                   onChange={(on) => setPick(task.id, on)}
                 />
               ) : (
-                // A done task cannot be selected: a blank of the box's width keeps its title in line.
+                // A done task (or one of a goal with no folder) cannot be selected: a blank of the
+                // box's width keeps its title in line.
                 <span className={styles.checkBlank} aria-hidden="true" />
               )
             }

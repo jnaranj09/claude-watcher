@@ -46,7 +46,8 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   floor stays 2.1.304: there the origin never arrives and the `UserPromptSubmit` fallback below
   applies). Context (`ContextDialog`) shows it, `mods/fileHistory.ts` keeps file
   versions, and Restore is the one operator-started write to an operator file (technical-taste
-  §5). Open in editor takes any absolute path, but never a program (an execute bit or a
+  §5). A goal's `GOALS.md` is the other write into a project: the operator switches it on, then
+  every change rewrites it, a session's `create_task` / `mark_task_done` included. Open in editor takes any absolute path, but never a program (an execute bit or a
   launcher type: `file_runnable`); History and Restore take only an absolute `.md` path
   (`isInstructionPath`). `npm run test:mod` = `claude plugin validate` + `claude plugin test` (local only).
   After a claude upgrade also run `npm run test:claude-drift` (local only): it checks that claude
@@ -60,7 +61,19 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   `goalLaunch` rebuilds it from the links that still name the id.
   `goals:start-sessions` refuses before anything launches (`task_repeated` at the schema,
   `task_not_found`, `goal_workspace_mismatch`, `claude_version`, `launch_cancelled`,
-  `folder_missing`, a bad name on any group). `goals:link-task` (the session's task rail and the
+  `folder_missing`, `goal_folder_missing`, a bad name on any group). A goal's tasks start in the
+  goal's folder only (`pickLaunchFolder`); a goal with none (made before folders were required)
+  refuses with `goal_folder_missing` and never opens the picker. Daily tasks: the workspace's
+  folder, else the picker.
+- **A goal's folder and `GOALS.md` (spec 2026-10-29):** a new goal needs a folder (`goals:save-goal`
+  without an id opens main's picker first; cancel → `folder_cancelled`, nothing created); a folder
+  is never cleared. `Save to GOALS.md` (`goals:set-save-to-file`; on always rewrites): the exporter
+  `goals/goalsFile.ts` runs inside the goals store's `emit()`, after EVERY change and before the
+  listeners, so a new store method reaches the file only if it emits. It rewrites a folder's
+  `GOALS.md` only when that folder's text changed (links and `/clear` write nothing), never writes
+  or removes one without its header line, never creates a folder, and at startup only checks.
+  Problems (`goals_file_not_ours`, `folder_missing`, `goals_file_write_failed`) live in memory and
+  ride `GoalsView.fileProblems`; one no saving goal can show goes to `StorageNotice` (`goals_file`). `goals:link-task` (the session's task rail and the
   Goals sheet's `Link session`) refuses with `session_not_found` unless the session is live on
   the calling window's board in the task's workspace. A task linked after launch is not told to
   claude (no prompt block, no tool change): it only shows in the rail, and `mark_task_done` can
@@ -92,9 +105,9 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   denies it without `--allowedTools`); with the flag, an interactive session in manual mode calls
   it with no prompt. Re-probe after an upgrade if the tool stops showing.
 - **Planner ("Plan with Claude", goals):** `goals:plan` (`startPlanner`, `goals/goalLaunch.ts`)
-  launches one session on a goal (named after it, the same folder fallback, the API launch seam),
+  launches one session on a goal (named after it, in the goal's folder, the API launch seam),
   refused before anything launches with `goal_not_found`, `hooks_unavailable` (hook port not ours:
-  the tools live on it), `claude_version`, `launch_cancelled`, `folder_missing`. Every spawn of a
+  the tools live on it), `claude_version`, `goal_folder_missing`, `folder_missing`. Every spawn of a
   planner (`goalLaunch.kind: 'planner'`) gets `buildPlannerPrompt`, a `mode: 'planner'` token bound
   to its goal, the config file and `--allowedTools` for its three tools (comma-joined), all four or
   none (no MCP, goal gone, SEC-6, refused write). It is linked to no task, gets no

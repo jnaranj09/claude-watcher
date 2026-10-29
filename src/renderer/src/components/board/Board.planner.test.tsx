@@ -9,10 +9,19 @@ import { goalsStore } from '../../stores/goalsStore'
 import { watchUpdated } from '../../../../__fixtures__/watchEvents'
 import type { GoalsView } from '../../../../shared/ipc/contract'
 
-const EMPTY: GoalsView = { goals: [], tasks: [], proposals: [] }
+const EMPTY: GoalsView = { goals: [], tasks: [], proposals: [], fileProblems: [] }
 
 const WITH_PROPOSAL: GoalsView = {
-  goals: [{ id: 'g1', workspaceId: 'default', name: 'Chores', defaultCwd: null, createdAt: 1 }],
+  goals: [
+    {
+      id: 'g1',
+      workspaceId: 'default',
+      name: 'Chores',
+      defaultCwd: null,
+      saveToFile: false,
+      createdAt: 1
+    }
+  ],
   tasks: [
     {
       id: 't1',
@@ -28,7 +37,8 @@ const WITH_PROPOSAL: GoalsView = {
   ],
   proposals: [
     { plannerSessionId: 'planner-1', goalId: 'g1', groups: [{ taskIds: ['t1'], note: 'n' }] }
-  ]
+  ],
+  fileProblems: []
 }
 
 afterEach(() => {
