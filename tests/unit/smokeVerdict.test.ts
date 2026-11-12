@@ -11,7 +11,12 @@ const passing = (): Record<string, unknown> => ({
     tui: { pass: true },
     webgl: { pass: true }
   },
-  main: { api: { pass: true }, themes: { pass: true }, bridgeMod: { pass: true } }
+  main: {
+    api: { pass: true },
+    themes: { pass: true },
+    bridgeMod: { pass: true },
+    memory: { pass: true }
+  }
 })
 
 const noWebgl = (): Record<string, unknown> => {
@@ -64,7 +69,7 @@ describe('evaluateVerdict', () => {
     expect(evaluateVerdict(r, 'optional').ok).toBe(false)
   })
 
-  it.each(['api', 'themes', 'bridgeMod'])('fails a main.%s miss in both modes', (key) => {
+  it.each(['api', 'themes', 'bridgeMod', 'memory'])('fails a main.%s miss in both modes', (key) => {
     for (const mode of ['strict', 'optional'] as const) {
       const r = mode === 'strict' ? passing() : noWebgl()
       ;(r.main as Record<string, unknown>)[key] = { pass: false }

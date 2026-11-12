@@ -12,6 +12,7 @@ import type { ApiLifecycle } from '../api/apiLifecycle'
 import { createThemeScanner } from '../themes/themeScanner'
 import { BUNDLED_THEME_IDS } from '../themes/bundledThemes'
 import { bridgeModSmokeCheck } from '../mods/bridgeModInstall'
+import { memorySmokeCheck } from '../memory/memoryDb'
 import { containSmokeReport, registerSmokeIpc } from '../smoke/smokeIpc'
 import type { TrustedIpc } from './trustedIpc'
 
@@ -172,6 +173,20 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
     // The bridge mod (spec 2026-10-18 §1.2) — the install at start copied it out of
     // <resourcesPath>/mods into userData; a false here is a package that did not carry it.
     const bridgeMod = bridgeModSmokeCheck(bridgeModDir(), existsSync)
+    // Memory (spec 2026-11-11 §2) — `node:sqlite` with FTS5 word and trigram indexes inside the
+    // package. A PROBE folder, not userData: the smoke runs on the default profile, and its test
+    // row must never land in the operator's memory file.
+    let memory = { pass: false }
+    try {
+      const probeDir = mkdtempSync(join(os.tmpdir(), 'claude-watcher-smoke-memory-'))
+      try {
+        memory = memorySmokeCheck(probeDir)
+      } finally {
+        rmSync(probeDir, { recursive: true, force: true })
+      }
+    } catch {
+      console.error('[claude-watcher][memory] code=smoke_probe_failed')
+    }
     const full = {
       ...report,
       main: {
@@ -181,7 +196,8 @@ export function registerPtyIpc(deps: PtyIpcDeps): void {
         ptyPid: term?.pid ?? null,
         api,
         themes,
-        bridgeMod
+        bridgeMod,
+        memory
       }
     }
     const json = JSON.stringify(full, null, 2)
