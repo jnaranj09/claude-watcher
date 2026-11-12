@@ -189,7 +189,7 @@ open dialog. `Esc to return` shows only while focus is outside.
   (duplication ≤ 0.5%, `.jscpd.json`).
 - Guard tests in `tests/main/`: layers, comment-only `catch` allow-list, per-file `as` budget
   (both lists only shrink). `.only` fails Vitest and Playwright.
-- `code-reviewer` subagent: re-runs the gate, fault-injects every guard (revert → a test red).
+- `code-reviewer`: a fresh reviewer re-runs the gate, fault-injects every guard (revert → a test red).
 
 ## Versions (don't bump in passing)
 

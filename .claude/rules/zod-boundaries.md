@@ -5,6 +5,9 @@ paths:
   - 'src/main/persistence/**'
   - 'src/main/pty/**'
   - 'src/main/api/**'
+  - 'src/main/goals/**'
+  - 'src/main/mcp/**'
+  - 'src/main/memory/**'
 ---
 
 # Rule: fail-closed Zod boundaries
