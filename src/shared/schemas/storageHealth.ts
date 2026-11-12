@@ -34,7 +34,7 @@ export const STORE_NAMES = [
   'file_history',
   // A goal's `GOALS.md` in its project folder (spec 2026-10-29): only a failure no goal can show.
   'goals_file',
-  // The memory database (spec 2026-11-11): <userData>/claude-watcher-memory.sqlite.
+  // The memory database (spec 2026-11-11): <userData>/claude-watcher-memory.db.
   'memory'
 ] as const
 export const STORAGE_PROBLEM_CODES = [
