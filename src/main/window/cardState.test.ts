@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { dropCardState, moveCardState } from './cardState'
 import { createGoalsStore } from '../persistence/goals'
 import { createGoalTokens } from '../goals/mcp/goalTokens'
-import { createMcpConfigs } from '../goals/mcp/mcpConfigFile'
+import { MCP_SERVER_NAME, createMcpConfigs } from '../goals/mcp/mcpConfigFile'
 import { createProposals } from '../goals/proposals'
 
 type Rebind = (oldId: string, newId: string) => void
@@ -42,7 +42,12 @@ function deps(): Parameters<typeof moveCardState>[0] & {
     goals: createGoalsStore(),
     tokens: createGoalTokens(),
     proposals: createProposals(() => {}),
-    mcpConfigs: createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
+    mcpConfigs: createMcpConfigs({
+      dir: () => userData,
+      serverName: MCP_SERVER_NAME,
+      log: () => {},
+      report: () => {}
+    })
   }
 }
 

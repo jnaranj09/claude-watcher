@@ -50,9 +50,9 @@ import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobSto
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
 import { goalSpawnExtras } from './goals/goalLaunch'
 import { createGoalTokens } from './goals/mcp/goalTokens'
-import { createMcpConfigs } from './goals/mcp/mcpConfigFile'
+import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
 import { createMcpTools } from './goals/mcp/mcpTools'
-import { createMcpEndpoint } from './goals/mcp/mcpEndpoint'
+import { createMcpEndpoint } from './mcp/mcpEndpoint'
 import { createProposals } from './goals/proposals'
 import { createGoalsFileExporter, nodeGoalsFileFs, type GoalsFileExporter } from './goals/goalsFile'
 import { GOALS_MCP_URL } from './hooks/hookContract'
@@ -598,12 +598,15 @@ const goalMcp = (() => {
     proposals,
     configs: createMcpConfigs({
       dir: () => app.getPath('userData'),
+      serverName: MCP_SERVER_NAME,
       log,
       report: storageHealth.reporterFor('goals')
     }),
     endpoint: createMcpEndpoint({
       tokens,
       tools: createMcpTools(requireGoalsStore, proposals),
+      serverName: MCP_SERVER_NAME,
+      area: 'goals',
       log
     })
   }

@@ -212,7 +212,7 @@ describe('composeClaudeCommand', () => {
       initialPrompt: null,
       resume: false,
       pluginDir: null,
-      mcpConfigPath: null,
+      mcpConfigPaths: [],
       allowedTools: null,
       ...overrides
     }
@@ -578,7 +578,7 @@ describe('composeClaudeCommand', () => {
           const argv = argv0({
             resume,
             appendSystemPrompt: 'block',
-            mcpConfigPath: "/data/mcp/it's 1.json",
+            mcpConfigPaths: ["/data/mcp/it's 1.json"],
             allowedTools: 'mcp__claude-watcher__mark_task_done'
           })
           expect(argv).toEqual([
@@ -592,6 +592,32 @@ describe('composeClaudeCommand', () => {
             "/data/mcp/it's 1.json",
             '--allowedTools',
             'mcp__claude-watcher__mark_task_done'
+          ])
+        }
+      )
+
+      it.each([true, false])(
+        'two config paths follow one --mcp-config, and the next flag still starts with -- (resume: %s)',
+        (resume) => {
+          const cmd = composeClaudeCommand(
+            spec({ resume, mcpConfigPaths: ['a.json', 'b.json'], allowedTools: 'x,y' })
+          )
+          expect(cmd).toContain(` --mcp-config 'a.json' 'b.json' --allowedTools 'x,y'`)
+          const argv = argv0({
+            resume,
+            mcpConfigPaths: ['/data/mcp/a.json', "/data/mcp/it's b.json"],
+            allowedTools: 'x,y'
+          })
+          expect(argv).toEqual([
+            resume ? '--resume' : '--session-id',
+            SID,
+            '-n',
+            'x',
+            '--mcp-config',
+            '/data/mcp/a.json',
+            "/data/mcp/it's b.json",
+            '--allowedTools',
+            'x,y'
           ])
         }
       )
@@ -622,16 +648,19 @@ describe('composeClaudeCommand', () => {
         }
       })
 
-      it.each([true, false])('null mcp fields emit nothing (resume: %s)', (resume) => {
-        const cmd = composeClaudeCommand(
-          spec({ resume, appendSystemPrompt: 'block', mcpConfigPath: null, allowedTools: null })
-        )
-        expect(cmd).not.toContain('--mcp-config')
-        expect(cmd).not.toContain('--allowedTools')
-        expect(cmd).toBe(
-          `'${BIN}' ${resume ? '--resume' : '--session-id'} '${SID}' -n 'x' --append-system-prompt 'block'`
-        )
-      })
+      it.each([true, false])(
+        'an empty config list and null tools emit no flag (resume: %s)',
+        (resume) => {
+          const cmd = composeClaudeCommand(
+            spec({ resume, appendSystemPrompt: 'block', mcpConfigPaths: [], allowedTools: null })
+          )
+          expect(cmd).not.toContain('--mcp-config')
+          expect(cmd).not.toContain('--allowedTools')
+          expect(cmd).toBe(
+            `'${BIN}' ${resume ? '--resume' : '--session-id'} '${SID}' -n 'x' --append-system-prompt 'block'`
+          )
+        }
+      )
     })
   })
 

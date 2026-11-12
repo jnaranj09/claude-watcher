@@ -74,9 +74,13 @@ export const MOD_REPORT_PATH = '/mod/report'
  *  the mod's copy of both paths. */
 export const MOD_PROMPT_PATH = '/mod/prompt'
 
-/** The goals MCP endpoint (`mark_task_done`), on the hook listener behind a per-launch bearer token
- *  (spec 2026-10-19 goals; `goals/mcp/mcpEndpoint.ts`). */
-export const GOALS_MCP_PATH = '/mcp/goals'
+/** Every app MCP endpoint's path starts here; one with no route is 404, never a hook
+ *  (`hookServer.ts`). */
+export const MCP_PATH_PREFIX = '/mcp/'
+
+/** The goals MCP endpoint (`mark_task_done`, the planner's tools), on the hook listener behind a
+ *  per-launch bearer token (spec 2026-10-19 goals; `mcp/mcpEndpoint.ts`, `goals/mcp/mcpTools.ts`). */
+export const GOALS_MCP_PATH = `${MCP_PATH_PREFIX}goals`
 
 /** The URL a session's `--mcp-config` file names (`goals/mcp/mcpConfigFile.ts`). */
 export const GOALS_MCP_URL = `http://${HOST}:${PORT}${GOALS_MCP_PATH}`

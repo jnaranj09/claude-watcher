@@ -49,7 +49,7 @@ import type { PastSessionsStore } from '../persistence/pastSessions'
 import type { LivePastSessions } from '../persistence/livePastSessions'
 // Past sessions (D-3) — the PURE, unit-tested reason → history decision (archive writes the
 // record via buildPastSessionRecord; delete removes any earlier one; a null store no-ops).
-import { hookServerMcp, recordRemoval } from './goalWiring'
+import { recordRemoval } from './goalWiring'
 import type { TagsStore } from '../persistence/tags'
 import { staleTagEdits } from '../persistence/tagsIpc'
 import { createRulesEngine, type RulesEngine } from '../rules/rulesEngine'
@@ -61,10 +61,11 @@ import type { LaunchedSet } from '../pty/launchedSet'
 import type { SessionSetup } from '../mods/sessionSetup'
 import { dropCardState, moveCardState } from './cardState'
 import type { GoalsStore } from '../persistence/goals'
-import type { GoalTokens } from '../goals/mcp/goalTokens'
+import type { GoalTokens, Grant } from '../goals/mcp/goalTokens'
 import type { Proposals } from '../goals/proposals'
 import type { McpConfigs } from '../goals/mcp/mcpConfigFile'
-import type { McpEndpoint } from '../goals/mcp/mcpEndpoint'
+import { mcpRoute, type McpEndpoint } from '../mcp/mcpEndpoint'
+import { GOALS_MCP_PATH } from '../hooks/hookContract'
 import type { TerminalManager } from '../pty/terminalManager'
 import type { ShellCompanionRegistry } from '../pty/shellCompanion'
 import type { ProcessSessionSource } from '../pty/claudeSessionFile'
@@ -181,7 +182,12 @@ export interface WatchFeedDeps {
   /** Goals (spec 2026-10-19): the task links, MCP tokens, planner proposals and config files that
    *  follow a card, and the MCP endpoint each window's hook listener serves (app-global). */
   getGoalsStore: () => GoalsStore | null
-  goalMcp: { tokens: GoalTokens; proposals: Proposals; configs: McpConfigs; endpoint: McpEndpoint }
+  goalMcp: {
+    tokens: GoalTokens
+    proposals: Proposals
+    configs: McpConfigs
+    endpoint: McpEndpoint<Grant>
+  }
 }
 
 export interface WatchFeed {
@@ -919,8 +925,8 @@ export function createWatchFeed(deps: WatchFeedDeps): WatchFeed {
           },
           prompt
         ),
-      // The goals MCP endpoint (`mark_task_done`), behind each launch's bearer token.
-      ...hookServerMcp(goalMcp.endpoint, (line) => console.warn(line)),
+      // The app's MCP endpoints, each behind its own per-launch bearer tokens: the goals server.
+      mcpRoutes: [mcpRoute(GOALS_MCP_PATH, goalMcp.endpoint, (line) => console.warn(line))],
       log: (err) => console.warn(`[c9watch][hooks] dropped hook path=${err.path} code=${err.code}`),
       // SEC-6 / UX-05 — only a bind THIS process made lets a spawn carry `--settings`.
       onListening: () => serverHealth.hookBound(),

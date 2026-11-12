@@ -1,6 +1,7 @@
 // The goals MCP endpoint on the hook listener (spec 2026-10-19 goals): the REAL createHookServer on
 // an ephemeral port with the real endpoint, tokens, tools and goals store, so reverting the bearer,
-// Origin or authority guard turns a test red.
+// Origin or authority guard turns a test red. A second route on its own path proves each route
+// answers only its own server's bearer.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { request as httpRequest } from 'node:http'
 import { createHookServer } from './hookServer'
@@ -8,10 +9,12 @@ import { GOALS_MCP_PATH, MAX_BODY_BYTES } from './hookContract'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
 import type { HookEvent } from '../../shared/schemas/hookEvent'
 import { createGoalsStore, type GoalsStore } from '../persistence/goals'
-import { createGoalTokens, type GoalTokens } from '../goals/mcp/goalTokens'
+import { createGoalTokens, type GoalTokens, type Grant } from '../goals/mcp/goalTokens'
 import { createMcpTools } from '../goals/mcp/mcpTools'
 import { createProposals } from '../goals/proposals'
-import { createMcpEndpoint, type McpEndpoint } from '../goals/mcp/mcpEndpoint'
+import { MCP_SERVER_NAME } from '../goals/mcp/mcpConfigFile'
+import { createMcpEndpoint, mcpRoute, type McpEndpoint, type McpRoute } from '../mcp/mcpEndpoint'
+import { createSessionTokens } from '../mcp/sessionTokens'
 
 interface Reply {
   status: number
@@ -66,7 +69,11 @@ afterEach(() => {
   rig = null
 })
 
-function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise<Rig> {
+function start(
+  withMcp = true,
+  endpointOverride?: Partial<McpEndpoint<Grant>>,
+  extraRoutes: readonly McpRoute[] = []
+): Promise<Rig> {
   let n = 0
   const store = createGoalsStore({ newId: () => `id${++n}`, now: () => 1 })
   const taskId = store.saveTask({ workspaceId: 'w1', goalId: null, title: 'Mine' }).saved.id
@@ -82,11 +89,13 @@ function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise
       () => store,
       createProposals(() => {})
     ),
+    serverName: MCP_SERVER_NAME,
+    area: 'goals',
     log: (l) => mcpLines.push(l)
   })
   let seen: () => void = () => {}
   const headersSeen = new Promise<void>((r) => (seen = r))
-  const resolveSpy: McpEndpoint['resolve'] = (header) => {
+  const resolveSpy: McpEndpoint<Grant>['resolve'] = (header) => {
     seen()
     return endpoint.resolve(header)
   }
@@ -98,12 +107,14 @@ function start(withMcp = true, endpointOverride?: Partial<McpEndpoint>): Promise
       log,
       ...(withMcp
         ? {
-            mcp: {
-              ...endpoint,
-              resolve: resolveSpy,
-              ...endpointOverride,
-              log: (l: string) => mcpLines.push(l)
-            }
+            mcpRoutes: [
+              mcpRoute(
+                GOALS_MCP_PATH,
+                { ...endpoint, resolve: resolveSpy, ...endpointOverride },
+                (l) => mcpLines.push(l)
+              ),
+              ...extraRoutes
+            ]
           }
         : {}),
       port: 0,
@@ -323,5 +334,37 @@ describe('hookServer — the goals MCP endpoint', () => {
     const body = JSON.stringify({ session_id: 'a', hook_event_name: 'Stop' })
     expect((await send(r.base, GOALS_MCP_PATH, 'POST', body)).status).toBe(404)
     expect(r.onHookEvent).not.toHaveBeenCalled()
+  })
+
+  it("two routes each answer only their own bearer: one route's bearer on the other path is 401", async () => {
+    const OTHER_PATH = '/mcp/other'
+    const otherTokens = createSessionTokens<{ sessionId: string }>()
+    const otherToken = otherTokens.mint({ sessionId: 'sess-a' })
+    const otherLines: string[] = []
+    const other = createMcpEndpoint<{ sessionId: string }>({
+      tokens: otherTokens,
+      tools: { list: () => [], call: () => ({ kind: 'invalid_params' }) },
+      serverName: 'other-server',
+      area: 'other',
+      log: (l) => otherLines.push(l)
+    })
+    const r = await start(true, undefined, [mcpRoute(OTHER_PATH, other, (l) => otherLines.push(l))])
+    const init = rpc('initialize', { protocolVersion: '2025-11-25' }, 0)
+    const goalsAuth = { authorization: `Bearer ${r.token}` }
+    const otherAuth = { authorization: `Bearer ${otherToken}` }
+    const goalsOwn = await send(r.base, GOALS_MCP_PATH, 'POST', init, goalsAuth)
+    const otherOwn = await send(r.base, OTHER_PATH, 'POST', init, otherAuth)
+    expect([goalsOwn.status, otherOwn.status]).toEqual([200, 200])
+    expect(JSON.parse(goalsOwn.body)).toMatchObject({
+      result: { serverInfo: { name: MCP_SERVER_NAME } }
+    })
+    expect(JSON.parse(otherOwn.body)).toMatchObject({
+      result: { serverInfo: { name: 'other-server' } }
+    })
+    const crossed = await send(r.base, GOALS_MCP_PATH, 'POST', init, otherAuth)
+    const crossedBack = await send(r.base, OTHER_PATH, 'POST', init, goalsAuth)
+    expect([crossed.status, crossedBack.status]).toEqual([401, 401])
+    expect(otherLines).toEqual(['[claude-watcher][other] route=mcp code=unauthorized'])
+    expect(r.mcpLines).toEqual(['[claude-watcher][goals] route=mcp code=unauthorized'])
   })
 })

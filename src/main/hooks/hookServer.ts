@@ -2,7 +2,7 @@
 //
 // Binds to 127.0.0.1 only (never 0.0.0.0). Every inbound POST is validated at a fail-closed
 // boundary: HookEventSchema, ModReportSchema on `/mod/report`, ModPromptSchema on `/mod/prompt`, or
-// the goals MCP endpoint's JSON-RPC schema on `/mcp/goals`. On bad input: respond 400 + log PATH + CODE
+// an MCP route's JSON-RPC schema (`/mcp/goals`). On bad input: respond 400 + log PATH + CODE
 // only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
 //
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.
@@ -10,8 +10,9 @@
 // 'error' handler on the server tolerates EADDRINUSE (log + skip).
 // `/mod/report` carries the bridge mod's report (ModReportSchema), behind the same method, Origin
 // and body-cap guards; `/mod/prompt` carries who sent each prompt (ModPromptSchema), behind the same
-// guards. `/mcp/goals` is the goals MCP endpoint behind the same guards plus a bearer
-// token (401 before the body is read; `goals/mcp/mcpEndpoint.ts` parses the JSON-RPC body). Every
+// guards. Each MCP route (`mcpRoutes`; the goals server at `/mcp/goals`) is an app MCP endpoint
+// behind the same guards plus its own bearer token (401 before the body is read;
+// `mcp/mcpEndpoint.ts` parses the JSON-RPC body). A path under `/mcp/` with no route is 404. Every
 // other path is a hook, as before.
 // Never throws past the request handler.
 // [.claude/rules/zod-boundaries.md; spec hookServer.ts Code Map]
@@ -26,12 +27,11 @@ import {
   MAX_BODY_BYTES,
   MOD_REPORT_PATH,
   MOD_PROMPT_PATH,
-  GOALS_MCP_PATH
+  MCP_PATH_PREFIX
 } from './hookContract'
 import { buildHookResponseBody } from './hookResponse'
 import type { BoundaryErrorRecord } from '../c9watch/reducer'
-import type { McpEndpoint } from '../goals/mcp/mcpEndpoint'
-import type { Grant } from '../goals/mcp/goalTokens'
+import type { JsonRpcResponse, McpRoute } from '../mcp/mcpEndpoint'
 
 export interface HookServerOptions {
   /** Called when a POST arrives with a valid, schema-parsed hook event. */
@@ -61,9 +61,10 @@ export interface HookServerOptions {
    *  its id, answered 409 (the mod drops it: the next prompt sends its own). Absent: `/mod/prompt`
    *  is parsed and answered 200, and nothing receives it. */
   onModPrompt?: (prompt: ModPrompt) => boolean
-  /** The goals MCP endpoint at `GOALS_MCP_PATH` (spec 2026-10-19 goals). `log` gets a `code=` line
-   *  only, never a header value. Absent: that path is answered 404. */
-  mcp?: McpEndpoint & { log: (line: string) => void }
+  /** The app's MCP endpoints, one route per server (`mcp/mcpEndpoint.ts` `mcpRoute`; the goals
+   *  server at `GOALS_MCP_PATH`, spec 2026-10-19 goals). A route's `log` gets a `code=` line only,
+   *  never a header value. A path under `MCP_PATH_PREFIX` with no route is answered 404. */
+  mcpRoutes?: readonly McpRoute[]
 }
 
 export interface HookServer {
@@ -75,14 +76,15 @@ export interface HookServer {
  * Create and start the localhost HTTP hook listener.
  *
  * Handles POST requests to any path (Claude Code always POSTs to HOOK_URL); `/mod/report` is the
- * bridge mod's report, `/mod/prompt` its prompt origin, `/mcp/goals` the goals MCP endpoint, every other path a hook. Any
+ * bridge mod's report, `/mod/prompt` its prompt origin, each `mcpRoutes` path an MCP endpoint, every other path a hook. Any
  * non-POST method is rejected with 405 before the body is read. Per the spec, the
  * handler NEVER throws past the request callback.
  *
  * Returns `{ close() }` — call to shut down cleanly (e.g. on app quit).
  */
 export function createHookServer(options: HookServerOptions): HookServer {
-  const { onHookEvent, takePendingTitle, onModReport, onModPrompt, mcp } = options
+  const { onHookEvent, takePendingTitle, onModReport, onModPrompt } = options
+  const mcpRoutes = options.mcpRoutes ?? []
   const log =
     options.log ??
     ((err: BoundaryErrorRecord): void => {
@@ -108,21 +110,18 @@ export function createHookServer(options: HookServerOptions): HookServer {
       return
     }
 
-    // The goals MCP endpoint: a live bearer token or nothing, decided before the body is read. A
-    // miss says nothing more than 401; the log carries the code only, never the header.
-    const route = (req.url ?? '/').split('?')[0]
-    let grant: Grant | null = null
-    if (route === GOALS_MCP_PATH) {
-      if (mcp === undefined) {
-        res.writeHead(404).end()
-        return
-      }
-      grant = mcp.resolve(req.headers.authorization)
-      if (grant === null) {
-        mcp.log('[claude-watcher][goals] route=mcp code=unauthorized')
-        res.writeHead(401).end()
-        return
-      }
+    // An MCP route: a live bearer token of THAT route's server or nothing, decided before the body
+    // is read. A miss says nothing more than 401; the log carries the code only, never the header.
+    const route = (req.url ?? '/').split('?')[0] ?? '/'
+    const mcp = mcpRoutes.find((r) => r.path === route)
+    if (mcp === undefined && route.startsWith(MCP_PATH_PREFIX)) {
+      res.writeHead(404).end()
+      return
+    }
+    if (mcp !== undefined && mcp.open(req.headers.authorization) === null) {
+      mcp.log('route=mcp code=unauthorized')
+      res.writeHead(401).end()
+      return
     }
 
     // Collect the body with a size cap. We use a byte counter instead of Buffer
@@ -158,22 +157,22 @@ export function createHookServer(options: HookServerOptions): HookServer {
         return
       }
 
-      // The goals MCP endpoint (authorized above): its own JSON-RPC boundary. The token is resolved
-      // AGAIN now: a session removed (revoked) while the body arrived must not act, and a `/clear`
+      // An MCP route (authorized above): its own JSON-RPC boundary. The token is resolved AGAIN
+      // now: a session removed (revoked) while the body arrived must not act, and a `/clear`
       // meanwhile means the grant now names the new id. A notification gets 202 and no body. A
       // throw costs this request only (never-crash).
-      if (grant !== null && mcp !== undefined) {
-        const live = mcp.resolve(req.headers.authorization)
+      if (mcp !== undefined) {
+        const live = mcp.open(req.headers.authorization)
         if (live === null) {
-          mcp.log('[claude-watcher][goals] route=mcp code=unauthorized')
+          mcp.log('route=mcp code=unauthorized')
           res.writeHead(401).end()
           return
         }
-        let response: ReturnType<McpEndpoint['handle']>
+        let response: JsonRpcResponse | null
         try {
-          response = mcp.handle(parsed, live)
+          response = live(parsed)
         } catch {
-          mcp.log('[claude-watcher][goals] route=mcp code=mcp_handler_error')
+          mcp.log('route=mcp code=mcp_handler_error')
           res.writeHead(500).end()
           return
         }

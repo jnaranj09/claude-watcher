@@ -15,7 +15,7 @@
 //
 // A refusal is a short code and never echoes a title or an id. Every argument passes a strict Zod
 // schema first (fail closed: `invalid_params`). Only `list_tasks`' result carries titles, and only
-// to the session: results are never logged (`mcpEndpoint.ts` logs the code).
+// to the session: results are never logged (`mcp/mcpEndpoint.ts` logs the code).
 import { z } from 'zod'
 import {
   ProposalGroupsSchema,
@@ -26,6 +26,7 @@ import {
 import type { GoalsStore } from '../../persistence/goals'
 import type { Proposals } from '../proposals'
 import type { Grant } from './goalTokens'
+import type { McpToolDef, McpToolOutcome, McpTools } from '../../mcp/mcpEndpoint'
 
 export const MARK_TASK_DONE = 'mark_task_done'
 export const LIST_TASKS = 'list_tasks'
@@ -41,22 +42,6 @@ const ListTasksArgsSchema = z.object({}).strict()
 /** The shape only; the title's rules are `TaskSaveSchema`'s (one boundary for every title). */
 const CreateTaskArgsSchema = z.object({ title: z.string() }).strict()
 const ProposeSplitArgsSchema = z.object({ groups: z.unknown() }).strict()
-
-export interface McpToolDef {
-  name: string
-  description: string
-  inputSchema: Record<string, unknown>
-}
-
-export type McpToolOutcome =
-  | { kind: 'result'; text: string; isError: boolean }
-  /** An unknown tool for this grant, or arguments that fail the schema. */
-  | { kind: 'invalid_params' }
-
-export interface McpTools {
-  list(grant: Grant): readonly McpToolDef[]
-  call(name: string, args: unknown, grant: Grant): McpToolOutcome
-}
 
 const MARK_TASK_DONE_DEF: McpToolDef = {
   name: MARK_TASK_DONE,
@@ -127,7 +112,7 @@ type PlannerGrant = Extract<Grant, { mode: 'planner' }>
 export function createMcpTools(
   store: () => ToolsStore,
   proposals: Pick<Proposals, 'set'>
-): McpTools {
+): McpTools<Grant> {
   function markTaskDone(args: unknown, grant: Grant): McpToolOutcome {
     const parsed = MarkTaskDoneArgsSchema.safeParse(args)
     if (!parsed.success) return { kind: 'invalid_params' }

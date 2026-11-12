@@ -46,13 +46,14 @@ export interface GoalSpawnExtras {
 }
 
 /** The goal part of the claude command: the question-format nudge joined with the task block, and
- *  the MCP config and allowed tools. Null extras leave the nudge alone and no MCP flag. */
+ *  the goals server's MCP config (the one entry of `mcpConfigPaths`) and allowed tools. Null
+ *  extras leave the nudge alone and no MCP flag. */
 export function goalCommandFields(
   extras: GoalSpawnExtras
-): Pick<ClaudeCommandSpec, 'appendSystemPrompt' | 'mcpConfigPath' | 'allowedTools'> {
+): Pick<ClaudeCommandSpec, 'appendSystemPrompt' | 'mcpConfigPaths' | 'allowedTools'> {
   return {
     appendSystemPrompt: joinSystemPrompt(QUESTION_FORMAT_PROMPT, extras.appendPrompt),
-    mcpConfigPath: extras.mcpConfigPath,
+    mcpConfigPaths: extras.mcpConfigPath === null ? [] : [extras.mcpConfigPath],
     allowedTools: extras.allowedTools
   }
 }

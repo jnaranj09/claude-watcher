@@ -1,26 +1,35 @@
-// The `--mcp-config` file of a session started from goal tasks (spec 2026-10-19 goals, Claude
-// integration). It names the MCP endpoint on the hook listener and carries the session's bearer
-// token in a `headers` entry, so the token never goes on argv: only this file's path does.
+// The `--mcp-config` file of a session given one of the app's MCP servers (spec 2026-10-19 goals,
+// Claude integration; first the goals server). It names that server (its `serverName`) and its
+// endpoint on the hook listener, and carries the session's bearer token in a `headers` entry, so
+// the token never goes on argv: only this file's path does. Each server keeps its own
+// `createMcpConfigs`, so a session can hold one file per server.
 //
 // Files live in `<userData>/mcp/` (folder 0700, files 0600, a random name each). A file goes when
 // its session goes (`window/cardState.ts`), and a start clears what the last run left, since every
 // token in it died with that run. Logs carry a `code=` only: never the path, never the token. A
-// refused write is also told to the operator: storage health, as the `goals` store's
-// `write_failed` (the notice a refused background goals write shows).
+// refused write is also told to the operator through the `report` it is given (the goals server:
+// the `goals` store's `write_failed`, the notice a refused background goals write shows).
 import { randomBytes } from 'node:crypto'
 import { chmodSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StorageProblemCode } from '../../../shared/schemas/storageHealth'
 
-/** The server key in the config, so claude names the tool `mcp__claude-watcher__<tool>`. */
+/** The goals server's key in its config, so claude names its tools
+ *  `mcp__claude-watcher__<tool>`; also its `serverInfo.name`. */
 export const MCP_SERVER_NAME = 'claude-watcher'
 const MCP_CONFIG_DIRNAME = 'mcp'
 
 /**
- * Write one config file under `<dir>/mcp/` and return its path. Throws when the disk refuses.
+ * Write one config file for `serverName` under `<dir>/mcp/` and return its path. Throws when the
+ * disk refuses.
  * Shape (claude 2.1.304, probed): `{ mcpServers: { <name>: { type: 'http', url, headers } } }`.
  */
-export function writeMcpConfig(dir: string, token: string, url: string): string {
+export function writeMcpConfig(
+  dir: string,
+  serverName: string,
+  token: string,
+  url: string
+): string {
   const folder = join(dir, MCP_CONFIG_DIRNAME)
   mkdirSync(folder, { recursive: true, mode: 0o700 })
   // `mkdirSync`'s mode does nothing to a folder that already exists.
@@ -28,7 +37,7 @@ export function writeMcpConfig(dir: string, token: string, url: string): string 
   const path = join(folder, `${randomBytes(16).toString('hex')}.json`)
   const config = {
     mcpServers: {
-      [MCP_SERVER_NAME]: { type: 'http', url, headers: { Authorization: `Bearer ${token}` } }
+      [serverName]: { type: 'http', url, headers: { Authorization: `Bearer ${token}` } }
     }
   }
   writeFileSync(path, JSON.stringify(config), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
@@ -51,15 +60,17 @@ export interface McpConfigs {
   rebind(oldSessionId: string, newSessionId: string): void
   /** The session is gone: delete its file. */
   remove(sessionId: string): void
-  /** At start: delete every file a previous run left. */
+  /** At start: delete every file a previous run left in the folder, whichever server's it was. */
   clearStale(): void
 }
 
 export function createMcpConfigs(options: {
   /** `app.getPath('userData')`, read when a file is written. */
   dir: () => string
+  /** The server key each file names (`MCP_SERVER_NAME` for the goals server). */
+  serverName: string
   log: (line: string) => void
-  /** Storage health's reporter for the `goals` store (`storageHealth.reporterFor('goals')`). */
+  /** Storage health's reporter for the server's store (goals: `storageHealth.reporterFor('goals')`). */
   report: (code: StorageProblemCode) => void
 }): McpConfigs {
   const paths = new Map<string, string>()
@@ -75,7 +86,7 @@ export function createMcpConfigs(options: {
     write(sessionId, token, url) {
       remove(sessionId)
       try {
-        const path = writeMcpConfig(options.dir(), token, url)
+        const path = writeMcpConfig(options.dir(), options.serverName, token, url)
         paths.set(sessionId, path)
         return path
       } catch {

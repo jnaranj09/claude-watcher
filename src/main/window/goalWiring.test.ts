@@ -1,9 +1,8 @@
-// The two goals hand-offs watchFeed.ts makes: an archive records whether the session had
-// `mark_task_done`, and the hook server gets the goals endpoint.
+// The goals hand-off watchFeed.ts makes: an archive records whether the session had
+// `mark_task_done`.
 import { describe, it, expect, vi } from 'vitest'
-import { hookServerMcp, recordRemoval } from './goalWiring'
+import { recordRemoval } from './goalWiring'
 import type { Session } from '../../shared/schemas/session'
-import type { McpEndpoint } from '../goals/mcp/mcpEndpoint'
 
 const session: Session = {
   id: 'sess-1',
@@ -55,17 +54,5 @@ describe('recordRemoval', () => {
     recordRemoval(deps, 'delete', 'sess-1', session)
     expect(store.remove).toHaveBeenCalledWith('sess-1')
     expect(markDoneFor).not.toHaveBeenCalled()
-  })
-})
-
-describe('hookServerMcp', () => {
-  it('hands the hook server the endpoint and a log sink', () => {
-    const endpoint: McpEndpoint = { resolve: vi.fn(() => null), handle: vi.fn(() => null) }
-    const log = vi.fn()
-    const { mcp } = hookServerMcp(endpoint, log)
-    expect(mcp.resolve).toBe(endpoint.resolve)
-    expect(mcp.handle).toBe(endpoint.handle)
-    mcp.log('line')
-    expect(log).toHaveBeenCalledWith('line')
   })
 })

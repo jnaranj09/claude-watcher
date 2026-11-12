@@ -1,12 +1,14 @@
-// The JSON-RPC side of the goals MCP endpoint (spec 2026-10-19 goals, Claude integration): what a
-// session's MCP client gets for each method, and what `mark_task_done` may change.
-import { describe, it, expect } from 'vitest'
+// The JSON-RPC side of the app's MCP endpoint, driven through the goals server (spec 2026-10-19
+// goals, Claude integration): what a session's MCP client gets for each method, what
+// `mark_task_done` may change, and the hook server's route to an endpoint.
+import { describe, it, expect, vi } from 'vitest'
 import { z } from 'zod'
-import { createGoalsStore, type GoalsStore } from '../../persistence/goals'
-import { createGoalTokens, type Grant } from './goalTokens'
-import { createMcpTools } from './mcpTools'
-import { createMcpEndpoint, handleMcpRequest } from './mcpEndpoint'
-import { createProposals } from '../proposals'
+import { createGoalsStore, type GoalsStore } from '../persistence/goals'
+import { createGoalTokens, type Grant } from '../goals/mcp/goalTokens'
+import { createMcpTools } from '../goals/mcp/mcpTools'
+import { MCP_SERVER_NAME } from '../goals/mcp/mcpConfigFile'
+import { createMcpEndpoint, handleMcpRequest, mcpRoute, type McpEndpoint } from './mcpEndpoint'
+import { createProposals } from '../goals/proposals'
 
 function seed(): { store: GoalsStore; t1: string; t2: string } {
   let n = 0
@@ -41,7 +43,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -62,7 +65,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toMatchObject({ result: { protocolVersion: '2025-11-25' } })
   })
@@ -76,7 +80,8 @@ describe('goals MCP endpoint', () => {
         createMcpTools(
           () => store,
           createProposals(() => {})
-        )
+        ),
+        MCP_SERVER_NAME
       )
     ).toBeNull()
   })
@@ -89,7 +94,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -106,7 +112,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -129,7 +136,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -149,7 +157,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_linked' }], isError: true } })
     expect(store.view().tasks.find((t) => t.id === other)?.status).toBe('open')
@@ -164,7 +173,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_found' }], isError: true } })
   })
@@ -180,7 +190,8 @@ describe('goals MCP endpoint', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(before.tasks.some((t) => t.id === t1)).toBe(false)
     expect(res).toMatchObject({ result: { content: [{ text: 'task_not_found' }], isError: true } })
@@ -193,11 +204,11 @@ describe('goals MCP endpoint', () => {
       () => store,
       createProposals(() => {})
     )
-    handleMcpRequest(call(t1), worker, tools)
+    handleMcpRequest(call(t1), worker, tools, MCP_SERVER_NAME)
     const after = store.view()
     let emitted = 0
     store.onChange(() => emitted++)
-    expect(handleMcpRequest(call(t1, 4), worker, tools)).toMatchObject({
+    expect(handleMcpRequest(call(t1, 4), worker, tools, MCP_SERVER_NAME)).toMatchObject({
       id: 4,
       result: { content: [{ text: 'done' }] }
     })
@@ -214,7 +225,8 @@ describe('goals MCP endpoint', () => {
         createMcpTools(
           () => store,
           createProposals(() => {})
-        )
+        ),
+        MCP_SERVER_NAME
       )
     ).toEqual({
       jsonrpc: '2.0',
@@ -241,7 +253,7 @@ describe('goals MCP endpoint', () => {
       { jsonrpc: '2.0', id: 5, method: 'initialize', params: {} }
     ]
     for (const body of bad) {
-      expect(handleMcpRequest(body, worker, tools)).toMatchObject({
+      expect(handleMcpRequest(body, worker, tools, MCP_SERVER_NAME)).toMatchObject({
         id: 5,
         error: { code: -32602 }
       })
@@ -261,7 +273,7 @@ describe('goals MCP endpoint', () => {
       { id: 1, method: 'ping' },
       { jsonrpc: '2.0', id: null, method: 'ping' }
     ]) {
-      expect(handleMcpRequest(body, worker, tools)).toMatchObject({
+      expect(handleMcpRequest(body, worker, tools, MCP_SERVER_NAME)).toMatchObject({
         id: null,
         error: { code: -32600 }
       })
@@ -277,7 +289,8 @@ describe('goals MCP endpoint', () => {
         createMcpTools(
           () => store,
           createProposals(() => {})
-        )
+        ),
+        MCP_SERVER_NAME
       )
     ).toEqual({ jsonrpc: '2.0', id: 9, result: {} })
   })
@@ -290,6 +303,8 @@ describe('goals MCP endpoint logging', () => {
     const token = tokens.mint(worker)
     const lines: string[] = []
     const endpoint = createMcpEndpoint({
+      serverName: MCP_SERVER_NAME,
+      area: 'goals',
       tokens,
       tools: createMcpTools(
         () => store,
@@ -311,6 +326,8 @@ describe('goals MCP endpoint logging', () => {
     const tokens = createGoalTokens()
     const token = tokens.mint(worker)
     const endpoint = createMcpEndpoint({
+      serverName: MCP_SERVER_NAME,
+      area: 'goals',
       tokens,
       tools: createMcpTools(
         () => seed().store,
@@ -323,6 +340,37 @@ describe('goals MCP endpoint logging', () => {
     expect(endpoint.resolve(`Basic ${token}`)).toBeNull()
     expect(endpoint.resolve(undefined)).toBeNull()
     expect(endpoint.resolve('Bearer nope')).toBeNull()
+  })
+})
+
+describe('mcpRoute', () => {
+  const stub = (): McpEndpoint<Grant> => ({
+    area: 'goals',
+    resolve: vi.fn((header: string | undefined) => (header === 'Bearer live' ? worker : null)),
+    handle: vi.fn(() => null)
+  })
+
+  it('opens a handler that hands the body and the bearer’s grant to its endpoint', () => {
+    const endpoint = stub()
+    const route = mcpRoute('/mcp/goals', endpoint, () => {})
+    expect(route.path).toBe('/mcp/goals')
+    const handler = route.open('Bearer live')
+    expect(handler).not.toBeNull()
+    handler?.({ jsonrpc: '2.0', id: 1, method: 'ping' })
+    expect(endpoint.handle).toHaveBeenCalledWith({ jsonrpc: '2.0', id: 1, method: 'ping' }, worker)
+  })
+
+  it('opens nothing on a bearer miss', () => {
+    const endpoint = stub()
+    const route = mcpRoute('/mcp/goals', endpoint, () => {})
+    expect([route.open('Bearer nope'), route.open(undefined)]).toEqual([null, null])
+    expect(endpoint.handle).not.toHaveBeenCalled()
+  })
+
+  it("logs through its sink with its endpoint's area", () => {
+    const log = vi.fn()
+    mcpRoute('/mcp/goals', stub(), log).log('route=mcp code=unauthorized')
+    expect(log).toHaveBeenCalledWith('[claude-watcher][goals] route=mcp code=unauthorized')
   })
 })
 
@@ -377,7 +425,8 @@ describe('goals MCP endpoint — the planner tools', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     const { tools } = z
       .object({ result: z.object({ tools: z.array(z.object({ name: z.string() })) }) })
@@ -393,7 +442,8 @@ describe('goals MCP endpoint — the planner tools', () => {
       createMcpTools(
         () => store,
         createProposals(() => {})
-      )
+      ),
+      MCP_SERVER_NAME
     )
     expect(res).not.toMatchObject({ result: { isError: true } })
     expect(JSON.parse(okText(res))).toEqual([
@@ -414,13 +464,15 @@ describe('goals MCP endpoint — the planner tools', () => {
       handleMcpRequest(
         tool('create_task', { title: 'Sneaky', goalId: 'g-other' }),
         plannerOf(goalId),
-        tools
+        tools,
+        MCP_SERVER_NAME
       )
     ).toMatchObject({ error: { code: -32602 } })
     const res = handleMcpRequest(
       tool('create_task', { title: '  Water the plants  ' }),
       plannerOf(goalId),
-      tools
+      tools,
+      MCP_SERVER_NAME
     )
     const { id } = z.object({ id: z.string() }).parse(JSON.parse(okText(res)))
     expect(store.view().tasks.find((t) => t.id === id)).toMatchObject({
@@ -441,7 +493,9 @@ describe('goals MCP endpoint — the planner tools', () => {
       createProposals(() => {})
     )
     for (const title of ['', '   ', 'a\nb', 'tab\there', 'x'.repeat(201), '\u009bcsi']) {
-      expect(handleMcpRequest(tool('create_task', { title }), plannerOf(goalId), tools)).toEqual({
+      expect(
+        handleMcpRequest(tool('create_task', { title }), plannerOf(goalId), tools, MCP_SERVER_NAME)
+      ).toEqual({
         jsonrpc: '2.0',
         id: 7,
         result: { content: [{ type: 'text', text: 'title_invalid' }], isError: true }
@@ -459,7 +513,7 @@ describe('goals MCP endpoint — the planner tools', () => {
       createProposals(() => {})
     )
     for (const body of [tool('create_task', { title: 'Late' }), tool('list_tasks', {})]) {
-      expect(handleMcpRequest(body, plannerOf(goalId), tools)).toMatchObject({
+      expect(handleMcpRequest(body, plannerOf(goalId), tools, MCP_SERVER_NAME)).toMatchObject({
         result: { content: [{ text: 'goal_not_found' }], isError: true }
       })
     }
@@ -473,7 +527,9 @@ describe('goals MCP endpoint — the planner tools', () => {
       () => store,
       createProposals(() => {})
     )
-    expect(handleMcpRequest(tool('list_tasks', {}), plannerOf(farGoal), tools)).toMatchObject({
+    expect(
+      handleMcpRequest(tool('list_tasks', {}), plannerOf(farGoal), tools, MCP_SERVER_NAME)
+    ).toMatchObject({
       result: { content: [{ text: 'goal_not_found' }], isError: true }
     })
   })
@@ -489,7 +545,8 @@ describe('goals MCP endpoint — the planner tools', () => {
         ]
       }),
       plannerOf(goalId),
-      createMcpTools(() => store, proposals)
+      createMcpTools(() => store, proposals),
+      MCP_SERVER_NAME
     )
     expect(res).toEqual({
       jsonrpc: '2.0',
@@ -517,7 +574,8 @@ describe('goals MCP endpoint — the planner tools', () => {
         handleMcpRequest(
           tool('propose_split', { groups: [{ taskIds: [t1, bad], note: '' }] }),
           plannerOf(goalId),
-          tools
+          tools,
+          MCP_SERVER_NAME
         )
       ).toEqual({
         jsonrpc: '2.0',
@@ -540,7 +598,12 @@ describe('goals MCP endpoint — the planner tools', () => {
       ]
     ]) {
       expect(
-        handleMcpRequest(tool('propose_split', { groups }), plannerOf(goalId), tools)
+        handleMcpRequest(
+          tool('propose_split', { groups }),
+          plannerOf(goalId),
+          tools,
+          MCP_SERVER_NAME
+        )
       ).toMatchObject({ result: { content: [{ text: 'task_repeated' }], isError: true } })
     }
     expect(proposals.list()).toEqual([])
@@ -560,9 +623,9 @@ describe('goals MCP endpoint — the planner tools', () => {
       { groups: [{ taskIds: [t1], note: '', extra: 1 }] },
       { groups: [{ taskIds: [t1], note: '' }], goalId: 'other' }
     ]) {
-      expect(handleMcpRequest(tool('propose_split', args), plannerOf(goalId), tools)).toMatchObject(
-        { error: { code: -32602 } }
-      )
+      expect(
+        handleMcpRequest(tool('propose_split', args), plannerOf(goalId), tools, MCP_SERVER_NAME)
+      ).toMatchObject({ error: { code: -32602 } })
     }
     expect(proposals.list()).toEqual([])
   })
@@ -577,7 +640,9 @@ describe('goals MCP endpoint — the planner tools', () => {
       tool('list_tasks', {}),
       tool('propose_split', { groups: [{ taskIds: [t1], note: '' }] })
     ]) {
-      expect(handleMcpRequest(body, worker, tools)).toMatchObject({ error: { code: -32602 } })
+      expect(handleMcpRequest(body, worker, tools, MCP_SERVER_NAME)).toMatchObject({
+        error: { code: -32602 }
+      })
     }
     expect(store.view()).toEqual(before)
     expect(proposals.list()).toEqual([])
@@ -591,7 +656,7 @@ describe('goals MCP endpoint — the planner tools', () => {
       () => store,
       createProposals(() => {})
     )
-    expect(handleMcpRequest(call(t1), plannerOf(goalId), tools)).toMatchObject({
+    expect(handleMcpRequest(call(t1), plannerOf(goalId), tools, MCP_SERVER_NAME)).toMatchObject({
       error: { code: -32602 }
     })
     expect(store.view().tasks.find((t) => t.id === t1)?.status).toBe('open')
@@ -601,6 +666,8 @@ describe('goals MCP endpoint — the planner tools', () => {
     const { store, goalId } = plannerSeed()
     const lines: string[] = []
     const endpoint = createMcpEndpoint({
+      serverName: MCP_SERVER_NAME,
+      area: 'goals',
       tokens: createGoalTokens(),
       tools: createMcpTools(
         () => store,

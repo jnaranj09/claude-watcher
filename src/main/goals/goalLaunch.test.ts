@@ -19,7 +19,7 @@ import {
 import { createGoalTokens, type GoalTokens } from './mcp/goalTokens'
 import { buildPlannerPrompt } from './goalPrompt'
 import { composeClaudeCommand, QUESTION_FORMAT_PROMPT } from '../pty/claudeBin'
-import { createMcpConfigs } from './mcp/mcpConfigFile'
+import { MCP_SERVER_NAME, createMcpConfigs } from './mcp/mcpConfigFile'
 import { createStorageHealth } from '../storageHealth'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -448,6 +448,7 @@ describe('goalSpawnExtras — mark_task_done over MCP', () => {
       const health = createStorageHealth({ onChange: () => {} })
       const configs = createMcpConfigs({
         dir: () => userData,
+        serverName: MCP_SERVER_NAME,
         log: () => {},
         report: health.reporterFor('goals')
       })
@@ -640,7 +641,7 @@ describe('goalCommandFields', () => {
   it('hands the task block (after the question nudge), the MCP config and the tools on', () => {
     expect(goalCommandFields(extras)).toEqual({
       appendSystemPrompt: `${QUESTION_FORMAT_PROMPT}\n\nTASK BLOCK`,
-      mcpConfigPath: '/ud/mcp/abc.json',
+      mcpConfigPaths: ['/ud/mcp/abc.json'],
       allowedTools: 'mcp__claude-watcher__mark_task_done'
     })
   })
@@ -653,7 +654,7 @@ describe('goalCommandFields', () => {
     })
     expect(fields).toEqual({
       appendSystemPrompt: QUESTION_FORMAT_PROMPT,
-      mcpConfigPath: null,
+      mcpConfigPaths: [],
       allowedTools: null
     })
     const base = {

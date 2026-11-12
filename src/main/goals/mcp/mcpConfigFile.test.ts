@@ -13,7 +13,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createMcpConfigs, removeMcpConfig, writeMcpConfig } from './mcpConfigFile'
+import { MCP_SERVER_NAME, createMcpConfigs, removeMcpConfig, writeMcpConfig } from './mcpConfigFile'
 
 let dir: string | null = null
 function tempDir(): string {
@@ -30,7 +30,7 @@ const URL = 'http://127.0.0.1:29279/mcp/goals'
 describe('mcp config file', () => {
   it('writes 0600 JSON that parses to the expected shape', () => {
     const userData = tempDir()
-    const path = writeMcpConfig(userData, 'tok123', URL)
+    const path = writeMcpConfig(userData, MCP_SERVER_NAME, 'tok123', URL)
     expect(path.startsWith(join(userData, 'mcp'))).toBe(true)
     expect(statSync(path).mode & 0o777).toBe(0o600)
     expect(statSync(join(userData, 'mcp')).mode & 0o777).toBe(0o700)
@@ -49,14 +49,14 @@ describe('mcp config file', () => {
     const userData = tempDir()
     mkdirSync(join(userData, 'mcp'), { mode: 0o755 })
     chmodSync(join(userData, 'mcp'), 0o755)
-    writeMcpConfig(userData, 'tok123', URL)
+    writeMcpConfig(userData, MCP_SERVER_NAME, 'tok123', URL)
     expect(statSync(join(userData, 'mcp')).mode & 0o777).toBe(0o700)
   })
 
   it('each write gets its own file, and remove deletes it', () => {
     const userData = tempDir()
-    const a = writeMcpConfig(userData, 'a', URL)
-    const b = writeMcpConfig(userData, 'b', URL)
+    const a = writeMcpConfig(userData, MCP_SERVER_NAME, 'a', URL)
+    const b = writeMcpConfig(userData, MCP_SERVER_NAME, 'b', URL)
     expect(a).not.toBe(b)
     removeMcpConfig(a, () => {})
     expect(existsSync(a)).toBe(false)
@@ -67,7 +67,12 @@ describe('mcp config file', () => {
 describe('mcp configs per session', () => {
   it('a second write for a session removes its first file; remove deletes the file', () => {
     const userData = tempDir()
-    const configs = createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
+    const configs = createMcpConfigs({
+      dir: () => userData,
+      serverName: MCP_SERVER_NAME,
+      log: () => {},
+      report: () => {}
+    })
     const first = configs.write('sess-a', 't1', URL)
     const second = configs.write('sess-a', 't2', URL)
     expect(first).not.toBeNull()
@@ -78,7 +83,12 @@ describe('mcp configs per session', () => {
 
   it('rebind keeps the file and moves who owns it', () => {
     const userData = tempDir()
-    const configs = createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
+    const configs = createMcpConfigs({
+      dir: () => userData,
+      serverName: MCP_SERVER_NAME,
+      log: () => {},
+      report: () => {}
+    })
     const path = configs.write('sess-old', 't', URL) ?? ''
     configs.rebind('sess-old', 'sess-new')
     configs.remove('sess-old')
@@ -94,6 +104,7 @@ describe('mcp configs per session', () => {
     const reported: string[] = []
     const configs = createMcpConfigs({
       dir: () => userData,
+      serverName: MCP_SERVER_NAME,
       log: (l) => lines.push(l),
       report: (code) => reported.push(code)
     })
@@ -104,8 +115,13 @@ describe('mcp configs per session', () => {
 
   it('clearStale removes the files a previous run left (their tokens died with it)', () => {
     const userData = tempDir()
-    const leftover = writeMcpConfig(userData, 'old', URL)
-    const configs = createMcpConfigs({ dir: () => userData, log: () => {}, report: () => {} })
+    const leftover = writeMcpConfig(userData, MCP_SERVER_NAME, 'old', URL)
+    const configs = createMcpConfigs({
+      dir: () => userData,
+      serverName: MCP_SERVER_NAME,
+      log: () => {},
+      report: () => {}
+    })
     configs.clearStale()
     expect(existsSync(leftover)).toBe(false)
   })
@@ -115,6 +131,7 @@ describe('mcp configs per session', () => {
     const lines: string[] = []
     createMcpConfigs({
       dir: () => userData,
+      serverName: MCP_SERVER_NAME,
       log: (l) => lines.push(l),
       report: () => {}
     }).clearStale()

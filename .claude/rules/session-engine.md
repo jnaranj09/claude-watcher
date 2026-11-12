@@ -89,7 +89,7 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   dropped), AND the hook port is ours (SEC-6, else
   `code=mcp_hook_port_not_ours`; a failed bind already shows `ServerHealthBanner`), AND the config
   file was written (a refused write reports the `goals` store's `write_failed` to storage health,
-  so `StorageNotice` shows it). Tokens (`goals/mcp/goalTokens.ts`) are memory only, sha256 +
+  so `StorageNotice` shows it). Tokens (`goals/mcp/goalTokens.ts` on `mcp/sessionTokens.ts`) are memory only, sha256 +
   `timingSafeEqual`, one per session, fresh on every spawn; the file
   (`<userData>/mcp/<random>.json`, folder 0700, file 0600) holds the token in `headers`, so argv
   holds only its path. The token is resolved again when the body ends (a revoke meanwhile: 401).
