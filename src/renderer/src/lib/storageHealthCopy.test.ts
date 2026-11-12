@@ -23,6 +23,26 @@ describe('store_write_failed copy (UX-06)', () => {
   })
 })
 
+describe('memory database problems (memory)', () => {
+  it('a refused write says the change was not kept (SQLite rolled it back)', () => {
+    expect(storageProblemMessage({ store: 'memory', code: 'write_failed' })).toBe(
+      'A change to memory could not be saved to disk, so it was not kept.'
+    )
+  })
+
+  it('an unopened file says memory is off for this run', () => {
+    expect(storageProblemMessage({ store: 'memory', code: 'read_failed' })).toBe(
+      'The memory file could not be opened, so memory is off for this run.'
+    )
+  })
+
+  it('a damaged file names memory in lowercase mid-sentence', () => {
+    expect(storageProblemMessage({ store: 'memory', code: 'corrupt_reset' })).toBe(
+      'The memory file was damaged, so memory started empty. The old file was kept beside it in the data folder, renamed with .corrupt.'
+    )
+  })
+})
+
 describe('GOALS.md export failures (goals_file)', () => {
   it('say which file and where to look, not the store sentence', () => {
     expect(storageProblemMessage({ store: 'goals_file', code: 'write_failed' })).toBe(

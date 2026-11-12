@@ -19,6 +19,10 @@ import { createRulesIpcHandlers } from '../persistence/rulesIpc'
 import type { GoalsStore } from '../persistence/goals'
 import { createGoalsIpcHandlers, goalPickerStart } from '../persistence/goalsIpc'
 import type { Proposals } from '../goals/proposals'
+import type { MemoryStore } from '../memory/memoryStore'
+import type { MemoryActivityLog } from '../memory/memoryActivity'
+import type { MemoryNames } from '../memory/memoryNames'
+import { createMemoryIpcHandlers } from '../memory/memoryIpc'
 import type { TelemetryStore } from '../persistence/telemetry'
 import type { RulesEngine } from '../rules/rulesEngine'
 import type { AttentionTracker } from '../c9watch/attention'
@@ -67,6 +71,12 @@ export interface StoreIpcDeps {
   hookListening: () => boolean
   /** `Save to GOALS.md` on / `Try again`: sync that folder's GOALS.md now (goals/goalsFile.ts). */
   rewriteGoalsFile: (folder: string) => void
+  /** Memory: null while it is off (the file could not be opened, the smoke test, after quit). */
+  getMemoryStore: () => MemoryStore | null
+  /** Memory filters name tags and goals; these turn a name into the ids a workspace sees. */
+  memoryNames: MemoryNames
+  /** What memory did for each session (Context reads it). */
+  memoryActivity: Pick<MemoryActivityLog, 'get'>
 }
 
 /** One registrar per store; index.ts calls each ONCE, in its own place in the ready block. */
@@ -79,6 +89,7 @@ export interface StoreIpc {
   registerTagsIpc(): void
   registerRulesIpc(): void
   registerGoalsIpc(): void
+  registerMemoryIpc(): void
   registerWorkspacesIpc(): void
   registerShortcutsIpc(): void
   registerTelemetryIpc(): void
@@ -108,7 +119,10 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     claudeVersionAllowsLaunch,
     proposals,
     hookListening,
-    rewriteGoalsFile
+    rewriteGoalsFile,
+    getMemoryStore,
+    memoryNames,
+    memoryActivity
   } = deps
 
   // Story 2.4 — register the settings IPC ONCE (mirrors registerPtyIpc): `settings:get` returns
@@ -336,6 +350,27 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     )
   }
 
+  // Memory — register ONCE. Handler bodies live in memory/memoryIpc.ts (unit-tested); this only
+  // binds them to CH.memory* channels. The store is read on every invoke: it may be null (memory
+  // off), and then every handler throws `memory_unavailable`. The `memory:changed` push is wired in
+  // index.ts on the store's own `onChange`, so a change by a session reaches the dialog too.
+  function registerMemoryIpc(): void {
+    const handlers = createMemoryIpcHandlers({
+      store: getMemoryStore,
+      names: memoryNames,
+      activity: memoryActivity
+    })
+    ipc.handle(CH.memoryList, (_evt, raw: unknown) => handlers.list(raw))
+    ipc.handle(CH.memoryGet, (_evt, raw: unknown) => handlers.get(raw))
+    ipc.handle(CH.memoryCreate, (_evt, raw: unknown) => handlers.create(raw))
+    ipc.handle(CH.memoryEdit, (_evt, raw: unknown) => handlers.edit(raw))
+    ipc.handle(CH.memorySetState, (_evt, raw: unknown) => handlers.setState(raw))
+    ipc.handle(CH.memorySetPinned, (_evt, raw: unknown) => handlers.setPinned(raw))
+    ipc.handle(CH.memoryDelete, (_evt, raw: unknown) => handlers.remove(raw))
+    ipc.handle(CH.memoryRestore, (_evt, raw: unknown) => handlers.restore(raw))
+    ipc.handle(CH.memoryActivity, (_evt, raw: unknown) => handlers.activity(raw))
+  }
+
   // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in
   // persistence/workspacesIpc.ts (unit-tested); this only binds them to CH.* channels.
   function registerWorkspacesIpc(): void {
@@ -451,6 +486,7 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     registerTagsIpc,
     registerRulesIpc,
     registerGoalsIpc,
+    registerMemoryIpc,
     registerWorkspacesIpc,
     registerShortcutsIpc,
     registerTelemetryIpc

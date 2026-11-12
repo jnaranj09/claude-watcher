@@ -63,6 +63,14 @@ import type {
   ProposalDecideRequest,
   TaskSaveRequest,
   TaskStatus,
+  MemoryActivity,
+  MemoryCreateRequest,
+  MemoryEditRequest,
+  MemoryGetResult,
+  MemoryItem,
+  MemoryListRequest,
+  MemoryListResult,
+  MemoryState,
   PastSession,
   PastSessionForgetRequest,
   PastSessionImportRequest,
@@ -572,6 +580,50 @@ const goalsApi = {
 }
 export type GoalsApi = typeof goalsApi
 
+// Memory — typed invoke wrappers over CH.memory* (spec 2026-11-11). The operator's dialog lists,
+// reads and changes items; main stamps the writer (operator), basis and origin, never the renderer.
+// `onChanged` is main's push after any change, whoever made it: it carries nothing, so the dialog
+// lists again. Every refusal is a code (`memory_unavailable` while memory is off).
+const memoryApi = {
+  list(req: MemoryListRequest): Promise<MemoryListResult> {
+    return ipcRenderer.invoke(CH.memoryList, req)
+  },
+  get(id: string): Promise<MemoryGetResult> {
+    return ipcRenderer.invoke(CH.memoryGet, { id })
+  },
+  create(req: MemoryCreateRequest): Promise<MemoryItem> {
+    return ipcRenderer.invoke(CH.memoryCreate, req)
+  },
+  /** Appends a version; the old text stays in the item's history. */
+  edit(req: MemoryEditRequest): Promise<MemoryItem> {
+    return ipcRenderer.invoke(CH.memoryEdit, req)
+  },
+  setState(id: string, state: MemoryState): Promise<MemoryItem> {
+    return ipcRenderer.invoke(CH.memorySetState, { id, state })
+  },
+  setPinned(id: string, pinned: boolean): Promise<MemoryItem> {
+    return ipcRenderer.invoke(CH.memorySetPinned, { id, pinned })
+  },
+  remove(id: string): Promise<void> {
+    return ipcRenderer.invoke(CH.memoryDelete, { id })
+  },
+  /** Appends the text of the version saved at `versionAt` as the newest. */
+  restore(id: string, versionAt: number): Promise<MemoryItem> {
+    return ipcRenderer.invoke(CH.memoryRestore, { id, versionAt })
+  },
+  /** What memory did for one session: the index it got at launch and what it pulled or saved. */
+  activity(sessionId: string): Promise<MemoryActivity> {
+    return ipcRenderer.invoke(CH.memoryActivity, { sessionId })
+  },
+  /** Subscribe to the push; returns the unsubscribe. `CH.memoryChanged` is a const, never a literal. */
+  onChanged(cb: () => void): () => void {
+    const listener = (): void => cb()
+    ipcRenderer.on(CH.memoryChanged, listener)
+    return () => ipcRenderer.removeListener(CH.memoryChanged, listener)
+  }
+}
+export type MemoryApi = typeof memoryApi
+
 // Story 3.5 (SM-2) — the telemetry bridge: a renderer→main invoke for the acknowledge signal.
 // The renderer signals the acknowledge moment via `window.telemetry.acknowledge(...)` and NEVER
 // touches ipcRenderer directly (contextIsolation stays ON). MAIN computes the wait duration.
@@ -782,6 +834,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('rules', rulesApi)
     // Goals — the goals and tasks bridge (goals:* invokes + the goals:changed push).
     contextBridge.exposeInMainWorld('goals', goalsApi)
+    // Memory — the memory items bridge (memory:* invokes + the memory:changed push).
+    contextBridge.exposeInMainWorld('memory', memoryApi)
     contextBridge.exposeInMainWorld('telemetry', telemetryApi)
     // Story 4.2 (FR-14) — the quit-guard bridge (app:request-quit / quit:confirm / quit:cancel /
     // quit:guard-show subscription). The renderer reaches main ONLY via this typed bridge.
@@ -844,6 +898,8 @@ if (process.contextIsolated) {
   window.rules = rulesApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.goals is in index.d.ts
   window.goals = goalsApi
+  // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.memory is in index.d.ts
+  window.memory = memoryApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.api is in index.d.ts
   window.api = apiApi
   // @ts-ignore — dead branch (contextIsolation=false is forbidden); Window.themes is in index.d.ts

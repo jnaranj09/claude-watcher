@@ -197,3 +197,12 @@ export const MemoryDeleteSchema = z.object({ id: IdSchema }).strict()
 export const MemoryRestoreSchema = z.object({ id: IdSchema, versionAt: z.number() }).strict()
 
 export const MemoryActivityGetSchema = z.object({ sessionId: IdSchema }).strict()
+
+export type MemoryListRequest = z.infer<typeof MemoryListSchema>
+export type MemoryCreateRequest = z.infer<typeof MemoryCreateSchema>
+export type MemoryEditRequest = z.infer<typeof MemoryEditSchema>
+export type MemoryState = z.infer<typeof StateSchema>
+
+/** `memory:changed` (main → renderer) says only that something changed; the renderer lists again. */
+export const MemoryChangedSchema = z.object({}).strict()
+export type MemoryChanged = z.infer<typeof MemoryChangedSchema>

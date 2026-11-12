@@ -35,6 +35,19 @@ describe('the CH channel registry', () => {
     expect(CH.goalsChanged).toBe('goals:changed')
   })
 
+  it('names the memory channels domain:action', () => {
+    expect(CH.memoryList).toBe('memory:list')
+    expect(CH.memoryGet).toBe('memory:get')
+    expect(CH.memoryCreate).toBe('memory:create')
+    expect(CH.memoryEdit).toBe('memory:edit')
+    expect(CH.memorySetState).toBe('memory:set-state')
+    expect(CH.memorySetPinned).toBe('memory:set-pinned')
+    expect(CH.memoryDelete).toBe('memory:delete')
+    expect(CH.memoryRestore).toBe('memory:restore')
+    expect(CH.memoryActivity).toBe('memory:activity')
+    expect(CH.memoryChanged).toBe('memory:changed')
+  })
+
   it('names the programmatic-API channels domain:action', () => {
     expect(CH.launchRequested).toBe('launch:requested')
     expect(CH.apiTokenGet).toBe('api:token-get')

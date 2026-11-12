@@ -43,7 +43,7 @@ export interface WorkspacesStoreOptions {
    *  says "no live sessions" so a unit test and the smoke build need no reducer. */
   hasLiveSessions?: (workspaceId: string) => boolean
   /** Scoped-config cascade (spec §5). Called ONLY after a delete is allowed and committed;
-   *  index.ts wires it to the templates, shortcuts and tags stores. Default is a no-op. */
+   *  index.ts wires it to every workspace-scoped store (its `cascade()`). Default is a no-op. */
   cascade?: (workspaceId: string) => void
 }
 

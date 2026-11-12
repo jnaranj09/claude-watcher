@@ -10,11 +10,14 @@
 //
 // `code`:
 //   - corrupt_reset — the file failed its schema: it was backed up and the store started empty
-//   - read_failed   — the file could not be read at all: the store started empty
+//   - read_failed   — the file could not be read at all: the store started empty (memory: no
+//                     store, memory is off for this run)
 //   - backup_failed — a corrupt file could not even be backed up before the reset
 //   - write_failed  — a change that is not a dialog's Save (settings, a workspace switch, a
 //                     cascade, the session history) did not reach the disk; it lasts only until
 //                     the app closes. A dialog's own Save throws STORE_WRITE_FAILED instead.
+//                     Memory reports every refused write here, and SQLite rolled it back: the
+//                     change was not kept at all.
 
 import { z } from 'zod'
 

@@ -50,6 +50,14 @@ import type {
   ProposalDecideRequest,
   TaskSaveRequest,
   TaskStatus,
+  MemoryActivity,
+  MemoryCreateRequest,
+  MemoryEditRequest,
+  MemoryGetResult,
+  MemoryItem,
+  MemoryListRequest,
+  MemoryListResult,
+  MemoryState,
   PastSession,
   PastSessionOpenResult,
   ThemeSummary,
@@ -229,6 +237,20 @@ declare global {
       plan(goalId: string): Promise<GoalsStartResult>
       decideProposal(req: ProposalDecideRequest): Promise<GoalsDecideResult>
       onChanged(cb: (view: GoalsView) => void): () => void
+    }
+    // Memory — mirrors src/preload/index.ts `memoryApi`. MAIN owns the items (one SQLite file) and
+    // stamps the writer; `onChanged` is main's empty push, so the renderer lists again.
+    memory: {
+      list(req: MemoryListRequest): Promise<MemoryListResult>
+      get(id: string): Promise<MemoryGetResult>
+      create(req: MemoryCreateRequest): Promise<MemoryItem>
+      edit(req: MemoryEditRequest): Promise<MemoryItem>
+      setState(id: string, state: MemoryState): Promise<MemoryItem>
+      setPinned(id: string, pinned: boolean): Promise<MemoryItem>
+      remove(id: string): Promise<void>
+      restore(id: string, versionAt: number): Promise<MemoryItem>
+      activity(sessionId: string): Promise<MemoryActivity>
+      onChanged(cb: () => void): () => void
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
     // acknowledge moment ONLY through this typed bridge (never ipcRenderer directly — F4).

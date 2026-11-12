@@ -14,6 +14,7 @@ import type { Template } from '../schemas/template'
 import type { Tag } from '../schemas/tag'
 import type { Rule } from '../schemas/rule'
 import type { Goal, GoalsView, Task } from '../schemas/goal'
+import type { MemoryItem, MemoryRow, MemoryVersion } from '../schemas/memory'
 import type { Shortcut } from '../schemas/shortcut'
 import type { FileVersion } from '../schemas/fileHistory'
 import type { DiffLine } from '../schemas/contextIpc'
@@ -182,6 +183,21 @@ export const CH = {
   // Reject a planner's proposal. Accept starts through the same checks as `goals:start-sessions`.
   goalsDecideProposal: 'goals:decide-proposal',
   goalsChanged: 'goals:changed',
+  // Memory (spec 2026-11-11) — the operator's view of what claude remembers (main-owned SQLite
+  // file). Every invoke answers directly; a refusal is a code (`memory_not_found`,
+  // `memory_version_not_found`, `memory_read_failed`, `store_write_failed`, `memory_unavailable`
+  // while memory is off). `memory:changed` is the PUSH after any change, whoever caused it: an
+  // empty payload validated at source (sendMemoryChanged.ts); the renderer lists again.
+  memoryList: 'memory:list',
+  memoryGet: 'memory:get',
+  memoryCreate: 'memory:create',
+  memoryEdit: 'memory:edit',
+  memorySetState: 'memory:set-state',
+  memorySetPinned: 'memory:set-pinned',
+  memoryDelete: 'memory:delete',
+  memoryRestore: 'memory:restore',
+  memoryActivity: 'memory:activity',
+  memoryChanged: 'memory:changed',
   // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
   // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN
   // theme id (settings.themeId) and pushes the result. `themes:open-folder` opens the folder in
@@ -726,6 +742,22 @@ export type GoalsSaveTaskResult = { saved: Task } & GoalsView
 export type GoalsStartResult = { terminalIds: string[] }
 /** `goals:decide-proposal` result — the launched terminals (none for Reject) PLUS the full view. */
 export type GoalsDecideResult = GoalsStartResult & GoalsView
+
+// Memory — main-owned items in a SQLite file; the renderer asks again on `memory:changed`.
+export type {
+  MemoryItem,
+  MemoryRow,
+  MemoryVersion,
+  MemoryActivity,
+  MemoryState,
+  MemoryListRequest,
+  MemoryCreateRequest,
+  MemoryEditRequest
+} from '../schemas/memory'
+/** `memory:list` result — one page of rows plus how many match in all. */
+export type MemoryListResult = { rows: MemoryRow[]; total: number }
+/** `memory:get` result — the item and its versions, newest first (`[0]` is the current text). */
+export type MemoryGetResult = { item: MemoryItem; versions: MemoryVersion[] }
 
 // Workspaces — main-owned; the renderer holds a projection (workspacesStore.ts). The list result
 // is the file's VIEW, not a bare array: `activeId` and the list change together and must never be

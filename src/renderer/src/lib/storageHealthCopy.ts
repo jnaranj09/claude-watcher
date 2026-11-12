@@ -15,7 +15,14 @@ const STORE_LABEL: Record<StoreName, string> = {
   bridge_mod: 'Claude mod',
   file_history: 'file history',
   goals_file: 'GOALS.md',
-  memory: 'Memory'
+  memory: 'memory'
+}
+
+/** Memory is one SQLite file: a refused write is rolled back (not kept in memory until the app
+ *  closes, as a JSON store's is), and an unopened file turns memory off instead of starting empty. */
+const MEMORY_COPY: Partial<Record<StorageProblem['code'], string>> = {
+  write_failed: 'A change to memory could not be saved to disk, so it was not kept.',
+  read_failed: 'The memory file could not be opened, so memory is off for this run.'
 }
 
 /** The bridge mod's install failed (spec 2026-10-18 §1.2): new sessions launch without it, and
@@ -32,6 +39,8 @@ export function storageProblemMessage(problem: StorageProblem): string {
   // Not a file of the operator's data: the store-file sentences below would say the wrong thing.
   if (problem.store === 'bridge_mod') return BRIDGE_MOD_FAILED_COPY
   if (problem.store === 'goals_file') return GOALS_FILE_FAILED_COPY
+  const memoryCopy = problem.store === 'memory' ? MEMORY_COPY[problem.code] : undefined
+  if (memoryCopy !== undefined) return memoryCopy
   const what = STORE_LABEL[problem.store]
   switch (problem.code) {
     case 'corrupt_reset':

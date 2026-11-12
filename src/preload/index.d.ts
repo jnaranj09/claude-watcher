@@ -13,6 +13,7 @@ import type {
   TagsApi,
   RulesApi,
   GoalsApi,
+  MemoryApi,
   TelemetryApi,
   QuitApi,
   ClipboardApi,
@@ -54,6 +55,9 @@ declare global {
     // Goals — the goals and tasks bridge (CRUD, folder, status, links, start sessions, plan with
     // Claude and decide its proposal via CH.goals*; onChanged push).
     goals: GoalsApi
+    // Memory — the memory items bridge (list/get/create/edit/setState/setPinned/remove/restore/
+    // activity via CH.memory*; onChanged push).
+    memory: MemoryApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi
     // Story 4.2 (FR-14) — the quit-guard bridge (requestQuit / confirm / cancel / onGuardShow).

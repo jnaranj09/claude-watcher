@@ -48,6 +48,11 @@ import { createGoalsStore, type GoalsStore } from './persistence/goals'
 import type { GoalsView } from '../shared/schemas/goal'
 import { createElectronGoalsBlobStore } from './persistence/electronGoalsBlobStore'
 import { sendGoalsChanged } from './ipc/sendGoalsChanged'
+import { sendMemoryChanged } from './ipc/sendMemoryChanged'
+import { MEMORY_DB_FILE } from './memory/memoryDb'
+import { createMemoryActivity } from './memory/memoryActivity'
+import { memoryNameLookups } from './memory/memoryNames'
+import { openMemory, type OpenedMemory } from './memory/memoryStartup'
 import { goalSpawnExtras } from './goals/goalLaunch'
 import { createGoalTokens } from './goals/mcp/goalTokens'
 import { MCP_SERVER_NAME, createMcpConfigs } from './goals/mcp/mcpConfigFile'
@@ -477,6 +482,7 @@ function cascade(workspaceId: string): void {
   tagsStore?.removeByWorkspace(workspaceId)
   rulesStore?.removeByWorkspace(workspaceId)
   goalsStore?.removeByWorkspace(workspaceId)
+  memory?.removeByWorkspace(workspaceId) // never throws: the delete is already committed
   pastSessionsStore?.removeByWorkspace(workspaceId) // D-9 — records are tied by workspace id
   // A deleted workspace had no live cards (W-6), so this cancels nothing today; it keeps the
   // timers honest if that guard ever loosens.
@@ -540,6 +546,21 @@ let goalsFile: GoalsFileExporter | null = null
 function requireGoalsStore(): GoalsStore {
   if (goalsStore === null) throw new Error('goals store not initialized')
   return goalsStore
+}
+
+// Memory (spec 2026-11-11) — one SQLite file in userData, opened after app-ready
+// (memory/memoryStartup.ts). Null while memory is off: the file could not be opened, SMOKE, or the
+// quit closed it. The activity record (what memory did per session) is memory only. A memory
+// filter names tags and goals; the lookups read the stores live.
+let memory: OpenedMemory | null = null
+const memoryActivity = createMemoryActivity()
+const memoryNames = memoryNameLookups({
+  tags: () => tagsStore?.list() ?? [],
+  goals: () => goalsStore?.view().goals ?? []
+})
+/** The memory push: any change, whoever made it, tells every window to list again. */
+function pushMemoryChanged(): void {
+  for (const win of BrowserWindow.getAllWindows()) sendMemoryChanged(win.webContents)
 }
 
 /** The rules as the engines and the launch path read them: run order + the broken ids (T-23).
@@ -657,6 +678,7 @@ const {
   registerTagsIpc,
   registerRulesIpc,
   registerGoalsIpc,
+  registerMemoryIpc,
   registerWorkspacesIpc,
   registerShortcutsIpc,
   registerTelemetryIpc
@@ -685,7 +707,10 @@ const {
   hookListening: () => serverHealth.hookListening(),
   rewriteGoalsFile: (folder) => {
     if (goalsStore !== null) goalsFile?.rewrite(folder, goalsStore.view())
-  }
+  },
+  getMemoryStore: () => memory?.store ?? null,
+  memoryNames,
+  memoryActivity
 })
 
 /**
@@ -1008,6 +1033,18 @@ app
     // Every token in a file the last run left died with it. Not under SMOKE: smoke shares the
     // default userData and skips the single-instance lock, so a running app's files are live.
     if (!SMOKE) goalMcp.configs.clearStale()
+
+    // Memory — after tags and goals (its filters name them). Not under SMOKE (memoryStartup.ts).
+    memory = openMemory({
+      smoke: SMOKE,
+      file: join(app.getPath('userData'), MEMORY_DB_FILE),
+      now: () => Date.now(),
+      newId: randomUUID,
+      report: storageHealth.reporterFor('memory'),
+      log: (line) => console.warn(line)
+    })
+    memory?.store.onChange(pushMemoryChanged)
+    registerMemoryIpc()
 
     try {
       shortcutsStore = SMOKE
@@ -1367,7 +1404,7 @@ app.on('before-quit', (e) => {
 })
 
 // Programmatic API — close the listener when the quit is REAL, so the open SSE streams end with
-// the app instead of being cut by the process going away.
+// the app instead of being cut by the process going away. Memory's database closes here too.
 //
 // `will-quit`, NOT `before-quit`: before-quit has THREE exits — nothing-live (proceeds), the
 // re-entrant call the Quit-guard's confirm makes (short-circuits at the top), and CANCEL (the
@@ -1377,6 +1414,11 @@ app.on('before-quit', (e) => {
 // contained and logged by code).
 app.on('will-quit', () => {
   apiLifecycle?.stop()
+  // Memory — close the WAL database cleanly. Null first, so a late invoke answers
+  // `memory_unavailable` instead of touching a closed file; `close` never throws.
+  const closing = memory
+  memory = null
+  closing?.close()
 })
 
 // Quit when all windows are closed, except on macOS.
