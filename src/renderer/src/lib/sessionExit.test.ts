@@ -192,6 +192,15 @@ describe('sessionExit', () => {
     expect(toasts()).toEqual([['error', 'Could not delete "api".', undefined]])
   })
 
+  it('delete with memory asked for but no session id never calls the memory delete', async () => {
+    const removeSession = vi.fn(() => Promise.resolve(0))
+    ;(window as unknown as { memory: unknown }).memory = { removeSession }
+    await deleteTerminal('term-1', null, 'api', true)
+    expect(del).toHaveBeenCalledWith('term-1', null)
+    expect(removeSession).not.toHaveBeenCalled()
+    expect(toasts()).toEqual([])
+  })
+
   it("a delete settling does not close a confirm that is now another card's", async () => {
     const d = deferred<void>()
     del.mockImplementation(() => d.promise)
