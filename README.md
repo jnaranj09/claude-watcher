@@ -123,7 +123,9 @@ Every card, and the bar above a focused session, carries two buttons:
 - **Archive** — stops the session and keeps it in **Past sessions**. No confirm: it is
   reversible.
 - **Delete** — asks first, then stops the session and keeps nothing, except what it saved to
-  memory, which stays marked `Session deleted`. Claude's own files are never touched.
+  memory, which stays marked `Session deleted`. When the session saved memory items, the confirm
+  says how many and offers **Also delete from memory** (off unless you tick it). Claude's own
+  files are never touched.
 
 A session that ends any other way — `/exit`, `Ctrl+C` twice, claude exiting, quitting the app,
 closing the window — is archived too. A session is also on record while it runs, so even a crash
@@ -136,6 +138,39 @@ conversation, or when that conversation is running in another terminal outside t
 
 When claude exits inside an open terminal, the pane says how it exited (the exit code or signal)
 and offers **Resume conversation**, which replaces the dead pane with the resumed session.
+
+## Memory
+
+Sessions the app starts can keep things across sessions, in the app's own memory. It holds two
+kinds of item:
+
+- **Specifics** — an exact value under a key: a port, a flag, an id, a command.
+- **Facts** — a title and a short text about how something works.
+
+Claude saves and finds items with its own memory tools (search, read, browse, save, update, mark
+stale). It can never delete or pin an item; only you can. Every item keeps its date, where it
+came from (session, folder, tags) and its earlier versions, and a new session starts with a short
+index: your pinned items, then the specifics saved for its folder. Memory is a record of what was
+seen and when, so Claude gives the date with what it takes from it.
+
+**☰ → Memory** lists the items of the workspace you are in (and the global ones): search, filter
+by folder, session, tag, date or goal, edit, pin, mark stale, see **History** and restore a
+version, or delete. An item is global or belongs to one workspace. The **Context** button of a
+session has a **Memory** page: what the session got at launch, what it read and what it saved.
+
+Everything stays on your machine, in `claude-watcher-memory.db` in the app's data folder. Memory
+text is never written to a log, a notification or the local API.
+
+**Settings → Memory** has two separate choices:
+
+- **Memory** (on by default) — off means sessions start with no memory tools and no index.
+  Items already saved are kept.
+- **Claude's auto memory** — Claude Code's own memory, in the sessions this app starts: **Off**,
+  **On**, or **Claude decides** (the default: the app changes nothing, so your Claude settings
+  apply). The two memories work side by side. A change applies to sessions started after it.
+
+Deleting a workspace deletes its memory items. Deleting a session keeps what it saved (see
+above).
 
 ## Session templates
 
