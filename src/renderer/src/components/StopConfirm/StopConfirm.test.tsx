@@ -37,6 +37,10 @@ function stubLaunch(): LaunchBridge {
   deleteSpy = vi.fn().mockResolvedValue(undefined)
   const bridge: LaunchBridge = { deleteSession: deleteSpy }
   ;(window as unknown as { launch: LaunchBridge }).launch = bridge
+  // The session saved nothing to memory: no memory row (StopConfirm.memory.test.tsx covers it).
+  ;(window as unknown as { memory: unknown }).memory = {
+    sessionCount: vi.fn(() => Promise.resolve(0))
+  }
   return bridge
 }
 

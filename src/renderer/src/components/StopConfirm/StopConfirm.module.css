@@ -51,6 +51,13 @@
   margin: 0;
 }
 
+/* ── Memory: the notice about what the session saved, and the box to delete it too. ── */
+.memory {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+}
+
 /* ── Actions: the wrapper for Cancel (default) + Delete (danger). The buttons themselves are
    `Button` (secondary / danger armed) — layout only lives here. ───────── */
 .actions {

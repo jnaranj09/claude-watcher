@@ -428,6 +428,10 @@ drops off the row; the task panel draws no such line.
 - **Every exit is Archive or Delete.** Card + focused bar carry Archive (no confirm, reversible) and
   red-at-rest Delete. Delete opens `StopConfirm`: "Delete session? The session is stopped and
   nothing is kept in Past sessions. Claude's own files are not touched." — Cancel default-focused.
+  When the session saved memory items it adds an info `Callout` (`This session saved <n> items to
+memory.` / `Kept in Memory, marked Session deleted.`) and a `Checkbox` `Also delete from memory`,
+  unticked (owner, 2026-11-12); ticked, the detail reads `Deleted with the session. This cannot be
+undone.` The Sessions dialog's armed Delete does not offer the box.
 - **Sessions → Active** (spec 2026-10-03 D): the live sessions of a scope, Needs you → Working →
   Idle, oldest first; a `RowCheck` per row + `Select all` (indeterminate) for the bulk bar
   (`ListBottomDivided`: `N selected [Archive] [Delete]`), the row itself for the details

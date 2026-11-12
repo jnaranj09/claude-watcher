@@ -242,6 +242,53 @@ describe('activity', () => {
   })
 })
 
+describe("a session's items (the Delete confirm)", () => {
+  function savedBy(sessionId: string): string {
+    return store.add({
+      text: PORT,
+      workspaceId: 'w1',
+      check: null,
+      basis: 'inferred',
+      origin: { by: 'agent', sessionId },
+      meta: {
+        folder: null,
+        sessionName: null,
+        tagIds: [],
+        templateId: null,
+        goalId: null,
+        taskIds: []
+      }
+    }).id
+  }
+
+  it('sessionCount answers how many items the session saved', () => {
+    savedBy('s1')
+    savedBy('s1')
+    savedBy('s2')
+    create()
+    expect(h.sessionCount({ sessionId: 's1' })).toBe(2)
+    expect(h.sessionCount({ sessionId: 's9' })).toBe(0)
+  })
+
+  it("removeSession deletes the session's items only, and answers how many", () => {
+    const mine = savedBy('s1')
+    const other = savedBy('s2')
+    const byHand = create()
+    expect(h.removeSession({ sessionId: 's1' })).toBe(1)
+    expect(() => h.get({ id: mine })).toThrow(MEMORY_ERROR.notFound)
+    expect(h.get({ id: other }).item.id).toBe(other)
+    expect(h.get({ id: byHand }).item.id).toBe(byHand)
+    expect(h.removeSession({ sessionId: 's1' })).toBe(0)
+  })
+
+  it('both refuse a request with an unknown key or no session id', () => {
+    expect(() => h.sessionCount({ sessionId: 's1', extra: 1 })).toThrow()
+    expect(() => h.removeSession({ sessionId: 's1', extra: 1 })).toThrow()
+    expect(() => h.sessionCount({ sessionId: '' })).toThrow()
+    expect(() => h.removeSession({})).toThrow()
+  })
+})
+
 describe('while memory is off (no store)', () => {
   it('every handler but activity throws memory_unavailable', () => {
     const off = createMemoryIpcHandlers({ store: () => null, names, activity })
@@ -254,7 +301,9 @@ describe('while memory is off (no store)', () => {
       () => off.setState({ ...id, state: 'stale' }),
       () => off.setPinned({ ...id, pinned: true }),
       () => off.remove(id),
-      () => off.restore({ ...id, versionAt: NOW })
+      () => off.restore({ ...id, versionAt: NOW }),
+      () => off.sessionCount({ sessionId: 's1' }),
+      () => off.removeSession({ sessionId: 's1' })
     ]
     for (const call of calls) expect(call).toThrow(MEMORY_ERROR.unavailable)
   })

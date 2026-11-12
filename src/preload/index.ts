@@ -616,6 +616,15 @@ const memoryApi = {
   activity(sessionId: string): Promise<MemoryActivity> {
     return ipcRenderer.invoke(CH.memoryActivity, { sessionId })
   },
+  /** How many items one session saved (the session Delete confirm shows it). */
+  sessionCount(sessionId: string): Promise<number> {
+    return ipcRenderer.invoke(CH.memorySessionCount, { sessionId })
+  },
+  /** Deletes every item one session saved; answers how many. Only the Delete confirm's ticked
+   *  box calls it, after the session itself is deleted. */
+  removeSession(sessionId: string): Promise<number> {
+    return ipcRenderer.invoke(CH.memoryDeleteSession, { sessionId })
+  },
   /** Subscribe to the push; returns the unsubscribe. `CH.memoryChanged` is a const, never a literal. */
   onChanged(cb: () => void): () => void {
     const listener = (): void => cb()

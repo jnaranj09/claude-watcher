@@ -188,6 +188,8 @@ export const CH = {
   // `memory_version_not_found`, `memory_read_failed`, `store_write_failed`, `memory_unavailable`
   // while memory is off, except `memory:activity`, which reads an in-memory record). `memory:changed` is the PUSH after any change, whoever caused it: an
   // empty payload validated at source (sendMemoryChanged.ts); the renderer lists again.
+  // `memory:session-count` / `memory:delete-session` serve the session Delete confirm: how many
+  // items that session saved, and their removal when the operator asks for it (a number each).
   memoryList: 'memory:list',
   memoryGet: 'memory:get',
   memoryCreate: 'memory:create',
@@ -197,6 +199,8 @@ export const CH = {
   memoryDelete: 'memory:delete',
   memoryRestore: 'memory:restore',
   memoryActivity: 'memory:activity',
+  memorySessionCount: 'memory:session-count',
+  memoryDeleteSession: 'memory:delete-session',
   memoryChanged: 'memory:changed',
   // Custom themes (spec 2026-09-20). `themes:list` rescans `<userData>/themes` and returns every
   // folder as a ThemeSummary (broken ones carry `error`). `theme:reload` re-applies the CHOSEN

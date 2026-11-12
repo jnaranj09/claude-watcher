@@ -56,7 +56,7 @@ declare global {
     // Claude and decide its proposal via CH.goals*; onChanged push).
     goals: GoalsApi
     // Memory — the memory items bridge (list/get/create/edit/setState/setPinned/remove/restore/
-    // activity via CH.memory*; onChanged push).
+    // activity/sessionCount/removeSession via CH.memory*; onChanged push).
     memory: MemoryApi
     // Story 3.5 (SM-2) — the telemetry bridge: acknowledge → main signal (wait duration computed in MAIN).
     telemetry: TelemetryApi

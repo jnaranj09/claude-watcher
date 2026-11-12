@@ -82,6 +82,11 @@ export interface MemoryStore {
     folder: string
   ): { pinned: MemoryItem[]; specificsHere: MemoryRow[]; more: number }
   removeByWorkspace(workspaceId: string): number
+  /** How many items `sessionId` saved (its origin), global ones included. */
+  countBySession(sessionId: string): number
+  /** Deletes every item `sessionId` saved, with its history: the operator asked for it in the
+   *  session Delete confirm. Answers how many. */
+  removeBySession(sessionId: string): number
   markSessionDeleted(sessionId: string): number
   rebindSession(oldSessionId: string, newSessionId: string): void
   onChange(listener: () => void): () => void
@@ -315,6 +320,17 @@ export function createMemoryStore(deps: {
 
     removeByWorkspace: (workspaceId) =>
       write(() => deleteItems('workspace_id = ?', [workspaceId]), changedRows),
+
+    countBySession: (sessionId) =>
+      read(
+        () =>
+          db.get('SELECT COUNT(*) AS n FROM item WHERE origin_session_id = ?', CountRow, [
+            sessionId
+          ])?.n ?? 0
+      ),
+
+    removeBySession: (sessionId) =>
+      write(() => deleteItems('origin_session_id = ?', [sessionId]), changedRows),
 
     markSessionDeleted: (sessionId) =>
       write(() => {

@@ -207,6 +207,10 @@ export const MemoryRestoreSchema = z.object({ id: IdSchema, versionAt: z.number(
 
 export const MemoryActivityGetSchema = z.object({ sessionId: IdSchema }).strict()
 
+/** `memory:session-count` and `memory:delete-session`: the items one session saved (the session
+ *  Delete confirm asks how many, and deletes them when the operator ticks its box). */
+export const MemoryOfSessionSchema = z.object({ sessionId: IdSchema }).strict()
+
 export type MemoryListRequest = z.infer<typeof MemoryListSchema>
 export type MemoryCreateRequest = z.infer<typeof MemoryCreateSchema>
 export type MemoryEditRequest = z.infer<typeof MemoryEditSchema>

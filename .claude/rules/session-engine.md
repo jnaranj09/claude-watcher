@@ -168,7 +168,11 @@ watcher-bridge` right after `--settings` (new and `--resume`), and the env gets
   session whose record left without one: a workspace cascade's (its workspace items are already
   deleted, memory runs first in `persistence/workspaceCascade.ts`, so only its global items are
   marked) or the 200 cap's (`onDropped`). A workspace delete's cascade deletes the workspace's
-  items. Memory text (key, value, title, body, check, reason, query)
+  items. The card's Delete confirm (`StopConfirm`) asks how many items the session saved
+  (`memory:session-count`, by the renderer's session id) and, only when the operator ticks its
+  box, deletes them (`memory:delete-session`) AFTER main confirmed the session delete
+  (`lib/sessionExit.ts`): a refused session delete never costs memory, and a refused memory
+  delete is an error toast with the items still marked. Memory text (key, value, title, body, check, reason, query)
   never reaches a log, a notification, the API or an attention event (logs carry `code=` only).
   SMOKE opens no database (memory is off); its memory check writes into a temporary folder, never
   userData.

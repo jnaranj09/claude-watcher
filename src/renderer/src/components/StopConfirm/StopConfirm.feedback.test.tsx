@@ -16,6 +16,9 @@ beforeEach(() => {
   pending = deferred<void>()
   del = vi.fn(() => pending.promise)
   ;(window as unknown as { launch: unknown }).launch = { deleteSession: del }
+  ;(window as unknown as { memory: unknown }).memory = {
+    sessionCount: vi.fn(() => Promise.resolve(0))
+  }
   act(() => {
     boardStore.setState({
       stopConfirm: { terminalId: 'term-1', sessionId: 'sess-1', sessionName: 'deploy' },

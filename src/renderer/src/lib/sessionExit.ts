@@ -10,6 +10,11 @@
 //
 // The Sessions dialog uses the CORE of each exit — no board toast, no jump to the board; it reports
 // in its own dialog toast (spec 2026-10-03 D, 2026-10-26).
+//
+// Memory (owner, 2026-11-12): a deleted session's memory items are kept, marked `Session deleted`
+// (main does that while it deletes the session). The Delete confirm may ask to delete them too:
+// that is a SECOND call (`window.memory.removeSession`), sent only after main confirmed the session
+// delete, so a refused session delete never costs the operator their memory.
 import { boardStore } from '../stores/boardStore'
 import { toast } from '../stores/toastStore'
 import { focusLiveSession, openPastSession } from '../stores/pastSessionsStore'
@@ -143,17 +148,48 @@ export async function archiveTerminal(terminalId: string): Promise<void> {
   )
 }
 
-/** Delete: called by the confirm's Delete button only. */
+/** How many memory items a session saved, for the Delete confirm. 0 when main cannot say (no
+ *  memory file this run): the confirm then offers nothing, and the items stay as they are. */
+export async function savedMemoryCount(sessionId: string): Promise<number> {
+  try {
+    return await window.memory.sessionCount(sessionId)
+  } catch {
+    console.warn(`${LOG_PREFIX} code=memory_session_count_failed`) // never the value
+    return 0
+  }
+}
+
+/** The confirm's ticked box: delete what the (already deleted) session saved to memory. Owns its
+ *  feedback, since nothing on screen changes with it. Never rejects. */
+async function deleteSessionMemory(sessionId: string, sessionName: string): Promise<void> {
+  try {
+    await window.memory.removeSession(sessionId)
+  } catch {
+    console.warn(`${LOG_PREFIX} code=delete_session_memory_failed`) // never the value
+    toast.error(`Could not delete what "${sessionName}" saved to memory. It is still in Memory.`)
+    return
+  }
+  toast.success(`Deleted what "${sessionName}" saved to memory.`)
+}
+
+/** Delete: called by the confirm's Delete button only. `alsoMemory` is the confirm's box: the
+ *  session's memory items go too, but only once main confirmed the session delete and only for a
+ *  pane whose session id the renderer knows. */
 export async function deleteTerminal(
   terminalId: string,
   sessionId: string | null,
-  sessionName: string
+  sessionName: string,
+  alsoMemory = false
 ): Promise<void> {
   const sent = deleteTerminalCore(terminalId, sessionId) // F1: SENT first
   boardStore.getState().showBoard()
   const ok = await sent
   clearOwnConfirm(terminalId)
-  if (!ok) toast.error(`Could not delete "${sessionName}".`)
+  if (!ok) {
+    toast.error(`Could not delete "${sessionName}".`)
+    return
+  }
+  if (alsoMemory && sessionId !== null) await deleteSessionMemory(sessionId, sessionName)
 }
 
 /** The confirm may be another card's by the time this delete settles: close only our own. */

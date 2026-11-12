@@ -103,6 +103,8 @@ export interface MemoryBridge {
   remove: Mock<(id: string) => Promise<void>>
   restore: Mock<(id: string, versionAt: number) => Promise<MemoryItem>>
   activity: Mock<() => Promise<never>>
+  sessionCount: Mock<(sessionId: string) => Promise<number>>
+  removeSession: Mock<(sessionId: string) => Promise<number>>
   onChanged: Mock<(cb: () => void) => () => void>
 }
 
@@ -185,6 +187,15 @@ export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
     }),
     restore: vi.fn((id: string) => withItem(bridge, id, (item) => item)),
     activity: vi.fn(() => Promise.reject(new Error('not used'))),
+    sessionCount: vi.fn((sessionId: string) =>
+      Promise.resolve(bridge.items.filter((i) => i.origin.sessionId === sessionId).length)
+    ),
+    removeSession: vi.fn((sessionId: string) => {
+      const kept = bridge.items.filter((i) => i.origin.sessionId !== sessionId)
+      const removed = bridge.items.length - kept.length
+      bridge.items = kept
+      return Promise.resolve(removed)
+    }),
     onChanged: vi.fn(() => () => {})
   }
   Object.defineProperty(window, 'memory', { value: bridge, configurable: true, writable: true })

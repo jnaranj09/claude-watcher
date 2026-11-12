@@ -293,6 +293,30 @@ describe('remove and cascades', () => {
     ]).toEqual([null, null, global.id, other.id])
   })
 
+  it('counts the items a session saved and removes them with their history, others kept', () => {
+    const { id } = store.add(input(PORT))
+    store.add(input(PORT, { workspaceId: null }))
+    const other = store.add(input(PORT, { origin: { by: 'agent', sessionId: 's2' } }))
+    const byHand = store.add(input(PORT, { origin: { by: 'operator', sessionId: null } }))
+    expect(store.countBySession('s1')).toBe(2)
+    expect(store.removeBySession('s1')).toBe(2)
+    expect(store.countBySession('s1')).toBe(0)
+    expect(store.get(id)).toBeNull()
+    expect(() => store.versions(id)).toThrow(MEMORY_ERROR.notFound)
+    expect([store.get(other.id)?.id, store.get(byHand.id)?.id]).toEqual([other.id, byHand.id])
+  })
+
+  it('a removed session no longer matches a search for its items', () => {
+    store.add(input(PORT))
+    store.removeBySession('s1')
+    const found = store.search(
+      { workspaceId: 'w1', includeGlobal: true },
+      { kind: 'specific', query: 'API port', filters: {}, offset: 0, limit: 10 },
+      { sessionFolder: null, tagIdsByName: () => [], goalIdsByName: () => [] }
+    )
+    expect(found).toEqual({ rows: [], total: 0 })
+  })
+
   it('marks every item of a deleted session and keeps it', () => {
     const { id } = store.add(input(PORT))
     store.add(input(PORT))
@@ -335,10 +359,22 @@ describe('onChange', () => {
     expect(listener).toHaveBeenCalledTimes(10)
   })
 
+  it('removeBySession fires once, and countBySession never does', () => {
+    store.add(input(PORT))
+    store.add(input(PORT))
+    const listener = vi.fn()
+    store.onChange(listener)
+    store.countBySession('s1')
+    expect(listener).not.toHaveBeenCalled()
+    store.removeBySession('s1')
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it.each<[string, (s: MemoryStore) => unknown]>([
     ['rebindSession', (s) => s.rebindSession('nobody', 's2')],
     ['removeByWorkspace', (s) => s.removeByWorkspace('w-none')],
     ['markSessionDeleted', (s) => s.markSessionDeleted('nobody')],
+    ['removeBySession', (s) => s.removeBySession('nobody')],
     ['setState to the same state', (s) => s.setState('m1', 'active', 'agent', null)]
   ])('%s that changed no row does not fire', (_name, call) => {
     store.add(input(PORT))

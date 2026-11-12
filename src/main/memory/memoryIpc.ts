@@ -13,6 +13,10 @@
 // While memory is off (the file could not be opened, the smoke test, after quit) every handler but
 // `activity` throws `memory_unavailable`. `activity` reads the in-memory per-session record, which
 // needs no database: a session with nothing recorded answers an empty record.
+//
+// `sessionCount` and `removeSession` serve the session Delete confirm (owner, 2026-11-12): how
+// many items that session saved, and their removal when the operator ticks the confirm's box.
+// The id is the renderer's own for the pane; a session that saved nothing answers 0.
 import {
   MEMORY_ERROR,
   MemoryActivityGetSchema,
@@ -21,6 +25,7 @@ import {
   MemoryEditSchema,
   MemoryGetSchema,
   MemoryListSchema,
+  MemoryOfSessionSchema,
   MemoryRestoreSchema,
   MemorySetPinnedSchema,
   MemorySetStateSchema,
@@ -51,6 +56,8 @@ export interface MemoryIpcHandlers {
   remove(raw: unknown): void
   restore(raw: unknown): MemoryItem
   activity(raw: unknown): MemoryActivity
+  sessionCount(raw: unknown): number
+  removeSession(raw: unknown): number
 }
 
 export function createMemoryIpcHandlers(deps: {
@@ -128,6 +135,14 @@ export function createMemoryIpcHandlers(deps: {
     activity(raw) {
       const { sessionId } = MemoryActivityGetSchema.parse(raw)
       return activity.get(sessionId)
+    },
+    sessionCount(raw) {
+      const { sessionId } = MemoryOfSessionSchema.parse(raw)
+      return requireStore().countBySession(sessionId)
+    },
+    removeSession(raw) {
+      const { sessionId } = MemoryOfSessionSchema.parse(raw)
+      return requireStore().removeBySession(sessionId)
     }
   }
 }

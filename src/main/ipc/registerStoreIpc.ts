@@ -369,6 +369,8 @@ export function createStoreIpc(deps: StoreIpcDeps): StoreIpc {
     ipc.handle(CH.memoryDelete, (_evt, raw: unknown) => handlers.remove(raw))
     ipc.handle(CH.memoryRestore, (_evt, raw: unknown) => handlers.restore(raw))
     ipc.handle(CH.memoryActivity, (_evt, raw: unknown) => handlers.activity(raw))
+    ipc.handle(CH.memorySessionCount, (_evt, raw: unknown) => handlers.sessionCount(raw))
+    ipc.handle(CH.memoryDeleteSession, (_evt, raw: unknown) => handlers.removeSession(raw))
   }
 
   // Workspaces — register ONCE (mirrors registerTemplatesIpc). Handler bodies live in

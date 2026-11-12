@@ -250,6 +250,8 @@ declare global {
       remove(id: string): Promise<void>
       restore(id: string, versionAt: number): Promise<MemoryItem>
       activity(sessionId: string): Promise<MemoryActivity>
+      sessionCount(sessionId: string): Promise<number>
+      removeSession(sessionId: string): Promise<number>
       onChanged(cb: () => void): () => void
     }
     // Story 3.5 (SM-2) — mirrors src/preload/index.ts `telemetryApi`. The renderer signals the
