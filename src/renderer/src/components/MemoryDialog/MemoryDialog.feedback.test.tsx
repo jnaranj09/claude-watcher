@@ -177,8 +177,22 @@ describe('MemoryDialog — more results', () => {
 
   it('Restore this version says Restored.', async () => {
     bridge.versions.m1 = [
-      { at: MEMORY_NOW - 1000, by: 'operator', reason: null, head: 'API port', body: '9282' },
-      { at: MEMORY_NOW - 2000, by: 'agent', reason: null, head: 'API port', body: '9281' }
+      {
+        at: MEMORY_NOW - 1000,
+        by: 'operator',
+        basis: 'stated',
+        reason: null,
+        head: 'API port',
+        body: '9282'
+      },
+      {
+        at: MEMORY_NOW - 2000,
+        by: 'agent',
+        basis: 'inferred',
+        reason: null,
+        head: 'API port',
+        body: '9281'
+      }
     ]
     await openItem()
     await userEvent.click(screen.getByRole('button', { name: 'History' }))

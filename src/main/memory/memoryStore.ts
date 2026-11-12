@@ -1,6 +1,8 @@
 // The memory store (spec 2026-11-11 memory §2, §3): the one object the rest of main uses to write
 // memory items and find them. Every text change appends a version (newest = current) and never
-// overwrites one. The read side lives in `memorySearch.ts`, the row schemas in `memoryRows.ts`.
+// overwrites one. The item's basis is its current text's: an edit takes it from the writer
+// (`WRITER_BASIS`), a restore brings back the restored version's, and a state or pin change keeps
+// it. The read side lives in `memorySearch.ts`, the row schemas in `memoryRows.ts`.
 //
 // Failures: a missing id or version is a refusal code (`MEMORY_ERROR.notFound`,
 // `versionNotFound`). Any other throw is SQLite or a row that failed its schema: a write rolls
@@ -9,6 +11,7 @@
 // failure), never a result that looks real. Memory text is sensitive: logs carry `code=` only.
 import { z } from 'zod'
 import {
+  MEMORY_BASES,
   MEMORY_ERROR,
   MemoryVersionSchema,
   type MemoryItem,
@@ -38,7 +41,7 @@ export type MemoryAdd = {
   text: MemoryText
   workspaceId: string | null
   check: string | null
-  basis: MemoryItem['basis']
+  basis: Basis
   origin: MemoryItem['origin']
   meta: MemoryItem['meta']
 }
@@ -88,7 +91,15 @@ const LOG_PREFIX = '[claude-watcher][memory]'
 /** Thrown untouched by `write`; `readFailed` is not one (inside a write it is a failed write). */
 const REFUSALS: ReadonlySet<string> = new Set([MEMORY_ERROR.notFound, MEMORY_ERROR.versionNotFound])
 const FTS_TABLES = ['item_words', 'item_trigram'] as const
-const TextRow = z.object({ head: z.string(), body: z.string() })
+const TextRow = z.object({ basis: z.enum(MEMORY_BASES), head: z.string(), body: z.string() })
+type Basis = MemoryItem['basis']
+
+/** The basis of a text by who wrote it. `extract` is inferred until phase 2 refines it. */
+const WRITER_BASIS: Readonly<Record<MemoryWriter, Basis>> = {
+  agent: 'inferred',
+  operator: 'stated',
+  extract: 'inferred'
+}
 
 function textParts(text: MemoryText): [head: string, body: string] {
   return text.kind === 'specific' ? [text.key, text.value] : [text.title, text.body]
@@ -165,17 +176,14 @@ export function createMemoryStore(deps: {
     id: string,
     at: number,
     by: MemoryWriter,
+    basis: Basis,
     reason: string | null,
     [head, body]: [string, string]
   ): void {
-    db.run('INSERT INTO version (item_id, at, by, reason, head, body) VALUES (?, ?, ?, ?, ?, ?)', [
-      id,
-      at,
-      by,
-      reason,
-      head,
-      body
-    ])
+    db.run(
+      'INSERT INTO version (item_id, at, by, basis, reason, head, body) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, at, by, basis, reason, head, body]
+    )
     // The indexes hold the current text only, keyed by the item's `rid`.
     for (const table of FTS_TABLES) {
       db.run(`DELETE FROM ${table} WHERE rowid = (SELECT rid FROM item WHERE id = ?)`, [id])
@@ -225,7 +233,7 @@ export function createMemoryStore(deps: {
             JSON.stringify(meta)
           ]
         )
-        appendVersion(id, at, input.origin.by, null, textParts(input.text))
+        appendVersion(id, at, input.origin.by, input.basis, null, textParts(input.text))
         return mustItem(id)
       }),
 
@@ -234,8 +242,14 @@ export function createMemoryStore(deps: {
         // A kind never changes: an edit with the other kind finds no such item.
         if (mustItem(id).kind !== change.text.kind) throw new Error(MEMORY_ERROR.notFound)
         const at = now()
-        update(id, 'check_text = ?, updated_at = ?, last_seen_at = ?', [change.check, at, at])
-        appendVersion(id, at, by, reason, textParts(change.text))
+        const basis = WRITER_BASIS[by]
+        update(id, 'basis = ?, check_text = ?, updated_at = ?, last_seen_at = ?', [
+          basis,
+          change.check,
+          at,
+          at
+        ])
+        appendVersion(id, at, by, basis, reason, textParts(change.text))
         return mustItem(id)
       }),
 
@@ -246,7 +260,7 @@ export function createMemoryStore(deps: {
           if (current.state === state) return { item: current, changed: false }
           const at = now()
           update(id, 'state = ?, updated_at = ?', [state, at])
-          appendVersion(id, at, by, reason, textParts(current))
+          appendVersion(id, at, by, current.basis, reason, textParts(current))
           return { item: mustItem(id), changed: true }
         },
         (out) => out.changed
@@ -263,14 +277,14 @@ export function createMemoryStore(deps: {
       write(() => {
         mustItem(id)
         const old = db.get(
-          'SELECT head, body FROM version WHERE item_id = ? AND at = ? ORDER BY seq DESC LIMIT 1',
+          'SELECT basis, head, body FROM version WHERE item_id = ? AND at = ? ORDER BY seq DESC LIMIT 1',
           TextRow,
           [id, versionAt]
         )
         if (old === null) throw new Error(MEMORY_ERROR.versionNotFound)
         const at = now()
-        update(id, 'updated_at = ?', [at])
-        appendVersion(id, at, 'operator', null, [old.head, old.body])
+        update(id, 'basis = ?, updated_at = ?', [old.basis, at])
+        appendVersion(id, at, 'operator', old.basis, null, [old.head, old.body])
         return mustItem(id)
       }),
 
@@ -287,7 +301,7 @@ export function createMemoryStore(deps: {
       read(() => {
         mustItem(id)
         return db.all(
-          'SELECT at, by, reason, head, body FROM version WHERE item_id = ? ORDER BY at DESC, seq DESC',
+          'SELECT at, by, basis, reason, head, body FROM version WHERE item_id = ? ORDER BY at DESC, seq DESC',
           MemoryVersionSchema,
           [id]
         )

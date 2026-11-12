@@ -225,6 +225,52 @@ describe('versions', () => {
   })
 })
 
+describe('basis follows the writer of the current text', () => {
+  const NEW_PORT: MemoryText = { kind: 'specific', key: 'API port', value: '9281' }
+
+  it('an agent edit of a stated item makes it inferred', () => {
+    const { id } = store.add(input(PORT))
+    expect(store.edit(id, { text: NEW_PORT, check: null }, 'agent', null).basis).toBe('inferred')
+    expect(store.get(id)?.basis).toBe('inferred')
+  })
+
+  it('an operator edit of an inferred item makes it stated', () => {
+    const { id } = store.add(input(PORT, { basis: 'inferred' }))
+    expect(store.edit(id, { text: NEW_PORT, check: null }, 'operator', null).basis).toBe('stated')
+  })
+
+  it('an extract edit makes the item inferred', () => {
+    const { id } = store.add(input(PORT))
+    expect(store.edit(id, { text: NEW_PORT, check: null }, 'extract', null).basis).toBe('inferred')
+  })
+
+  it('each version keeps the basis of its own text', () => {
+    const { id } = store.add(input(PORT))
+    clock += 1000
+    store.edit(id, { text: NEW_PORT, check: null }, 'agent', null)
+    expect(store.versions(id).map((v) => [v.body, v.basis])).toEqual([
+      ['9281', 'inferred'],
+      ['9280', 'stated']
+    ])
+  })
+
+  it('restore brings back the basis of the restored version with its text', () => {
+    const { id } = store.add(input(PORT, { basis: 'inferred' }))
+    clock += 1000
+    store.edit(id, { text: NEW_PORT, check: null }, 'operator', null)
+    clock += 1000
+    expect(store.restore(id, NOW).basis).toBe('inferred')
+    expect(store.versions(id)[0]).toMatchObject({ body: '9280', basis: 'inferred' })
+  })
+
+  it('setState and setPinned keep the basis', () => {
+    const { id } = store.add(input(PORT, { basis: 'inferred' }))
+    expect(store.setState(id, 'stale', 'operator', null).basis).toBe('inferred')
+    expect(store.setPinned(id, true).basis).toBe('inferred')
+    expect(store.versions(id)[0]).toMatchObject({ basis: 'inferred' })
+  })
+})
+
 describe('remove and cascades', () => {
   it('remove deletes the item and its history', () => {
     const { id } = store.add(input(PORT))

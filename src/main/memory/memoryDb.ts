@@ -45,7 +45,8 @@ const SIDE_FILES: readonly string[] = ['-wal', '-shm']
 /** `MIGRATIONS[n]` takes a file from `user_version` n to n + 1, inside one transaction.
  *  `item` holds what lists filter on as real columns and the rest in `meta` (JSON: sessionName,
  *  tagIds, templateId, goalId, taskIds). The text lives in `version` (newest = current, `seq`
- *  breaks a tie on `at`); the two FTS5 indexes hold the current head (key/title) and body
+ *  breaks a tie on `at`), each with the basis of its own text (the item's `basis` is the current
+ *  one's); the two FTS5 indexes hold the current head (key/title) and body
  *  (value/body) under the item's `rid` as their rowid, and are written in the same transaction as
  *  the row. `rid` and `seq` are explicit INTEGER PRIMARY KEYs: VACUUM may renumber an implicit
  *  rowid, and the indexes must keep pointing at their item. */
@@ -74,6 +75,7 @@ const MIGRATIONS: readonly string[] = [
      item_id TEXT NOT NULL REFERENCES item (id) ON DELETE CASCADE,
      at INTEGER NOT NULL,
      by TEXT NOT NULL CHECK (by IN ('agent', 'extract', 'operator')),
+     basis TEXT NOT NULL CHECK (basis IN ('observed', 'stated', 'inferred')),
      reason TEXT,
      head TEXT NOT NULL,
      body TEXT NOT NULL
@@ -289,8 +291,8 @@ export function memorySmokeCheck(dir: string): { pass: boolean } {
         [SMOKE_ID]
       )
       db.run(
-        `INSERT INTO version (item_id, at, by, reason, head, body)
-         VALUES (?, 0, 'operator', NULL, 'smoke harbour', 'port 9281')`,
+        `INSERT INTO version (item_id, at, by, basis, reason, head, body)
+         VALUES (?, 0, 'operator', 'stated', NULL, 'smoke harbour', 'port 9281')`,
         [SMOKE_ID]
       )
       for (const index of ['item_words', 'item_trigram']) {

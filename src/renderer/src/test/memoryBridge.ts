@@ -140,6 +140,7 @@ export function installMemoryBridge(items: MemoryItem[]): MemoryBridge {
           {
             at: item.updatedAt,
             by: item.origin.by,
+            basis: item.basis,
             reason: null,
             head: head(item),
             body: text(item)

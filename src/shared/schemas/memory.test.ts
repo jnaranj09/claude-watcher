@@ -194,11 +194,10 @@ describe('memory records', () => {
     expect(MEMORY_ERROR.unavailable).toBe('memory_unavailable')
   })
 
-  it('parses a version', () => {
-    expect(
-      MemoryVersionSchema.safeParse({ at: 1, by: 'operator', reason: null, head: 'k', body: 'v' })
-        .success
-    ).toBe(true)
+  it('parses a version with the basis of its text', () => {
+    const version = { at: 1, by: 'operator', basis: 'stated', reason: null, head: 'k', body: 'v' }
+    expect(MemoryVersionSchema.safeParse(version).success).toBe(true)
+    expect(MemoryVersionSchema.safeParse({ ...version, basis: 'guessed' }).success).toBe(false)
   })
 
   it('parses an activity with and without an injection', () => {

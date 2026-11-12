@@ -173,9 +173,30 @@ describe('MemoryDialog — History follows the selection', () => {
   it('a version names who wrote it in plain words', async () => {
     bridge = installMemoryBridge([specificItem()])
     bridge.versions.m1 = [
-      { at: MEMORY_NOW - 1000, by: 'operator', reason: null, head: 'API port', body: '9282' },
-      { at: MEMORY_NOW - 2000, by: 'agent', reason: null, head: 'API port', body: '9281' },
-      { at: MEMORY_NOW - 3000, by: 'extract', reason: null, head: 'API port', body: '9280' }
+      {
+        at: MEMORY_NOW - 1000,
+        by: 'operator',
+        basis: 'stated',
+        reason: null,
+        head: 'API port',
+        body: '9282'
+      },
+      {
+        at: MEMORY_NOW - 2000,
+        by: 'agent',
+        basis: 'inferred',
+        reason: null,
+        head: 'API port',
+        body: '9281'
+      },
+      {
+        at: MEMORY_NOW - 3000,
+        by: 'extract',
+        basis: 'inferred',
+        reason: null,
+        head: 'API port',
+        body: '9280'
+      }
     ]
     await open()
     await userEvent.click(row('API port'))

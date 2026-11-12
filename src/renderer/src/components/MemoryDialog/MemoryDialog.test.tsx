@@ -193,6 +193,7 @@ describe('MemoryDialog — History', () => {
       {
         at: MEMORY_NOW - 2 * 86_400_000,
         by: 'agent',
+        basis: 'inferred',
         reason: 'port moved',
         head: 'API port',
         body: '9281'
@@ -200,6 +201,7 @@ describe('MemoryDialog — History', () => {
       {
         at: MEMORY_NOW - 40 * 86_400_000,
         by: 'operator',
+        basis: 'stated',
         reason: null,
         head: 'API port',
         body: '9280'
@@ -223,6 +225,7 @@ describe('MemoryDialog — History', () => {
       {
         at: MEMORY_NOW - 2 * 86_400_000,
         by: 'agent',
+        basis: 'inferred',
         reason: 'port moved',
         head: 'API port',
         body: '9281'
@@ -230,6 +233,7 @@ describe('MemoryDialog — History', () => {
       {
         at: MEMORY_NOW - 40 * 86_400_000,
         by: 'operator',
+        basis: 'stated',
         reason: null,
         head: 'API port',
         body: '9280'

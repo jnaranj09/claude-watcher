@@ -140,6 +140,8 @@ export const MemoryVersionSchema = z
   .object({
     at: z.number(),
     by: WriterSchema,
+    // The basis of this version's text; a restore brings it back with the text.
+    basis: BasisSchema,
     reason: z.string().nullable(),
     head: z.string(),
     body: z.string()
