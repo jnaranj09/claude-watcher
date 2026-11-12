@@ -2,9 +2,8 @@
 // Claude integration: the goals server, then memory's, spec 2026-11-11). It names that server
 // (its `serverName`) and its endpoint on the hook listener, and carries the session's bearer token
 // in a `headers` entry, so the token never goes on argv: only this file's path does. Each server
-// keeps its own
-// `createMcpConfigs`, so a session can hold one file per server (goals, memory), and each logs
-// under its own area (`[claude-watcher][goals]`, `[claude-watcher][memory]`).
+// keeps its own `createMcpConfigs`, so a session can hold one file per server (goals, memory), and
+// each logs under its own area (`[claude-watcher][goals]`, `[claude-watcher][memory]`).
 //
 // Files live in `<userData>/mcp/` (folder 0700, files 0600, a random name each), every server's in
 // the one folder. A file goes when its session goes (`window/cardState.ts`), and a start clears

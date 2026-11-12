@@ -2,18 +2,18 @@
 //
 // Binds to 127.0.0.1 only (never 0.0.0.0). Every inbound POST is validated at a fail-closed
 // boundary: HookEventSchema, ModReportSchema on `/mod/report`, ModPromptSchema on `/mod/prompt`, or
-// an MCP route's JSON-RPC schema (`/mcp/goals`). On bad input: respond 400 + log PATH + CODE
-// only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
+// an MCP route's JSON-RPC schema (`/mcp/goals`, `/mcp/memory`). On bad input: respond 400 + log
+// PATH + CODE only — NEVER log the body (payloads carry prompt/tool_input/last_assistant_message).
 //
 // Body-size cap (MAX_BODY_BYTES): any request exceeding the cap is rejected 400.
 // A request carrying an `Origin` header (a browser) is rejected 403 before the body is read.
 // 'error' handler on the server tolerates EADDRINUSE (log + skip).
 // `/mod/report` carries the bridge mod's report (ModReportSchema), behind the same method, Origin
-// and body-cap guards; `/mod/prompt` carries who sent each prompt (ModPromptSchema), behind the same
-// guards. Each MCP route (`mcpRoutes`; the goals server at `/mcp/goals`, the memory server at `/mcp/memory`) is an app MCP endpoint
-// behind the same guards plus its own bearer token (401 before the body is read;
-// `mcp/mcpEndpoint.ts` parses the JSON-RPC body). A path under `/mcp/` with no route is 404. Every
-// other path is a hook, as before.
+// and body-cap guards; `/mod/prompt` carries who sent each prompt (ModPromptSchema), behind the
+// same guards. Each MCP route (`mcpRoutes`; the goals server at `/mcp/goals`, the memory server
+// at `/mcp/memory`) is an app MCP endpoint behind the same guards plus its own bearer token (401
+// before the body is read; `mcp/mcpEndpoint.ts` parses the JSON-RPC body). A path under `/mcp/`
+// with no route is 404. Every other path is a hook, as before.
 // Never throws past the request handler.
 // [.claude/rules/zod-boundaries.md; spec hookServer.ts Code Map]
 

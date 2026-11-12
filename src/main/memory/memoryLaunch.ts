@@ -51,11 +51,17 @@ export interface MemorySpawnExtras {
   env: Record<string, string>
 }
 
-export const NO_MEMORY_EXTRAS: MemorySpawnExtras = {
+/** Frozen, env included: one write can never turn the env on for a later launch. Every off branch
+ *  of `memorySpawnExtras` returns a fresh copy (`noMemory`), so a caller may still write to it. */
+export const NO_MEMORY_EXTRAS: Readonly<MemorySpawnExtras> = Object.freeze({
   appendPrompt: null,
   mcpConfigPath: null,
   allowedTools: null,
-  env: {}
+  env: Object.freeze({})
+})
+
+function noMemory(): MemorySpawnExtras {
+  return { ...NO_MEMORY_EXTRAS, env: {} }
 }
 
 /** claude names an MCP tool `mcp__<server>__<tool>`; pre-allowed, no tool stops on a permission
@@ -83,8 +89,9 @@ export interface MemorySpawnDeps {
 /**
  * The memory part of ONE spawn of `sessionId`, in `launch.cwd` for `launch.workspaceId`.
  * `previousSessionId` is the id this terminal's last spawn minted (a Reopen replaces it): its
- * token and file go first. Any throw on the way (an unreadable index) leaves no token or file
- * behind and launches the session as if memory were off.
+ * token and file go first, whether or not memory is still on. The whole body is guarded: any throw
+ * (a getter, an unreadable index, the activity record) leaves no token or file of `sessionId`
+ * behind, logs `code=memory_launch_failed`, and launches the session as if memory were off.
  */
 export function memorySpawnExtras(
   deps: MemorySpawnDeps,
@@ -92,17 +99,17 @@ export function memorySpawnExtras(
   launch: { cwd: string; workspaceId: string },
   previousSessionId: string | null
 ): MemorySpawnExtras {
-  const store = deps.store()
-  // The hook port down is already on screen (`ServerHealthBanner`): no log per launch.
-  if (!deps.enabled() || !deps.hookListening() || store === null) return NO_MEMORY_EXTRAS
-  if (previousSessionId !== null) {
-    deps.tokens.revoke(previousSessionId)
-    deps.configs.remove(previousSessionId)
-  }
   try {
+    if (previousSessionId !== null) {
+      deps.tokens.revoke(previousSessionId)
+      deps.configs.remove(previousSessionId)
+    }
+    const store = deps.store()
+    // The hook port down is already on screen (`ServerHealthBanner`): no log per launch.
+    if (!deps.enabled() || !deps.hookListening() || store === null) return noMemory()
     const index = buildMemoryIndex(store.indexRows(launch.workspaceId, launch.cwd))
     const path = grantMcpConfig(deps, AREA, { sessionId })
-    if (path === null) return NO_MEMORY_EXTRAS
+    if (path === null) return noMemory()
     deps.activity.injected(sessionId, { chars: index.text.length, itemIds: index.itemIds })
     return {
       appendPrompt: index.text,
@@ -114,7 +121,7 @@ export function memorySpawnExtras(
     deps.tokens.revoke(sessionId)
     deps.configs.remove(sessionId)
     deps.log(`${LOG_PREFIX} code=memory_launch_failed`)
-    return NO_MEMORY_EXTRAS
+    return noMemory()
   }
 }
 

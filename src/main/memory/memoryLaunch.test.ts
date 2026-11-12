@@ -168,19 +168,72 @@ describe('memorySpawnExtras', () => {
     expect(on.injected).toEqual([])
   })
 
-  it('an unreadable index launches as if memory were off, with no token, no file and a code', () => {
+  it('an unreadable index launches as if memory were off, mints nothing and logs a code', () => {
     const store = openStore()
     store.indexRows = () => {
       throw new Error('memory_read_failed')
     }
     const on = spawnDeps({ store: () => store })
     const mint = vi.spyOn(on.tokens, 'mint')
+    const write = vi.spyOn(on.configs, 'write')
     const out = memorySpawnExtras(on, 's1', launch, null)
     expect(out).toEqual(NO_MEMORY_EXTRAS)
-    const tokens = mint.mock.results.map((r) => r.value as string)
-    expect(tokens.every((t) => on.tokens.resolve(t) === null)).toBe(true)
+    expect(mint).not.toHaveBeenCalled()
+    expect(write).not.toHaveBeenCalled()
     expect(on.lines).toEqual(['[claude-watcher][memory] code=memory_launch_failed'])
     expect(on.injected).toEqual([])
+  })
+
+  it('a launch that fails after its token is made leaves no token and no config file', () => {
+    const on = spawnDeps({
+      activity: {
+        injected: () => {
+          throw new Error('boom')
+        }
+      }
+    })
+    const mint = vi.spyOn(on.tokens, 'mint')
+    const write = vi.spyOn(on.configs, 'write')
+    const out = memorySpawnExtras(on, 's1', launch, null)
+    expect(out).toEqual(NO_MEMORY_EXTRAS)
+    const token = mint.mock.results[0]?.value as string
+    const path = write.mock.results[0]?.value as string
+    expect(typeof token).toBe('string')
+    expect(on.tokens.resolve(token)).toBeNull()
+    expect(existsSync(path)).toBe(false)
+    expect(on.lines).toEqual(['[claude-watcher][memory] code=memory_launch_failed'])
+  })
+
+  it('a getter that throws launches as if memory were off, with a code', () => {
+    const on = spawnDeps({
+      enabled: () => {
+        throw new Error('settings gone')
+      }
+    })
+    expect(memorySpawnExtras(on, 's1', launch, null)).toEqual(NO_MEMORY_EXTRAS)
+    expect(on.lines).toEqual(['[claude-watcher][memory] code=memory_launch_failed'])
+  })
+
+  it('a Reopen after memory was turned off still drops the old token and config file', () => {
+    let enabled = true
+    const on = spawnDeps({ enabled: () => enabled })
+    const mint = vi.spyOn(on.tokens, 'mint')
+    const first = memorySpawnExtras(on, 's0', launch, null)
+    const oldToken = mint.mock.results[0]?.value as string
+    enabled = false
+    expect(memorySpawnExtras(on, 's1', launch, 's0')).toEqual(NO_MEMORY_EXTRAS)
+    expect(on.tokens.resolve(oldToken)).toBeNull()
+    expect(existsSync(first.mcpConfigPath ?? '')).toBe(false)
+  })
+
+  it("a write to one launch's empty env never turns the env on for a later launch", () => {
+    const off = spawnDeps({ enabled: () => false })
+    const first = memorySpawnExtras(off, 's1', launch, null)
+    first.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1'
+    expect(memorySpawnExtras(off, 's2', launch, null).env).toEqual({})
+    expect(NO_MEMORY_EXTRAS.env).toEqual({})
+    expect(Object.isFrozen(NO_MEMORY_EXTRAS)).toBe(true)
+    expect(Object.isFrozen(NO_MEMORY_EXTRAS.env)).toBe(true)
   })
 })
 
