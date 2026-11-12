@@ -12,7 +12,7 @@
 // Its own `.ts` file so `ManageDialogParts.tsx` exports components only
 // (react-refresh/only-export-components).
 import { createContext, use, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { toast, toastStore } from '../../stores/toastStore'
+import { dialogToastKey, toast, toastStore } from '../../stores/toastStore'
 import { useLeaving } from '../Presence/leaving'
 
 export interface ManageDialogState {
@@ -96,7 +96,7 @@ export function useManageDialog(options: UseManageDialogOptions): ManageDialogCo
   const [armedKey, setArmedKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
-  const key = `dialog:${testIdPrefix}`
+  const key = dialogToastKey(testIdPrefix)
 
   const actions = useMemo<ManageDialogActions>(() => {
     const clearError = (): void => {

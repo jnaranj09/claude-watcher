@@ -619,12 +619,12 @@ describe('ManageDialog — public theme hooks', () => {
     }
   })
 
-  it('Footer carries data-toast-clearance (the toast stack rises above it when it would cover it)', () => {
+  it("Footer carries data-toast-clearance (the dialog's toast stack rises above it when it would cover it)", () => {
     const { r } = render()
     expect(q(r, '[data-manage-footer]')).toHaveAttribute('data-toast-clearance')
   })
 
-  it('panel carries data-toast-anchor (the toast stack sits inside it)', () => {
+  it("panel carries data-toast-anchor (the dialog's toast stack sits inside it)", () => {
     const { r } = render()
     expect(q(r, '[data-manage-panel]')).toHaveAttribute('data-toast-anchor')
   })

@@ -1,7 +1,7 @@
-// toastPlacement — with no dialog the stack sits in the board corner; with one open it sits inside
-// the dialog's panel (`[data-toast-anchor]`), bottom-right, and rises above a button row
-// (`[data-toast-clearance]`) only when it would cover it. A closing dialog (`[data-leaving]`
-// ancestor) does not hold the stack.
+// toastPlacement (the DIALOG toast stack) — with no dialog it sits in the window corner; with one
+// open it sits inside the dialog's panel (`[data-toast-anchor]`), bottom-right, and rises above a
+// button row (`[data-toast-clearance]`) only when it would cover it. A closing dialog
+// (`[data-leaving]` ancestor) does not hold the stack.
 import { describe, it, expect, afterEach } from 'vitest'
 import { toastPlacement } from './toastPlacement'
 
@@ -34,7 +34,7 @@ function addRow(panel: HTMLElement, top: number, bottom: number): HTMLElement {
 }
 
 describe('toastPlacement', () => {
-  it('is the board corner with no dialog open', () => {
+  it('is the window corner with no dialog open', () => {
     expect(toastPlacement(document, VIEWPORT, STACK)).toEqual({ right: 0, bottom: 0, room: null })
   })
   it("sits in the panel's bottom-right corner, as wide as the panel at most", () => {

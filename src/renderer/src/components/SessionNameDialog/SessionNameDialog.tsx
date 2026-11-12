@@ -31,10 +31,10 @@ import { TextInput } from '../TextInput/TextInput'
 import { Callout } from '../Callout/Callout'
 import styles from './SessionNameDialog.module.css'
 import { leavingProps, useLeaving } from '../Presence/leaving'
-import { toast, toastStore } from '../../stores/toastStore'
+import { dialogToastKey, toast, toastStore } from '../../stores/toastStore'
 
 /** The refusal's toast key (spec 2026-10-26 dialog toasts): one toast, replaced by the next. */
-const ERROR_TOAST_KEY = 'dialog:session-name'
+const ERROR_TOAST_KEY = dialogToastKey('session-name')
 
 export interface SessionNameDialogProps {
   /** The value the input starts at (the cwd basename on create; the current name on rename). */

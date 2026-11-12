@@ -4,7 +4,10 @@
 //
 // A toast may carry a `key`: one toast per key. A push with a key removes the live toast(s) of
 // that key at once (no fade, timers stopped), then adds the new one — a dialog's one result
-// (`dialog:<prefix>`) never stacks. `dismissKey` fades a key's toast (optionally only one kind).
+// (`dialog:<prefix>`, built by `dialogToastKey`) never stacks. `dismissKey` fades a key's toast
+// (optionally only one kind). That key is also what makes a toast a DIALOG's toast
+// (`isDialogToast`): the Toaster draws those inside the dialog's panel and every other toast (a
+// board toast) in the window corner.
 //
 // At most TOAST_MAX on screen (a 4th drops the oldest at once). Success/info close after TOAST_MS,
 // TOAST_ACTION_MS with an action; an error stays until dismissed. Hover/focus pauses a toast's
@@ -55,6 +58,17 @@ export interface Toast {
 
 export type ToastInput = Omit<Toast, 'id' | 'leaving'>
 export type ToastOptions = Omit<ToastInput, 'kind' | 'title'>
+
+/** The key prefix of a dialog's own result toast. One owner: `dialogToastKey` builds a key with
+ *  it and `isDialogToast` reads it. */
+const DIALOG_TOAST_PREFIX = 'dialog:'
+
+/** The key of a dialog's ONE result toast (`dialog:<prefix>`; a Manage dialog's `testIdPrefix`). */
+export const dialogToastKey = (prefix: string): string => `${DIALOG_TOAST_PREFIX}${prefix}`
+
+/** True for a dialog's own result toast. Any other toast is a board toast. */
+export const isDialogToast = (t: Pick<Toast, 'key'>): boolean =>
+  t.key?.startsWith(DIALOG_TOAST_PREFIX) === true
 
 export const TOAST_MAX = 3
 export const TOAST_MS = 5000

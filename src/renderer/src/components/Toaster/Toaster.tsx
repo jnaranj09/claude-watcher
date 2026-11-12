@@ -11,12 +11,16 @@
 // `[data-toast-kind]`, `[data-toast-mark]`, `[data-toast-key]`, `[data-toast-anchor]` and
 // `[data-toast-clearance]`, never a test id.
 //
-// While a dialog is open the stack sits INSIDE its panel (`[data-toast-anchor]`), in the panel's
+// Two stacks (operator, 2026-11-12: an `Archived` toast jumped from the window corner into the name
+// prompt when it opened). A BOARD toast (any toast that is not a dialog's own result) keeps the
+// window's bottom-right corner, dialog open or not. A DIALOG's toast (`isDialogToast`: keyed
+// `dialog:<prefix>`) sits INSIDE the open dialog's panel (`[data-toast-anchor]`), in the panel's
 // bottom-right corner, and rises above the panel's button row (`[data-toast-clearance]`) only when
-// it would cover it (`toastPlacement`). While toasts exist the Toaster measures that (on a toast
-// change, a modal change, a resize, and any DOM change — a form opening under a toast already up,
-// a dialog starting to leave) into `--toast-right`, `--toast-bottom` and `--toast-room` on the
-// region.
+// it would cover it (`toastPlacement`). While dialog toasts exist the Toaster measures that (on a
+// toast change, a modal change, a resize, and any DOM change — a form opening under a toast
+// already up, a dialog starting to leave) into `--toast-right`, `--toast-bottom` and
+// `--toast-room` on the dialog stack. The board stack never gets them. The dialog stack is drawn
+// last, so it paints over the board stack where a small window makes them meet.
 import { useLayoutEffect, useRef, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
@@ -24,6 +28,7 @@ import { Button } from '../Button/Button'
 import { LucideIcon, type LucideIconName } from '../Icon/LucideIcon'
 import { WorkspaceLabel } from '../WorkspaceLabel/WorkspaceLabel'
 import {
+  isDialogToast,
   selectToasts,
   toastStore,
   type Toast,
@@ -48,11 +53,13 @@ export interface ToasterProps {
 export function Toaster({ store = toastStore }: ToasterProps): JSX.Element {
   const toasts = useStore(store, selectToasts)
   const modalOpen = useBoard(modalOpenIn)
-  const region = useRef<HTMLElement>(null)
-  const hasToasts = toasts.length > 0
+  const dialogStack = useRef<HTMLDivElement>(null)
+  const boardToasts = toasts.filter((t) => !isDialogToast(t))
+  const dialogToasts = toasts.filter(isDialogToast)
+  const hasDialogToasts = dialogToasts.length > 0
   useLayoutEffect(() => {
     const measure = (): void => {
-      const el = region.current
+      const el = dialogStack.current
       if (el === null) return
       const place = toastPlacement(
         document,
@@ -68,7 +75,7 @@ export function Toaster({ store = toastStore }: ToasterProps): JSX.Element {
       else el.style.setProperty('--toast-room', `${place.room}px`)
     }
     measure()
-    if (!hasToasts) return undefined
+    if (!hasDialogToasts) return undefined
     window.addEventListener('resize', measure)
     const observer = new MutationObserver(measure)
     observer.observe(document.body, {
@@ -81,17 +88,19 @@ export function Toaster({ store = toastStore }: ToasterProps): JSX.Element {
       window.removeEventListener('resize', measure)
       observer.disconnect()
     }
-  }, [toasts, modalOpen, hasToasts])
+  }, [toasts, modalOpen, hasDialogToasts])
   return (
-    <section
-      className={styles.region}
-      ref={region}
-      aria-label="Notifications"
-      data-testid="toaster"
-    >
-      {toasts.map((t) => (
-        <ToastCard key={t.id} toast={t} store={store} modalOpen={modalOpen} />
-      ))}
+    <section className={styles.region} aria-label="Notifications" data-testid="toaster">
+      <div className={styles.stack} data-testid="toast-stack-board">
+        {boardToasts.map((t) => (
+          <ToastCard key={t.id} toast={t} store={store} modalOpen={modalOpen} />
+        ))}
+      </div>
+      <div className={styles.stack} ref={dialogStack} data-testid="toast-stack-dialog">
+        {dialogToasts.map((t) => (
+          <ToastCard key={t.id} toast={t} store={store} modalOpen={modalOpen} />
+        ))}
+      </div>
     </section>
   )
 }

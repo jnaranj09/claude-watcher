@@ -1,5 +1,6 @@
-// Where the toast stack sits, in px from the viewport's right and bottom edges, before the Toaster's
-// --space-4 gutter is added. With no dialog open: 0/0, the board corner. With one open, the stack
+// Where the DIALOG toast stack sits (a dialog's own result toasts; a board toast never moves from
+// the window corner), in px from the viewport's right and bottom edges, before the Toaster's
+// --space-4 gutter is added. With no dialog open: 0/0, the window corner. With one open, the stack
 // sits INSIDE the dialog's panel (`[data-toast-anchor]`), in its bottom-right corner, and `room` is
 // the panel's width so the stack never pokes out of it. A button row (`[data-toast-clearance]`) in
 // the panel that the stack would cover there pushes it up to sit above that row instead. A dialog

@@ -524,7 +524,8 @@ in a visible result".
   new result replaces the last. A field error or standing notice stays inline (a `Callout` by
   what it describes), never a toast.
 - **Small action on a control that stays** (Copy, Reload): the button's own `feedback`.
-- **Board-level or off-screen result:** a toast.
+- **Board-level or off-screen result:** a toast in the window's bottom-right corner. It stays
+  there when a dialog opens; only a dialog's own result sits inside the dialog.
 - Success shows for the toast time (5 s). An error stays until the next action, a ✕ or the dialog
   closing.
 - Every async button uses `useAsyncAction` or `busy`, so pressing twice does nothing.
@@ -675,6 +676,7 @@ Specs and plans are git-ignored. Write them there and never `git add` them.
 | Settings `Saved` beside the pane heading                                                            | `Saved` is the dialog's result toast; no pane heading                                                                                 | The heading repeated the rail row                                                                            |
 | A dialog's result as a `Callout` in its message slot, under the columns                             | A dialog result toast with a ✓ / ! disc, raised above the dialog's footer; field errors stay inline                                   | Owner, 2026-10-26: "it doesnt look like the theme / it doesnt look like a bubble / i dont like its location" |
 | A dialog toast floating over the dialog, half outside its right edge                                | The dialog toast sits whole inside the dialog's panel, bottom-right (`[data-toast-anchor]`)                                           | Owner, 2026-10-29: "dialog toasts to stop appearing floating and appear completely inside the page"          |
+| Every toast moving into a dialog's panel when a dialog opens (one stack)                            | Two stacks: a board toast keeps the window corner; only a dialog's own result toast sits in its panel                                 | Owner, 2026-11-12: an `Archived` toast jumped "to the center of the screen" when the name prompt opened      |
 | CSS-only glass                                                                                      | WebGL board glass; CSS for overlays and as fallback                                                                                   | The canvas look; CSS cannot bend or self-light                                                               |
 | Graphite default wallpaper                                                                          | Lake                                                                                                                                  | Owner pick 2026-10-08                                                                                        |
 | Every on state is lit                                                                               | The favorite pin's filled shape is its on look, no `lit`                                                                              | Owner 2026-10-13: quiet in every row                                                                         |

@@ -490,11 +490,14 @@ until `maintainability.md` rule 3's guard lands; then copy maps from `ipcErrorCo
 
 - **Toasts:** `stores/toastStore.ts` (`toast.success/error/info`) + `<Toaster />` mounted ONCE in
   `App.tsx`, outside the `inert` subtree. Max 3 (4th drops oldest); success/info 5 s (6 s with
-  action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`; while a
-  dialog is open the stack sits whole INSIDE its panel (`[data-toast-anchor]`), a `--space-4` in
+  action); error stays; hover/focus pauses. Bottom-right, `--space-4`, `z-index: 70`. TWO stacks
+  (owner, 2026-11-12). A BOARD toast (any toast that is not a dialog's result) keeps the window
+  corner, dialog open or not: it never moves into a dialog that opens. A DIALOG's toast
+  (`isDialogToast`: its key comes from `dialogToastKey`) sits, while a dialog is open, whole
+  INSIDE its panel (`[data-toast-anchor]`), a `--space-4` in
   from the panel's bottom-right corner and never wider than the panel, and rises a `--space-4`
   above its button row (`[data-toast-clearance]`) only when it would cover it
-  (`Toaster/toastPlacement.ts` → `--toast-right` / `--toast-bottom` / `--toast-room`), so a toast
+  (`Toaster/toastPlacement.ts` → `--toast-right` / `--toast-bottom` / `--toast-room`), so it
   never floats half outside the dialog or covers `[Delete] [Save]`. Anatomy: disc
   (success and error), title, optional `detail`, optional action (`Button primary sm` with its
   icon, `ToastAction.icon`), ✕ (`Button secondary xs icon="round"`, `aria-label="Dismiss"`).

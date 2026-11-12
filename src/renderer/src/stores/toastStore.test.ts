@@ -3,6 +3,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   createToastStore,
+  dialogToastKey,
+  isDialogToast,
   toast,
   toastStore,
   TOAST_ACTION_MS,
@@ -203,6 +205,16 @@ describe('toastStore', () => {
     expect(store.getState().toasts.map((t) => t.leaving)).toEqual([true, false])
     clock.advance(TOAST_EXIT_MS)
     expect(titles(store)).toEqual(['other'])
+  })
+
+  it("a toast keyed by dialogToastKey is a dialog's toast", () => {
+    expect(dialogToastKey('templates')).toBe('dialog:templates')
+    expect(isDialogToast({ key: dialogToastKey('templates') })).toBe(true)
+  })
+
+  it("an unkeyed toast, or one with another key, is not a dialog's toast", () => {
+    expect(isDialogToast({})).toBe(false)
+    expect(isDialogToast({ key: 'k1' })).toBe(false)
   })
 
   it('toast.success / error / info push onto the app singleton', () => {

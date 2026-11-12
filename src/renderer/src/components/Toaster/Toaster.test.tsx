@@ -1,6 +1,7 @@
 // Action feedback (spec 2026-09-29 §1.2) — the Toaster: a labelled region, status vs alert roles,
 // the success/error mark, ✕, the action, the action NOT rendered while a modal is open,
-// hover/focus pausing the timer, and a workspace drawn as its tint.
+// hover/focus pausing the timer, and a workspace drawn as its tint. The two stacks' placement is
+// pinned in Toaster.placement.test.tsx.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -96,10 +97,10 @@ describe('Toaster', () => {
   it('a keyed toast exposes data-toast-key; an unkeyed one does not', () => {
     const { store } = setup()
     act(() => {
-      store.getState().push({ kind: 'success', title: 'ok', key: 'dialog:x' })
+      store.getState().push({ kind: 'success', title: 'ok', key: 'k1' })
       store.getState().push({ kind: 'info', title: 'fyi' })
     })
-    expect(cards().map((c) => c.getAttribute('data-toast-key'))).toEqual(['dialog:x', null])
+    expect(cards().map((c) => c.getAttribute('data-toast-key'))).toEqual(['k1', null])
   })
 
   it('✕ dismisses: the toast fades (data-leaving) and is gone after the exit', () => {
@@ -266,45 +267,5 @@ describe('Toaster — motion (spec 2026-10-04 §7)', () => {
     const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
     expect(reduce).toMatch(/translate:\s*none;/)
     expect(reduce).toMatch(/transition-property:\s*opacity;/)
-  })
-})
-
-describe('Toaster — placement', () => {
-  it('region style puts the stack inside a dialog panel that opens while a toast is showing', async () => {
-    const { store } = setup()
-    act(() => {
-      store.getState().push({ kind: 'success', title: 'ok' })
-    })
-    const region = r?.container.querySelector<HTMLElement>('[data-testid="toaster"]')
-    expect(region?.style.getPropertyValue('--toast-bottom')).toBe('0px')
-    expect(region?.style.getPropertyValue('--toast-room')).toBe('')
-    const panel = document.createElement('div')
-    panel.setAttribute('data-toast-anchor', '')
-    panel.getBoundingClientRect = () =>
-      ({
-        top: 40,
-        right: window.innerWidth - 50,
-        bottom: window.innerHeight - 40,
-        width: 900
-      }) as DOMRect
-    await act(async () => {
-      document.body.append(panel)
-      await Promise.resolve()
-    })
-    expect(region?.style.getPropertyValue('--toast-right')).toBe('50px')
-    expect(region?.style.getPropertyValue('--toast-bottom')).toBe('40px')
-    expect(region?.style.getPropertyValue('--toast-room')).toBe('900px')
-    panel.remove()
-  })
-
-  it('the stack sits a --space-4 inside the placement, no wider than the room', () => {
-    const region = cssRule('components/Toaster/Toaster.module.css', '.region')
-    expect(region).toMatch(/right:\s*calc\(var\(--toast-right,\s*0px\)\s*\+\s*var\(--space-4\)\);/)
-    expect(region).toMatch(
-      /bottom:\s*calc\(var\(--toast-bottom,\s*0px\)\s*\+\s*var\(--space-4\)\);/
-    )
-    expect(region).toMatch(
-      /width:\s*min\(360px,\s*calc\(var\(--toast-room,\s*100vw\)\s*-\s*2\s*\*\s*var\(--space-4\)\)\);/
-    )
   })
 })
